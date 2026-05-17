@@ -21,6 +21,7 @@ mod fire;
 mod fluid;
 mod gravity;
 mod inhabited_time;
+mod item_catalog;
 mod light;
 mod log;
 mod network;
