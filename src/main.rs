@@ -60,6 +60,7 @@ mod runtime;
 mod scheduled_tick;
 mod seed_validation;
 mod server_properties;
+mod spawning;
 mod special_block;
 mod storage;
 mod vehicle_entity;
