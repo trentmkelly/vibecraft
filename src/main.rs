@@ -48,6 +48,7 @@ mod light;
 mod living_entity;
 mod log;
 mod management_security;
+mod map_state;
 mod mob_family;
 mod mob_interaction;
 mod movement_physics;
