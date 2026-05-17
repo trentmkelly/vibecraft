@@ -28,6 +28,7 @@ mod crash;
 mod creative_inventory;
 mod damage_type;
 mod dispenser_cauldron;
+mod dialog_system;
 mod enchantment_system;
 mod entity_category;
 mod entity_physics;
