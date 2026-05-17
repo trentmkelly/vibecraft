@@ -145,6 +145,7 @@ pub struct ServerCommandState {
     pub return_events: Vec<ReturnCommandEvent>,
     pub ride_events: Vec<RideCommandEvent>,
     pub entity_mounts: Vec<EntityMount>,
+    pub entity_positions: Vec<EntityPosition>,
     pub entity_states: Vec<EntityState>,
     pub entity_tags: Vec<EntityTags>,
     pub world_spawn: RespawnData,
@@ -529,6 +530,13 @@ pub struct EntityMount {
     pub vehicle: EntityRef,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntityPosition {
+    pub entity: EntityRef,
+    pub dimension: String,
+    pub position: Vec3,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityState {
     pub entity: EntityRef,
@@ -645,6 +653,9 @@ pub enum CommandError {
     ScheduleCantRemove,
     ScheduleMacro,
     InvalidArmorTrimPattern,
+    SpreadPlayersInvalidMaxHeight,
+    SpreadPlayersFailedEntities,
+    SpreadPlayersFailedTeams,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -763,6 +774,7 @@ impl Default for ServerCommandState {
             return_events: Vec::new(),
             ride_events: Vec::new(),
             entity_mounts: Vec::new(),
+            entity_positions: Vec::new(),
             entity_states: Vec::new(),
             entity_tags: Vec::new(),
             world_spawn: RespawnData::default(),
@@ -1165,6 +1177,7 @@ pub fn execute_builtin_command(
         "spectate" => spectate_command(state, &parts),
         "spawnpoint" => spawnpoint_command(state, &parts),
         "spawn_armor_trims" => spawn_armor_trims_command(state, &parts),
+        "spreadplayers" => spreadplayers_command(state, &parts),
         "version" => {
             if parts.len() != 1 {
                 return Err(CommandError::InvalidSyntax);
@@ -2122,6 +2135,160 @@ fn spawn_armor_trims_command(
         feedback_key: "commands.spawn_armor_trims.success",
         broadcast_to_admins: true,
     })
+}
+
+fn spreadplayers_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (center_x, center_z, spread_distance, max_range, max_height, respect_teams, targets) =
+        match parts {
+            ["spreadplayers", x, z, spread, range, "under", height, respect, targets @ ..]
+                if !targets.is_empty() =>
+            {
+                (
+                    parse_f64(x)?,
+                    parse_f64(z)?,
+                    parse_non_negative_f32(spread)? as f64,
+                    parse_positive_f32(range)? as f64,
+                    height
+                        .parse::<i32>()
+                        .map_err(|_| CommandError::InvalidSyntax)?,
+                    parse_bool(respect)?,
+                    targets,
+                )
+            }
+            ["spreadplayers", x, z, spread, range, respect, targets @ ..]
+                if !targets.is_empty() =>
+            {
+                (
+                    parse_f64(x)?,
+                    parse_f64(z)?,
+                    parse_non_negative_f32(spread)? as f64,
+                    parse_positive_f32(range)? as f64,
+                    320,
+                    parse_bool(respect)?,
+                    targets,
+                )
+            }
+            _ => return Err(CommandError::InvalidSyntax),
+        };
+    if max_height < -64 {
+        return Err(CommandError::SpreadPlayersInvalidMaxHeight);
+    }
+    let targets = targets
+        .iter()
+        .map(|target| entity_ref(target))
+        .collect::<Vec<_>>();
+    let groups = spread_groups(state, &targets, respect_teams);
+    if groups.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    if groups.len() > 1 && max_range * 2.0 < spread_distance {
+        return Err(if respect_teams {
+            CommandError::SpreadPlayersFailedTeams
+        } else {
+            CommandError::SpreadPlayersFailedEntities
+        });
+    }
+    let positions = spread_positions(center_x, center_z, max_range, groups.len(), max_height);
+    for (group_index, group) in groups.iter().enumerate() {
+        for target in group {
+            upsert_entity_position(
+                state,
+                target.clone(),
+                Vec3 {
+                    x: positions[group_index].x,
+                    y: positions[group_index].y,
+                    z: positions[group_index].z,
+                },
+            );
+        }
+    }
+    Ok(CommandResult {
+        success_count: groups.len() as i32,
+        feedback_key: if respect_teams {
+            "commands.spreadplayers.success.teams"
+        } else {
+            "commands.spreadplayers.success.entities"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn spread_groups(
+    state: &ServerCommandState,
+    targets: &[EntityRef],
+    respect_teams: bool,
+) -> Vec<Vec<EntityRef>> {
+    if !respect_teams {
+        return targets.iter().cloned().map(|target| vec![target]).collect();
+    }
+    let mut groups: Vec<(Option<String>, Vec<EntityRef>)> = Vec::new();
+    for target in targets {
+        let team = state
+            .player_teams
+            .iter()
+            .find(|membership| {
+                membership.player.name == target.id || membership.player.uuid == target.id
+            })
+            .map(|membership| membership.team.clone());
+        if let Some((_, members)) = groups
+            .iter_mut()
+            .find(|(entry_team, _)| *entry_team == team)
+        {
+            members.push(target.clone());
+        } else {
+            groups.push((team, vec![target.clone()]));
+        }
+    }
+    groups.into_iter().map(|(_, members)| members).collect()
+}
+
+fn spread_positions(
+    center_x: f64,
+    center_z: f64,
+    max_range: f64,
+    count: usize,
+    max_height: i32,
+) -> Vec<Vec3> {
+    let radius = max_range.max(0.0);
+    let y = (max_height + 1) as f64;
+    if count == 1 {
+        return vec![Vec3 {
+            x: center_x.floor() + 0.5,
+            y,
+            z: center_z.floor() + 0.5,
+        }];
+    }
+    (0..count)
+        .map(|index| {
+            let angle = (index as f64 / count as f64) * std::f64::consts::TAU;
+            Vec3 {
+                x: (center_x + angle.cos() * radius).floor() + 0.5,
+                y,
+                z: (center_z + angle.sin() * radius).floor() + 0.5,
+            }
+        })
+        .collect()
+}
+
+fn upsert_entity_position(state: &mut ServerCommandState, entity: EntityRef, position: Vec3) {
+    let dimension = state.command_source_dimension.clone();
+    if let Some(existing) = state
+        .entity_positions
+        .iter_mut()
+        .find(|entry| entry.entity.id == entity.id)
+    {
+        existing.dimension = dimension;
+        existing.position = position;
+    } else {
+        state.entity_positions.push(EntityPosition {
+            entity,
+            dimension,
+            position,
+        });
+    }
 }
 
 fn spectate_command(
@@ -3538,6 +3705,15 @@ fn parse_non_negative_f32(input: &str) -> Result<f32, CommandError> {
     }
 }
 
+fn parse_positive_f32(input: &str) -> Result<f32, CommandError> {
+    let value = parse_non_negative_f32(input)?;
+    if value > 0.0 {
+        Ok(value)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
 fn parse_bounded_f32(input: &str, min: f32, max: f32) -> Result<f32, CommandError> {
     let value = parse_non_negative_f32(input)?;
     if (min..=max).contains(&value) {
@@ -3617,6 +3793,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "/spawn_armor_trims <pattern|*_lag_my_game>",
         ),
         ("spawnpoint", "/spawnpoint [targets] [pos] [rotation]"),
+        (
+            "spreadplayers",
+            "/spreadplayers <center> <spreadDistance> <maxRange> [under <maxHeight>] <respectTeams> <targets>",
+        ),
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
         (
@@ -4507,6 +4687,133 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "spawn_armor_trims sentry"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn spreadplayers_places_entities_or_team_groups() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            command_source_dimension: "minecraft:the_nether".to_string(),
+            player_teams: vec![
+                TeamMembership {
+                    player: steve.clone(),
+                    team: "red".to_string(),
+                },
+                TeamMembership {
+                    player: alex.clone(),
+                    team: "red".to_string(),
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("spreadplayers"),
+            PermissionLevel::Gamemasters
+        );
+
+        let separate = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spreadplayers 0 0 2 10 false Steve Alex",
+        )
+        .unwrap();
+        assert_eq!(separate.success_count, 2);
+        assert_eq!(
+            separate.feedback_key,
+            "commands.spreadplayers.success.entities"
+        );
+        assert_eq!(state.entity_positions.len(), 2);
+        assert_ne!(
+            state.entity_positions[0].position,
+            state.entity_positions[1].position
+        );
+        assert_eq!(
+            state.entity_positions[0].dimension,
+            "minecraft:the_nether".to_string()
+        );
+
+        let teams = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spreadplayers 5 5 2 10 under 80 true Steve Alex",
+        )
+        .unwrap();
+        assert_eq!(teams.success_count, 1);
+        assert_eq!(teams.feedback_key, "commands.spreadplayers.success.teams");
+        assert_eq!(
+            state
+                .entity_positions
+                .iter()
+                .find(|entry| entry.entity.id == "Steve")
+                .unwrap()
+                .position,
+            state
+                .entity_positions
+                .iter()
+                .find(|entry| entry.entity.id == "Alex")
+                .unwrap()
+                .position
+        );
+        assert_eq!(
+            state
+                .entity_positions
+                .iter()
+                .find(|entry| entry.entity.id == "Steve")
+                .unwrap()
+                .position
+                .y,
+            81.0
+        );
+    }
+
+    #[test]
+    fn spreadplayers_rejects_invalid_height_impossible_spacing_and_syntax() {
+        let mut state = ServerCommandState::default();
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spreadplayers 0 0 1 10 under -65 false Steve"
+            ),
+            Err(CommandError::SpreadPlayersInvalidMaxHeight)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spreadplayers 0 0 5 1 false Steve Alex"
+            ),
+            Err(CommandError::SpreadPlayersFailedEntities)
+        );
+        state.player_teams = vec![
+            TeamMembership {
+                player: NameAndId::create_offline("Steve"),
+                team: "red".to_string(),
+            },
+            TeamMembership {
+                player: NameAndId::create_offline("Alex"),
+                team: "blue".to_string(),
+            },
+        ];
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spreadplayers 0 0 5 1 true Steve Alex"
+            ),
+            Err(CommandError::SpreadPlayersFailedTeams)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spreadplayers 0 0 1 0 false Steve"
             ),
             Err(CommandError::InvalidSyntax)
         );
