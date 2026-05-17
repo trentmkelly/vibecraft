@@ -305,6 +305,68 @@ pub struct BuiltInRegistries {
     pub biomes: Registry<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataPackRegistryEntry {
+    pub registry: Identifier,
+    pub location: Identifier,
+    pub value: String,
+    pub lifecycle: Lifecycle,
+}
+
+#[derive(Debug, Clone)]
+pub struct DynamicRegistryAccess {
+    registries: BTreeMap<Identifier, Registry<String>>,
+}
+
+impl DynamicRegistryAccess {
+    pub fn from_builtins(builtins: &BuiltInRegistries) -> Self {
+        let mut registries = BTreeMap::new();
+        for registry in [
+            builtins.blocks.clone(),
+            builtins.items.clone(),
+            builtins.entity_types.clone(),
+            builtins.dimension_types.clone(),
+            builtins.biomes.clone(),
+        ] {
+            registries.insert(registry.registry_id().clone(), registry);
+        }
+        Self { registries }
+    }
+
+    pub fn apply_data_pack_entries(
+        &mut self,
+        entries: impl IntoIterator<Item = DataPackRegistryEntry>,
+    ) -> Result<(), String> {
+        for entry in entries {
+            let registry_id = entry.registry.clone();
+            let registry = self
+                .registries
+                .entry(registry_id.clone())
+                .or_insert_with(|| Registry::new(registry_id));
+            if registry.is_frozen() {
+                let snapshot = registry.serialize_with(Clone::clone);
+                *registry = Registry::deserialize_with(snapshot, |value| Ok(value.to_string()))?;
+            }
+            registry.apply_data_pack_overrides([(entry.location, entry.value, entry.lifecycle)])?;
+        }
+        Ok(())
+    }
+
+    pub fn freeze_all(&mut self) {
+        for registry in self.registries.values_mut() {
+            registry.freeze();
+        }
+    }
+
+    pub fn registry(&self, id: &Identifier) -> Option<&Registry<String>> {
+        self.registries.get(id)
+    }
+
+    pub fn registry_ids(&self) -> Vec<Identifier> {
+        self.registries.keys().cloned().collect()
+    }
+}
+
 impl BuiltInRegistries {
     pub fn bootstrap_26_1_2() -> Self {
         let mut blocks = Registry::new(Identifier::parse(registries::BLOCK).unwrap());
@@ -720,6 +782,53 @@ mod tests {
         assert!(builtins.entity_types.is_frozen());
         assert!(builtins.dimension_types.is_frozen());
         assert!(builtins.biomes.is_frozen());
+    }
+
+    #[test]
+    fn dynamic_registry_access_applies_datapack_entries_over_builtins() {
+        let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+        let mut dynamic = super::DynamicRegistryAccess::from_builtins(&builtins);
+        dynamic
+            .apply_data_pack_entries(vec![
+                super::DataPackRegistryEntry {
+                    registry: Identifier::parse(registries::BIOME).unwrap(),
+                    location: Identifier::parse("minecraft:plains").unwrap(),
+                    value: "pack plains".to_string(),
+                    lifecycle: Lifecycle::Experimental,
+                },
+                super::DataPackRegistryEntry {
+                    registry: Identifier::parse("minecraft:chat_type").unwrap(),
+                    location: Identifier::parse("minecraft:chat").unwrap(),
+                    value: "chat codec".to_string(),
+                    lifecycle: Lifecycle::Stable,
+                },
+            ])
+            .unwrap();
+
+        let biomes = dynamic
+            .registry(&Identifier::parse(registries::BIOME).unwrap())
+            .unwrap();
+        assert_eq!(
+            biomes
+                .get(&Identifier::parse("minecraft:plains").unwrap())
+                .unwrap()
+                .value(),
+            "pack plains"
+        );
+        assert_eq!(
+            dynamic
+                .registry(&Identifier::parse("minecraft:chat_type").unwrap())
+                .unwrap()
+                .get(&Identifier::parse("minecraft:chat").unwrap())
+                .unwrap()
+                .value(),
+            "chat codec"
+        );
+        dynamic.freeze_all();
+        assert!(dynamic
+            .registry(&Identifier::parse(registries::BIOME).unwrap())
+            .unwrap()
+            .is_frozen());
     }
 
     #[test]
