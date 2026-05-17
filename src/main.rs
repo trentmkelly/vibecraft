@@ -10,6 +10,7 @@ mod chunk_watchdog;
 mod cli;
 mod command;
 mod console;
+mod container_block;
 mod crash;
 mod entity_variants;
 mod eula;
