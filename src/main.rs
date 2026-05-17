@@ -31,6 +31,7 @@ mod container_block;
 mod crash;
 mod creative_inventory;
 mod damage_type;
+mod datapack_reload_tests;
 mod dialog_system;
 mod dispenser_cauldron;
 mod enchantment_system;
