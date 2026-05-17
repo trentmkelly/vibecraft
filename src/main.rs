@@ -4,9 +4,9 @@ mod attribute_system;
 mod base_entity;
 mod biome;
 mod block_behavior;
+mod block_behavior_tests;
 mod block_catalog;
 mod block_entity;
-mod block_behavior_tests;
 mod block_metadata;
 mod block_regression;
 mod block_update;
@@ -21,9 +21,9 @@ mod cli;
 mod collision_shape;
 mod combat_damage;
 mod command;
+mod command_execution;
 mod command_feedback;
 mod command_parity;
-mod command_execution;
 mod command_selector;
 mod command_tree;
 mod console;
@@ -36,9 +36,9 @@ mod datapack_reload_tests;
 mod dialog_system;
 mod dispenser_cauldron;
 mod enchantment_system;
+mod entity_behavior_tests;
 mod entity_category;
 mod entity_physics;
-mod entity_behavior_tests;
 mod entity_validation;
 mod entity_variants;
 mod equipment_trim;
@@ -71,6 +71,9 @@ mod movement_physics;
 mod movement_validation;
 mod network;
 mod non_living_entity;
+mod parity_harness;
+mod performance_benchmarks;
+mod persistence_roundtrip_tests;
 mod plant;
 mod player;
 mod player_access;
@@ -80,13 +83,10 @@ mod player_list;
 mod player_online_auth;
 mod player_presentation;
 mod player_profile_key;
-mod presentation_data;
 mod portal;
-mod persistence_roundtrip_tests;
-mod parity_harness;
-mod performance_benchmarks;
 mod post_processing;
 mod potion_fluid_container;
+mod presentation_data;
 mod projectile_entity;
 mod raid;
 mod random_source;
@@ -302,6 +302,7 @@ fn run(options: CliOptions) -> Result<(), String> {
         port,
         &properties,
         &universe.join(&world_name),
+        world_options.seed,
         &console_input,
     )?;
 

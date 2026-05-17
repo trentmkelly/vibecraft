@@ -24,17 +24,17 @@ use crate::network::login::{
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
     ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
     CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
     CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
     CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
-    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
-    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
+    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
     SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
@@ -827,6 +827,7 @@ pub fn run_status_server(
     port: u16,
     properties: &ServerProperties,
     world_root: &Path,
+    world_seed: i64,
     console_input: &Receiver<ConsoleInput>,
 ) -> Result<(), String> {
     let address = format!("{bind_ip}:{port}");
@@ -868,6 +869,7 @@ pub fn run_status_server(
                         &active_logins,
                         &player_access,
                         &world_root,
+                        world_seed,
                         &remote_ip,
                     ) {
                         eprintln!("status connection error: {err}");
@@ -921,6 +923,7 @@ fn handle_status_connection(
     active_logins: &ActiveLoginRegistry,
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
+    world_seed: i64,
     remote_ip: &str,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
@@ -957,6 +960,7 @@ fn handle_status_connection(
             active_logins,
             player_access,
             world_root,
+            world_seed,
             remote_ip,
         );
     }
@@ -1019,6 +1023,7 @@ fn handle_login_connection(
     active_logins: &ActiveLoginRegistry,
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
+    world_seed: i64,
     remote_ip: &str,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
@@ -1259,6 +1264,7 @@ fn handle_login_connection(
         stream,
         compression,
         properties,
+        world_seed,
         &finished.profile,
         &play_state,
     )?;
@@ -1455,11 +1461,17 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
         ("OnGround".to_string(), Tag::Byte(i8::from(state.on_ground))),
         ("Health".to_string(), Tag::Float(state.health)),
         ("foodLevel".to_string(), Tag::Int(state.food_level)),
-        ("foodSaturationLevel".to_string(), Tag::Float(state.food_saturation)),
+        (
+            "foodSaturationLevel".to_string(),
+            Tag::Float(state.food_saturation),
+        ),
         ("XpLevel".to_string(), Tag::Int(state.xp_level)),
         ("XpP".to_string(), Tag::Float(state.xp_progress)),
         ("XpTotal".to_string(), Tag::Int(state.xp_total)),
-        ("SelectedItemSlot".to_string(), Tag::Int(state.selected_slot)),
+        (
+            "SelectedItemSlot".to_string(),
+            Tag::Int(state.selected_slot),
+        ),
         (
             "playerGameType".to_string(),
             Tag::Int(game_mode_legacy_id(state.game_mode)),
@@ -1675,6 +1687,7 @@ fn write_minimal_play_join(
     stream: &mut TcpStream,
     compression: CompressionState,
     properties: &ServerProperties,
+    world_seed: i64,
     profile: &NameAndId,
     play_state: &PlaySessionState,
 ) -> io::Result<()> {
@@ -1689,8 +1702,10 @@ fn write_minimal_play_join(
         show_death_screen: true,
         do_limited_crafting: false,
         spawn_info: CommonPlayerSpawnInfo {
+            seed: world_seed,
             game_mode: play_state.game_mode,
             previous_game_mode: play_state.previous_game_mode,
+            is_flat: true,
             ..CommonPlayerSpawnInfo::default()
         },
         enforces_secure_chat: false,

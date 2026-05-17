@@ -28,6 +28,10 @@ const expectedGameMode = Number(process.env.RUSTCRAFT_EXPECT_GAME_MODE ?? 0)
 const expectedPreviousGameMode = Number(process.env.RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE ?? 255)
 const expectedAbilityFlags = Number(process.env.RUSTCRAFT_EXPECT_ABILITY_FLAGS ?? 0)
 const expectedCommandSuggestion = process.env.RUSTCRAFT_EXPECT_COMMAND_SUGGESTION ?? ''
+const expectedWorldSeed = process.env.RUSTCRAFT_EXPECT_WORLD_SEED == null
+  ? null
+  : BigInt(process.env.RUSTCRAFT_EXPECT_WORLD_SEED)
+const expectedIsFlat = parseBoolEnv(process.env.RUSTCRAFT_EXPECT_IS_FLAT, true)
 const serverboundAcceptTeleportationPacketId = 0
 const clientboundCommandSuggestionsPacketId = 15
 const serverboundChatPacketId = 9
@@ -119,6 +123,11 @@ function readBlockPos (buffer, offset = 0) {
 
 function nearlyEqual (actual, expected, epsilon = 0.000001) {
   return Math.abs(actual - expected) <= epsilon
+}
+
+function parseBoolEnv (value, fallback) {
+  if (value == null || value === '') return fallback
+  return value === '1' || value === 'true'
 }
 
 function frame (packetId, ...parts) {
@@ -751,6 +760,17 @@ async function main () {
     if (loginSpawn.gameMode !== expectedGameMode || loginSpawn.previousGameMode !== expectedPreviousGameMode) {
       throw new Error(`expected login gameMode=${expectedGameMode} previous=${expectedPreviousGameMode}, got ${loginSpawn.gameMode}/${loginSpawn.previousGameMode}`)
     }
+    if ((expectedWorldSeed != null && loginSpawn.seed !== expectedWorldSeed) || loginSpawn.isFlat !== expectedIsFlat || loginSpawn.seaLevel !== 63) {
+      throw new Error(`unexpected login spawn info seed=${loginSpawn.seed} isFlat=${loginSpawn.isFlat} seaLevel=${loginSpawn.seaLevel}`)
+    }
+    joinState.loginSpawnInfo = {
+      seed: loginSpawn.seed.toString(),
+      gameMode: loginSpawn.gameMode,
+      previousGameMode: loginSpawn.previousGameMode,
+      isDebug: loginSpawn.isDebug,
+      isFlat: loginSpawn.isFlat,
+      seaLevel: loginSpawn.seaLevel
+    }
     const playerInfoPacket = packetById.get(70)?.[0]
     if (!playerInfoPacket) throw new Error('missing player_info_update packet')
     let playerInfoOffset = 0
@@ -862,6 +882,12 @@ async function main () {
     if (spawnDimension.value !== 'minecraft:overworld' || spawnPos.x !== 0 || spawnPos.y !== 80 || spawnPos.z !== 0) {
       throw new Error(`unexpected default spawn ${spawnDimension.value} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`)
     }
+    joinState.defaultSpawn = {
+      dimension: spawnDimension.value,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      z: spawnPos.z
+    }
     const gameEvents = packetById.get(38) ?? []
     const gameEventPairs = gameEvents.map(packet => [packet.body[0], packet.body.readFloatBE(1)])
     for (const expected of [[2, 0], [7, 0], [8, 0], [13, 0]]) {
@@ -873,6 +899,7 @@ async function main () {
   joinState.lastReceivedChunk = play.filter(packet => packet.id === 45).length === 0
     ? null
     : play.filter(packet => packet.id === 45).length - 1
+  joinState.initialChunkCount = play.filter(packet => packet.id === 45).length
   socket.write(encodeClientPacket(reader, serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(encodeClientPacket(reader, serverboundChunkBatchReceivedPacketId, Buffer.alloc(4)))
   socket.write(encodeClientPacket(reader, serverboundPlayerLoadedPacketId))
@@ -945,10 +972,27 @@ function readLoginSpawnInfo (body) {
   offset += 3
   const dimensionType = readVarInt(body, offset); offset = dimensionType.offset
   const dimension = readString(body, offset); offset = dimension.offset
-  offset += 8
+  const seed = body.readBigInt64BE(offset); offset += 8
   const gameMode = body[offset++]
   const previousGameMode = body[offset++]
-  return { gameMode, previousGameMode }
+  const isDebug = body[offset++] === 1
+  const isFlat = body[offset++] === 1
+  const lastDeathPresent = body[offset++] === 1
+  if (lastDeathPresent) {
+    const lastDeathDimension = readString(body, offset); offset = lastDeathDimension.offset
+    offset += 12
+  }
+  const portalCooldown = readVarInt(body, offset); offset = portalCooldown.offset
+  const seaLevel = readVarInt(body, offset); offset = seaLevel.offset
+  return {
+    seed,
+    gameMode,
+    previousGameMode,
+    isDebug,
+    isFlat,
+    portalCooldown: portalCooldown.value,
+    seaLevel: seaLevel.value
+  }
 }
 
 function commandSuggestionMatches (body, expected) {
