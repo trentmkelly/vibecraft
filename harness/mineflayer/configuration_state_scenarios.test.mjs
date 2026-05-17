@@ -41,3 +41,34 @@ test('configuration state evidence passes only when manifest order reaches play 
   assert.equal(summary.ok, false)
   assert.ok(summary.missing.includes('known-packs-before-finish'))
 })
+
+test('configuration regression evidence rejects play without complete configuration sync', () => {
+  const plan = createConfigurationStatePlan()
+  const incomplete = {
+    configPackets: [
+      { id: 12 },
+      { id: 13 },
+      { id: 14, packs: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }] },
+      { id: 3 }
+    ],
+    playPackets: [49, 105, 72, 12, 48, 11].map(id => ({ id }))
+  }
+
+  const summary = summarizeConfigurationStateEvidence(incomplete, plan)
+  assert.equal(summary.ok, false)
+  assert.ok(summary.missing.includes('registry-order-before-finish'))
+
+  const noFinish = {
+    configPackets: [
+      { id: 12 },
+      ...plan.manifest.registryOrder.map(registry => ({ id: 7, registry })),
+      { id: 13 },
+      { id: 14, packs: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }] }
+    ],
+    playPackets: [49, 105, 72, 12, 48, 11].map(id => ({ id }))
+  }
+
+  const noFinishSummary = summarizeConfigurationStateEvidence(noFinish, plan)
+  assert.equal(noFinishSummary.ok, false)
+  assert.ok(noFinishSummary.missing.includes('finish-configuration-after-known-packs'))
+})
