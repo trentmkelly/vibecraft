@@ -29,6 +29,7 @@ mod command_tree;
 mod console;
 mod container_block;
 mod crash;
+mod crash_recovery_tests;
 mod creative_inventory;
 mod damage_type;
 mod datapack_reload_tests;
