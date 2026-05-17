@@ -18,6 +18,7 @@ mod cli;
 mod collision_shape;
 mod combat_damage;
 mod command;
+mod command_execution;
 mod command_tree;
 mod console;
 mod container_block;
