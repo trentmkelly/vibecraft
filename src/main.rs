@@ -23,6 +23,7 @@ mod crash;
 mod creative_inventory;
 mod damage_type;
 mod dispenser_cauldron;
+mod enchantment_system;
 mod entity_category;
 mod entity_validation;
 mod entity_variants;
