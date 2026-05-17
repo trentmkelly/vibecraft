@@ -545,7 +545,6 @@ pub struct ClientboundLevelChunkPacketData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NetworkChunkSection {
     pub non_empty_block_count: i16,
-    pub fluid_count: i16,
     pub block_states: NetworkPalettedContainer,
     pub biomes: NetworkPalettedContainer,
 }
@@ -1389,7 +1388,6 @@ impl NetworkChunkSection {
     pub fn from_storage_section(section: &ChunkSection) -> Self {
         Self {
             non_empty_block_count: 0,
-            fluid_count: 0,
             block_states: NetworkPalettedContainer::from_storage_container(&section.block_states),
             biomes: NetworkPalettedContainer::from_storage_container(&section.biomes),
         }
@@ -1397,7 +1395,6 @@ impl NetworkChunkSection {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.non_empty_block_count.to_be_bytes())?;
-        writer.write_all(&self.fluid_count.to_be_bytes())?;
         self.block_states.write(writer)?;
         self.biomes.write(writer)
     }
@@ -2427,7 +2424,6 @@ mod tests {
     fn chunk_section_serialization_matches_vanilla_section_field_order() {
         let section = NetworkChunkSection {
             non_empty_block_count: 2,
-            fluid_count: 1,
             block_states: NetworkPalettedContainer::single(5),
             biomes: NetworkPalettedContainer::single(7),
         };
@@ -2435,13 +2431,12 @@ mod tests {
         section.write(&mut bytes).unwrap();
 
         assert_eq!(&bytes[0..2], &2_i16.to_be_bytes());
-        assert_eq!(&bytes[2..4], &1_i16.to_be_bytes());
+        assert_eq!(bytes[2], 0);
+        assert_eq!(bytes[3], 5);
         assert_eq!(bytes[4], 0);
-        assert_eq!(bytes[5], 5);
-        assert_eq!(bytes[6], 0);
+        assert_eq!(bytes[5], 0);
+        assert_eq!(bytes[6], 7);
         assert_eq!(bytes[7], 0);
-        assert_eq!(bytes[8], 7);
-        assert_eq!(bytes[9], 0);
     }
 
     #[test]
@@ -2474,7 +2469,7 @@ mod tests {
         let chunk_data = packet.chunk_data.as_ref().unwrap();
         assert_eq!(chunk_data.heightmaps["WORLD_SURFACE"], vec![1, 2, 3]);
         assert_eq!(chunk_data.block_entity_count, 1);
-        assert_eq!(chunk_data.buffer, vec![0, 0, 0, 0, 0, 5, 0, 0, 7, 0]);
+        assert_eq!(chunk_data.buffer, vec![0, 0, 0, 5, 0, 0, 7, 0]);
         assert_eq!(packet.light_data, Some(light_data));
     }
 

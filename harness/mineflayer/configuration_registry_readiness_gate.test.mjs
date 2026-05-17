@@ -45,7 +45,15 @@ function passingRawProbe () {
       { id: 95, length: 2 },
       { id: 38, length: 6 },
       { id: 12, length: 1 },
-      { id: 45, length: 259 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
+      { id: 45, length: 49575 },
       { id: 11, length: 2 }
     ]
   }

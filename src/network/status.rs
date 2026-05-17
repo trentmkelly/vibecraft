@@ -5,7 +5,7 @@ use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::network::codec::{write_identifier, write_optional};
+use crate::network::codec::{write_bitset, write_identifier, write_optional};
 use crate::network::login::{
     ClientboundLoginDisconnectPacket, LoginSession, ServerboundHelloPacket,
     ServerboundLoginAcknowledgedPacket, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
@@ -50,7 +50,15 @@ const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
 const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
-const EMPTY_SPAWN_CHUNK_SECTION_COUNT: usize = 24;
+const SPAWN_CHUNK_BATCH_RADIUS: i32 = 1;
+const SPAWN_CHUNK_BATCH_SIZE: i32 =
+    (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1) * (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1);
+const SPAWN_CHUNK_SECTION_COUNT: usize = 24;
+const SUPERFLAT_SOLID_SECTION_INDEX: usize = 8;
+const AIR_BLOCK_STATE_ID: i32 = 0;
+const GRASS_BLOCK_STATE_ID: i32 = 2;
+const PLAINS_BIOME_ID: i32 = 1;
+const FULL_SECTION_BLOCK_COUNT: i16 = 16 * 16 * 16;
 const DAMAGE_TYPES: &[&str] = &[
     "arrow",
     "bad_respawn_point",
@@ -1105,15 +1113,19 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
         |_payload| Ok(()),
     )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-        write_empty_spawn_chunk_packet,
-    )?;
+    for z in -SPAWN_CHUNK_BATCH_RADIUS..=SPAWN_CHUNK_BATCH_RADIUS {
+        for x in -SPAWN_CHUNK_BATCH_RADIUS..=SPAWN_CHUNK_BATCH_RADIUS {
+            write_framed_packet(
+                stream,
+                CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
+                |payload| write_superflat_spawn_chunk_packet(payload, x, z),
+            )?;
+        }
+    }
     write_framed_packet(
         stream,
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
-        |payload| write_var_i32(payload, 1),
+        |payload| write_var_i32(payload, SPAWN_CHUNK_BATCH_SIZE),
     )
 }
 
@@ -1154,27 +1166,40 @@ fn block_pos_as_long(x: i32, y: i32, z: i32) -> i64 {
         | ((z as i64 & PACKED_Z_MASK) << Z_OFFSET)
 }
 
-fn write_empty_spawn_chunk_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    writer.write_all(&0_i32.to_be_bytes())?;
-    writer.write_all(&0_i32.to_be_bytes())?;
+fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) -> io::Result<()> {
+    writer.write_all(&x.to_be_bytes())?;
+    writer.write_all(&z.to_be_bytes())?;
     write_var_i32(writer, 0)?;
 
-    let mut section_buffer = Vec::with_capacity(EMPTY_SPAWN_CHUNK_SECTION_COUNT * 10);
-    for _ in 0..EMPTY_SPAWN_CHUNK_SECTION_COUNT {
-        section_buffer.write_all(&0_i16.to_be_bytes())?;
-        section_buffer.write_all(&0_i16.to_be_bytes())?;
-        write_single_value_paletted_container(&mut section_buffer, 0)?;
-        write_single_value_paletted_container(&mut section_buffer, 0)?;
+    let mut section_buffer = Vec::with_capacity(SPAWN_CHUNK_SECTION_COUNT * 10);
+    for section_index in 0..SPAWN_CHUNK_SECTION_COUNT {
+        let block_state_id = if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
+            GRASS_BLOCK_STATE_ID
+        } else {
+            AIR_BLOCK_STATE_ID
+        };
+        let non_empty_block_count = if block_state_id == AIR_BLOCK_STATE_ID {
+            0
+        } else {
+            FULL_SECTION_BLOCK_COUNT
+        };
+        section_buffer.write_all(&non_empty_block_count.to_be_bytes())?;
+        write_single_value_paletted_container(&mut section_buffer, block_state_id)?;
+        write_single_value_paletted_container(&mut section_buffer, PLAINS_BIOME_ID)?;
     }
     write_var_i32(writer, section_buffer.len() as i32)?;
     writer.write_all(&section_buffer)?;
     write_var_i32(writer, 0)?;
 
+    write_bitset(writer, &[(1_u64 << SPAWN_CHUNK_SECTION_COUNT) - 1])?;
     write_empty_bitset(writer)?;
     write_empty_bitset(writer)?;
-    write_empty_bitset(writer)?;
-    write_empty_bitset(writer)?;
-    write_var_i32(writer, 0)?;
+    write_bitset(writer, &[(1_u64 << SPAWN_CHUNK_SECTION_COUNT) - 1])?;
+    write_var_i32(writer, SPAWN_CHUNK_SECTION_COUNT as i32)?;
+    for _ in 0..SPAWN_CHUNK_SECTION_COUNT {
+        write_var_i32(writer, 2048)?;
+        writer.write_all(&[0xff; 2048])?;
+    }
     write_var_i32(writer, 0)
 }
 

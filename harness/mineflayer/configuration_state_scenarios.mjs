@@ -67,7 +67,8 @@ export function summarizeConfigurationStateEvidence(evidence, plan = createConfi
     'tag-packets-before-finish': Boolean(tagsPacket) && configIds.indexOf(13) < finishIndex,
     'known-packs-before-finish': Boolean(knownPacksPacket) && knownPackIndex < finishIndex && hasManifestKnownPack(knownPacksPacket, plan.manifest),
     'finish-configuration-after-known-packs': finishIndex > knownPackIndex,
-    'play-entry-after-client-finish': [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 11].every(id => playIds.includes(id))
+    'play-entry-after-client-finish': [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 11].every(id => playIds.includes(id)) &&
+      playIds.filter(id => id === 45).length === 9
   }
 
   const missing = plan.required.filter(requirement => !checks[requirement])

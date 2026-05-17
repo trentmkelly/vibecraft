@@ -606,7 +606,7 @@ async function main () {
   socket.write(frame(3))
 
   const play = []
-  const expectedPlayPacketIds = [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 11]
+  const expectedPlayPacketIds = [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
   for (let i = 0; i < expectedPlayPacketIds.length; i++) {
     const packet = await reader.nextPacket()
     play.push({ id: packet.id, length: packet.length })
