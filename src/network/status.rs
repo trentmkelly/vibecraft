@@ -147,6 +147,80 @@ const DAMAGE_TYPE_TAGS: &[(&str, &[i32])] = &[
     ("minecraft:mace_smash", &[26]),
 ];
 
+struct MinimalRegistryEntry {
+    registry: &'static str,
+    entry: &'static str,
+    value: fn() -> Tag,
+}
+
+const MINIMAL_NON_EMPTY_REGISTRIES: &[MinimalRegistryEntry] = &[
+    MinimalRegistryEntry {
+        registry: "minecraft:cat_sound_variant",
+        entry: "minecraft:default",
+        value: cat_sound_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:cat_variant",
+        entry: "minecraft:tabby",
+        value: two_texture_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:chicken_sound_variant",
+        entry: "minecraft:default",
+        value: chicken_sound_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:chicken_variant",
+        entry: "minecraft:temperate",
+        value: chicken_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:cow_sound_variant",
+        entry: "minecraft:default",
+        value: cow_sound_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:cow_variant",
+        entry: "minecraft:temperate",
+        value: model_and_baby_texture_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:frog_variant",
+        entry: "minecraft:temperate",
+        value: single_texture_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:painting_variant",
+        entry: "minecraft:kebab",
+        value: painting_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:pig_sound_variant",
+        entry: "minecraft:default",
+        value: pig_sound_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:pig_variant",
+        entry: "minecraft:temperate",
+        value: model_and_baby_texture_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:wolf_sound_variant",
+        entry: "minecraft:default",
+        value: wolf_sound_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:wolf_variant",
+        entry: "minecraft:pale",
+        value: wolf_variant_nbt,
+    },
+    MinimalRegistryEntry {
+        registry: "minecraft:zombie_nautilus_variant",
+        entry: "minecraft:default",
+        value: zombie_nautilus_variant_nbt,
+    },
+];
+
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
@@ -290,6 +364,13 @@ fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_dimension_type_registry_packet,
     )?;
+    for registry in MINIMAL_NON_EMPTY_REGISTRIES {
+        write_framed_packet(
+            stream,
+            CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+            |writer| write_minimal_single_entry_registry_packet(writer, registry),
+        )?;
+    }
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
@@ -414,6 +495,17 @@ fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io:
     write_network_nbt(writer, &overworld_dimension_type_nbt())
 }
 
+fn write_minimal_single_entry_registry_packet<W: Write>(
+    writer: &mut W,
+    registry: &MinimalRegistryEntry,
+) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse(registry.registry).unwrap())?;
+    write_var_i32(writer, 1)?;
+    write_identifier(writer, &Identifier::parse(registry.entry).unwrap())?;
+    write_bool(writer, true)?;
+    write_network_nbt(writer, &(registry.value)())
+}
+
 fn overworld_dimension_type_nbt() -> Tag {
     Tag::Compound(vec![
         ("has_skylight".to_string(), Tag::Byte(1)),
@@ -441,6 +533,157 @@ fn overworld_dimension_type_nbt() -> Tag {
         ),
         ("monster_spawn_block_light_limit".to_string(), Tag::Int(0)),
     ])
+}
+
+fn single_texture_variant_nbt() -> Tag {
+    Tag::Compound(vec![(
+        "asset_id".to_string(),
+        Tag::String("minecraft:entity/frog/temperate_frog".to_string()),
+    )])
+}
+
+fn two_texture_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        (
+            "asset_id".to_string(),
+            Tag::String("minecraft:entity/cat/tabby".to_string()),
+        ),
+        (
+            "baby_asset_id".to_string(),
+            Tag::String("minecraft:entity/cat/tabby_baby".to_string()),
+        ),
+    ])
+}
+
+fn model_and_baby_texture_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        (
+            "asset_id".to_string(),
+            Tag::String("minecraft:entity/cow/temperate_cow".to_string()),
+        ),
+        (
+            "baby_asset_id".to_string(),
+            Tag::String("minecraft:entity/cow/temperate_cow_baby".to_string()),
+        ),
+    ])
+}
+
+fn chicken_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        (
+            "asset_id".to_string(),
+            Tag::String("minecraft:entity/chicken/temperate_chicken".to_string()),
+        ),
+        ("model".to_string(), Tag::String("normal".to_string())),
+    ])
+}
+
+fn wolf_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        (
+            "wild_texture".to_string(),
+            Tag::String("minecraft:entity/wolf/wolf".to_string()),
+        ),
+        (
+            "tame_texture".to_string(),
+            Tag::String("minecraft:entity/wolf/wolf_tame".to_string()),
+        ),
+        (
+            "angry_texture".to_string(),
+            Tag::String("minecraft:entity/wolf/wolf_angry".to_string()),
+        ),
+        (
+            "biomes".to_string(),
+            Tag::String("#minecraft:is_overworld".to_string()),
+        ),
+    ])
+}
+
+fn zombie_nautilus_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        (
+            "asset_id".to_string(),
+            Tag::String("minecraft:entity/nautilus/zombie_nautilus".to_string()),
+        ),
+        ("model".to_string(), Tag::String("normal".to_string())),
+    ])
+}
+
+fn painting_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        ("width".to_string(), Tag::Int(1)),
+        ("height".to_string(), Tag::Int(1)),
+        (
+            "asset_id".to_string(),
+            Tag::String("minecraft:kebab".to_string()),
+        ),
+    ])
+}
+
+fn cow_sound_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        sound_field("ambient_sound", "minecraft:entity.cow.ambient"),
+        sound_field("hurt_sound", "minecraft:entity.cow.hurt"),
+        sound_field("death_sound", "minecraft:entity.cow.death"),
+        sound_field("step_sound", "minecraft:entity.cow.step"),
+    ])
+}
+
+fn chicken_sound_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        sound_field("ambient_sound", "minecraft:entity.chicken.ambient"),
+        sound_field("hurt_sound", "minecraft:entity.chicken.hurt"),
+        sound_field("death_sound", "minecraft:entity.chicken.death"),
+        sound_field("step_sound", "minecraft:entity.chicken.step"),
+        sound_field("eat_sound", "minecraft:entity.chicken.egg"),
+    ])
+}
+
+fn pig_sound_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        sound_field("ambient_sound", "minecraft:entity.pig.ambient"),
+        sound_field("hurt_sound", "minecraft:entity.pig.hurt"),
+        sound_field("death_sound", "minecraft:entity.pig.death"),
+        sound_field("step_sound", "minecraft:entity.pig.step"),
+        sound_field("eat_sound", "minecraft:entity.generic.eat"),
+    ])
+}
+
+fn cat_sound_variant_nbt() -> Tag {
+    let sounds = cat_sound_set_nbt();
+    Tag::Compound(vec![
+        ("adult_sounds".to_string(), sounds.clone()),
+        ("baby_sounds".to_string(), sounds),
+    ])
+}
+
+fn cat_sound_set_nbt() -> Tag {
+    Tag::Compound(vec![
+        sound_field("ambient_sound", "minecraft:entity.cat.ambient"),
+        sound_field("stray_ambient_sound", "minecraft:entity.cat.stray_ambient"),
+        sound_field("hiss_sound", "minecraft:entity.cat.hiss"),
+        sound_field("hurt_sound", "minecraft:entity.cat.hurt"),
+        sound_field("death_sound", "minecraft:entity.cat.death"),
+        sound_field("eat_sound", "minecraft:entity.generic.eat"),
+        sound_field("beg_for_food_sound", "minecraft:entity.cat.beg_for_food"),
+        sound_field("purr_sound", "minecraft:entity.cat.purr"),
+        sound_field("purreow_sound", "minecraft:entity.cat.purreow"),
+    ])
+}
+
+fn wolf_sound_variant_nbt() -> Tag {
+    Tag::Compound(vec![
+        sound_field("ambient_sound", "minecraft:entity.wolf.ambient"),
+        sound_field("death_sound", "minecraft:entity.wolf.death"),
+        sound_field("growl_sound", "minecraft:entity.wolf.growl"),
+        sound_field("hurt_sound", "minecraft:entity.wolf.hurt"),
+        sound_field("pant_sound", "minecraft:entity.wolf.pant"),
+        sound_field("whine_sound", "minecraft:entity.wolf.whine"),
+    ])
+}
+
+fn sound_field(name: &str, sound: &str) -> (String, Tag) {
+    (name.to_string(), Tag::String(sound.to_string()))
 }
 
 fn write_network_nbt<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
@@ -472,7 +715,10 @@ fn write_common_spawn_info<W: Write>(
     writer: &mut W,
     spawn_info: &CommonPlayerSpawnInfo,
 ) -> io::Result<()> {
-    write_identifier(writer, &spawn_info.dimension_type)?;
+    write_var_i32(
+        writer,
+        dimension_type_registry_id(&spawn_info.dimension_type)?,
+    )?;
     write_identifier(writer, &spawn_info.dimension)?;
     writer.write_all(&spawn_info.seed.to_be_bytes())?;
     writer.write_all(&[spawn_info.game_mode as u8])?;
@@ -498,6 +744,17 @@ fn write_common_spawn_info<W: Write>(
     )?;
     write_var_i32(writer, spawn_info.portal_cooldown)?;
     write_var_i32(writer, spawn_info.sea_level)
+}
+
+fn dimension_type_registry_id(dimension_type: &Identifier) -> io::Result<i32> {
+    if dimension_type.namespace() == "minecraft" && dimension_type.path() == "overworld" {
+        Ok(0)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unsupported dimension type {dimension_type} in login packet"),
+        ))
+    }
 }
 
 fn write_vec3<W: Write>(writer: &mut W, x: f64, y: f64, z: f64) -> io::Result<()> {
