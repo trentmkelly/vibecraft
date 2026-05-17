@@ -6,6 +6,7 @@ const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
 const protocolVersion = 775
 const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
+const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundKeepAlivePacketId = 28
@@ -520,6 +521,7 @@ async function main () {
 
   const login = await reader.nextPacket()
   expectPacket(login, 2, 'login_finished')
+  if (abortAfter === 'login_success') return abortSocket(socket, 'login_success', { login: login.id })
   socket.write(frame(3))
 
   const config = []
@@ -540,6 +542,7 @@ async function main () {
     } else {
       config.push({ id: packet.id, length: packet.length })
     }
+    if (abortAfter === 'registry_sync' && packet.id === 7) return abortSocket(socket, 'registry_sync', { login: login.id, config })
     if (packet.id === 3) break
   }
   const registryPackets = config.filter(packet => packet.id === 7)
@@ -600,6 +603,7 @@ async function main () {
   for (let i = 0; i < expectedPlayPacketIds.length; i++) {
     const packet = await reader.nextPacket()
     play.push({ id: packet.id, length: packet.length })
+    if (abortAfter === 'first_chunk' && packet.id === 45) return abortSocket(socket, 'first_chunk', { login: login.id, config, play })
   }
   if (!recordOnly) {
   for (const id of expectedPlayPacketIds) {
@@ -643,6 +647,11 @@ async function main () {
 
   socket.end()
   console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play, keepAliveReplies }, null, 2))
+}
+
+function abortSocket (socket, phase, details) {
+  socket.destroy()
+  console.log(JSON.stringify({ ok: true, aborted: true, phase, ...details }, null, 2))
 }
 
 main().catch(error => {
