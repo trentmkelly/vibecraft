@@ -89,6 +89,7 @@ mod special_block;
 mod statistics;
 mod status_effect;
 mod storage;
+mod trial_system;
 mod vehicle_entity;
 mod vibration;
 mod villager_system;
