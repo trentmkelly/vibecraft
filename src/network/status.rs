@@ -166,14 +166,13 @@ fn handle_login_connection(
         |_payload| Ok(()),
     )?;
 
-    let packet = read_packet(stream)?;
-    let mut input = Cursor::new(packet);
-    let packet_id = read_var_i32(&mut input)?;
-    if packet_id != SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "expected configuration finish",
-        ));
+    loop {
+        let packet = read_packet(stream)?;
+        let mut input = Cursor::new(packet);
+        let packet_id = read_var_i32(&mut input)?;
+        if packet_id == SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID {
+            break;
+        }
     }
 
     write_minimal_play_join(stream, properties)?;
