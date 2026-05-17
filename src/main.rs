@@ -1,4 +1,5 @@
 mod biome;
+mod chunk_ticket;
 mod cli;
 mod command;
 mod console;
