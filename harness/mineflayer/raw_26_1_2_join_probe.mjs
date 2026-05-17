@@ -17,6 +17,7 @@ const firstTickActions = new Set(firstTickActionRequest === '1'
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
 const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+const extraMovementPositions = parsePositionArrayEnv(process.env.RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS)
 const expectedHeldSlot = Number(process.env.RUSTCRAFT_EXPECT_HELD_SLOT ?? 0)
 const carriedItemSlot = Number(process.env.RUSTCRAFT_RAW_PROBE_HELD_SLOT ?? 4)
 const expectedHealth = Number(process.env.RUSTCRAFT_EXPECT_HEALTH ?? 20)
@@ -962,6 +963,9 @@ async function main () {
     if (firstTickActions.has('use_item')) socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
     if (abortAfter === 'first_tick_actions') return abortSocket(socket, 'first_tick_actions', { login: login.id, config, play, joinState })
   }
+  for (const position of extraMovementPositions) {
+    socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload(position)))
+  }
 
   if (postActionProbeMs > 0) {
     const deadline = Date.now() + postActionProbeMs
@@ -981,33 +985,9 @@ async function main () {
       playPackets.push(packet)
     }
     const dynamicPackets = playPackets.slice(expectedPlayPacketIds.length)
-    const dynamicById = new Map()
-    for (const packet of dynamicPackets) {
-      if (!dynamicById.has(packet.id)) dynamicById.set(packet.id, [])
-      dynamicById.get(packet.id).push(packet)
-    }
-    const dynamicCenterPacket = dynamicById.get(94)?.at(-1)
-    const dynamicCenterX = dynamicCenterPacket && readVarInt(dynamicCenterPacket.body)
-    const dynamicCenterZ = dynamicCenterX && readVarInt(dynamicCenterPacket.body, dynamicCenterX.offset)
-    const dynamicBatchFinishedPacket = dynamicById.get(11)?.at(-1)
-    const dynamicBatchSize = dynamicBatchFinishedPacket && readVarInt(dynamicBatchFinishedPacket.body)
-    if (dynamicCenterX && dynamicCenterZ && dynamicBatchSize) {
-      joinState.dynamicChunkStreaming = {
-        cacheCenter: {
-          x: dynamicCenterX.value,
-          z: dynamicCenterZ.value
-        },
-        batchSize: dynamicBatchSize.value,
-        chunks: (dynamicById.get(45) ?? []).map(packet => ({
-          x: packet.body.readInt32BE(0),
-          z: packet.body.readInt32BE(4)
-        })),
-        forgottenChunks: (dynamicById.get(37) ?? []).map(packet => ({
-          x: packet.body.readInt32BE(4),
-          z: packet.body.readInt32BE(0)
-        }))
-      }
-    }
+    const batches = parseDynamicChunkBatches(dynamicPackets)
+    joinState.dynamicChunkStreamingBatches = batches
+    joinState.dynamicChunkStreaming = batches.at(-1)
   }
 
   let commandSuggestionSeen = false
@@ -1118,13 +1098,13 @@ function clientInformationPayload () {
   ])
 }
 
-function movePlayerPosRotPayload () {
+function movePlayerPosRotPayload (position = movementPosition) {
   const payload = Buffer.alloc(33)
-  payload.writeDoubleBE(movementPosition.x, 0)
-  payload.writeDoubleBE(movementPosition.y, 8)
-  payload.writeDoubleBE(movementPosition.z, 16)
-  payload.writeFloatBE(movementPosition.yaw, 24)
-  payload.writeFloatBE(movementPosition.pitch, 28)
+  payload.writeDoubleBE(position.x, 0)
+  payload.writeDoubleBE(position.y, 8)
+  payload.writeDoubleBE(position.z, 16)
+  payload.writeFloatBE(position.yaw, 24)
+  payload.writeFloatBE(position.pitch, 28)
   payload.writeUInt8(1, 32)
   return payload
 }
@@ -1132,6 +1112,17 @@ function movePlayerPosRotPayload () {
 function parsePositionEnv (value, fallback) {
   if (!value) return fallback
   const parsed = JSON.parse(value)
+  return parsePosition(parsed)
+}
+
+function parsePositionArrayEnv (value) {
+  if (!value) return []
+  const parsed = JSON.parse(value)
+  if (!Array.isArray(parsed)) throw new Error('RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS must be a JSON array')
+  return parsed.map(parsePosition)
+}
+
+function parsePosition (parsed) {
   return {
     x: Number(parsed.x),
     y: Number(parsed.y),
@@ -1139,6 +1130,42 @@ function parsePositionEnv (value, fallback) {
     yaw: Number(parsed.yaw ?? 0),
     pitch: Number(parsed.pitch ?? 0)
   }
+}
+
+function parseDynamicChunkBatches (packets) {
+  const batches = []
+  let pendingForgottenChunks = []
+  let current = null
+  for (const packet of packets) {
+    if (packet.id === 37) {
+      pendingForgottenChunks.push({
+        x: packet.body.readInt32BE(4),
+        z: packet.body.readInt32BE(0)
+      })
+    } else if (packet.id === 94) {
+      const x = readVarInt(packet.body)
+      const z = x && readVarInt(packet.body, x.offset)
+      if (!x || !z) throw new Error('malformed dynamic chunk cache center')
+      current = {
+        cacheCenter: { x: x.value, z: z.value },
+        batchSize: null,
+        chunks: [],
+        forgottenChunks: pendingForgottenChunks
+      }
+      pendingForgottenChunks = []
+      batches.push(current)
+    } else if (packet.id === 45 && current) {
+      current.chunks.push({
+        x: packet.body.readInt32BE(0),
+        z: packet.body.readInt32BE(4)
+      })
+    } else if (packet.id === 11 && current) {
+      const size = readVarInt(packet.body)
+      if (!size) throw new Error('malformed dynamic chunk batch finished')
+      current.batchSize = size.value
+    }
+  }
+  return batches
 }
 
 function chatPayload (message) {
