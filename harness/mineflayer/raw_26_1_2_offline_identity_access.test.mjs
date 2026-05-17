@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:net'
-import { access, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -214,6 +214,40 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(await exists(stats), false, 'fresh raw login should not create stats before stat changes exist')
   })
 
+  await withRestartableServer({ username: 'CorruptPD' }, async ({ port, root, username, restart }) => {
+    const uuid = offlineUuid(username)
+    const playerdata = path.join(root, 'world', 'playerdata', `${uuid}.dat`)
+    const playerdataOld = path.join(root, 'world', 'playerdata', `${uuid}.dat_old`)
+    const firstPosition = { x: 6.5, y: 81.0, z: 6.5, yaw: 10, pitch: 0 }
+    const secondPosition = { x: 8.5, y: 82.0, z: -8.5, yaw: 45, pitch: -5 }
+
+    await runJoinProbe(port, username, {
+      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(firstPosition),
+      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+    })
+    await delay(250)
+
+    await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(firstPosition),
+      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(secondPosition),
+      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+    })
+    await delay(250)
+    assert.equal(await exists(playerdataOld), true, 'second save should rotate primary playerdata to .dat_old')
+
+    await writeFile(playerdata, 'corrupt playerdata')
+    await restart()
+
+    const recovered = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(firstPosition)
+    })
+    assert.deepEqual(recovered.joinState.position, firstPosition)
+    const backups = await corruptBackups(root, uuid)
+    assert.equal(backups.length, 1)
+  })
+
   for (const [label, username, initialUsercache] of [
     ['missing', 'CrbMiss', null],
     ['empty', 'CrbEmpty', '[]\n'],
@@ -317,6 +351,12 @@ async function exists (file) {
   } catch {
     return false
   }
+}
+
+async function corruptBackups (root, uuid) {
+  const dir = path.join(root, 'world', 'playerdata')
+  const entries = await readdir(dir)
+  return entries.filter(name => name.startsWith(`${uuid}_corrupted_`) && name.endsWith('.dat'))
 }
 
 async function reservePort () {
