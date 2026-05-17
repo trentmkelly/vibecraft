@@ -638,16 +638,31 @@ fn cow_sound_variant_nbt() -> Tag {
 }
 
 fn chicken_sound_variant_nbt() -> Tag {
+    let sounds = chicken_sound_set_nbt();
+    Tag::Compound(vec![
+        ("adult_sounds".to_string(), sounds.clone()),
+        ("baby_sounds".to_string(), sounds),
+    ])
+}
+
+fn chicken_sound_set_nbt() -> Tag {
     Tag::Compound(vec![
         sound_field("ambient_sound", "minecraft:entity.chicken.ambient"),
         sound_field("hurt_sound", "minecraft:entity.chicken.hurt"),
         sound_field("death_sound", "minecraft:entity.chicken.death"),
         sound_field("step_sound", "minecraft:entity.chicken.step"),
-        sound_field("eat_sound", "minecraft:entity.chicken.egg"),
     ])
 }
 
 fn pig_sound_variant_nbt() -> Tag {
+    let sounds = pig_sound_set_nbt();
+    Tag::Compound(vec![
+        ("adult_sounds".to_string(), sounds.clone()),
+        ("baby_sounds".to_string(), sounds),
+    ])
+}
+
+fn pig_sound_set_nbt() -> Tag {
     Tag::Compound(vec![
         sound_field("ambient_sound", "minecraft:entity.pig.ambient"),
         sound_field("hurt_sound", "minecraft:entity.pig.hurt"),
