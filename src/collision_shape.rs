@@ -80,6 +80,121 @@ impl VoxelShape {
     pub fn max_y(&self) -> Option<f64> {
         self.boxes.iter().map(|aabb| aabb.max_y).reduce(f64::max)
     }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        self.boxes
+            .iter()
+            .any(|first| other.boxes.iter().any(|second| intersects(*first, *second)))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BooleanOpKind {
+    False,
+    NotOr,
+    OnlySecond,
+    NotFirst,
+    OnlyFirst,
+    NotSecond,
+    NotSame,
+    NotAnd,
+    And,
+    Same,
+    Second,
+    Causes,
+    First,
+    CausedBy,
+    Or,
+    True,
+}
+
+impl BooleanOpKind {
+    pub fn apply(self, first: bool, second: bool) -> bool {
+        match self {
+            Self::False => false,
+            Self::NotOr => !first && !second,
+            Self::OnlySecond => second && !first,
+            Self::NotFirst => !first,
+            Self::OnlyFirst => first && !second,
+            Self::NotSecond => !second,
+            Self::NotSame => first != second,
+            Self::NotAnd => !first || !second,
+            Self::And => first && second,
+            Self::Same => first == second,
+            Self::Second => second,
+            Self::Causes => !first || second,
+            Self::First => first,
+            Self::CausedBy => first || !second,
+            Self::Or => first || second,
+            Self::True => true,
+        }
+    }
+}
+
+pub fn join(first: &VoxelShape, second: &VoxelShape, op: BooleanOpKind) -> VoxelShape {
+    assert!(!op.apply(false, false));
+    match op {
+        BooleanOpKind::False => VoxelShape::empty(),
+        BooleanOpKind::First => first.clone(),
+        BooleanOpKind::Second => second.clone(),
+        BooleanOpKind::Or => {
+            let mut boxes = first.boxes.clone();
+            boxes.extend_from_slice(&second.boxes);
+            VoxelShape { boxes }.optimize()
+        }
+        BooleanOpKind::And => {
+            let boxes = first
+                .boxes
+                .iter()
+                .flat_map(|a| second.boxes.iter().filter_map(|b| intersection(*a, *b)))
+                .collect();
+            VoxelShape { boxes }.optimize()
+        }
+        BooleanOpKind::OnlyFirst => subtract(first, second),
+        BooleanOpKind::OnlySecond => subtract(second, first),
+        BooleanOpKind::NotSame => {
+            let a = subtract(first, second);
+            let b = subtract(second, first);
+            join(&a, &b, BooleanOpKind::Or)
+        }
+        _ => {
+            if join_is_not_empty(first, second, op) {
+                join(first, second, BooleanOpKind::Or)
+            } else {
+                VoxelShape::empty()
+            }
+        }
+    }
+}
+
+pub fn join_is_not_empty(first: &VoxelShape, second: &VoxelShape, op: BooleanOpKind) -> bool {
+    assert!(!op.apply(false, false));
+    let first_empty = first.is_empty();
+    let second_empty = second.is_empty();
+    if first_empty || second_empty {
+        return op.apply(!first_empty, !second_empty);
+    }
+    match op {
+        BooleanOpKind::False => false,
+        BooleanOpKind::First => !first_empty,
+        BooleanOpKind::Second => !second_empty,
+        BooleanOpKind::Or | BooleanOpKind::NotSame => true,
+        BooleanOpKind::And | BooleanOpKind::Same => first.intersects(second),
+        BooleanOpKind::OnlyFirst => !first_all_covered(first, second),
+        BooleanOpKind::OnlySecond => !first_all_covered(second, first),
+        _ => op.apply(true, true) && first.intersects(second),
+    }
+}
+
+impl VoxelShape {
+    fn optimize(mut self) -> Self {
+        self.boxes.retain(|aabb| {
+            aabb.max_x - aabb.min_x >= 1.0E-7
+                && aabb.max_y - aabb.min_y >= 1.0E-7
+                && aabb.max_z - aabb.min_z >= 1.0E-7
+        });
+        self
+    }
 }
 
 pub fn find_bits(min: f64, max: f64) -> Option<u8> {
@@ -96,6 +211,55 @@ pub fn find_bits(min: f64, max: f64) -> Option<u8> {
         }
     }
     None
+}
+
+fn intersects(first: Aabb, second: Aabb) -> bool {
+    first.max_x > second.min_x + 1.0E-7
+        && second.max_x > first.min_x + 1.0E-7
+        && first.max_y > second.min_y + 1.0E-7
+        && second.max_y > first.min_y + 1.0E-7
+        && first.max_z > second.min_z + 1.0E-7
+        && second.max_z > first.min_z + 1.0E-7
+}
+
+fn intersection(first: Aabb, second: Aabb) -> Option<Aabb> {
+    if !intersects(first, second) {
+        return None;
+    }
+    Some(Aabb::new(
+        first.min_x.max(second.min_x),
+        first.min_y.max(second.min_y),
+        first.min_z.max(second.min_z),
+        first.max_x.min(second.max_x),
+        first.max_y.min(second.max_y),
+        first.max_z.min(second.max_z),
+    ))
+}
+
+fn contains(outer: Aabb, inner: Aabb) -> bool {
+    outer.min_x <= inner.min_x + 1.0E-7
+        && outer.min_y <= inner.min_y + 1.0E-7
+        && outer.min_z <= inner.min_z + 1.0E-7
+        && outer.max_x + 1.0E-7 >= inner.max_x
+        && outer.max_y + 1.0E-7 >= inner.max_y
+        && outer.max_z + 1.0E-7 >= inner.max_z
+}
+
+fn first_all_covered(first: &VoxelShape, second: &VoxelShape) -> bool {
+    first
+        .boxes
+        .iter()
+        .all(|a| second.boxes.iter().any(|b| contains(*b, *a)))
+}
+
+fn subtract(first: &VoxelShape, second: &VoxelShape) -> VoxelShape {
+    let boxes = first
+        .boxes
+        .iter()
+        .copied()
+        .filter(|a| !second.boxes.iter().any(|b| contains(*b, *a)))
+        .collect();
+    VoxelShape { boxes }.optimize()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -285,5 +449,38 @@ mod tests {
         assert_eq!(pair.block.max_y(), Some(1.0));
         assert_eq!(pair.block.boxes()[0].min_x, 0.25);
         assert_eq!(pair.fluid.max_y(), Some(1.0));
+    }
+
+    #[test]
+    fn boolean_ops_match_vanilla_truth_tables_for_empty_and_full_shapes() {
+        let empty = VoxelShape::empty();
+        let block = VoxelShape::block();
+        assert!(!BooleanOpKind::False.apply(true, true));
+        assert!(BooleanOpKind::Or.apply(true, false));
+        assert!(BooleanOpKind::OnlyFirst.apply(true, false));
+        assert!(!BooleanOpKind::OnlyFirst.apply(true, true));
+        assert!(join_is_not_empty(&block, &empty, BooleanOpKind::First));
+        assert!(!join_is_not_empty(&block, &empty, BooleanOpKind::Second));
+        assert_eq!(join(&block, &empty, BooleanOpKind::Or), block);
+        assert_eq!(join(&block, &block, BooleanOpKind::And), block);
+        assert!(join(&block, &block, BooleanOpKind::OnlyFirst).is_empty());
+    }
+
+    #[test]
+    fn boolean_composition_handles_overlapping_separated_and_partial_boxes() {
+        let lower = VoxelShape::box_shape(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
+        let upper = VoxelShape::box_shape(0.0, 0.5, 0.0, 1.0, 1.0, 1.0);
+        let middle = VoxelShape::box_shape(0.0, 0.25, 0.0, 1.0, 0.75, 1.0);
+
+        assert!(!lower.intersects(&upper));
+        assert!(lower.intersects(&middle));
+        assert!(!join_is_not_empty(&lower, &upper, BooleanOpKind::And));
+        assert!(join_is_not_empty(&lower, &upper, BooleanOpKind::OnlyFirst));
+
+        let overlap = join(&lower, &middle, BooleanOpKind::And);
+        assert_eq!(overlap.boxes()[0], Aabb::new(0.0, 0.25, 0.0, 1.0, 0.5, 1.0));
+
+        let union = join(&lower, &upper, BooleanOpKind::Or);
+        assert_eq!(union.boxes().len(), 2);
     }
 }
