@@ -290,6 +290,34 @@ pub struct MonsterRoomBounds {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureSetEntry {
+    pub id: &'static str,
+    pub structures: &'static [&'static str],
+    pub placement: StructurePlacementKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructurePlacementKind {
+    RandomSpread {
+        spacing: i32,
+        separation: i32,
+        salt: i32,
+        spread_type: RandomSpreadType,
+    },
+    ConcentricRings {
+        distance: i32,
+        spread: i32,
+        count: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RandomSpreadType {
+    Linear,
+    Triangular,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureConfigurationKind {
     None,
     Tree,
@@ -2628,6 +2656,209 @@ pub const MONSTER_ROOM_BOUNDS: MonsterRoomBounds = MonsterRoomBounds {
     max_openings: 5,
 };
 
+pub const STRUCTURE_TYPES: &[&str] = &[
+    "minecraft:buried_treasure",
+    "minecraft:desert_pyramid",
+    "minecraft:end_city",
+    "minecraft:fortress",
+    "minecraft:igloo",
+    "minecraft:jigsaw",
+    "minecraft:jungle_temple",
+    "minecraft:mineshaft",
+    "minecraft:nether_fossil",
+    "minecraft:ocean_monument",
+    "minecraft:ocean_ruin",
+    "minecraft:ruined_portal",
+    "minecraft:shipwreck",
+    "minecraft:stronghold",
+    "minecraft:swamp_hut",
+    "minecraft:woodland_mansion",
+];
+
+pub const BUILTIN_STRUCTURES: &[&str] = &[
+    "minecraft:pillager_outpost",
+    "minecraft:mineshaft",
+    "minecraft:mineshaft_mesa",
+    "minecraft:mansion",
+    "minecraft:jungle_pyramid",
+    "minecraft:desert_pyramid",
+    "minecraft:igloo",
+    "minecraft:shipwreck",
+    "minecraft:shipwreck_beached",
+    "minecraft:swamp_hut",
+    "minecraft:stronghold",
+    "minecraft:monument",
+    "minecraft:ocean_ruin_cold",
+    "minecraft:ocean_ruin_warm",
+    "minecraft:fortress",
+    "minecraft:nether_fossil",
+    "minecraft:end_city",
+    "minecraft:buried_treasure",
+    "minecraft:bastion_remnant",
+    "minecraft:village_plains",
+    "minecraft:village_desert",
+    "minecraft:village_savanna",
+    "minecraft:village_snowy",
+    "minecraft:village_taiga",
+    "minecraft:ruined_portal",
+    "minecraft:ruined_portal_desert",
+    "minecraft:ruined_portal_jungle",
+    "minecraft:ruined_portal_swamp",
+    "minecraft:ruined_portal_mountain",
+    "minecraft:ruined_portal_ocean",
+    "minecraft:ruined_portal_nether",
+    "minecraft:ancient_city",
+    "minecraft:trail_ruins",
+    "minecraft:trial_chambers",
+];
+
+pub const BUILTIN_STRUCTURE_SETS: &[StructureSetEntry] = &[
+    structure_set(
+        "minecraft:villages",
+        &[
+            "minecraft:village_plains",
+            "minecraft:village_desert",
+            "minecraft:village_savanna",
+            "minecraft:village_snowy",
+            "minecraft:village_taiga",
+        ],
+        random_spread(34, 8, RandomSpreadType::Linear, 10387312),
+    ),
+    structure_set(
+        "minecraft:desert_pyramids",
+        &["minecraft:desert_pyramid"],
+        random_spread(32, 8, RandomSpreadType::Linear, 14357617),
+    ),
+    structure_set(
+        "minecraft:igloos",
+        &["minecraft:igloo"],
+        random_spread(32, 8, RandomSpreadType::Linear, 14357618),
+    ),
+    structure_set(
+        "minecraft:jungle_temples",
+        &["minecraft:jungle_pyramid"],
+        random_spread(32, 8, RandomSpreadType::Linear, 14357619),
+    ),
+    structure_set(
+        "minecraft:swamp_huts",
+        &["minecraft:swamp_hut"],
+        random_spread(32, 8, RandomSpreadType::Linear, 14357620),
+    ),
+    structure_set(
+        "minecraft:pillager_outposts",
+        &["minecraft:pillager_outpost"],
+        random_spread(32, 8, RandomSpreadType::Linear, 165745296),
+    ),
+    structure_set(
+        "minecraft:ancient_cities",
+        &["minecraft:ancient_city"],
+        random_spread(24, 8, RandomSpreadType::Linear, 20083232),
+    ),
+    structure_set(
+        "minecraft:ocean_monuments",
+        &["minecraft:monument"],
+        random_spread(32, 5, RandomSpreadType::Triangular, 10387313),
+    ),
+    structure_set(
+        "minecraft:woodland_mansions",
+        &["minecraft:mansion"],
+        random_spread(80, 20, RandomSpreadType::Triangular, 10387319),
+    ),
+    structure_set(
+        "minecraft:buried_treasures",
+        &["minecraft:buried_treasure"],
+        random_spread(1, 0, RandomSpreadType::Linear, 0),
+    ),
+    structure_set(
+        "minecraft:mineshafts",
+        &["minecraft:mineshaft", "minecraft:mineshaft_mesa"],
+        random_spread(1, 0, RandomSpreadType::Linear, 0),
+    ),
+    structure_set(
+        "minecraft:ruined_portals",
+        &[
+            "minecraft:ruined_portal",
+            "minecraft:ruined_portal_desert",
+            "minecraft:ruined_portal_jungle",
+            "minecraft:ruined_portal_swamp",
+            "minecraft:ruined_portal_mountain",
+            "minecraft:ruined_portal_ocean",
+            "minecraft:ruined_portal_nether",
+        ],
+        random_spread(40, 15, RandomSpreadType::Linear, 34222645),
+    ),
+    structure_set(
+        "minecraft:shipwrecks",
+        &["minecraft:shipwreck", "minecraft:shipwreck_beached"],
+        random_spread(24, 4, RandomSpreadType::Linear, 165745295),
+    ),
+    structure_set(
+        "minecraft:ocean_ruins",
+        &["minecraft:ocean_ruin_cold", "minecraft:ocean_ruin_warm"],
+        random_spread(20, 8, RandomSpreadType::Linear, 14357621),
+    ),
+    structure_set(
+        "minecraft:nether_complexes",
+        &["minecraft:fortress", "minecraft:bastion_remnant"],
+        random_spread(27, 4, RandomSpreadType::Linear, 30084232),
+    ),
+    structure_set(
+        "minecraft:nether_fossils",
+        &["minecraft:nether_fossil"],
+        random_spread(2, 1, RandomSpreadType::Linear, 14357921),
+    ),
+    structure_set(
+        "minecraft:end_cities",
+        &["minecraft:end_city"],
+        random_spread(20, 11, RandomSpreadType::Triangular, 10387313),
+    ),
+    structure_set(
+        "minecraft:strongholds",
+        &["minecraft:stronghold"],
+        StructurePlacementKind::ConcentricRings {
+            distance: 32,
+            spread: 3,
+            count: 128,
+        },
+    ),
+    structure_set(
+        "minecraft:trail_ruins",
+        &["minecraft:trail_ruins"],
+        random_spread(34, 8, RandomSpreadType::Linear, 83469867),
+    ),
+    structure_set(
+        "minecraft:trial_chambers",
+        &["minecraft:trial_chambers"],
+        random_spread(34, 12, RandomSpreadType::Linear, 94251327),
+    ),
+];
+
+const fn structure_set(
+    id: &'static str,
+    structures: &'static [&'static str],
+    placement: StructurePlacementKind,
+) -> StructureSetEntry {
+    StructureSetEntry {
+        id,
+        structures,
+        placement,
+    }
+}
+
+const fn random_spread(
+    spacing: i32,
+    separation: i32,
+    spread_type: RandomSpreadType,
+    salt: i32,
+) -> StructurePlacementKind {
+    StructurePlacementKind::RandomSpread {
+        spacing,
+        separation,
+        salt,
+        spread_type,
+    }
+}
+
 const fn feature_type(
     id: &'static str,
     configuration: FeatureConfigurationKind,
@@ -3133,16 +3364,18 @@ mod tests {
         CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightRange,
         MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, PlacedFeatureSource, SurfaceRuleKind, SurfaceRulePreset,
-        VerticalAnchor, WorldCarverType, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
+        OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, StructurePlacementKind,
+        SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WorldCarverType,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
         CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
         DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
         FLOATING_ISLANDS_NOISE_SETTINGS, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
         ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        PLACED_FEATURE_BOOTSTRAP_SOURCES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES,
+        SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, WORLDGEN_TYPE_REGISTRIES,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4123,5 +4356,79 @@ mod tests {
         assert!(!super::monster_room_opening_count_is_valid(6));
         assert!(super::ore_vein_sphere_is_shadowed(3.0, 1.0, 1.0, 1.0));
         assert!(!super::ore_vein_sphere_is_shadowed(1.0, 2.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn structure_registries_and_sets_match_vanilla_bootstrap() {
+        assert_eq!(STRUCTURE_TYPES.len(), 16);
+        assert_eq!(BUILTIN_STRUCTURES.len(), 34);
+        assert_eq!(BUILTIN_STRUCTURE_SETS.len(), 20);
+        assert_eq!(
+            BUILTIN_STRUCTURE_SETS
+                .iter()
+                .map(|set| set.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:villages",
+                "minecraft:desert_pyramids",
+                "minecraft:igloos",
+                "minecraft:jungle_temples",
+                "minecraft:swamp_huts",
+                "minecraft:pillager_outposts",
+                "minecraft:ancient_cities",
+                "minecraft:ocean_monuments",
+                "minecraft:woodland_mansions",
+                "minecraft:buried_treasures",
+                "minecraft:mineshafts",
+                "minecraft:ruined_portals",
+                "minecraft:shipwrecks",
+                "minecraft:ocean_ruins",
+                "minecraft:nether_complexes",
+                "minecraft:nether_fossils",
+                "minecraft:end_cities",
+                "minecraft:strongholds",
+                "minecraft:trail_ruins",
+                "minecraft:trial_chambers",
+            ]
+        );
+
+        let villages = &BUILTIN_STRUCTURE_SETS[0];
+        assert_eq!(villages.structures.len(), 5);
+        assert_eq!(
+            villages.placement,
+            StructurePlacementKind::RandomSpread {
+                spacing: 34,
+                separation: 8,
+                salt: 10387312,
+                spread_type: RandomSpreadType::Linear,
+            }
+        );
+
+        let strongholds = BUILTIN_STRUCTURE_SETS
+            .iter()
+            .find(|set| set.id == "minecraft:strongholds")
+            .unwrap();
+        assert_eq!(
+            strongholds.placement,
+            StructurePlacementKind::ConcentricRings {
+                distance: 32,
+                spread: 3,
+                count: 128,
+            }
+        );
+
+        let mansions = BUILTIN_STRUCTURE_SETS
+            .iter()
+            .find(|set| set.id == "minecraft:woodland_mansions")
+            .unwrap();
+        assert_eq!(
+            mansions.placement,
+            StructurePlacementKind::RandomSpread {
+                spacing: 80,
+                separation: 20,
+                salt: 10387319,
+                spread_type: RandomSpreadType::Triangular,
+            }
+        );
     }
 }
