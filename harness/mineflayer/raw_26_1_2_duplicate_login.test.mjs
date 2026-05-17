@@ -1,28 +1,58 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import net from 'node:net'
+import { rm } from 'node:fs/promises'
+import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { inflateSync } from 'node:zlib'
 
+import {
+  createTempWorld,
+  startRustCraft,
+  stopServer,
+  waitForPort,
+  writeOfflineServerFiles
+} from './runner.mjs'
+
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
 const username = process.env.RUSTCRAFT_DUPLICATE_USERNAME ?? 'DupLoginProbe'
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(here, '..', '..')
+const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
 
-test('raw 26.1.2 duplicate offline login is rejected while the first session is active', { timeout: 30_000 }, async () => {
-  const first = await connect()
+test('raw 26.1.2 duplicate offline login replaces the first active session', { timeout: 45_000 }, async () => {
+  const externalPort = process.env.RUSTCRAFT_PORT ? Number(process.env.RUSTCRAFT_PORT) : null
+  const root = externalPort == null ? await createTempWorld('rustcraft-duplicate-login-') : null
+  let server
+  const port = externalPort ?? await reservePort()
+
+  try {
+    if (root) {
+      await writeOfflineServerFiles(root, { port, levelName: 'world' })
+      server = startRustCraft({ binary, root, port, levelName: 'world' })
+      await waitForPort(port, host, 10_000)
+    }
+
+    await assertDuplicateReplacement(port)
+  } finally {
+    if (server) await stopServer(server.child)
+    if (root) await rm(root, { recursive: true, force: true })
+  }
+})
+
+async function assertDuplicateReplacement (port) {
+  const first = await connect(port)
   const firstReader = new FrameReader(first)
   try {
-    await enterPlay(first, firstReader, username)
+    await enterPlay(first, firstReader, username, port)
 
-    const second = await connect()
+    const second = await connect(port)
     const secondReader = new FrameReader(second)
     try {
-      socketLoginHello(second, username)
-      const disconnect = await secondReader.nextFrame()
-      assert.equal(disconnect.packetId, 0, 'duplicate login should receive login disconnect')
-      const reason = readString(disconnect.body, 0)
-      assert.match(reason.value, /multiplayer\.disconnect\.duplicate_login/)
+      await enterPlay(second, secondReader, username, port)
+      await assertSocketCloses(first)
     } finally {
       second.destroy()
     }
@@ -30,20 +60,20 @@ test('raw 26.1.2 duplicate offline login is rejected while the first session is 
     first.destroy()
     await delay(100)
 
-    const retry = await connect()
+    const retry = await connect(port)
     const retryReader = new FrameReader(retry)
     try {
-      await enterPlay(retry, retryReader, username)
+      await enterPlay(retry, retryReader, username, port)
     } finally {
       retry.destroy()
     }
   } finally {
     first.destroy()
   }
-})
+}
 
-async function enterPlay (socket, reader, name) {
-  socketLoginHello(socket, name)
+async function enterPlay (socket, reader, name, port) {
+  socketLoginHello(socket, name, port)
   let loginSuccess = await reader.nextFrame()
   if (loginSuccess.packetId === 3) {
     const threshold = readVarInt(loginSuccess.body, 0)
@@ -60,8 +90,8 @@ async function enterPlay (socket, reader, name) {
   await waitForPacket(reader, 49)
 }
 
-function socketLoginHello (socket, name) {
-  socket.write(frame(0, handshakePayload(2)))
+function socketLoginHello (socket, name, port) {
+  socket.write(frame(0, handshakePayload(2, port)))
   socket.write(frame(0, writeString(name), randomUuidBytes()))
 }
 
@@ -135,7 +165,7 @@ function tryDecodeFrame (buffer, compressionThreshold = null) {
   }
 }
 
-async function connect () {
+async function connect (port) {
   const socket = net.createConnection({ host, port })
   socket.setMaxListeners(64)
   await Promise.race([
@@ -145,7 +175,7 @@ async function connect () {
   return socket
 }
 
-function handshakePayload (nextState) {
+function handshakePayload (nextState, port) {
   return Buffer.concat([
     writeVarInt(protocolVersion),
     writeString(host),
@@ -213,6 +243,30 @@ function once (emitter, event) {
   return new Promise(resolve => emitter.once(event, resolve))
 }
 
+async function assertSocketCloses (socket) {
+  if (socket.destroyed) return
+  await Promise.race([
+    once(socket, 'close'),
+    once(socket, 'end'),
+    delay(5_000).then(() => {
+      throw new Error('original duplicate session did not close')
+    })
+  ])
+}
+
 function delay (ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function reservePort () {
+  const server = net.createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, host, resolve)
+  })
+  const { port } = server.address()
+  await new Promise((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve())
+  })
+  return port
 }

@@ -1,9 +1,10 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -88,32 +89,59 @@ const SUPERFLAT_SOLID_BLOCK_COUNT: i16 = 4 * 16 * 16;
 
 #[derive(Clone, Default)]
 struct ActiveLoginRegistry {
-    names: Arc<Mutex<HashSet<String>>>,
+    sessions: Arc<Mutex<HashMap<String, ActiveLoginSession>>>,
+    next_token: Arc<AtomicU64>,
+}
+
+struct ActiveLoginSession {
+    token: u64,
+    stream: TcpStream,
 }
 
 struct ActiveLoginGuard {
-    names: Arc<Mutex<HashSet<String>>>,
-    name: String,
+    sessions: Arc<Mutex<HashMap<String, ActiveLoginSession>>>,
+    uuid: String,
+    token: u64,
 }
 
 impl ActiveLoginRegistry {
-    fn try_register(&self, name: &str) -> Option<ActiveLoginGuard> {
-        let mut names = self.names.lock().ok()?;
-        if !names.insert(name.to_string()) {
-            return None;
-        }
+    fn register_replacing(
+        &self,
+        uuid: &str,
+        stream: &TcpStream,
+    ) -> io::Result<(ActiveLoginGuard, Option<TcpStream>)> {
+        let token = self.next_token.fetch_add(1, Ordering::Relaxed);
+        let stream = stream.try_clone()?;
+        let mut sessions = self.sessions.lock().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "active login registry mutex poisoned",
+            )
+        })?;
+        let old = sessions
+            .insert(uuid.to_string(), ActiveLoginSession { token, stream })
+            .map(|session| session.stream);
 
-        Some(ActiveLoginGuard {
-            names: self.names.clone(),
-            name: name.to_string(),
-        })
+        Ok((
+            ActiveLoginGuard {
+                sessions: self.sessions.clone(),
+                uuid: uuid.to_string(),
+                token,
+            },
+            old,
+        ))
     }
 }
 
 impl Drop for ActiveLoginGuard {
     fn drop(&mut self) {
-        if let Ok(mut names) = self.names.lock() {
-            names.remove(&self.name);
+        if let Ok(mut sessions) = self.sessions.lock() {
+            if sessions
+                .get(&self.uuid)
+                .is_some_and(|session| session.token == self.token)
+            {
+                sessions.remove(&self.uuid);
+            }
         }
     }
 }
@@ -935,16 +963,11 @@ fn handle_login_connection(
             .write(payload)
         });
     }
-    let Some(_active_login) = active_logins.try_register(&finished.profile.name) else {
-        return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
-            ClientboundLoginDisconnectPacket {
-                reason: crate::network::codec::ComponentJson(
-                    "{\"translate\":\"multiplayer.disconnect.duplicate_login\"}".to_string(),
-                ),
-            }
-            .write(payload)
-        });
-    };
+    let (_active_login, replaced_stream) =
+        active_logins.register_replacing(&finished.profile.uuid, stream)?;
+    if let Some(replaced_stream) = replaced_stream {
+        let _ = replaced_stream.shutdown(Shutdown::Both);
+    }
     cache_login_profile(player_access, &finished.profile)?;
     let mut compression = CompressionState::disabled();
     if properties.network_compression_threshold >= 0 {
