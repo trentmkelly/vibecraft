@@ -269,6 +269,27 @@ pub enum PlacedFeatureSource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldgenTypeRegistry {
+    pub id: &'static str,
+    pub entries: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeatureBehaviorModel {
+    pub feature_type: &'static str,
+    pub behavior: &'static str,
+    pub success_condition: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonsterRoomBounds {
+    pub min_y: i32,
+    pub max_y: i32,
+    pub min_openings: i32,
+    pub max_openings: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureConfigurationKind {
     None,
     Tree,
@@ -2501,6 +2522,112 @@ pub const PLACED_FEATURE_BOOTSTRAP_SOURCES: &[PlacedFeatureSourceEntry] = &[
     ),
 ];
 
+pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
+    WorldgenTypeRegistry {
+        id: "minecraft:placement_modifier_type",
+        entries: &[
+            "minecraft:block_predicate_filter",
+            "minecraft:rarity_filter",
+            "minecraft:surface_water_depth_filter",
+            "minecraft:biome",
+            "minecraft:count",
+            "minecraft:noise_based_count",
+            "minecraft:noise_threshold_count",
+            "minecraft:count_on_every_layer",
+            "minecraft:environment_scan",
+            "minecraft:heightmap",
+            "minecraft:height_range",
+            "minecraft:in_square",
+            "minecraft:random_offset",
+            "minecraft:fixed_placement",
+        ],
+    },
+    WorldgenTypeRegistry {
+        id: "minecraft:trunk_placer_type",
+        entries: &[
+            "minecraft:straight_trunk_placer",
+            "minecraft:forking_trunk_placer",
+            "minecraft:giant_trunk_placer",
+            "minecraft:mega_jungle_trunk_placer",
+            "minecraft:dark_oak_trunk_placer",
+            "minecraft:fancy_trunk_placer",
+            "minecraft:bending_trunk_placer",
+            "minecraft:cherry_trunk_placer",
+        ],
+    },
+    WorldgenTypeRegistry {
+        id: "minecraft:foliage_placer_type",
+        entries: &[
+            "minecraft:blob_foliage_placer",
+            "minecraft:spruce_foliage_placer",
+            "minecraft:pine_foliage_placer",
+            "minecraft:acacia_foliage_placer",
+            "minecraft:bush_foliage_placer",
+            "minecraft:fancy_foliage_placer",
+            "minecraft:jungle_foliage_placer",
+            "minecraft:mega_pine_foliage_placer",
+            "minecraft:dark_oak_foliage_placer",
+            "minecraft:cherry_foliage_placer",
+        ],
+    },
+    WorldgenTypeRegistry {
+        id: "minecraft:block_state_provider_type",
+        entries: &[
+            "minecraft:simple_state_provider",
+            "minecraft:weighted_state_provider",
+            "minecraft:noise_provider",
+            "minecraft:dual_noise_provider",
+            "minecraft:rotated_block_provider",
+        ],
+    },
+    WorldgenTypeRegistry {
+        id: "minecraft:tree_decorator_type",
+        entries: &[
+            "minecraft:trunk_vine",
+            "minecraft:leave_vine",
+            "minecraft:pale_moss",
+            "minecraft:creaking_heart",
+            "minecraft:cocoa",
+            "minecraft:beehive",
+            "minecraft:alter_ground",
+            "minecraft:attached_to_leaves",
+            "minecraft:place_on_ground",
+            "minecraft:attached_to_logs",
+        ],
+    },
+    WorldgenTypeRegistry {
+        id: "minecraft:feature_size_type",
+        entries: &[
+            "minecraft:two_layers_feature_size",
+            "minecraft:three_layers_feature_size",
+        ],
+    },
+    WorldgenTypeRegistry {
+        id: "minecraft:root_placer_type",
+        entries: &["minecraft:mangrove_root_placer"],
+    },
+];
+
+pub const FEATURE_BEHAVIOR_MODELS: &[FeatureBehaviorModel] = &[
+    FeatureBehaviorModel { feature_type: "minecraft:tree", behavior: "validates roots/trunk/foliage/decorators, computes bounding box, updates leaves", success_condition: "at least one trunk placer node and all bounding-box updates succeed" },
+    FeatureBehaviorModel { feature_type: "minecraft:vegetation_patch", behavior: "samples xz radius, validates replaceable ground, places depth columns, optionally places vegetation", success_condition: "at least one ground block or vegetation feature is placed" },
+    FeatureBehaviorModel { feature_type: "minecraft:spring_feature", behavior: "requires valid block above, optional valid block below, exact adjacent rock and hole counts", success_condition: "rockCount == config.rockCount && holeCount == config.holeCount" },
+    FeatureBehaviorModel { feature_type: "minecraft:ore", behavior: "builds sinusoidal vein ellipsoids, culls enclosed spheres, tests target states and discard chance", success_condition: "one or more ore blocks are placed" },
+    FeatureBehaviorModel { feature_type: "minecraft:scattered_ore", behavior: "uses ore target tests with scattered attempts", success_condition: "one or more ore blocks are placed" },
+    FeatureBehaviorModel { feature_type: "minecraft:disk", behavior: "fills xz disk columns while source blocks and vertical bounds match", success_condition: "one or more disk blocks are placed" },
+    FeatureBehaviorModel { feature_type: "minecraft:lake", behavior: "carves an ellipsoid cavity, validates solid/fluid boundary constraints, fills fluid and barrier blocks", success_condition: "cavity validation succeeds" },
+    FeatureBehaviorModel { feature_type: "minecraft:geode", behavior: "samples layered ellipsoid thresholds for filling/inner/alternate/budding states and cracks", success_condition: "all sampled positions are evaluated and set through geode layers" },
+    FeatureBehaviorModel { feature_type: "minecraft:fossil", behavior: "selects fossil templates, offsets by random rotation and integrity, places fossil and overlay processors", success_condition: "template placement succeeds" },
+    FeatureBehaviorModel { feature_type: "minecraft:monster_room", behavior: "validates solid floor/ceiling, counts wall openings, builds cobble shell, chests, and spawner", success_condition: "1 <= openingCount <= 5" },
+];
+
+pub const MONSTER_ROOM_BOUNDS: MonsterRoomBounds = MonsterRoomBounds {
+    min_y: -1,
+    max_y: 4,
+    min_openings: 1,
+    max_openings: 5,
+};
+
 const fn feature_type(
     id: &'static str,
     configuration: FeatureConfigurationKind,
@@ -2957,6 +3084,31 @@ pub fn placed_feature_source(id: &str) -> Option<PlacedFeatureSource> {
         .map(|entry| entry.source)
 }
 
+pub fn spring_feature_can_place(
+    valid_above: bool,
+    requires_block_below: bool,
+    valid_below: bool,
+    current_is_air_or_valid: bool,
+    adjacent_rock_count: i32,
+    adjacent_hole_count: i32,
+    required_rock_count: i32,
+    required_hole_count: i32,
+) -> bool {
+    valid_above
+        && (!requires_block_below || valid_below)
+        && current_is_air_or_valid
+        && adjacent_rock_count == required_rock_count
+        && adjacent_hole_count == required_hole_count
+}
+
+pub fn monster_room_opening_count_is_valid(openings: i32) -> bool {
+    openings >= MONSTER_ROOM_BOUNDS.min_openings && openings <= MONSTER_ROOM_BOUNDS.max_openings
+}
+
+pub fn ore_vein_sphere_is_shadowed(radius_delta: f64, dx: f64, dy: f64, dz: f64) -> bool {
+    radius_delta * radius_delta > dx * dx + dy * dy + dz * dz
+}
+
 pub fn carver_can_reach(
     chunk_mid_x: f64,
     chunk_mid_z: f64,
@@ -2986,10 +3138,11 @@ mod tests {
         AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
         BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
         CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS,
-        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SURFACE_CONDITION_TYPES,
-        SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, Y_DENSITY,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
+        FLOATING_ISLANDS_NOISE_SETTINGS, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
+        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -3899,5 +4052,76 @@ mod tests {
             super::placed_feature_source("trees_mangrove"),
             Some(PlacedFeatureSource::Vegetation)
         );
+    }
+
+    #[test]
+    fn feature_placement_support_registries_match_vanilla_type_bootstraps() {
+        assert_eq!(
+            WORLDGEN_TYPE_REGISTRIES
+                .iter()
+                .map(|registry| (registry.id, registry.entries.len()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("minecraft:placement_modifier_type", 14),
+                ("minecraft:trunk_placer_type", 8),
+                ("minecraft:foliage_placer_type", 10),
+                ("minecraft:block_state_provider_type", 5),
+                ("minecraft:tree_decorator_type", 10),
+                ("minecraft:feature_size_type", 2),
+                ("minecraft:root_placer_type", 1),
+            ]
+        );
+        assert!(WORLDGEN_TYPE_REGISTRIES
+            .iter()
+            .find(|registry| registry.id == "minecraft:placement_modifier_type")
+            .unwrap()
+            .entries
+            .contains(&"minecraft:environment_scan"));
+        assert!(WORLDGEN_TYPE_REGISTRIES
+            .iter()
+            .find(|registry| registry.id == "minecraft:tree_decorator_type")
+            .unwrap()
+            .entries
+            .contains(&"minecraft:creaking_heart"));
+    }
+
+    #[test]
+    fn feature_placement_behavior_models_cover_required_families() {
+        assert_eq!(
+            FEATURE_BEHAVIOR_MODELS
+                .iter()
+                .map(|model| model.feature_type)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:tree",
+                "minecraft:vegetation_patch",
+                "minecraft:spring_feature",
+                "minecraft:ore",
+                "minecraft:scattered_ore",
+                "minecraft:disk",
+                "minecraft:lake",
+                "minecraft:geode",
+                "minecraft:fossil",
+                "minecraft:monster_room",
+            ]
+        );
+
+        assert!(super::spring_feature_can_place(
+            true, true, true, true, 4, 1, 4, 1
+        ));
+        assert!(!super::spring_feature_can_place(
+            true, true, false, true, 4, 1, 4, 1
+        ));
+        assert!(!super::spring_feature_can_place(
+            true, false, false, true, 3, 1, 4, 1
+        ));
+        assert_eq!(MONSTER_ROOM_BOUNDS.min_y, -1);
+        assert_eq!(MONSTER_ROOM_BOUNDS.max_y, 4);
+        assert!(!super::monster_room_opening_count_is_valid(0));
+        assert!(super::monster_room_opening_count_is_valid(1));
+        assert!(super::monster_room_opening_count_is_valid(5));
+        assert!(!super::monster_room_opening_count_is_valid(6));
+        assert!(super::ore_vein_sphere_is_shadowed(3.0, 1.0, 1.0, 1.0));
+        assert!(!super::ore_vein_sphere_is_shadowed(1.0, 2.0, 0.0, 0.0));
     }
 }
