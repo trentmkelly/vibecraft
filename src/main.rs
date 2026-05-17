@@ -40,6 +40,7 @@ mod portal;
 mod post_processing;
 mod random_source;
 mod random_tick;
+mod recipe_system;
 mod redstone;
 mod registry;
 mod resources;
