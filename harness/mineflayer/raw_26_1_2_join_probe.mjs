@@ -24,6 +24,9 @@ const expectedFoodSaturation = Number(process.env.RUSTCRAFT_EXPECT_FOOD_SATURATI
 const expectedXpProgress = Number(process.env.RUSTCRAFT_EXPECT_XP_PROGRESS ?? 0)
 const expectedXpLevel = Number(process.env.RUSTCRAFT_EXPECT_XP_LEVEL ?? 0)
 const expectedXpTotal = Number(process.env.RUSTCRAFT_EXPECT_XP_TOTAL ?? 0)
+const expectedGameMode = Number(process.env.RUSTCRAFT_EXPECT_GAME_MODE ?? 0)
+const expectedPreviousGameMode = Number(process.env.RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE ?? 255)
+const expectedAbilityFlags = Number(process.env.RUSTCRAFT_EXPECT_ABILITY_FLAGS ?? 0)
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
@@ -742,6 +745,10 @@ async function main () {
     }
     joinState.entityId = loginPacket.body.readInt32BE(0)
     joinState.dimension = 'minecraft:overworld'
+    const loginSpawn = readLoginSpawnInfo(loginPacket.body)
+    if (loginSpawn.gameMode !== expectedGameMode || loginSpawn.previousGameMode !== expectedPreviousGameMode) {
+      throw new Error(`expected login gameMode=${expectedGameMode} previous=${expectedPreviousGameMode}, got ${loginSpawn.gameMode}/${loginSpawn.previousGameMode}`)
+    }
     const playerInfoPacket = packetById.get(70)?.[0]
     if (!playerInfoPacket) throw new Error('missing player_info_update packet')
     let playerInfoOffset = 0
@@ -761,7 +768,7 @@ async function main () {
     const displayNamePresent = playerInfoPacket.body[playerInfoOffset++]
     const listOrder = readVarInt(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = listOrder.offset
     const showHat = playerInfoPacket.body[playerInfoOffset++]
-    if (profileId.value !== offlineUuid(username) || profileName.value !== username || propertiesCount.value !== 0 || chatSessionPresent !== 0 || gameMode.value !== 0 || listed !== 1 || latency.value !== 0 || displayNamePresent !== 0 || listOrder.value !== 0 || showHat !== 1 || playerInfoOffset !== playerInfoPacket.body.length) {
+    if (profileId.value !== offlineUuid(username) || profileName.value !== username || propertiesCount.value !== 0 || chatSessionPresent !== 0 || gameMode.value !== expectedGameMode || listed !== 1 || latency.value !== 0 || displayNamePresent !== 0 || listOrder.value !== 0 || showHat !== 1 || playerInfoOffset !== playerInfoPacket.body.length) {
       throw new Error('unexpected player_info_update identity or tab-list payload')
     }
     joinState.profile = { name: profileName.value, uuid: profileId.value }
@@ -769,7 +776,7 @@ async function main () {
     if (!abilitiesPacket || abilitiesPacket.body.length !== 9) {
       throw new Error(`expected 9-byte player_abilities body, got ${abilitiesPacket?.body.length}`)
     }
-    if (abilitiesPacket.body[0] !== 0 || !nearlyEqual(abilitiesPacket.body.readFloatBE(1), 0.05) || !nearlyEqual(abilitiesPacket.body.readFloatBE(5), 0.1)) {
+    if (abilitiesPacket.body[0] !== expectedAbilityFlags || !nearlyEqual(abilitiesPacket.body.readFloatBE(1), 0.05) || !nearlyEqual(abilitiesPacket.body.readFloatBE(5), 0.1)) {
       throw new Error('unexpected first-spawn player abilities payload')
     }
     const heldSlotPacket = packetById.get(105)?.[0]
@@ -915,6 +922,24 @@ async function main () {
 function abortSocket (socket, phase, details) {
   socket.destroy()
   console.log(JSON.stringify({ ok: true, aborted: true, phase, ...details }, null, 2))
+}
+
+function readLoginSpawnInfo (body) {
+  let offset = 5
+  const levelCount = readVarInt(body, offset); offset = levelCount.offset
+  for (let i = 0; i < levelCount.value; i++) {
+    const level = readString(body, offset); offset = level.offset
+  }
+  const maxPlayers = readVarInt(body, offset); offset = maxPlayers.offset
+  const chunkRadius = readVarInt(body, offset); offset = chunkRadius.offset
+  const simulationDistance = readVarInt(body, offset); offset = simulationDistance.offset
+  offset += 3
+  const dimensionType = readVarInt(body, offset); offset = dimensionType.offset
+  const dimension = readString(body, offset); offset = dimension.offset
+  offset += 8
+  const gameMode = body[offset++]
+  const previousGameMode = body[offset++]
+  return { gameMode, previousGameMode }
 }
 
 function clientInformationPayload () {

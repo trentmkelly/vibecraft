@@ -95,6 +95,8 @@ struct PlaySessionState {
     xp_progress: f32,
     xp_level: i32,
     xp_total: i32,
+    game_mode: GameMode,
+    previous_game_mode: Option<GameMode>,
 }
 
 impl Default for PlaySessionState {
@@ -113,6 +115,8 @@ impl Default for PlaySessionState {
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
+            game_mode: GameMode::Survival,
+            previous_game_mode: None,
         }
     }
 }
@@ -1398,7 +1402,7 @@ fn save_play_session_state(
 }
 
 fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
-    Tag::Compound(vec![
+    let mut values = vec![
         ("DataVersion".to_string(), Tag::Int(4791)),
         (
             "Pos".to_string(),
@@ -1425,10 +1429,21 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
         ("XpTotal".to_string(), Tag::Int(state.xp_total)),
         ("SelectedItemSlot".to_string(), Tag::Int(state.selected_slot)),
         (
+            "playerGameType".to_string(),
+            Tag::Int(game_mode_legacy_id(state.game_mode)),
+        ),
+        (
             "Dimension".to_string(),
             Tag::String("minecraft:overworld".to_string()),
         ),
-    ])
+    ];
+    if let Some(mode) = state.previous_game_mode {
+        values.push((
+            "previousPlayerGameType".to_string(),
+            Tag::Int(game_mode_legacy_id(mode)),
+        ));
+    }
+    Tag::Compound(values)
 }
 
 fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
@@ -1476,6 +1491,15 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
         Some(Tag::Int(value)) => (*value).max(0),
         _ => 0,
     };
+    let game_mode = match compound_tag(compound, "playerGameType") {
+        Some(Tag::Int(value)) => game_mode_from_legacy_id(*value),
+        _ => GameMode::Survival,
+    };
+    let previous_game_mode = match compound_tag(compound, "previousPlayerGameType") {
+        Some(Tag::Int(value)) if *value == -1 => None,
+        Some(Tag::Int(value)) => Some(game_mode_from_legacy_id(*value)),
+        _ => None,
+    };
     Some(PlaySessionState {
         x: *x,
         y: *y,
@@ -1490,6 +1514,8 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
         xp_progress,
         xp_level,
         xp_total,
+        game_mode,
+        previous_game_mode,
     })
 }
 
@@ -1623,7 +1649,11 @@ fn write_minimal_play_join(
         reduced_debug_info: false,
         show_death_screen: true,
         do_limited_crafting: false,
-        spawn_info: CommonPlayerSpawnInfo::default(),
+        spawn_info: CommonPlayerSpawnInfo {
+            game_mode: play_state.game_mode,
+            previous_game_mode: play_state.previous_game_mode,
+            ..CommonPlayerSpawnInfo::default()
+        },
         enforces_secure_chat: false,
     };
     write_framed_packet_with_compression(
@@ -1636,7 +1666,7 @@ fn write_minimal_play_join(
         stream,
         compression,
         CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-        |payload| write_player_info_initializing_packet(payload, profile),
+        |payload| write_player_info_initializing_packet(payload, profile, play_state.game_mode),
     )?;
     write_framed_packet_with_compression(
         stream,
@@ -1651,11 +1681,7 @@ fn write_minimal_play_join(
         stream,
         compression,
         CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-        |payload| {
-            payload.write_all(&[0])?;
-            payload.write_all(&0.05f32.to_be_bytes())?;
-            payload.write_all(&0.1f32.to_be_bytes())
-        },
+        |payload| write_player_abilities_packet(payload, play_state.game_mode),
     )?;
     write_framed_packet_with_compression(
         stream,
@@ -1815,6 +1841,7 @@ fn write_minimal_play_join(
 fn write_player_info_initializing_packet<W: Write>(
     writer: &mut W,
     profile: &NameAndId,
+    game_mode: GameMode,
 ) -> io::Result<()> {
     writer.write_all(&[0xff])?;
     write_var_i32(writer, 1)?;
@@ -1822,12 +1849,23 @@ fn write_player_info_initializing_packet<W: Write>(
     crate::network::codec::write_string(writer, &profile.name, 16)?;
     write_var_i32(writer, 0)?;
     write_bool(writer, false)?;
-    write_var_i32(writer, 0)?;
+    write_var_i32(writer, game_mode_legacy_id(game_mode))?;
     write_bool(writer, true)?;
     write_var_i32(writer, 0)?;
     write_bool(writer, false)?;
     write_var_i32(writer, 0)?;
     write_bool(writer, true)
+}
+
+fn write_player_abilities_packet<W: Write>(writer: &mut W, game_mode: GameMode) -> io::Result<()> {
+    let flags = match game_mode {
+        GameMode::Survival | GameMode::Adventure => 0,
+        GameMode::Creative => 0x0d,
+        GameMode::Spectator => 0x0f,
+    };
+    writer.write_all(&[flags])?;
+    writer.write_all(&0.05f32.to_be_bytes())?;
+    writer.write_all(&0.1f32.to_be_bytes())
 }
 
 fn uuid_from_hyphenated(value: &str) -> io::Result<Uuid> {
@@ -2900,6 +2938,24 @@ fn write_common_spawn_info<W: Write>(
     )?;
     write_var_i32(writer, spawn_info.portal_cooldown)?;
     write_var_i32(writer, spawn_info.sea_level)
+}
+
+fn game_mode_legacy_id(game_mode: GameMode) -> i32 {
+    match game_mode {
+        GameMode::Survival => 0,
+        GameMode::Creative => 1,
+        GameMode::Adventure => 2,
+        GameMode::Spectator => 3,
+    }
+}
+
+fn game_mode_from_legacy_id(id: i32) -> GameMode {
+    match id {
+        1 => GameMode::Creative,
+        2 => GameMode::Adventure,
+        3 => GameMode::Spectator,
+        _ => GameMode::Survival,
+    }
 }
 
 fn dimension_type_registry_id(dimension_type: &Identifier) -> io::Result<i32> {

@@ -237,6 +237,8 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       xpLevel: 9,
       xpTotal: 123,
       selectedSlot: 3,
+      gameMode: 1,
+      previousGameMode: 0,
       position: { x: 2.5, y: 83, z: 4.5, yaw: 35, pitch: -10 }
     }
     await writePlayerData(root, uuid, saved)
@@ -249,7 +251,10 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       RUSTCRAFT_EXPECT_FOOD_SATURATION: String(saved.foodSaturation),
       RUSTCRAFT_EXPECT_XP_PROGRESS: String(saved.xpProgress),
       RUSTCRAFT_EXPECT_XP_LEVEL: String(saved.xpLevel),
-      RUSTCRAFT_EXPECT_XP_TOTAL: String(saved.xpTotal)
+      RUSTCRAFT_EXPECT_XP_TOTAL: String(saved.xpTotal),
+      RUSTCRAFT_EXPECT_GAME_MODE: String(saved.gameMode),
+      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: String(saved.previousGameMode),
+      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
     })
     assert.equal(joined.ok, true)
   })
@@ -265,6 +270,8 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       xpLevel: -4,
       xpTotal: -99,
       selectedSlot: 42,
+      gameMode: 99,
+      previousGameMode: 99,
       position
     })
 
@@ -276,7 +283,10 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       RUSTCRAFT_EXPECT_XP_PROGRESS: '1',
       RUSTCRAFT_EXPECT_XP_LEVEL: '0',
       RUSTCRAFT_EXPECT_XP_TOTAL: '0',
-      RUSTCRAFT_EXPECT_HELD_SLOT: '0'
+      RUSTCRAFT_EXPECT_HELD_SLOT: '0',
+      RUSTCRAFT_EXPECT_GAME_MODE: '0',
+      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
+      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
   })
@@ -458,7 +468,7 @@ async function writePlayerData (root, uuid, saved) {
 }
 
 function playerDataNbt (saved) {
-  return gzipSync(nbtRoot([
+  const entries = [
     nbtInt('DataVersion', 4791),
     nbtList('Pos', 6, [
       doublePayload(saved.position.x),
@@ -478,8 +488,13 @@ function playerDataNbt (saved) {
     nbtFloat('XpP', saved.xpProgress),
     nbtInt('XpTotal', saved.xpTotal),
     nbtInt('SelectedItemSlot', saved.selectedSlot),
+    nbtInt('playerGameType', saved.gameMode ?? 0),
     nbtString('Dimension', 'minecraft:overworld')
-  ]))
+  ]
+  if (saved.previousGameMode != null) {
+    entries.push(nbtInt('previousPlayerGameType', saved.previousGameMode))
+  }
+  return gzipSync(nbtRoot(entries))
 }
 
 function nbtRoot (entries) {
