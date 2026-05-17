@@ -9,6 +9,7 @@ mod log;
 mod network;
 mod player;
 mod player_access;
+mod random_source;
 mod registry;
 mod resources;
 mod runtime;
