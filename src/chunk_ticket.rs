@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::storage::region::ChunkPos;
 
@@ -38,6 +38,26 @@ pub enum FullChunkStatus {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TicketStore {
     tickets: BTreeMap<ChunkPos, Vec<Ticket>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkTrackingView {
+    pub center: Option<ChunkPos>,
+    pub view_distance: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkTrackingDiff {
+    pub entered: Vec<ChunkPos>,
+    pub left: Vec<ChunkPos>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerChunkTracker {
+    players: BTreeMap<String, ChunkPos>,
+    views: BTreeMap<String, ChunkTrackingView>,
+    pub view_distance: i32,
+    pub simulation_distance: i32,
 }
 
 pub const TICKET_TYPES: &[TicketTypeEntry] = &[
@@ -232,6 +252,172 @@ impl TicketStore {
     }
 }
 
+impl ChunkTrackingView {
+    pub const EMPTY: Self = Self {
+        center: None,
+        view_distance: 0,
+    };
+
+    pub fn positioned(center: ChunkPos, view_distance: i32) -> Self {
+        Self {
+            center: Some(center),
+            view_distance,
+        }
+    }
+
+    pub fn contains(&self, chunk: ChunkPos, include_neighbors: bool) -> bool {
+        self.center.is_some_and(|center| {
+            is_within_view_distance(center, self.view_distance, chunk, include_neighbors)
+        })
+    }
+
+    pub fn is_in_view_distance(&self, chunk: ChunkPos) -> bool {
+        self.contains(chunk, false)
+    }
+
+    pub fn chunks(&self) -> BTreeSet<ChunkPos> {
+        let mut chunks = BTreeSet::new();
+        let Some(center) = self.center else {
+            return chunks;
+        };
+        for x in self.min_x()..=self.max_x() {
+            for z in self.min_z()..=self.max_z() {
+                let pos = ChunkPos { x, z };
+                if self.contains(pos, true) {
+                    chunks.insert(pos);
+                }
+            }
+        }
+        if chunks.is_empty() {
+            chunks.insert(center);
+        }
+        chunks
+    }
+
+    pub fn diff(&self, next: &Self) -> ChunkTrackingDiff {
+        let from = self.chunks();
+        let to = next.chunks();
+        ChunkTrackingDiff {
+            entered: to.difference(&from).copied().collect(),
+            left: from.difference(&to).copied().collect(),
+        }
+    }
+
+    fn min_x(&self) -> i32 {
+        self.center
+            .map(|center| center.x - self.view_distance - 1)
+            .unwrap_or(0)
+    }
+
+    fn min_z(&self) -> i32 {
+        self.center
+            .map(|center| center.z - self.view_distance - 1)
+            .unwrap_or(0)
+    }
+
+    fn max_x(&self) -> i32 {
+        self.center
+            .map(|center| center.x + self.view_distance + 1)
+            .unwrap_or(-1)
+    }
+
+    fn max_z(&self) -> i32 {
+        self.center
+            .map(|center| center.z + self.view_distance + 1)
+            .unwrap_or(-1)
+    }
+}
+
+impl PlayerChunkTracker {
+    pub fn new(view_distance: i32, simulation_distance: i32) -> Self {
+        Self {
+            players: BTreeMap::new(),
+            views: BTreeMap::new(),
+            view_distance,
+            simulation_distance,
+        }
+    }
+
+    pub fn add_or_move_player(
+        &mut self,
+        player_id: impl Into<String>,
+        chunk: ChunkPos,
+    ) -> ChunkTrackingDiff {
+        let player_id = player_id.into();
+        let previous = self
+            .views
+            .get(&player_id)
+            .cloned()
+            .unwrap_or(ChunkTrackingView::EMPTY);
+        let next = ChunkTrackingView::positioned(chunk, self.view_distance);
+        let diff = previous.diff(&next);
+        self.players.insert(player_id.clone(), chunk);
+        self.views.insert(player_id, next);
+        diff
+    }
+
+    pub fn remove_player(&mut self, player_id: &str) -> ChunkTrackingDiff {
+        self.players.remove(player_id);
+        let previous = self
+            .views
+            .remove(player_id)
+            .unwrap_or(ChunkTrackingView::EMPTY);
+        previous.diff(&ChunkTrackingView::EMPTY)
+    }
+
+    pub fn update_view_distance(&mut self, view_distance: i32) -> Vec<(String, ChunkTrackingDiff)> {
+        self.view_distance = view_distance;
+        let player_positions: Vec<_> = self
+            .players
+            .iter()
+            .map(|(player, pos)| (player.clone(), *pos))
+            .collect();
+        player_positions
+            .into_iter()
+            .map(|(player, pos)| {
+                let previous = self
+                    .views
+                    .get(&player)
+                    .cloned()
+                    .unwrap_or(ChunkTrackingView::EMPTY);
+                let next = ChunkTrackingView::positioned(pos, view_distance);
+                let diff = previous.diff(&next);
+                self.views.insert(player.clone(), next);
+                (player, diff)
+            })
+            .collect()
+    }
+
+    pub fn player_simulation_ticket_level(&self) -> i32 {
+        (ENTITY_TICKING_LEVEL - self.simulation_distance).max(0)
+    }
+
+    pub fn update_simulation_distance(
+        &mut self,
+        simulation_distance: i32,
+        tickets: &mut TicketStore,
+    ) {
+        self.simulation_distance = simulation_distance;
+        if let Some(ticket_type) = ticket_type_by_id("player_simulation") {
+            tickets
+                .replace_ticket_level_of_type(self.player_simulation_ticket_level(), ticket_type);
+        }
+    }
+}
+
+pub fn is_within_view_distance(
+    center: ChunkPos,
+    view_distance: i32,
+    chunk: ChunkPos,
+    include_neighbors: bool,
+) -> bool {
+    let buffer_range = if include_neighbors { 2 } else { 1 };
+    let delta_x = 0.max((chunk.x - center.x).abs() - buffer_range) as i64;
+    let delta_z = 0.max((chunk.z - center.z).abs() - buffer_range) as i64;
+    let distance_squared = delta_x * delta_x + delta_z * delta_z;
+    distance_squared < i64::from(view_distance * view_distance)
+}
+
 pub fn ticket_type_by_id(id: &str) -> Option<TicketTypeEntry> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     TICKET_TYPES.iter().copied().find(|entry| {
@@ -249,8 +435,9 @@ fn same_type_and_level(a: Ticket, b: Ticket) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        ticket_type_by_id, FullChunkStatus, Ticket, TicketStore, BLOCK_TICKING_LEVEL,
-        ENTITY_TICKING_LEVEL, FULL_CHUNK_LEVEL, TICKET_TYPES,
+        is_within_view_distance, ticket_type_by_id, ChunkTrackingView, FullChunkStatus,
+        PlayerChunkTracker, Ticket, TicketStore, BLOCK_TICKING_LEVEL, ENTITY_TICKING_LEVEL,
+        FULL_CHUNK_LEVEL, TICKET_TYPES,
     };
     use crate::storage::region::ChunkPos;
 
@@ -324,5 +511,77 @@ mod tests {
         store.add_ticket(pos, Ticket::new(player_simulation, 21));
         store.replace_ticket_level_of_type(25, player_simulation);
         assert_eq!(store.effective_level(pos, true), Some(25));
+    }
+
+    #[test]
+    fn chunk_tracking_view_matches_vanilla_distance_buffer() {
+        let center = ChunkPos { x: 0, z: 0 };
+        assert!(is_within_view_distance(
+            center,
+            5,
+            ChunkPos { x: 5, z: 0 },
+            true
+        ));
+        assert!(is_within_view_distance(
+            center,
+            5,
+            ChunkPos { x: 5, z: 0 },
+            false
+        ));
+        assert!(is_within_view_distance(
+            center,
+            5,
+            ChunkPos { x: 6, z: 0 },
+            true
+        ));
+        assert!(!is_within_view_distance(
+            center,
+            5,
+            ChunkPos { x: 6, z: 0 },
+            false
+        ));
+        assert!(!is_within_view_distance(
+            center,
+            5,
+            ChunkPos { x: 7, z: 0 },
+            true
+        ));
+
+        let view = ChunkTrackingView::positioned(center, 2);
+        assert!(view.contains(ChunkPos { x: 3, z: 0 }, true));
+        assert!(!view.is_in_view_distance(ChunkPos { x: 3, z: 0 }));
+        assert!(view.chunks().contains(&center));
+    }
+
+    #[test]
+    fn player_chunk_tracker_reports_enter_leave_and_separate_simulation_distance() {
+        let mut tracker = PlayerChunkTracker::new(2, 10);
+        let first = tracker.add_or_move_player("trent", ChunkPos { x: 0, z: 0 });
+        assert!(!first.entered.is_empty());
+        assert!(first.left.is_empty());
+
+        let moved = tracker.add_or_move_player("trent", ChunkPos { x: 4, z: 0 });
+        assert!(!moved.entered.is_empty());
+        assert!(!moved.left.is_empty());
+
+        let resized = tracker.update_view_distance(3);
+        assert_eq!(resized.len(), 1);
+        assert!(resized[0].1.entered.len() > resized[0].1.left.len());
+
+        assert_eq!(tracker.player_simulation_ticket_level(), 21);
+        let mut tickets = TicketStore::default();
+        let player_simulation = ticket_type_by_id("player_simulation").unwrap();
+        tickets.add_ticket(ChunkPos { x: 4, z: 0 }, Ticket::new(player_simulation, 21));
+        tracker.update_simulation_distance(6, &mut tickets);
+        assert_eq!(tracker.view_distance, 3);
+        assert_eq!(tracker.player_simulation_ticket_level(), 25);
+        assert_eq!(
+            tickets.effective_level(ChunkPos { x: 4, z: 0 }, true),
+            Some(25)
+        );
+
+        let removed = tracker.remove_player("trent");
+        assert!(!removed.left.is_empty());
+        assert!(removed.entered.is_empty());
     }
 }
