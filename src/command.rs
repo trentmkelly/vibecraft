@@ -1282,6 +1282,7 @@ pub enum CommandError {
     PlaceStructureFailed,
     PlaceTemplateInvalid,
     PlaceTemplateFailed,
+    TeleportInvalidPosition,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -2087,6 +2088,7 @@ pub fn execute_builtin_command(
         "summon" => summon_command(state, &parts),
         "swing" => swing_command(state, &parts),
         "tag" => tag_command(state, &parts),
+        "teleport" | "tp" => teleport_command(state, &parts),
         "team" => team_command(state, &parts),
         "particle" => particle_command(state, &parts),
         "perf" => perf_command(state, &parts),
@@ -4425,6 +4427,221 @@ fn raid_result(success_count: i32, feedback_key: &'static str) -> CommandResult 
         success_count,
         feedback_key,
         broadcast_to_admins: false,
+    }
+}
+
+fn teleport_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let parts = if parts.first() == Some(&"tp") {
+        let mut redirected = parts.to_vec();
+        redirected[0] = "teleport";
+        redirected
+    } else {
+        parts.to_vec()
+    };
+    match parts.as_slice() {
+        ["teleport", x, y, z] => {
+            let target = state
+                .command_source_entity
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?;
+            teleport_to_pos(
+                state,
+                vec![target],
+                parse_teleport_vec3(state, x, y, z)?,
+                None,
+            )
+        }
+        ["teleport", destination] => {
+            let target = state
+                .command_source_entity
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?;
+            let destination = entity_ref(destination);
+            teleport_to_entity(state, vec![target], destination)
+        }
+        ["teleport", targets, x, y, z] => teleport_to_pos(
+            state,
+            parse_entity_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            None,
+        ),
+        ["teleport", targets, x, y, z, yaw, pitch] => teleport_to_pos(
+            state,
+            parse_entity_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            Some(parse_teleport_rotation(yaw, pitch)?),
+        ),
+        ["teleport", targets, x, y, z, "facing", "entity", facing] => teleport_to_pos_with_facing(
+            state,
+            parse_entity_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            RotationMode::FacingEntity {
+                entity: entity_ref(facing),
+                anchor: EntityAnchor::Feet,
+            },
+        ),
+        ["teleport", targets, x, y, z, "facing", "entity", facing, anchor] => {
+            teleport_to_pos_with_facing(
+                state,
+                parse_entity_list(targets),
+                parse_teleport_vec3(state, x, y, z)?,
+                RotationMode::FacingEntity {
+                    entity: entity_ref(facing),
+                    anchor: parse_entity_anchor(anchor)?,
+                },
+            )
+        }
+        ["teleport", targets, x, y, z, "facing", fx, fy, fz] => teleport_to_pos_with_facing(
+            state,
+            parse_entity_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            RotationMode::FacingPosition(parse_vec3(fx, fy, fz)?),
+        ),
+        ["teleport", targets, destination] => {
+            teleport_to_entity(state, parse_entity_list(targets), entity_ref(destination))
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn teleport_to_entity(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    destination: EntityRef,
+) -> Result<CommandResult, CommandError> {
+    let destination_position =
+        entity_position(state, &destination)
+            .cloned()
+            .unwrap_or(EntityPosition {
+                entity: destination.clone(),
+                dimension: state.command_source_dimension.clone(),
+                position: state.command_source_position,
+            });
+    for target in &targets {
+        upsert_entity_position(state, target.clone(), destination_position.position);
+        set_entity_dimension(state, target, &destination_position.dimension);
+    }
+    Ok(CommandResult {
+        success_count: targets.len() as i32,
+        feedback_key: if targets.len() == 1 {
+            "commands.teleport.success.entity.single"
+        } else {
+            "commands.teleport.success.entity.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn teleport_to_pos(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    position: Vec3,
+    rotation: Option<(f32, f32, bool, bool)>,
+) -> Result<CommandResult, CommandError> {
+    validate_teleport_position(position)?;
+    for target in &targets {
+        upsert_entity_position(state, target.clone(), position);
+        set_entity_dimension(state, target, &state.command_source_dimension.clone());
+        if let Some((yaw, pitch, yaw_relative, pitch_relative)) = rotation {
+            state.rotation_requests.push(RotationRequest {
+                target: target.clone(),
+                mode: RotationMode::Angles {
+                    yaw,
+                    pitch,
+                    yaw_relative,
+                    pitch_relative,
+                },
+            });
+        }
+    }
+    Ok(CommandResult {
+        success_count: targets.len() as i32,
+        feedback_key: if targets.len() == 1 {
+            "commands.teleport.success.location.single"
+        } else {
+            "commands.teleport.success.location.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn teleport_to_pos_with_facing(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    position: Vec3,
+    facing: RotationMode,
+) -> Result<CommandResult, CommandError> {
+    let result = teleport_to_pos(state, targets.clone(), position, None)?;
+    for target in targets {
+        state.rotation_requests.push(RotationRequest {
+            target,
+            mode: facing.clone(),
+        });
+    }
+    Ok(result)
+}
+
+fn parse_teleport_vec3(
+    state: &ServerCommandState,
+    x: &str,
+    y: &str,
+    z: &str,
+) -> Result<Vec3, CommandError> {
+    Ok(Vec3 {
+        x: parse_coordinate(x, state.command_source_position.x)?,
+        y: parse_coordinate(y, state.command_source_position.y)?,
+        z: parse_coordinate(z, state.command_source_position.z)?,
+    })
+}
+
+fn parse_coordinate(input: &str, base: f64) -> Result<f64, CommandError> {
+    if input == "~" {
+        Ok(base)
+    } else if let Some(offset) = input.strip_prefix('~') {
+        Ok(base + parse_f64(offset)?)
+    } else {
+        parse_f64(input)
+    }
+}
+
+fn parse_teleport_rotation(yaw: &str, pitch: &str) -> Result<(f32, f32, bool, bool), CommandError> {
+    let (yaw, yaw_relative) = parse_teleport_rotation_component(yaw)?;
+    let (pitch, pitch_relative) = parse_teleport_rotation_component(pitch)?;
+    Ok((yaw, pitch, yaw_relative, pitch_relative))
+}
+
+fn parse_teleport_rotation_component(input: &str) -> Result<(f32, bool), CommandError> {
+    if input == "~" {
+        Ok((0.0, true))
+    } else if let Some(offset) = input.strip_prefix('~') {
+        Ok((parse_f32(offset)?, true))
+    } else {
+        Ok((parse_f32(input)?, false))
+    }
+}
+
+fn validate_teleport_position(position: Vec3) -> Result<(), CommandError> {
+    if position.x.abs() > 30_000_000.0
+        || position.z.abs() > 30_000_000.0
+        || position.y < -20_000_000.0
+        || position.y > 20_000_000.0
+    {
+        Err(CommandError::TeleportInvalidPosition)
+    } else {
+        Ok(())
+    }
+}
+
+fn set_entity_dimension(state: &mut ServerCommandState, entity: &EntityRef, dimension: &str) {
+    if let Some(entry) = state
+        .entity_positions
+        .iter_mut()
+        .find(|entry| entry.entity.id == entity.id)
+    {
+        entry.dimension = dimension.to_string();
     }
 }
 
@@ -10234,6 +10451,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("summon", "/summon <entity> [pos] [nbt]"),
         ("swing", "/swing [targets] [mainhand|offhand]"),
         ("tag", "/tag <targets> <add|remove|list> [name]"),
+        ("teleport", "/teleport <targets|location> ..."),
         (
             "team",
             "/team <list|add|remove|empty|join|leave|modify> ...",
@@ -10243,6 +10461,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("tellraw", "/tellraw <targets> <message>"),
         ("tick", "/tick query|rate|step|sprint|freeze|unfreeze"),
         ("tm", "/tm <message>"),
+        ("tp", "/tp <targets|location> ..."),
         ("transfer", "/transfer <hostname> [port] [players]"),
         ("version", "/version"),
         ("weather", "/weather <clear|rain|thunder> [duration]"),
@@ -10626,20 +10845,21 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 #[cfg(test)]
 mod tests {
     use super::{
-        command_required_permission, command_usage, execute_builtin_command,
-        visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
-        AttributeOperation, AvatarProfile, BiomeEntry, BlockPos, BlockStateEntry,
-        BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind,
-        ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandBlockItemSlot,
-        CommandEntityItemSlot, CommandEntityLootTable, CommandError, CommandFunctionDefinition,
-        CommandFunctionTag, CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack,
-        CommandItemTarget, CommandLocatableEntry, CommandLocateResult, CommandLootSource,
-        CommandLootTable, CommandLootTarget, CommandPlayerInventory, CommandRaidEvent,
-        CommandRaidState, DamageCommandSource, DialogCommandEvent, EntityAnchor,
-        EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
-        EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk, GameMode,
-        InteractionHand, LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport,
-        Permission, PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
+        command_required_permission, command_usage, entity_position, entity_ref,
+        execute_builtin_command, visible_command_usages, ActiveEffect, AdvancementDefinition,
+        AttributeModifierState, AttributeOperation, AvatarProfile, BiomeEntry, BlockPos,
+        BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession,
+        ChatCommandKind, ChunkPos, CloneFilter, CloneMode, CommandAvailability,
+        CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable, CommandError,
+        CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
+        CommandItemModifierEvent, CommandItemStack, CommandItemTarget, CommandLocatableEntry,
+        CommandLocateResult, CommandLootSource, CommandLootTable, CommandLootTarget,
+        CommandPlayerInventory, CommandRaidEvent, CommandRaidState, DamageCommandSource,
+        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
+        EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
+        FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
+        LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport, Permission,
+        PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
         PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
         PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
@@ -15648,6 +15868,175 @@ mod tests {
                 .unwrap();
         assert_eq!(too_high.feedback_key, "commands.raid.omen.too_high");
         assert_eq!(state.raids[0].omen_level, 1);
+    }
+
+    #[test]
+    fn teleport_command_moves_targets_to_locations_and_entities() {
+        let mut state = ServerCommandState {
+            command_source_entity: Some(EntityRef {
+                id: "Steve".to_string(),
+                display_name: "Steve".to_string(),
+            }),
+            command_source_position: Vec3 {
+                x: 10.0,
+                y: 64.0,
+                z: 10.0,
+            },
+            entity_positions: vec![EntityPosition {
+                entity: EntityRef {
+                    id: "Alex".to_string(),
+                    display_name: "Alex".to_string(),
+                },
+                dimension: "minecraft:the_nether".to_string(),
+                position: Vec3 {
+                    x: 1.0,
+                    y: 70.0,
+                    z: 2.0,
+                },
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("teleport"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "teleport Steve 1 2 3"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let self_tp = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "teleport ~1 65 ~-2",
+        )
+        .unwrap();
+        assert_eq!(self_tp.success_count, 1);
+        assert_eq!(
+            self_tp.feedback_key,
+            "commands.teleport.success.location.single"
+        );
+        assert_eq!(
+            entity_position(&state, &entity_ref("Steve"))
+                .unwrap()
+                .position,
+            Vec3 {
+                x: 11.0,
+                y: 65.0,
+                z: 8.0,
+            }
+        );
+
+        let to_entity = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tp Steve Alex",
+        )
+        .unwrap();
+        assert_eq!(
+            to_entity.feedback_key,
+            "commands.teleport.success.entity.single"
+        );
+        let steve = entity_position(&state, &entity_ref("Steve")).unwrap();
+        assert_eq!(steve.dimension, "minecraft:the_nether");
+        assert_eq!(
+            steve.position,
+            Vec3 {
+                x: 1.0,
+                y: 70.0,
+                z: 2.0,
+            }
+        );
+    }
+
+    #[test]
+    fn teleport_command_records_rotation_and_facing_requests() {
+        let mut state = ServerCommandState::default();
+        let rotated = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "teleport Steve,Alex 0 64 0 90 ~-30",
+        )
+        .unwrap();
+        assert_eq!(rotated.success_count, 2);
+        assert_eq!(
+            rotated.feedback_key,
+            "commands.teleport.success.location.multiple"
+        );
+        assert_eq!(state.entity_positions.len(), 2);
+        assert_eq!(state.rotation_requests.len(), 2);
+        assert_eq!(
+            state.rotation_requests[0].mode,
+            RotationMode::Angles {
+                yaw: 90.0,
+                pitch: -30.0,
+                yaw_relative: false,
+                pitch_relative: true,
+            }
+        );
+
+        let facing = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "teleport Steve 1 65 2 facing entity Alex eyes",
+        )
+        .unwrap();
+        assert_eq!(facing.success_count, 1);
+        assert_eq!(
+            state.rotation_requests.last().unwrap().mode,
+            RotationMode::FacingEntity {
+                entity: entity_ref("Alex"),
+                anchor: EntityAnchor::Eyes,
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "teleport Steve 1 65 2 facing 4 65 6",
+        )
+        .unwrap();
+        assert_eq!(
+            state.rotation_requests.last().unwrap().mode,
+            RotationMode::FacingPosition(Vec3 {
+                x: 4.0,
+                y: 65.0,
+                z: 6.0,
+            })
+        );
+    }
+
+    #[test]
+    fn teleport_command_rejects_missing_source_and_invalid_positions() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "teleport 1 2 3"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "teleport Steve 30000001 64 0"
+            ),
+            Err(CommandError::TeleportInvalidPosition)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "teleport Steve 0 64 0 facing entity Alex head"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
     }
 
     #[test]
