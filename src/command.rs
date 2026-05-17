@@ -65,6 +65,7 @@ pub struct ServerCommandState {
     pub singleplayer_owner: Option<NameAndId>,
     pub disconnected_players: Vec<PlayerDisconnect>,
     pub killed_entities: Vec<EntityRef>,
+    pub teams: Vec<TeamState>,
     pub player_teams: Vec<TeamMembership>,
     pub chat_events: Vec<ChatCommandEvent>,
     pub sound_events: Vec<SoundCommandEvent>,
@@ -216,6 +217,37 @@ pub struct PlayerSpawn {
 pub struct TeamMembership {
     pub player: NameAndId,
     pub team: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TeamState {
+    pub name: String,
+    pub display_name: String,
+    pub color: String,
+    pub friendly_fire: bool,
+    pub see_friendly_invisibles: bool,
+    pub nametag_visibility: String,
+    pub death_message_visibility: String,
+    pub collision_rule: String,
+    pub prefix: String,
+    pub suffix: String,
+}
+
+impl TeamState {
+    fn new(name: String, display_name: String) -> Self {
+        Self {
+            name,
+            display_name,
+            color: "reset".to_string(),
+            friendly_fire: true,
+            see_friendly_invisibles: true,
+            nametag_visibility: "always".to_string(),
+            death_message_visibility: "always".to_string(),
+            collision_rule: "always".to_string(),
+            prefix: String::new(),
+            suffix: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -494,6 +526,10 @@ pub enum CommandError {
     SummonFailedPeaceful,
     SummonDuplicateUuid,
     SummonInvalidPosition,
+    TeamAlreadyExists,
+    TeamNotFound,
+    TeamAlreadyEmpty,
+    TeamOptionUnchanged,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -593,6 +629,7 @@ impl Default for ServerCommandState {
             singleplayer_owner: None,
             disconnected_players: Vec::new(),
             killed_entities: Vec::new(),
+            teams: Vec::new(),
             player_teams: Vec::new(),
             chat_events: Vec::new(),
             sound_events: Vec::new(),
@@ -983,6 +1020,7 @@ pub fn execute_builtin_command(
         "summon" => summon_command(state, &parts),
         "swing" => swing_command(state, &parts),
         "tag" => tag_command(state, &parts),
+        "team" => team_command(state, &parts),
         "particle" => particle_command(state, &parts),
         "perf" => perf_command(state, &parts),
         "rotate" => rotate_command(state, &parts),
@@ -2120,6 +2158,283 @@ fn entity_tags_index(state: &mut ServerCommandState, entity: EntityRef) -> usize
     }
 }
 
+fn team_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["team", "list"] => Ok(CommandResult {
+            success_count: state.teams.len() as i32,
+            feedback_key: if state.teams.is_empty() {
+                "commands.team.list.teams.empty"
+            } else {
+                "commands.team.list.teams.success"
+            },
+            broadcast_to_admins: false,
+        }),
+        ["team", "list", team] => {
+            require_team(state, team)?;
+            let count = state
+                .player_teams
+                .iter()
+                .filter(|membership| membership.team == *team)
+                .count();
+            Ok(CommandResult {
+                success_count: count as i32,
+                feedback_key: if count == 0 {
+                    "commands.team.list.members.empty"
+                } else {
+                    "commands.team.list.members.success"
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        ["team", "add", team] => add_team(state, team, team),
+        ["team", "add", team, display_name] => add_team(state, team, display_name),
+        ["team", "remove", team] => {
+            require_team(state, team)?;
+            state.teams.retain(|entry| entry.name != *team);
+            state
+                .player_teams
+                .retain(|membership| membership.team != *team);
+            Ok(CommandResult {
+                success_count: state.teams.len() as i32,
+                feedback_key: "commands.team.remove.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["team", "empty", team] => {
+            require_team(state, team)?;
+            let old_len = state.player_teams.len();
+            state
+                .player_teams
+                .retain(|membership| membership.team != *team);
+            let removed = old_len - state.player_teams.len();
+            if removed == 0 {
+                return Err(CommandError::TeamAlreadyEmpty);
+            }
+            Ok(CommandResult {
+                success_count: removed as i32,
+                feedback_key: "commands.team.empty.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["team", "join", team] => {
+            let player = state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?;
+            join_team(state, team, vec![player])
+        }
+        ["team", "join", team, members @ ..] if !members.is_empty() => {
+            let members = members
+                .iter()
+                .map(|member| NameAndId::create_offline(member))
+                .collect();
+            join_team(state, team, members)
+        }
+        ["team", "leave", members @ ..] if !members.is_empty() => {
+            let members: Vec<NameAndId> = members
+                .iter()
+                .map(|member| NameAndId::create_offline(member))
+                .collect();
+            for member in &members {
+                state
+                    .player_teams
+                    .retain(|membership| membership.player.uuid != member.uuid);
+            }
+            Ok(CommandResult {
+                success_count: members.len() as i32,
+                feedback_key: if members.len() == 1 {
+                    "commands.team.leave.success.single"
+                } else {
+                    "commands.team.leave.success.multiple"
+                },
+                broadcast_to_admins: true,
+            })
+        }
+        ["team", "modify", team, option, value] => modify_team(state, team, option, value),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn add_team(
+    state: &mut ServerCommandState,
+    team: &str,
+    display_name: &str,
+) -> Result<CommandResult, CommandError> {
+    parse_identifier(team)?;
+    if state.teams.iter().any(|entry| entry.name == team) {
+        return Err(CommandError::TeamAlreadyExists);
+    }
+    state
+        .teams
+        .push(TeamState::new(team.to_string(), display_name.to_string()));
+    Ok(CommandResult {
+        success_count: state.teams.len() as i32,
+        feedback_key: "commands.team.add.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn join_team(
+    state: &mut ServerCommandState,
+    team: &str,
+    members: Vec<NameAndId>,
+) -> Result<CommandResult, CommandError> {
+    require_team(state, team)?;
+    for member in &members {
+        state
+            .player_teams
+            .retain(|membership| membership.player.uuid != member.uuid);
+        state.player_teams.push(TeamMembership {
+            player: member.clone(),
+            team: team.to_string(),
+        });
+    }
+    Ok(CommandResult {
+        success_count: members.len() as i32,
+        feedback_key: if members.len() == 1 {
+            "commands.team.join.success.single"
+        } else {
+            "commands.team.join.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn modify_team(
+    state: &mut ServerCommandState,
+    team: &str,
+    option: &str,
+    value: &str,
+) -> Result<CommandResult, CommandError> {
+    let team = state
+        .teams
+        .iter_mut()
+        .find(|entry| entry.name == team)
+        .ok_or(CommandError::TeamNotFound)?;
+    let feedback_key = match option {
+        "displayName" => set_team_string(
+            &mut team.display_name,
+            value,
+            "commands.team.option.name.success",
+        )?,
+        "color" => set_team_string(&mut team.color, value, "commands.team.option.color.success")?,
+        "friendlyFire" => {
+            let value = parse_bool(value)?;
+            set_team_bool(
+                &mut team.friendly_fire,
+                value,
+                if value {
+                    "commands.team.option.friendlyfire.enabled"
+                } else {
+                    "commands.team.option.friendlyfire.disabled"
+                },
+            )?
+        }
+        "seeFriendlyInvisibles" => {
+            let value = parse_bool(value)?;
+            set_team_bool(
+                &mut team.see_friendly_invisibles,
+                value,
+                if value {
+                    "commands.team.option.seeFriendlyInvisibles.enabled"
+                } else {
+                    "commands.team.option.seeFriendlyInvisibles.disabled"
+                },
+            )?
+        }
+        "nametagVisibility" => {
+            validate_team_visibility(value)?;
+            set_team_string(
+                &mut team.nametag_visibility,
+                value,
+                "commands.team.option.nametagVisibility.success",
+            )?
+        }
+        "deathMessageVisibility" => {
+            validate_team_visibility(value)?;
+            set_team_string(
+                &mut team.death_message_visibility,
+                value,
+                "commands.team.option.deathMessageVisibility.success",
+            )?
+        }
+        "collisionRule" => {
+            validate_team_collision(value)?;
+            set_team_string(
+                &mut team.collision_rule,
+                value,
+                "commands.team.option.collisionRule.success",
+            )?
+        }
+        "prefix" => set_team_string(
+            &mut team.prefix,
+            value,
+            "commands.team.option.prefix.success",
+        )?,
+        "suffix" => set_team_string(
+            &mut team.suffix,
+            value,
+            "commands.team.option.suffix.success",
+        )?,
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    Ok(CommandResult {
+        success_count: 0,
+        feedback_key,
+        broadcast_to_admins: true,
+    })
+}
+
+fn require_team(state: &ServerCommandState, team: &str) -> Result<(), CommandError> {
+    state
+        .teams
+        .iter()
+        .any(|entry| entry.name == team)
+        .then_some(())
+        .ok_or(CommandError::TeamNotFound)
+}
+
+fn set_team_string(
+    current: &mut String,
+    value: &str,
+    feedback_key: &'static str,
+) -> Result<&'static str, CommandError> {
+    if current == value {
+        return Err(CommandError::TeamOptionUnchanged);
+    }
+    *current = value.to_string();
+    Ok(feedback_key)
+}
+
+fn set_team_bool(
+    current: &mut bool,
+    value: bool,
+    feedback_key: &'static str,
+) -> Result<&'static str, CommandError> {
+    if *current == value {
+        return Err(CommandError::TeamOptionUnchanged);
+    }
+    *current = value;
+    Ok(feedback_key)
+}
+
+fn validate_team_visibility(value: &str) -> Result<(), CommandError> {
+    match value {
+        "always" | "never" | "hideForOtherTeams" | "hideForOwnTeam" => Ok(()),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn validate_team_collision(value: &str) -> Result<(), CommandError> {
+    match value {
+        "always" | "never" | "pushOwnTeam" | "pushOtherTeams" => Ok(()),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
 fn particle_command(
     state: &mut ServerCommandState,
     parts: &[&str],
@@ -2962,6 +3277,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("summon", "/summon <entity> [pos] [nbt]"),
         ("swing", "/swing [targets] [mainhand|offhand]"),
         ("tag", "/tag <targets> <add|remove|list> [name]"),
+        (
+            "team",
+            "/team <list|add|remove|empty|join|leave|modify> ...",
+        ),
         ("teammsg", "/teammsg <message>"),
         ("tell", "/tell <targets> <message>"),
         ("tellraw", "/tellraw <targets> <message>"),
@@ -3320,7 +3639,7 @@ mod tests {
         PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
         RotationMode, RotationRequest, SaveAllRequest, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
-        SwingCommandEvent, TeamMembership, Vec3, VersionInfo, WeatherMode,
+        SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -5950,6 +6269,154 @@ mod tests {
                 "summon cow 1 64 1 {UUID:fixed-id}"
             ),
             Err(CommandError::SummonDuplicateUuid)
+        );
+    }
+
+    #[test]
+    fn team_command_manages_teams_and_memberships() {
+        let steve = NameAndId::create_offline("Steve");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("team"),
+            PermissionLevel::Gamemasters
+        );
+
+        let add = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team add red",
+        )
+        .unwrap();
+        assert_eq!(add.success_count, 1);
+        assert_eq!(add.feedback_key, "commands.team.add.success");
+        assert_eq!(state.teams[0].display_name, "red");
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "team add red"
+            ),
+            Err(CommandError::TeamAlreadyExists)
+        );
+
+        let joined = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team join red Steve Alex",
+        )
+        .unwrap();
+        assert_eq!(joined.success_count, 2);
+        assert_eq!(joined.feedback_key, "commands.team.join.success.multiple");
+        assert_eq!(state.player_teams.len(), 2);
+
+        let listed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team list red",
+        )
+        .unwrap();
+        assert_eq!(listed.success_count, 2);
+        assert_eq!(listed.feedback_key, "commands.team.list.members.success");
+
+        let left = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team leave Alex",
+        )
+        .unwrap();
+        assert_eq!(left.feedback_key, "commands.team.leave.success.single");
+        assert_eq!(state.player_teams.len(), 1);
+
+        let emptied = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team empty red",
+        )
+        .unwrap();
+        assert_eq!(emptied.success_count, 1);
+        assert!(state.player_teams.is_empty());
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "team empty red"
+            ),
+            Err(CommandError::TeamAlreadyEmpty)
+        );
+
+        let removed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team remove red",
+        )
+        .unwrap();
+        assert_eq!(removed.feedback_key, "commands.team.remove.success");
+        assert!(state.teams.is_empty());
+    }
+
+    #[test]
+    fn team_command_modifies_options_and_rejects_unchanged_values() {
+        let mut state = ServerCommandState {
+            teams: vec![TeamState::new("red".to_string(), "Red Team".to_string())],
+            ..ServerCommandState::default()
+        };
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red color blue",
+        )
+        .unwrap();
+        assert_eq!(state.teams[0].color, "blue");
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "team modify red color blue"
+            ),
+            Err(CommandError::TeamOptionUnchanged)
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red friendlyFire false",
+        )
+        .unwrap();
+        assert!(!state.teams[0].friendly_fire);
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red nametagVisibility never",
+        )
+        .unwrap();
+        assert_eq!(state.teams[0].nametag_visibility, "never");
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red collisionRule pushOwnTeam",
+        )
+        .unwrap();
+        assert_eq!(state.teams[0].collision_rule, "pushOwnTeam");
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "team modify red collisionRule bad"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "team list blue"
+            ),
+            Err(CommandError::TeamNotFound)
         );
     }
 }
