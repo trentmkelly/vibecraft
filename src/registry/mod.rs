@@ -296,6 +296,132 @@ pub mod registries {
     pub const BIOME: &str = "minecraft:worldgen/biome";
 }
 
+#[derive(Debug, Clone)]
+pub struct BuiltInRegistries {
+    pub blocks: Registry<String>,
+    pub items: Registry<String>,
+    pub entity_types: Registry<String>,
+    pub dimension_types: Registry<String>,
+    pub biomes: Registry<String>,
+}
+
+impl BuiltInRegistries {
+    pub fn bootstrap_26_1_2() -> Self {
+        let mut blocks = Registry::new(Identifier::parse(registries::BLOCK).unwrap());
+        for id in [
+            "minecraft:air",
+            "minecraft:stone",
+            "minecraft:dirt",
+            "minecraft:grass_block",
+            "minecraft:bedrock",
+            "minecraft:water",
+            "minecraft:lava",
+        ] {
+            blocks
+                .register(
+                    Identifier::parse(id).unwrap(),
+                    id.to_string(),
+                    Lifecycle::Stable,
+                )
+                .unwrap();
+        }
+
+        let mut items = Registry::new(Identifier::parse(registries::ITEM).unwrap());
+        for id in [
+            "minecraft:air",
+            "minecraft:stick",
+            "minecraft:apple",
+            "minecraft:stone",
+            "minecraft:dirt",
+            "minecraft:diamond_sword",
+            "minecraft:netherite_chestplate",
+        ] {
+            items
+                .register(
+                    Identifier::parse(id).unwrap(),
+                    id.to_string(),
+                    Lifecycle::Stable,
+                )
+                .unwrap();
+        }
+
+        let mut entity_types = Registry::new(Identifier::parse(registries::ENTITY_TYPE).unwrap());
+        for id in [
+            "minecraft:player",
+            "minecraft:pig",
+            "minecraft:cow",
+            "minecraft:armor_stand",
+            "minecraft:item",
+        ] {
+            entity_types
+                .register(
+                    Identifier::parse(id).unwrap(),
+                    id.to_string(),
+                    Lifecycle::Stable,
+                )
+                .unwrap();
+        }
+
+        let mut dimension_types =
+            Registry::new(Identifier::parse(registries::DIMENSION_TYPE).unwrap());
+        for id in [
+            "minecraft:overworld",
+            "minecraft:overworld_caves",
+            "minecraft:the_nether",
+            "minecraft:the_end",
+        ] {
+            dimension_types
+                .register(
+                    Identifier::parse(id).unwrap(),
+                    id.to_string(),
+                    Lifecycle::Stable,
+                )
+                .unwrap();
+        }
+
+        let mut biomes = Registry::new(Identifier::parse(registries::BIOME).unwrap());
+        for id in [
+            "minecraft:plains",
+            "minecraft:forest",
+            "minecraft:desert",
+            "minecraft:nether_wastes",
+            "minecraft:the_end",
+        ] {
+            biomes
+                .register(
+                    Identifier::parse(id).unwrap(),
+                    id.to_string(),
+                    Lifecycle::Stable,
+                )
+                .unwrap();
+        }
+
+        blocks.freeze();
+        items.freeze();
+        entity_types.freeze();
+        dimension_types.freeze();
+        biomes.freeze();
+
+        Self {
+            blocks,
+            items,
+            entity_types,
+            dimension_types,
+            biomes,
+        }
+    }
+
+    pub fn registry_ids(&self) -> Vec<Identifier> {
+        vec![
+            self.blocks.registry_id().clone(),
+            self.items.registry_id().clone(),
+            self.entity_types.registry_id().clone(),
+            self.dimension_types.registry_id().clone(),
+            self.biomes.registry_id().clone(),
+        ]
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FeatureFlag {
     bit: u8,
@@ -558,6 +684,42 @@ mod tests {
                 .id(),
             2
         );
+    }
+
+    #[test]
+    fn builtin_registries_bootstrap_before_datapack_overrides() {
+        let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+        assert_eq!(
+            builtins.registry_ids(),
+            vec![
+                Identifier::parse(registries::BLOCK).unwrap(),
+                Identifier::parse(registries::ITEM).unwrap(),
+                Identifier::parse(registries::ENTITY_TYPE).unwrap(),
+                Identifier::parse(registries::DIMENSION_TYPE).unwrap(),
+                Identifier::parse(registries::BIOME).unwrap(),
+            ]
+        );
+        assert_eq!(
+            builtins
+                .blocks
+                .get(&Identifier::parse("minecraft:air").unwrap())
+                .unwrap()
+                .id(),
+            0
+        );
+        assert_eq!(
+            builtins
+                .dimension_types
+                .get(&Identifier::parse("minecraft:the_nether").unwrap())
+                .unwrap()
+                .value(),
+            "minecraft:the_nether"
+        );
+        assert!(builtins.blocks.is_frozen());
+        assert!(builtins.items.is_frozen());
+        assert!(builtins.entity_types.is_frozen());
+        assert!(builtins.dimension_types.is_frozen());
+        assert!(builtins.biomes.is_frozen());
     }
 
     #[test]
