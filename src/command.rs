@@ -114,6 +114,7 @@ pub struct ServerCommandState {
     pub player_recipes: Vec<PlayerRecipeBook>,
     pub advancements: Vec<AdvancementDefinition>,
     pub player_advancements: Vec<PlayerAdvancementProgress>,
+    pub entity_attributes: Vec<EntityAttributeState>,
     pub command_time_millis: u64,
     pub game_time_ticks: u64,
     pub stopwatches: Vec<StopwatchState>,
@@ -258,6 +259,29 @@ pub struct PlayerAdvancementProgress {
     pub player: NameAndId,
     pub advancement: String,
     pub completed_criteria: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntityAttributeState {
+    pub target: String,
+    pub attribute: String,
+    pub default_base: f64,
+    pub base: f64,
+    pub modifiers: Vec<AttributeModifierState>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AttributeModifierState {
+    pub id: String,
+    pub value: f64,
+    pub operation: AttributeOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttributeOperation {
+    AddValue,
+    AddMultipliedBase,
+    AddMultipliedTotal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -710,6 +734,10 @@ pub enum CommandError {
     ScoreboardNotTrigger,
     AdvancementNoAction,
     AdvancementCriterionNotFound,
+    AttributeNotLiving,
+    AttributeNoSuchAttribute,
+    AttributeNoSuchModifier,
+    AttributeModifierAlreadyPresent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -797,6 +825,7 @@ impl Default for ServerCommandState {
             player_recipes: Vec::new(),
             advancements: Vec::new(),
             player_advancements: Vec::new(),
+            entity_attributes: Vec::new(),
             command_time_millis: 0,
             game_time_ticks: 0,
             stopwatches: Vec::new(),
@@ -1096,6 +1125,7 @@ pub fn execute_builtin_command(
         },
         "jfr" => jfr_command(state, &parts),
         "advancement" => advancement_command(state, &parts),
+        "attribute" => attribute_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -2020,6 +2050,211 @@ fn player_advancement_progress_mut<'a>(
         completed_criteria: Vec::new(),
     });
     state.player_advancements.last_mut().unwrap()
+}
+
+fn attribute_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() < 4 {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let target = parts[1];
+    let attribute = parse_resource_identifier(parts[2])?;
+    match parts[3] {
+        "get" => {
+            let scale = parts
+                .get(4)
+                .map(|value| parse_f64(value))
+                .transpose()?
+                .unwrap_or(1.0);
+            if parts.len() > 5 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            let value = entity_attribute(state, target, &attribute)?.computed_value();
+            Ok(CommandResult {
+                success_count: (value * scale) as i32,
+                feedback_key: "commands.attribute.value.get.success",
+                broadcast_to_admins: false,
+            })
+        }
+        "base" => attribute_base_command(state, target, &attribute, &parts[4..]),
+        "modifier" => attribute_modifier_command(state, target, &attribute, &parts[4..]),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn attribute_base_command(
+    state: &mut ServerCommandState,
+    target: &str,
+    attribute: &str,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["get"] | ["get", _] => {
+            let scale = parts
+                .get(1)
+                .map(|value| parse_f64(value))
+                .transpose()?
+                .unwrap_or(1.0);
+            let value = entity_attribute(state, target, attribute)?.base;
+            Ok(CommandResult {
+                success_count: (value * scale) as i32,
+                feedback_key: "commands.attribute.base_value.get.success",
+                broadcast_to_admins: false,
+            })
+        }
+        ["set", value] => {
+            let value = parse_f64(value)?;
+            entity_attribute_mut(state, target, attribute)?.base = value;
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.attribute.base_value.set.success",
+                broadcast_to_admins: false,
+            })
+        }
+        ["reset"] => {
+            let attribute = entity_attribute_mut(state, target, attribute)?;
+            attribute.base = attribute.default_base;
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.attribute.base_value.reset.success",
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn attribute_modifier_command(
+    state: &mut ServerCommandState,
+    target: &str,
+    attribute: &str,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["add", id, value, operation] => {
+            let id = parse_resource_identifier(id)?;
+            let value = parse_f64(value)?;
+            let operation = match *operation {
+                "add_value" => AttributeOperation::AddValue,
+                "add_multiplied_base" => AttributeOperation::AddMultipliedBase,
+                "add_multiplied_total" => AttributeOperation::AddMultipliedTotal,
+                _ => return Err(CommandError::InvalidSyntax),
+            };
+            let attribute = entity_attribute_mut(state, target, attribute)?;
+            if attribute.modifiers.iter().any(|modifier| modifier.id == id) {
+                return Err(CommandError::AttributeModifierAlreadyPresent);
+            }
+            attribute.modifiers.push(AttributeModifierState {
+                id,
+                value,
+                operation,
+            });
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.attribute.modifier.add.success",
+                broadcast_to_admins: false,
+            })
+        }
+        ["remove", id] => {
+            let id = parse_resource_identifier(id)?;
+            let attribute = entity_attribute_mut(state, target, attribute)?;
+            let old_len = attribute.modifiers.len();
+            attribute.modifiers.retain(|modifier| modifier.id != id);
+            if attribute.modifiers.len() == old_len {
+                return Err(CommandError::AttributeNoSuchModifier);
+            }
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.attribute.modifier.remove.success",
+                broadcast_to_admins: false,
+            })
+        }
+        ["value", "get", id] | ["value", "get", id, _] => {
+            let id = parse_resource_identifier(id)?;
+            let scale = parts
+                .get(3)
+                .map(|value| parse_f64(value))
+                .transpose()?
+                .unwrap_or(1.0);
+            let modifier = entity_attribute(state, target, attribute)?
+                .modifiers
+                .iter()
+                .find(|modifier| modifier.id == id)
+                .ok_or(CommandError::AttributeNoSuchModifier)?;
+            Ok(CommandResult {
+                success_count: (modifier.value * scale) as i32,
+                feedback_key: "commands.attribute.modifier.value.get.success",
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+impl EntityAttributeState {
+    fn computed_value(&self) -> f64 {
+        let add_value = self
+            .modifiers
+            .iter()
+            .filter(|modifier| modifier.operation == AttributeOperation::AddValue)
+            .map(|modifier| modifier.value)
+            .sum::<f64>();
+        let base = self.base + add_value;
+        let multiplied_base = self
+            .modifiers
+            .iter()
+            .filter(|modifier| modifier.operation == AttributeOperation::AddMultipliedBase)
+            .fold(base, |value, modifier| value + self.base * modifier.value);
+        self.modifiers
+            .iter()
+            .filter(|modifier| modifier.operation == AttributeOperation::AddMultipliedTotal)
+            .fold(multiplied_base, |value, modifier| {
+                value * (1.0 + modifier.value)
+            })
+    }
+}
+
+fn entity_attribute<'a>(
+    state: &'a ServerCommandState,
+    target: &str,
+    attribute: &str,
+) -> Result<&'a EntityAttributeState, CommandError> {
+    ensure_attribute_target_is_living(state, target)?;
+    state
+        .entity_attributes
+        .iter()
+        .find(|entry| entry.target == target && entry.attribute == attribute)
+        .ok_or(CommandError::AttributeNoSuchAttribute)
+}
+
+fn entity_attribute_mut<'a>(
+    state: &'a mut ServerCommandState,
+    target: &str,
+    attribute: &str,
+) -> Result<&'a mut EntityAttributeState, CommandError> {
+    ensure_attribute_target_is_living(state, target)?;
+    state
+        .entity_attributes
+        .iter_mut()
+        .find(|entry| entry.target == target && entry.attribute == attribute)
+        .ok_or(CommandError::AttributeNoSuchAttribute)
+}
+
+fn ensure_attribute_target_is_living(
+    state: &ServerCommandState,
+    target: &str,
+) -> Result<(), CommandError> {
+    if state
+        .entity_states
+        .iter()
+        .any(|entry| entry.entity.id == target && entry.kind == EntityKind::NonLiving)
+    {
+        Err(CommandError::AttributeNotLiving)
+    } else {
+        Ok(())
+    }
 }
 
 fn stop_sound_command(
@@ -4671,6 +4906,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "advancement",
             "/advancement <grant|revoke> <targets> <everything|only|from|until|through>",
         ),
+        (
+            "attribute",
+            "/attribute <target> <attribute> get|base|get|set|reset|modifier",
+        ),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -5108,16 +5347,17 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
-        visible_command_usages, AdvancementDefinition, BlockPos, BlockStateEntry, ChatCommandKind,
-        CommandAvailability, CommandError, EntityAnchor, EntityKind, EntityMount, EntityRef,
-        EntityState, EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet,
-        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
-        PlayerAdvancementProgress, PlayerGameMode, PlayerRecipeBook, PlayerSpawn, PublishRequest,
-        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
-        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
+        BlockPos, BlockStateEntry, ChatCommandKind, CommandAvailability, CommandError,
+        EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState,
+        EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent,
+        PerfReport, Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress,
+        PlayerGameMode, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
+        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
+        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
+        WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -8699,5 +8939,148 @@ mod tests {
         assert_eq!(revoked.success_count, 1);
         assert!(!revoked.broadcast_to_admins);
         assert!(state.player_advancements[0].completed_criteria.is_empty());
+    }
+
+    #[test]
+    fn attribute_command_gets_sets_resets_and_computes_modifier_values() {
+        let mut state = ServerCommandState {
+            entity_attributes: vec![EntityAttributeState {
+                target: "Steve".to_string(),
+                attribute: "minecraft:max_health".to_string(),
+                default_base: 20.0,
+                base: 20.0,
+                modifiers: vec![AttributeModifierState {
+                    id: "minecraft:bonus".to_string(),
+                    value: 2.0,
+                    operation: AttributeOperation::AddValue,
+                }],
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let value = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Steve minecraft:max_health get 10",
+        )
+        .unwrap();
+        assert_eq!(value.success_count, 220);
+        assert_eq!(value.feedback_key, "commands.attribute.value.get.success");
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Steve minecraft:max_health base set 30",
+        )
+        .unwrap();
+        assert_eq!(state.entity_attributes[0].base, 30.0);
+        let base = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Steve minecraft:max_health base get",
+        )
+        .unwrap();
+        assert_eq!(base.success_count, 30);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Steve minecraft:max_health base reset",
+        )
+        .unwrap();
+        assert_eq!(state.entity_attributes[0].base, 20.0);
+    }
+
+    #[test]
+    fn attribute_command_adds_removes_and_reports_modifier_failures() {
+        let mut state = ServerCommandState {
+            entity_attributes: vec![EntityAttributeState {
+                target: "Alex".to_string(),
+                attribute: "minecraft:movement_speed".to_string(),
+                default_base: 0.1,
+                base: 0.1,
+                modifiers: Vec::new(),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Alex minecraft:movement_speed modifier add minecraft:sprint 0.2 add_multiplied_total",
+        )
+        .unwrap();
+        assert_eq!(
+            state.entity_attributes[0].modifiers[0].operation,
+            AttributeOperation::AddMultipliedTotal
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "attribute Alex minecraft:movement_speed modifier add minecraft:sprint 0.2 add_value",
+            ),
+            Err(CommandError::AttributeModifierAlreadyPresent)
+        );
+        let modifier = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Alex minecraft:movement_speed modifier value get minecraft:sprint 1000",
+        )
+        .unwrap();
+        assert_eq!(modifier.success_count, 200);
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "attribute Alex minecraft:movement_speed modifier remove minecraft:sprint",
+        )
+        .unwrap();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "attribute Alex minecraft:movement_speed modifier remove minecraft:sprint",
+            ),
+            Err(CommandError::AttributeNoSuchModifier)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "attribute Alex minecraft:attack_damage get",
+            ),
+            Err(CommandError::AttributeNoSuchAttribute)
+        );
+    }
+
+    #[test]
+    fn attribute_command_rejects_non_living_targets_separately_from_missing_attributes() {
+        let mut state = ServerCommandState {
+            entity_states: vec![EntityState {
+                entity: EntityRef {
+                    id: "minecart".to_string(),
+                    display_name: "Minecart".to_string(),
+                },
+                kind: EntityKind::NonLiving,
+                dimension: "minecraft:overworld".to_string(),
+            }],
+            entity_attributes: vec![EntityAttributeState {
+                target: "minecart".to_string(),
+                attribute: "minecraft:max_health".to_string(),
+                default_base: 20.0,
+                base: 20.0,
+                modifiers: Vec::new(),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "attribute minecart minecraft:max_health get",
+            ),
+            Err(CommandError::AttributeNotLiving)
+        );
     }
 }
