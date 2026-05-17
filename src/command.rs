@@ -147,6 +147,7 @@ pub struct ServerCommandState {
     pub online_player_addresses: Vec<PlayerIpAddress>,
     pub banned_players: Vec<BanEntry<NameAndId>>,
     pub banned_ips: Vec<BanEntry<String>>,
+    pub operator_players: Vec<NameAndId>,
     pub killed_entities: Vec<EntityRef>,
     pub teams: Vec<TeamState>,
     pub player_teams: Vec<TeamMembership>,
@@ -828,6 +829,8 @@ pub enum CommandError {
     PardonFailed,
     PardonIpInvalid,
     PardonIpFailed,
+    OpFailed,
+    DeOpFailed,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1024,6 +1027,7 @@ impl Default for ServerCommandState {
             online_player_addresses: Vec::new(),
             banned_players: Vec::new(),
             banned_ips: Vec::new(),
+            operator_players: Vec::new(),
             killed_entities: Vec::new(),
             teams: Vec::new(),
             player_teams: Vec::new(),
@@ -1178,6 +1182,35 @@ impl ServerCommandState {
         self.whitelisted_players
             .retain(|entry| entry.uuid != profile.uuid);
         self.whitelisted_players.len() != old_len
+    }
+
+    pub fn operator_names(&self) -> Vec<&str> {
+        self.operator_players
+            .iter()
+            .map(|profile| profile.name.as_str())
+            .collect()
+    }
+
+    fn is_operator(&self, profile: &NameAndId) -> bool {
+        self.operator_players
+            .iter()
+            .any(|entry| entry.uuid == profile.uuid)
+    }
+
+    fn add_operator(&mut self, profile: NameAndId) -> bool {
+        if self.is_operator(&profile) {
+            false
+        } else {
+            self.operator_players.push(profile);
+            true
+        }
+    }
+
+    fn remove_operator(&mut self, profile: &NameAndId) -> bool {
+        let old_len = self.operator_players.len();
+        self.operator_players
+            .retain(|entry| entry.uuid != profile.uuid);
+        self.operator_players.len() != old_len
     }
 
     pub fn banned_player_names(&self) -> Vec<&str> {
@@ -1588,6 +1621,46 @@ pub fn execute_builtin_command(
         "banlist" => banlist_command(state, &parts),
         "pardon" => pardon_command(state, &parts),
         "pardon-ip" => pardon_ip_command(state, &parts),
+        "op" => match parts.as_slice() {
+            ["op", targets @ ..] if !targets.is_empty() => {
+                let mut success = 0;
+                for target in targets {
+                    if state.add_operator(NameAndId::create_offline(target)) {
+                        success += 1;
+                    }
+                }
+                if success == 0 {
+                    return Err(CommandError::OpFailed);
+                }
+                Ok(CommandResult {
+                    success_count: success,
+                    feedback_key: "commands.op.success",
+                    broadcast_to_admins: true,
+                })
+            }
+            _ => Err(CommandError::InvalidSyntax),
+        },
+        "deop" => match parts.as_slice() {
+            ["deop", targets @ ..] if !targets.is_empty() => {
+                let mut success = 0;
+                for target in targets {
+                    let profile = NameAndId::create_offline(target);
+                    if state.remove_operator(&profile) {
+                        success += 1;
+                    }
+                }
+                if success == 0 {
+                    return Err(CommandError::DeOpFailed);
+                }
+                state.kick_unlisted_requests += 1;
+                Ok(CommandResult {
+                    success_count: success,
+                    feedback_key: "commands.deop.success",
+                    broadcast_to_admins: true,
+                })
+            }
+            _ => Err(CommandError::InvalidSyntax),
+        },
         "kill" => match parts.as_slice() {
             ["kill"] => {
                 let source = state
@@ -6454,6 +6527,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("kill", "/kill [targets]"),
         ("list", "/list [uuids]"),
         ("msg", "/msg <targets> <message>"),
+        ("op", "/op <targets>"),
         (
             "playsound",
             "/playsound <sound> [source] [targets] [pos] [volume] [pitch] [minVolume]",
@@ -6530,6 +6604,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("version", "/version"),
         ("weather", "/weather <clear|rain|thunder> [duration]"),
         ("whitelist", "/whitelist <on|off|list|add|remove|reload>"),
+        ("deop", "/deop <targets>"),
     ]
 }
 
@@ -8125,6 +8200,52 @@ mod tests {
         assert_eq!(result.feedback_key, "commands.whitelist.reloaded");
         assert_eq!(state.whitelist_reload_requests, 1);
         assert_eq!(state.kick_unlisted_requests, 1);
+    }
+
+    #[test]
+    fn op_command_requires_admin_and_tracks_operator_profiles() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(command_required_permission("op"), PermissionLevel::Admins);
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "op Steve"),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let result =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "op Steve Alex")
+                .unwrap();
+        assert_eq!(result.success_count, 2);
+        assert_eq!(result.feedback_key, "commands.op.success");
+        assert!(result.broadcast_to_admins);
+        assert_eq!(state.operator_names(), vec!["Steve", "Alex"]);
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "op Steve"),
+            Err(CommandError::OpFailed)
+        );
+    }
+
+    #[test]
+    fn deop_command_removes_ops_and_requests_unlisted_player_kick() {
+        let mut state = ServerCommandState {
+            operator_players: vec![
+                NameAndId::create_offline("Steve"),
+                NameAndId::create_offline("Alex"),
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(command_required_permission("deop"), PermissionLevel::Admins);
+
+        let result =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve")
+                .unwrap();
+        assert_eq!(result.success_count, 1);
+        assert_eq!(result.feedback_key, "commands.deop.success");
+        assert_eq!(state.operator_names(), vec!["Alex"]);
+        assert_eq!(state.kick_unlisted_requests, 1);
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve"),
+            Err(CommandError::DeOpFailed)
+        );
     }
 
     #[test]
