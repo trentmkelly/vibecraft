@@ -113,9 +113,49 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.ip_banned/)
   })
+
+  await withRestartableServer({
+    username: 'Pardoned',
+    files: {
+      'banned-players.json': JSON.stringify([{ ...profile('Pardoned'), created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'test' }])
+    }
+  }, async ({ port, root, username, restart }) => {
+    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    assert.match(rejected.reason, /multiplayer\.disconnect\.banned/)
+
+    await writeFile(path.join(root, 'banned-players.json'), '[]\n')
+    await restart()
+
+    const joined = await runJoinProbe(port, username)
+    assert.equal(joined.ok, true)
+    assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
+  })
+
+  await withRestartableServer({
+    username: 'IpPardoned',
+    files: {
+      'banned-ips.json': JSON.stringify([{ ip: host, created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'test' }])
+    }
+  }, async ({ port, root, username, restart }) => {
+    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    assert.match(rejected.reason, /multiplayer\.disconnect\.ip_banned/)
+
+    await writeFile(path.join(root, 'banned-ips.json'), '[]\n')
+    await restart()
+
+    const joined = await runJoinProbe(port, username)
+    assert.equal(joined.ok, true)
+    assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
+  })
 })
 
 async function withServer (options, callback) {
+  await withRestartableServer(options, async context => {
+    await callback(context)
+  })
+}
+
+async function withRestartableServer (options, callback) {
   const port = await reservePort()
   const root = await createTempWorld('rustcraft-identity-')
   let server
@@ -128,9 +168,13 @@ async function withServer (options, callback) {
     for (const [name, contents] of Object.entries(options.files ?? {})) {
       await writeFile(path.join(root, name), `${contents}\n`)
     }
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
-    await waitForPort(port, host, 10_000)
-    await callback({ port, root, username: options.username })
+    const restart = async () => {
+      if (server) await stopServer(server.child)
+      server = startRustCraft({ binary, root, port, levelName: 'world' })
+      await waitForPort(port, host, 10_000)
+    }
+    await restart()
+    await callback({ port, root, username: options.username, restart })
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })
