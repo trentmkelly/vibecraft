@@ -10,6 +10,7 @@ pub mod handshake;
 pub mod local;
 pub mod login;
 pub mod ping;
+pub mod pipeline;
 pub mod query;
 pub mod rate_limit;
 pub mod rcon;
