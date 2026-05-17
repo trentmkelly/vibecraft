@@ -69,6 +69,148 @@ pub struct WorldDataPack {
     resources: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DataResourceKind {
+    Advancement,
+    BannerPattern,
+    ChatType,
+    DamageType,
+    Dialog,
+    DimensionType,
+    Enchantment,
+    EnchantmentProvider,
+    Instrument,
+    JukeboxSong,
+    LootTable,
+    PaintingVariant,
+    Recipe,
+    Structure,
+    Tags,
+    TestEnvironment,
+    TestInstance,
+    Timeline,
+    TradeSet,
+    TrialSpawner,
+    TrimMaterial,
+    TrimPattern,
+    VillagerTrade,
+    WorldClock,
+    Worldgen,
+}
+
+impl DataResourceKind {
+    pub fn path_component(self) -> &'static str {
+        match self {
+            Self::Advancement => "advancement",
+            Self::BannerPattern => "banner_pattern",
+            Self::ChatType => "chat_type",
+            Self::DamageType => "damage_type",
+            Self::Dialog => "dialog",
+            Self::DimensionType => "dimension_type",
+            Self::Enchantment => "enchantment",
+            Self::EnchantmentProvider => "enchantment_provider",
+            Self::Instrument => "instrument",
+            Self::JukeboxSong => "jukebox_song",
+            Self::LootTable => "loot_table",
+            Self::PaintingVariant => "painting_variant",
+            Self::Recipe => "recipe",
+            Self::Structure => "structure",
+            Self::Tags => "tags",
+            Self::TestEnvironment => "test_environment",
+            Self::TestInstance => "test_instance",
+            Self::Timeline => "timeline",
+            Self::TradeSet => "trade_set",
+            Self::TrialSpawner => "trial_spawner",
+            Self::TrimMaterial => "trim_material",
+            Self::TrimPattern => "trim_pattern",
+            Self::VillagerTrade => "villager_trade",
+            Self::WorldClock => "world_clock",
+            Self::Worldgen => "worldgen",
+        }
+    }
+
+    pub fn from_path_component(component: &str) -> Option<Self> {
+        Some(match component {
+            "advancement" => Self::Advancement,
+            "banner_pattern" => Self::BannerPattern,
+            "chat_type" => Self::ChatType,
+            "damage_type" => Self::DamageType,
+            "dialog" => Self::Dialog,
+            "dimension_type" => Self::DimensionType,
+            "enchantment" => Self::Enchantment,
+            "enchantment_provider" => Self::EnchantmentProvider,
+            "instrument" => Self::Instrument,
+            "jukebox_song" => Self::JukeboxSong,
+            "loot_table" => Self::LootTable,
+            "painting_variant" => Self::PaintingVariant,
+            "recipe" => Self::Recipe,
+            "structure" => Self::Structure,
+            "tags" => Self::Tags,
+            "test_environment" => Self::TestEnvironment,
+            "test_instance" => Self::TestInstance,
+            "timeline" => Self::Timeline,
+            "trade_set" => Self::TradeSet,
+            "trial_spawner" => Self::TrialSpawner,
+            "trim_material" => Self::TrimMaterial,
+            "trim_pattern" => Self::TrimPattern,
+            "villager_trade" => Self::VillagerTrade,
+            "world_clock" => Self::WorldClock,
+            "worldgen" => Self::Worldgen,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataResource {
+    pub namespace: String,
+    pub kind: DataResourceKind,
+    pub id: String,
+    pub contents: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataResourceIndex {
+    resources: BTreeMap<(String, DataResourceKind, String), String>,
+}
+
+impl DataResourceIndex {
+    pub fn from_resources<'a>(
+        resources: impl IntoIterator<Item = (&'a str, &'a str)>,
+    ) -> Result<Self, String> {
+        let mut index = Self::default();
+        for (path, contents) in resources {
+            if let Some(resource) = parse_data_resource_path(path, contents)? {
+                index.resources.insert(
+                    (resource.namespace, resource.kind, resource.id),
+                    resource.contents,
+                );
+            }
+        }
+        Ok(index)
+    }
+
+    pub fn get(&self, namespace: &str, kind: DataResourceKind, id: &str) -> Option<&str> {
+        self.resources
+            .get(&(namespace.to_string(), kind, id.to_string()))
+            .map(String::as_str)
+    }
+
+    pub fn list(&self, namespace: &str, kind: DataResourceKind) -> Vec<DataResource> {
+        self.resources
+            .iter()
+            .filter_map(|((entry_namespace, entry_kind, id), contents)| {
+                (entry_namespace == namespace && *entry_kind == kind).then(|| DataResource {
+                    namespace: entry_namespace.clone(),
+                    kind: *entry_kind,
+                    id: id.clone(),
+                    contents: contents.clone(),
+                })
+            })
+            .collect()
+    }
+}
+
 impl WorldDataPack {
     pub fn get(&self, path: &str) -> Option<&str> {
         self.resources.get(path).map(String::as_str)
@@ -80,6 +222,14 @@ impl WorldDataPack {
             .filter(|path| path.starts_with(prefix))
             .map(String::as_str)
             .collect()
+    }
+
+    pub fn data_resources(&self) -> Result<DataResourceIndex, String> {
+        DataResourceIndex::from_resources(
+            self.resources
+                .iter()
+                .map(|(path, contents)| (path.as_str(), contents.as_str())),
+        )
     }
 }
 
@@ -136,6 +286,14 @@ impl BuiltInDataPack {
             }
         }
         namespaces.into_iter().collect()
+    }
+
+    pub fn data_resources(&self) -> Result<DataResourceIndex, String> {
+        DataResourceIndex::from_resources(
+            self.resources
+                .iter()
+                .map(|(path, contents)| (path.as_str(), contents.as_str())),
+        )
     }
 }
 
@@ -681,6 +839,32 @@ fn load_directory_pack_resources_inner(
         }
     }
     Ok(())
+}
+
+fn parse_data_resource_path(path: &str, contents: &str) -> Result<Option<DataResource>, String> {
+    let parts = path.split('/').collect::<Vec<_>>();
+    if parts.len() < 4 || parts[0] != "data" {
+        return Ok(None);
+    }
+    let namespace = parts[1];
+    Identifier::parse(namespace)?;
+    let Some(kind) = DataResourceKind::from_path_component(parts[2]) else {
+        return Ok(None);
+    };
+    let tail = parts[3..].join("/");
+    let Some(id) = tail.strip_suffix(".json") else {
+        return Ok(None);
+    };
+    if id.is_empty() {
+        return Err(format!("empty data resource id in path {path}"));
+    }
+    Identifier::parse(&format!("{namespace}:{id}"))?;
+    Ok(Some(DataResource {
+        namespace: namespace.to_string(),
+        kind,
+        id: id.to_string(),
+        contents: contents.to_string(),
+    }))
 }
 
 fn is_valid_pack_id(id: &str) -> bool {
@@ -1297,11 +1481,24 @@ mod tests {
         )
         .unwrap();
         fs::create_dir_all(datapacks.join("dir_pack").join("data/example/tags/item")).unwrap();
+        fs::create_dir_all(
+            datapacks
+                .join("dir_pack")
+                .join("data/minecraft/advancement"),
+        )
+        .unwrap();
         fs::write(
             datapacks
                 .join("dir_pack")
                 .join("data/example/tags/item/test_items.json"),
             r#"{"replace":false,"values":["minecraft:stick"]}"#,
+        )
+        .unwrap();
+        fs::write(
+            datapacks
+                .join("dir_pack")
+                .join("data/minecraft/advancement/root.json"),
+            r#"{"criteria":{"tick":{"trigger":"minecraft:tick"}}}"#,
         )
         .unwrap();
         fs::create_dir_all(datapacks.join("missing_meta")).unwrap();
@@ -1330,6 +1527,19 @@ mod tests {
         assert_eq!(
             loaded[0].list_prefix("data/example/tags/"),
             vec!["data/example/tags/item/test_items.json"]
+        );
+        let index = loaded[0].data_resources().unwrap();
+        assert_eq!(
+            index.get("minecraft", DataResourceKind::Advancement, "root"),
+            Some(r#"{"criteria":{"tick":{"trigger":"minecraft:tick"}}}"#)
+        );
+        assert_eq!(
+            index
+                .list("minecraft", DataResourceKind::Advancement)
+                .into_iter()
+                .map(|resource| resource.id)
+                .collect::<Vec<_>>(),
+            vec!["root"]
         );
 
         fs::remove_dir_all(temp_dir).unwrap();
