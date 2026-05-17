@@ -6,9 +6,12 @@ const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
 const protocolVersion = 775
 const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
+const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
 const serverboundAcceptTeleportationPacketId = 0
+const serverboundKeepAlivePacketId = 28
 const serverboundSelectKnownPacksPacketId = 7
 const serverboundPlayerLoadedPacketId = 44
+const clientboundKeepAlivePacketId = 113
 
 function writeVarInt (value) {
   let remaining = value >>> 0
@@ -103,6 +106,13 @@ class PacketReader {
   rejectAll (error) {
     for (const waiter of this.waiters.splice(0)) waiter.reject(error)
   }
+}
+
+function nextPacketWithin (reader, timeoutMs) {
+  return Promise.race([
+    reader.nextPacket().then(packet => ({ packet })),
+    new Promise(resolve => setTimeout(() => resolve({ timeout: true }), timeoutMs))
+  ])
 }
 
 function expectPacket (packet, id, state) {
@@ -607,8 +617,32 @@ async function main () {
   socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(frame(serverboundPlayerLoadedPacketId))
 
+  let keepAliveReplies = 0
+  if (keepAliveProbeMs > 0) {
+    const deadline = Date.now() + keepAliveProbeMs
+    while (Date.now() < deadline) {
+      const waitMs = Math.max(1, deadline - Date.now())
+      const next = await nextPacketWithin(reader, waitMs)
+      if (next.timeout) break
+      const packet = next.packet
+      if (packet.id !== clientboundKeepAlivePacketId) {
+        play.push({ id: packet.id, length: packet.length })
+        continue
+      }
+      if (packet.body.length !== 8) {
+        throw new Error(`expected 8-byte keep_alive payload, got ${packet.body.length}`)
+      }
+      keepAliveReplies += 1
+      play.push({ id: packet.id, length: packet.length })
+      socket.write(frame(serverboundKeepAlivePacketId, packet.body))
+    }
+    if (!recordOnly && keepAliveReplies === 0) {
+      throw new Error(`no clientbound keep_alive observed within ${keepAliveProbeMs}ms`)
+    }
+  }
+
   socket.end()
-  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play }, null, 2))
+  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play, keepAliveReplies }, null, 2))
 }
 
 main().catch(error => {
