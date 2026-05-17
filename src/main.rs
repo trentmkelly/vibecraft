@@ -33,6 +33,7 @@ mod player;
 mod player_access;
 mod player_inventory;
 mod player_online_auth;
+mod player_profile_key;
 mod portal;
 mod post_processing;
 mod random_source;
