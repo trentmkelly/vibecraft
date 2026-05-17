@@ -13,6 +13,7 @@ mod random_source;
 mod registry;
 mod resources;
 mod runtime;
+mod seed_validation;
 mod server_properties;
 mod storage;
 mod world;

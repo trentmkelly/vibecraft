@@ -147,6 +147,13 @@ pub fn upgrade_seed_to_128bit(seed: i64) -> Seed128 {
     }
 }
 
+pub fn seed128_from_md5_digest(digest: [u8; 16]) -> Seed128 {
+    Seed128 {
+        lo: i64::from_be_bytes(digest[0..8].try_into().expect("fixed MD5 low half")),
+        hi: i64::from_be_bytes(digest[8..16].try_into().expect("fixed MD5 high half")),
+    }
+}
+
 pub fn block_pos_seed(x: i32, y: i32, z: i32) -> i64 {
     let mut seed =
         i64::from(x.wrapping_mul(3_129_871)) ^ (z as i64).wrapping_mul(116_129_781) ^ y as i64;
@@ -263,6 +270,16 @@ mod tests {
             Seed128 {
                 lo: 3_847_398_142_028_685_078,
                 hi: 7_192_185_014_346_937_746
+            }
+        );
+        assert_eq!(
+            super::seed128_from_md5_digest([
+                0x95, 0x74, 0x12, 0x41, 0xc4, 0x91, 0x68, 0x95, 0x53, 0x8c, 0x2e, 0x10, 0x05, 0xbc,
+                0x91, 0xb7,
+            ]),
+            Seed128 {
+                lo: -7_677_491_391_079_815_019,
+                hi: 6_020_237_448_238_109_111
             }
         );
     }
