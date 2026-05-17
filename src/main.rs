@@ -38,6 +38,7 @@ mod equipment_trim;
 mod eula;
 mod fire;
 mod fluid;
+mod game_event;
 mod gravity;
 mod inhabited_time;
 mod inventory;
