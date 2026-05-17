@@ -19,6 +19,7 @@ mod random_tick;
 mod registry;
 mod resources;
 mod runtime;
+mod scheduled_tick;
 mod seed_validation;
 mod server_properties;
 mod storage;
