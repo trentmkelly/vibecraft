@@ -12,6 +12,7 @@ pub mod login;
 pub mod ping;
 pub mod pipeline;
 pub mod play;
+pub mod protocol_coverage;
 pub mod query;
 pub mod rate_limit;
 pub mod rcon;
