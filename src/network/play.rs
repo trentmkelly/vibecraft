@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
-use crate::network::codec::{write_bitset, write_collection};
+use crate::network::codec::{write_bitset, write_collection, Uuid};
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
@@ -29,12 +29,27 @@ pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
 pub const CLIENTBOUND_LOGIN_PACKET_ID: i32 = 49;
 pub const CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 pub const CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
+pub const CLIENTBOUND_ADD_ENTITY_PACKET_ID: i32 = 1;
+pub const CLIENTBOUND_ANIMATE_PACKET_ID: i32 = 2;
+pub const CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID: i32 = 53;
+pub const CLIENTBOUND_MOVE_ENTITY_POS_ROT_PACKET_ID: i32 = 54;
+pub const CLIENTBOUND_MOVE_ENTITY_ROT_PACKET_ID: i32 = 56;
 pub const CLIENTBOUND_PLAYER_COMBAT_KILL_PACKET_ID: i32 = 68;
+pub const CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID: i32 = 77;
 pub const CLIENTBOUND_PLAYER_POSITION_PACKET_ID: i32 = 72;
 pub const CLIENTBOUND_RESPAWN_PACKET_ID: i32 = 82;
+pub const CLIENTBOUND_ROTATE_HEAD_PACKET_ID: i32 = 83;
+pub const CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID: i32 = 99;
+pub const CLIENTBOUND_SET_ENTITY_LINK_PACKET_ID: i32 = 100;
+pub const CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID: i32 = 101;
+pub const CLIENTBOUND_SET_EQUIPMENT_PACKET_ID: i32 = 102;
 pub const CLIENTBOUND_SET_HELD_SLOT_PACKET_ID: i32 = 105;
+pub const CLIENTBOUND_SET_PASSENGERS_PACKET_ID: i32 = 107;
 pub const CLIENTBOUND_START_CONFIGURATION_PACKET_ID: i32 = 118;
 pub const CLIENTBOUND_DISCONNECT_PACKET_ID: i32 = 32;
+pub const CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID: i32 = 125;
+pub const CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID: i32 = 131;
+pub const CLIENTBOUND_UPDATE_MOB_EFFECT_PACKET_ID: i32 = 132;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayProtocolRegistry {
@@ -115,6 +130,178 @@ pub struct ServerboundChunkBatchReceivedPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundChunkBatchFinishedPacket {
     pub batch_size: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vec3 {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundAddEntityPacket {
+    pub id: i32,
+    pub uuid: Uuid,
+    pub entity_type: i32,
+    pub position: Vec3,
+    pub movement: Vec3,
+    pub x_rot: u8,
+    pub y_rot: u8,
+    pub y_head_rot: u8,
+    pub data: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundRemoveEntitiesPacket {
+    pub entity_ids: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSetEntityDataPacket {
+    pub id: i32,
+    pub packed_items: Vec<EntityDataValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntityDataValue {
+    pub index: u8,
+    pub serializer_id: i32,
+    pub encoded_payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetEntityMotionPacket {
+    pub id: i32,
+    pub movement: Vec3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundTeleportEntityPacket {
+    pub id: i32,
+    pub position: Vec3,
+    pub movement: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
+    pub relative_flags: u32,
+    pub on_ground: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundMoveEntityPacket {
+    pub id: i32,
+    pub delta: [i16; 3],
+    pub y_rot: u8,
+    pub x_rot: u8,
+    pub on_ground: bool,
+    pub has_position: bool,
+    pub has_rotation: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundRotateHeadPacket {
+    pub id: i32,
+    pub y_head_rot: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSetPassengersPacket {
+    pub vehicle: i32,
+    pub passengers: Vec<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetEntityLinkPacket {
+    pub source_id: i32,
+    pub dest_id: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSetEquipmentPacket {
+    pub entity: i32,
+    pub slots: Vec<EquipmentEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EquipmentEntry {
+    pub slot: EquipmentSlotKind,
+    pub item_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EquipmentSlotKind {
+    MainHand = 0,
+    OffHand = 1,
+    Feet = 2,
+    Legs = 3,
+    Chest = 4,
+    Head = 5,
+    Body = 6,
+    Saddle = 7,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundUpdateAttributesPacket {
+    pub entity_id: i32,
+    pub attributes: Vec<AttributeSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AttributeSnapshot {
+    pub attribute_id: i32,
+    pub base: f64,
+    pub modifiers: Vec<AttributeModifierSnapshot>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AttributeModifierSnapshot {
+    pub id: Uuid,
+    pub amount: f64,
+    pub operation: AttributeModifierOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttributeModifierOperation {
+    AddValue = 0,
+    AddMultipliedBase = 1,
+    AddMultipliedTotal = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundUpdateMobEffectPacket {
+    pub entity_id: i32,
+    pub effect_id: i32,
+    pub amplifier: i32,
+    pub duration_ticks: i32,
+    pub flags: MobEffectFlags,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MobEffectFlags(pub u8);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundAnimatePacket {
+    pub id: i32,
+    pub action: EntityAnimation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityAnimation {
+    SwingMainHand = 0,
+    WakeUp = 2,
+    SwingOffHand = 3,
+    CriticalHit = 4,
+    MagicCriticalHit = 5,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntitySpawnBundle {
+    pub spawn: ClientboundAddEntityPacket,
+    pub metadata: Option<ClientboundSetEntityDataPacket>,
+    pub velocity: Option<ClientboundSetEntityMotionPacket>,
+    pub equipment: Option<ClientboundSetEquipmentPacket>,
+    pub attributes: Option<ClientboundUpdateAttributesPacket>,
+    pub effects: Vec<ClientboundUpdateMobEffectPacket>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,6 +451,19 @@ pub enum PlayInstruction {
     ForgetLevelChunk {
         pos: ChunkPos,
     },
+    AddEntity(ClientboundAddEntityPacket),
+    SetEntityData(ClientboundSetEntityDataPacket),
+    SetEntityMotion(ClientboundSetEntityMotionPacket),
+    SetEquipment(ClientboundSetEquipmentPacket),
+    UpdateAttributes(ClientboundUpdateAttributesPacket),
+    UpdateMobEffect(ClientboundUpdateMobEffectPacket),
+    RemoveEntities(ClientboundRemoveEntitiesPacket),
+    MoveEntity(ClientboundMoveEntityPacket),
+    TeleportEntity(ClientboundTeleportEntityPacket),
+    SetPassengers(ClientboundSetPassengersPacket),
+    SetEntityLink(ClientboundSetEntityLinkPacket),
+    RotateHead(ClientboundRotateHeadPacket),
+    Animate(ClientboundAnimatePacket),
     CombatKill(ClientboundPlayerCombatKillPacket),
     NoRespawnBlockAvailable,
     Respawn(ClientboundRespawnPacket),
@@ -705,6 +905,173 @@ impl ClientboundLevelChunkWithLightPacket {
             chunk_data: Some(ClientboundLevelChunkPacketData::from_chunk(chunk)),
             light_data: Some(light_data),
         }
+    }
+}
+
+impl Vec3 {
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+}
+
+impl ClientboundAddEntityPacket {
+    pub fn new(
+        id: i32,
+        uuid: Uuid,
+        entity_type: i32,
+        position: Vec3,
+        movement: Vec3,
+        rotation: (f32, f32),
+        y_head_rot: f32,
+        data: i32,
+    ) -> Self {
+        Self {
+            id,
+            uuid,
+            entity_type,
+            position,
+            movement,
+            x_rot: pack_degrees(rotation.0),
+            y_rot: pack_degrees(rotation.1),
+            y_head_rot: pack_degrees(y_head_rot),
+            data,
+        }
+    }
+}
+
+impl ClientboundMoveEntityPacket {
+    pub fn pos(id: i32, delta: [i16; 3], on_ground: bool) -> Self {
+        Self {
+            id,
+            delta,
+            y_rot: 0,
+            x_rot: 0,
+            on_ground,
+            has_position: true,
+            has_rotation: false,
+        }
+    }
+
+    pub fn pos_rot(id: i32, delta: [i16; 3], y_rot: f32, x_rot: f32, on_ground: bool) -> Self {
+        Self {
+            id,
+            delta,
+            y_rot: pack_degrees(y_rot),
+            x_rot: pack_degrees(x_rot),
+            on_ground,
+            has_position: true,
+            has_rotation: true,
+        }
+    }
+
+    pub fn rot(id: i32, y_rot: f32, x_rot: f32, on_ground: bool) -> Self {
+        Self {
+            id,
+            delta: [0, 0, 0],
+            y_rot: pack_degrees(y_rot),
+            x_rot: pack_degrees(x_rot),
+            on_ground,
+            has_position: false,
+            has_rotation: true,
+        }
+    }
+}
+
+impl ClientboundSetEntityMotionPacket {
+    pub fn new(id: i32, movement: Vec3) -> Self {
+        Self {
+            id,
+            movement: clamp_velocity(movement),
+        }
+    }
+}
+
+impl ClientboundRotateHeadPacket {
+    pub fn new(id: i32, y_head_rot: f32) -> Self {
+        Self {
+            id,
+            y_head_rot: pack_degrees(y_head_rot),
+        }
+    }
+}
+
+impl ClientboundSetEntityLinkPacket {
+    pub fn new(source_id: i32, dest_id: Option<i32>) -> Self {
+        Self {
+            source_id,
+            dest_id: dest_id.unwrap_or(0),
+        }
+    }
+}
+
+impl ClientboundSetEquipmentPacket {
+    pub fn encoded_slot_bytes(&self) -> Vec<u8> {
+        self.slots
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let slot = entry.slot as u8;
+                if index + 1 == self.slots.len() {
+                    slot
+                } else {
+                    slot | 0x80
+                }
+            })
+            .collect()
+    }
+}
+
+impl MobEffectFlags {
+    pub const AMBIENT: Self = Self(1);
+    pub const VISIBLE: Self = Self(2);
+    pub const SHOW_ICON: Self = Self(4);
+    pub const BLEND: Self = Self(8);
+
+    pub fn from_parts(ambient: bool, visible: bool, show_icon: bool, blend: bool) -> Self {
+        Self(
+            (if ambient { Self::AMBIENT.0 } else { 0 })
+                | (if visible { Self::VISIBLE.0 } else { 0 })
+                | (if show_icon { Self::SHOW_ICON.0 } else { 0 })
+                | (if blend { Self::BLEND.0 } else { 0 }),
+        )
+    }
+}
+
+impl EntitySpawnBundle {
+    pub fn instructions(self) -> Vec<PlayInstruction> {
+        let mut instructions = vec![PlayInstruction::AddEntity(self.spawn)];
+        if let Some(metadata) = self.metadata {
+            instructions.push(PlayInstruction::SetEntityData(metadata));
+        }
+        if let Some(velocity) = self.velocity {
+            instructions.push(PlayInstruction::SetEntityMotion(velocity));
+        }
+        if let Some(equipment) = self.equipment {
+            instructions.push(PlayInstruction::SetEquipment(equipment));
+        }
+        if let Some(attributes) = self.attributes {
+            instructions.push(PlayInstruction::UpdateAttributes(attributes));
+        }
+        instructions.extend(
+            self.effects
+                .into_iter()
+                .map(PlayInstruction::UpdateMobEffect),
+        );
+        instructions
+    }
+}
+
+fn pack_degrees(degrees: f32) -> u8 {
+    ((degrees * 256.0 / 360.0).floor() as i32 & 255) as u8
+}
+
+fn clamp_velocity(movement: Vec3) -> Vec3 {
+    Vec3 {
+        x: movement.x.clamp(-3.9, 3.9),
+        y: movement.y.clamp(-3.9, 3.9),
+        z: movement.z.clamp(-3.9, 3.9),
     }
 }
 
@@ -1326,6 +1693,26 @@ mod tests {
             Some("chunk_batch_start")
         );
         assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_ADD_ENTITY_PACKET_ID),
+            Some("add_entity")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID),
+            Some("remove_entities")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID),
+            Some("set_entity_data")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID),
+            Some("teleport_entity")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_UPDATE_MOB_EFFECT_PACKET_ID),
+            Some("update_mob_effect")
+        );
+        assert_eq!(
             registry.clientbound_name(CLIENTBOUND_LOGIN_PACKET_ID),
             Some("login")
         );
@@ -1335,6 +1722,162 @@ mod tests {
         );
         assert_eq!(registry.serverbound().last(), Some(&"custom_click_action"));
         assert_eq!(registry.clientbound().last(), Some(&"show_dialog"));
+    }
+
+    #[test]
+    fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
+        let spawn = ClientboundAddEntityPacket::new(
+            7,
+            Uuid([1; 16]),
+            42,
+            Vec3 {
+                x: 1.0,
+                y: 65.0,
+                z: -2.0,
+            },
+            Vec3 {
+                x: 4.5,
+                y: -4.5,
+                z: 0.25,
+            },
+            (45.0, 90.0),
+            180.0,
+            3,
+        );
+        assert_eq!(spawn.x_rot, 32);
+        assert_eq!(spawn.y_rot, 64);
+        assert_eq!(spawn.y_head_rot, 128);
+
+        let velocity = ClientboundSetEntityMotionPacket::new(7, spawn.movement);
+        assert_eq!(
+            velocity.movement,
+            Vec3 {
+                x: 3.9,
+                y: -3.9,
+                z: 0.25,
+            }
+        );
+
+        let instructions = EntitySpawnBundle {
+            spawn: spawn.clone(),
+            metadata: Some(ClientboundSetEntityDataPacket {
+                id: 7,
+                packed_items: vec![EntityDataValue {
+                    index: 0,
+                    serializer_id: 0,
+                    encoded_payload: vec![0x20],
+                }],
+            }),
+            velocity: Some(velocity),
+            equipment: Some(ClientboundSetEquipmentPacket {
+                entity: 7,
+                slots: vec![
+                    EquipmentEntry {
+                        slot: EquipmentSlotKind::MainHand,
+                        item_id: Some(1),
+                    },
+                    EquipmentEntry {
+                        slot: EquipmentSlotKind::Head,
+                        item_id: Some(2),
+                    },
+                ],
+            }),
+            attributes: Some(ClientboundUpdateAttributesPacket {
+                entity_id: 7,
+                attributes: vec![AttributeSnapshot {
+                    attribute_id: 0,
+                    base: 20.0,
+                    modifiers: Vec::new(),
+                }],
+            }),
+            effects: vec![ClientboundUpdateMobEffectPacket {
+                entity_id: 7,
+                effect_id: 1,
+                amplifier: 0,
+                duration_ticks: 200,
+                flags: MobEffectFlags::from_parts(false, true, true, true),
+            }],
+        }
+        .instructions();
+
+        assert!(matches!(instructions[0], PlayInstruction::AddEntity(_)));
+        assert!(matches!(instructions[1], PlayInstruction::SetEntityData(_)));
+        assert!(matches!(
+            instructions[2],
+            PlayInstruction::SetEntityMotion(_)
+        ));
+        assert!(matches!(instructions[3], PlayInstruction::SetEquipment(_)));
+        assert!(matches!(
+            instructions[4],
+            PlayInstruction::UpdateAttributes(_)
+        ));
+        assert!(matches!(
+            instructions[5],
+            PlayInstruction::UpdateMobEffect(_)
+        ));
+        let PlayInstruction::SetEquipment(equipment) = &instructions[3] else {
+            panic!("expected equipment packet");
+        };
+        assert_eq!(equipment.encoded_slot_bytes(), vec![0x80, 5]);
+        let PlayInstruction::UpdateMobEffect(effect) = instructions[5] else {
+            panic!("expected effect packet");
+        };
+        assert_eq!(effect.flags, MobEffectFlags(14));
+    }
+
+    #[test]
+    fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
+        assert_eq!(
+            ClientboundMoveEntityPacket::pos(7, [1, -2, 3], true),
+            ClientboundMoveEntityPacket {
+                id: 7,
+                delta: [1, -2, 3],
+                y_rot: 0,
+                x_rot: 0,
+                on_ground: true,
+                has_position: true,
+                has_rotation: false,
+            }
+        );
+        assert_eq!(
+            ClientboundMoveEntityPacket::pos_rot(7, [1, 2, 3], 90.0, 45.0, false).y_rot,
+            64
+        );
+        assert_eq!(
+            ClientboundMoveEntityPacket::rot(7, 180.0, 45.0, true).x_rot,
+            32
+        );
+        assert_eq!(ClientboundRotateHeadPacket::new(7, 180.0).y_head_rot, 128);
+        assert_eq!(
+            ClientboundSetEntityLinkPacket::new(7, None),
+            ClientboundSetEntityLinkPacket {
+                source_id: 7,
+                dest_id: 0,
+            }
+        );
+        assert_eq!(
+            ClientboundSetPassengersPacket {
+                vehicle: 7,
+                passengers: vec![8, 9],
+            }
+            .passengers,
+            vec![8, 9]
+        );
+        assert_eq!(
+            ClientboundAnimatePacket {
+                id: 7,
+                action: EntityAnimation::SwingOffHand,
+            }
+            .action as i32,
+            3
+        );
+        assert_eq!(
+            ClientboundRemoveEntitiesPacket {
+                entity_ids: vec![7, 8]
+            }
+            .entity_ids,
+            vec![7, 8]
+        );
     }
 
     #[test]
