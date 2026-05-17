@@ -10,12 +10,16 @@ const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
 const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === '1'
 const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
-const firstTickActions = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS === '1'
+const firstTickActionRequest = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
+const firstTickActions = new Set(firstTickActionRequest === '1'
+  ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'swing', 'use_item_on', 'use_item']
+  : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
 const serverboundClientInformationPacketId = 14
 const serverboundCommandSuggestionPacketId = 15
+const serverboundContainerClickPacketId = 18
 const serverboundContainerClosePacketId = 19
 const serverboundKeepAlivePacketId = 28
 const serverboundMovePlayerPosRotPacketId = 31
@@ -838,17 +842,18 @@ async function main () {
   socket.write(encodeClientPacket(reader, serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(encodeClientPacket(reader, serverboundChunkBatchReceivedPacketId, Buffer.alloc(4)))
   socket.write(encodeClientPacket(reader, serverboundPlayerLoadedPacketId))
-  if (firstTickActions) {
-    socket.write(encodeClientPacket(reader, serverboundClientInformationPacketId, clientInformationPayload()))
-    socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, Buffer.from([0, 4])))
-    socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload()))
-    socket.write(encodeClientPacket(reader, serverboundChatPacketId, chatPayload('first tick')))
-    socket.write(encodeClientPacket(reader, serverboundCommandSuggestionPacketId, commandSuggestionPayload('/list')))
-    socket.write(encodeClientPacket(reader, serverboundContainerClosePacketId, Buffer.from([0])))
-    socket.write(encodeClientPacket(reader, serverboundPlayerActionPacketId, playerActionPayload()))
-    socket.write(encodeClientPacket(reader, serverboundSwingPacketId, writeVarInt(0)))
-    socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, useItemOnPayload()))
-    socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
+  if (firstTickActions.size > 0) {
+    if (firstTickActions.has('client_information')) socket.write(encodeClientPacket(reader, serverboundClientInformationPacketId, clientInformationPayload()))
+    if (firstTickActions.has('held_slot')) socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, Buffer.from([0, 4])))
+    if (firstTickActions.has('movement')) socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload()))
+    if (firstTickActions.has('chat')) socket.write(encodeClientPacket(reader, serverboundChatPacketId, chatPayload('first tick')))
+    if (firstTickActions.has('command_suggestion')) socket.write(encodeClientPacket(reader, serverboundCommandSuggestionPacketId, commandSuggestionPayload('/list')))
+    if (firstTickActions.has('inventory_click')) socket.write(encodeClientPacket(reader, serverboundContainerClickPacketId, containerClickPayload()))
+    if (firstTickActions.has('inventory_close')) socket.write(encodeClientPacket(reader, serverboundContainerClosePacketId, Buffer.from([0])))
+    if (firstTickActions.has('block_action')) socket.write(encodeClientPacket(reader, serverboundPlayerActionPacketId, playerActionPayload()))
+    if (firstTickActions.has('swing')) socket.write(encodeClientPacket(reader, serverboundSwingPacketId, writeVarInt(0)))
+    if (firstTickActions.has('use_item_on')) socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, useItemOnPayload()))
+    if (firstTickActions.has('use_item')) socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
     if (abortAfter === 'first_tick_actions') return abortSocket(socket, 'first_tick_actions', { login: login.id, config, play, joinState })
   }
 
@@ -924,6 +929,20 @@ function commandSuggestionPayload (command) {
   const transaction = Buffer.alloc(4)
   transaction.writeInt32BE(1, 0)
   return Buffer.concat([transaction, writeString(command)])
+}
+
+function containerClickPayload () {
+  const slot = Buffer.alloc(2)
+  slot.writeInt16BE(0, 0)
+  return Buffer.concat([
+    Buffer.from([0]),
+    writeVarInt(0),
+    slot,
+    Buffer.from([0]),
+    writeVarInt(0),
+    writeVarInt(0),
+    Buffer.from([0])
+  ])
 }
 
 function playerActionPayload () {
