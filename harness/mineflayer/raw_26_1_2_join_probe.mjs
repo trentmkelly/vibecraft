@@ -37,6 +37,14 @@ function writeString (value) {
   return Buffer.concat([writeVarInt(data.length), data])
 }
 
+function readString (buffer, offset = 0) {
+  const length = readVarInt(buffer, offset)
+  if (!length) throw new Error('missing string length')
+  const end = length.offset + length.value
+  if (buffer.length < end) throw new Error('truncated string')
+  return { value: buffer.subarray(length.offset, end).toString('utf8'), offset: end }
+}
+
 function frame (packetId, ...parts) {
   const payload = Buffer.concat([writeVarInt(packetId), ...parts])
   return Buffer.concat([writeVarInt(payload.length), payload])
@@ -95,6 +103,31 @@ function expectPacket (packet, id, state) {
   }
 }
 
+const expectedRegistries = [
+  'minecraft:damage_type',
+  'minecraft:dimension_type',
+  'minecraft:cat_sound_variant',
+  'minecraft:cat_variant',
+  'minecraft:chicken_sound_variant',
+  'minecraft:chicken_variant',
+  'minecraft:cow_sound_variant',
+  'minecraft:cow_variant',
+  'minecraft:frog_variant',
+  'minecraft:painting_variant',
+  'minecraft:pig_sound_variant',
+  'minecraft:pig_variant',
+  'minecraft:wolf_sound_variant',
+  'minecraft:wolf_variant',
+  'minecraft:zombie_nautilus_variant'
+]
+
+function decodeRegistryPacket (packet) {
+  const registry = readString(packet.body)
+  const count = readVarInt(packet.body, registry.offset)
+  if (!count) throw new Error(`missing element count for registry ${registry.value}`)
+  return { id: packet.id, length: packet.length, registry: registry.value, elements: count.value }
+}
+
 async function main () {
   const socket = net.createConnection({ host, port })
   await new Promise((resolve, reject) => {
@@ -118,7 +151,7 @@ async function main () {
   const config = []
   while (true) {
     const packet = await reader.nextPacket()
-    config.push({ id: packet.id, length: packet.length })
+    config.push(packet.id === 7 ? decodeRegistryPacket(packet) : { id: packet.id, length: packet.length })
     if (packet.id === 3) break
   }
   const configIds = config.map(packet => packet.id)
@@ -126,8 +159,12 @@ async function main () {
     if (!configIds.includes(id)) throw new Error(`missing configuration packet ${id}`)
   }
   const registryPackets = config.filter(packet => packet.id === 7)
-  if (registryPackets.length < 15) {
-    throw new Error(`expected at least 15 registry packets, got ${registryPackets.length}`)
+  const registryNames = new Set(registryPackets.map(packet => packet.registry))
+  for (const registry of expectedRegistries) {
+    if (!registryNames.has(registry)) throw new Error(`missing registry packet ${registry}`)
+  }
+  for (const packet of registryPackets) {
+    if (packet.elements < 1) throw new Error(`registry ${packet.registry} was empty`)
   }
   socket.write(frame(3))
 
