@@ -2,6 +2,7 @@
 
 use std::net::IpAddr;
 
+use crate::enchantment_system::{are_compatible, enchantment};
 use crate::entity_category::mob_category;
 use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
@@ -150,6 +151,7 @@ pub struct ServerCommandState {
     pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
+    pub item_enchantments: Vec<CommandItemEnchantment>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub default_game_mode: GameMode,
     pub force_game_mode: Option<GameMode>,
@@ -244,6 +246,14 @@ pub struct CommandPlayerInventory {
 pub struct CommandItemStack {
     pub item: String,
     pub count: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandItemEnchantment {
+    pub target: EntityRef,
+    pub item: String,
+    pub enchantment: String,
+    pub level: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -931,6 +941,11 @@ pub enum CommandError {
     EffectGiveFailed,
     EffectClearEverythingFailed,
     EffectClearSpecificFailed,
+    EnchantNotLivingEntity,
+    EnchantNoItem,
+    EnchantIncompatible,
+    EnchantLevelTooHigh,
+    EnchantFailed,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1129,6 +1144,7 @@ impl Default for ServerCommandState {
             max_block_modifications: 32768,
             online_players: Vec::new(),
             player_inventories: Vec::new(),
+            item_enchantments: Vec::new(),
             player_game_modes: Vec::new(),
             default_game_mode: GameMode::Survival,
             force_game_mode: None,
@@ -1557,6 +1573,7 @@ pub fn execute_builtin_command(
         "difficulty" => difficulty_command(state, &parts),
         "dialog" => dialog_command(state, &parts),
         "effect" => effect_command(state, &parts),
+        "enchant" => enchant_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -3929,6 +3946,164 @@ fn parse_effect_seconds(input: &str) -> Result<i32, CommandError> {
 
 fn parse_effect_amplifier(input: &str) -> Result<u8, CommandError> {
     input.parse::<u8>().map_err(|_| CommandError::InvalidSyntax)
+}
+
+fn enchant_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["enchant", targets, enchantment_id] => {
+            enchant_targets(state, parse_name_list(targets), enchantment_id, 1)
+        }
+        ["enchant", targets, enchantment_id, level] => enchant_targets(
+            state,
+            parse_name_list(targets),
+            enchantment_id,
+            parse_non_negative_i32(level)?,
+        ),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn enchant_targets(
+    state: &mut ServerCommandState,
+    targets: Vec<NameAndId>,
+    enchantment_id: &str,
+    level: i32,
+) -> Result<CommandResult, CommandError> {
+    let enchantment_id = parse_resource_identifier(enchantment_id)?;
+    let Some(enchantment_def) = enchantment(&enchantment_id) else {
+        return Err(CommandError::InvalidSyntax);
+    };
+    if level > enchantment_def.max_level {
+        return Err(CommandError::EnchantLevelTooHigh);
+    }
+
+    let mut success = 0;
+    for target_profile in &targets {
+        let target = entity_ref(&target_profile.name);
+        if matches!(entity_kind(state, &target), EntityKind::NonLiving) {
+            if targets.len() == 1 {
+                return Err(CommandError::EnchantNotLivingEntity);
+            }
+            continue;
+        }
+        let Some(item) = held_item(state, target_profile) else {
+            if targets.len() == 1 {
+                return Err(CommandError::EnchantNoItem);
+            }
+            continue;
+        };
+        if !item_supports_enchantment(item, enchantment_def.supported_items)
+            || !existing_enchantments_compatible(state, &target, item, &enchantment_id)
+        {
+            if targets.len() == 1 {
+                return Err(CommandError::EnchantIncompatible);
+            }
+            continue;
+        }
+        upsert_item_enchantment(
+            state,
+            CommandItemEnchantment {
+                target,
+                item: item.to_string(),
+                enchantment: enchantment_id.clone(),
+                level,
+            },
+        );
+        success += 1;
+    }
+    if success == 0 {
+        return Err(CommandError::EnchantFailed);
+    }
+    Ok(CommandResult {
+        success_count: success,
+        feedback_key: if targets.len() == 1 {
+            "commands.enchant.success.single"
+        } else {
+            "commands.enchant.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn held_item<'a>(state: &'a ServerCommandState, player: &NameAndId) -> Option<&'a str> {
+    state
+        .player_inventories
+        .iter()
+        .find(|inventory| inventory.player.uuid == player.uuid)
+        .and_then(|inventory| inventory.items.first())
+        .filter(|item| item.count > 0)
+        .map(|item| item.item.as_str())
+}
+
+fn item_supports_enchantment(item: &str, supported_items: &str) -> bool {
+    match supported_items {
+        "#minecraft:weapon_enchantable" => {
+            item.ends_with("_sword") || item.ends_with("_axe") || item == "minecraft:mace"
+        }
+        "#minecraft:mining_enchantable" => {
+            item.ends_with("_pickaxe")
+                || item.ends_with("_shovel")
+                || item.ends_with("_axe")
+                || item.ends_with("_hoe")
+                || item == "minecraft:shears"
+        }
+        "#minecraft:bow_enchantable" => item == "minecraft:bow",
+        "#minecraft:crossbow_enchantable" => item == "minecraft:crossbow",
+        "#minecraft:trident_enchantable" => item == "minecraft:trident",
+        "#minecraft:armor_enchantable" => is_armor_item(item),
+        "#minecraft:foot_armor_enchantable" => item.ends_with("_boots"),
+        "#minecraft:head_armor_enchantable" => {
+            item.ends_with("_helmet") || item == "minecraft:turtle_helmet"
+        }
+        "#minecraft:chest_armor_enchantable" => {
+            item.ends_with("_chestplate") || item == "minecraft:elytra"
+        }
+        "#minecraft:leg_armor_enchantable" => item.ends_with("_leggings"),
+        "#minecraft:equippable_enchantable" => is_armor_item(item) || item == "minecraft:elytra",
+        explicit => explicit == item,
+    }
+}
+
+fn is_armor_item(item: &str) -> bool {
+    item.ends_with("_helmet")
+        || item.ends_with("_chestplate")
+        || item.ends_with("_leggings")
+        || item.ends_with("_boots")
+        || item == "minecraft:turtle_helmet"
+}
+
+fn existing_enchantments_compatible(
+    state: &ServerCommandState,
+    target: &EntityRef,
+    item: &str,
+    new_enchantment: &str,
+) -> bool {
+    let Some(new_def) = enchantment(new_enchantment) else {
+        return false;
+    };
+    state
+        .item_enchantments
+        .iter()
+        .filter(|existing| existing.target.id == target.id && existing.item == item)
+        .all(|existing| {
+            enchantment(&existing.enchantment)
+                .is_some_and(|existing_def| are_compatible(existing_def, new_def))
+        })
+}
+
+fn upsert_item_enchantment(state: &mut ServerCommandState, enchantment: CommandItemEnchantment) {
+    if let Some(existing) = state.item_enchantments.iter_mut().find(|existing| {
+        existing.target.id == enchantment.target.id
+            && existing.item == enchantment.item
+            && existing.enchantment == enchantment.enchantment
+    }) {
+        existing.level = enchantment.level;
+    } else {
+        state.item_enchantments.push(enchantment);
+    }
 }
 
 fn gamemode_command(
@@ -7336,6 +7511,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("difficulty", "/difficulty [difficulty]"),
         ("dialog", "/dialog <show|clear> <targets> [dialog]"),
         ("effect", "/effect <give|clear> ..."),
+        ("enchant", "/enchant <targets> <enchantment> [level]"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -7803,16 +7979,17 @@ mod tests {
         visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
         AttributeOperation, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
         ChaseEvent, ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability,
-        CommandError, CommandItemStack, CommandPlayerInventory, DamageCommandSource,
-        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityRef,
-        EntityState, EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet,
-        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
-        PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
-        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
-        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        CommandError, CommandItemEnchantment, CommandItemStack, CommandPlayerInventory,
+        DamageCommandSource, DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind,
+        EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
+        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
+        PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress,
+        PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
+        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
+        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
+        WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -9667,6 +9844,155 @@ mod tests {
                 "effect clear Alex strength"
             ),
             Err(CommandError::EffectClearSpecificFailed)
+        );
+    }
+
+    #[test]
+    fn enchant_command_applies_compatible_held_item_enchantments() {
+        let mut state = ServerCommandState {
+            player_inventories: vec![
+                CommandPlayerInventory {
+                    player: NameAndId::create_offline("Steve"),
+                    items: vec![CommandItemStack {
+                        item: "minecraft:diamond_sword".to_string(),
+                        count: 1,
+                    }],
+                },
+                CommandPlayerInventory {
+                    player: NameAndId::create_offline("Alex"),
+                    items: vec![CommandItemStack {
+                        item: "minecraft:diamond_pickaxe".to_string(),
+                        count: 1,
+                    }],
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("enchant"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "enchant Steve sharpness"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let result = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "enchant Steve sharpness 5",
+        )
+        .unwrap();
+        assert_eq!(result.success_count, 1);
+        assert_eq!(result.feedback_key, "commands.enchant.success.single");
+        assert_eq!(
+            state.item_enchantments,
+            vec![CommandItemEnchantment {
+                target: EntityRef {
+                    id: "Steve".to_string(),
+                    display_name: "Steve".to_string(),
+                },
+                item: "minecraft:diamond_sword".to_string(),
+                enchantment: "minecraft:sharpness".to_string(),
+                level: 5,
+            }]
+        );
+
+        let multi = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "enchant Steve,Alex fortune 3",
+        )
+        .unwrap();
+        assert_eq!(multi.success_count, 1);
+        assert_eq!(multi.feedback_key, "commands.enchant.success.multiple");
+        assert!(state.item_enchantments.iter().any(|enchantment| {
+            enchantment.target.id == "Alex"
+                && enchantment.item == "minecraft:diamond_pickaxe"
+                && enchantment.enchantment == "minecraft:fortune"
+                && enchantment.level == 3
+        }));
+    }
+
+    #[test]
+    fn enchant_command_reports_level_item_entity_and_compatibility_failures() {
+        let mut state = ServerCommandState {
+            entity_states: vec![EntityState {
+                entity: EntityRef {
+                    id: "armor_stand".to_string(),
+                    display_name: "Armor Stand".to_string(),
+                },
+                kind: EntityKind::NonLiving,
+                dimension: "minecraft:overworld".to_string(),
+            }],
+            player_inventories: vec![
+                CommandPlayerInventory {
+                    player: NameAndId::create_offline("Steve"),
+                    items: vec![CommandItemStack {
+                        item: "minecraft:diamond_sword".to_string(),
+                        count: 1,
+                    }],
+                },
+                CommandPlayerInventory {
+                    player: NameAndId::create_offline("Alex"),
+                    items: Vec::new(),
+                },
+            ],
+            item_enchantments: vec![CommandItemEnchantment {
+                target: EntityRef {
+                    id: "Steve".to_string(),
+                    display_name: "Steve".to_string(),
+                },
+                item: "minecraft:diamond_sword".to_string(),
+                enchantment: "minecraft:sharpness".to_string(),
+                level: 5,
+            }],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "enchant Steve sharpness 6"
+            ),
+            Err(CommandError::EnchantLevelTooHigh)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "enchant armor_stand sharpness"
+            ),
+            Err(CommandError::EnchantNotLivingEntity)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "enchant Alex sharpness"
+            ),
+            Err(CommandError::EnchantNoItem)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "enchant Steve fortune"
+            ),
+            Err(CommandError::EnchantIncompatible)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "enchant Alex,armor_stand sharpness"
+            ),
+            Err(CommandError::EnchantFailed)
         );
     }
 
