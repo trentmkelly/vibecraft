@@ -144,7 +144,7 @@ function finishConfigurationCheck (manifest, rawProbe) {
 
 function playEntryCheck (rawProbe) {
   const actual = rawProbe.play?.map(packet => packet.id) ?? []
-  const expected = [49, 10, 64, 105, 103, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
+  const expected = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
   const loginPacket = rawProbe.play?.find(packet => packet.id === 49)
   const positionPacket = rawProbe.play?.find(packet => packet.id === 72)
   const ok = arrayEqual(actual, expected) && loginPacket?.length === 70 && positionPacket?.length === 62

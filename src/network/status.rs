@@ -7,7 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::console::ConsoleInput;
-use crate::network::codec::{write_bitset, write_identifier, write_optional};
+use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
 use crate::network::login::{
     ClientboundLoginDisconnectPacket, LoginSession, ServerboundHelloPacket,
     ServerboundLoginAcknowledgedPacket, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
@@ -16,16 +16,19 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
     CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
     CLIENTBOUND_SET_TIME_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
+use crate::player_access::NameAndId;
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
@@ -804,7 +807,10 @@ fn handle_status_connection(
     }
 }
 
-fn write_login_protocol_mismatch_disconnect(stream: &mut TcpStream, protocol: i32) -> io::Result<()> {
+fn write_login_protocol_mismatch_disconnect(
+    stream: &mut TcpStream,
+    protocol: i32,
+) -> io::Result<()> {
     let key = if protocol < 754 {
         "multiplayer.disconnect.outdated_client"
     } else {
@@ -997,7 +1003,7 @@ fn handle_login_connection(
         "finish configuration",
     )?;
 
-    write_minimal_play_join(stream, properties)?;
+    write_minimal_play_join(stream, properties, &finished.profile)?;
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
@@ -1020,8 +1026,7 @@ fn handle_login_connection(
                 if matches!(
                     err.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) =>
-            {}
+                ) => {}
             Err(err)
                 if matches!(
                     err.kind(),
@@ -1079,6 +1084,7 @@ fn is_tolerated_serverbound_configuration_packet(packet_id: i32) -> bool {
 fn write_minimal_play_join(
     stream: &mut TcpStream,
     properties: &ServerProperties,
+    profile: &NameAndId,
 ) -> io::Result<()> {
     let login = ClientboundLoginPacket {
         player_id: 1,
@@ -1096,6 +1102,11 @@ fn write_minimal_play_join(
     write_framed_packet(stream, CLIENTBOUND_LOGIN_PACKET_ID, |payload| {
         write_clientbound_login_packet(payload, &login)
     })?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+        |payload| write_player_info_initializing_packet(payload, profile),
+    )?;
     write_framed_packet(stream, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, |payload| {
         payload.write_all(&[1])?;
         write_bool(payload, false)
@@ -1113,6 +1124,27 @@ fn write_minimal_play_join(
         write_var_i32(payload, 0)?;
         write_var_i32(payload, 0)
     })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_HEALTH_PACKET_ID, |payload| {
+        payload.write_all(&20.0f32.to_be_bytes())?;
+        write_var_i32(payload, 20)?;
+        payload.write_all(&5.0f32.to_be_bytes())
+    })?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[0])?;
+            write_var_i32(payload, 0)?;
+            write_var_i32(payload, 46)?;
+            for _ in 0..46 {
+                write_var_i32(payload, 0)?;
+            }
+            write_var_i32(payload, 0)
+        },
+    )?;
+    write_framed_packet(stream, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, |payload| {
+        write_var_i32(payload, 0)
+    })?;
     write_framed_packet(stream, CLIENTBOUND_SET_TIME_PACKET_ID, |payload| {
         payload.write_all(&0_i64.to_be_bytes())?;
         write_var_i32(payload, 0)
@@ -1128,16 +1160,24 @@ fn write_minimal_play_join(
     write_framed_packet(stream, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, |payload| {
         write_initialize_world_border_packet(payload)
     })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, |payload| {
-        write_default_spawn_position_packet(payload, 0, 80, 0)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, |payload| {
-        write_var_i32(payload, 0)?;
-        write_var_i32(payload, 0)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, |payload| {
-        write_var_i32(payload, properties.view_distance as i32)
-    })?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+        |payload| write_default_spawn_position_packet(payload, 0, 80, 0),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, 0)?;
+            write_var_i32(payload, 0)
+        },
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+        |payload| write_var_i32(payload, properties.view_distance as i32),
+    )?;
     write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
         payload.write_all(&[2])?;
         payload.write_all(&0.0f32.to_be_bytes())
@@ -1173,6 +1213,41 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, SPAWN_CHUNK_BATCH_SIZE),
     )
+}
+
+fn write_player_info_initializing_packet<W: Write>(
+    writer: &mut W,
+    profile: &NameAndId,
+) -> io::Result<()> {
+    writer.write_all(&[0xff])?;
+    write_var_i32(writer, 1)?;
+    write_uuid(writer, uuid_from_hyphenated(&profile.uuid)?)?;
+    crate::network::codec::write_string(writer, &profile.name, 16)?;
+    write_var_i32(writer, 0)?;
+    write_bool(writer, false)?;
+    write_var_i32(writer, 0)?;
+    write_bool(writer, true)?;
+    write_var_i32(writer, 0)?;
+    write_bool(writer, false)?;
+    write_var_i32(writer, 0)?;
+    write_bool(writer, true)
+}
+
+fn uuid_from_hyphenated(value: &str) -> io::Result<Uuid> {
+    let hex: String = value.chars().filter(|ch| *ch != '-').collect();
+    if hex.len() != 32 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid UUID length",
+        ));
+    }
+    let mut bytes = [0u8; 16];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        let start = index * 2;
+        *byte = u8::from_str_radix(&hex[start..start + 2], 16)
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+    }
+    Ok(Uuid(bytes))
 }
 
 fn write_initialize_world_border_packet<W: Write>(writer: &mut W) -> io::Result<()> {
@@ -1551,23 +1626,71 @@ fn write_vanilla_wolf_sound_variant_registry_packet<W: Write>(writer: &mut W) ->
     })
 }
 
-fn write_vanilla_zombie_nautilus_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+fn write_vanilla_zombie_nautilus_variant_registry_packet<W: Write>(
+    writer: &mut W,
+) -> io::Result<()> {
     const VARIANTS: &[&str] = &["temperate", "warm"];
-    write_variant_registry(writer, "minecraft:zombie_nautilus_variant", VARIANTS, |id| {
-        zombie_nautilus_variant_nbt(id)
-    })
+    write_variant_registry(
+        writer,
+        "minecraft:zombie_nautilus_variant",
+        VARIANTS,
+        |id| zombie_nautilus_variant_nbt(id),
+    )
 }
 
 fn write_vanilla_painting_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const PAINTINGS: &[&str] = &[
-        "alban", "aztec", "aztec2", "backyard", "baroque", "bomb", "bouquet",
-        "burning_skull", "bust", "cavebird", "changing", "cotan", "courbet", "creebet",
-        "dennis", "donkey_kong", "earth", "endboss", "fern", "fighters", "finding",
-        "fire", "graham", "humble", "kebab", "lowmist", "match", "meditative", "orb",
-        "owlemons", "passage", "pigscene", "plant", "pointer", "pond", "pool",
-        "prairie_ride", "sea", "skeleton", "skull_and_roses", "stage", "sunflowers",
-        "sunset", "tides", "unpacked", "void", "wanderer", "wasteland", "water",
-        "wind", "wither",
+        "alban",
+        "aztec",
+        "aztec2",
+        "backyard",
+        "baroque",
+        "bomb",
+        "bouquet",
+        "burning_skull",
+        "bust",
+        "cavebird",
+        "changing",
+        "cotan",
+        "courbet",
+        "creebet",
+        "dennis",
+        "donkey_kong",
+        "earth",
+        "endboss",
+        "fern",
+        "fighters",
+        "finding",
+        "fire",
+        "graham",
+        "humble",
+        "kebab",
+        "lowmist",
+        "match",
+        "meditative",
+        "orb",
+        "owlemons",
+        "passage",
+        "pigscene",
+        "plant",
+        "pointer",
+        "pond",
+        "pool",
+        "prairie_ride",
+        "sea",
+        "skeleton",
+        "skull_and_roses",
+        "stage",
+        "sunflowers",
+        "sunset",
+        "tides",
+        "unpacked",
+        "void",
+        "wanderer",
+        "wasteland",
+        "water",
+        "wind",
+        "wither",
     ];
     write_variant_registry(writer, "minecraft:painting_variant", PAINTINGS, |id| {
         painting_variant_nbt(id)
@@ -1615,7 +1738,10 @@ impl VariantRegistryElement for (&str, &str) {
 }
 
 fn write_minimal_biome_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:worldgen/biome").unwrap())?;
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:worldgen/biome").unwrap(),
+    )?;
     write_var_i32(writer, BIOMES.len() as i32)?;
     for biome in BIOMES {
         write_identifier(
@@ -1632,13 +1758,11 @@ fn vanilla_baseline_biome_nbt(biome: &str) -> Tag {
     let (has_precipitation, temperature, downfall, water_color) = match biome {
         "the_void" => (false, 0.5, 0.5, 4_159_204),
         "snowy_plains" | "ice_spikes" | "snowy_taiga" | "frozen_river" | "snowy_beach"
-        | "frozen_ocean" | "deep_frozen_ocean" | "grove" | "snowy_slopes"
-        | "frozen_peaks" | "jagged_peaks" => (true, 0.0, 0.5, 4_020_182),
+        | "frozen_ocean" | "deep_frozen_ocean" | "grove" | "snowy_slopes" | "frozen_peaks"
+        | "jagged_peaks" => (true, 0.0, 0.5, 4_020_182),
         "desert" | "savanna" | "savanna_plateau" | "windswept_savanna" | "badlands"
         | "eroded_badlands" | "wooded_badlands" | "nether_wastes" | "warped_forest"
-        | "crimson_forest" | "soul_sand_valley" | "basalt_deltas" => {
-            (false, 2.0, 0.0, 4_159_204)
-        }
+        | "crimson_forest" | "soul_sand_valley" | "basalt_deltas" => (false, 2.0, 0.0, 4_159_204),
         "warm_ocean" => (true, 0.5, 0.5, 4_446_778),
         "lukewarm_ocean" | "deep_lukewarm_ocean" => (true, 0.5, 0.5, 4_566_514),
         "cold_ocean" | "deep_cold_ocean" => (true, 0.5, 0.5, 4_020_182),
@@ -1755,7 +1879,10 @@ fn fixed_dimension_type_nbt(
             "has_ender_dragon_fight".to_string(),
             Tag::Byte(if has_ender_dragon_fight { 1 } else { 0 }),
         ),
-        ("coordinate_scale".to_string(), Tag::Double(coordinate_scale)),
+        (
+            "coordinate_scale".to_string(),
+            Tag::Double(coordinate_scale),
+        ),
         ("min_y".to_string(), Tag::Int(min_y)),
         ("height".to_string(), Tag::Int(height)),
         ("logical_height".to_string(), Tag::Int(logical_height)),
@@ -2458,25 +2585,26 @@ mod tests {
         cow_sound_variant_nbt, encode_base64, escape_json_string, handle_legacy_status_connection,
         instrument_nbt, jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
         legacy_version1_response, pig_sound_variant_nbt, read_packet, status_json,
-        trim_material_nbt, trim_pattern_nbt, wolf_sound_variant_nbt, write_legacy_string,
-        vanilla_baseline_biome_nbt,
+        trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
+        wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
+        write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
-        write_minimal_biome_registry_packet, write_minimal_trim_material_registry_packet,
-        write_status_pong_packet,
-        write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_variant_registry_packet,
-        write_vanilla_cat_sound_variant_registry_packet,
-        write_vanilla_chat_type_registry_packet, write_vanilla_chicken_variant_registry_packet,
+        write_minimal_trim_material_registry_packet, write_status_pong_packet,
+        write_vanilla_banner_pattern_registry_packet,
+        write_vanilla_cat_sound_variant_registry_packet, write_vanilla_cat_variant_registry_packet,
+        write_vanilla_chat_type_registry_packet,
         write_vanilla_chicken_sound_variant_registry_packet,
-        write_vanilla_cow_variant_registry_packet, write_vanilla_cow_sound_variant_registry_packet,
-        write_vanilla_frog_variant_registry_packet,
-        write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
-        write_vanilla_painting_variant_registry_packet,
-        write_vanilla_pig_variant_registry_packet, write_vanilla_pig_sound_variant_registry_packet,
-        write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
-        write_vanilla_wolf_variant_registry_packet, write_vanilla_zombie_nautilus_variant_registry_packet,
-        BANNER_PATTERNS, BANNER_PATTERN_TAGS, BIOMES,
-        wait_for_configuration_packet, write_framed_packet, CHAT_TYPES, DAMAGE_TYPE_TAGS,
-        INSTRUMENTS, JUKEBOX_SONGS, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
+        write_vanilla_chicken_variant_registry_packet,
+        write_vanilla_cow_sound_variant_registry_packet, write_vanilla_cow_variant_registry_packet,
+        write_vanilla_frog_variant_registry_packet, write_vanilla_instrument_registry_packet,
+        write_vanilla_jukebox_song_registry_packet, write_vanilla_painting_variant_registry_packet,
+        write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
+        write_vanilla_trim_pattern_registry_packet,
+        write_vanilla_wolf_sound_variant_registry_packet,
+        write_vanilla_wolf_variant_registry_packet,
+        write_vanilla_zombie_nautilus_variant_registry_packet, BANNER_PATTERNS,
+        BANNER_PATTERN_TAGS, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS, INSTRUMENTS, JUKEBOX_SONGS,
+        SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, TRIM_MATERIALS, VERSION_NAME,
     };
@@ -2856,12 +2984,21 @@ mod tests {
                 field_value(&tag, "has_precipitation"),
                 Some(Tag::Byte(0 | 1))
             ));
-            assert!(matches!(field_value(&tag, "temperature"), Some(Tag::Float(_))));
+            assert!(matches!(
+                field_value(&tag, "temperature"),
+                Some(Tag::Float(_))
+            ));
             assert!(matches!(field_value(&tag, "downfall"), Some(Tag::Float(_))));
-            assert!(matches!(field_value(&tag, "effects"), Some(Tag::Compound(_))));
+            assert!(matches!(
+                field_value(&tag, "effects"),
+                Some(Tag::Compound(_))
+            ));
 
             let effects = compound_field(&tag, "effects");
-            assert!(matches!(field_value(effects, "water_color"), Some(Tag::Int(_))));
+            assert!(matches!(
+                field_value(effects, "water_color"),
+                Some(Tag::Int(_))
+            ));
         }
     }
 

@@ -54,6 +54,22 @@ function readString (buffer, offset = 0) {
   return { value: buffer.subarray(length.offset, end).toString('utf8'), offset: end }
 }
 
+function offlineUuid (name) {
+  const hash = crypto.createHash('md5').update(`OfflinePlayer:${name}`, 'utf8').digest()
+  hash[6] = (hash[6] & 0x0f) | 0x30
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.toString('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+function readUuid (buffer, offset = 0) {
+  const hex = buffer.subarray(offset, offset + 16).toString('hex')
+  return {
+    value: `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`,
+    offset: offset + 16
+  }
+}
+
 function readBlockPos (buffer, offset = 0) {
   const packed = buffer.readBigInt64BE(offset)
   const x = Number(packed >> 38n)
@@ -622,7 +638,7 @@ async function main () {
 
   const play = []
   const playPackets = []
-  const expectedPlayPacketIds = [49, 10, 64, 105, 103, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
+  const expectedPlayPacketIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
   for (let i = 0; i < expectedPlayPacketIds.length; i++) {
     const packet = await reader.nextPacket()
     playPackets.push(packet)
@@ -641,6 +657,28 @@ async function main () {
     const loginPacket = packetById.get(49)?.[0]
     if (!loginPacket || loginPacket.length !== 70) {
       throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
+    }
+    const playerInfoPacket = packetById.get(70)?.[0]
+    if (!playerInfoPacket) throw new Error('missing player_info_update packet')
+    let playerInfoOffset = 0
+    const actionMask = playerInfoPacket.body[playerInfoOffset++]
+    const entryCount = readVarInt(playerInfoPacket.body, playerInfoOffset)
+    if (actionMask !== 0xff || !entryCount || entryCount.value !== 1) {
+      throw new Error(`expected initializing player_info_update action mask and one entry, got mask=${actionMask} entries=${entryCount?.value}`)
+    }
+    playerInfoOffset = entryCount.offset
+    const profileId = readUuid(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = profileId.offset
+    const profileName = readString(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = profileName.offset
+    const propertiesCount = readVarInt(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = propertiesCount.offset
+    const chatSessionPresent = playerInfoPacket.body[playerInfoOffset++]
+    const gameMode = readVarInt(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = gameMode.offset
+    const listed = playerInfoPacket.body[playerInfoOffset++]
+    const latency = readVarInt(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = latency.offset
+    const displayNamePresent = playerInfoPacket.body[playerInfoOffset++]
+    const listOrder = readVarInt(playerInfoPacket.body, playerInfoOffset); playerInfoOffset = listOrder.offset
+    const showHat = playerInfoPacket.body[playerInfoOffset++]
+    if (profileId.value !== offlineUuid(username) || profileName.value !== username || propertiesCount.value !== 0 || chatSessionPresent !== 0 || gameMode.value !== 0 || listed !== 1 || latency.value !== 0 || displayNamePresent !== 0 || listOrder.value !== 0 || showHat !== 1 || playerInfoOffset !== playerInfoPacket.body.length) {
+      throw new Error('unexpected player_info_update identity or tab-list payload')
     }
     const abilitiesPacket = packetById.get(64)?.[0]
     if (!abilitiesPacket || abilitiesPacket.body.length !== 9) {
@@ -662,6 +700,33 @@ async function main () {
     const totalExperience = experienceLevel && readVarInt(experiencePacket.body, experienceLevel.offset)
     if (!experienceLevel || !totalExperience || experienceLevel.value !== 0 || totalExperience.value !== 0 || totalExperience.offset !== experiencePacket.body.length) {
       throw new Error('expected zero experience level and total')
+    }
+    const healthPacket = packetById.get(104)?.[0]
+    const food = healthPacket && readVarInt(healthPacket.body, 4)
+    if (!healthPacket || healthPacket.body.length !== 9 || healthPacket.body.readFloatBE(0) !== 20 || !food || food.value !== 20 || healthPacket.body.readFloatBE(food.offset) !== 5) {
+      throw new Error(`expected full-health login payload, got ${healthPacket?.body.toString('hex')}`)
+    }
+    const inventoryPacket = packetById.get(18)?.[0]
+    if (!inventoryPacket || inventoryPacket.body[0] !== 0) throw new Error('expected player inventory container content for container 0')
+    const inventoryState = readVarInt(inventoryPacket.body, 1)
+    const itemCount = inventoryState && readVarInt(inventoryPacket.body, inventoryState.offset)
+    if (!inventoryState || inventoryState.value !== 0 || !itemCount || itemCount.value !== 46) {
+      throw new Error('expected empty 46-slot player inventory baseline')
+    }
+    let inventoryOffset = itemCount.offset
+    for (let slot = 0; slot < 46; slot++) {
+      const item = readVarInt(inventoryPacket.body, inventoryOffset)
+      if (!item || item.value !== 0) throw new Error(`expected empty item stack at inventory slot ${slot}`)
+      inventoryOffset = item.offset
+    }
+    const carried = readVarInt(inventoryPacket.body, inventoryOffset)
+    if (!carried || carried.value !== 0 || carried.offset !== inventoryPacket.body.length) {
+      throw new Error('expected empty carried inventory item')
+    }
+    const cursorPacket = packetById.get(96)?.[0]
+    const cursorItem = cursorPacket && readVarInt(cursorPacket.body)
+    if (!cursorItem || cursorItem.value !== 0 || cursorItem.offset !== cursorPacket.body.length) {
+      throw new Error('expected empty cursor item')
     }
     const timePacket = packetById.get(113)?.[0]
     const clockCount = timePacket && readVarInt(timePacket.body, 8)
