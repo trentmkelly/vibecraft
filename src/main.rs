@@ -38,6 +38,7 @@ mod player_online_auth;
 mod player_profile_key;
 mod portal;
 mod post_processing;
+mod potion_fluid_container;
 mod random_source;
 mod random_tick;
 mod recipe_system;
