@@ -88,6 +88,7 @@ struct PlaySessionState {
     yaw: f32,
     pitch: f32,
     on_ground: bool,
+    selected_slot: i32,
 }
 
 impl Default for PlaySessionState {
@@ -99,6 +100,7 @@ impl Default for PlaySessionState {
             yaw: 0.0,
             pitch: 0.0,
             on_ground: true,
+            selected_slot: 0,
         }
     }
 }
@@ -1355,6 +1357,13 @@ fn update_play_session_state<R: Read>(
             state.on_ground = read_bool(input)?;
             Ok(true)
         }
+        SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
+            let slot = i32::from(read_i16(input)?);
+            if (0..9).contains(&slot) {
+                state.selected_slot = slot;
+            }
+            Ok(true)
+        }
         _ => Ok(false),
     }
 }
@@ -1402,7 +1411,7 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
         ("XpLevel".to_string(), Tag::Int(0)),
         ("XpP".to_string(), Tag::Float(0.0)),
         ("XpTotal".to_string(), Tag::Int(0)),
-        ("SelectedItemSlot".to_string(), Tag::Int(0)),
+        ("SelectedItemSlot".to_string(), Tag::Int(state.selected_slot)),
         (
             "Dimension".to_string(),
             Tag::String("minecraft:overworld".to_string()),
@@ -1427,6 +1436,10 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
         Some(Tag::Byte(value)) => *value != 0,
         _ => true,
     };
+    let selected_slot = match compound_tag(compound, "SelectedItemSlot") {
+        Some(Tag::Int(value)) if (0..9).contains(value) => *value,
+        _ => 0,
+    };
     Some(PlaySessionState {
         x: *x,
         y: *y,
@@ -1434,6 +1447,7 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
         yaw: *yaw,
         pitch: *pitch,
         on_ground,
+        selected_slot,
     })
 }
 
@@ -1605,7 +1619,7 @@ fn write_minimal_play_join(
         stream,
         compression,
         CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-        |payload| write_var_i32(payload, 0),
+        |payload| write_var_i32(payload, play_state.selected_slot),
     )?;
     write_framed_packet_with_compression(
         stream,
@@ -2873,6 +2887,12 @@ fn read_f32<R: Read>(reader: &mut R) -> io::Result<f32> {
     let mut bytes = [0u8; 4];
     reader.read_exact(&mut bytes)?;
     Ok(f32::from_be_bytes(bytes))
+}
+
+fn read_i16<R: Read>(reader: &mut R) -> io::Result<i16> {
+    let mut bytes = [0u8; 2];
+    reader.read_exact(&mut bytes)?;
+    Ok(i16::from_be_bytes(bytes))
 }
 
 fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {

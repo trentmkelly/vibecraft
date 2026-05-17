@@ -16,6 +16,8 @@ const firstTickActions = new Set(firstTickActionRequest === '1'
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
 const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+const expectedHeldSlot = Number(process.env.RUSTCRAFT_EXPECT_HELD_SLOT ?? 0)
+const carriedItemSlot = Number(process.env.RUSTCRAFT_RAW_PROBE_HELD_SLOT ?? 4)
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
@@ -64,6 +66,12 @@ function readVarInt (buffer, offset = 0) {
 function writeString (value) {
   const data = Buffer.from(value, 'utf8')
   return Buffer.concat([writeVarInt(data.length), data])
+}
+
+function writeShort (value) {
+  const payload = Buffer.alloc(2)
+  payload.writeInt16BE(value)
+  return payload
 }
 
 function readString (buffer, offset = 0) {
@@ -760,8 +768,8 @@ async function main () {
     }
     const heldSlotPacket = packetById.get(105)?.[0]
     const heldSlot = heldSlotPacket && readVarInt(heldSlotPacket.body)
-    if (!heldSlot || heldSlot.value !== 0 || heldSlot.offset !== heldSlotPacket.body.length) {
-      throw new Error('expected selected hotbar slot 0')
+    if (!heldSlot || heldSlot.value !== expectedHeldSlot || heldSlot.offset !== heldSlotPacket.body.length) {
+      throw new Error(`expected selected hotbar slot ${expectedHeldSlot}`)
     }
     const experiencePacket = packetById.get(103)?.[0]
     if (!experiencePacket || experiencePacket.body.length !== 6 || experiencePacket.body.readFloatBE(0) !== 0) {
@@ -855,7 +863,7 @@ async function main () {
   socket.write(encodeClientPacket(reader, serverboundPlayerLoadedPacketId))
   if (firstTickActions.size > 0) {
     if (firstTickActions.has('client_information')) socket.write(encodeClientPacket(reader, serverboundClientInformationPacketId, clientInformationPayload()))
-    if (firstTickActions.has('held_slot')) socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, Buffer.from([0, 4])))
+    if (firstTickActions.has('held_slot')) socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, writeShort(carriedItemSlot)))
     if (firstTickActions.has('movement')) socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload()))
     if (firstTickActions.has('chat')) socket.write(encodeClientPacket(reader, serverboundChatPacketId, chatPayload('first tick')))
     if (firstTickActions.has('command_suggestion')) socket.write(encodeClientPacket(reader, serverboundCommandSuggestionPacketId, commandSuggestionPayload('/list')))
