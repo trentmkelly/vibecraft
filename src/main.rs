@@ -1,5 +1,6 @@
 mod biome;
 mod block_catalog;
+mod block_metadata;
 mod block_update;
 mod chunk_manager;
 mod chunk_task;
