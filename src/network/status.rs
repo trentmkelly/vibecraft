@@ -1124,6 +1124,7 @@ fn wait_for_configuration_packet<R: Read>(
         let mut input = Cursor::new(packet);
         let packet_id = read_var_i32(&mut input)?;
         if packet_id == expected_packet_id {
+            validate_expected_configuration_packet(&mut input, expected_packet_id)?;
             return Ok(());
         }
         if is_tolerated_serverbound_configuration_packet(packet_id) {
@@ -1139,6 +1140,39 @@ fn wait_for_configuration_packet<R: Read>(
         io::ErrorKind::TimedOut,
         format!("timed out waiting for {expected_name}"),
     ))
+}
+
+fn validate_expected_configuration_packet(
+    input: &mut Cursor<Vec<u8>>,
+    packet_id: i32,
+) -> io::Result<()> {
+    match packet_id {
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID => {
+            let pack_count = read_var_i32(input)?;
+            if !(0..=64).contains(&pack_count) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid selected known pack count",
+                ));
+            }
+            for _ in 0..pack_count {
+                let _namespace = read_string(input, 64)?;
+                let _id = read_string(input, 128)?;
+                let _version = read_string(input, 64)?;
+            }
+        }
+        SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID => {}
+        _ => {}
+    }
+
+    if input.position() != input.get_ref().len() as u64 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("trailing bytes in configuration packet {packet_id}"),
+        ));
+    }
+
+    Ok(())
 }
 
 fn is_tolerated_serverbound_configuration_packet(packet_id: i32) -> bool {
