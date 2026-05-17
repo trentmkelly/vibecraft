@@ -130,17 +130,27 @@ const expectedRegistries = [
 ]
 
 const minimumRegistryElements = new Map([
-  ['minecraft:chat_type', 7],
-  ['minecraft:cat_variant', 11],
   ['minecraft:banner_pattern', 43],
+  ['minecraft:cat_sound_variant', 1],
+  ['minecraft:cat_variant', 11],
+  ['minecraft:chat_type', 7],
+  ['minecraft:chicken_sound_variant', 1],
   ['minecraft:chicken_variant', 3],
+  ['minecraft:cow_sound_variant', 1],
   ['minecraft:cow_variant', 3],
+  ['minecraft:damage_type', 50],
+  ['minecraft:dimension_type', 1],
   ['minecraft:frog_variant', 3],
   ['minecraft:instrument', 8],
   ['minecraft:jukebox_song', 21],
+  ['minecraft:painting_variant', 1],
+  ['minecraft:pig_sound_variant', 1],
   ['minecraft:pig_variant', 3],
+  ['minecraft:trim_material', 11],
   ['minecraft:trim_pattern', 18],
-  ['minecraft:wolf_variant', 9]
+  ['minecraft:wolf_sound_variant', 1],
+  ['minecraft:wolf_variant', 9],
+  ['minecraft:zombie_nautilus_variant', 1]
 ])
 
 const requiredRegistryElements = new Map([
