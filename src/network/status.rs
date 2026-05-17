@@ -171,6 +171,145 @@ struct JukeboxSongEntry {
     comparator_output: i32,
 }
 
+struct InstrumentEntry {
+    id: &'static str,
+    sound_event: &'static str,
+}
+
+const INSTRUMENTS: &[InstrumentEntry] = &[
+    InstrumentEntry {
+        id: "ponder_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.0",
+    },
+    InstrumentEntry {
+        id: "sing_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.1",
+    },
+    InstrumentEntry {
+        id: "seek_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.2",
+    },
+    InstrumentEntry {
+        id: "feel_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.3",
+    },
+    InstrumentEntry {
+        id: "admire_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.4",
+    },
+    InstrumentEntry {
+        id: "call_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.5",
+    },
+    InstrumentEntry {
+        id: "yearn_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.6",
+    },
+    InstrumentEntry {
+        id: "dream_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.7",
+    },
+];
+
+const BANNER_PATTERNS: &[&str] = &[
+    "base",
+    "square_bottom_left",
+    "square_bottom_right",
+    "square_top_left",
+    "square_top_right",
+    "stripe_bottom",
+    "stripe_top",
+    "stripe_left",
+    "stripe_right",
+    "stripe_center",
+    "stripe_middle",
+    "stripe_downright",
+    "stripe_downleft",
+    "small_stripes",
+    "cross",
+    "straight_cross",
+    "triangle_bottom",
+    "triangle_top",
+    "triangles_bottom",
+    "triangles_top",
+    "diagonal_left",
+    "diagonal_up_right",
+    "diagonal_up_left",
+    "diagonal_right",
+    "circle",
+    "rhombus",
+    "half_vertical",
+    "half_horizontal",
+    "half_vertical_right",
+    "half_horizontal_bottom",
+    "border",
+    "gradient",
+    "gradient_up",
+    "bricks",
+    "curly_border",
+    "globe",
+    "creeper",
+    "skull",
+    "flower",
+    "mojang",
+    "piglin",
+    "flow",
+    "guster",
+];
+
+const BANNER_PATTERN_TAGS: &[(&str, &[&str])] = &[
+    (
+        "minecraft:no_item_required",
+        &[
+            "base",
+            "square_bottom_left",
+            "square_bottom_right",
+            "square_top_left",
+            "square_top_right",
+            "stripe_bottom",
+            "stripe_top",
+            "stripe_left",
+            "stripe_right",
+            "stripe_center",
+            "stripe_middle",
+            "stripe_downright",
+            "stripe_downleft",
+            "small_stripes",
+            "cross",
+            "straight_cross",
+            "triangle_bottom",
+            "triangle_top",
+            "triangles_bottom",
+            "triangles_top",
+            "diagonal_left",
+            "diagonal_up_right",
+            "diagonal_up_left",
+            "diagonal_right",
+            "circle",
+            "rhombus",
+            "half_vertical",
+            "half_horizontal",
+            "half_vertical_right",
+            "half_horizontal_bottom",
+            "border",
+            "gradient",
+            "gradient_up",
+            "bricks",
+            "curly_border",
+        ],
+    ),
+    ("minecraft:pattern_item/flower", &["flower"]),
+    ("minecraft:pattern_item/creeper", &["creeper"]),
+    ("minecraft:pattern_item/skull", &["skull"]),
+    ("minecraft:pattern_item/mojang", &["mojang"]),
+    ("minecraft:pattern_item/globe", &["globe"]),
+    ("minecraft:pattern_item/piglin", &["piglin"]),
+    ("minecraft:pattern_item/flow", &["flow"]),
+    ("minecraft:pattern_item/guster", &["guster"]),
+    ("minecraft:pattern_item/field_masoned", &["bricks"]),
+    ("minecraft:pattern_item/bordure_indented", &["curly_border"]),
+];
+
 const JUKEBOX_SONGS: &[JukeboxSongEntry] = &[
     JukeboxSongEntry {
         id: "13",
@@ -558,6 +697,16 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_banner_pattern_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_instrument_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_jukebox_song_registry_packet,
     )?;
     write_framed_packet(
@@ -746,7 +895,7 @@ fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Re
 }
 
 fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_var_i32(writer, 1)?;
+    write_var_i32(writer, 2)?;
     write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
     write_var_i32(writer, DAMAGE_TYPE_TAGS.len() as i32)?;
     for (tag, entries) in DAMAGE_TYPE_TAGS {
@@ -754,6 +903,27 @@ fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> 
         write_var_i32(writer, entries.len() as i32)?;
         for entry in *entries {
             write_var_i32(writer, *entry)?;
+        }
+    }
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:banner_pattern").unwrap(),
+    )?;
+    write_var_i32(writer, BANNER_PATTERN_TAGS.len() as i32)?;
+    for (tag, entries) in BANNER_PATTERN_TAGS {
+        write_identifier(writer, &Identifier::parse(tag).unwrap())?;
+        write_var_i32(writer, entries.len() as i32)?;
+        for entry in *entries {
+            let index = BANNER_PATTERNS
+                .iter()
+                .position(|pattern| pattern == entry)
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("unknown banner pattern tag entry {entry}"),
+                    )
+                })?;
+            write_var_i32(writer, index as i32)?;
         }
     }
     Ok(())
@@ -800,6 +970,37 @@ fn write_vanilla_jukebox_song_registry_packet<W: Write>(writer: &mut W) -> io::R
         )?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &jukebox_song_nbt(song))?;
+    }
+    Ok(())
+}
+
+fn write_vanilla_banner_pattern_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:banner_pattern").unwrap(),
+    )?;
+    write_var_i32(writer, BANNER_PATTERNS.len() as i32)?;
+    for pattern in BANNER_PATTERNS {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{pattern}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &banner_pattern_nbt(pattern))?;
+    }
+    Ok(())
+}
+
+fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:instrument").unwrap())?;
+    write_var_i32(writer, INSTRUMENTS.len() as i32)?;
+    for instrument in INSTRUMENTS {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{}", instrument.id)).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &instrument_nbt(instrument))?;
     }
     Ok(())
 }
@@ -1015,6 +1216,37 @@ fn jukebox_song_nbt(song: &JukeboxSongEntry) -> Tag {
         (
             "comparator_output".to_string(),
             Tag::Int(song.comparator_output),
+        ),
+    ])
+}
+
+fn banner_pattern_nbt(pattern: &str) -> Tag {
+    Tag::Compound(vec![
+        (
+            "asset_id".to_string(),
+            Tag::String(format!("minecraft:{pattern}")),
+        ),
+        (
+            "translation_key".to_string(),
+            Tag::String(format!("block.minecraft.banner.{pattern}")),
+        ),
+    ])
+}
+
+fn instrument_nbt(instrument: &InstrumentEntry) -> Tag {
+    Tag::Compound(vec![
+        (
+            "sound_event".to_string(),
+            Tag::String(instrument.sound_event.to_string()),
+        ),
+        ("use_duration".to_string(), Tag::Float(7.0)),
+        ("range".to_string(), Tag::Float(256.0)),
+        (
+            "description".to_string(),
+            Tag::Compound(vec![(
+                "translate".to_string(),
+                Tag::String(format!("instrument.minecraft.{}", instrument.id)),
+            )]),
         ),
     ])
 }

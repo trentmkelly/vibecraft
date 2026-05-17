@@ -109,6 +109,8 @@ const expectedRegistries = [
   'minecraft:damage_type',
   'minecraft:dimension_type',
   'minecraft:trim_material',
+  'minecraft:banner_pattern',
+  'minecraft:instrument',
   'minecraft:jukebox_song',
   'minecraft:cat_sound_variant',
   'minecraft:cat_variant',
@@ -127,9 +129,11 @@ const expectedRegistries = [
 
 const minimumRegistryElements = new Map([
   ['minecraft:cat_variant', 11],
+  ['minecraft:banner_pattern', 43],
   ['minecraft:chicken_variant', 3],
   ['minecraft:cow_variant', 3],
   ['minecraft:frog_variant', 3],
+  ['minecraft:instrument', 8],
   ['minecraft:jukebox_song', 21],
   ['minecraft:pig_variant', 3],
   ['minecraft:wolf_variant', 9]
