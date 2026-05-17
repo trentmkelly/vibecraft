@@ -352,6 +352,39 @@ pub struct UpgradeDataModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpawnSelectionConstants {
+    pub initial_chunk_search_radius: i32,
+    pub player_spawn_ticket_radius: i32,
+    pub spawn_search_absolute_max_attempts: i32,
+    pub default_respawn_radius: i32,
+    pub small_search_coprime_threshold: i32,
+    pub large_search_coprime: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpawnColumnHeights {
+    pub top_y: i32,
+    pub surface_y: i32,
+    pub ocean_floor_y: i32,
+    pub min_y: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpawnBlockKind {
+    Solid,
+    Air,
+    Fluid,
+    NonSolid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InitialSpawnKind {
+    DebugHalfWorld { x: i32, y: i32, z: i32 },
+    DebugWorld { x: i32, y: i32, z: i32 },
+    Normal { x: i32, y: i32, z: i32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructureFamily {
     Village,
     Stronghold,
@@ -3128,6 +3161,15 @@ pub const UPGRADE_DATA_MODEL: UpgradeDataModel = UpgradeDataModel {
     chunky_fixers: &["leaves"],
 };
 
+pub const SPAWN_SELECTION_CONSTANTS: SpawnSelectionConstants = SpawnSelectionConstants {
+    initial_chunk_search_radius: 5,
+    player_spawn_ticket_radius: 3,
+    spawn_search_absolute_max_attempts: 1024,
+    default_respawn_radius: 10,
+    small_search_coprime_threshold: 16,
+    large_search_coprime: 17,
+};
+
 const fn structure_family(
     family: StructureFamily,
     structures: &'static [&'static str],
@@ -3655,6 +3697,160 @@ pub fn blending_smooth_alpha(distance: f64, range_cells: i32) -> f64 {
     3.0 * alpha * alpha - 2.0 * alpha * alpha * alpha
 }
 
+pub fn initial_spawn_position(
+    debug_only_half_world: bool,
+    debug_world_recreate: bool,
+    is_debug: bool,
+    spawn_chunk_x: i32,
+    spawn_chunk_z: i32,
+    generator_spawn_height: i32,
+    min_y: i32,
+    world_surface_height_at_chunk_center: i32,
+) -> InitialSpawnKind {
+    if debug_only_half_world && debug_world_recreate {
+        InitialSpawnKind::DebugHalfWorld {
+            x: 0,
+            y: 64,
+            z: -100,
+        }
+    } else if is_debug {
+        InitialSpawnKind::DebugWorld { x: 0, y: 80, z: 0 }
+    } else {
+        let y = if generator_spawn_height < min_y {
+            world_surface_height_at_chunk_center
+        } else {
+            generator_spawn_height
+        };
+        InitialSpawnKind::Normal {
+            x: spawn_chunk_x * 16 + 8,
+            y,
+            z: spawn_chunk_z * 16 + 8,
+        }
+    }
+}
+
+pub fn initial_spawn_chunk_spiral_offsets() -> Vec<(i32, i32)> {
+    let radius = SPAWN_SELECTION_CONSTANTS.initial_chunk_search_radius;
+    let mut x_offset = 0;
+    let mut z_offset = 0;
+    let mut dx = 0;
+    let mut dz = -1;
+    let mut offsets = Vec::with_capacity(((radius * 2 + 1) * (radius * 2 + 1)) as usize);
+
+    for _ in 0..(radius * 2 + 1).pow(2) {
+        if x_offset >= -radius && x_offset <= radius && z_offset >= -radius && z_offset <= radius {
+            offsets.push((x_offset, z_offset));
+        }
+
+        if x_offset == z_offset
+            || (x_offset < 0 && x_offset == -z_offset)
+            || (x_offset > 0 && x_offset == 1 - z_offset)
+        {
+            let old_dx = dx;
+            dx = -dz;
+            dz = old_dx;
+        }
+
+        x_offset += dx;
+        z_offset += dz;
+    }
+
+    offsets
+}
+
+pub fn spawn_search_candidate_count(radius: i32) -> i32 {
+    let side = i64::from(radius.max(0)) * 2 + 1;
+    i64::from(SPAWN_SELECTION_CONSTANTS.spawn_search_absolute_max_attempts).min(side * side) as i32
+}
+
+pub fn spawn_search_coprime(candidate_count: i32) -> i32 {
+    if candidate_count <= SPAWN_SELECTION_CONSTANTS.small_search_coprime_threshold {
+        candidate_count - 1
+    } else {
+        SPAWN_SELECTION_CONSTANTS.large_search_coprime
+    }
+}
+
+pub fn spawn_search_radius(respawn_radius_rule: i32, distance_to_border: i32) -> i32 {
+    let mut radius = respawn_radius_rule.max(0);
+    if distance_to_border < radius {
+        radius = distance_to_border;
+    }
+    if distance_to_border <= 1 {
+        radius = 1;
+    }
+    radius
+}
+
+pub fn spawn_search_candidate(
+    spawn_x: i32,
+    spawn_z: i32,
+    radius: i32,
+    random_offset: i32,
+    candidate_index: i32,
+) -> Option<(i32, i32)> {
+    let candidate_count = spawn_search_candidate_count(radius);
+    if candidate_index >= candidate_count {
+        return None;
+    }
+    let side = radius.max(0) * 2 + 1;
+    let value = (random_offset.rem_euclid(candidate_count)
+        + spawn_search_coprime(candidate_count) * candidate_index)
+        .rem_euclid(candidate_count);
+    let delta_x = value % side;
+    let delta_z = value / side;
+    Some((spawn_x + delta_x - radius, spawn_z + delta_z - radius))
+}
+
+pub fn overworld_respawn_y(
+    heights: SpawnColumnHeights,
+    cave_world: bool,
+    blocks_from_top_plus_one_down: &[SpawnBlockKind],
+) -> Option<i32> {
+    let top_y = heights.top_y;
+    if top_y < heights.min_y {
+        return None;
+    }
+    if heights.surface_y <= top_y && heights.surface_y > heights.ocean_floor_y {
+        return None;
+    }
+    let mut y = top_y + 1;
+    for block in blocks_from_top_plus_one_down {
+        if y < heights.min_y {
+            break;
+        }
+        if *block == SpawnBlockKind::Fluid {
+            break;
+        }
+        if *block == SpawnBlockKind::Solid {
+            return Some(y + 1);
+        }
+        y -= 1;
+    }
+    if cave_world && blocks_from_top_plus_one_down.is_empty() {
+        None
+    } else {
+        None
+    }
+}
+
+pub fn fixup_spawn_height(
+    spawn_y: i32,
+    min_y: i32,
+    max_y: i32,
+    no_collision_no_liquid: impl Fn(i32) -> bool,
+) -> i32 {
+    let mut y = spawn_y;
+    while !no_collision_no_liquid(y) && y < max_y {
+        y += 1;
+    }
+    y -= 1;
+    while no_collision_no_liquid(y) && y > min_y {
+        y -= 1;
+    }
+    y + 1
+}
+
 pub fn carver_can_reach(
     chunk_mid_x: f64,
     chunk_mid_z: f64,
@@ -3679,21 +3875,21 @@ mod tests {
         CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightRange,
         MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, StructureFamily,
-        StructurePlacementKind, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor,
-        WorldCarverType, AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
-        BLENDING_CONSTANTS, BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS,
-        BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS,
-        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
-        CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
-        FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS,
-        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
-        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES,
-        STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
-        STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
-        Y_DENSITY,
+        OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, SpawnBlockKind,
+        SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceRuleKind,
+        SurfaceRulePreset, VerticalAnchor, WorldCarverType, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
+        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
+        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
+        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
+        FLOATING_ISLANDS_NOISE_SETTINGS, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
+        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS,
+        STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
+        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4865,5 +5061,172 @@ mod tests {
             &["blacklist", "default", "chest", "leaves", "stem_block"]
         );
         assert_eq!(UPGRADE_DATA_MODEL.chunky_fixers, &["leaves"]);
+    }
+
+    #[test]
+    fn spawn_selection_constants_and_initial_positions_match_vanilla() {
+        assert_eq!(SPAWN_SELECTION_CONSTANTS.initial_chunk_search_radius, 5);
+        assert_eq!(SPAWN_SELECTION_CONSTANTS.player_spawn_ticket_radius, 3);
+        assert_eq!(
+            SPAWN_SELECTION_CONSTANTS.spawn_search_absolute_max_attempts,
+            1024
+        );
+        assert_eq!(SPAWN_SELECTION_CONSTANTS.large_search_coprime, 17);
+
+        assert_eq!(
+            super::initial_spawn_position(true, true, false, 7, -3, 64, -64, 70),
+            super::InitialSpawnKind::DebugHalfWorld {
+                x: 0,
+                y: 64,
+                z: -100
+            }
+        );
+        assert_eq!(
+            super::initial_spawn_position(false, false, true, 7, -3, 64, -64, 70),
+            super::InitialSpawnKind::DebugWorld { x: 0, y: 80, z: 0 }
+        );
+        assert_eq!(
+            super::initial_spawn_position(false, false, false, 7, -3, 90, -64, 70),
+            super::InitialSpawnKind::Normal {
+                x: 120,
+                y: 90,
+                z: -40
+            }
+        );
+        assert_eq!(
+            super::initial_spawn_position(false, false, false, 7, -3, -80, -64, 70),
+            super::InitialSpawnKind::Normal {
+                x: 120,
+                y: 70,
+                z: -40
+            }
+        );
+    }
+
+    #[test]
+    fn initial_spawn_chunk_spiral_matches_vanilla_search_order() {
+        let offsets = super::initial_spawn_chunk_spiral_offsets();
+        assert_eq!(offsets.len(), 121);
+        assert_eq!(
+            &offsets[..12],
+            &[
+                (0, 0),
+                (1, 0),
+                (1, 1),
+                (0, 1),
+                (-1, 1),
+                (-1, 0),
+                (-1, -1),
+                (0, -1),
+                (1, -1),
+                (2, -1),
+                (2, 0),
+                (2, 1)
+            ]
+        );
+        assert_eq!(offsets.last(), Some(&(5, -5)));
+        assert!(offsets.contains(&(-5, -5)));
+        assert!(offsets.contains(&(5, 5)));
+    }
+
+    #[test]
+    fn player_spawn_search_candidate_math_matches_vanilla() {
+        assert_eq!(super::spawn_search_candidate_count(0), 1);
+        assert_eq!(super::spawn_search_candidate_count(1), 9);
+        assert_eq!(super::spawn_search_candidate_count(16), 1024);
+        assert_eq!(super::spawn_search_coprime(9), 8);
+        assert_eq!(super::spawn_search_coprime(17), 17);
+
+        assert_eq!(super::spawn_search_radius(10, 20), 10);
+        assert_eq!(super::spawn_search_radius(10, 4), 4);
+        assert_eq!(super::spawn_search_radius(10, 1), 1);
+        assert_eq!(super::spawn_search_radius(-5, 20), 0);
+
+        assert_eq!(
+            super::spawn_search_candidate(100, 200, 1, 0, 0),
+            Some((99, 199))
+        );
+        assert_eq!(
+            super::spawn_search_candidate(100, 200, 1, 0, 1),
+            Some((101, 201))
+        );
+        assert_eq!(
+            super::spawn_search_candidate(100, 200, 1, 8, 0),
+            Some((101, 201))
+        );
+        assert_eq!(super::spawn_search_candidate(100, 200, 1, 0, 9), None);
+    }
+
+    #[test]
+    fn overworld_respawn_candidate_rules_match_vanilla() {
+        let normal_column = SpawnColumnHeights {
+            top_y: 64,
+            surface_y: 66,
+            ocean_floor_y: 63,
+            min_y: -64,
+        };
+        assert_eq!(
+            super::overworld_respawn_y(
+                normal_column,
+                false,
+                &[
+                    SpawnBlockKind::Air,
+                    SpawnBlockKind::Air,
+                    SpawnBlockKind::Solid
+                ]
+            ),
+            Some(64)
+        );
+
+        assert_eq!(
+            super::overworld_respawn_y(
+                SpawnColumnHeights {
+                    top_y: -80,
+                    ..normal_column
+                },
+                false,
+                &[SpawnBlockKind::Solid]
+            ),
+            None
+        );
+        assert_eq!(
+            super::overworld_respawn_y(
+                SpawnColumnHeights {
+                    surface_y: 64,
+                    ocean_floor_y: 62,
+                    ..normal_column
+                },
+                false,
+                &[SpawnBlockKind::Solid]
+            ),
+            None
+        );
+        assert_eq!(
+            super::overworld_respawn_y(
+                normal_column,
+                false,
+                &[
+                    SpawnBlockKind::Air,
+                    SpawnBlockKind::Fluid,
+                    SpawnBlockKind::Solid
+                ]
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn spawn_height_fixup_walks_like_vanilla() {
+        let blocked_until_70 = |y| y >= 70;
+        assert_eq!(
+            super::fixup_spawn_height(64, -64, 320, blocked_until_70),
+            70
+        );
+
+        let air_above_ground = |y| y >= 65;
+        assert_eq!(
+            super::fixup_spawn_height(80, -64, 320, air_above_ground),
+            65
+        );
     }
 }
