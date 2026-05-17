@@ -1,4 +1,5 @@
 mod biome;
+mod block_behavior;
 mod block_catalog;
 mod block_metadata;
 mod block_update;
