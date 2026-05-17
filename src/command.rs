@@ -57,6 +57,8 @@ pub struct ServerCommandState {
     pub command_source_entity: Option<EntityRef>,
     pub command_source_position: Vec3,
     pub command_source_dimension: String,
+    pub debug_world: bool,
+    pub blocks: Vec<BlockStateEntry>,
     pub online_players: Vec<NameAndId>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub camera_targets: Vec<CameraTarget>,
@@ -70,6 +72,7 @@ pub struct ServerCommandState {
     pub chat_events: Vec<ChatCommandEvent>,
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
+    pub setblock_events: Vec<SetBlockEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
     pub summoned_entities: Vec<SummonedEntity>,
     pub swing_events: Vec<SwingCommandEvent>,
@@ -211,6 +214,30 @@ pub struct PlayerSpawn {
     pub player: NameAndId,
     pub respawn: RespawnData,
     pub forced: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockStateEntry {
+    pub dimension: String,
+    pub position: BlockPos,
+    pub block: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetBlockEvent {
+    pub dimension: String,
+    pub position: BlockPos,
+    pub block: String,
+    pub mode: SetBlockMode,
+    pub strict: bool,
+    pub destroyed_block: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetBlockMode {
+    Replace,
+    Destroy,
+    Keep,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -530,6 +557,7 @@ pub enum CommandError {
     TeamNotFound,
     TeamAlreadyEmpty,
     TeamOptionUnchanged,
+    SetBlockFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -621,6 +649,8 @@ impl Default for ServerCommandState {
             command_source_entity: None,
             command_source_position: Vec3::default(),
             command_source_dimension: "minecraft:overworld".to_string(),
+            debug_world: false,
+            blocks: Vec::new(),
             online_players: Vec::new(),
             player_game_modes: Vec::new(),
             camera_targets: Vec::new(),
@@ -634,6 +664,7 @@ impl Default for ServerCommandState {
             chat_events: Vec::new(),
             sound_events: Vec::new(),
             particle_events: Vec::new(),
+            setblock_events: Vec::new(),
             server_pack_events: Vec::new(),
             summoned_entities: Vec::new(),
             swing_events: Vec::new(),
@@ -1037,6 +1068,7 @@ pub fn execute_builtin_command(
             })
         }
         "serverpack" => server_pack_command(state, &parts),
+        "setblock" => setblock_command(state, &parts),
         "setworldspawn" => setworldspawn_command(state, &parts),
         "spectate" => spectate_command(state, &parts),
         "spawnpoint" => spawnpoint_command(state, &parts),
@@ -1674,6 +1706,83 @@ fn query_stopwatch(
     Ok(CommandResult {
         success_count: (elapsed_seconds * scale) as i32,
         feedback_key: "commands.stopwatch.query",
+        broadcast_to_admins: true,
+    })
+}
+
+fn setblock_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (position, block, mode, strict) = match parts {
+        ["setblock", x, y, z, block] => (
+            parse_block_pos(x, y, z)?,
+            parse_resource_identifier(block)?,
+            SetBlockMode::Replace,
+            false,
+        ),
+        ["setblock", x, y, z, block, "replace"] => (
+            parse_block_pos(x, y, z)?,
+            parse_resource_identifier(block)?,
+            SetBlockMode::Replace,
+            false,
+        ),
+        ["setblock", x, y, z, block, "destroy"] => (
+            parse_block_pos(x, y, z)?,
+            parse_resource_identifier(block)?,
+            SetBlockMode::Destroy,
+            false,
+        ),
+        ["setblock", x, y, z, block, "keep"] => (
+            parse_block_pos(x, y, z)?,
+            parse_resource_identifier(block)?,
+            SetBlockMode::Keep,
+            false,
+        ),
+        ["setblock", x, y, z, block, "strict"] => (
+            parse_block_pos(x, y, z)?,
+            parse_resource_identifier(block)?,
+            SetBlockMode::Replace,
+            true,
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+
+    if state.debug_world {
+        return Err(CommandError::SetBlockFailed);
+    }
+
+    let existing_index = state.blocks.iter().position(|entry| {
+        entry.dimension == state.command_source_dimension && entry.position == position
+    });
+    let existing_block = existing_index.map(|index| state.blocks[index].block.clone());
+    if mode == SetBlockMode::Keep
+        && existing_block.as_deref().unwrap_or("minecraft:air") != "minecraft:air"
+    {
+        return Err(CommandError::SetBlockFailed);
+    }
+
+    if let Some(index) = existing_index {
+        state.blocks[index].block = block.clone();
+    } else {
+        state.blocks.push(BlockStateEntry {
+            dimension: state.command_source_dimension.clone(),
+            position,
+            block: block.clone(),
+        });
+    }
+    state.setblock_events.push(SetBlockEvent {
+        dimension: state.command_source_dimension.clone(),
+        position,
+        block,
+        mode,
+        strict,
+        destroyed_block: (mode == SetBlockMode::Destroy)
+            .then_some(existing_block.unwrap_or_else(|| "minecraft:air".to_string())),
+    });
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.setblock.success",
         broadcast_to_admins: true,
     })
 }
@@ -3265,6 +3374,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "/serverpack push <url> [uuid] [hash]|pop <uuid>",
         ),
         ("setidletimeout", "/setidletimeout <minutes>"),
+        (
+            "setblock",
+            "/setblock <pos> <block> [destroy|keep|replace|strict]",
+        ),
         ("setworldspawn", "/setworldspawn [pos] [rotation]"),
         ("spectate", "/spectate [target] [player]"),
         ("spawnpoint", "/spawnpoint [targets] [pos] [rotation]"),
@@ -3632,14 +3745,15 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
-        visible_command_usages, BlockPos, ChatCommandKind, CommandAvailability, CommandError,
-        EntityAnchor, EntityKind, EntityMount, EntityRef, EntityState, EntityTags, GameMode,
-        InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
-        PermissionLevel, PlaySoundRequest, PlayerGameMode, PlayerRecipeBook, PlayerSpawn,
-        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
-        RotationMode, RotationRequest, SaveAllRequest, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
-        SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        visible_command_usages, BlockPos, BlockStateEntry, ChatCommandKind, CommandAvailability,
+        CommandError, EntityAnchor, EntityKind, EntityMount, EntityRef, EntityState, EntityTags,
+        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
+        Permission, PermissionLevel, PlaySoundRequest, PlayerGameMode, PlayerRecipeBook,
+        PlayerSpawn, PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent,
+        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ServerCommandState,
+        ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode, SoundCommandEvent,
+        SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent, TeamMembership,
+        TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -3950,6 +4064,105 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "setworldspawn 1 2"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn setblock_command_places_replaces_and_destroys_blocks() {
+        let mut state = ServerCommandState {
+            command_source_dimension: "minecraft:the_end".to_string(),
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("setblock"),
+            PermissionLevel::Gamemasters
+        );
+
+        let placed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setblock 1 64 2 stone",
+        )
+        .unwrap();
+        assert_eq!(placed.success_count, 1);
+        assert_eq!(placed.feedback_key, "commands.setblock.success");
+        assert!(placed.broadcast_to_admins);
+        assert_eq!(
+            state.blocks[0],
+            BlockStateEntry {
+                dimension: "minecraft:the_end".to_string(),
+                position: BlockPos { x: 1, y: 64, z: 2 },
+                block: "minecraft:stone".to_string(),
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setblock 1 64 2 minecraft:dirt destroy",
+        )
+        .unwrap();
+        assert_eq!(state.blocks[0].block, "minecraft:dirt");
+        assert_eq!(state.setblock_events[1].mode, SetBlockMode::Destroy);
+        assert_eq!(
+            state.setblock_events[1].destroyed_block,
+            Some("minecraft:stone".to_string())
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setblock 3 70 4 glass strict",
+        )
+        .unwrap();
+        assert!(state.setblock_events[2].strict);
+    }
+
+    #[test]
+    fn setblock_command_rejects_keep_debug_and_bad_syntax() {
+        let mut state = ServerCommandState {
+            blocks: vec![BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 0, y: 64, z: 0 },
+                block: "minecraft:stone".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "setblock 0 64 0 dirt keep"
+            ),
+            Err(CommandError::SetBlockFailed)
+        );
+        state.debug_world = true;
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "setblock 1 64 0 dirt"
+            ),
+            Err(CommandError::SetBlockFailed)
+        );
+        state.debug_world = false;
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "setblock 1 64 dirt"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "setblock 1 64 0 BadBlock"
             ),
             Err(CommandError::InvalidSyntax)
         );
