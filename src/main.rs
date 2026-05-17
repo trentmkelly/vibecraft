@@ -83,6 +83,7 @@ mod presentation_data;
 mod portal;
 mod persistence_roundtrip_tests;
 mod parity_harness;
+mod performance_benchmarks;
 mod post_processing;
 mod potion_fluid_container;
 mod projectile_entity;
