@@ -564,6 +564,9 @@ async function main () {
       throw new Error('missing minecraft:core:26.1.2 known pack')
     }
     const registryNames = new Set(registryPackets.map(packet => packet.registry))
+    if (registryNames.has('minecraft:enchantment')) {
+      throw new Error('enchantment registry must remain omitted until enchanted-item smoke coverage exists')
+    }
     for (const registry of expectedRegistries) {
       if (!registryNames.has(registry)) throw new Error(`missing registry packet ${registry}`)
     }

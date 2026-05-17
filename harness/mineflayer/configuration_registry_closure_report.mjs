@@ -26,9 +26,10 @@ export const documentedRegistryOmissions = new Map([
       milestone: 'void-world join',
       evidence: [
         'The item initializer audit found no default item component dependency on a concrete enchantment holder before play-state entry.',
-        'The raw play-entry probe validates that current registry omissions still reach first play packets.'
+        'The raw play-entry probe validates that current registry omissions still reach first play packets.',
+        'The raw probe asserts minecraft:enchantment remains omitted until enchanted-item smoke coverage exists.'
       ],
-      next: 'Choose omitted, minimal, or full vanilla enchantment policy and add matching raw-probe assertions before enchanted item smoke tests.'
+      next: 'Keep the zero-enchantment join policy for the current milestone; sync the full vanilla registry before enchanted item smoke tests.'
     }
   ],
   [
