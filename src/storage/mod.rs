@@ -1,3 +1,4 @@
+pub mod chunk;
 pub mod datafix;
 pub mod entities;
 pub mod nbt;
