@@ -240,34 +240,14 @@ const MINIMAL_NON_EMPTY_REGISTRIES: &[MinimalRegistryEntry] = &[
         value: cat_sound_variant_nbt,
     },
     MinimalRegistryEntry {
-        registry: "minecraft:cat_variant",
-        entry: "minecraft:tabby",
-        value: two_texture_variant_nbt,
-    },
-    MinimalRegistryEntry {
         registry: "minecraft:chicken_sound_variant",
         entry: "minecraft:default",
         value: chicken_sound_variant_nbt,
     },
     MinimalRegistryEntry {
-        registry: "minecraft:chicken_variant",
-        entry: "minecraft:temperate",
-        value: chicken_variant_nbt,
-    },
-    MinimalRegistryEntry {
         registry: "minecraft:cow_sound_variant",
         entry: "minecraft:default",
         value: cow_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:cow_variant",
-        entry: "minecraft:temperate",
-        value: model_and_baby_texture_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:frog_variant",
-        entry: "minecraft:temperate",
-        value: single_texture_variant_nbt,
     },
     MinimalRegistryEntry {
         registry: "minecraft:painting_variant",
@@ -280,19 +260,9 @@ const MINIMAL_NON_EMPTY_REGISTRIES: &[MinimalRegistryEntry] = &[
         value: pig_sound_variant_nbt,
     },
     MinimalRegistryEntry {
-        registry: "minecraft:pig_variant",
-        entry: "minecraft:temperate",
-        value: model_and_baby_texture_variant_nbt,
-    },
-    MinimalRegistryEntry {
         registry: "minecraft:wolf_sound_variant",
         entry: "minecraft:default",
         value: wolf_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:wolf_variant",
-        entry: "minecraft:pale",
-        value: wolf_variant_nbt,
     },
     MinimalRegistryEntry {
         registry: "minecraft:zombie_nautilus_variant",
@@ -448,6 +418,36 @@ fn handle_login_connection(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_trim_material_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_cat_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_chicken_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_cow_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_frog_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_pig_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_wolf_variant_registry_packet,
     )?;
     for registry in MINIMAL_NON_EMPTY_REGISTRIES {
         write_framed_packet(
@@ -646,6 +646,121 @@ fn write_minimal_trim_material_registry_packet<W: Write>(writer: &mut W) -> io::
     Ok(())
 }
 
+fn write_vanilla_cat_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const CATS: &[&str] = &[
+        "tabby",
+        "black",
+        "red",
+        "siamese",
+        "british_shorthair",
+        "calico",
+        "persian",
+        "ragdoll",
+        "white",
+        "jellie",
+        "all_black",
+    ];
+    write_variant_registry(writer, "minecraft:cat_variant", CATS, |cat| {
+        animal_texture_variant_nbt("cat", &format!("cat_{cat}"), "normal")
+    })
+}
+
+fn write_vanilla_chicken_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const CHICKENS: &[(&str, &str)] = &[
+        ("temperate", "normal"),
+        ("warm", "normal"),
+        ("cold", "cold"),
+    ];
+    write_variant_registry(
+        writer,
+        "minecraft:chicken_variant",
+        CHICKENS,
+        |(id, model)| animal_texture_variant_nbt("chicken", &format!("chicken_{id}"), model),
+    )
+}
+
+fn write_vanilla_cow_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const COWS: &[(&str, &str)] = &[("temperate", "normal"), ("warm", "warm"), ("cold", "cold")];
+    write_variant_registry(writer, "minecraft:cow_variant", COWS, |(id, model)| {
+        animal_texture_variant_nbt("cow", &format!("cow_{id}"), model)
+    })
+}
+
+fn write_vanilla_frog_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const FROGS: &[&str] = &["temperate", "warm", "cold"];
+    write_variant_registry(writer, "minecraft:frog_variant", FROGS, |frog| {
+        single_texture_variant_nbt(&format!("minecraft:entity/frog/frog_{frog}"))
+    })
+}
+
+fn write_vanilla_pig_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const PIGS: &[(&str, &str)] = &[
+        ("temperate", "normal"),
+        ("warm", "normal"),
+        ("cold", "cold"),
+    ];
+    write_variant_registry(writer, "minecraft:pig_variant", PIGS, |(id, model)| {
+        animal_texture_variant_nbt("pig", &format!("pig_{id}"), model)
+    })
+}
+
+fn write_vanilla_wolf_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const WOLVES: &[(&str, &str)] = &[
+        ("pale", "wolf"),
+        ("spotted", "wolf_spotted"),
+        ("snowy", "wolf_snowy"),
+        ("black", "wolf_black"),
+        ("ashen", "wolf_ashen"),
+        ("rusty", "wolf_rusty"),
+        ("woods", "wolf_woods"),
+        ("chestnut", "wolf_chestnut"),
+        ("striped", "wolf_striped"),
+    ];
+    write_variant_registry(writer, "minecraft:wolf_variant", WOLVES, |(_id, file)| {
+        wolf_variant_nbt(file)
+    })
+}
+
+fn write_variant_registry<W, T, F>(
+    writer: &mut W,
+    registry: &str,
+    entries: &[T],
+    mut value: F,
+) -> io::Result<()>
+where
+    W: Write,
+    F: FnMut(&T) -> Tag,
+    T: VariantRegistryElement,
+{
+    write_identifier(writer, &Identifier::parse(registry).unwrap())?;
+    write_var_i32(writer, entries.len() as i32)?;
+    for entry in entries {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{}", entry.id())).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &value(entry))?;
+    }
+    Ok(())
+}
+
+trait VariantRegistryElement {
+    fn id(&self) -> &str;
+}
+
+impl VariantRegistryElement for &str {
+    fn id(&self) -> &str {
+        self
+    }
+}
+
+impl VariantRegistryElement for (&str, &str) {
+    fn id(&self) -> &str {
+        self.0
+    }
+}
+
 fn write_minimal_single_entry_registry_packet<W: Write>(
     writer: &mut W,
     registry: &MinimalRegistryEntry,
@@ -722,74 +837,52 @@ fn trim_material_nbt(material: &TrimMaterialEntry) -> Tag {
     Tag::Compound(fields)
 }
 
-fn single_texture_variant_nbt() -> Tag {
+fn single_texture_variant_nbt(asset_id: &str) -> Tag {
     Tag::Compound(vec![(
         "asset_id".to_string(),
-        Tag::String("minecraft:entity/frog/temperate_frog".to_string()),
+        Tag::String(asset_id.to_string()),
     )])
 }
 
-fn two_texture_variant_nbt() -> Tag {
-    Tag::Compound(vec![
+fn animal_texture_variant_nbt(kind: &str, texture_name: &str, model: &str) -> Tag {
+    let mut fields = vec![
         (
             "asset_id".to_string(),
-            Tag::String("minecraft:entity/cat/tabby".to_string()),
+            Tag::String(format!("minecraft:entity/{kind}/{texture_name}")),
         ),
         (
             "baby_asset_id".to_string(),
-            Tag::String("minecraft:entity/cat/tabby_baby".to_string()),
+            Tag::String(format!("minecraft:entity/{kind}/{texture_name}_baby")),
         ),
-    ])
+    ];
+    if model != "normal" {
+        fields.push(("model".to_string(), Tag::String(model.to_string())));
+    }
+    Tag::Compound(fields)
 }
 
-fn model_and_baby_texture_variant_nbt() -> Tag {
+fn wolf_variant_nbt(file_name: &str) -> Tag {
+    let assets = wolf_assets_nbt(file_name, "");
+    let baby_assets = wolf_assets_nbt(file_name, "_baby");
     Tag::Compound(vec![
-        (
-            "asset_id".to_string(),
-            Tag::String("minecraft:entity/cow/temperate_cow".to_string()),
-        ),
-        (
-            "baby_asset_id".to_string(),
-            Tag::String("minecraft:entity/cow/temperate_cow_baby".to_string()),
-        ),
+        ("assets".to_string(), assets),
+        ("baby_assets".to_string(), baby_assets),
     ])
 }
 
-fn chicken_variant_nbt() -> Tag {
-    Tag::Compound(vec![
-        (
-            "asset_id".to_string(),
-            Tag::String("minecraft:entity/chicken/temperate_chicken".to_string()),
-        ),
-        (
-            "baby_asset_id".to_string(),
-            Tag::String("minecraft:entity/chicken/temperate_chicken_baby".to_string()),
-        ),
-        ("model".to_string(), Tag::String("normal".to_string())),
-    ])
-}
-
-fn wolf_variant_nbt() -> Tag {
-    let assets = wolf_assets_nbt();
-    Tag::Compound(vec![
-        ("assets".to_string(), assets.clone()),
-        ("baby_assets".to_string(), assets),
-    ])
-}
-
-fn wolf_assets_nbt() -> Tag {
+fn wolf_assets_nbt(file_name: &str, suffix: &str) -> Tag {
     Tag::Compound(vec![
         (
             "wild".to_string(),
-            Tag::String("minecraft:entity/wolf/wolf".to_string()),
+            Tag::String(format!("minecraft:entity/wolf/{file_name}{suffix}")),
         ),
         (
             "tame".to_string(),
-            Tag::String("minecraft:entity/wolf/wolf_tame".to_string()),
+            Tag::String(format!("minecraft:entity/wolf/{file_name}_tame{suffix}")),
         ),
         (
             "angry".to_string(),
-            Tag::String("minecraft:entity/wolf/wolf_angry".to_string()),
+            Tag::String(format!("minecraft:entity/wolf/{file_name}_angry{suffix}")),
         ),
     ])
 }
@@ -1281,7 +1374,10 @@ mod tests {
         escape_json_string, handle_legacy_status_connection, legacy_disconnect_packet,
         legacy_version0_response, legacy_version1_response, pig_sound_variant_nbt, read_packet,
         status_json, trim_material_nbt, wolf_sound_variant_nbt, write_legacy_string,
-        write_status_pong_packet, TRIM_MATERIALS,
+        write_status_pong_packet, write_vanilla_cat_variant_registry_packet,
+        write_vanilla_chicken_variant_registry_packet, write_vanilla_cow_variant_registry_packet,
+        write_vanilla_frog_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
+        write_vanilla_wolf_variant_registry_packet, TRIM_MATERIALS,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
@@ -1454,6 +1550,34 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn vanilla_animal_variant_registry_payloads_include_client_referenced_entries() {
+        assert_eq!(
+            registry_element_count(write_vanilla_cat_variant_registry_packet),
+            11
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_chicken_variant_registry_packet),
+            3
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_cow_variant_registry_packet),
+            3
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_frog_variant_registry_packet),
+            3
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_pig_variant_registry_packet),
+            3
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_wolf_variant_registry_packet),
+            9
+        );
+    }
+
     fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
         let adult = compound_field(&tag, "adult_sounds");
         let baby = compound_field(&tag, "baby_sounds");
@@ -1488,6 +1612,14 @@ mod tests {
         fields
             .iter()
             .find_map(|(name, value)| (name == field).then_some(value))
+    }
+
+    fn registry_element_count(write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>) -> i32 {
+        let mut payload = Vec::new();
+        write_packet(&mut payload).unwrap();
+        let mut cursor = Cursor::new(payload);
+        let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
+        read_var_i32(&mut cursor).unwrap()
     }
 
     #[derive(Debug)]

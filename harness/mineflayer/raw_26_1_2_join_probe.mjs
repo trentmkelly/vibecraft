@@ -124,6 +124,15 @@ const expectedRegistries = [
   'minecraft:zombie_nautilus_variant'
 ]
 
+const minimumRegistryElements = new Map([
+  ['minecraft:cat_variant', 11],
+  ['minecraft:chicken_variant', 3],
+  ['minecraft:cow_variant', 3],
+  ['minecraft:frog_variant', 3],
+  ['minecraft:pig_variant', 3],
+  ['minecraft:wolf_variant', 9]
+])
+
 function decodeRegistryPacket (packet) {
   const registry = readString(packet.body)
   const count = readVarInt(packet.body, registry.offset)
@@ -167,7 +176,10 @@ async function main () {
     if (!registryNames.has(registry)) throw new Error(`missing registry packet ${registry}`)
   }
   for (const packet of registryPackets) {
-    if (packet.elements < 1) throw new Error(`registry ${packet.registry} was empty`)
+    const minimum = minimumRegistryElements.get(packet.registry) ?? 1
+    if (packet.elements < minimum) {
+      throw new Error(`registry ${packet.registry} had ${packet.elements} elements, expected at least ${minimum}`)
+    }
   }
   socket.write(frame(3))
 
