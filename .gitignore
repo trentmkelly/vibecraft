@@ -1,0 +1,10 @@
+/target/
+/.agents/
+/.codex/
+/logs/
+/world/
+/crash-reports/
+/debug/
+/server.pid
+/eula.txt
+/server.properties

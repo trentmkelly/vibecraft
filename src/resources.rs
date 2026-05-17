@@ -1,0 +1,1124 @@
+#![allow(dead_code)]
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::Path;
+
+use crate::registry::{feature_flags, FeatureFlagRegistry, FeatureFlagSet, Identifier};
+
+pub const VANILLA_PACK_ID: &str = "vanilla";
+pub const SERVER_DATA_PACK_FORMAT_MAJOR: u32 = 101;
+pub const SERVER_DATA_PACK_FORMAT_MINOR: u32 = 1;
+pub const LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT: u32 = 81;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackSource {
+    Default,
+    BuiltIn,
+    Feature,
+    World,
+    Server,
+}
+
+impl PackSource {
+    pub fn should_add_automatically(self) -> bool {
+        !matches!(self, Self::Feature)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataPack {
+    pub id: String,
+    pub source: PackSource,
+    pub requested_features: FeatureFlagSet,
+    pub metadata: DataPackMetadata,
+}
+
+impl DataPack {
+    pub fn new(id: impl Into<String>, source: PackSource) -> Self {
+        Self {
+            id: id.into(),
+            source,
+            requested_features: FeatureFlagSet::empty(),
+            metadata: DataPackMetadata::default_26_1_2(),
+        }
+    }
+
+    pub fn with_features(mut self, requested_features: FeatureFlagSet) -> Self {
+        self.requested_features = requested_features;
+        self
+    }
+
+    pub fn with_metadata(mut self, metadata: DataPackMetadata) -> Self {
+        self.requested_features = metadata.requested_features;
+        self.metadata = metadata;
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataPackMetadata {
+    pub description: String,
+    pub supported_formats: PackFormatRange,
+    pub compatibility: PackCompatibility,
+    pub requested_features: FeatureFlagSet,
+}
+
+impl DataPackMetadata {
+    pub fn default_26_1_2() -> Self {
+        Self {
+            description: String::new(),
+            supported_formats: PackFormatRange {
+                min: PackFormat::current_server_data(),
+                max: PackFormat {
+                    major: SERVER_DATA_PACK_FORMAT_MAJOR,
+                    minor: u32::MAX,
+                },
+            },
+            compatibility: PackCompatibility::Compatible,
+            requested_features: FeatureFlagSet::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackFormat {
+    pub major: u32,
+    pub minor: u32,
+}
+
+impl PackFormat {
+    pub fn current_server_data() -> Self {
+        Self {
+            major: SERVER_DATA_PACK_FORMAT_MAJOR,
+            minor: SERVER_DATA_PACK_FORMAT_MINOR,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PackFormatRange {
+    pub min: PackFormat,
+    pub max: PackFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackCompatibility {
+    TooOld,
+    TooNew,
+    Unknown,
+    Compatible,
+}
+
+impl PackCompatibility {
+    pub fn is_compatible(self) -> bool {
+        self == Self::Compatible
+    }
+
+    pub fn for_version(declared: PackFormatRange, current: PackFormat) -> Self {
+        if declared.min.major == u32::MAX {
+            Self::Unknown
+        } else if declared.max < current {
+            Self::TooOld
+        } else if current < declared.min {
+            Self::TooNew
+        } else {
+            Self::Compatible
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataPackConfig {
+    pub enabled: Vec<String>,
+    pub disabled: Vec<String>,
+}
+
+impl DataPackConfig {
+    pub fn default_26_1_2() -> Self {
+        Self {
+            enabled: vec![VANILLA_PACK_ID.to_string()],
+            disabled: Vec::new(),
+        }
+    }
+
+    pub fn from_properties(enabled: &str, disabled: &str) -> Self {
+        Self {
+            enabled: split_pack_list(enabled),
+            disabled: split_pack_list(disabled),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldDataConfiguration {
+    pub data_packs: DataPackConfig,
+    pub enabled_features: FeatureFlagSet,
+}
+
+impl WorldDataConfiguration {
+    pub fn default_26_1_2() -> Self {
+        Self {
+            data_packs: DataPackConfig::default_26_1_2(),
+            enabled_features: feature_flags::default_flags_26_1_2(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DataPackRepository {
+    available: BTreeMap<String, DataPack>,
+    selected: Vec<String>,
+}
+
+impl DataPackRepository {
+    pub fn new(packs: impl IntoIterator<Item = DataPack>) -> Self {
+        Self {
+            available: packs
+                .into_iter()
+                .map(|pack| (pack.id.clone(), pack))
+                .collect(),
+            selected: Vec::new(),
+        }
+    }
+
+    pub fn server_repository(datapack_dir: &Path) -> Result<Self, String> {
+        let mut packs = vec![DataPack {
+            id: VANILLA_PACK_ID.to_string(),
+            source: PackSource::BuiltIn,
+            requested_features: feature_flags::default_flags_26_1_2(),
+            metadata: DataPackMetadata {
+                description: "dataPack.vanilla.description".to_string(),
+                requested_features: feature_flags::default_flags_26_1_2(),
+                ..DataPackMetadata::default_26_1_2()
+            },
+        }];
+
+        packs.extend(discover_world_data_packs(datapack_dir)?);
+        Ok(Self::new(packs))
+    }
+
+    pub fn is_available(&self, id: &str) -> bool {
+        self.available.contains_key(id)
+    }
+
+    pub fn selected_ids(&self) -> Vec<String> {
+        self.selected.clone()
+    }
+
+    pub fn available_ids(&self) -> Vec<String> {
+        self.available.keys().cloned().collect()
+    }
+
+    pub fn selected_packs(&self) -> Vec<&DataPack> {
+        self.selected
+            .iter()
+            .filter_map(|id| self.available.get(id))
+            .collect()
+    }
+
+    pub fn priority_stack(&self) -> Vec<String> {
+        self.selected.clone()
+    }
+
+    pub fn available_packs(&self) -> Vec<&DataPack> {
+        self.available.values().collect()
+    }
+
+    pub fn set_selected<'a>(&mut self, selected: impl IntoIterator<Item = &'a str>) {
+        let mut seen = BTreeSet::new();
+        self.selected.clear();
+        for id in selected {
+            if self.is_available(id) && seen.insert(id.to_string()) {
+                self.selected.push(id.to_string());
+            }
+        }
+    }
+
+    pub fn enable_pack_highest_priority(&mut self, id: &str) -> bool {
+        if !self.is_available(id) {
+            return false;
+        }
+        self.selected.retain(|selected| selected != id);
+        self.selected.push(id.to_string());
+        true
+    }
+
+    pub fn disable_pack(&mut self, id: &str) -> bool {
+        let before = self.selected.len();
+        self.selected.retain(|selected| selected != id);
+        before != self.selected.len()
+    }
+
+    pub fn requested_feature_flags(&self) -> FeatureFlagSet {
+        self.selected_packs()
+            .into_iter()
+            .fold(FeatureFlagSet::empty(), |features, pack| {
+                features.join(pack.requested_features)
+            })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PackConfigureOptions {
+    pub init_mode: bool,
+    pub safe_mode: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackReloadFailure {
+    pub error: String,
+    pub restored_enabled: Vec<String>,
+}
+
+impl PackReloadFailure {
+    pub fn user_message(&self) -> String {
+        format!(
+            "Failed to reload data packs; keeping previous selection [{}]: {}",
+            self.restored_enabled.join(","),
+            self.error
+        )
+    }
+}
+
+pub fn configure_pack_repository(
+    repository: &mut DataPackRepository,
+    initial_data_config: &WorldDataConfiguration,
+    options: PackConfigureOptions,
+) -> WorldDataConfiguration {
+    let forced_features = if options.init_mode {
+        FeatureFlagSet::empty()
+    } else {
+        initial_data_config.enabled_features
+    };
+    let allowed_features = if options.init_mode {
+        all_known_features_26_1_2()
+    } else {
+        initial_data_config.enabled_features
+    };
+
+    if options.safe_mode {
+        return configure_repository_with_selection(
+            repository,
+            &[VANILLA_PACK_ID.to_string()],
+            forced_features,
+            false,
+        );
+    }
+
+    let disabled: BTreeSet<&str> = initial_data_config
+        .data_packs
+        .disabled
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let mut selected = Vec::new();
+    let mut selected_lookup = BTreeSet::new();
+
+    for id in &initial_data_config.data_packs.enabled {
+        if repository.is_available(id) && selected_lookup.insert(id.clone()) {
+            selected.push(id.clone());
+        }
+    }
+
+    for pack in repository.available_packs() {
+        if disabled.contains(pack.id.as_str()) {
+            continue;
+        }
+
+        let is_selected = selected_lookup.contains(&pack.id);
+        if !is_selected
+            && pack.source.should_add_automatically()
+            && pack.requested_features.is_subset_of(allowed_features)
+        {
+            selected.push(pack.id.clone());
+            selected_lookup.insert(pack.id.clone());
+        }
+
+        if is_selected && !pack.requested_features.is_subset_of(allowed_features) {
+            selected.retain(|id| id != &pack.id);
+            selected_lookup.remove(&pack.id);
+        }
+    }
+
+    if selected.is_empty() {
+        selected.push(VANILLA_PACK_ID.to_string());
+    }
+
+    configure_repository_with_selection(repository, &selected, forced_features, true)
+}
+
+pub fn reload_pack_repository<F>(
+    repository: &mut DataPackRepository,
+    initial_data_config: &WorldDataConfiguration,
+    options: PackConfigureOptions,
+    validate_reload: F,
+) -> Result<WorldDataConfiguration, String>
+where
+    F: FnOnce(&[&DataPack]) -> Result<(), String>,
+{
+    reload_pack_repository_with_report(repository, initial_data_config, options, validate_reload)
+        .map_err(|failure| failure.error)
+}
+
+pub fn reload_pack_repository_with_report<F>(
+    repository: &mut DataPackRepository,
+    initial_data_config: &WorldDataConfiguration,
+    options: PackConfigureOptions,
+    validate_reload: F,
+) -> Result<WorldDataConfiguration, PackReloadFailure>
+where
+    F: FnOnce(&[&DataPack]) -> Result<(), String>,
+{
+    let previous = repository.selected.clone();
+    let configured = configure_pack_repository(repository, initial_data_config, options);
+    let selected = repository.selected_packs();
+    if let Err(err) = validate_reload(&selected) {
+        repository.selected = previous;
+        return Err(PackReloadFailure {
+            error: err,
+            restored_enabled: repository.selected.clone(),
+        });
+    }
+    Ok(configured)
+}
+
+fn configure_repository_with_selection(
+    repository: &mut DataPackRepository,
+    selected: &[String],
+    forced_features: FeatureFlagSet,
+    disable_inactive: bool,
+) -> WorldDataConfiguration {
+    repository.set_selected(selected.iter().map(String::as_str));
+    enable_forced_feature_packs(repository, forced_features);
+
+    let enabled = repository.selected_ids();
+    let enabled_lookup = enabled.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let disabled = if disable_inactive {
+        repository
+            .available_ids()
+            .into_iter()
+            .filter(|id| !enabled_lookup.contains(id.as_str()))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    WorldDataConfiguration {
+        data_packs: DataPackConfig { enabled, disabled },
+        enabled_features: repository.requested_feature_flags().join(forced_features),
+    }
+}
+
+fn enable_forced_feature_packs(
+    repository: &mut DataPackRepository,
+    forced_features: FeatureFlagSet,
+) {
+    let mut missing_features = forced_features.subtract(repository.requested_feature_flags());
+    if missing_features == FeatureFlagSet::empty() {
+        return;
+    }
+
+    let mut selected = repository.selected_ids();
+    let mut selected_lookup = selected.iter().cloned().collect::<BTreeSet<_>>();
+    for pack in repository.available_packs() {
+        if missing_features == FeatureFlagSet::empty() {
+            break;
+        }
+        if pack.source == PackSource::Feature
+            && pack.requested_features != FeatureFlagSet::empty()
+            && pack.requested_features.intersects(missing_features)
+            && pack.requested_features.is_subset_of(forced_features)
+        {
+            if selected_lookup.insert(pack.id.clone()) {
+                selected.push(pack.id.clone());
+            }
+            missing_features = missing_features.subtract(pack.requested_features);
+        }
+    }
+
+    repository.set_selected(selected.iter().map(String::as_str));
+}
+
+fn all_known_features_26_1_2() -> FeatureFlagSet {
+    FeatureFlagSet::of(&[
+        feature_flags::VANILLA,
+        feature_flags::TRADE_REBALANCE,
+        feature_flags::REDSTONE_EXPERIMENTS,
+        feature_flags::MINECART_IMPROVEMENTS,
+    ])
+}
+
+fn split_pack_list(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn discover_world_data_packs(datapack_dir: &Path) -> Result<Vec<DataPack>, String> {
+    if !datapack_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut packs = Vec::new();
+    let entries = fs::read_dir(datapack_dir).map_err(|err| {
+        format!(
+            "Failed to read datapack directory '{}': {err}",
+            datapack_dir.display()
+        )
+    })?;
+
+    for entry in entries {
+        let entry = entry.map_err(|err| {
+            format!(
+                "Failed to read datapack entry in '{}': {err}",
+                datapack_dir.display()
+            )
+        })?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|err| {
+            format!(
+                "Failed to inspect datapack entry '{}': {err}",
+                path.display()
+            )
+        })?;
+
+        let id = if file_type.is_dir() {
+            entry.file_name().to_string_lossy().into_owned()
+        } else if file_type.is_file()
+            && path.extension().and_then(|ext| ext.to_str()) == Some("zip")
+        {
+            path.file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            continue;
+        };
+
+        if !is_valid_pack_id(&id) {
+            continue;
+        }
+
+        let metadata = if file_type.is_dir() {
+            let metadata_path = path.join("pack.mcmeta");
+            let contents = match fs::read_to_string(&metadata_path) {
+                Ok(contents) => contents,
+                Err(_) => continue,
+            };
+            match parse_pack_metadata(&contents) {
+                Ok(metadata) => metadata,
+                Err(_) => continue,
+            }
+        } else {
+            continue;
+        };
+
+        if metadata.compatibility.is_compatible() {
+            packs.push(
+                DataPack::new(format!("file/{id}"), PackSource::World).with_metadata(metadata),
+            );
+        }
+    }
+
+    Ok(packs)
+}
+
+fn is_valid_pack_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.' | '/'))
+}
+
+pub fn parse_pack_metadata(contents: &str) -> Result<DataPackMetadata, String> {
+    let pack_object = object_slice(contents, "pack").ok_or("missing pack metadata")?;
+    let description = string_field(pack_object, "description").unwrap_or_default();
+    let supported_formats = parse_supported_formats(pack_object)?;
+    let requested_features = if let Some(features_object) = object_slice(contents, "features") {
+        parse_feature_flags(features_object)?
+    } else {
+        FeatureFlagSet::empty()
+    };
+
+    Ok(DataPackMetadata {
+        description,
+        supported_formats,
+        compatibility: PackCompatibility::for_version(
+            supported_formats,
+            PackFormat::current_server_data(),
+        ),
+        requested_features,
+    })
+}
+
+fn parse_supported_formats(pack_object: &str) -> Result<PackFormatRange, String> {
+    if let (Some(min), Some(max)) = (
+        pack_format_field(pack_object, "min_format"),
+        pack_format_field(pack_object, "max_format"),
+    ) {
+        if min > max {
+            return Err("min_format is greater than max_format".to_string());
+        }
+        if min.major <= LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT
+            && !has_field(pack_object, "supported_formats")
+        {
+            return Err("supported_formats required for pre-minor pack formats".to_string());
+        }
+        return Ok(PackFormatRange { min, max });
+    }
+
+    if let Some(range) = int_range_field(pack_object, "supported_formats") {
+        if range.max.major > LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT {
+            return Err("old supported_formats cannot exceed last pre-minor format".to_string());
+        }
+        return Ok(range);
+    }
+
+    if let Some(pack_format) = int_field(pack_object, "pack_format") {
+        if pack_format > LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT {
+            return Err("new pack formats require min_format and max_format".to_string());
+        }
+        return Ok(PackFormatRange {
+            min: PackFormat {
+                major: pack_format,
+                minor: 0,
+            },
+            max: PackFormat {
+                major: pack_format,
+                minor: 0,
+            },
+        });
+    }
+
+    Err("missing format version information".to_string())
+}
+
+fn parse_feature_flags(features_object: &str) -> Result<FeatureFlagSet, String> {
+    let names = string_array_field(features_object, "enabled")
+        .unwrap_or_default()
+        .into_iter()
+        .map(|name| Identifier::parse(&name))
+        .collect::<Result<Vec<_>, _>>()?;
+    FeatureFlagRegistry::main_26_1_2()
+        .from_names(&names)
+        .map_err(|unknown| format!("unknown feature flags: {unknown:?}"))
+}
+
+fn object_slice<'a>(contents: &'a str, field: &str) -> Option<&'a str> {
+    let key = format!("\"{field}\"");
+    let key_index = contents.find(&key)?;
+    let start = contents[key_index + key.len()..].find('{')? + key_index + key.len();
+    let end = matching_delimiter(contents, start, '{', '}')?;
+    Some(&contents[start + 1..end])
+}
+
+fn has_field(contents: &str, field: &str) -> bool {
+    contents.contains(&format!("\"{field}\""))
+}
+
+fn string_field(contents: &str, field: &str) -> Option<String> {
+    let raw = field_value(contents, field)?;
+    if raw.trim_start().starts_with('"') {
+        parse_json_string(raw.trim_start()).map(|(value, _)| value)
+    } else {
+        Some(raw.trim().to_string())
+    }
+}
+
+fn int_field(contents: &str, field: &str) -> Option<u32> {
+    let raw = field_value(contents, field)?;
+    parse_u32_prefix(raw.trim_start())
+}
+
+fn int_range_field(contents: &str, field: &str) -> Option<PackFormatRange> {
+    let raw = field_value(contents, field)?.trim_start();
+    if raw.starts_with('[') {
+        let end = matching_delimiter(raw, 0, '[', ']')?;
+        let values = raw[1..end]
+            .split(',')
+            .filter_map(|part| parse_u32_prefix(part.trim()))
+            .collect::<Vec<_>>();
+        match values.as_slice() {
+            [one] => Some(PackFormatRange {
+                min: PackFormat {
+                    major: *one,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: *one,
+                    minor: 0,
+                },
+            }),
+            [min, max] => Some(PackFormatRange {
+                min: PackFormat {
+                    major: *min,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: *max,
+                    minor: 0,
+                },
+            }),
+            _ => None,
+        }
+    } else {
+        int_field(contents, field).map(|value| PackFormatRange {
+            min: PackFormat {
+                major: value,
+                minor: 0,
+            },
+            max: PackFormat {
+                major: value,
+                minor: 0,
+            },
+        })
+    }
+}
+
+fn pack_format_field(contents: &str, field: &str) -> Option<PackFormat> {
+    let raw = field_value(contents, field)?.trim_start();
+    if raw.starts_with('[') {
+        let end = matching_delimiter(raw, 0, '[', ']')?;
+        let values = raw[1..end]
+            .split(',')
+            .filter_map(|part| parse_u32_prefix(part.trim()))
+            .collect::<Vec<_>>();
+        Some(PackFormat {
+            major: *values.first()?,
+            minor: *values.get(1).unwrap_or(&0),
+        })
+    } else {
+        int_field(contents, field).map(|major| PackFormat { major, minor: 0 })
+    }
+}
+
+fn string_array_field(contents: &str, field: &str) -> Option<Vec<String>> {
+    let raw = field_value(contents, field)?.trim_start();
+    if !raw.starts_with('[') {
+        return None;
+    }
+    let end = matching_delimiter(raw, 0, '[', ']')?;
+    let mut values = Vec::new();
+    let mut rest = raw[1..end].trim_start();
+    while !rest.is_empty() {
+        if let Some((value, remaining)) = parse_json_string(rest) {
+            values.push(value);
+            rest = remaining.trim_start();
+            if rest.starts_with(',') {
+                rest = rest[1..].trim_start();
+            } else {
+                break;
+            }
+        } else {
+            return None;
+        }
+    }
+    Some(values)
+}
+
+fn field_value<'a>(contents: &'a str, field: &str) -> Option<&'a str> {
+    let key = format!("\"{field}\"");
+    let key_index = contents.find(&key)?;
+    let after_key = &contents[key_index + key.len()..];
+    let colon = after_key.find(':')?;
+    Some(&after_key[colon + 1..])
+}
+
+fn matching_delimiter(contents: &str, start: usize, open: char, close: char) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (offset, ch) in contents[start..].char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        if ch == '"' {
+            in_string = true;
+        } else if ch == open {
+            depth += 1;
+        } else if ch == close {
+            depth -= 1;
+            if depth == 0 {
+                return Some(start + offset);
+            }
+        }
+    }
+    None
+}
+
+fn parse_json_string(contents: &str) -> Option<(String, &str)> {
+    let mut chars = contents.char_indices();
+    if chars.next()?.1 != '"' {
+        return None;
+    }
+    let mut value = String::new();
+    let mut escaped = false;
+    for (index, ch) in chars {
+        if escaped {
+            value.push(match ch {
+                '"' => '"',
+                '\\' => '\\',
+                '/' => '/',
+                'b' => '\u{0008}',
+                'f' => '\u{000c}',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                other => other,
+            });
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' {
+            return Some((value, &contents[index + 1..]));
+        } else {
+            value.push(ch);
+        }
+    }
+    None
+}
+
+fn parse_u32_prefix(contents: &str) -> Option<u32> {
+    let digits = contents
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    (!digits.is_empty()).then(|| digits.parse().ok()).flatten()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::registry::feature_flags;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn safe_mode_selects_only_vanilla_and_does_not_disable_world_packs() {
+        let mut repository = DataPackRepository::new([
+            DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+                .with_features(feature_flags::default_flags_26_1_2()),
+            DataPack::new("world_pack", PackSource::World),
+            DataPack::new("server_pack", PackSource::Server),
+        ]);
+        let initial = WorldDataConfiguration {
+            data_packs: DataPackConfig {
+                enabled: vec![
+                    VANILLA_PACK_ID.to_string(),
+                    "world_pack".to_string(),
+                    "server_pack".to_string(),
+                ],
+                disabled: Vec::new(),
+            },
+            enabled_features: feature_flags::default_flags_26_1_2(),
+        };
+
+        let configured = configure_pack_repository(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: true,
+            },
+        );
+
+        assert_eq!(configured.data_packs.enabled, vec![VANILLA_PACK_ID]);
+        assert!(configured.data_packs.disabled.is_empty());
+        assert_eq!(repository.selected_ids(), vec![VANILLA_PACK_ID]);
+    }
+
+    #[test]
+    fn normal_mode_keeps_enabled_packs_and_disables_inactive_available_packs() {
+        let mut repository = DataPackRepository::new([
+            DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+                .with_features(feature_flags::default_flags_26_1_2()),
+            DataPack::new("world_pack", PackSource::World),
+            DataPack::new("disabled_pack", PackSource::World),
+        ]);
+        let initial = WorldDataConfiguration {
+            data_packs: DataPackConfig {
+                enabled: vec![VANILLA_PACK_ID.to_string(), "world_pack".to_string()],
+                disabled: vec!["disabled_pack".to_string()],
+            },
+            enabled_features: feature_flags::default_flags_26_1_2(),
+        };
+
+        let configured = configure_pack_repository(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: false,
+            },
+        );
+
+        assert_eq!(
+            configured.data_packs.enabled,
+            vec![VANILLA_PACK_ID, "world_pack"]
+        );
+        assert_eq!(configured.data_packs.disabled, vec!["disabled_pack"]);
+    }
+
+    #[test]
+    fn normal_mode_auto_adds_new_world_packs() {
+        let mut repository = DataPackRepository::new([
+            DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+                .with_features(feature_flags::default_flags_26_1_2()),
+            DataPack::new("new_world_pack", PackSource::World),
+        ]);
+        let initial = WorldDataConfiguration::default_26_1_2();
+
+        let configured = configure_pack_repository(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: false,
+            },
+        );
+
+        assert_eq!(
+            configured.data_packs.enabled,
+            vec![VANILLA_PACK_ID, "new_world_pack"]
+        );
+        assert!(configured.data_packs.disabled.is_empty());
+    }
+
+    #[test]
+    fn forced_features_enable_matching_feature_pack() {
+        let mut repository = DataPackRepository::new([
+            DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+                .with_features(feature_flags::default_flags_26_1_2()),
+            DataPack::new("feature/redstone", PackSource::Feature)
+                .with_features(FeatureFlagSet::of(&[feature_flags::REDSTONE_EXPERIMENTS])),
+        ]);
+        let initial = WorldDataConfiguration {
+            data_packs: DataPackConfig::default_26_1_2(),
+            enabled_features: feature_flags::default_flags_26_1_2()
+                .join(FeatureFlagSet::of(&[feature_flags::REDSTONE_EXPERIMENTS])),
+        };
+
+        let configured = configure_pack_repository(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: false,
+            },
+        );
+
+        assert_eq!(
+            configured.data_packs.enabled,
+            vec![VANILLA_PACK_ID, "feature/redstone"]
+        );
+        assert!(configured
+            .enabled_features
+            .contains(feature_flags::REDSTONE_EXPERIMENTS));
+    }
+
+    #[test]
+    fn pack_priority_enable_disable_and_reload_rollback_match_repository_rules() {
+        let mut repository = DataPackRepository::new([
+            DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+                .with_features(feature_flags::default_flags_26_1_2()),
+            DataPack::new("low", PackSource::World),
+            DataPack::new("high", PackSource::World),
+        ]);
+
+        repository.set_selected([VANILLA_PACK_ID, "low"]);
+        assert!(repository.enable_pack_highest_priority("high"));
+        assert_eq!(
+            repository.priority_stack(),
+            vec![VANILLA_PACK_ID, "low", "high"]
+        );
+        assert!(repository.enable_pack_highest_priority("low"));
+        assert_eq!(
+            repository.priority_stack(),
+            vec![VANILLA_PACK_ID, "high", "low"]
+        );
+        assert!(repository.disable_pack("high"));
+        assert_eq!(repository.priority_stack(), vec![VANILLA_PACK_ID, "low"]);
+        assert!(!repository.enable_pack_highest_priority("missing"));
+
+        let initial = WorldDataConfiguration {
+            data_packs: DataPackConfig {
+                enabled: vec![VANILLA_PACK_ID.to_string(), "high".to_string()],
+                disabled: vec!["low".to_string()],
+            },
+            enabled_features: feature_flags::default_flags_26_1_2(),
+        };
+        let err = reload_pack_repository(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: false,
+            },
+            |packs| {
+                assert_eq!(
+                    packs
+                        .iter()
+                        .map(|pack| pack.id.as_str())
+                        .collect::<Vec<_>>(),
+                    vec![VANILLA_PACK_ID, "high"]
+                );
+                Err("reload failed".to_string())
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(err, "reload failed");
+        assert_eq!(repository.priority_stack(), vec![VANILLA_PACK_ID, "low"]);
+
+        let configured = reload_pack_repository(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: false,
+            },
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(configured.data_packs.enabled, vec![VANILLA_PACK_ID, "high"]);
+        assert_eq!(configured.data_packs.disabled, vec!["low"]);
+        assert_eq!(repository.priority_stack(), vec![VANILLA_PACK_ID, "high"]);
+    }
+
+    #[test]
+    fn reload_failure_report_is_user_facing_and_names_restored_selection() {
+        let mut repository = DataPackRepository::new([
+            DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+                .with_features(feature_flags::default_flags_26_1_2()),
+            DataPack::new("kept", PackSource::World),
+            DataPack::new("broken", PackSource::World),
+        ]);
+        repository.set_selected([VANILLA_PACK_ID, "kept"]);
+        let initial = WorldDataConfiguration {
+            data_packs: DataPackConfig {
+                enabled: vec![VANILLA_PACK_ID.to_string(), "broken".to_string()],
+                disabled: vec!["kept".to_string()],
+            },
+            enabled_features: feature_flags::default_flags_26_1_2(),
+        };
+
+        let failure = reload_pack_repository_with_report(
+            &mut repository,
+            &initial,
+            PackConfigureOptions {
+                init_mode: false,
+                safe_mode: false,
+            },
+            |_| Err("invalid tag entry in file/broken".to_string()),
+        )
+        .unwrap_err();
+
+        assert_eq!(repository.priority_stack(), vec![VANILLA_PACK_ID, "kept"]);
+        assert_eq!(
+            failure.restored_enabled,
+            vec![VANILLA_PACK_ID.to_string(), "kept".to_string()]
+        );
+        assert_eq!(
+            failure.user_message(),
+            "Failed to reload data packs; keeping previous selection [vanilla,kept]: invalid tag entry in file/broken"
+        );
+    }
+
+    #[test]
+    fn parses_pack_metadata_and_detects_compatibility() {
+        let metadata = parse_pack_metadata(
+            r#"{
+              "pack": {
+                "description": "Test pack",
+                "pack_format": 101,
+                "min_format": [101, 0],
+                "max_format": [101, 99]
+              },
+              "features": {
+                "enabled": ["vanilla"]
+              }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(metadata.description, "Test pack");
+        assert_eq!(
+            metadata.supported_formats.min,
+            PackFormat {
+                major: 101,
+                minor: 0
+            }
+        );
+        assert_eq!(metadata.compatibility, PackCompatibility::Compatible);
+        assert!(metadata.requested_features.contains(feature_flags::VANILLA));
+
+        let old = parse_pack_metadata(
+            r#"{
+              "pack": {
+                "description": "Old pack",
+                "pack_format": 81,
+                "supported_formats": [80, 81]
+              }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(old.compatibility, PackCompatibility::TooOld);
+
+        assert!(
+            parse_pack_metadata(r#"{"pack":{"description":"bad","pack_format":101}}"#).is_err()
+        );
+    }
+
+    #[test]
+    fn server_repository_discovers_compatible_directory_world_packs_with_metadata() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "rustcraft-packs-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let datapacks = temp_dir.join("datapacks");
+        fs::create_dir_all(datapacks.join("dir_pack")).unwrap();
+        fs::write(
+            datapacks.join("dir_pack").join("pack.mcmeta"),
+            r#"{
+              "pack": {
+                "description": "Directory pack",
+                "pack_format": 101,
+                "min_format": [101, 0],
+                "max_format": [101, 99]
+              }
+            }"#,
+        )
+        .unwrap();
+        fs::create_dir_all(datapacks.join("missing_meta")).unwrap();
+        fs::create_dir_all(datapacks.join("old_pack")).unwrap();
+        fs::write(
+            datapacks.join("old_pack").join("pack.mcmeta"),
+            r#"{"pack":{"description":"Old","pack_format":81,"supported_formats":[80,81]}}"#,
+        )
+        .unwrap();
+        fs::write(datapacks.join("zip_pack.zip"), []).unwrap();
+        fs::write(datapacks.join("notes.txt"), []).unwrap();
+
+        let repository = DataPackRepository::server_repository(&datapacks).unwrap();
+        let mut ids = repository.available_ids();
+        ids.sort();
+
+        assert_eq!(ids, vec!["file/dir_pack", VANILLA_PACK_ID]);
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+}
