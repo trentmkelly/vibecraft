@@ -14,7 +14,8 @@
     "compat:vanilla": "node vanilla_compatibility.mjs",
     "smoke:gameplay": "node gameplay_smoke.mjs",
     "regress:offline": "node offline_mode_regression.mjs",
-    "gate:release": "node release_gate.mjs"
+    "gate:release": "node release_gate.mjs",
+    "lifecycle": "node lifecycle_scenarios.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
