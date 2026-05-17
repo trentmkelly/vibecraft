@@ -47,6 +47,116 @@ pub enum SurfaceRulePreset {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DensityFunction {
+    Constant(f64),
+    YClampedGradient {
+        from_y: i32,
+        to_y: i32,
+        from_value: f64,
+        to_value: f64,
+    },
+    Clamp {
+        input: &'static DensityFunction,
+        min: f64,
+        max: f64,
+    },
+    Mapped {
+        kind: MappedDensityFunction,
+        input: &'static DensityFunction,
+    },
+    Binary {
+        kind: BinaryDensityFunction,
+        argument1: &'static DensityFunction,
+        argument2: &'static DensityFunction,
+    },
+    Marker {
+        kind: DensityMarker,
+        input: &'static DensityFunction,
+    },
+    Noise {
+        noise: &'static str,
+        xz_scale: f64,
+        y_scale: f64,
+    },
+    ShiftedNoise {
+        shift_x: &'static DensityFunction,
+        shift_y: &'static DensityFunction,
+        shift_z: &'static DensityFunction,
+        xz_scale: f64,
+        y_scale: f64,
+        noise: &'static str,
+    },
+    BlendedNoise {
+        xz_scale: f64,
+        y_scale: f64,
+        xz_factor: f64,
+        y_factor: f64,
+        smear_scale_multiplier: f64,
+    },
+    EndIslands {
+        seed: i64,
+    },
+    WeirdScaledSampler {
+        input: &'static DensityFunction,
+        noise: &'static str,
+        rarity_mapper: RarityValueMapper,
+    },
+    BlendAlpha,
+    BlendOffset,
+    BlendDensity {
+        input: &'static DensityFunction,
+    },
+    Beardifier,
+    Spline,
+    FindTopSurface,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MappedDensityFunction {
+    Abs,
+    Square,
+    Cube,
+    HalfNegative,
+    QuarterNegative,
+    Invert,
+    Squeeze,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryDensityFunction {
+    Add,
+    Mul,
+    Min,
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DensityMarker {
+    Interpolated,
+    FlatCache,
+    Cache2D,
+    CacheOnce,
+    CacheAllInCell,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RarityValueMapper {
+    Type1,
+    Type2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DensityFunctionType {
+    pub id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DensityFunctionEntry {
+    pub id: &'static str,
+    pub function: DensityFunction,
+}
+
 pub const OVERWORLD_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(-64, 384, 1, 2);
 pub const NETHER_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 128, 1, 2);
 pub const END_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 128, 2, 1);
@@ -192,6 +302,252 @@ pub const BUILTIN_NOISE_GENERATOR_SETTINGS: &[NoiseGeneratorSettings] = &[
     },
 ];
 
+pub const ZERO_DENSITY: DensityFunction = DensityFunction::Constant(0.0);
+pub const Y_DENSITY: DensityFunction = DensityFunction::YClampedGradient {
+    from_y: -4064,
+    to_y: 4062,
+    from_value: -4064.0,
+    to_value: 4062.0,
+};
+pub const SHIFT_X_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &SHIFT_X_CACHE_2D_DENSITY,
+};
+pub const SHIFT_X_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &SHIFT_A_DENSITY,
+};
+pub const SHIFT_A_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:shift",
+    xz_scale: 0.25,
+    y_scale: 0.0,
+};
+pub const SHIFT_Z_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &SHIFT_Z_CACHE_2D_DENSITY,
+};
+pub const SHIFT_Z_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &SHIFT_B_DENSITY,
+};
+pub const SHIFT_B_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:shift",
+    xz_scale: 0.25,
+    y_scale: 0.0,
+};
+pub const BASE_3D_NOISE_OVERWORLD_DENSITY: DensityFunction = DensityFunction::BlendedNoise {
+    xz_scale: 0.25,
+    y_scale: 0.125,
+    xz_factor: 80.0,
+    y_factor: 160.0,
+    smear_scale_multiplier: 8.0,
+};
+pub const BASE_3D_NOISE_NETHER_DENSITY: DensityFunction = DensityFunction::BlendedNoise {
+    xz_scale: 0.25,
+    y_scale: 0.375,
+    xz_factor: 80.0,
+    y_factor: 60.0,
+    smear_scale_multiplier: 8.0,
+};
+pub const BASE_3D_NOISE_END_DENSITY: DensityFunction = DensityFunction::BlendedNoise {
+    xz_scale: 0.25,
+    y_scale: 0.25,
+    xz_factor: 80.0,
+    y_factor: 160.0,
+    smear_scale_multiplier: 4.0,
+};
+
+pub const DENSITY_FUNCTION_TYPES: &[DensityFunctionType] = &[
+    DensityFunctionType { id: "blend_alpha" },
+    DensityFunctionType { id: "blend_offset" },
+    DensityFunctionType { id: "beardifier" },
+    DensityFunctionType {
+        id: "old_blended_noise",
+    },
+    DensityFunctionType { id: "interpolated" },
+    DensityFunctionType { id: "flat_cache" },
+    DensityFunctionType { id: "cache_2d" },
+    DensityFunctionType { id: "cache_once" },
+    DensityFunctionType {
+        id: "cache_all_in_cell",
+    },
+    DensityFunctionType { id: "noise" },
+    DensityFunctionType { id: "end_islands" },
+    DensityFunctionType {
+        id: "weird_scaled_sampler",
+    },
+    DensityFunctionType {
+        id: "shifted_noise",
+    },
+    DensityFunctionType { id: "range_choice" },
+    DensityFunctionType { id: "shift_a" },
+    DensityFunctionType { id: "shift_b" },
+    DensityFunctionType { id: "shift" },
+    DensityFunctionType {
+        id: "blend_density",
+    },
+    DensityFunctionType { id: "clamp" },
+    DensityFunctionType { id: "abs" },
+    DensityFunctionType { id: "square" },
+    DensityFunctionType { id: "cube" },
+    DensityFunctionType {
+        id: "half_negative",
+    },
+    DensityFunctionType {
+        id: "quarter_negative",
+    },
+    DensityFunctionType { id: "invert" },
+    DensityFunctionType { id: "squeeze" },
+    DensityFunctionType { id: "add" },
+    DensityFunctionType { id: "mul" },
+    DensityFunctionType { id: "min" },
+    DensityFunctionType { id: "max" },
+    DensityFunctionType { id: "spline" },
+    DensityFunctionType { id: "constant" },
+    DensityFunctionType {
+        id: "y_clamped_gradient",
+    },
+    DensityFunctionType {
+        id: "find_top_surface",
+    },
+];
+
+pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
+    DensityFunctionEntry {
+        id: "minecraft:zero",
+        function: ZERO_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:y",
+        function: Y_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:shift_x",
+        function: SHIFT_X_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:shift_z",
+        function: SHIFT_Z_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/base_3d_noise",
+        function: BASE_3D_NOISE_OVERWORLD_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:nether/base_3d_noise",
+        function: BASE_3D_NOISE_NETHER_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:end/base_3d_noise",
+        function: BASE_3D_NOISE_END_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/continents",
+        function: DensityFunction::ShiftedNoise {
+            shift_x: &SHIFT_X_DENSITY,
+            shift_y: &ZERO_DENSITY,
+            shift_z: &SHIFT_Z_DENSITY,
+            xz_scale: 0.25,
+            y_scale: 0.0,
+            noise: "minecraft:continentalness",
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/erosion",
+        function: DensityFunction::ShiftedNoise {
+            shift_x: &SHIFT_X_DENSITY,
+            shift_y: &ZERO_DENSITY,
+            shift_z: &SHIFT_Z_DENSITY,
+            xz_scale: 0.25,
+            y_scale: 0.0,
+            noise: "minecraft:erosion",
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/ridges",
+        function: DensityFunction::ShiftedNoise {
+            shift_x: &SHIFT_X_DENSITY,
+            shift_y: &ZERO_DENSITY,
+            shift_z: &SHIFT_Z_DENSITY,
+            xz_scale: 0.25,
+            y_scale: 0.0,
+            noise: "minecraft:ridge",
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/ridges_folded",
+        function: DensityFunction::Mapped {
+            kind: MappedDensityFunction::Abs,
+            input: &RIDGE_FOLD_SOURCE_DENSITY,
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/continents",
+        function: DensityFunction::ShiftedNoise {
+            shift_x: &SHIFT_X_DENSITY,
+            shift_y: &ZERO_DENSITY,
+            shift_z: &SHIFT_Z_DENSITY,
+            xz_scale: 0.25,
+            y_scale: 0.0,
+            noise: "minecraft:continentalness_large",
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/erosion",
+        function: DensityFunction::ShiftedNoise {
+            shift_x: &SHIFT_X_DENSITY,
+            shift_y: &ZERO_DENSITY,
+            shift_z: &SHIFT_Z_DENSITY,
+            xz_scale: 0.25,
+            y_scale: 0.0,
+            noise: "minecraft:erosion_large",
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:end/sloped_cheese",
+        function: DensityFunction::Binary {
+            kind: BinaryDensityFunction::Add,
+            argument1: &END_ISLANDS_DENSITY,
+            argument2: &BASE_3D_NOISE_END_DENSITY,
+        },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
+        function: DensityFunction::Marker {
+            kind: DensityMarker::CacheOnce,
+            input: &SPAGHETTI_2D_THICKNESS_MODULATOR_DENSITY,
+        },
+    },
+];
+
+pub const RIDGE_FOLD_SOURCE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &RIDGE_SCALE_DENSITY,
+    argument2: &RIDGE_OFFSET_DENSITY,
+};
+pub const RIDGE_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(-3.0);
+pub const RIDGE_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(2.0);
+pub const END_ISLANDS_DENSITY: DensityFunction = DensityFunction::EndIslands { seed: 0 };
+pub const SPAGHETTI_2D_THICKNESS_MODULATOR_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_2D_THICKNESS_MID_DENSITY,
+    argument2: &SPAGHETTI_2D_THICKNESS_SCALED_DENSITY,
+};
+pub const SPAGHETTI_2D_THICKNESS_MID_DENSITY: DensityFunction = DensityFunction::Constant(-0.95);
+pub const SPAGHETTI_2D_THICKNESS_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &SPAGHETTI_2D_THICKNESS_FACTOR_DENSITY,
+    argument2: &SPAGHETTI_2D_THICKNESS_NOISE_DENSITY,
+};
+pub const SPAGHETTI_2D_THICKNESS_FACTOR_DENSITY: DensityFunction = DensityFunction::Constant(-0.35);
+pub const SPAGHETTI_2D_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_2d_thickness",
+    xz_scale: 2.0,
+    y_scale: 1.0,
+};
+pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
+pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -251,13 +607,177 @@ pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGenera
     })
 }
 
+impl DensityFunction {
+    pub fn compute(self, block_y: i32) -> f64 {
+        match self {
+            DensityFunction::Constant(value) => value,
+            DensityFunction::YClampedGradient {
+                from_y,
+                to_y,
+                from_value,
+                to_value,
+            } => {
+                if block_y <= from_y {
+                    from_value
+                } else if block_y >= to_y {
+                    to_value
+                } else {
+                    let progress = f64::from(block_y - from_y) / f64::from(to_y - from_y);
+                    from_value + progress * (to_value - from_value)
+                }
+            }
+            DensityFunction::Clamp { input, min, max } => input.compute(block_y).clamp(min, max),
+            DensityFunction::Mapped { kind, input } => kind.transform(input.compute(block_y)),
+            DensityFunction::Binary {
+                kind,
+                argument1,
+                argument2,
+            } => kind.apply(argument1.compute(block_y), argument2.compute(block_y)),
+            DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
+                input.compute(block_y)
+            }
+            DensityFunction::BlendAlpha => 1.0,
+            DensityFunction::BlendOffset => 0.0,
+            DensityFunction::Noise { .. }
+            | DensityFunction::ShiftedNoise { .. }
+            | DensityFunction::BlendedNoise { .. }
+            | DensityFunction::EndIslands { .. }
+            | DensityFunction::WeirdScaledSampler { .. }
+            | DensityFunction::Beardifier
+            | DensityFunction::Spline
+            | DensityFunction::FindTopSurface => 0.0,
+        }
+    }
+
+    pub fn type_name(self) -> &'static str {
+        match self {
+            DensityFunction::Constant(_) => "constant",
+            DensityFunction::YClampedGradient { .. } => "y_clamped_gradient",
+            DensityFunction::Clamp { .. } => "clamp",
+            DensityFunction::Mapped { kind, .. } => kind.serialized_name(),
+            DensityFunction::Binary { kind, .. } => kind.serialized_name(),
+            DensityFunction::Marker { kind, .. } => kind.serialized_name(),
+            DensityFunction::Noise { .. } => "noise",
+            DensityFunction::ShiftedNoise { .. } => "shifted_noise",
+            DensityFunction::BlendedNoise { .. } => "old_blended_noise",
+            DensityFunction::EndIslands { .. } => "end_islands",
+            DensityFunction::WeirdScaledSampler { .. } => "weird_scaled_sampler",
+            DensityFunction::BlendAlpha => "blend_alpha",
+            DensityFunction::BlendOffset => "blend_offset",
+            DensityFunction::BlendDensity { .. } => "blend_density",
+            DensityFunction::Beardifier => "beardifier",
+            DensityFunction::Spline => "spline",
+            DensityFunction::FindTopSurface => "find_top_surface",
+        }
+    }
+}
+
+impl MappedDensityFunction {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            MappedDensityFunction::Abs => "abs",
+            MappedDensityFunction::Square => "square",
+            MappedDensityFunction::Cube => "cube",
+            MappedDensityFunction::HalfNegative => "half_negative",
+            MappedDensityFunction::QuarterNegative => "quarter_negative",
+            MappedDensityFunction::Invert => "invert",
+            MappedDensityFunction::Squeeze => "squeeze",
+        }
+    }
+
+    pub fn transform(self, input: f64) -> f64 {
+        match self {
+            MappedDensityFunction::Abs => input.abs(),
+            MappedDensityFunction::Square => input * input,
+            MappedDensityFunction::Cube => input * input * input,
+            MappedDensityFunction::HalfNegative => {
+                if input > 0.0 {
+                    input
+                } else {
+                    input * 0.5
+                }
+            }
+            MappedDensityFunction::QuarterNegative => {
+                if input > 0.0 {
+                    input
+                } else {
+                    input * 0.25
+                }
+            }
+            MappedDensityFunction::Invert => -input,
+            MappedDensityFunction::Squeeze => {
+                let clamped = input.clamp(-1.0, 1.0);
+                clamped / 2.0 - clamped * clamped * clamped / 24.0
+            }
+        }
+    }
+}
+
+impl BinaryDensityFunction {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            BinaryDensityFunction::Add => "add",
+            BinaryDensityFunction::Mul => "mul",
+            BinaryDensityFunction::Min => "min",
+            BinaryDensityFunction::Max => "max",
+        }
+    }
+
+    pub fn apply(self, first: f64, second: f64) -> f64 {
+        match self {
+            BinaryDensityFunction::Add => first + second,
+            BinaryDensityFunction::Mul => first * second,
+            BinaryDensityFunction::Min => first.min(second),
+            BinaryDensityFunction::Max => first.max(second),
+        }
+    }
+}
+
+impl DensityMarker {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            DensityMarker::Interpolated => "interpolated",
+            DensityMarker::FlatCache => "flat_cache",
+            DensityMarker::Cache2D => "cache_2d",
+            DensityMarker::CacheOnce => "cache_once",
+            DensityMarker::CacheAllInCell => "cache_all_in_cell",
+        }
+    }
+}
+
+impl RarityValueMapper {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            RarityValueMapper::Type1 => "type_1",
+            RarityValueMapper::Type2 => "type_2",
+        }
+    }
+}
+
+pub fn builtin_density_function(id: &str) -> Option<&'static DensityFunctionEntry> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    BUILTIN_DENSITY_FUNCTIONS.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
+pub fn density_function_type(id: &str) -> Option<&'static DensityFunctionType> {
+    DENSITY_FUNCTION_TYPES.iter().find(|kind| kind.id == id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        builtin_noise_generator_settings, NoiseRouterPreset, NoiseSettings, SurfaceRulePreset,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, CAVES_NOISE_SETTINGS, END_NOISE_SETTINGS,
-        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET,
+        builtin_density_function, builtin_noise_generator_settings, density_function_type,
+        BinaryDensityFunction, DensityFunction, DensityMarker, MappedDensityFunction,
+        NoiseRouterPreset, NoiseSettings, SurfaceRulePreset, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, CAVES_NOISE_SETTINGS, DENSITY_FUNCTION_TYPES,
+        END_NOISE_SETTINGS, FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS,
+        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -384,5 +904,127 @@ mod tests {
             quantize_coord(0.16)
         );
         assert_eq!(OVERWORLD_SPAWN_TARGET[1].weirdness.max, quantize_coord(1.0));
+    }
+
+    #[test]
+    fn density_function_type_registry_matches_densityfunctions_bootstrap_order() {
+        assert_eq!(DENSITY_FUNCTION_TYPES.len(), 34);
+        assert_eq!(
+            DENSITY_FUNCTION_TYPES
+                .iter()
+                .map(|kind| kind.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "blend_alpha",
+                "blend_offset",
+                "beardifier",
+                "old_blended_noise",
+                "interpolated",
+                "flat_cache",
+                "cache_2d",
+                "cache_once",
+                "cache_all_in_cell",
+                "noise",
+                "end_islands",
+                "weird_scaled_sampler",
+                "shifted_noise",
+                "range_choice",
+                "shift_a",
+                "shift_b",
+                "shift",
+                "blend_density",
+                "clamp",
+                "abs",
+                "square",
+                "cube",
+                "half_negative",
+                "quarter_negative",
+                "invert",
+                "squeeze",
+                "add",
+                "mul",
+                "min",
+                "max",
+                "spline",
+                "constant",
+                "y_clamped_gradient",
+                "find_top_surface",
+            ]
+        );
+        assert!(density_function_type("shifted_noise").is_some());
+        assert!(density_function_type("missing").is_none());
+    }
+
+    #[test]
+    fn density_function_core_evaluators_follow_vanilla_transform_rules() {
+        assert_eq!(Y_DENSITY.compute(-5000), -4064.0);
+        assert_eq!(Y_DENSITY.compute(5000), 4062.0);
+        assert_eq!(Y_DENSITY.compute(0), 0.0);
+
+        assert_eq!(MappedDensityFunction::Abs.transform(-2.0), 2.0);
+        assert_eq!(MappedDensityFunction::Square.transform(-2.0), 4.0);
+        assert_eq!(MappedDensityFunction::Cube.transform(-2.0), -8.0);
+        assert_eq!(MappedDensityFunction::HalfNegative.transform(-2.0), -1.0);
+        assert_eq!(MappedDensityFunction::QuarterNegative.transform(-2.0), -0.5);
+        assert_eq!(MappedDensityFunction::Invert.transform(2.0), -2.0);
+        assert!((MappedDensityFunction::Squeeze.transform(1.0) - 0.4583333333333333).abs() < 1e-12);
+
+        let add = DensityFunction::Binary {
+            kind: BinaryDensityFunction::Add,
+            argument1: &TEST_NEGATIVE_DENSITY,
+            argument2: &TEST_POSITIVE_DENSITY,
+        };
+        assert_eq!(add.compute(0), 1.0);
+        assert_eq!(BinaryDensityFunction::Mul.apply(-2.0, 3.0), -6.0);
+        assert_eq!(BinaryDensityFunction::Min.apply(-2.0, 3.0), -2.0);
+        assert_eq!(BinaryDensityFunction::Max.apply(-2.0, 3.0), 3.0);
+    }
+
+    #[test]
+    fn noise_router_density_function_bootstrap_keys_match_vanilla_prefix() {
+        assert_eq!(
+            BUILTIN_DENSITY_FUNCTIONS
+                .iter()
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:zero",
+                "minecraft:y",
+                "minecraft:shift_x",
+                "minecraft:shift_z",
+                "minecraft:overworld/base_3d_noise",
+                "minecraft:nether/base_3d_noise",
+                "minecraft:end/base_3d_noise",
+                "minecraft:overworld/continents",
+                "minecraft:overworld/erosion",
+                "minecraft:overworld/ridges",
+                "minecraft:overworld/ridges_folded",
+                "minecraft:overworld_large_biomes/continents",
+                "minecraft:overworld_large_biomes/erosion",
+                "minecraft:end/sloped_cheese",
+                "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
+            ]
+        );
+        assert_eq!(
+            builtin_density_function("overworld/base_3d_noise")
+                .unwrap()
+                .function
+                .type_name(),
+            "old_blended_noise"
+        );
+        assert_eq!(
+            builtin_density_function("shift_x")
+                .unwrap()
+                .function
+                .type_name(),
+            DensityMarker::FlatCache.serialized_name()
+        );
+        assert_eq!(
+            builtin_density_function("overworld/caves/spaghetti_2d_thickness_modulator")
+                .unwrap()
+                .function
+                .type_name(),
+            "cache_once"
+        );
     }
 }
