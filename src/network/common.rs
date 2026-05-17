@@ -299,8 +299,70 @@ impl ClientboundDisconnectPacket {
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_component(writer, &self.reason)
+        write_trusted_text_component(writer, &component_plain_text(&self.reason.0))
     }
+}
+
+fn write_trusted_text_component<W: Write>(writer: &mut W, text: &str) -> io::Result<()> {
+    writer.write_all(&[10])?;
+    writer.write_all(&[8])?;
+    write_nbt_string(writer, "text")?;
+    write_nbt_string(writer, text)?;
+    writer.write_all(&[0])
+}
+
+fn write_nbt_string<W: Write>(writer: &mut W, value: &str) -> io::Result<()> {
+    let length = u16::try_from(value.len())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "NBT string too long"))?;
+    writer.write_all(&length.to_be_bytes())?;
+    writer.write_all(value.as_bytes())
+}
+
+fn component_plain_text(json: &str) -> String {
+    if let Some(text) = extract_json_string_field(json, "\"text\"") {
+        return text;
+    }
+    if let Some(translate) = extract_json_string_field(json, "\"translate\"") {
+        return translate;
+    }
+    json.to_string()
+}
+
+fn extract_json_string_field(json: &str, field: &str) -> Option<String> {
+    let start = json.find(field)?;
+    let after_field = &json[start + field.len()..];
+    let colon = after_field.find(':')?;
+    let after_colon = after_field[colon + 1..].trim_start();
+    let mut chars = after_colon.chars();
+    if chars.next()? != '"' {
+        return None;
+    }
+
+    let mut value = String::new();
+    let mut escaped = false;
+    for c in chars {
+        if escaped {
+            value.push(match c {
+                '"' => '"',
+                '\\' => '\\',
+                '/' => '/',
+                'b' => '\u{0008}',
+                'f' => '\u{000c}',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                other => other,
+            });
+            escaped = false;
+        } else if c == '\\' {
+            escaped = true;
+        } else if c == '"' {
+            return Some(value);
+        } else {
+            value.push(c);
+        }
+    }
+    None
 }
 
 impl ClientboundClearDialogPacket {
@@ -1096,8 +1158,26 @@ mod tests {
         let mut bytes = Vec::new();
         disconnect.write(&mut bytes).unwrap();
         assert_eq!(
-            ClientboundDisconnectPacket::read(&mut Cursor::new(bytes)).unwrap(),
-            disconnect
+            bytes,
+            vec![10, 8, 0, 4, b't', b'e', b'x', b't', 0, 3, b'b', b'y', b'e', 0]
+        );
+    }
+
+    #[test]
+    fn common_disconnect_uses_trusted_component_nbt_not_login_json() {
+        let disconnect = ClientboundDisconnectPacket {
+            reason: ComponentJson("{\"text\":\"unexpected play packet 7\"}".to_string()),
+        };
+        let mut bytes = Vec::new();
+        disconnect.write(&mut bytes).unwrap();
+
+        assert_eq!(
+            bytes[0], 10,
+            "trusted component must start with an NBT compound tag"
+        );
+        assert!(
+            !bytes.starts_with(&[b'{']) && !bytes.starts_with(&[0x20]),
+            "common disconnect must not use login JSON/string component encoding"
         );
     }
 

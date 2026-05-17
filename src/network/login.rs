@@ -112,16 +112,27 @@ impl Default for LoginSession {
 
 impl ServerboundHelloPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             name: read_string(reader, 16)?,
             profile_id: read_uuid(reader)?,
-        })
+        };
+        if !is_valid_player_name(&packet.name) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid characters in username",
+            ));
+        }
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_string(writer, &self.name, 16)?;
         write_uuid(writer, self.profile_id)
     }
+}
+
+fn is_valid_player_name(name: &str) -> bool {
+    name.chars().count() <= 16 && name.chars().all(|c| c > ' ' && c < '\u{7f}')
 }
 
 impl ClientboundHelloPacket {
@@ -472,6 +483,45 @@ mod tests {
             ServerboundHelloPacket::read(&mut Cursor::new(bytes)).unwrap(),
             packet
         );
+    }
+
+    #[test]
+    fn validates_serverbound_hello_names_like_vanilla() {
+        for name in [
+            "Steve",
+            "abcdefghijklmnop",
+            "CaseName",
+            "casename",
+            "dash-name",
+            "period.name",
+        ] {
+            let packet = ServerboundHelloPacket {
+                name: name.to_string(),
+                profile_id: Uuid([1; 16]),
+            };
+            let mut bytes = Vec::new();
+            packet.write(&mut bytes).unwrap();
+            assert_eq!(
+                ServerboundHelloPacket::read(&mut Cursor::new(bytes))
+                    .unwrap()
+                    .name,
+                name
+            );
+        }
+
+        for name in [
+            "has space",
+            "newline\nname",
+            "seventeen_chars__",
+            "nonasciié",
+            "delete\u{7f}name",
+        ] {
+            let mut bytes = Vec::new();
+            crate::network::codec::write_string(&mut bytes, name, 32).unwrap();
+            crate::network::codec::write_uuid(&mut bytes, Uuid([1; 16])).unwrap();
+            let err = ServerboundHelloPacket::read(&mut Cursor::new(bytes)).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        }
     }
 
     #[test]
