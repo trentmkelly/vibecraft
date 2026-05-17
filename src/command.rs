@@ -502,10 +502,112 @@ pub struct GameRuleState {
     pub value: GameRuleValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameRuleValue {
     Bool(bool),
     Int(i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GameRuleDefinition {
+    name: &'static str,
+    default: GameRuleValue,
+    min: Option<i32>,
+    max: Option<i32>,
+}
+
+const VANILLA_GAME_RULES: &[GameRuleDefinition] = &[
+    bool_game_rule("advance_time", true),
+    bool_game_rule("advance_weather", true),
+    bool_game_rule("allow_entering_nether_using_portals", true),
+    bool_game_rule("block_drops", true),
+    bool_game_rule("block_explosion_drop_decay", true),
+    bool_game_rule("command_blocks_work", true),
+    bool_game_rule("command_block_output", true),
+    bool_game_rule("drowning_damage", true),
+    bool_game_rule("elytra_movement_check", true),
+    bool_game_rule("ender_pearls_vanish_on_death", true),
+    bool_game_rule("entity_drops", true),
+    bool_game_rule("fall_damage", true),
+    bool_game_rule("fire_damage", true),
+    int_game_rule_min("fire_spread_radius_around_player", 128, -1),
+    bool_game_rule("forgive_dead_players", true),
+    bool_game_rule("freeze_damage", true),
+    bool_game_rule("global_sound_events", true),
+    bool_game_rule("immediate_respawn", false),
+    bool_game_rule("keep_inventory", false),
+    bool_game_rule("lava_source_conversion", false),
+    bool_game_rule("limited_crafting", false),
+    bool_game_rule("locator_bar", true),
+    bool_game_rule("log_admin_commands", true),
+    int_game_rule_min("max_block_modifications", 32768, 1),
+    int_game_rule_min("max_command_forks", 65536, 0),
+    int_game_rule_min("max_command_sequence_length", 65536, 0),
+    int_game_rule_min("max_entity_cramming", 24, 0),
+    int_game_rule_range("max_minecart_speed", 8, 1, 1000),
+    int_game_rule_range("max_snow_accumulation_height", 1, 0, 8),
+    bool_game_rule("mob_drops", true),
+    bool_game_rule("mob_explosion_drop_decay", true),
+    bool_game_rule("mob_griefing", true),
+    bool_game_rule("natural_health_regeneration", true),
+    bool_game_rule("player_movement_check", true),
+    int_game_rule_min("players_nether_portal_creative_delay", 0, 0),
+    int_game_rule_min("players_nether_portal_default_delay", 80, 0),
+    int_game_rule_min("players_sleeping_percentage", 100, 0),
+    bool_game_rule("projectiles_can_break_blocks", true),
+    bool_game_rule("pvp", true),
+    bool_game_rule("raids", true),
+    int_game_rule_min("random_tick_speed", 3, 0),
+    bool_game_rule("reduced_debug_info", false),
+    int_game_rule_min("respawn_radius", 10, 0),
+    bool_game_rule("send_command_feedback", true),
+    bool_game_rule("show_advancement_messages", true),
+    bool_game_rule("show_death_messages", true),
+    bool_game_rule("spawner_blocks_work", true),
+    bool_game_rule("spawn_mobs", true),
+    bool_game_rule("spawn_monsters", true),
+    bool_game_rule("spawn_patrols", true),
+    bool_game_rule("spawn_phantoms", true),
+    bool_game_rule("spawn_wandering_traders", true),
+    bool_game_rule("spawn_wardens", true),
+    bool_game_rule("spectators_generate_chunks", true),
+    bool_game_rule("spread_vines", true),
+    bool_game_rule("tnt_explodes", true),
+    bool_game_rule("tnt_explosion_drop_decay", false),
+    bool_game_rule("universal_anger", false),
+    bool_game_rule("water_source_conversion", true),
+];
+
+const fn bool_game_rule(name: &'static str, default: bool) -> GameRuleDefinition {
+    GameRuleDefinition {
+        name,
+        default: GameRuleValue::Bool(default),
+        min: None,
+        max: None,
+    }
+}
+
+const fn int_game_rule_min(name: &'static str, default: i32, min: i32) -> GameRuleDefinition {
+    GameRuleDefinition {
+        name,
+        default: GameRuleValue::Int(default),
+        min: Some(min),
+        max: None,
+    }
+}
+
+const fn int_game_rule_range(
+    name: &'static str,
+    default: i32,
+    min: i32,
+    max: i32,
+) -> GameRuleDefinition {
+    GameRuleDefinition {
+        name,
+        default: GameRuleValue::Int(default),
+        min: Some(min),
+        max: Some(max),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -7616,9 +7718,10 @@ fn gamerule_command(
         }
         ["gamerule", rule, value] => {
             let normalized = normalize_game_rule_name(rule);
+            let definition = game_rule_definition(&normalized)?;
             let current = game_rule_value(state, &normalized)?;
-            let parsed = parse_game_rule_value(value, &current)?;
-            set_game_rule_value(state, normalized, parsed.clone());
+            let parsed = parse_game_rule_value(value, &current, definition)?;
+            set_game_rule_value(state, normalized, parsed);
             Ok(CommandResult {
                 success_count: parsed.command_result(),
                 feedback_key: "commands.gamerule.set",
@@ -9614,32 +9717,57 @@ fn set_player_gamemode(state: &mut ServerCommandState, player: NameAndId, gamemo
 }
 
 fn default_game_rules() -> Vec<GameRuleState> {
-    vec![
-        GameRuleState {
-            name: "doDaylightCycle".to_string(),
-            value: GameRuleValue::Bool(true),
-        },
-        GameRuleState {
-            name: "doMobSpawning".to_string(),
-            value: GameRuleValue::Bool(true),
-        },
-        GameRuleState {
-            name: "sendCommandFeedback".to_string(),
-            value: GameRuleValue::Bool(true),
-        },
-        GameRuleState {
-            name: "maxEntityCramming".to_string(),
-            value: GameRuleValue::Int(24),
-        },
-        GameRuleState {
-            name: "randomTickSpeed".to_string(),
-            value: GameRuleValue::Int(3),
-        },
-    ]
+    VANILLA_GAME_RULES
+        .iter()
+        .map(|definition| GameRuleState {
+            name: definition.name.to_string(),
+            value: definition.default,
+        })
+        .collect()
 }
 
 fn normalize_game_rule_name(rule: &str) -> String {
-    rule.strip_prefix("minecraft:").unwrap_or(rule).to_string()
+    let rule = rule.strip_prefix("minecraft:").unwrap_or(rule);
+    match rule {
+        "commandBlockOutput" => "command_block_output",
+        "doDaylightCycle" => "advance_time",
+        "doEntityDrops" => "entity_drops",
+        "doImmediateRespawn" => "immediate_respawn",
+        "doInsomnia" => "spawn_phantoms",
+        "doLimitedCrafting" => "limited_crafting",
+        "doMobLoot" => "mob_drops",
+        "doMobSpawning" => "spawn_mobs",
+        "doPatrolSpawning" => "spawn_patrols",
+        "doTileDrops" => "block_drops",
+        "doTraderSpawning" => "spawn_wandering_traders",
+        "doVinesSpread" => "spread_vines",
+        "doWardenSpawning" => "spawn_wardens",
+        "doWeatherCycle" => "advance_weather",
+        "drowningDamage" => "drowning_damage",
+        "fallDamage" => "fall_damage",
+        "fireDamage" => "fire_damage",
+        "forgiveDeadPlayers" => "forgive_dead_players",
+        "freezeDamage" => "freeze_damage",
+        "globalSoundEvents" => "global_sound_events",
+        "keepInventory" => "keep_inventory",
+        "logAdminCommands" => "log_admin_commands",
+        "maxCommandChainLength" => "max_command_sequence_length",
+        "maxCommandForkCount" => "max_command_forks",
+        "maxEntityCramming" => "max_entity_cramming",
+        "mobGriefing" => "mob_griefing",
+        "naturalRegeneration" => "natural_health_regeneration",
+        "playersSleepingPercentage" => "players_sleeping_percentage",
+        "randomTickSpeed" => "random_tick_speed",
+        "reducedDebugInfo" => "reduced_debug_info",
+        "sendCommandFeedback" => "send_command_feedback",
+        "showDeathMessages" => "show_death_messages",
+        "spawnRadius" => "respawn_radius",
+        "spectatorsGenerateChunks" => "spectators_generate_chunks",
+        "tntExplodes" => "tnt_explodes",
+        "universalAnger" => "universal_anger",
+        _ => rule,
+    }
+    .to_string()
 }
 
 fn game_rule_value(state: &ServerCommandState, rule: &str) -> Result<GameRuleValue, CommandError> {
@@ -9663,14 +9791,30 @@ fn set_game_rule_value(state: &mut ServerCommandState, rule: String, value: Game
 fn parse_game_rule_value(
     input: &str,
     current: &GameRuleValue,
+    definition: &GameRuleDefinition,
 ) -> Result<GameRuleValue, CommandError> {
     match current {
         GameRuleValue::Bool(_) => Ok(GameRuleValue::Bool(parse_bool(input)?)),
-        GameRuleValue::Int(_) => input
-            .parse::<i32>()
-            .map(GameRuleValue::Int)
-            .map_err(|_| CommandError::InvalidSyntax),
+        GameRuleValue::Int(_) => {
+            let value = input
+                .parse::<i32>()
+                .map_err(|_| CommandError::InvalidSyntax)?;
+            if definition.min.is_some_and(|min| value < min)
+                || definition.max.is_some_and(|max| value > max)
+            {
+                return Err(CommandError::InvalidSyntax);
+            }
+            Ok(GameRuleValue::Int(value))
+        }
     }
+}
+
+fn game_rule_definition(rule: &str) -> Result<&'static GameRuleDefinition, CommandError> {
+    let normalized = normalize_game_rule_name(rule);
+    VANILLA_GAME_RULES
+        .iter()
+        .find(|definition| definition.name == normalized)
+        .ok_or(CommandError::InvalidSyntax)
 }
 
 impl GameRuleValue {
@@ -13819,6 +13963,94 @@ mod tests {
                 "gamerule randomTickSpeed true"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn gamerule_defaults_cover_26_1_2_registry_names_and_bounds() {
+        let state = ServerCommandState::default();
+        let names: Vec<&str> = state
+            .game_rules
+            .iter()
+            .map(|rule| rule.name.as_str())
+            .collect();
+        assert_eq!(names.len(), super::VANILLA_GAME_RULES.len());
+        assert_eq!(
+            names,
+            super::VANILLA_GAME_RULES
+                .iter()
+                .map(|definition| definition.name)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "advance_weather").unwrap(),
+            super::GameRuleValue::Bool(true)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "keep_inventory").unwrap(),
+            super::GameRuleValue::Bool(false)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "max_block_modifications").unwrap(),
+            super::GameRuleValue::Int(32768)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "players_nether_portal_default_delay").unwrap(),
+            super::GameRuleValue::Int(80)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "random_tick_speed").unwrap(),
+            super::GameRuleValue::Int(3)
+        );
+    }
+
+    #[test]
+    fn gamerule_command_supports_canonical_names_aliases_and_integer_ranges() {
+        let mut state = ServerCommandState::default();
+        let canonical = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamerule keep_inventory true",
+        )
+        .unwrap();
+        assert_eq!(canonical.success_count, 1);
+        assert_eq!(
+            super::game_rule_value(&state, "keepInventory").unwrap(),
+            super::GameRuleValue::Bool(true)
+        );
+
+        let bounded = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamerule max_snow_accumulation_height 8",
+        )
+        .unwrap();
+        assert_eq!(bounded.success_count, 8);
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "gamerule max_snow_accumulation_height 9"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "gamerule random_tick_speed -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "gamerule fire_spread_radius_around_player -1"
+            )
+            .unwrap()
+            .success_count,
+            -1
         );
     }
 
