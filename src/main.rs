@@ -2,6 +2,7 @@ mod cli;
 mod command;
 mod console;
 mod crash;
+mod entity_variants;
 mod eula;
 mod log;
 mod network;
