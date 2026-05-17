@@ -21,6 +21,7 @@ mod fire;
 mod fluid;
 mod gravity;
 mod inhabited_time;
+mod inventory;
 mod item_catalog;
 mod item_properties;
 mod item_stack;
