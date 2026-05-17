@@ -771,6 +771,10 @@ async function main () {
       isFlat: loginSpawn.isFlat,
       seaLevel: loginSpawn.seaLevel
     }
+    joinState.loginDistances = {
+      viewDistance: loginSpawn.chunkRadius,
+      simulationDistance: loginSpawn.simulationDistance
+    }
     const playerInfoPacket = packetById.get(70)?.[0]
     if (!playerInfoPacket) throw new Error('missing player_info_update packet')
     let playerInfoOffset = 0
@@ -895,6 +899,24 @@ async function main () {
         throw new Error(`missing first-spawn game_event ${expected[0]}=${expected[1]}`)
       }
     }
+    const chunkCacheRadiusPacket = packetById.get(95)?.[0]
+    const chunkCacheRadius = chunkCacheRadiusPacket && readVarInt(chunkCacheRadiusPacket.body)
+    if (!chunkCacheRadius || chunkCacheRadius.offset !== chunkCacheRadiusPacket.body.length) {
+      throw new Error('missing chunk cache radius payload')
+    }
+    const chunkBatchFinishedPacket = packetById.get(11)?.[0]
+    const chunkBatchSize = chunkBatchFinishedPacket && readVarInt(chunkBatchFinishedPacket.body)
+    if (!chunkBatchSize || chunkBatchSize.offset !== chunkBatchFinishedPacket.body.length) {
+      throw new Error('missing chunk batch finished payload')
+    }
+    joinState.chunkStreaming = {
+      cacheRadius: chunkCacheRadius.value,
+      batchSize: chunkBatchSize.value,
+      chunks: (packetById.get(45) ?? []).map(packet => ({
+        x: packet.body.readInt32BE(0),
+        z: packet.body.readInt32BE(4)
+      }))
+    }
   }
   joinState.lastReceivedChunk = play.filter(packet => packet.id === 45).length === 0
     ? null
@@ -990,6 +1012,8 @@ function readLoginSpawnInfo (body) {
     previousGameMode,
     isDebug,
     isFlat,
+    chunkRadius: chunkRadius.value,
+    simulationDistance: simulationDistance.value,
     portalCooldown: portalCooldown.value,
     seaLevel: seaLevel.value
   }
