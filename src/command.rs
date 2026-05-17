@@ -145,6 +145,7 @@ pub struct ServerCommandState {
     pub command_source_entity: Option<EntityRef>,
     pub command_source_position: Vec3,
     pub command_source_dimension: String,
+    pub execute_events: Vec<ExecuteCommandEvent>,
     pub debug_world: bool,
     pub blocks: Vec<BlockStateEntry>,
     pub clone_events: Vec<CloneEvent>,
@@ -254,6 +255,30 @@ pub struct CommandItemEnchantment {
     pub item: String,
     pub enchantment: String,
     pub level: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExecuteCommandEvent {
+    pub sources: Vec<ExecuteSourceSnapshot>,
+    pub command: String,
+    pub result: i32,
+    pub success: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExecuteSourceSnapshot {
+    pub entity: Option<EntityRef>,
+    pub position: Vec3,
+    pub dimension: String,
+    pub anchor: EntityAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct CommandSourceSnapshot {
+    entity: Option<EntityRef>,
+    player: Option<NameAndId>,
+    position: Vec3,
+    dimension: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -946,6 +971,7 @@ pub enum CommandError {
     EnchantIncompatible,
     EnchantLevelTooHigh,
     EnchantFailed,
+    ExecuteConditionFailed,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1138,6 +1164,7 @@ impl Default for ServerCommandState {
             command_source_entity: None,
             command_source_position: Vec3::default(),
             command_source_dimension: "minecraft:overworld".to_string(),
+            execute_events: Vec::new(),
             debug_world: false,
             blocks: Vec::new(),
             clone_events: Vec::new(),
@@ -1574,6 +1601,7 @@ pub fn execute_builtin_command(
         "dialog" => dialog_command(state, &parts),
         "effect" => effect_command(state, &parts),
         "enchant" => enchant_command(state, &parts),
+        "execute" => execute_command(state, permissions, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -3946,6 +3974,239 @@ fn parse_effect_seconds(input: &str) -> Result<i32, CommandError> {
 
 fn parse_effect_amplifier(input: &str) -> Result<u8, CommandError> {
     input.parse::<u8>().map_err(|_| CommandError::InvalidSyntax)
+}
+
+fn execute_command(
+    state: &mut ServerCommandState,
+    permissions: LevelBasedPermissionSet,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() < 3 || parts[0] != "execute" {
+        return Err(CommandError::InvalidSyntax);
+    }
+
+    let original = capture_command_source(state);
+    let mut sources = vec![ExecuteSourceSnapshot {
+        entity: state.command_source_entity.clone(),
+        position: state.command_source_position,
+        dimension: state.command_source_dimension.clone(),
+        anchor: EntityAnchor::Feet,
+    }];
+    let mut index = 1;
+
+    while index < parts.len() {
+        match parts[index] {
+            "run" => {
+                let command = parts
+                    .get(index + 1..)
+                    .filter(|tail| !tail.is_empty())
+                    .ok_or(CommandError::InvalidSyntax)?
+                    .join(" ");
+                let result =
+                    execute_for_sources(state, permissions, &original, &sources, &command)?;
+                state.execute_events.push(ExecuteCommandEvent {
+                    sources,
+                    command,
+                    result: result.success_count,
+                    success: result.success_count > 0,
+                });
+                restore_command_source(state, original);
+                return Ok(result);
+            }
+            "as" => {
+                let targets = parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?;
+                let entities = parse_entity_list(targets);
+                if entities.is_empty() {
+                    restore_command_source(state, original);
+                    return Err(CommandError::ExecuteConditionFailed);
+                }
+                sources = sources
+                    .iter()
+                    .flat_map(|source| {
+                        entities.iter().map(move |entity| {
+                            let mut forked = source.clone();
+                            forked.entity = Some(entity.clone());
+                            forked
+                        })
+                    })
+                    .collect();
+                index += 2;
+            }
+            "at" => {
+                let targets = parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?;
+                let entities = parse_entity_list(targets);
+                if entities.is_empty() {
+                    restore_command_source(state, original);
+                    return Err(CommandError::ExecuteConditionFailed);
+                }
+                let mut forked_sources = Vec::new();
+                for source in &sources {
+                    for entity in &entities {
+                        let mut forked = source.clone();
+                        forked.entity = Some(entity.clone());
+                        if let Some(position) = entity_position(state, entity) {
+                            forked.position = position.position;
+                            forked.dimension = position.dimension.clone();
+                        } else if let Some(entity_state) = entity_state(state, entity) {
+                            forked.dimension = entity_state.dimension.clone();
+                        }
+                        forked_sources.push(forked);
+                    }
+                }
+                sources = forked_sources;
+                index += 2;
+            }
+            "positioned" => {
+                let Some([x, y, z]) = parts.get(index + 1..index + 4) else {
+                    return Err(CommandError::InvalidSyntax);
+                };
+                let position = parse_vec3(x, y, z)?;
+                for source in &mut sources {
+                    source.position = position;
+                }
+                index += 4;
+            }
+            "in" => {
+                let dimension = parts
+                    .get(index + 1)
+                    .ok_or(CommandError::InvalidSyntax)
+                    .and_then(|dimension| parse_resource_identifier(dimension))?;
+                for source in &mut sources {
+                    source.dimension = dimension.clone();
+                }
+                index += 2;
+            }
+            "anchored" => {
+                let anchor = parts
+                    .get(index + 1)
+                    .ok_or(CommandError::InvalidSyntax)
+                    .and_then(|anchor| parse_entity_anchor(anchor))?;
+                for source in &mut sources {
+                    source.anchor = anchor;
+                }
+                index += 2;
+            }
+            "if" | "unless" => {
+                let invert = parts[index] == "unless";
+                let (matched, consumed) = execute_condition(state, &sources, &parts[index + 1..])?;
+                if matched == invert {
+                    restore_command_source(state, original);
+                    return Err(CommandError::ExecuteConditionFailed);
+                }
+                index += 1 + consumed;
+            }
+            _ => {
+                restore_command_source(state, original);
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+    }
+
+    restore_command_source(state, original);
+    Err(CommandError::InvalidSyntax)
+}
+
+fn execute_for_sources(
+    state: &mut ServerCommandState,
+    permissions: LevelBasedPermissionSet,
+    original: &CommandSourceSnapshot,
+    sources: &[ExecuteSourceSnapshot],
+    command: &str,
+) -> Result<CommandResult, CommandError> {
+    let mut total = 0;
+    let mut feedback_key = "commands.execute.run.success";
+    let mut broadcast = false;
+    let mut last_error = None;
+    for source in sources {
+        apply_execute_source(state, original, source);
+        match execute_builtin_command(state, permissions, command) {
+            Ok(result) => {
+                total += result.success_count;
+                feedback_key = result.feedback_key;
+                broadcast |= result.broadcast_to_admins;
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    restore_command_source(state, original.clone());
+    if total > 0 {
+        Ok(CommandResult {
+            success_count: total,
+            feedback_key,
+            broadcast_to_admins: broadcast,
+        })
+    } else {
+        Err(last_error.unwrap_or(CommandError::ExecuteConditionFailed))
+    }
+}
+
+fn execute_condition(
+    state: &ServerCommandState,
+    sources: &[ExecuteSourceSnapshot],
+    parts: &[&str],
+) -> Result<(bool, usize), CommandError> {
+    match parts {
+        ["entity", targets, ..] => Ok((!parse_entity_list(targets).is_empty(), 2)),
+        ["block", x, y, z, block, ..] => {
+            let position = parse_block_pos(x, y, z)?;
+            let block = parse_resource_identifier(block)?;
+            Ok((
+                sources
+                    .iter()
+                    .any(|source| block_at(state, &source.dimension, position) == block),
+                5,
+            ))
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn capture_command_source(state: &ServerCommandState) -> CommandSourceSnapshot {
+    CommandSourceSnapshot {
+        entity: state.command_source_entity.clone(),
+        player: state.command_source_player.clone(),
+        position: state.command_source_position,
+        dimension: state.command_source_dimension.clone(),
+    }
+}
+
+fn restore_command_source(state: &mut ServerCommandState, source: CommandSourceSnapshot) {
+    state.command_source_entity = source.entity;
+    state.command_source_player = source.player;
+    state.command_source_position = source.position;
+    state.command_source_dimension = source.dimension;
+}
+
+fn apply_execute_source(
+    state: &mut ServerCommandState,
+    original: &CommandSourceSnapshot,
+    source: &ExecuteSourceSnapshot,
+) {
+    state.command_source_entity = source.entity.clone();
+    state.command_source_player = source
+        .entity
+        .as_ref()
+        .map(|entity| NameAndId::create_offline(&entity.id))
+        .or_else(|| original.player.clone());
+    state.command_source_position = source.position;
+    state.command_source_dimension = source.dimension.clone();
+}
+
+fn entity_position<'a>(
+    state: &'a ServerCommandState,
+    entity: &EntityRef,
+) -> Option<&'a EntityPosition> {
+    state
+        .entity_positions
+        .iter()
+        .find(|position| position.entity.id == entity.id)
+}
+
+fn entity_state<'a>(state: &'a ServerCommandState, entity: &EntityRef) -> Option<&'a EntityState> {
+    state
+        .entity_states
+        .iter()
+        .find(|state| state.entity.id == entity.id)
 }
 
 fn enchant_command(
@@ -7512,6 +7773,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("dialog", "/dialog <show|clear> <targets> [dialog]"),
         ("effect", "/effect <give|clear> ..."),
         ("enchant", "/enchant <targets> <enchantment> [level]"),
+        ("execute", "/execute ... run <command>"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -7981,10 +8243,10 @@ mod tests {
         ChaseEvent, ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability,
         CommandError, CommandItemEnchantment, CommandItemStack, CommandPlayerInventory,
         DamageCommandSource, DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind,
-        EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
-        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
-        PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress,
-        PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        EntityMount, EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
+        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
+        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode,
+        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
         ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
         ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
@@ -9993,6 +10255,155 @@ mod tests {
                 "enchant Alex,armor_stand sharpness"
             ),
             Err(CommandError::EnchantFailed)
+        );
+    }
+
+    #[test]
+    fn execute_command_runs_nested_command_with_derived_sources() {
+        let mut state = ServerCommandState {
+            online_players: vec![
+                NameAndId::create_offline("Steve"),
+                NameAndId::create_offline("Alex"),
+            ],
+            command_source_position: Vec3 {
+                x: 1.0,
+                y: 64.0,
+                z: 1.0,
+            },
+            command_source_dimension: "minecraft:overworld".to_string(),
+            entity_positions: vec![EntityPosition {
+                entity: EntityRef {
+                    id: "Alex".to_string(),
+                    display_name: "Alex".to_string(),
+                },
+                dimension: "minecraft:the_nether".to_string(),
+                position: Vec3 {
+                    x: 8.0,
+                    y: 70.0,
+                    z: -3.0,
+                },
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("execute"),
+            PermissionLevel::Gamemasters
+        );
+
+        let result = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "execute as Steve,Alex positioned 4 65 9 run say hello",
+        )
+        .unwrap();
+
+        assert_eq!(result.success_count, 2);
+        assert_eq!(state.chat_events.len(), 2);
+        assert_eq!(
+            state
+                .chat_events
+                .iter()
+                .map(|event| event.sender.as_ref().unwrap().name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Steve", "Alex"]
+        );
+        assert_eq!(state.execute_events.len(), 1);
+        assert_eq!(state.execute_events[0].command, "say hello");
+        assert_eq!(state.execute_events[0].result, 2);
+        assert!(state.execute_events[0].success);
+        assert_eq!(state.execute_events[0].sources.len(), 2);
+        assert_eq!(
+            state.execute_events[0].sources[0],
+            ExecuteSourceSnapshot {
+                entity: Some(EntityRef {
+                    id: "Steve".to_string(),
+                    display_name: "Steve".to_string(),
+                }),
+                position: Vec3 {
+                    x: 4.0,
+                    y: 65.0,
+                    z: 9.0,
+                },
+                dimension: "minecraft:overworld".to_string(),
+                anchor: EntityAnchor::Feet,
+            }
+        );
+        assert_eq!(state.command_source_entity, None);
+        assert_eq!(state.command_source_position.x, 1.0);
+        assert_eq!(state.command_source_dimension, "minecraft:overworld");
+
+        let at = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "execute at Alex anchored eyes run particle minecraft:dust 0 70 0 0 0 0 0 1",
+        )
+        .unwrap();
+        assert_eq!(at.success_count, 2);
+        assert_eq!(
+            state.execute_events.last().unwrap().sources[0],
+            ExecuteSourceSnapshot {
+                entity: Some(EntityRef {
+                    id: "Alex".to_string(),
+                    display_name: "Alex".to_string(),
+                }),
+                position: Vec3 {
+                    x: 8.0,
+                    y: 70.0,
+                    z: -3.0,
+                },
+                dimension: "minecraft:the_nether".to_string(),
+                anchor: EntityAnchor::Eyes,
+            }
+        );
+    }
+
+    #[test]
+    fn execute_command_applies_dimension_and_conditions() {
+        let mut state = ServerCommandState {
+            blocks: vec![BlockStateEntry {
+                dimension: "minecraft:the_nether".to_string(),
+                position: BlockPos { x: 1, y: 2, z: 3 },
+                block: "minecraft:gold_block".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let success = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "execute in minecraft:the_nether if block 1 2 3 gold_block run setblock 4 5 6 diamond_block",
+        )
+        .unwrap();
+        assert_eq!(success.success_count, 1);
+        assert!(state.blocks.iter().any(|entry| {
+            entry.dimension == "minecraft:the_nether"
+                && entry.position == BlockPos { x: 4, y: 5, z: 6 }
+                && entry.block == "minecraft:diamond_block"
+        }));
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "execute unless entity Steve run say hidden"
+            ),
+            Err(CommandError::ExecuteConditionFailed)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "execute run say denied"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "execute if block 1 2 3 diamond_block run say no"
+            ),
+            Err(CommandError::ExecuteConditionFailed)
         );
     }
 
