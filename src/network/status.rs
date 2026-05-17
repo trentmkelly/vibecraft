@@ -1468,6 +1468,13 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             "Dimension".to_string(),
             Tag::String("minecraft:overworld".to_string()),
         ),
+        (
+            "recipeBook".to_string(),
+            Tag::Compound(vec![
+                ("recipes".to_string(), Tag::List(vec![])),
+                ("toBeDisplayed".to_string(), Tag::List(vec![])),
+            ]),
+        ),
     ];
     if let Some(mode) = state.previous_game_mode {
         values.push((
