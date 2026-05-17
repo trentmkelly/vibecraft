@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
-use crate::player_access::NameAndId;
+use std::net::IpAddr;
+
+use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
 
 const VANILLA_TRIM_PATTERNS: &[&str] = &[
@@ -133,6 +135,9 @@ pub struct ServerCommandState {
     pub max_players: u32,
     pub singleplayer_owner: Option<NameAndId>,
     pub disconnected_players: Vec<PlayerDisconnect>,
+    pub online_player_addresses: Vec<PlayerIpAddress>,
+    pub banned_players: Vec<BanEntry<NameAndId>>,
+    pub banned_ips: Vec<BanEntry<String>>,
     pub killed_entities: Vec<EntityRef>,
     pub teams: Vec<TeamState>,
     pub player_teams: Vec<TeamMembership>,
@@ -179,6 +184,12 @@ pub struct TransferRequest {
     pub host: String,
     pub port: u16,
     pub targets: Vec<NameAndId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerIpAddress {
+    pub player: NameAndId,
+    pub ip: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -685,6 +696,12 @@ pub enum CommandError {
     RandomRangeTooLarge,
     KickSingleplayer,
     KickOwner,
+    BanFailed,
+    BanIpInvalid,
+    BanIpFailed,
+    PardonFailed,
+    PardonIpInvalid,
+    PardonIpFailed,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,
@@ -844,6 +861,9 @@ impl Default for ServerCommandState {
             max_players: 20,
             singleplayer_owner: None,
             disconnected_players: Vec::new(),
+            online_player_addresses: Vec::new(),
+            banned_players: Vec::new(),
+            banned_ips: Vec::new(),
             killed_entities: Vec::new(),
             teams: Vec::new(),
             player_teams: Vec::new(),
@@ -996,6 +1016,93 @@ impl ServerCommandState {
         self.whitelisted_players
             .retain(|entry| entry.uuid != profile.uuid);
         self.whitelisted_players.len() != old_len
+    }
+
+    pub fn banned_player_names(&self) -> Vec<&str> {
+        self.banned_players
+            .iter()
+            .map(|entry| entry.user.name.as_str())
+            .collect()
+    }
+
+    pub fn banned_ip_names(&self) -> Vec<&str> {
+        self.banned_ips
+            .iter()
+            .map(|entry| entry.user.as_str())
+            .collect()
+    }
+
+    fn is_player_banned(&self, profile: &NameAndId) -> bool {
+        self.banned_players
+            .iter()
+            .any(|entry| entry.user.uuid == profile.uuid)
+    }
+
+    fn is_ip_banned(&self, ip: &str) -> bool {
+        self.banned_ips.iter().any(|entry| entry.user == ip)
+    }
+
+    fn add_player_ban(&mut self, profile: NameAndId, reason: Option<String>) -> bool {
+        if self.is_player_banned(&profile) {
+            return false;
+        }
+        self.banned_players.push(BanEntry {
+            user: profile,
+            created: "now".to_string(),
+            source: self.command_source_name(),
+            expires: None,
+            reason,
+        });
+        true
+    }
+
+    fn add_ip_ban(&mut self, ip: String, reason: Option<String>) -> bool {
+        if self.is_ip_banned(&ip) {
+            return false;
+        }
+        self.banned_ips.push(BanEntry {
+            user: ip,
+            created: "now".to_string(),
+            source: self.command_source_name(),
+            expires: None,
+            reason,
+        });
+        true
+    }
+
+    fn remove_player_ban(&mut self, profile: &NameAndId) -> bool {
+        let old_len = self.banned_players.len();
+        self.banned_players
+            .retain(|entry| entry.user.uuid != profile.uuid);
+        self.banned_players.len() != old_len
+    }
+
+    fn remove_ip_ban(&mut self, ip: &str) -> bool {
+        let old_len = self.banned_ips.len();
+        self.banned_ips.retain(|entry| entry.user != ip);
+        self.banned_ips.len() != old_len
+    }
+
+    fn command_source_name(&self) -> String {
+        self.command_source_player
+            .as_ref()
+            .map(|player| player.name.clone())
+            .unwrap_or_else(|| "Server".to_string())
+    }
+
+    fn online_ip_for_name(&self, name: &str) -> Option<String> {
+        self.online_player_addresses
+            .iter()
+            .find(|entry| entry.player.name.eq_ignore_ascii_case(name))
+            .map(|entry| entry.ip.clone())
+    }
+
+    fn players_with_ip(&self, ip: &str) -> Vec<NameAndId> {
+        self.online_player_addresses
+            .iter()
+            .filter(|entry| entry.ip == ip)
+            .map(|entry| entry.player.clone())
+            .collect()
     }
 
     fn team_for_player(&self, player: &NameAndId) -> Option<&str> {
@@ -1308,6 +1415,11 @@ pub fn execute_builtin_command(
             }
             _ => Err(CommandError::InvalidSyntax),
         },
+        "ban" => ban_command(state, &parts),
+        "ban-ip" => ban_ip_command(state, &parts),
+        "banlist" => banlist_command(state, &parts),
+        "pardon" => pardon_command(state, &parts),
+        "pardon-ip" => pardon_ip_command(state, &parts),
         "kill" => match parts.as_slice() {
             ["kill"] => {
                 let source = state
@@ -1686,6 +1798,170 @@ fn kick_players(
             broadcast_to_admins: true,
         })
     }
+}
+
+fn ban_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (targets, reason) = targets_and_optional_reason(&parts[1..])?;
+    let mut count = 0;
+    for target in targets {
+        let profile = NameAndId::create_offline(target);
+        if state.add_player_ban(profile.clone(), reason.clone()) {
+            state.disconnected_players.push(PlayerDisconnect {
+                player: profile,
+                reason: "multiplayer.disconnect.banned".to_string(),
+            });
+            count += 1;
+        }
+    }
+
+    if count == 0 {
+        Err(CommandError::BanFailed)
+    } else {
+        Ok(CommandResult {
+            success_count: count,
+            feedback_key: "commands.ban.success",
+            broadcast_to_admins: true,
+        })
+    }
+}
+
+fn ban_ip_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() < 2 {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let target = parts[1];
+    let reason = if parts.len() > 2 {
+        Some(parts[2..].join(" "))
+    } else {
+        None
+    };
+    let ip = if is_ip_address(target) {
+        target.to_string()
+    } else {
+        state
+            .online_ip_for_name(target)
+            .ok_or(CommandError::BanIpInvalid)?
+    };
+    if !state.add_ip_ban(ip.clone(), reason) {
+        return Err(CommandError::BanIpFailed);
+    }
+    let players = state.players_with_ip(&ip);
+    for player in &players {
+        state.disconnected_players.push(PlayerDisconnect {
+            player: player.clone(),
+            reason: "multiplayer.disconnect.ip_banned".to_string(),
+        });
+    }
+    Ok(CommandResult {
+        success_count: players.len() as i32,
+        feedback_key: if players.is_empty() {
+            "commands.banip.success"
+        } else {
+            "commands.banip.info"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn banlist_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let count = match parts {
+        ["banlist"] => state.banned_players.len() + state.banned_ips.len(),
+        ["banlist", "players"] => state.banned_players.len(),
+        ["banlist", "ips"] => state.banned_ips.len(),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    Ok(CommandResult {
+        success_count: count as i32,
+        feedback_key: if count == 0 {
+            "commands.banlist.none"
+        } else {
+            "commands.banlist.list"
+        },
+        broadcast_to_admins: false,
+    })
+}
+
+fn pardon_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() < 2 {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let mut count = 0;
+    for target in &parts[1..] {
+        let profile = NameAndId::create_offline(target);
+        if state.remove_player_ban(&profile) {
+            count += 1;
+        }
+    }
+    if count == 0 {
+        Err(CommandError::PardonFailed)
+    } else {
+        Ok(CommandResult {
+            success_count: count,
+            feedback_key: "commands.pardon.success",
+            broadcast_to_admins: true,
+        })
+    }
+}
+
+fn pardon_ip_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["pardon-ip", ip] if is_ip_address(ip) => {
+            if !state.remove_ip_ban(ip) {
+                return Err(CommandError::PardonIpFailed);
+            }
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.pardonip.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["pardon-ip", _] => Err(CommandError::PardonIpInvalid),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn targets_and_optional_reason<'a>(
+    parts: &'a [&'a str],
+) -> Result<(Vec<&'a str>, Option<String>), CommandError> {
+    if parts.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let split = parts
+        .iter()
+        .position(|part| *part == "--")
+        .unwrap_or(parts.len());
+    let targets = parts[..split].to_vec();
+    if targets.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let reason = if split < parts.len() {
+        if split + 1 >= parts.len() {
+            return Err(CommandError::InvalidSyntax);
+        }
+        Some(parts[split + 1..].join(" "))
+    } else {
+        None
+    };
+    Ok((targets, reason))
+}
+
+fn is_ip_address(value: &str) -> bool {
+    value.parse::<IpAddr>().is_ok()
 }
 
 fn kill_entities(
@@ -4910,6 +5186,9 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "attribute",
             "/attribute <target> <attribute> get|base|get|set|reset|modifier",
         ),
+        ("ban", "/ban <targets> [reason]"),
+        ("ban-ip", "/ban-ip <target> [reason]"),
+        ("banlist", "/banlist [ips|players]"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -4925,6 +5204,8 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "/particle <name> [pos] [delta] [speed] [count] [force|normal] [viewers]",
         ),
         ("perf", "/perf <start|stop>"),
+        ("pardon", "/pardon <targets>"),
+        ("pardon-ip", "/pardon-ip <target>"),
         ("publish", "/publish [allowCommands] [gamemode] [port]"),
         ("random", "/random value|roll|reset ..."),
         ("recipe", "/recipe <give|take> <targets> <recipe|*>"),
@@ -5352,12 +5633,12 @@ mod tests {
         EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState,
         EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent,
         PerfReport, Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress,
-        PlayerGameMode, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
-        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
-        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
-        WeatherMode,
+        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
+        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
+        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -7235,6 +7516,133 @@ mod tests {
         assert_eq!(kicked.success_count, 1);
         assert_eq!(state.disconnected_players[1].player.name, "Alex");
         assert_eq!(state.disconnected_players[1].reason, "maintenance window");
+    }
+
+    #[test]
+    fn ban_and_pardon_commands_track_profiles_and_disconnect_online_players() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "ban Steve"),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let banned = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "ban Steve Alex -- repeated griefing",
+        )
+        .unwrap();
+        assert_eq!(banned.success_count, 2);
+        assert_eq!(banned.feedback_key, "commands.ban.success");
+        assert_eq!(state.banned_player_names(), vec!["Steve", "Alex"]);
+        assert_eq!(
+            state.banned_players[0].reason.as_deref(),
+            Some("repeated griefing")
+        );
+        assert_eq!(
+            state.disconnected_players[0].reason,
+            "multiplayer.disconnect.banned"
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "ban Steve"),
+            Err(CommandError::BanFailed)
+        );
+
+        let list = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "banlist players",
+        )
+        .unwrap();
+        assert_eq!(list.success_count, 2);
+        assert_eq!(list.feedback_key, "commands.banlist.list");
+        assert!(!list.broadcast_to_admins);
+
+        let pardoned =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "pardon Steve")
+                .unwrap();
+        assert_eq!(pardoned.success_count, 1);
+        assert_eq!(pardoned.feedback_key, "commands.pardon.success");
+        assert_eq!(state.banned_player_names(), vec!["Alex"]);
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "pardon Steve"),
+            Err(CommandError::PardonFailed)
+        );
+    }
+
+    #[test]
+    fn ban_ip_banlist_and_pardon_ip_follow_vanilla_resolution_failures() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            online_player_addresses: vec![
+                PlayerIpAddress {
+                    player: steve.clone(),
+                    ip: "203.0.113.7".to_string(),
+                },
+                PlayerIpAddress {
+                    player: alex.clone(),
+                    ip: "203.0.113.7".to_string(),
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ADMIN,
+                "ban-ip missingPlayer"
+            ),
+            Err(CommandError::BanIpInvalid)
+        );
+        let banned =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "ban-ip Steve")
+                .unwrap();
+        assert_eq!(banned.success_count, 2);
+        assert_eq!(banned.feedback_key, "commands.banip.info");
+        assert_eq!(state.banned_ip_names(), vec!["203.0.113.7"]);
+        assert_eq!(state.disconnected_players.len(), 2);
+        assert_eq!(
+            state.disconnected_players[1].reason,
+            "multiplayer.disconnect.ip_banned"
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ADMIN,
+                "ban-ip 203.0.113.7"
+            ),
+            Err(CommandError::BanIpFailed)
+        );
+
+        let list =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "banlist").unwrap();
+        assert_eq!(list.success_count, 1);
+        let pardoned = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "pardon-ip 203.0.113.7",
+        )
+        .unwrap();
+        assert_eq!(pardoned.feedback_key, "commands.pardonip.success");
+        assert!(state.banned_ips.is_empty());
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ADMIN,
+                "pardon-ip not-an-ip"
+            ),
+            Err(CommandError::PardonIpInvalid)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ADMIN,
+                "pardon-ip 203.0.113.8"
+            ),
+            Err(CommandError::PardonIpFailed)
+        );
     }
 
     #[test]
