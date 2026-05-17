@@ -200,6 +200,7 @@ pub struct ServerCommandState {
     pub scoreboard_scores: Vec<ScoreboardScore>,
     pub scoreboard_display_slots: Vec<ScoreboardDisplaySlot>,
     pub chat_events: Vec<ChatCommandEvent>,
+    pub title_events: Vec<TitleCommandEvent>,
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
     pub setblock_events: Vec<SetBlockEvent>,
@@ -958,6 +959,35 @@ pub enum ChatCommandKind {
     TellRaw,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleCommandEvent {
+    pub targets: Vec<NameAndId>,
+    pub action: TitleCommandAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TitleCommandAction {
+    Clear {
+        reset: bool,
+    },
+    Text {
+        kind: TitleTextKind,
+        component: String,
+    },
+    Times {
+        fade_in: i32,
+        stay: i32,
+        fade_out: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleTextKind {
+    Title,
+    Subtitle,
+    ActionBar,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SoundCommandEvent {
     Play(PlaySoundRequest),
@@ -1538,6 +1568,7 @@ impl Default for ServerCommandState {
             scoreboard_scores: Vec::new(),
             scoreboard_display_slots: Vec::new(),
             chat_events: Vec::new(),
+            title_events: Vec::new(),
             sound_events: Vec::new(),
             particle_events: Vec::new(),
             setblock_events: Vec::new(),
@@ -2100,6 +2131,7 @@ pub fn execute_builtin_command(
         "teleport" | "tp" => teleport_command(state, &parts),
         "team" => team_command(state, &parts),
         "time" => time_command(state, &parts),
+        "title" => title_command(state, &parts),
         "particle" => particle_command(state, &parts),
         "perf" => perf_command(state, &parts),
         "rotate" => rotate_command(state, &parts),
@@ -4856,6 +4888,116 @@ fn parse_time_ticks_i32(input: &str, minimum: i32) -> Result<i32, CommandError> 
 
 fn wrap_time_result(ticks: i64) -> i32 {
     (ticks % i64::from(i32::MAX)) as i32
+}
+
+fn title_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["title", targets, "clear"] => title_event(
+            state,
+            title_targets(targets),
+            TitleCommandAction::Clear { reset: false },
+            "commands.title.cleared",
+        ),
+        ["title", targets, "reset"] => title_event(
+            state,
+            title_targets(targets),
+            TitleCommandAction::Clear { reset: true },
+            "commands.title.reset",
+        ),
+        ["title", targets, "times", fade_in, stay, fade_out] => title_event(
+            state,
+            title_targets(targets),
+            TitleCommandAction::Times {
+                fade_in: parse_time_ticks_i32(fade_in, 0)?,
+                stay: parse_time_ticks_i32(stay, 0)?,
+                fade_out: parse_time_ticks_i32(fade_out, 0)?,
+            },
+            "commands.title.times",
+        ),
+        ["title", targets, kind, component @ ..]
+            if matches!(*kind, "title" | "subtitle" | "actionbar") && !component.is_empty() =>
+        {
+            let kind = match *kind {
+                "title" => TitleTextKind::Title,
+                "subtitle" => TitleTextKind::Subtitle,
+                "actionbar" => TitleTextKind::ActionBar,
+                _ => unreachable!(),
+            };
+            title_event(
+                state,
+                title_targets(targets),
+                TitleCommandAction::Text {
+                    kind,
+                    component: component.join(" "),
+                },
+                match kind {
+                    TitleTextKind::Title => "commands.title.show.title",
+                    TitleTextKind::Subtitle => "commands.title.show.subtitle",
+                    TitleTextKind::ActionBar => "commands.title.show.actionbar",
+                },
+            )
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn title_event(
+    state: &mut ServerCommandState,
+    targets: Vec<NameAndId>,
+    action: TitleCommandAction,
+    feedback_prefix: &'static str,
+) -> Result<CommandResult, CommandError> {
+    if targets.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let count = targets.len() as i32;
+    state
+        .title_events
+        .push(TitleCommandEvent { targets, action });
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: if count == 1 {
+            title_feedback_single(feedback_prefix)
+        } else {
+            title_feedback_multiple(feedback_prefix)
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn title_targets(input: &str) -> Vec<NameAndId> {
+    input
+        .split(',')
+        .filter(|name| !name.is_empty())
+        .map(NameAndId::create_offline)
+        .collect()
+}
+
+fn title_feedback_single(prefix: &str) -> &'static str {
+    match prefix {
+        "commands.title.cleared" => "commands.title.cleared.single",
+        "commands.title.reset" => "commands.title.reset.single",
+        "commands.title.times" => "commands.title.times.single",
+        "commands.title.show.title" => "commands.title.show.title.single",
+        "commands.title.show.subtitle" => "commands.title.show.subtitle.single",
+        "commands.title.show.actionbar" => "commands.title.show.actionbar.single",
+        _ => "commands.title.show.title.single",
+    }
+}
+
+fn title_feedback_multiple(prefix: &str) -> &'static str {
+    match prefix {
+        "commands.title.cleared" => "commands.title.cleared.multiple",
+        "commands.title.reset" => "commands.title.reset.multiple",
+        "commands.title.times" => "commands.title.times.multiple",
+        "commands.title.show.title" => "commands.title.show.title.multiple",
+        "commands.title.show.subtitle" => "commands.title.show.subtitle.multiple",
+        "commands.title.show.actionbar" => "commands.title.show.actionbar.multiple",
+        _ => "commands.title.show.title.multiple",
+    }
 }
 
 fn clone_command(
@@ -10674,6 +10816,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("tellraw", "/tellraw <targets> <message>"),
         ("tick", "/tick query|rate|step|sprint|freeze|unfreeze"),
         ("time", "/time <set|add|query|pause|resume|rate> ..."),
+        ("title", "/title <targets> <clear|reset|title|subtitle|actionbar|times> ..."),
         ("tm", "/tm <message>"),
         ("tp", "/tp <targets|location> ..."),
         ("transfer", "/transfer <hostname> [port] [players]"),
@@ -11079,7 +11222,8 @@ mod tests {
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
         ScoreboardObjective, ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest,
         SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
-        SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction, TitleTextKind, Vec3,
+        VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -16413,6 +16557,131 @@ mod tests {
                 "time query time"
             ),
             Err(CommandError::TimeNoDefaultClock)
+        );
+    }
+
+    #[test]
+    fn title_command_records_text_clear_reset_and_times_packets() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("title"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "title Steve clear"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let title = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "title Steve title {\"text\":\"Boss Incoming\"}",
+        )
+        .unwrap();
+        assert_eq!(title.success_count, 1);
+        assert_eq!(title.feedback_key, "commands.title.show.title.single");
+        assert!(title.broadcast_to_admins);
+        assert_eq!(state.title_events.len(), 1);
+        assert_eq!(
+            state.title_events[0].targets,
+            vec![NameAndId::create_offline("Steve")]
+        );
+        assert_eq!(
+            state.title_events[0].action,
+            TitleCommandAction::Text {
+                kind: TitleTextKind::Title,
+                component: "{\"text\":\"Boss Incoming\"}".to_string(),
+            }
+        );
+
+        let actionbar = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "title Steve,Alex actionbar Ready",
+        )
+        .unwrap();
+        assert_eq!(
+            actionbar.feedback_key,
+            "commands.title.show.actionbar.multiple"
+        );
+        assert_eq!(actionbar.success_count, 2);
+        assert_eq!(
+            state.title_events.last().unwrap().action,
+            TitleCommandAction::Text {
+                kind: TitleTextKind::ActionBar,
+                component: "Ready".to_string(),
+            }
+        );
+
+        let times = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "title Steve times 1s 2s 3s",
+        )
+        .unwrap();
+        assert_eq!(times.feedback_key, "commands.title.times.single");
+        assert_eq!(
+            state.title_events.last().unwrap().action,
+            TitleCommandAction::Times {
+                fade_in: 20,
+                stay: 40,
+                fade_out: 60,
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "title Alex reset",
+        )
+        .unwrap();
+        assert_eq!(
+            state.title_events.last().unwrap().action,
+            TitleCommandAction::Clear { reset: true }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "title Alex clear",
+        )
+        .unwrap();
+        assert_eq!(
+            state.title_events.last().unwrap().action,
+            TitleCommandAction::Clear { reset: false }
+        );
+    }
+
+    #[test]
+    fn title_command_rejects_missing_components_and_bad_times() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "title Steve title"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "title Steve times 1s 2s"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "title Steve times -1 2s 3s"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
