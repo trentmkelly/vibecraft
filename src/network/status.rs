@@ -287,6 +287,11 @@ fn handle_login_connection(
     )?;
     write_framed_packet(
         stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_minimal_dimension_type_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
@@ -396,6 +401,46 @@ fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> 
         }
     }
     Ok(())
+}
+
+fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:dimension_type").unwrap(),
+    )?;
+    write_var_i32(writer, 1)?;
+    write_identifier(writer, &Identifier::parse("minecraft:overworld").unwrap())?;
+    write_bool(writer, true)?;
+    write_network_nbt(writer, &overworld_dimension_type_nbt())
+}
+
+fn overworld_dimension_type_nbt() -> Tag {
+    Tag::Compound(vec![
+        ("has_skylight".to_string(), Tag::Byte(1)),
+        ("has_ceiling".to_string(), Tag::Byte(0)),
+        ("has_ender_dragon_fight".to_string(), Tag::Byte(0)),
+        ("coordinate_scale".to_string(), Tag::Double(1.0)),
+        ("min_y".to_string(), Tag::Int(-64)),
+        ("height".to_string(), Tag::Int(384)),
+        ("logical_height".to_string(), Tag::Int(384)),
+        (
+            "infiniburn".to_string(),
+            Tag::String("#minecraft:infiniburn_overworld".to_string()),
+        ),
+        ("ambient_light".to_string(), Tag::Float(0.0)),
+        (
+            "monster_spawn_light_level".to_string(),
+            Tag::Compound(vec![
+                (
+                    "type".to_string(),
+                    Tag::String("minecraft:uniform".to_string()),
+                ),
+                ("min_inclusive".to_string(), Tag::Int(0)),
+                ("max_inclusive".to_string(), Tag::Int(7)),
+            ]),
+        ),
+        ("monster_spawn_block_light_limit".to_string(), Tag::Int(0)),
+    ])
 }
 
 fn write_network_nbt<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
