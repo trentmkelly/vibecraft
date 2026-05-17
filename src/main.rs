@@ -19,6 +19,7 @@ mod inhabited_time;
 mod light;
 mod log;
 mod network;
+mod plant;
 mod player;
 mod player_access;
 mod post_processing;
