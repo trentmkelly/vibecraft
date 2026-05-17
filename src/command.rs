@@ -52,7 +52,10 @@ pub struct ServerCommandState {
     pub known_recipes: Vec<String>,
     pub player_recipes: Vec<PlayerRecipeBook>,
     pub command_time_millis: u64,
+    pub game_time_ticks: u64,
     pub stopwatches: Vec<StopwatchState>,
+    pub scheduled_functions: Vec<ScheduledFunction>,
+    pub macro_functions: Vec<String>,
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
     pub command_source_position: Vec3,
@@ -192,6 +195,14 @@ pub struct StopwatchState {
     pub id: String,
     pub creation_time_millis: u64,
     pub accumulated_elapsed_millis: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScheduledFunction {
+    pub id: String,
+    pub function: String,
+    pub tag: bool,
+    pub trigger_tick: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -558,6 +569,9 @@ pub enum CommandError {
     TeamAlreadyEmpty,
     TeamOptionUnchanged,
     SetBlockFailed,
+    ScheduleSameTick,
+    ScheduleCantRemove,
+    ScheduleMacro,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -644,7 +658,10 @@ impl Default for ServerCommandState {
             known_recipes: Vec::new(),
             player_recipes: Vec::new(),
             command_time_millis: 0,
+            game_time_ticks: 0,
             stopwatches: Vec::new(),
+            scheduled_functions: Vec::new(),
+            macro_functions: Vec::new(),
             command_source_player: None,
             command_source_entity: None,
             command_source_position: Vec3::default(),
@@ -1046,6 +1063,7 @@ pub fn execute_builtin_command(
             })
         }
         "playsound" => play_sound_command(state, &parts, permissions),
+        "schedule" => schedule_command(state, &parts),
         "stopsound" => stop_sound_command(state, &parts),
         "stopwatch" => stopwatch_command(state, &parts),
         "summon" => summon_command(state, &parts),
@@ -1785,6 +1803,86 @@ fn setblock_command(
         feedback_key: "commands.setblock.success",
         broadcast_to_admins: true,
     })
+}
+
+fn schedule_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["schedule", "function", function, time] => {
+            schedule_function(state, function, parse_time_ticks_allow_zero(time)?, true)
+        }
+        ["schedule", "function", function, time, "replace"] => {
+            schedule_function(state, function, parse_time_ticks_allow_zero(time)?, true)
+        }
+        ["schedule", "function", function, time, "append"] => {
+            schedule_function(state, function, parse_time_ticks_allow_zero(time)?, false)
+        }
+        ["schedule", "clear", id] => {
+            let old_len = state.scheduled_functions.len();
+            state.scheduled_functions.retain(|event| event.id != *id);
+            let removed = old_len - state.scheduled_functions.len();
+            if removed == 0 {
+                return Err(CommandError::ScheduleCantRemove);
+            }
+            Ok(CommandResult {
+                success_count: removed as i32,
+                feedback_key: "commands.schedule.cleared.success",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn schedule_function(
+    state: &mut ServerCommandState,
+    function: &str,
+    delay_ticks: u32,
+    replace: bool,
+) -> Result<CommandResult, CommandError> {
+    if delay_ticks == 0 {
+        return Err(CommandError::ScheduleSameTick);
+    }
+    let (function, tag) = parse_schedule_function(function)?;
+    if !tag && state.macro_functions.iter().any(|entry| entry == &function) {
+        return Err(CommandError::ScheduleMacro);
+    }
+    let schedule_id = if tag {
+        format!("#{function}")
+    } else {
+        function.clone()
+    };
+    if replace {
+        state
+            .scheduled_functions
+            .retain(|event| event.id != schedule_id);
+    }
+    let trigger_tick = state.game_time_ticks + delay_ticks as u64;
+    state.scheduled_functions.push(ScheduledFunction {
+        id: schedule_id,
+        function,
+        tag,
+        trigger_tick,
+    });
+    Ok(CommandResult {
+        success_count: trigger_tick.rem_euclid(i32::MAX as u64) as i32,
+        feedback_key: if tag {
+            "commands.schedule.created.tag"
+        } else {
+            "commands.schedule.created.function"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn parse_schedule_function(input: &str) -> Result<(String, bool), CommandError> {
+    if let Some(tag) = input.strip_prefix('#') {
+        Ok((parse_resource_identifier(tag)?, true))
+    } else {
+        Ok((parse_resource_identifier(input)?, false))
+    }
 }
 
 fn setworldspawn_command(
@@ -3368,6 +3466,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("save-off", "/save-off"),
         ("save-on", "/save-on"),
         ("say", "/say <message>"),
+        (
+            "schedule",
+            "/schedule function <function|#tag> <time> [append|replace]|clear <id>",
+        ),
         ("seed", "/seed"),
         (
             "serverpack",
@@ -3726,6 +3828,21 @@ fn parse_time_ticks(input: &str) -> Result<u32, CommandError> {
     Ok(ticks)
 }
 
+fn parse_time_ticks_allow_zero(input: &str) -> Result<u32, CommandError> {
+    let (number, multiplier) = match input.as_bytes().last().copied() {
+        Some(b't') => (&input[..input.len() - 1], 1),
+        Some(b's') => (&input[..input.len() - 1], 20),
+        Some(b'd') => (&input[..input.len() - 1], 24_000),
+        _ => (input, 1),
+    };
+    let ticks = number
+        .parse::<u32>()
+        .ok()
+        .and_then(|value| value.checked_mul(multiplier))
+        .ok_or(CommandError::InvalidSyntax)?;
+    Ok(ticks)
+}
+
 pub fn command_required_permission(command: &str) -> PermissionLevel {
     match command {
         "" | "help" | "list" | "me" | "msg" | "random" | "teammsg" | "tell" | "tm" | "trigger"
@@ -3750,10 +3867,10 @@ mod tests {
         GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
         Permission, PermissionLevel, PlaySoundRequest, PlayerGameMode, PlayerRecipeBook,
         PlayerSpawn, PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent,
-        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ServerCommandState,
-        ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode, SoundCommandEvent,
-        SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent, TeamMembership,
-        TeamState, Vec3, VersionInfo, WeatherMode,
+        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -3890,6 +4007,117 @@ mod tests {
         assert!(state.halt_requested);
         assert_eq!(result.success_count, 1);
         assert_eq!(result.feedback_key, "commands.stop.stopping");
+    }
+
+    #[test]
+    fn schedule_command_creates_replaces_appends_and_clears_events() {
+        let mut state = ServerCommandState {
+            game_time_ticks: 100,
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("schedule"),
+            PermissionLevel::Gamemasters
+        );
+
+        let created = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "schedule function tick/foo 5s",
+        )
+        .unwrap();
+        assert_eq!(created.success_count, 200);
+        assert_eq!(created.feedback_key, "commands.schedule.created.function");
+        assert_eq!(
+            state.scheduled_functions,
+            vec![ScheduledFunction {
+                id: "minecraft:tick/foo".to_string(),
+                function: "minecraft:tick/foo".to_string(),
+                tag: false,
+                trigger_tick: 200,
+            }]
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "schedule function tick/foo 10t replace",
+        )
+        .unwrap();
+        assert_eq!(state.scheduled_functions.len(), 1);
+        assert_eq!(state.scheduled_functions[0].trigger_tick, 110);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "schedule function tick/foo 20t append",
+        )
+        .unwrap();
+        assert_eq!(state.scheduled_functions.len(), 2);
+
+        let cleared = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "schedule clear minecraft:tick/foo",
+        )
+        .unwrap();
+        assert_eq!(cleared.success_count, 2);
+        assert_eq!(cleared.feedback_key, "commands.schedule.cleared.success");
+        assert!(state.scheduled_functions.is_empty());
+    }
+
+    #[test]
+    fn schedule_command_handles_tags_and_vanilla_failures() {
+        let mut state = ServerCommandState {
+            game_time_ticks: i32::MAX as u64 - 2,
+            macro_functions: vec!["minecraft:macro".to_string()],
+            ..ServerCommandState::default()
+        };
+
+        let tag = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "schedule function #tick/load 5t",
+        )
+        .unwrap();
+        assert_eq!(tag.success_count, 3);
+        assert_eq!(tag.feedback_key, "commands.schedule.created.tag");
+        assert_eq!(state.scheduled_functions[0].id, "#minecraft:tick/load");
+        assert!(state.scheduled_functions[0].tag);
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "schedule function tick/load 0t"
+            ),
+            Err(CommandError::ScheduleSameTick)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "schedule function macro 1t"
+            ),
+            Err(CommandError::ScheduleMacro)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "schedule clear minecraft:none"
+            ),
+            Err(CommandError::ScheduleCantRemove)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "schedule function Bad 1t"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
     }
 
     #[test]
