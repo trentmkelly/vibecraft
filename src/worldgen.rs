@@ -82,6 +82,44 @@ pub struct SurfaceConditionType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AquiferNoiseSettings {
+    pub x_range: i32,
+    pub y_range: i32,
+    pub z_range: i32,
+    pub x_separation: i32,
+    pub y_separation: i32,
+    pub z_separation: i32,
+    pub x_spacing: i32,
+    pub y_spacing: i32,
+    pub z_spacing: i32,
+    pub max_reasonable_distance_to_center: i32,
+    pub sample_offset_x: i32,
+    pub sample_offset_y: i32,
+    pub sample_offset_z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FluidStatus {
+    pub fluid_level: i32,
+    pub fluid_type: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaveGenerationFamily {
+    pub id: &'static str,
+    pub noises: &'static [&'static str],
+    pub output: CaveDensityOutput,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaveDensityOutput {
+    CacheOnce,
+    Clamp { min: i32, max: i32 },
+    RangeChoice,
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseRouterPreset {
     Overworld { large_biomes: bool, amplified: bool },
     Nether,
@@ -915,6 +953,94 @@ pub const BUILTIN_SURFACE_RULE_PRESETS: &[SurfaceRulePresetData] = &[
     },
 ];
 
+pub const AQUIFER_NOISE_SETTINGS: AquiferNoiseSettings = AquiferNoiseSettings {
+    x_range: 10,
+    y_range: 9,
+    z_range: 10,
+    x_separation: 6,
+    y_separation: 3,
+    z_separation: 6,
+    x_spacing: 16,
+    y_spacing: 12,
+    z_spacing: 16,
+    max_reasonable_distance_to_center: 11,
+    sample_offset_x: -5,
+    sample_offset_y: 1,
+    sample_offset_z: -5,
+};
+
+pub const AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS: &[(i32, i32)] = &[
+    (0, 0),
+    (-2, -1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-3, 0),
+    (-2, 0),
+    (-1, 0),
+    (1, 0),
+    (-2, 1),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
+];
+
+pub const CAVE_GENERATION_FAMILIES: &[CaveGenerationFamily] = &[
+    CaveGenerationFamily {
+        id: "minecraft:overworld/caves/spaghetti_roughness_function",
+        noises: &[
+            "minecraft:spaghetti_roughness",
+            "minecraft:spaghetti_roughness_modulator",
+        ],
+        output: CaveDensityOutput::CacheOnce,
+    },
+    CaveGenerationFamily {
+        id: "minecraft:overworld/caves/entrances",
+        noises: &[
+            "minecraft:spaghetti_3d_rarity",
+            "minecraft:spaghetti_3d_thickness",
+            "minecraft:spaghetti_3d_1",
+            "minecraft:spaghetti_3d_2",
+            "minecraft:cave_entrance",
+        ],
+        output: CaveDensityOutput::CacheOnce,
+    },
+    CaveGenerationFamily {
+        id: "minecraft:overworld/caves/noodle",
+        noises: &[
+            "minecraft:noodle",
+            "minecraft:noodle_thickness",
+            "minecraft:noodle_ridge_a",
+            "minecraft:noodle_ridge_b",
+        ],
+        output: CaveDensityOutput::RangeChoice,
+    },
+    CaveGenerationFamily {
+        id: "minecraft:overworld/caves/pillars",
+        noises: &[
+            "minecraft:pillar",
+            "minecraft:pillar_rareness",
+            "minecraft:pillar_thickness",
+        ],
+        output: CaveDensityOutput::CacheOnce,
+    },
+    CaveGenerationFamily {
+        id: "minecraft:overworld/caves/spaghetti_2d",
+        noises: &[
+            "minecraft:spaghetti_2d_modulator",
+            "minecraft:spaghetti_2d",
+            "minecraft:spaghetti_2d_elevation",
+            "minecraft:spaghetti_2d_thickness",
+        ],
+        output: CaveDensityOutput::Clamp { min: -1, max: 1 },
+    },
+    CaveGenerationFamily {
+        id: "minecraft:overworld/caves/underground",
+        noises: &["minecraft:cave_layer", "minecraft:cave_cheese"],
+        output: CaveDensityOutput::Max,
+    },
+];
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -1167,6 +1293,32 @@ impl RarityValueMapper {
     }
 }
 
+impl FluidStatus {
+    pub fn at(self, block_y: i32) -> &'static str {
+        if block_y < self.fluid_level {
+            self.fluid_type
+        } else {
+            "minecraft:air"
+        }
+    }
+}
+
+pub fn disabled_aquifer_substance(
+    density: f64,
+    fluid: FluidStatus,
+    block_y: i32,
+) -> Option<&'static str> {
+    if density > 0.0 {
+        None
+    } else {
+        Some(fluid.at(block_y))
+    }
+}
+
+pub fn aquifer_similarity(distance_sqr_1: i32, distance_sqr_2: i32) -> f64 {
+    1.0 - f64::from((distance_sqr_2 - distance_sqr_1).abs()) / 25.0
+}
+
 pub fn builtin_density_function(id: &str) -> Option<&'static DensityFunctionEntry> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_DENSITY_FUNCTIONS.iter().find(|entry| {
@@ -1201,18 +1353,29 @@ pub fn builtin_surface_rule_preset(id: &str) -> Option<&'static SurfaceRulePrese
     })
 }
 
+pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    CAVE_GENERATION_FAMILIES.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, BinaryDensityFunction, DensityFunction, DensityMarker,
-        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, SurfaceRuleKind,
-        SurfaceRulePreset, BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS,
-        BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FLOATING_ISLANDS_NOISE_SETTINGS,
-        NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
-        Y_DENSITY,
+        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CaveDensityOutput,
+        DensityFunction, DensityMarker, FluidStatus, MappedDensityFunction, NoiseRouterPreset,
+        NoiseSettings, SurfaceRuleKind, SurfaceRulePreset, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
+        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -1657,6 +1820,79 @@ mod tests {
         assert_eq!(
             super::builtin_surface_rule_preset("air").unwrap().rule,
             SurfaceRuleKind::State("minecraft:air")
+        );
+    }
+
+    #[test]
+    fn aquifer_constants_and_disabled_behavior_match_decompiled_rules() {
+        assert_eq!(
+            AQUIFER_NOISE_SETTINGS,
+            AquiferNoiseSettings {
+                x_range: 10,
+                y_range: 9,
+                z_range: 10,
+                x_separation: 6,
+                y_separation: 3,
+                z_separation: 6,
+                x_spacing: 16,
+                y_spacing: 12,
+                z_spacing: 16,
+                max_reasonable_distance_to_center: 11,
+                sample_offset_x: -5,
+                sample_offset_y: 1,
+                sample_offset_z: -5,
+            }
+        );
+        assert_eq!(AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS.len(), 13);
+        assert_eq!(AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS[0], (0, 0));
+        assert_eq!(AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS[5], (-3, 0));
+
+        let water = FluidStatus {
+            fluid_level: 63,
+            fluid_type: "minecraft:water",
+        };
+        assert_eq!(water.at(62), "minecraft:water");
+        assert_eq!(water.at(63), "minecraft:air");
+        assert_eq!(super::disabled_aquifer_substance(0.1, water, 62), None);
+        assert_eq!(
+            super::disabled_aquifer_substance(-0.1, water, 62),
+            Some("minecraft:water")
+        );
+        assert_eq!(super::aquifer_similarity(100, 144), -0.76);
+    }
+
+    #[test]
+    fn cave_generation_families_cover_noise_router_data_cave_builders() {
+        assert_eq!(
+            CAVE_GENERATION_FAMILIES
+                .iter()
+                .map(|family| family.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:overworld/caves/spaghetti_roughness_function",
+                "minecraft:overworld/caves/entrances",
+                "minecraft:overworld/caves/noodle",
+                "minecraft:overworld/caves/pillars",
+                "minecraft:overworld/caves/spaghetti_2d",
+                "minecraft:overworld/caves/underground",
+            ]
+        );
+        let entrances = super::cave_generation_family("overworld/caves/entrances").unwrap();
+        assert!(entrances.noises.contains(&"minecraft:spaghetti_3d_1"));
+        assert!(entrances.noises.contains(&"minecraft:cave_entrance"));
+        assert_eq!(entrances.output, CaveDensityOutput::CacheOnce);
+
+        let noodle = super::cave_generation_family("overworld/caves/noodle").unwrap();
+        assert!(noodle.noises.contains(&"minecraft:noodle_ridge_a"));
+        assert_eq!(noodle.output, CaveDensityOutput::RangeChoice);
+
+        let spaghetti_2d = super::cave_generation_family("overworld/caves/spaghetti_2d").unwrap();
+        assert!(spaghetti_2d
+            .noises
+            .contains(&"minecraft:spaghetti_2d_elevation"));
+        assert_eq!(
+            spaghetti_2d.output,
+            CaveDensityOutput::Clamp { min: -1, max: 1 }
         );
     }
 }
