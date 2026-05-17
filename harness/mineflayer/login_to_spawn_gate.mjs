@@ -23,6 +23,9 @@ export function evaluateLoginToSpawnGate (evidence) {
     missing,
     diagnostics: {
       lastReceivedChunk: chunkPackets.length === 0 ? null : chunkPackets.length - 1,
+      entityId: evidence.joinState?.entityId ?? null,
+      dimension: evidence.joinState?.dimension ?? null,
+      position: evidence.joinState?.position ?? null,
       playPacketIds: playIds
     }
   }

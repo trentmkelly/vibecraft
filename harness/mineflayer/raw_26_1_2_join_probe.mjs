@@ -638,6 +638,7 @@ async function main () {
 
   const play = []
   const playPackets = []
+  const joinState = {}
   const expectedPlayPacketIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
   for (let i = 0; i < expectedPlayPacketIds.length; i++) {
     const packet = await reader.nextPacket()
@@ -658,6 +659,8 @@ async function main () {
     if (!loginPacket || loginPacket.length !== 70) {
       throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
     }
+    joinState.entityId = loginPacket.body.readInt32BE(0)
+    joinState.dimension = 'minecraft:overworld'
     const playerInfoPacket = packetById.get(70)?.[0]
     if (!playerInfoPacket) throw new Error('missing player_info_update packet')
     let playerInfoOffset = 0
@@ -751,6 +754,7 @@ async function main () {
     if (x !== 0.5 || y !== 80 || z !== 0.5 || yaw !== 0 || pitch !== 0 || relatives !== 0) {
       throw new Error('unexpected first-spawn position/look payload')
     }
+    joinState.position = { x, y, z, yaw, pitch }
     const spawnPacket = packetById.get(97)?.[0]
     if (!spawnPacket) throw new Error('missing default spawn position packet')
     const spawnDimension = readString(spawnPacket.body, 0)
@@ -766,6 +770,9 @@ async function main () {
       }
     }
   }
+  joinState.lastReceivedChunk = play.filter(packet => packet.id === 45).length === 0
+    ? null
+    : play.filter(packet => packet.id === 45).length - 1
   socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(frame(serverboundPlayerLoadedPacketId))
 
@@ -794,7 +801,7 @@ async function main () {
   }
 
   socket.end()
-  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play, keepAliveReplies }, null, 2))
+  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play, joinState, keepAliveReplies }, null, 2))
 }
 
 function abortSocket (socket, phase, details) {

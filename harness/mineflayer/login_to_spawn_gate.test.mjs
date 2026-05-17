@@ -29,6 +29,24 @@ test('login-to-spawn gate does not pass until entity, spawn, tab-list, and chunk
   assert.deepEqual(ready.missing, [])
 })
 
+test('login-to-spawn gate reports stalled spawn diagnostics before first chunk visibility', () => {
+  const gate = evaluateLoginToSpawnGate({
+    play: [49, 70, 72, 97].map(id => ({ id })),
+    joinState: {
+      entityId: 1,
+      dimension: 'minecraft:overworld',
+      position: { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 }
+    }
+  })
+
+  assert.equal(gate.ok, false)
+  assert.deepEqual(gate.missing, ['first-chunk-visibility'])
+  assert.equal(gate.diagnostics.lastReceivedChunk, null)
+  assert.equal(gate.diagnostics.entityId, 1)
+  assert.equal(gate.diagnostics.dimension, 'minecraft:overworld')
+  assert.deepEqual(gate.diagnostics.position, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+})
+
 test('login-to-spawn gate passes against the live raw 26.1.2 join probe', async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -47,4 +65,7 @@ test('login-to-spawn gate passes against the live raw 26.1.2 join probe', async 
   const result = JSON.parse(stdout)
   const gate = evaluateLoginToSpawnGate(result)
   assert.equal(gate.ok, true, JSON.stringify(gate))
+  assert.equal(gate.diagnostics.entityId, 1)
+  assert.equal(gate.diagnostics.dimension, 'minecraft:overworld')
+  assert.deepEqual(gate.diagnostics.position, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 })
