@@ -141,6 +141,9 @@ pub struct ServerCommandState {
     pub bossbars: Vec<CustomBossBar>,
     pub command_time_millis: u64,
     pub game_time_ticks: u64,
+    pub world_clock_ticks: i64,
+    pub world_clock_paused: bool,
+    pub world_clock_rate: f32,
     pub stopwatches: Vec<StopwatchState>,
     pub scheduled_functions: Vec<ScheduledFunction>,
     pub available_functions: Vec<CommandFunctionDefinition>,
@@ -1283,6 +1286,9 @@ pub enum CommandError {
     PlaceTemplateInvalid,
     PlaceTemplateFailed,
     TeleportInvalidPosition,
+    TimeNoDefaultClock,
+    TimeNoTimeMarkerFound,
+    TimeWrongTimeline,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1473,6 +1479,9 @@ impl Default for ServerCommandState {
             bossbars: Vec::new(),
             command_time_millis: 0,
             game_time_ticks: 0,
+            world_clock_ticks: 0,
+            world_clock_paused: false,
+            world_clock_rate: 1.0,
             stopwatches: Vec::new(),
             scheduled_functions: Vec::new(),
             available_functions: Vec::new(),
@@ -2090,6 +2099,7 @@ pub fn execute_builtin_command(
         "tag" => tag_command(state, &parts),
         "teleport" | "tp" => teleport_command(state, &parts),
         "team" => team_command(state, &parts),
+        "time" => time_command(state, &parts),
         "particle" => particle_command(state, &parts),
         "perf" => perf_command(state, &parts),
         "rotate" => rotate_command(state, &parts),
@@ -4643,6 +4653,209 @@ fn set_entity_dimension(state: &mut ServerCommandState, entity: &EntityRef, dime
     {
         entry.dimension = dimension.to_string();
     }
+}
+
+fn time_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["time", "query", "gametime"] => Ok(CommandResult {
+            success_count: wrap_time_result(state.game_time_ticks as i64),
+            feedback_key: "commands.time.query.gametime",
+            broadcast_to_admins: false,
+        }),
+        ["time", "query", "of", clock, rest @ ..] => time_clock_command(state, clock, rest),
+        ["time", rest @ ..] => {
+            let clock = default_clock_for_dimension(&state.command_source_dimension)?;
+            time_clock_command(state, clock, rest)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn time_clock_command(
+    state: &mut ServerCommandState,
+    clock: &str,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let clock = normalize_resource_id(clock);
+    if !matches!(clock.as_str(), "minecraft:overworld" | "minecraft:the_end") {
+        return Err(CommandError::TimeNoDefaultClock);
+    }
+    match parts {
+        ["set", value] => set_clock_time(state, &clock, value),
+        ["add", value] => {
+            let ticks = parse_time_ticks_i32(value, i32::MIN)?;
+            state.world_clock_ticks = state.world_clock_ticks.saturating_add(i64::from(ticks));
+            Ok(CommandResult {
+                success_count: wrap_time_result(state.world_clock_ticks),
+                feedback_key: "commands.time.set.absolute",
+                broadcast_to_admins: true,
+            })
+        }
+        ["pause"] => {
+            state.world_clock_paused = true;
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.time.pause",
+                broadcast_to_admins: true,
+            })
+        }
+        ["resume"] => {
+            state.world_clock_paused = false;
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.time.resume",
+                broadcast_to_admins: true,
+            })
+        }
+        ["rate", rate] => {
+            let rate = parse_clock_rate(rate)?;
+            state.world_clock_rate = rate;
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.time.rate",
+                broadcast_to_admins: true,
+            })
+        }
+        ["query", "time"] => Ok(CommandResult {
+            success_count: wrap_time_result(state.world_clock_ticks),
+            feedback_key: "commands.time.query.absolute",
+            broadcast_to_admins: false,
+        }),
+        ["query", timeline] => query_timeline_time(state, &clock, timeline, false),
+        ["query", timeline, "repetition"] => query_timeline_time(state, &clock, timeline, true),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn set_clock_time(
+    state: &mut ServerCommandState,
+    clock: &str,
+    value: &str,
+) -> Result<CommandResult, CommandError> {
+    let (ticks, feedback_key) = match parse_time_ticks_i32(value, 0) {
+        Ok(ticks) => (ticks, "commands.time.set.absolute"),
+        Err(error)
+            if value
+                .as_bytes()
+                .first()
+                .is_some_and(|byte| byte.is_ascii_digit() || matches!(byte, b'-' | b'.')) =>
+        {
+            return Err(error);
+        }
+        Err(CommandError::InvalidSyntax) => (
+            time_marker_ticks(clock, value).ok_or(CommandError::TimeNoTimeMarkerFound)?,
+            "commands.time.set.time_marker",
+        ),
+        Err(error) => return Err(error),
+    };
+    state.world_clock_ticks = i64::from(ticks);
+    Ok(CommandResult {
+        success_count: ticks,
+        feedback_key,
+        broadcast_to_admins: true,
+    })
+}
+
+fn query_timeline_time(
+    state: &ServerCommandState,
+    clock: &str,
+    timeline: &str,
+    repetitions: bool,
+) -> Result<CommandResult, CommandError> {
+    let timeline = normalize_resource_id(timeline);
+    let period = match timeline.as_str() {
+        "minecraft:day" | "minecraft:villager_schedule" => Some(24_000),
+        "minecraft:moon" => Some(192_000),
+        "minecraft:early_game" => None,
+        _ => return Err(CommandError::TimeWrongTimeline),
+    };
+    if clock != "minecraft:overworld" {
+        return Err(CommandError::TimeWrongTimeline);
+    }
+    let ticks = if repetitions {
+        period
+            .map(|period| state.world_clock_ticks.div_euclid(i64::from(period)))
+            .unwrap_or(0)
+    } else {
+        period
+            .map(|period| state.world_clock_ticks.rem_euclid(i64::from(period)))
+            .unwrap_or(state.world_clock_ticks)
+    };
+    Ok(CommandResult {
+        success_count: wrap_time_result(ticks),
+        feedback_key: if repetitions {
+            "commands.time.query.timeline.repetitions"
+        } else {
+            "commands.time.query.timeline"
+        },
+        broadcast_to_admins: false,
+    })
+}
+
+fn time_marker_ticks(clock: &str, marker: &str) -> Option<i32> {
+    if clock != "minecraft:overworld" {
+        return None;
+    }
+    match normalize_resource_id(marker).as_str() {
+        "minecraft:day" => Some(1_000),
+        "minecraft:noon" => Some(6_000),
+        "minecraft:night" => Some(13_000),
+        "minecraft:midnight" => Some(18_000),
+        _ => None,
+    }
+}
+
+fn default_clock_for_dimension(dimension: &str) -> Result<&'static str, CommandError> {
+    match dimension {
+        "minecraft:overworld" => Ok("minecraft:overworld"),
+        "minecraft:the_end" => Ok("minecraft:the_end"),
+        _ => Err(CommandError::TimeNoDefaultClock),
+    }
+}
+
+fn normalize_resource_id(input: &str) -> String {
+    if input.contains(':') {
+        input.to_string()
+    } else {
+        format!("minecraft:{input}")
+    }
+}
+
+fn parse_clock_rate(input: &str) -> Result<f32, CommandError> {
+    let rate = input
+        .parse::<f32>()
+        .map_err(|_| CommandError::InvalidSyntax)?;
+    if (0.00001..=1000.0).contains(&rate) {
+        Ok(rate)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+fn parse_time_ticks_i32(input: &str, minimum: i32) -> Result<i32, CommandError> {
+    let (number, multiplier) = match input.as_bytes().last().copied() {
+        Some(b't') => (&input[..input.len() - 1], 1.0_f32),
+        Some(b's') => (&input[..input.len() - 1], 20.0_f32),
+        Some(b'd') => (&input[..input.len() - 1], 24_000.0_f32),
+        Some(last) if last.is_ascii_alphabetic() => return Err(CommandError::InvalidSyntax),
+        _ => (input, 1.0_f32),
+    };
+    let ticks = number
+        .parse::<f32>()
+        .map(|value| (value * multiplier).round() as i32)
+        .map_err(|_| CommandError::InvalidSyntax)?;
+    if ticks < minimum {
+        Err(CommandError::InvalidSyntax)
+    } else {
+        Ok(ticks)
+    }
+}
+
+fn wrap_time_result(ticks: i64) -> i32 {
+    (ticks % i64::from(i32::MAX)) as i32
 }
 
 fn clone_command(
@@ -10460,6 +10673,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("tell", "/tell <targets> <message>"),
         ("tellraw", "/tellraw <targets> <message>"),
         ("tick", "/tick query|rate|step|sprint|freeze|unfreeze"),
+        ("time", "/time <set|add|query|pause|resume|rate> ..."),
         ("tm", "/tm <message>"),
         ("tp", "/tp <targets|location> ..."),
         ("transfer", "/transfer <hostname> [port] [players]"),
@@ -16036,6 +16250,169 @@ mod tests {
                 "teleport Steve 0 64 0 facing entity Alex head"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn time_command_sets_adds_and_queries_default_clock() {
+        let mut state = ServerCommandState {
+            game_time_ticks: 2_147_483_650,
+            world_clock_ticks: 23_000,
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("time"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "time set day"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let set_day = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time set day",
+        )
+        .unwrap();
+        assert_eq!(state.world_clock_ticks, 1_000);
+        assert_eq!(set_day.success_count, 1_000);
+        assert_eq!(set_day.feedback_key, "commands.time.set.time_marker");
+        assert!(set_day.broadcast_to_admins);
+
+        let add = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time add 0.5d",
+        )
+        .unwrap();
+        assert_eq!(state.world_clock_ticks, 13_000);
+        assert_eq!(add.feedback_key, "commands.time.set.absolute");
+        assert_eq!(add.success_count, 13_000);
+
+        let query_time = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time query time",
+        )
+        .unwrap();
+        assert_eq!(query_time.success_count, 13_000);
+        assert_eq!(query_time.feedback_key, "commands.time.query.absolute");
+        assert!(!query_time.broadcast_to_admins);
+
+        let query_gametime = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time query gametime",
+        )
+        .unwrap();
+        assert_eq!(query_gametime.success_count, 3);
+        assert_eq!(query_gametime.feedback_key, "commands.time.query.gametime");
+    }
+
+    #[test]
+    fn time_command_tracks_pause_rate_clock_and_timeline_forms() {
+        let mut state = ServerCommandState {
+            world_clock_ticks: 50_000,
+            ..ServerCommandState::default()
+        };
+        let pause = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time pause",
+        )
+        .unwrap();
+        assert!(state.world_clock_paused);
+        assert_eq!(pause.feedback_key, "commands.time.pause");
+
+        let resume = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time resume",
+        )
+        .unwrap();
+        assert!(!state.world_clock_paused);
+        assert_eq!(resume.feedback_key, "commands.time.resume");
+
+        let rate = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time rate 2.5",
+        )
+        .unwrap();
+        assert_eq!(state.world_clock_rate, 2.5);
+        assert_eq!(rate.feedback_key, "commands.time.rate");
+
+        let day = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time query day",
+        )
+        .unwrap();
+        assert_eq!(day.success_count, 2_000);
+        assert_eq!(day.feedback_key, "commands.time.query.timeline");
+
+        let repetitions = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time query moon repetition",
+        )
+        .unwrap();
+        assert_eq!(repetitions.success_count, 0);
+        assert_eq!(
+            repetitions.feedback_key,
+            "commands.time.query.timeline.repetitions"
+        );
+
+        let end_query = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time query of minecraft:the_end query time",
+        )
+        .unwrap();
+        assert_eq!(end_query.success_count, 50_000);
+        assert_eq!(end_query.feedback_key, "commands.time.query.absolute");
+    }
+
+    #[test]
+    fn time_command_rejects_invalid_or_clockless_forms() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "time set dawn"
+            ),
+            Err(CommandError::TimeNoTimeMarkerFound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "time set -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "time rate 1000.1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        state.command_source_dimension = "minecraft:the_nether".to_string();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "time query time"
+            ),
+            Err(CommandError::TimeNoDefaultClock)
         );
     }
 
