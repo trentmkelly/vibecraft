@@ -49,6 +49,7 @@ use crate::player_access::{NameAndId, PlayerAccess};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
+use crate::storage::world::WorldLayout;
 
 const VERSION_NAME: &str = "26.1.2";
 const PROTOCOL_VERSION: i32 = 775;
@@ -78,6 +79,29 @@ const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const SPAWN_CHUNK_BATCH_RADIUS: i32 = 1;
 const SPAWN_CHUNK_BATCH_SIZE: i32 =
     (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1) * (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1);
+
+#[derive(Debug, Clone, PartialEq)]
+struct PlaySessionState {
+    x: f64,
+    y: f64,
+    z: f64,
+    yaw: f32,
+    pitch: f32,
+    on_ground: bool,
+}
+
+impl Default for PlaySessionState {
+    fn default() -> Self {
+        Self {
+            x: 0.5,
+            y: 80.0,
+            z: 0.5,
+            yaw: 0.0,
+            pitch: 0.0,
+            on_ground: true,
+        }
+    }
+}
 const SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const SUPERFLAT_SOLID_SECTION_INDEX: usize = 8;
 const AIR_BLOCK_STATE_ID: i32 = 0;
@@ -767,6 +791,7 @@ pub fn run_status_server(
     bind_ip: &str,
     port: u16,
     properties: &ServerProperties,
+    world_root: &Path,
     console_input: &Receiver<ConsoleInput>,
 ) -> Result<(), String> {
     let address = format!("{bind_ip}:{port}");
@@ -778,6 +803,7 @@ pub fn run_status_server(
     let favicon = load_favicon(Path::new("server-icon.png"))
         .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
     let active_logins = ActiveLoginRegistry::default();
+    let world_root = Arc::new(world_root.to_path_buf());
     let player_access = Arc::new(Mutex::new(
         PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
             eprintln!("status access file load error: {err}");
@@ -796,6 +822,7 @@ pub fn run_status_server(
                 let properties = properties.clone();
                 let favicon = favicon.clone();
                 let active_logins = active_logins.clone();
+                let world_root = Arc::clone(&world_root);
                 let player_access = Arc::clone(&player_access);
                 let remote_ip = peer_addr.ip().to_string();
                 thread::spawn(move || {
@@ -805,6 +832,7 @@ pub fn run_status_server(
                         favicon.as_deref(),
                         &active_logins,
                         &player_access,
+                        &world_root,
                         &remote_ip,
                     ) {
                         eprintln!("status connection error: {err}");
@@ -857,6 +885,7 @@ fn handle_status_connection(
     favicon: Option<&str>,
     active_logins: &ActiveLoginRegistry,
     player_access: &Arc<Mutex<PlayerAccess>>,
+    world_root: &Path,
     remote_ip: &str,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
@@ -892,6 +921,7 @@ fn handle_status_connection(
             properties,
             active_logins,
             player_access,
+            world_root,
             remote_ip,
         );
     }
@@ -953,6 +983,7 @@ fn handle_login_connection(
     properties: &ServerProperties,
     active_logins: &ActiveLoginRegistry,
     player_access: &Arc<Mutex<PlayerAccess>>,
+    world_root: &Path,
     remote_ip: &str,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
@@ -1188,7 +1219,14 @@ fn handle_login_connection(
         "finish configuration",
     )?;
 
-    write_minimal_play_join(stream, compression, properties, &finished.profile)?;
+    let mut play_state = load_play_session_state(world_root, &finished.profile.uuid);
+    write_minimal_play_join(
+        stream,
+        compression,
+        properties,
+        &finished.profile,
+        &play_state,
+    )?;
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
@@ -1207,6 +1245,9 @@ fn handle_login_connection(
             Ok(packet) => {
                 let mut input = Cursor::new(packet);
                 let packet_id = read_var_i32(&mut input)?;
+                if update_play_session_state(packet_id, &mut input, &mut play_state)? {
+                    continue;
+                }
                 if matches!(
                     packet_id,
                     SERVERBOUND_KEEP_ALIVE_PACKET_ID
@@ -1236,6 +1277,7 @@ fn handle_login_connection(
                 ) {
                     continue;
                 }
+                let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 write_framed_packet_with_compression(
                     stream,
                     compression,
@@ -1262,7 +1304,8 @@ fn handle_login_connection(
                     io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
                 ) =>
             {
-                return Ok(())
+                let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                return Ok(());
             }
             Err(err) => return Err(err),
         }
@@ -1278,6 +1321,133 @@ fn cache_login_profile(
         .map_err(|_| io::Error::other("player access lock poisoned"))?;
     access.cache_user(profile.clone());
     access.save_user_cache(Path::new("."))
+}
+
+fn update_play_session_state<R: Read>(
+    packet_id: i32,
+    input: &mut R,
+    state: &mut PlaySessionState,
+) -> io::Result<bool> {
+    match packet_id {
+        SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
+            state.x = read_f64(input)?;
+            state.y = read_f64(input)?;
+            state.z = read_f64(input)?;
+            state.on_ground = read_bool(input)?;
+            Ok(true)
+        }
+        SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
+            state.x = read_f64(input)?;
+            state.y = read_f64(input)?;
+            state.z = read_f64(input)?;
+            state.yaw = read_f32(input)?;
+            state.pitch = read_f32(input)?;
+            state.on_ground = read_bool(input)?;
+            Ok(true)
+        }
+        SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
+            state.yaw = read_f32(input)?;
+            state.pitch = read_f32(input)?;
+            state.on_ground = read_bool(input)?;
+            Ok(true)
+        }
+        SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
+            state.on_ground = read_bool(input)?;
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+fn load_play_session_state(world_root: &Path, uuid: &str) -> PlaySessionState {
+    let layout = WorldLayout::new(world_root);
+    layout
+        .load_player_data(uuid)
+        .ok()
+        .and_then(|tag| play_session_state_from_nbt(&tag))
+        .unwrap_or_default()
+}
+
+fn save_play_session_state(
+    world_root: &Path,
+    uuid: &str,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    WorldLayout::new(world_root).save_player_data(uuid, &play_session_state_to_nbt(state))
+}
+
+fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
+    Tag::Compound(vec![
+        ("DataVersion".to_string(), Tag::Int(4791)),
+        (
+            "Pos".to_string(),
+            Tag::List(vec![
+                Tag::Double(state.x),
+                Tag::Double(state.y),
+                Tag::Double(state.z),
+            ]),
+        ),
+        (
+            "Rotation".to_string(),
+            Tag::List(vec![Tag::Float(state.yaw), Tag::Float(state.pitch)]),
+        ),
+        (
+            "Motion".to_string(),
+            Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)]),
+        ),
+        ("OnGround".to_string(), Tag::Byte(i8::from(state.on_ground))),
+        ("Health".to_string(), Tag::Float(20.0)),
+        ("foodLevel".to_string(), Tag::Int(20)),
+        ("foodSaturationLevel".to_string(), Tag::Float(5.0)),
+        ("XpLevel".to_string(), Tag::Int(0)),
+        ("XpP".to_string(), Tag::Float(0.0)),
+        ("XpTotal".to_string(), Tag::Int(0)),
+        ("SelectedItemSlot".to_string(), Tag::Int(0)),
+        (
+            "Dimension".to_string(),
+            Tag::String("minecraft:overworld".to_string()),
+        ),
+    ])
+}
+
+fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
+    let compound = match tag {
+        Tag::Compound(values) => values,
+        _ => return None,
+    };
+    let pos = compound_list(compound, "Pos")?;
+    let rotation = compound_list(compound, "Rotation")?;
+    let [Tag::Double(x), Tag::Double(y), Tag::Double(z)] = pos else {
+        return None;
+    };
+    let [Tag::Float(yaw), Tag::Float(pitch)] = rotation else {
+        return None;
+    };
+    let on_ground = match compound_tag(compound, "OnGround") {
+        Some(Tag::Byte(value)) => *value != 0,
+        _ => true,
+    };
+    Some(PlaySessionState {
+        x: *x,
+        y: *y,
+        z: *z,
+        yaw: *yaw,
+        pitch: *pitch,
+        on_ground,
+    })
+}
+
+fn compound_tag<'a>(compound: &'a [(String, Tag)], key: &str) -> Option<&'a Tag> {
+    compound
+        .iter()
+        .find_map(|(name, value)| (name == key).then_some(value))
+}
+
+fn compound_list<'a>(compound: &'a [(String, Tag)], key: &str) -> Option<&'a [Tag]> {
+    match compound_tag(compound, key)? {
+        Tag::List(values) => Some(values),
+        _ => None,
+    }
 }
 
 fn login_access_disconnect_reason(
@@ -1385,6 +1555,7 @@ fn write_minimal_play_join(
     compression: CompressionState,
     properties: &ServerProperties,
     profile: &NameAndId,
+    play_state: &PlaySessionState,
 ) -> io::Result<()> {
     let login = ClientboundLoginPacket {
         player_id: 1,
@@ -1491,10 +1662,10 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
         |payload| {
             write_var_i32(payload, 0)?;
-            write_vec3(payload, 0.5, 80.0, 0.5)?;
+            write_vec3(payload, play_state.x, play_state.y, play_state.z)?;
             write_vec3(payload, 0.0, 0.0, 0.0)?;
-            payload.write_all(&0.0f32.to_be_bytes())?;
-            payload.write_all(&0.0f32.to_be_bytes())?;
+            payload.write_all(&play_state.yaw.to_be_bytes())?;
+            payload.write_all(&play_state.pitch.to_be_bytes())?;
             payload.write_all(&0_i32.to_be_bytes())
         },
     )?;
@@ -2690,6 +2861,24 @@ fn write_vec3<W: Write>(writer: &mut W, x: f64, y: f64, z: f64) -> io::Result<()
     writer.write_all(&x.to_be_bytes())?;
     writer.write_all(&y.to_be_bytes())?;
     writer.write_all(&z.to_be_bytes())
+}
+
+fn read_f64<R: Read>(reader: &mut R) -> io::Result<f64> {
+    let mut bytes = [0u8; 8];
+    reader.read_exact(&mut bytes)?;
+    Ok(f64::from_be_bytes(bytes))
+}
+
+fn read_f32<R: Read>(reader: &mut R) -> io::Result<f32> {
+    let mut bytes = [0u8; 4];
+    reader.read_exact(&mut bytes)?;
+    Ok(f32::from_be_bytes(bytes))
+}
+
+fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
+    let mut bytes = [0u8; 1];
+    reader.read_exact(&mut bytes)?;
+    Ok(bytes[0] != 0)
 }
 
 fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {

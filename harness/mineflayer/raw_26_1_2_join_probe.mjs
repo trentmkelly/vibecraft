@@ -14,6 +14,8 @@ const firstTickActionRequest = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTION
 const firstTickActions = new Set(firstTickActionRequest === '1'
   ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'player_input', 'swing', 'use_item_on', 'use_item']
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
+const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
@@ -819,7 +821,14 @@ async function main () {
     const relatives = positionPacket.body.length - offset >= 4
       ? positionPacket.body.readInt32BE(offset)
       : positionPacket.body.readUInt8(offset)
-    if (x !== 0.5 || y !== 80 || z !== 0.5 || yaw !== 0 || pitch !== 0 || relatives !== 0) {
+    if (
+      !nearlyEqual(x, expectedJoinPosition.x) ||
+      !nearlyEqual(y, expectedJoinPosition.y) ||
+      !nearlyEqual(z, expectedJoinPosition.z) ||
+      !nearlyEqual(yaw, expectedJoinPosition.yaw) ||
+      !nearlyEqual(pitch, expectedJoinPosition.pitch) ||
+      relatives !== 0
+    ) {
       throw new Error('unexpected first-spawn position/look payload')
     }
     joinState.position = { x, y, z, yaw, pitch }
@@ -908,13 +917,25 @@ function clientInformationPayload () {
 
 function movePlayerPosRotPayload () {
   const payload = Buffer.alloc(33)
-  payload.writeDoubleBE(0.5, 0)
-  payload.writeDoubleBE(80, 8)
-  payload.writeDoubleBE(0.5, 16)
-  payload.writeFloatBE(0, 24)
-  payload.writeFloatBE(0, 28)
+  payload.writeDoubleBE(movementPosition.x, 0)
+  payload.writeDoubleBE(movementPosition.y, 8)
+  payload.writeDoubleBE(movementPosition.z, 16)
+  payload.writeFloatBE(movementPosition.yaw, 24)
+  payload.writeFloatBE(movementPosition.pitch, 28)
   payload.writeUInt8(1, 32)
   return payload
+}
+
+function parsePositionEnv (value, fallback) {
+  if (!value) return fallback
+  const parsed = JSON.parse(value)
+  return {
+    x: Number(parsed.x),
+    y: Number(parsed.y),
+    z: Number(parsed.z),
+    yaw: Number(parsed.yaw ?? 0),
+    pitch: Number(parsed.pitch ?? 0)
+  }
 }
 
 function chatPayload (message) {

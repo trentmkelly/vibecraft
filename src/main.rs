@@ -297,7 +297,13 @@ fn run(options: CliOptions) -> Result<(), String> {
         ))?;
     }
     logger.info(&format!("Status listener binding to {bind_ip}:{port}"))?;
-    run_status_server(bind_ip, port, &properties, &console_input)?;
+    run_status_server(
+        bind_ip,
+        port,
+        &properties,
+        &universe.join(&world_name),
+        &console_input,
+    )?;
 
     Ok(())
 }

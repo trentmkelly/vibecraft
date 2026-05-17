@@ -170,6 +170,25 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(rejoined.ok, true)
   })
 
+  await withRestartableServer({ username: 'PersistPos' }, async ({ port, username, restart }) => {
+    const movedPosition = { x: 4.5, y: 81.0, z: -3.5, yaw: 90, pitch: 12.5 }
+    const moved = await runJoinProbe(port, username, {
+      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(movedPosition),
+      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+    })
+    assert.equal(moved.ok, true)
+    assert.equal(moved.aborted, true)
+
+    await delay(250)
+    await restart()
+
+    const rejoined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(movedPosition)
+    })
+    assert.deepEqual(rejoined.joinState.position, movedPosition)
+  })
+
   for (const [label, username, initialUsercache] of [
     ['missing', 'CrbMiss', null],
     ['empty', 'CrbEmpty', '[]\n'],

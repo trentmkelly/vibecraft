@@ -3,7 +3,9 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use crate::storage::nbt::{read_named_tag, write_named_tag, Tag};
+use crate::storage::nbt::{
+    read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag,
+};
 
 use super::datafix::require_current_world_data_version;
 
@@ -185,13 +187,13 @@ impl WorldLayout {
     pub fn save_player_data(&self, uuid: &str, tag: &Tag) -> std::io::Result<()> {
         fs::create_dir_all(self.playerdata_dir())?;
         let mut bytes = Vec::new();
-        write_named_tag(&mut bytes, "", tag)?;
+        write_gzip_named_tag(&mut bytes, "", tag)?;
         durable_write_with_backup(&self.player_data_file(uuid), None, &bytes)
     }
 
     pub fn load_player_data(&self, uuid: &str) -> std::io::Result<Tag> {
         let bytes = fs::read(self.player_data_file(uuid))?;
-        let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
+        let (_name, tag) = read_gzip_named_tag(bytes.as_slice())?;
         Ok(tag)
     }
 
