@@ -9,7 +9,8 @@
     "ci:login": "node ci_login_shard.mjs",
     "bisect:login": "node login_bisect.mjs",
     "flake:login": "node flake_detector.mjs",
-    "soak:real": "node real_client_soak.mjs"
+    "soak:real": "node real_client_soak.mjs",
+    "soak:multi": "node multi_bot_soak.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
