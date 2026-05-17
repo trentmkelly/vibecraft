@@ -25,10 +25,11 @@ use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequest
 use crate::network::play::{
     ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
     CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
     CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
@@ -79,6 +80,22 @@ const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const SPAWN_CHUNK_BATCH_RADIUS: i32 = 1;
 const SPAWN_CHUNK_BATCH_SIZE: i32 =
     (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1) * (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1);
+const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
+    "ban",
+    "deop",
+    "gamemode",
+    "give",
+    "help",
+    "kick",
+    "list",
+    "me",
+    "op",
+    "pardon",
+    "say",
+    "tell",
+    "tp",
+    "whitelist",
+];
 
 #[derive(Debug, Clone, PartialEq)]
 struct PlaySessionState {
@@ -1266,6 +1283,10 @@ fn handle_login_connection(
                 if update_play_session_state(packet_id, &mut input, &mut play_state)? {
                     continue;
                 }
+                if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
+                    write_command_suggestions_response(stream, compression, &mut input)?;
+                    continue;
+                }
                 if matches!(
                     packet_id,
                     SERVERBOUND_KEEP_ALIVE_PACKET_ID
@@ -1277,7 +1298,6 @@ fn handle_login_connection(
                         | SERVERBOUND_CLIENT_COMMAND_PACKET_ID
                         | SERVERBOUND_CLIENT_INFORMATION_PACKET_ID
                         | SERVERBOUND_CLIENT_TICK_END_PACKET_ID
-                        | SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID
                         | SERVERBOUND_CONTAINER_CLICK_PACKET_ID
                         | SERVERBOUND_CONTAINER_CLOSE_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID
@@ -1878,6 +1898,39 @@ fn write_player_abilities_packet<W: Write>(writer: &mut W, game_mode: GameMode) 
     writer.write_all(&[flags])?;
     writer.write_all(&0.05f32.to_be_bytes())?;
     writer.write_all(&0.1f32.to_be_bytes())
+}
+
+fn write_command_suggestions_response<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+) -> io::Result<()> {
+    let transaction_id = read_var_i32(input)?;
+    let command = read_string(input, 32767)?;
+    let query = command.strip_prefix('/').unwrap_or(&command);
+    let matches: Vec<&str> = PLAY_COMMAND_SUGGESTIONS
+        .iter()
+        .copied()
+        .filter(|candidate| candidate.starts_with(query))
+        .collect();
+    let replacement_start = if command.starts_with('/') { 1 } else { 0 };
+
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, transaction_id)?;
+            write_var_i32(payload, replacement_start)?;
+            write_var_i32(payload, query.len() as i32)?;
+            write_var_i32(payload, matches.len() as i32)?;
+            for candidate in matches {
+                write_string(payload, candidate)?;
+                write_bool(payload, false)?;
+            }
+            Ok(())
+        },
+    )
 }
 
 fn uuid_from_hyphenated(value: &str) -> io::Result<Uuid> {

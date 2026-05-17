@@ -27,7 +27,9 @@ const expectedXpTotal = Number(process.env.RUSTCRAFT_EXPECT_XP_TOTAL ?? 0)
 const expectedGameMode = Number(process.env.RUSTCRAFT_EXPECT_GAME_MODE ?? 0)
 const expectedPreviousGameMode = Number(process.env.RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE ?? 255)
 const expectedAbilityFlags = Number(process.env.RUSTCRAFT_EXPECT_ABILITY_FLAGS ?? 0)
+const expectedCommandSuggestion = process.env.RUSTCRAFT_EXPECT_COMMAND_SUGGESTION ?? ''
 const serverboundAcceptTeleportationPacketId = 0
+const clientboundCommandSuggestionsPacketId = 15
 const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
 const serverboundClientInformationPacketId = 14
@@ -891,6 +893,7 @@ async function main () {
   }
 
   let keepAliveReplies = 0
+  let commandSuggestionSeen = false
   if (keepAliveProbeMs > 0) {
     const deadline = Date.now() + keepAliveProbeMs
     while (Date.now() < deadline) {
@@ -899,6 +902,9 @@ async function main () {
       if (next.timeout) break
       const packet = next.packet
       if (packet.id !== clientboundKeepAlivePacketId) {
+        if (packet.id === clientboundCommandSuggestionsPacketId) {
+          commandSuggestionSeen ||= commandSuggestionMatches(packet.body, expectedCommandSuggestion)
+        }
         play.push({ id: packet.id, length: packet.length })
         continue
       }
@@ -913,6 +919,9 @@ async function main () {
     if (!recordOnly && keepAliveReplies === 0) {
       throw new Error(`no clientbound keep_alive observed within ${keepAliveProbeMs}ms`)
     }
+  }
+  if (expectedCommandSuggestion && !commandSuggestionSeen) {
+    throw new Error(`missing command suggestion ${expectedCommandSuggestion}`)
   }
 
   socket.end()
@@ -940,6 +949,25 @@ function readLoginSpawnInfo (body) {
   const gameMode = body[offset++]
   const previousGameMode = body[offset++]
   return { gameMode, previousGameMode }
+}
+
+function commandSuggestionMatches (body, expected) {
+  if (!expected) return true
+  const transaction = readVarInt(body, 0)
+  let offset = transaction.offset
+  const start = readVarInt(body, offset); offset = start.offset
+  const length = readVarInt(body, offset); offset = length.offset
+  const count = readVarInt(body, offset); offset = count.offset
+  for (let i = 0; i < count.value; i++) {
+    const match = readString(body, offset); offset = match.offset
+    const hasTooltip = body[offset++] === 1
+    if (hasTooltip) {
+      const tooltip = readString(body, offset)
+      offset = tooltip.offset
+    }
+    if (match.value === expected) return true
+  }
+  return false
 }
 
 function clientInformationPayload () {
@@ -989,9 +1017,7 @@ function chatPayload (message) {
 }
 
 function commandSuggestionPayload (command) {
-  const transaction = Buffer.alloc(4)
-  transaction.writeInt32BE(1, 0)
-  return Buffer.concat([transaction, writeString(command)])
+  return Buffer.concat([writeVarInt(1), writeString(command)])
 }
 
 function containerClickPayload () {

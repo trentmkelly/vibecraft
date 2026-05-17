@@ -33,7 +33,8 @@ async function runJoinProbe (username, actions) {
         ...process.env,
         RUSTCRAFT_USERNAME: username,
         RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: actions.join(','),
-        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000'
+        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000',
+        ...(actions.includes('command_suggestion') ? { RUSTCRAFT_EXPECT_COMMAND_SUGGESTION: 'list' } : {})
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

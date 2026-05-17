@@ -33,6 +33,7 @@ test('raw 26.1.2 first-action matrix remains connected without retry sleeps', { 
 })
 
 async function runJoinProbe (username, actions) {
+  const actionSet = new Set(actions.split(','))
   const { stdout } = await execFileAsync(
     process.execPath,
     ['raw_26_1_2_join_probe.mjs'],
@@ -42,7 +43,8 @@ async function runJoinProbe (username, actions) {
         ...process.env,
         RUSTCRAFT_USERNAME: username,
         RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: actions,
-        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000'
+        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000',
+        ...(actionSet.has('command_suggestion') ? { RUSTCRAFT_EXPECT_COMMAND_SUGGESTION: 'list' } : {})
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

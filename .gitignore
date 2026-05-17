@@ -2,10 +2,12 @@
 /.agents/
 /.codex/
 /logs/
+/live/
 /world/
 /crash-reports/
 /debug/
 /server.pid
 /eula.txt
 /server.properties
+/usercache.json
 /harness/mineflayer/node_modules/
