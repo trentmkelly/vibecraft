@@ -176,6 +176,66 @@ struct InstrumentEntry {
     sound_event: &'static str,
 }
 
+struct ChatTypeEntry {
+    id: &'static str,
+    chat_translation_key: &'static str,
+    chat_parameters: &'static [&'static str],
+    narration_translation_key: &'static str,
+    narration_parameters: &'static [&'static str],
+}
+
+const CHAT_TYPES: &[ChatTypeEntry] = &[
+    ChatTypeEntry {
+        id: "chat",
+        chat_translation_key: "chat.type.text",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "say_command",
+        chat_translation_key: "chat.type.announcement",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "msg_command_incoming",
+        chat_translation_key: "commands.message.display.incoming",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "msg_command_outgoing",
+        chat_translation_key: "commands.message.display.outgoing",
+        chat_parameters: &["target", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "team_msg_command_incoming",
+        chat_translation_key: "chat.type.team.text",
+        chat_parameters: &["target", "sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "team_msg_command_outgoing",
+        chat_translation_key: "chat.type.team.sent",
+        chat_parameters: &["target", "sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "emote_command",
+        chat_translation_key: "chat.type.emote",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.emote",
+        narration_parameters: &["sender", "content"],
+    },
+];
+
 const TRIM_PATTERNS: &[&str] = &[
     "sentry",
     "dune",
@@ -713,6 +773,11 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_chat_type_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_trim_material_registry_packet,
     )?;
     write_framed_packet(
@@ -964,6 +1029,20 @@ fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io:
     write_identifier(writer, &Identifier::parse("minecraft:overworld").unwrap())?;
     write_bool(writer, true)?;
     write_network_nbt(writer, &overworld_dimension_type_nbt())
+}
+
+fn write_vanilla_chat_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:chat_type").unwrap())?;
+    write_var_i32(writer, CHAT_TYPES.len() as i32)?;
+    for chat_type in CHAT_TYPES {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{}", chat_type.id)).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &chat_type_nbt(chat_type))?;
+    }
+    Ok(())
 }
 
 fn write_minimal_trim_material_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
@@ -1237,6 +1316,40 @@ fn trim_material_nbt(material: &TrimMaterialEntry) -> Tag {
     }
 
     Tag::Compound(fields)
+}
+
+fn chat_type_nbt(chat_type: &ChatTypeEntry) -> Tag {
+    Tag::Compound(vec![
+        (
+            "chat".to_string(),
+            chat_decoration_nbt(chat_type.chat_translation_key, chat_type.chat_parameters),
+        ),
+        (
+            "narration".to_string(),
+            chat_decoration_nbt(
+                chat_type.narration_translation_key,
+                chat_type.narration_parameters,
+            ),
+        ),
+    ])
+}
+
+fn chat_decoration_nbt(translation_key: &str, parameters: &[&str]) -> Tag {
+    Tag::Compound(vec![
+        (
+            "translation_key".to_string(),
+            Tag::String(translation_key.to_string()),
+        ),
+        (
+            "parameters".to_string(),
+            Tag::List(
+                parameters
+                    .iter()
+                    .map(|parameter| Tag::String((*parameter).to_string()))
+                    .collect(),
+            ),
+        ),
+    ])
 }
 
 fn trim_pattern_nbt(pattern: &str) -> Tag {
@@ -1844,15 +1957,15 @@ fn escape_json_string(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        cat_sound_variant_nbt, chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64,
-        escape_json_string, handle_legacy_status_connection, jukebox_song_nbt,
+        cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt, cow_sound_variant_nbt,
+        encode_base64, escape_json_string, handle_legacy_status_connection, jukebox_song_nbt,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
         pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, wolf_sound_variant_nbt,
         write_legacy_string, write_status_pong_packet, write_vanilla_cat_variant_registry_packet,
-        write_vanilla_chicken_variant_registry_packet, write_vanilla_cow_variant_registry_packet,
-        write_vanilla_frog_variant_registry_packet, write_vanilla_jukebox_song_registry_packet,
-        write_vanilla_pig_variant_registry_packet, write_vanilla_wolf_variant_registry_packet,
-        JUKEBOX_SONGS, TRIM_MATERIALS,
+        write_vanilla_chat_type_registry_packet, write_vanilla_chicken_variant_registry_packet,
+        write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
+        write_vanilla_jukebox_song_registry_packet, write_vanilla_pig_variant_registry_packet,
+        write_vanilla_wolf_variant_registry_packet, CHAT_TYPES, JUKEBOX_SONGS, TRIM_MATERIALS,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
@@ -2054,6 +2167,33 @@ mod tests {
     }
 
     #[test]
+    fn chat_type_registry_payloads_include_vanilla_routes() {
+        assert_eq!(
+            registry_element_count(write_vanilla_chat_type_registry_packet),
+            7
+        );
+        let outgoing = CHAT_TYPES
+            .iter()
+            .find(|chat_type| chat_type.id == "msg_command_outgoing")
+            .expect("outgoing direct message chat type should be sent");
+        let tag = chat_type_nbt(outgoing);
+
+        let chat = compound_field(&tag, "chat");
+        assert!(matches!(
+            field_value(chat, "translation_key"),
+            Some(Tag::String(value)) if value == "commands.message.display.outgoing"
+        ));
+        assert_string_list(field_value(chat, "parameters"), &["target", "content"]);
+
+        let narration = compound_field(&tag, "narration");
+        assert!(matches!(
+            field_value(narration, "translation_key"),
+            Some(Tag::String(value)) if value == "chat.type.text.narrate"
+        ));
+        assert_string_list(field_value(narration, "parameters"), &["sender", "content"]);
+    }
+
+    #[test]
     fn jukebox_song_registry_payloads_include_disc_13_component_data() {
         assert_eq!(
             registry_element_count(write_vanilla_jukebox_song_registry_packet),
@@ -2102,6 +2242,20 @@ mod tests {
                 "missing sound field {field} in {tag:?}"
             );
         }
+    }
+
+    fn assert_string_list(value: Option<&Tag>, expected: &[&str]) {
+        let Some(Tag::List(values)) = value else {
+            panic!("expected string list, got {value:?}");
+        };
+        let actual: Vec<&str> = values
+            .iter()
+            .map(|value| match value {
+                Tag::String(value) => value.as_str(),
+                value => panic!("expected string list value, got {value:?}"),
+            })
+            .collect();
+        assert_eq!(actual, expected);
     }
 
     fn compound_field<'a>(tag: &'a Tag, field: &str) -> &'a Tag {

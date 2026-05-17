@@ -24,10 +24,6 @@ const documentedOmissions = new Map([
     'Minimal void-world join milestone has not implemented vanilla biome codec payloads or chunk biome palette parity yet.'
   ],
   [
-    'minecraft:chat_type',
-    'Chat/system-message registry sync is deferred until chat play packets and signed-message presentation are brought up together.'
-  ],
-  [
     'minecraft:enchantment',
     'Enchantment registry sync is deferred until item component initialization can be verified against vanilla item data.'
   ],

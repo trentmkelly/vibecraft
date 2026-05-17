@@ -108,6 +108,7 @@ function expectPacket (packet, id, state) {
 const expectedRegistries = [
   'minecraft:damage_type',
   'minecraft:dimension_type',
+  'minecraft:chat_type',
   'minecraft:trim_pattern',
   'minecraft:trim_material',
   'minecraft:banner_pattern',
@@ -129,6 +130,7 @@ const expectedRegistries = [
 ]
 
 const minimumRegistryElements = new Map([
+  ['minecraft:chat_type', 7],
   ['minecraft:cat_variant', 11],
   ['minecraft:banner_pattern', 43],
   ['minecraft:chicken_variant', 3],
@@ -142,6 +144,15 @@ const minimumRegistryElements = new Map([
 ])
 
 const requiredRegistryElements = new Map([
+  ['minecraft:chat_type', [
+    'minecraft:chat',
+    'minecraft:emote_command',
+    'minecraft:msg_command_incoming',
+    'minecraft:msg_command_outgoing',
+    'minecraft:say_command',
+    'minecraft:team_msg_command_incoming',
+    'minecraft:team_msg_command_outgoing'
+  ]],
   ['minecraft:banner_pattern', [
     'minecraft:flower',
     'minecraft:bricks',
