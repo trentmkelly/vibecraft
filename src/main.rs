@@ -32,6 +32,7 @@ mod plant;
 mod player;
 mod player_access;
 mod player_inventory;
+mod player_online_auth;
 mod portal;
 mod post_processing;
 mod random_source;
