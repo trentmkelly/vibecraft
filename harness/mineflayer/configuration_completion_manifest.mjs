@@ -110,6 +110,9 @@ export const configurationCompletionManifest = {
       'minecraft:is_fire': [21, 3, 31, 24, 20, 46, 14]
     }
   },
+  knownPacks: [
+    { namespace: 'minecraft', id: 'core', version: '26.1.2' }
+  ],
   playEntryPackets: [
     'clientbound/minecraft:login',
     'clientbound/minecraft:set_held_slot',

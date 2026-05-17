@@ -44,5 +44,11 @@ test('configuration completion manifest is covered by the raw 26.1.2 probe', asy
     }
   }
 
+  for (const pack of configurationCompletionManifest.knownPacks) {
+    assert.ok(rawProbe.includes(`'${pack.namespace}'`), `raw probe does not require known pack namespace ${pack.namespace}`)
+    assert.ok(rawProbe.includes(`'${pack.id}'`), `raw probe does not require known pack id ${pack.id}`)
+    assert.ok(rawProbe.includes(`'${pack.version}'`), `raw probe does not require known pack version ${pack.version}`)
+  }
+
   assert.ok(rawProbe.includes('positionPacket.length !== 62'), 'raw probe must validate player_position length')
 })

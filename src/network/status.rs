@@ -28,7 +28,9 @@ const CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
 const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
+const CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 14;
 const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
+const SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 7;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 48;
@@ -844,6 +846,20 @@ fn handle_login_connection(
     )?;
     write_framed_packet(
         stream,
+        CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+        write_vanilla_known_packs_packet,
+    )?;
+    let selected_known_packs = read_packet(stream)?;
+    let mut selected_known_packs = Cursor::new(selected_known_packs);
+    let selected_known_packs_packet_id = read_var_i32(&mut selected_known_packs)?;
+    if selected_known_packs_packet_id != SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected selected known packs",
+        ));
+    }
+    write_framed_packet(
+        stream,
         CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
         |_payload| Ok(()),
     )?;
@@ -1018,6 +1034,13 @@ fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> 
         }
     }
     Ok(())
+}
+
+fn write_vanilla_known_packs_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_var_i32(writer, 1)?;
+    write_string(writer, "minecraft")?;
+    write_string(writer, "core")?;
+    write_string(writer, VERSION_NAME)
 }
 
 fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {

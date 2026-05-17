@@ -6,6 +6,7 @@ const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
 const protocolVersion = 775
 const serverboundAcceptTeleportationPacketId = 0
+const serverboundSelectKnownPacksPacketId = 7
 const serverboundPlayerLoadedPacketId = 44
 
 function writeVarInt (value) {
@@ -54,6 +55,10 @@ function frame (packetId, ...parts) {
 
 function randomUuidBytes () {
   return Buffer.from(crypto.randomUUID().replaceAll('-', ''), 'hex')
+}
+
+function writeKnownPack (pack) {
+  return Buffer.concat([writeString(pack.namespace), writeString(pack.id), writeString(pack.version)])
 }
 
 class PacketReader {
@@ -290,6 +295,24 @@ function decodeTagsPacket (packet) {
   return { id: packet.id, length: packet.length, registries }
 }
 
+function decodeKnownPacksPacket (packet) {
+  const count = readVarInt(packet.body)
+  if (!count) throw new Error('missing known pack count')
+  let offset = count.offset
+  const packs = []
+  for (let i = 0; i < count.value; i++) {
+    const namespace = readString(packet.body, offset)
+    const id = readString(packet.body, namespace.offset)
+    const version = readString(packet.body, id.offset)
+    offset = version.offset
+    packs.push({ namespace: namespace.value, id: id.value, version: version.value })
+  }
+  if (offset !== packet.body.length) {
+    throw new Error(`known packs packet had ${packet.body.length - offset} trailing bytes`)
+  }
+  return { id: packet.id, length: packet.length, packs }
+}
+
 function skipNetworkNbt (buffer, offset) {
   const type = buffer[offset++]
   if (type !== 10) throw new Error(`expected compound NBT tag, got ${type}`)
@@ -375,14 +398,27 @@ async function main () {
       config.push(decodeRegistryPacket(packet))
     } else if (packet.id === 13) {
       config.push(decodeTagsPacket(packet))
+    } else if (packet.id === 14) {
+      const knownPacks = decodeKnownPacksPacket(packet)
+      config.push(knownPacks)
+      socket.write(frame(
+        serverboundSelectKnownPacksPacketId,
+        writeVarInt(knownPacks.packs.length),
+        ...knownPacks.packs.map(writeKnownPack)
+      ))
     } else {
       config.push({ id: packet.id, length: packet.length })
     }
     if (packet.id === 3) break
   }
   const configIds = config.map(packet => packet.id)
-  for (const id of [12, 7, 13, 3]) {
+  for (const id of [12, 7, 13, 14, 3]) {
     if (!configIds.includes(id)) throw new Error(`missing configuration packet ${id}`)
+  }
+  const knownPacksPacket = config.find(packet => packet.id === 14)
+  if (!knownPacksPacket) throw new Error('missing select_known_packs packet')
+  if (!knownPacksPacket.packs.some(pack => pack.namespace === 'minecraft' && pack.id === 'core' && pack.version === '26.1.2')) {
+    throw new Error('missing minecraft:core:26.1.2 known pack')
   }
   const registryPackets = config.filter(packet => packet.id === 7)
   const registryNames = new Set(registryPackets.map(packet => packet.registry))
