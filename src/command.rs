@@ -167,6 +167,9 @@ pub struct ServerCommandState {
     pub block_item_slots: Vec<CommandBlockItemSlot>,
     pub item_modifier_events: Vec<CommandItemModifierEvent>,
     pub item_enchantments: Vec<CommandItemEnchantment>,
+    pub command_loot_tables: Vec<CommandLootTable>,
+    pub entity_loot_tables: Vec<CommandEntityLootTable>,
+    pub loot_events: Vec<CommandLootEvent>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub player_experience: Vec<PlayerExperienceState>,
     pub default_game_mode: GameMode,
@@ -262,6 +265,70 @@ pub struct CommandPlayerInventory {
 pub struct CommandItemStack {
     pub item: String,
     pub count: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandLootTable {
+    pub id: String,
+    pub drops: Vec<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandEntityLootTable {
+    pub entity: EntityRef,
+    pub table: String,
+    pub drops: Vec<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandLootEvent {
+    pub target: CommandLootTarget,
+    pub source: CommandLootSource,
+    pub drops: Vec<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandLootTarget {
+    Give {
+        players: Vec<NameAndId>,
+    },
+    Spawn {
+        position: Vec3,
+    },
+    Insert {
+        pos: BlockPos,
+    },
+    ReplaceEntity {
+        entities: Vec<EntityRef>,
+        slot: String,
+        count: usize,
+    },
+    ReplaceBlock {
+        pos: BlockPos,
+        slot: String,
+        count: usize,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandLootSource {
+    LootTable {
+        table: String,
+    },
+    Fish {
+        table: String,
+        pos: BlockPos,
+        tool: Option<String>,
+    },
+    Kill {
+        entity: EntityRef,
+        table: String,
+    },
+    Mine {
+        pos: BlockPos,
+        block: String,
+        tool: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1162,6 +1229,9 @@ pub enum CommandError {
     LocateStructureNotFound,
     LocateBiomeNotFound,
     LocatePoiNotFound,
+    LootNoHeldItems,
+    LootNoEntityLootTable,
+    LootNoBlockLootTable,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1379,6 +1449,9 @@ impl Default for ServerCommandState {
             block_item_slots: Vec::new(),
             item_modifier_events: Vec::new(),
             item_enchantments: Vec::new(),
+            command_loot_tables: Vec::new(),
+            entity_loot_tables: Vec::new(),
+            loot_events: Vec::new(),
             player_game_modes: Vec::new(),
             player_experience: Vec::new(),
             default_game_mode: GameMode::Survival,
@@ -1820,6 +1893,7 @@ pub fn execute_builtin_command(
         "give" => give_command(state, &parts),
         "item" => item_command(state, &parts),
         "locate" => locate_command(state, &parts),
+        "loot" => loot_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
@@ -3632,6 +3706,303 @@ fn known_locate_structure_ids() -> &'static [&'static str] {
         "minecraft:village_snowy",
         "minecraft:village_taiga",
     ]
+}
+
+fn loot_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (target, source_start) = parse_loot_target(parts)?;
+    let (source, drops) = parse_loot_source(state, &parts[source_start..])?;
+    let used_drops = apply_loot_target(state, &target, &drops)?;
+    state.loot_events.push(CommandLootEvent {
+        target,
+        source,
+        drops: used_drops.clone(),
+    });
+    Ok(CommandResult {
+        success_count: used_drops.len() as i32,
+        feedback_key: if used_drops.len() == 1 {
+            "commands.drop.success.single"
+        } else {
+            "commands.drop.success.multiple"
+        },
+        broadcast_to_admins: false,
+    })
+}
+
+fn parse_loot_target(parts: &[&str]) -> Result<(CommandLootTarget, usize), CommandError> {
+    match parts {
+        ["loot", "give", players, ..] => Ok((
+            CommandLootTarget::Give {
+                players: parse_name_list(players),
+            },
+            3,
+        )),
+        ["loot", "spawn", x, y, z, ..] => Ok((
+            CommandLootTarget::Spawn {
+                position: Vec3 {
+                    x: parse_f64(x)?,
+                    y: parse_f64(y)?,
+                    z: parse_f64(z)?,
+                },
+            },
+            5,
+        )),
+        ["loot", "insert", x, y, z, ..] => Ok((
+            CommandLootTarget::Insert {
+                pos: parse_block_pos(x, y, z)?,
+            },
+            5,
+        )),
+        ["loot", "replace", "entity", entities, slot, rest @ ..] => {
+            let (count, source_start) = parse_optional_loot_count(rest, 5)?;
+            Ok((
+                CommandLootTarget::ReplaceEntity {
+                    entities: parse_entity_list(entities),
+                    slot: parse_item_slot(slot)?,
+                    count,
+                },
+                source_start,
+            ))
+        }
+        ["loot", "replace", "block", x, y, z, slot, rest @ ..] => {
+            let (count, source_start) = parse_optional_loot_count(rest, 7)?;
+            Ok((
+                CommandLootTarget::ReplaceBlock {
+                    pos: parse_block_pos(x, y, z)?,
+                    slot: parse_item_slot(slot)?,
+                    count,
+                },
+                source_start,
+            ))
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_optional_loot_count(
+    rest: &[&str],
+    source_start_without_count: usize,
+) -> Result<(usize, usize), CommandError> {
+    if rest.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    if matches!(rest[0], "fish" | "loot" | "kill" | "mine") {
+        Ok((usize::MAX, source_start_without_count))
+    } else {
+        let count = parse_i32(rest[0])?;
+        if count < 0 {
+            Err(CommandError::InvalidSyntax)
+        } else {
+            Ok((count as usize, source_start_without_count + 1))
+        }
+    }
+}
+
+fn parse_loot_source(
+    state: &ServerCommandState,
+    parts: &[&str],
+) -> Result<(CommandLootSource, Vec<CommandItemStack>), CommandError> {
+    match parts {
+        ["loot", table] => {
+            let table = parse_resource_identifier(table)?;
+            Ok((
+                CommandLootSource::LootTable {
+                    table: table.clone(),
+                },
+                loot_table_drops(state, &table),
+            ))
+        }
+        ["fish", table, x, y, z] => {
+            let table = parse_resource_identifier(table)?;
+            Ok((
+                CommandLootSource::Fish {
+                    table: table.clone(),
+                    pos: parse_block_pos(x, y, z)?,
+                    tool: None,
+                },
+                loot_table_drops(state, &table),
+            ))
+        }
+        ["fish", table, x, y, z, tool] => {
+            let table = parse_resource_identifier(table)?;
+            let tool = parse_loot_tool(state, tool)?;
+            Ok((
+                CommandLootSource::Fish {
+                    table: table.clone(),
+                    pos: parse_block_pos(x, y, z)?,
+                    tool,
+                },
+                loot_table_drops(state, &table),
+            ))
+        }
+        ["kill", target] => {
+            let entity = entity_ref(target);
+            let loot = state
+                .entity_loot_tables
+                .iter()
+                .find(|entry| entry.entity.id == entity.id)
+                .ok_or(CommandError::LootNoEntityLootTable)?;
+            Ok((
+                CommandLootSource::Kill {
+                    entity,
+                    table: loot.table.clone(),
+                },
+                loot.drops.clone(),
+            ))
+        }
+        ["mine", x, y, z] => mine_loot_source(state, x, y, z, None),
+        ["mine", x, y, z, tool] => {
+            let tool = parse_loot_tool(state, tool)?;
+            mine_loot_source(state, x, y, z, tool)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn mine_loot_source(
+    state: &ServerCommandState,
+    x: &str,
+    y: &str,
+    z: &str,
+    tool: Option<String>,
+) -> Result<(CommandLootSource, Vec<CommandItemStack>), CommandError> {
+    let pos = parse_block_pos(x, y, z)?;
+    let block = state
+        .blocks
+        .iter()
+        .find(|entry| entry.position == pos && entry.dimension == state.command_source_dimension)
+        .map(|entry| entry.block.clone())
+        .ok_or(CommandError::LootNoBlockLootTable)?;
+    Ok((
+        CommandLootSource::Mine {
+            pos,
+            block: block.clone(),
+            tool,
+        },
+        vec![CommandItemStack {
+            item: block,
+            count: 1,
+        }],
+    ))
+}
+
+fn parse_loot_tool(
+    state: &ServerCommandState,
+    input: &str,
+) -> Result<Option<String>, CommandError> {
+    match input {
+        "mainhand" | "offhand" => state
+            .command_source_entity
+            .as_ref()
+            .map(|_| Some(input.to_string()))
+            .ok_or(CommandError::LootNoHeldItems),
+        item => Ok(Some(parse_resource_identifier(item)?)),
+    }
+}
+
+fn loot_table_drops(state: &ServerCommandState, table: &str) -> Vec<CommandItemStack> {
+    state
+        .command_loot_tables
+        .iter()
+        .find(|entry| entry.id == table)
+        .map(|entry| entry.drops.clone())
+        .unwrap_or_else(|| {
+            vec![CommandItemStack {
+                item: "minecraft:air".to_string(),
+                count: 0,
+            }]
+        })
+        .into_iter()
+        .filter(|stack| stack.count > 0)
+        .collect()
+}
+
+fn apply_loot_target(
+    state: &mut ServerCommandState,
+    target: &CommandLootTarget,
+    drops: &[CommandItemStack],
+) -> Result<Vec<CommandItemStack>, CommandError> {
+    match target {
+        CommandLootTarget::Give { players } => {
+            for player in players {
+                for drop in drops {
+                    command_inventory_mut(state, player).add_item_stacks(
+                        &drop.item,
+                        drop.count,
+                        item_max_stack_size(&drop.item),
+                    );
+                }
+            }
+            Ok(drops.to_vec())
+        }
+        CommandLootTarget::Spawn { .. } => Ok(drops.to_vec()),
+        CommandLootTarget::Insert { pos } => {
+            for (index, drop) in drops.iter().enumerate() {
+                upsert_block_item(
+                    state,
+                    *pos,
+                    &format!("container.{index}"),
+                    Some(drop.clone()),
+                );
+            }
+            Ok(drops.to_vec())
+        }
+        CommandLootTarget::ReplaceEntity {
+            entities,
+            slot,
+            count,
+        } => {
+            let count = if *count == usize::MAX {
+                drops.len()
+            } else {
+                *count
+            };
+            let mut used = Vec::new();
+            for entity in entities {
+                for index in 0..count {
+                    let item = drops.get(index).cloned();
+                    if let Some(stack) = item.clone() {
+                        used.push(stack);
+                    }
+                    upsert_entity_item(state, entity.clone(), &offset_slot(slot, index), item);
+                }
+            }
+            Ok(used)
+        }
+        CommandLootTarget::ReplaceBlock { pos, slot, count } => {
+            let count = if *count == usize::MAX {
+                drops.len()
+            } else {
+                *count
+            };
+            let mut used = Vec::new();
+            for index in 0..count {
+                let item = drops.get(index).cloned();
+                if let Some(stack) = item.clone() {
+                    used.push(stack);
+                }
+                upsert_block_item(state, *pos, &offset_slot(slot, index), item);
+            }
+            Ok(used)
+        }
+    }
+}
+
+fn offset_slot(slot: &str, offset: usize) -> String {
+    if offset == 0 {
+        return slot.to_string();
+    }
+    if let Some((prefix, number)) = slot.rsplit_once('.') {
+        if let Ok(base) = number.parse::<usize>() {
+            return format!("{prefix}.{}", base + offset);
+        }
+    }
+    if let Ok(base) = slot.parse::<usize>() {
+        return (base + offset).to_string();
+    }
+    format!("{slot}+{offset}")
 }
 
 fn clone_command(
@@ -9367,6 +9738,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("give", "/give <targets> <item> [count]"),
         ("item", "/item <replace|modify> <block|entity> ..."),
         ("locate", "/locate <structure|biome|poi> <target>"),
+        ("loot", "/loot <give|insert|replace|spawn> ... <fish|loot|kill|mine> ..."),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -9833,9 +10205,10 @@ mod tests {
         AttributeOperation, AvatarProfile, BiomeEntry, BlockPos, BlockStateEntry,
         BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind,
         ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandBlockItemSlot,
-        CommandEntityItemSlot, CommandError, CommandFunctionDefinition, CommandFunctionTag,
-        CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack, CommandItemTarget,
-        CommandLocatableEntry, CommandLocateResult, CommandPlayerInventory, DamageCommandSource,
+        CommandEntityItemSlot, CommandEntityLootTable, CommandError, CommandFunctionDefinition,
+        CommandFunctionTag, CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack,
+        CommandItemTarget, CommandLocatableEntry, CommandLocateResult, CommandLootSource,
+        CommandLootTable, CommandLootTarget, CommandPlayerInventory, DamageCommandSource,
         DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
         EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
         FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
@@ -14388,6 +14761,171 @@ mod tests {
         assert_eq!(
             execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "locate"),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn loot_command_gives_spawns_and_inserts_generated_drops() {
+        let mut state = ServerCommandState {
+            command_loot_tables: vec![CommandLootTable {
+                id: "minecraft:chests/simple_dungeon".to_string(),
+                drops: vec![
+                    CommandItemStack {
+                        item: "minecraft:iron_ingot".to_string(),
+                        count: 3,
+                    },
+                    CommandItemStack {
+                        item: "minecraft:apple".to_string(),
+                        count: 1,
+                    },
+                ],
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("loot"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "loot give Steve loot chests/simple_dungeon"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let give = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "loot give Steve loot chests/simple_dungeon",
+        )
+        .unwrap();
+        assert_eq!(give.success_count, 2);
+        assert_eq!(give.feedback_key, "commands.drop.success.multiple");
+        assert_eq!(state.player_inventories[0].items.len(), 2);
+
+        let insert = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "loot insert 1 64 2 loot chests/simple_dungeon",
+        )
+        .unwrap();
+        assert_eq!(insert.success_count, 2);
+        assert!(state.block_item_slots.iter().any(|entry| entry.pos
+            == BlockPos { x: 1, y: 64, z: 2 }
+            && entry.slot == "container.0"
+            && entry.item
+                == Some(CommandItemStack {
+                    item: "minecraft:iron_ingot".to_string(),
+                    count: 3,
+                })));
+
+        let spawn = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "loot spawn 4 65 6 loot chests/simple_dungeon",
+        )
+        .unwrap();
+        assert_eq!(spawn.success_count, 2);
+        assert!(matches!(
+            state.loot_events.last().unwrap().target,
+            CommandLootTarget::Spawn { .. }
+        ));
+    }
+
+    #[test]
+    fn loot_command_replaces_entity_and_block_slots_from_mine_and_kill_sources() {
+        let mut state = ServerCommandState {
+            blocks: vec![BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 0, y: 64, z: 0 },
+                block: "minecraft:diamond_ore".to_string(),
+            }],
+            entity_loot_tables: vec![CommandEntityLootTable {
+                entity: EntityRef {
+                    id: "Zombie".to_string(),
+                    display_name: "Zombie".to_string(),
+                },
+                table: "minecraft:entities/zombie".to_string(),
+                drops: vec![CommandItemStack {
+                    item: "minecraft:rotten_flesh".to_string(),
+                    count: 2,
+                }],
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let replace_entity = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "loot replace entity Steve hotbar.0 2 mine 0 64 0 diamond_pickaxe",
+        )
+        .unwrap();
+        assert_eq!(replace_entity.success_count, 1);
+        assert_eq!(
+            state.entity_item_slots[0].item,
+            Some(CommandItemStack {
+                item: "minecraft:diamond_ore".to_string(),
+                count: 1,
+            })
+        );
+        assert_eq!(state.entity_item_slots[1].slot, "hotbar.1");
+        assert_eq!(state.entity_item_slots[1].item, None);
+
+        let replace_block = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "loot replace block 2 64 2 container.0 kill Zombie",
+        )
+        .unwrap();
+        assert_eq!(replace_block.success_count, 1);
+        assert!(state.block_item_slots.iter().any(|entry| entry.pos
+            == BlockPos { x: 2, y: 64, z: 2 }
+            && entry.slot == "container.0"
+            && entry.item
+                == Some(CommandItemStack {
+                    item: "minecraft:rotten_flesh".to_string(),
+                    count: 2,
+                })));
+        assert_eq!(
+            state.loot_events.last().unwrap().source,
+            CommandLootSource::Kill {
+                entity: EntityRef {
+                    id: "Zombie".to_string(),
+                    display_name: "Zombie".to_string(),
+                },
+                table: "minecraft:entities/zombie".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn loot_command_reports_missing_held_items_blocks_and_entity_tables() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "loot give Steve fish gameplay/fishing 0 64 0 mainhand"
+            ),
+            Err(CommandError::LootNoHeldItems)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "loot give Steve mine 0 64 0"
+            ),
+            Err(CommandError::LootNoBlockLootTable)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "loot give Steve kill Zombie"
+            ),
+            Err(CommandError::LootNoEntityLootTable)
         );
     }
 
