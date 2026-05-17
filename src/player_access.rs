@@ -76,7 +76,7 @@ impl PlayerAccess {
         access.banned_ips = load_ip_ban_entries(&dir.join("banned-ips.json"))?;
         access.whitelist = load_name_and_id_entries(&dir.join("whitelist.json"))?;
         access.ops = load_op_entries(&dir.join("ops.json"))?;
-        let cached = load_name_and_id_entries(&dir.join("usercache.json"))?;
+        let cached = load_user_cache_entries(&dir.join("usercache.json"), SystemTime::now())?;
         for user in cached {
             access.cache_user(user);
         }
@@ -486,6 +486,49 @@ fn civil_from_days(days_since_unix_epoch: i64) -> (i64, i64, i64) {
     (year, month, day)
 }
 
+fn parse_user_cache_expires_on(value: &str) -> Option<SystemTime> {
+    let (date, rest) = value.split_once(' ')?;
+    let (time, offset) = rest.split_once(' ')?;
+    if offset != "+0000" {
+        return None;
+    }
+    let mut date_parts = date.split('-');
+    let year: i64 = date_parts.next()?.parse().ok()?;
+    let month: i64 = date_parts.next()?.parse().ok()?;
+    let day: i64 = date_parts.next()?.parse().ok()?;
+    if date_parts.next().is_some() {
+        return None;
+    }
+    let mut time_parts = time.split(':');
+    let hour: i64 = time_parts.next()?.parse().ok()?;
+    let minute: i64 = time_parts.next()?.parse().ok()?;
+    let second: i64 = time_parts.next()?.parse().ok()?;
+    if time_parts.next().is_some()
+        || !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || !(0..=23).contains(&hour)
+        || !(0..=59).contains(&minute)
+        || !(0..=59).contains(&second)
+    {
+        return None;
+    }
+    let days = days_from_civil(year, month, day);
+    let seconds = days
+        .checked_mul(86_400)?
+        .checked_add(hour * 3_600 + minute * 60 + second)?;
+    (seconds >= 0).then(|| UNIX_EPOCH + Duration::from_secs(seconds as u64))
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = year - i64::from(month <= 2);
+    let era = if year >= 0 { year } else { year - 399 }.div_euclid(400);
+    let yoe = year - era * 400;
+    let month_prime = month + if month > 2 { -3 } else { 9 };
+    let doy = (153 * month_prime + 2).div_euclid(5) + day - 1;
+    let doe = yoe * 365 + yoe.div_euclid(4) - yoe.div_euclid(100) + doy;
+    era * 146_097 + doe - 719_468
+}
+
 fn json_array(entries: Vec<String>) -> String {
     if entries.is_empty() {
         "[]\n".to_string()
@@ -513,6 +556,24 @@ fn load_name_and_id_entries(path: &Path) -> std::io::Result<Vec<NameAndId>> {
     Ok(json_objects(&raw)
         .into_iter()
         .filter_map(|object| {
+            Some(NameAndId {
+                uuid: json_string_field(&object, "uuid")?,
+                name: json_string_field(&object, "name")?,
+            })
+        })
+        .collect())
+}
+
+fn load_user_cache_entries(path: &Path, now: SystemTime) -> std::io::Result<Vec<NameAndId>> {
+    let raw = read_optional(path)?;
+    Ok(json_objects(&raw)
+        .into_iter()
+        .filter_map(|object| {
+            let expires_on = json_string_field(&object, "expiresOn")?;
+            let expires_at = parse_user_cache_expires_on(&expires_on)?;
+            if expires_at <= now {
+                return None;
+            }
             Some(NameAndId {
                 uuid: json_string_field(&object, "uuid")?,
                 name: json_string_field(&object, "name")?,
@@ -793,7 +854,7 @@ mod tests {
         .unwrap();
         fs::write(
             dir.join("usercache.json"),
-            "[{\"uuid\":\"00000000-0000-0000-0000-000000000004\",\"name\":\"Cached\"}]",
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000004\",\"name\":\"Cached\",\"expiresOn\":\"2999-01-01 00:00:00 +0000\"}]",
         )
         .unwrap();
 
@@ -812,6 +873,42 @@ mod tests {
                 .name,
             "Cached"
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn usercache_loader_ignores_malformed_missing_and_expired_entries() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-usercache-corrupt-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        fs::write(
+            dir.join("usercache.json"),
+            concat!(
+                "[",
+                "{\"uuid\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Valid\",\"expiresOn\":\"2999-01-01 00:00:00 +0000\"},",
+                "{\"uuid\":\"00000000-0000-0000-0000-000000000002\",\"name\":\"Expired\",\"expiresOn\":\"2000-01-01 00:00:00 +0000\"},",
+                "{\"uuid\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"MissingDate\"},",
+                "{\"uuid\":\"00000000-0000-0000-0000-000000000004\",\"name\":\"MalformedDate\",\"expiresOn\":\"not a date\"}",
+                "]"
+            ),
+        )
+        .unwrap();
+
+        let mut access = PlayerAccess::load_from_dir(&dir).unwrap();
+        let now = std::time::SystemTime::now();
+        assert_eq!(
+            access.lookup_cached_profile("valid", now).unwrap().name,
+            "Valid"
+        );
+        assert!(access.lookup_cached_profile("expired", now).is_none());
+        assert!(access.lookup_cached_profile("missingdate", now).is_none());
+        assert!(access.lookup_cached_profile("malformeddate", now).is_none());
 
         let _ = fs::remove_dir_all(&dir);
     }

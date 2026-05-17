@@ -147,6 +147,40 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(joined.ok, true)
     assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
   })
+
+  for (const [label, username, initialUsercache] of [
+    ['missing', 'CrbMiss', null],
+    ['empty', 'CrbEmpty', '[]\n'],
+    ['malformed', 'CrbBad', '[{\"uuid\":\"broken\"}\n'],
+    ['stale', 'CrbStale', JSON.stringify([{ uuid: '00000000-0000-0000-0000-000000000099', name: 'CrbStale', expiresOn: '2000-01-01 00:00:00 +0000' }])],
+    ['duplicate', 'CrbDup', JSON.stringify([
+      { uuid: offlineUuid('CrbDup'), name: 'OldDuplicate', expiresOn: '2999-01-01 00:00:00 +0000' },
+      { uuid: offlineUuid('CrbDup'), name: 'CrbDup', expiresOn: '2999-01-01 00:00:00 +0000' }
+    ])]
+  ]) {
+    await withServer({
+      username,
+      files: initialUsercache == null ? {} : { 'usercache.json': initialUsercache }
+    }, async ({ port, root }) => {
+      try {
+        const joined = await runJoinProbe(port, username)
+        assert.equal(joined.ok, true)
+        assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
+
+        const usercache = JSON.parse(await readFile(path.join(root, 'usercache.json'), 'utf8'))
+        const matching = usercache.filter(entry => entry.name === username)
+        assert.equal(matching.length, 1, `${label} cache should be repaired with one current entry`)
+        assert.equal(matching[0].uuid, offlineUuid(username))
+        assert.match(matching[0].expiresOn, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+0000$/)
+        assert.ok(
+          !usercache.some(entry => entry.uuid === '00000000-0000-0000-0000-000000000099'),
+          `${label} cache should drop stale bogus UUIDs`
+        )
+      } catch (error) {
+        throw new Error(`${label} usercache repair failed for ${username}: ${error.message}`, { cause: error })
+      }
+    })
+  }
 })
 
 async function withServer (options, callback) {
