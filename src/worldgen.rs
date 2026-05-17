@@ -26,6 +26,31 @@ pub struct NoiseGeneratorSettings {
     pub legacy_random_source: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NoiseRouter {
+    pub barrier: DensityFunction,
+    pub fluid_level_floodedness: DensityFunction,
+    pub fluid_level_spread: DensityFunction,
+    pub lava: DensityFunction,
+    pub temperature: DensityFunction,
+    pub vegetation: DensityFunction,
+    pub continents: DensityFunction,
+    pub erosion: DensityFunction,
+    pub depth: DensityFunction,
+    pub ridges: DensityFunction,
+    pub preliminary_surface_level: DensityFunction,
+    pub final_density: DensityFunction,
+    pub vein_toggle: DensityFunction,
+    pub vein_ridged: DensityFunction,
+    pub vein_gap: DensityFunction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NoiseRouterEntry {
+    pub id: &'static str,
+    pub router: NoiseRouter,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseRouterPreset {
     Overworld { large_biomes: bool, amplified: bool },
@@ -49,6 +74,7 @@ pub enum SurfaceRulePreset {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DensityFunction {
+    Reference(&'static str),
     Constant(f64),
     YClampedGradient {
         from_y: i32,
@@ -548,6 +574,171 @@ pub const SPAGHETTI_2D_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunctio
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
 
+pub const OVERWORLD_NOISE_ROUTER: NoiseRouter = NoiseRouter {
+    barrier: DensityFunction::Noise {
+        noise: "minecraft:aquifer_barrier",
+        xz_scale: 1.0,
+        y_scale: 0.5,
+    },
+    fluid_level_floodedness: DensityFunction::Noise {
+        noise: "minecraft:aquifer_fluid_level_floodedness",
+        xz_scale: 1.0,
+        y_scale: 0.67,
+    },
+    fluid_level_spread: DensityFunction::Noise {
+        noise: "minecraft:aquifer_fluid_level_spread",
+        xz_scale: 1.0,
+        y_scale: 0.7142857142857143,
+    },
+    lava: DensityFunction::Noise {
+        noise: "minecraft:aquifer_lava",
+        xz_scale: 1.0,
+        y_scale: 1.0,
+    },
+    temperature: DensityFunction::ShiftedNoise {
+        shift_x: &SHIFT_X_DENSITY,
+        shift_y: &ZERO_DENSITY,
+        shift_z: &SHIFT_Z_DENSITY,
+        xz_scale: 0.25,
+        y_scale: 0.0,
+        noise: "minecraft:temperature",
+    },
+    vegetation: DensityFunction::ShiftedNoise {
+        shift_x: &SHIFT_X_DENSITY,
+        shift_y: &ZERO_DENSITY,
+        shift_z: &SHIFT_Z_DENSITY,
+        xz_scale: 0.25,
+        y_scale: 0.0,
+        noise: "minecraft:vegetation",
+    },
+    continents: DensityFunction::Reference("minecraft:overworld/continents"),
+    erosion: DensityFunction::Reference("minecraft:overworld/erosion"),
+    depth: DensityFunction::Reference("minecraft:overworld/depth"),
+    ridges: DensityFunction::Reference("minecraft:overworld/ridges"),
+    preliminary_surface_level: DensityFunction::Reference(
+        "minecraft:overworld/preliminary_surface_level",
+    ),
+    final_density: DensityFunction::Reference("minecraft:overworld/final_density"),
+    vein_toggle: DensityFunction::Noise {
+        noise: "minecraft:ore_veininess",
+        xz_scale: 1.5,
+        y_scale: 1.5,
+    },
+    vein_ridged: DensityFunction::Reference("minecraft:overworld/vein_ridged"),
+    vein_gap: DensityFunction::Noise {
+        noise: "minecraft:ore_gap",
+        xz_scale: 1.0,
+        y_scale: 1.0,
+    },
+};
+
+pub const LARGE_BIOMES_NOISE_ROUTER: NoiseRouter = NoiseRouter {
+    temperature: DensityFunction::ShiftedNoise {
+        shift_x: &SHIFT_X_DENSITY,
+        shift_y: &ZERO_DENSITY,
+        shift_z: &SHIFT_Z_DENSITY,
+        xz_scale: 0.25,
+        y_scale: 0.0,
+        noise: "minecraft:temperature_large",
+    },
+    vegetation: DensityFunction::ShiftedNoise {
+        shift_x: &SHIFT_X_DENSITY,
+        shift_y: &ZERO_DENSITY,
+        shift_z: &SHIFT_Z_DENSITY,
+        xz_scale: 0.25,
+        y_scale: 0.0,
+        noise: "minecraft:vegetation_large",
+    },
+    continents: DensityFunction::Reference("minecraft:overworld_large_biomes/continents"),
+    erosion: DensityFunction::Reference("minecraft:overworld_large_biomes/erosion"),
+    depth: DensityFunction::Reference("minecraft:overworld_large_biomes/depth"),
+    preliminary_surface_level: DensityFunction::Reference(
+        "minecraft:overworld_large_biomes/preliminary_surface_level",
+    ),
+    final_density: DensityFunction::Reference("minecraft:overworld_large_biomes/final_density"),
+    ..OVERWORLD_NOISE_ROUTER
+};
+
+pub const AMPLIFIED_NOISE_ROUTER: NoiseRouter = NoiseRouter {
+    depth: DensityFunction::Reference("minecraft:overworld_amplified/depth"),
+    preliminary_surface_level: DensityFunction::Reference(
+        "minecraft:overworld_amplified/preliminary_surface_level",
+    ),
+    final_density: DensityFunction::Reference("minecraft:overworld_amplified/final_density"),
+    ..OVERWORLD_NOISE_ROUTER
+};
+
+pub const NETHER_NOISE_ROUTER: NoiseRouter = NoiseRouter {
+    temperature: DensityFunction::ShiftedNoise {
+        shift_x: &ZERO_DENSITY,
+        shift_y: &ZERO_DENSITY,
+        shift_z: &ZERO_DENSITY,
+        xz_scale: 0.25,
+        y_scale: 0.0,
+        noise: "minecraft:temperature_nether",
+    },
+    vegetation: DensityFunction::ShiftedNoise {
+        shift_x: &ZERO_DENSITY,
+        shift_y: &ZERO_DENSITY,
+        shift_z: &ZERO_DENSITY,
+        xz_scale: 0.25,
+        y_scale: 0.0,
+        noise: "minecraft:vegetation_nether",
+    },
+    final_density: DensityFunction::Reference("minecraft:nether/final_density"),
+    ..NoiseRouter::simple(ZERO_DENSITY)
+};
+
+pub const CAVES_NOISE_ROUTER: NoiseRouter =
+    NoiseRouter::simple(DensityFunction::Reference("minecraft:caves/final_density"));
+pub const FLOATING_ISLANDS_NOISE_ROUTER: NoiseRouter = NoiseRouter::simple(
+    DensityFunction::Reference("minecraft:floating_islands/final_density"),
+);
+pub const END_NOISE_ROUTER: NoiseRouter = NoiseRouter {
+    erosion: DensityFunction::Marker {
+        kind: DensityMarker::Cache2D,
+        input: &END_ISLANDS_DENSITY,
+    },
+    final_density: DensityFunction::Reference("minecraft:end/final_density"),
+    ..NoiseRouter::simple(ZERO_DENSITY)
+};
+pub const NONE_NOISE_ROUTER: NoiseRouter = NoiseRouter::simple(ZERO_DENSITY);
+
+pub const BUILTIN_NOISE_ROUTERS: &[NoiseRouterEntry] = &[
+    NoiseRouterEntry {
+        id: "minecraft:overworld",
+        router: OVERWORLD_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:large_biomes",
+        router: LARGE_BIOMES_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:amplified",
+        router: AMPLIFIED_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:nether",
+        router: NETHER_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:end",
+        router: END_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:caves",
+        router: CAVES_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:floating_islands",
+        router: FLOATING_ISLANDS_NOISE_ROUTER,
+    },
+    NoiseRouterEntry {
+        id: "minecraft:none",
+        router: NONE_NOISE_ROUTER,
+    },
+];
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -610,6 +801,9 @@ pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGenera
 impl DensityFunction {
     pub fn compute(self, block_y: i32) -> f64 {
         match self {
+            DensityFunction::Reference(id) => builtin_density_function(id)
+                .map(|entry| entry.function.compute(block_y))
+                .unwrap_or(0.0),
             DensityFunction::Constant(value) => value,
             DensityFunction::YClampedGradient {
                 from_y,
@@ -651,6 +845,7 @@ impl DensityFunction {
 
     pub fn type_name(self) -> &'static str {
         match self {
+            DensityFunction::Reference(_) => "reference",
             DensityFunction::Constant(_) => "constant",
             DensityFunction::YClampedGradient { .. } => "y_clamped_gradient",
             DensityFunction::Clamp { .. } => "clamp",
@@ -669,6 +864,48 @@ impl DensityFunction {
             DensityFunction::Spline => "spline",
             DensityFunction::FindTopSurface => "find_top_surface",
         }
+    }
+}
+
+impl NoiseRouter {
+    pub const fn simple(final_density: DensityFunction) -> Self {
+        Self {
+            barrier: ZERO_DENSITY,
+            fluid_level_floodedness: ZERO_DENSITY,
+            fluid_level_spread: ZERO_DENSITY,
+            lava: ZERO_DENSITY,
+            temperature: ZERO_DENSITY,
+            vegetation: ZERO_DENSITY,
+            continents: ZERO_DENSITY,
+            erosion: ZERO_DENSITY,
+            depth: ZERO_DENSITY,
+            ridges: ZERO_DENSITY,
+            preliminary_surface_level: ZERO_DENSITY,
+            final_density,
+            vein_toggle: ZERO_DENSITY,
+            vein_ridged: ZERO_DENSITY,
+            vein_gap: ZERO_DENSITY,
+        }
+    }
+
+    pub fn field_type_names(self) -> [&'static str; 15] {
+        [
+            self.barrier.type_name(),
+            self.fluid_level_floodedness.type_name(),
+            self.fluid_level_spread.type_name(),
+            self.lava.type_name(),
+            self.temperature.type_name(),
+            self.vegetation.type_name(),
+            self.continents.type_name(),
+            self.erosion.type_name(),
+            self.depth.type_name(),
+            self.ridges.type_name(),
+            self.preliminary_surface_level.type_name(),
+            self.final_density.type_name(),
+            self.vein_toggle.type_name(),
+            self.vein_ridged.type_name(),
+            self.vein_gap.type_name(),
+        ]
     }
 }
 
@@ -768,16 +1005,26 @@ pub fn density_function_type(id: &str) -> Option<&'static DensityFunctionType> {
     DENSITY_FUNCTION_TYPES.iter().find(|kind| kind.id == id)
 }
 
+pub fn builtin_noise_router(id: &str) -> Option<&'static NoiseRouterEntry> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    BUILTIN_NOISE_ROUTERS.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        builtin_density_function, builtin_noise_generator_settings, density_function_type,
-        BinaryDensityFunction, DensityFunction, DensityMarker, MappedDensityFunction,
-        NoiseRouterPreset, NoiseSettings, SurfaceRulePreset, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, CAVES_NOISE_SETTINGS, DENSITY_FUNCTION_TYPES,
-        END_NOISE_SETTINGS, FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS,
-        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, Y_DENSITY,
+        builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
+        density_function_type, BinaryDensityFunction, DensityFunction, DensityMarker,
+        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, SurfaceRulePreset,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        CAVES_NOISE_SETTINGS, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
+        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -1025,6 +1272,102 @@ mod tests {
                 .function
                 .type_name(),
             "cache_once"
+        );
+    }
+
+    #[test]
+    fn noise_router_record_shape_and_presets_match_noise_router_data() {
+        assert_eq!(
+            BUILTIN_NOISE_ROUTERS
+                .iter()
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:overworld",
+                "minecraft:large_biomes",
+                "minecraft:amplified",
+                "minecraft:nether",
+                "minecraft:end",
+                "minecraft:caves",
+                "minecraft:floating_islands",
+                "minecraft:none",
+            ]
+        );
+
+        let overworld = builtin_noise_router("overworld").unwrap().router;
+        assert_eq!(
+            overworld.field_type_names(),
+            [
+                "noise",
+                "noise",
+                "noise",
+                "noise",
+                "shifted_noise",
+                "shifted_noise",
+                "reference",
+                "reference",
+                "reference",
+                "reference",
+                "reference",
+                "reference",
+                "noise",
+                "reference",
+                "noise",
+            ]
+        );
+        assert_eq!(
+            overworld.barrier,
+            DensityFunction::Noise {
+                noise: "minecraft:aquifer_barrier",
+                xz_scale: 1.0,
+                y_scale: 0.5,
+            }
+        );
+        assert_eq!(
+            overworld.final_density,
+            DensityFunction::Reference("minecraft:overworld/final_density")
+        );
+
+        let large = builtin_noise_router("large_biomes").unwrap().router;
+        assert_eq!(
+            large.temperature,
+            DensityFunction::ShiftedNoise {
+                shift_x: &super::SHIFT_X_DENSITY,
+                shift_y: &super::ZERO_DENSITY,
+                shift_z: &super::SHIFT_Z_DENSITY,
+                xz_scale: 0.25,
+                y_scale: 0.0,
+                noise: "minecraft:temperature_large",
+            }
+        );
+        assert_eq!(
+            large.continents,
+            DensityFunction::Reference("minecraft:overworld_large_biomes/continents")
+        );
+
+        let nether = builtin_noise_router("nether").unwrap().router;
+        assert_eq!(
+            nether.temperature,
+            DensityFunction::ShiftedNoise {
+                shift_x: &super::ZERO_DENSITY,
+                shift_y: &super::ZERO_DENSITY,
+                shift_z: &super::ZERO_DENSITY,
+                xz_scale: 0.25,
+                y_scale: 0.0,
+                noise: "minecraft:temperature_nether",
+            }
+        );
+        assert_eq!(
+            builtin_noise_router("end")
+                .unwrap()
+                .router
+                .erosion
+                .type_name(),
+            "cache_2d"
+        );
+        assert_eq!(
+            builtin_noise_router("none").unwrap().router.final_density,
+            DensityFunction::Constant(0.0)
         );
     }
 }
