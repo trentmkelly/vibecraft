@@ -30,7 +30,31 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
 
     const usercache = JSON.parse(await readFile(path.join(root, 'usercache.json'), 'utf8'))
-    assert.deepEqual(usercache, [{ uuid: offlineUuid(username), name: username }])
+    assert.equal(usercache.length, 1)
+    assert.equal(usercache[0].uuid, offlineUuid(username))
+    assert.equal(usercache[0].name, username)
+    assert.match(usercache[0].expiresOn, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+0000$/)
+  })
+
+  await withServer({ username: 'CaseCache' }, async ({ port, root, username }) => {
+    const lower = username.toLowerCase()
+    const first = await runJoinProbe(port, username)
+    const second = await runJoinProbe(port, lower)
+    assert.equal(first.ok, true)
+    assert.equal(second.ok, true)
+    assert.equal(first.joinState.profile.uuid, offlineUuid(username))
+    assert.equal(second.joinState.profile.uuid, offlineUuid(lower))
+    assert.notEqual(first.joinState.profile.uuid, second.joinState.profile.uuid)
+
+    const usercache = JSON.parse(await readFile(path.join(root, 'usercache.json'), 'utf8'))
+    assert.deepEqual(
+      usercache.map(entry => [entry.name, entry.uuid]).sort(),
+      [
+        [lower, offlineUuid(lower)],
+        [username, offlineUuid(username)]
+      ].sort()
+    )
+    assert.ok(usercache.every(entry => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+0000$/.test(entry.expiresOn)))
   })
 
   await withServer({

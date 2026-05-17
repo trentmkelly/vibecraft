@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NameAndId {
@@ -262,7 +262,20 @@ impl PlayerAccess {
     }
 
     fn user_cache_json(&self) -> String {
-        json_array(self.user_cache.iter().map(name_and_id_json).collect())
+        let expires_on = user_cache_expires_on(SystemTime::now());
+        json_array(
+            self.user_cache
+                .iter()
+                .map(|user| {
+                    format!(
+                        "{{\"uuid\":\"{}\",\"name\":\"{}\",\"expiresOn\":\"{}\"}}",
+                        escape(&user.uuid),
+                        escape(&user.name),
+                        escape(&expires_on)
+                    )
+                })
+                .collect(),
+        )
     }
 }
 
@@ -442,6 +455,35 @@ fn name_and_id_json(user: &NameAndId) -> String {
         escape(&user.uuid),
         escape(&user.name)
     )
+}
+
+fn user_cache_expires_on(now: SystemTime) -> String {
+    let expires = now + Duration::from_secs(60 * 60 * 24 * 30);
+    let seconds = expires
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0);
+    let days = seconds.div_euclid(86_400);
+    let seconds_of_day = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = seconds_of_day / 3_600;
+    let minute = (seconds_of_day % 3_600) / 60;
+    let second = seconds_of_day % 60;
+    format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02} +0000")
+}
+
+fn civil_from_days(days_since_unix_epoch: i64) -> (i64, i64, i64) {
+    let z = days_since_unix_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 }.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096).div_euclid(365);
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2).div_euclid(153);
+    let day = doy - (153 * mp + 2).div_euclid(5) + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    let year = y + if month <= 2 { 1 } else { 0 };
+    (year, month, day)
 }
 
 fn json_array(entries: Vec<String>) -> String {
