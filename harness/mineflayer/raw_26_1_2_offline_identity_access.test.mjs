@@ -304,6 +304,18 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
   })
 
   await withServer({
+    username: 'InvalidMode',
+    properties: { gamemode: 'not_a_mode' }
+  }, async ({ port, username }) => {
+    const joined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_GAME_MODE: '0',
+      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+    })
+    assert.equal(joined.ok, true)
+  })
+
+  await withServer({
     username: 'ForcedAdventure',
     properties: { gamemode: 'adventure', 'force-gamemode': 'true' }
   }, async ({ port, root, username }) => {
