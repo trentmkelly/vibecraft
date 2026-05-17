@@ -569,6 +569,7 @@ async function main () {
     } else if (packet.id === 14) {
       const knownPacks = decodeKnownPacksPacket(packet)
       config.push(knownPacks)
+      if (abortAfter === 'known_packs') return abortSocket(socket, 'known_packs', { login: login.id, config })
       socket.write(frame(
         serverboundSelectKnownPacksPacketId,
         writeVarInt(knownPacks.packs.length),
@@ -578,6 +579,7 @@ async function main () {
       config.push({ id: packet.id, length: packet.length })
     }
     if (abortAfter === 'registry_sync' && packet.id === 7) return abortSocket(socket, 'registry_sync', { login: login.id, config })
+    if (abortAfter === 'finish_configuration' && packet.id === 3) return abortSocket(socket, 'finish_configuration', { login: login.id, config })
     if (packet.id === 3) break
   }
   const registryPackets = config.filter(packet => packet.id === 7)
