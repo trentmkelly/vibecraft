@@ -204,6 +204,7 @@ pub struct ServerCommandState {
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
     pub warden_spawn_trackers: Vec<WardenSpawnTrackerState>,
+    pub waypoints: Vec<WaypointState>,
     pub setblock_events: Vec<SetBlockEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
     pub summoned_entities: Vec<SummonedEntity>,
@@ -1001,6 +1002,14 @@ pub struct WardenSpawnTrackerState {
     pub warning_level: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaypointState {
+    pub entity: EntityRef,
+    pub dimension: String,
+    pub color: Option<i32>,
+    pub style: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlaySoundRequest {
     pub sound: String,
@@ -1326,6 +1335,7 @@ pub enum CommandError {
     TimeNoDefaultClock,
     TimeNoTimeMarkerFound,
     TimeWrongTimeline,
+    WaypointInvalid,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1580,6 +1590,7 @@ impl Default for ServerCommandState {
             sound_events: Vec::new(),
             particle_events: Vec::new(),
             warden_spawn_trackers: Vec::new(),
+            waypoints: Vec::new(),
             setblock_events: Vec::new(),
             server_pack_events: Vec::new(),
             summoned_entities: Vec::new(),
@@ -2174,6 +2185,7 @@ pub fn execute_builtin_command(
             })
         }
         "warden_spawn_tracker" => warden_spawn_tracker_command(state, &parts),
+        "waypoint" => waypoint_command(state, &parts),
         "list" => match parts.as_slice() {
             ["list"] => Ok(CommandResult {
                 success_count: state.online_players.len() as i32,
@@ -5060,6 +5072,112 @@ fn set_warden_warning_level(state: &mut ServerCommandState, player: NameAndId, w
             player,
             warning_level,
         });
+    }
+}
+
+fn waypoint_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["waypoint", "list"] => {
+            let count = state
+                .waypoints
+                .iter()
+                .filter(|waypoint| waypoint.dimension == state.command_source_dimension)
+                .count() as i32;
+            Ok(CommandResult {
+                success_count: count,
+                feedback_key: if count == 0 {
+                    "commands.waypoint.list.empty"
+                } else {
+                    "commands.waypoint.list.success"
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        ["waypoint", "modify", entity, "color", "reset"] => {
+            waypoint_mut(state, entity)?.color = None;
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.waypoint.modify.color.reset",
+                broadcast_to_admins: false,
+            })
+        }
+        ["waypoint", "modify", entity, "color", "hex", color] => {
+            waypoint_mut(state, entity)?.color = Some(parse_hex_color(color)?);
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.waypoint.modify.color",
+                broadcast_to_admins: false,
+            })
+        }
+        ["waypoint", "modify", entity, "color", color] => {
+            waypoint_mut(state, entity)?.color = Some(parse_named_color(color)?);
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.waypoint.modify.color",
+                broadcast_to_admins: false,
+            })
+        }
+        ["waypoint", "modify", entity, "style", "reset"] => {
+            waypoint_mut(state, entity)?.style = "minecraft:default".to_string();
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.waypoint.modify.style",
+                broadcast_to_admins: false,
+            })
+        }
+        ["waypoint", "modify", entity, "style", "set", style] => {
+            waypoint_mut(state, entity)?.style = normalize_resource_id(style);
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.waypoint.modify.style",
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn waypoint_mut<'a>(
+    state: &'a mut ServerCommandState,
+    entity: &str,
+) -> Result<&'a mut WaypointState, CommandError> {
+    state
+        .waypoints
+        .iter_mut()
+        .find(|waypoint| waypoint.entity.id == entity)
+        .ok_or(CommandError::WaypointInvalid)
+}
+
+fn parse_hex_color(input: &str) -> Result<i32, CommandError> {
+    let hex = input.strip_prefix('#').unwrap_or(input);
+    if hex.len() != 6 || !hex.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return Err(CommandError::InvalidSyntax);
+    }
+    i32::from_str_radix(hex, 16).map_err(|_| CommandError::InvalidSyntax)
+}
+
+fn parse_named_color(input: &str) -> Result<i32, CommandError> {
+    match input {
+        "black" => Ok(0x000000),
+        "dark_blue" => Ok(0x0000AA),
+        "dark_green" => Ok(0x00AA00),
+        "dark_aqua" => Ok(0x00AAAA),
+        "dark_red" => Ok(0xAA0000),
+        "dark_purple" => Ok(0xAA00AA),
+        "gold" => Ok(0xFFAA00),
+        "gray" => Ok(0xAAAAAA),
+        "dark_gray" => Ok(0x555555),
+        "blue" => Ok(0x5555FF),
+        "green" => Ok(0x55FF55),
+        "aqua" => Ok(0x55FFFF),
+        "red" => Ok(0xFF5555),
+        "light_purple" => Ok(0xFF55FF),
+        "yellow" => Ok(0xFFFF55),
+        "white" => Ok(0xFFFFFF),
+        _ => Err(CommandError::InvalidSyntax),
     }
 }
 
@@ -10954,6 +11072,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "warden_spawn_tracker",
             "/warden_spawn_tracker <clear|set> [warning_level]",
         ),
+        ("waypoint", "/waypoint <list|modify> ..."),
         ("weather", "/weather <clear|rain|thunder> [duration]"),
         ("whitelist", "/whitelist <on|off|list|add|remove|reload>"),
         ("deop", "/deop <targets>"),
@@ -11356,7 +11475,7 @@ mod tests {
         ScoreboardObjective, ScoreboardScore, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
         StopwatchState, SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction,
-        TitleTextKind, Vec3, VersionInfo, WardenSpawnTrackerState, WeatherMode,
+        TitleTextKind, Vec3, VersionInfo, WardenSpawnTrackerState, WaypointState, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -14710,6 +14829,138 @@ mod tests {
                 "warden_spawn_tracker clear"
             ),
             Err(CommandError::NoPlayers)
+        );
+    }
+
+    #[test]
+    fn waypoint_command_lists_and_modifies_waypoint_icons() {
+        let mut state = ServerCommandState {
+            command_source_dimension: "minecraft:overworld".to_string(),
+            waypoints: vec![
+                WaypointState {
+                    entity: entity_ref("Steve"),
+                    dimension: "minecraft:overworld".to_string(),
+                    color: None,
+                    style: "minecraft:default".to_string(),
+                },
+                WaypointState {
+                    entity: entity_ref("Alex"),
+                    dimension: "minecraft:the_nether".to_string(),
+                    color: None,
+                    style: "minecraft:default".to_string(),
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("waypoint"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "waypoint list"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let list = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint list",
+        )
+        .unwrap();
+        assert_eq!(list.success_count, 1);
+        assert_eq!(list.feedback_key, "commands.waypoint.list.success");
+        assert!(!list.broadcast_to_admins);
+
+        let color = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint modify Steve color red",
+        )
+        .unwrap();
+        assert_eq!(color.success_count, 0);
+        assert_eq!(color.feedback_key, "commands.waypoint.modify.color");
+        assert_eq!(state.waypoints[0].color, Some(0xFF5555));
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint modify Steve color hex #123ABC",
+        )
+        .unwrap();
+        assert_eq!(state.waypoints[0].color, Some(0x123ABC));
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint modify Steve style set bowtie",
+        )
+        .unwrap();
+        assert_eq!(state.waypoints[0].style, "minecraft:bowtie");
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint modify Steve color reset",
+        )
+        .unwrap();
+        assert_eq!(state.waypoints[0].color, None);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint modify Steve style reset",
+        )
+        .unwrap();
+        assert_eq!(state.waypoints[0].style, "minecraft:default");
+    }
+
+    #[test]
+    fn waypoint_command_reports_empty_lists_and_rejects_invalid_waypoints() {
+        let mut state = ServerCommandState {
+            command_source_dimension: "minecraft:the_end".to_string(),
+            waypoints: vec![WaypointState {
+                entity: entity_ref("Steve"),
+                dimension: "minecraft:overworld".to_string(),
+                color: None,
+                style: "minecraft:default".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+        let list = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "waypoint list",
+        )
+        .unwrap();
+        assert_eq!(list.success_count, 0);
+        assert_eq!(list.feedback_key, "commands.waypoint.list.empty");
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "waypoint modify Missing color red"
+            ),
+            Err(CommandError::WaypointInvalid)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "waypoint modify Steve color hex nope"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "waypoint modify Steve color rainbow"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
