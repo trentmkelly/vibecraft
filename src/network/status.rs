@@ -3,8 +3,8 @@ use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::Path;
-use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -113,10 +113,7 @@ impl ActiveLoginRegistry {
         let token = self.next_token.fetch_add(1, Ordering::Relaxed);
         let stream = stream.try_clone()?;
         let mut sessions = self.sessions.lock().map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                "active login registry mutex poisoned",
-            )
+            io::Error::new(io::ErrorKind::Other, "active login registry mutex poisoned")
         })?;
         let old = sessions
             .insert(uuid.to_string(), ActiveLoginSession { token, stream })
@@ -790,7 +787,7 @@ pub fn run_status_server(
     println!("Status listener bound to {address}");
 
     loop {
-        if should_stop(console_input) {
+        if should_stop(console_input, &player_access) {
             println!("Status listener stopping");
             break;
         }
@@ -824,10 +821,29 @@ pub fn run_status_server(
     Ok(())
 }
 
-fn should_stop(console_input: &Receiver<ConsoleInput>) -> bool {
+fn should_stop(
+    console_input: &Receiver<ConsoleInput>,
+    player_access: &Arc<Mutex<PlayerAccess>>,
+) -> bool {
     loop {
         match console_input.try_recv() {
             Ok(input) if input.line.eq_ignore_ascii_case("stop") => return true,
+            Ok(input)
+                if input.line.eq_ignore_ascii_case("reload")
+                    || input.line.eq_ignore_ascii_case("whitelist reload") =>
+            {
+                match PlayerAccess::load_from_dir(Path::new(".")) {
+                    Ok(reloaded) => {
+                        if let Ok(mut access) = player_access.lock() {
+                            *access = reloaded;
+                            println!("Reloaded player access files");
+                        } else {
+                            eprintln!("status access reload error: player access lock poisoned");
+                        }
+                    }
+                    Err(err) => eprintln!("status access reload error: {err}"),
+                }
+            }
             Ok(_) => {}
             Err(TryRecvError::Empty) => return false,
             Err(TryRecvError::Disconnected) => return false,

@@ -148,6 +148,28 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
   })
 
+  await withRestartableServer({ username: 'HotEditBan' }, async ({ port, root, username, server }) => {
+    const joined = await runJoinProbe(port, username)
+    assert.equal(joined.ok, true)
+
+    await writeFile(
+      path.join(root, 'banned-players.json'),
+      `${JSON.stringify([{ ...profile(username), created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'hot edit' }])}\n`
+    )
+    server.child.stdin.write('reload\n')
+    await delay(250)
+
+    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    assert.match(rejected.reason, /multiplayer\.disconnect\.banned/)
+
+    await writeFile(path.join(root, 'banned-players.json'), '[]\n')
+    server.child.stdin.write('whitelist reload\n')
+    await delay(250)
+
+    const rejoined = await runJoinProbe(port, username)
+    assert.equal(rejoined.ok, true)
+  })
+
   for (const [label, username, initialUsercache] of [
     ['missing', 'CrbMiss', null],
     ['empty', 'CrbEmpty', '[]\n'],
@@ -208,7 +230,7 @@ async function withRestartableServer (options, callback) {
       await waitForPort(port, host, 10_000)
     }
     await restart()
-    await callback({ port, root, username: options.username, restart })
+    await callback({ port, root, username: options.username, restart, server })
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })
@@ -238,6 +260,10 @@ async function runJoinProbe (port, username, env = {}) {
 
 function profile (name) {
   return { uuid: offlineUuid(name), name }
+}
+
+function delay (ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 async function reservePort () {
