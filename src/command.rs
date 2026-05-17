@@ -632,6 +632,7 @@ pub struct ChatCommandEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChatCommandKind {
     Say,
+    Emote,
     Private,
     Team,
     TellRaw,
@@ -1571,6 +1572,22 @@ pub fn execute_builtin_command(
             Ok(CommandResult {
                 success_count: 1,
                 feedback_key: "commands.say.success",
+                broadcast_to_admins: false,
+            })
+        }
+        "me" => {
+            if parts.len() < 2 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            state.chat_events.push(ChatCommandEvent {
+                kind: ChatCommandKind::Emote,
+                sender: state.command_source_player.clone(),
+                targets: state.online_players.clone(),
+                message: parts[1..].join(" "),
+            });
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.me.success",
                 broadcast_to_admins: false,
             })
         }
@@ -11412,6 +11429,38 @@ mod tests {
         assert_eq!(state.chat_events[0].kind, ChatCommandKind::Say);
         assert_eq!(state.chat_events[0].targets.len(), 2);
         assert_eq!(state.chat_events[0].message, "hello all");
+    }
+
+    #[test]
+    fn me_command_broadcasts_emote_chat_without_permission_gate() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            online_players: vec![
+                NameAndId::create_offline("Steve"),
+                NameAndId::create_offline("Alex"),
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(command_required_permission("me"), PermissionLevel::All);
+
+        let result =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "me waves hello")
+                .unwrap();
+        assert_eq!(result.success_count, 1);
+        assert_eq!(result.feedback_key, "commands.me.success");
+        assert!(!result.broadcast_to_admins);
+        assert_eq!(state.chat_events.len(), 1);
+        assert_eq!(state.chat_events[0].kind, ChatCommandKind::Emote);
+        assert_eq!(
+            state.chat_events[0].sender,
+            Some(NameAndId::create_offline("Steve"))
+        );
+        assert_eq!(state.chat_events[0].targets.len(), 2);
+        assert_eq!(state.chat_events[0].message, "waves hello");
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "me"),
+            Err(CommandError::InvalidSyntax)
+        );
     }
 
     #[test]
