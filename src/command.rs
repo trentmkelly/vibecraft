@@ -14006,6 +14006,36 @@ mod tests {
     }
 
     #[test]
+    fn operator_permission_surface_covers_visibility_feedback_and_reload_effects() {
+        let mut state = ServerCommandState::default();
+        assert!(!visible_command_usages(LevelBasedPermissionSet::ALL).contains(&"/op <targets>"));
+        assert!(visible_command_usages(LevelBasedPermissionSet::ADMIN).contains(&"/op <targets>"));
+        assert!(visible_command_usages(LevelBasedPermissionSet::ADMIN).contains(&"/deop <targets>"));
+        assert_eq!(command_usage("op", LevelBasedPermissionSet::ALL), None);
+        assert_eq!(
+            command_usage("op", LevelBasedPermissionSet::ADMIN),
+            Some("/op <targets>")
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "op Steve"),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let op_result =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "op Steve")
+                .unwrap();
+        assert_eq!(op_result.feedback_key, "commands.op.success");
+        assert_eq!(state.operator_names(), vec!["Steve"]);
+
+        let deop_result =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve")
+                .unwrap();
+        assert_eq!(deop_result.feedback_key, "commands.deop.success");
+        assert!(state.operator_names().is_empty());
+        assert_eq!(state.kick_unlisted_requests, 1);
+    }
+
+    #[test]
     fn debug_command_starts_stops_and_records_function_traces() {
         let mut state = ServerCommandState {
             debug_profiler_results: vec![super::DebugProfilerResult {
