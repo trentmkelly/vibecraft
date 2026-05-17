@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
+use crate::network::codec::{write_bitset, write_collection};
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
+use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
+use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
 
 pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
@@ -117,6 +120,46 @@ pub struct ClientboundChunkBatchFinishedPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundLevelChunkWithLightPacket {
     pub pos: ChunkPos,
+    pub chunk_data: Option<ClientboundLevelChunkPacketData>,
+    pub light_data: Option<ClientboundLightUpdatePacketData>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundLightUpdatePacket {
+    pub pos: ChunkPos,
+    pub light_data: ClientboundLightUpdatePacketData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundLightUpdatePacketData {
+    pub sky_y_mask: Vec<u64>,
+    pub block_y_mask: Vec<u64>,
+    pub empty_sky_y_mask: Vec<u64>,
+    pub empty_block_y_mask: Vec<u64>,
+    pub sky_updates: Vec<Vec<i8>>,
+    pub block_updates: Vec<Vec<i8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundLevelChunkPacketData {
+    pub heightmaps: BTreeMap<String, Vec<i64>>,
+    pub buffer: Vec<u8>,
+    pub block_entity_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkChunkSection {
+    pub non_empty_block_count: i16,
+    pub fluid_count: i16,
+    pub block_states: NetworkPalettedContainer,
+    pub biomes: NetworkPalettedContainer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkPalettedContainer {
+    pub bits_per_entry: u8,
+    pub palette_ids: Vec<i32>,
+    pub data: Vec<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -595,7 +638,11 @@ impl PlayerChunkSender {
         let mut instructions = Vec::with_capacity(chunks_to_send.len() + 2);
         instructions.push(PlayInstruction::ChunkBatchStart);
         instructions.extend(chunks_to_send.iter().copied().map(|pos| {
-            PlayInstruction::LevelChunkWithLight(ClientboundLevelChunkWithLightPacket { pos })
+            PlayInstruction::LevelChunkWithLight(ClientboundLevelChunkWithLightPacket {
+                pos,
+                chunk_data: None,
+                light_data: None,
+            })
         }));
         instructions.push(PlayInstruction::ChunkBatchFinished(
             ClientboundChunkBatchFinishedPacket {
@@ -649,6 +696,205 @@ fn chunk_distance_squared(from: ChunkPos, to: ChunkPos) -> i32 {
     let dx = from.x - to.x;
     let dz = from.z - to.z;
     dx * dx + dz * dz
+}
+
+impl ClientboundLevelChunkWithLightPacket {
+    pub fn from_chunk(chunk: &LevelChunk, light_data: ClientboundLightUpdatePacketData) -> Self {
+        Self {
+            pos: chunk.pos,
+            chunk_data: Some(ClientboundLevelChunkPacketData::from_chunk(chunk)),
+            light_data: Some(light_data),
+        }
+    }
+}
+
+impl ClientboundLevelChunkPacketData {
+    pub const MAX_BUFFER_SIZE: usize = 2_097_152;
+
+    pub fn from_chunk(chunk: &LevelChunk) -> Self {
+        let mut buffer = Vec::new();
+        for section in &chunk.sections {
+            NetworkChunkSection::from_storage_section(section)
+                .write(&mut buffer)
+                .expect("writing chunk section to vec");
+        }
+        assert!(
+            buffer.len() <= Self::MAX_BUFFER_SIZE,
+            "chunk packet buffer exceeds vanilla two-megabyte guard"
+        );
+
+        Self {
+            heightmaps: chunk
+                .heightmaps
+                .iter()
+                .filter_map(|(name, tag)| match tag {
+                    Tag::LongArray(values) => Some((name.clone(), values.clone())),
+                    _ => None,
+                })
+                .collect(),
+            buffer,
+            block_entity_count: chunk.block_entities.len(),
+        }
+    }
+}
+
+impl ClientboundLightUpdatePacketData {
+    pub const DATA_LAYER_SIZE: usize = 2048;
+
+    pub fn from_chunk_sections(sections: &[ChunkSection]) -> Self {
+        let mut data = Self {
+            sky_y_mask: Vec::new(),
+            block_y_mask: Vec::new(),
+            empty_sky_y_mask: Vec::new(),
+            empty_block_y_mask: Vec::new(),
+            sky_updates: Vec::new(),
+            block_updates: Vec::new(),
+        };
+
+        for (section_index, section) in sections.iter().enumerate() {
+            data.add_layer(section_index, section.sky_light.as_deref(), true);
+            data.add_layer(section_index, section.block_light.as_deref(), false);
+        }
+
+        data
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bitset(writer, &self.sky_y_mask)?;
+        write_bitset(writer, &self.block_y_mask)?;
+        write_bitset(writer, &self.empty_sky_y_mask)?;
+        write_bitset(writer, &self.empty_block_y_mask)?;
+        write_collection(writer, &self.sky_updates, write_data_layer)?;
+        write_collection(writer, &self.block_updates, write_data_layer)
+    }
+
+    fn add_layer(&mut self, section_index: usize, layer: Option<&[i8]>, sky: bool) {
+        let Some(layer) = layer else {
+            return;
+        };
+        assert_eq!(
+            layer.len(),
+            Self::DATA_LAYER_SIZE,
+            "light update data layers are always 2048 bytes"
+        );
+        let empty = layer.iter().all(|byte| *byte == 0);
+        let mask = if sky {
+            if empty {
+                &mut self.empty_sky_y_mask
+            } else {
+                self.sky_updates.push(layer.to_vec());
+                &mut self.sky_y_mask
+            }
+        } else if empty {
+            &mut self.empty_block_y_mask
+        } else {
+            self.block_updates.push(layer.to_vec());
+            &mut self.block_y_mask
+        };
+        set_bit(mask, section_index);
+    }
+}
+
+impl NetworkChunkSection {
+    pub fn from_storage_section(section: &ChunkSection) -> Self {
+        Self {
+            non_empty_block_count: 0,
+            fluid_count: 0,
+            block_states: NetworkPalettedContainer::from_storage_container(&section.block_states),
+            biomes: NetworkPalettedContainer::from_storage_container(&section.biomes),
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.non_empty_block_count.to_be_bytes())?;
+        writer.write_all(&self.fluid_count.to_be_bytes())?;
+        self.block_states.write(writer)?;
+        self.biomes.write(writer)
+    }
+}
+
+impl NetworkPalettedContainer {
+    pub fn single(global_id: i32) -> Self {
+        Self {
+            bits_per_entry: 0,
+            palette_ids: vec![global_id],
+            data: Vec::new(),
+        }
+    }
+
+    pub fn from_storage_container(tag: &Tag) -> Self {
+        let Ok(container) = PalettedContainer::from_nbt(tag, 0) else {
+            return Self::single(0);
+        };
+        let palette_ids = container
+            .palette
+            .iter()
+            .map(storage_palette_entry_network_id)
+            .collect::<Vec<_>>();
+        Self {
+            bits_per_entry: if palette_ids.len() <= 1 { 0 } else { 4 },
+            palette_ids: if palette_ids.is_empty() {
+                vec![0]
+            } else {
+                palette_ids
+            },
+            data: container.data.unwrap_or_default(),
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.bits_per_entry])?;
+        if self.bits_per_entry == 0 {
+            write_var_i32(writer, self.palette_ids.first().copied().unwrap_or(0))?;
+        } else {
+            write_var_i32(writer, self.palette_ids.len() as i32)?;
+            for id in &self.palette_ids {
+                write_var_i32(writer, *id)?;
+            }
+        }
+        write_var_i32(writer, self.data.len() as i32)?;
+        for word in &self.data {
+            writer.write_all(&word.to_be_bytes())?;
+        }
+        Ok(())
+    }
+}
+
+fn set_bit(mask: &mut Vec<u64>, index: usize) {
+    let word = index / 64;
+    if mask.len() <= word {
+        mask.resize(word + 1, 0);
+    }
+    mask[word] |= 1_u64 << (index % 64);
+}
+
+fn write_data_layer<W: Write>(writer: &mut W, layer: &Vec<i8>) -> io::Result<()> {
+    if layer.len() != ClientboundLightUpdatePacketData::DATA_LAYER_SIZE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "light update layer must be 2048 bytes",
+        ));
+    }
+    let bytes = layer.iter().map(|byte| *byte as u8).collect::<Vec<_>>();
+    writer.write_all(&bytes)
+}
+
+fn storage_palette_entry_network_id(tag: &Tag) -> i32 {
+    match tag {
+        Tag::Int(id) => *id,
+        Tag::Compound(fields) => fields
+            .iter()
+            .find_map(|(name, value)| {
+                (name == "id" || name == "network_id")
+                    .then_some(value)
+                    .and_then(|value| match value {
+                        Tag::Int(id) => Some(*id),
+                        _ => None,
+                    })
+            })
+            .unwrap_or(0),
+        _ => 0,
+    }
 }
 
 impl ServerboundAcceptTeleportationPacket {
@@ -1188,6 +1434,92 @@ mod tests {
             ServerboundChunkBatchReceivedPacket::read(&mut cursor(bytes)).unwrap(),
             packet
         );
+    }
+
+    #[test]
+    fn light_update_data_uses_vanilla_masks_and_2048_byte_layers() {
+        let sections = vec![
+            ChunkSection {
+                y: 0,
+                block_states: PalettedContainer::single(Tag::Int(0), 4096).to_nbt(),
+                biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
+                block_light: Some(vec![0; 2048]),
+                sky_light: Some(vec![-1; 2048]),
+            },
+            ChunkSection {
+                y: 1,
+                block_states: PalettedContainer::single(Tag::Int(0), 4096).to_nbt(),
+                biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
+                block_light: Some(vec![1; 2048]),
+                sky_light: None,
+            },
+        ];
+
+        let data = ClientboundLightUpdatePacketData::from_chunk_sections(&sections);
+        assert_eq!(data.sky_y_mask, vec![1]);
+        assert_eq!(data.empty_block_y_mask, vec![1]);
+        assert_eq!(data.block_y_mask, vec![2]);
+        assert_eq!(data.sky_updates.len(), 1);
+        assert_eq!(data.block_updates.len(), 1);
+
+        let mut payload = Vec::new();
+        data.write(&mut payload).unwrap();
+        assert!(!payload.is_empty());
+    }
+
+    #[test]
+    fn chunk_section_serialization_matches_vanilla_section_field_order() {
+        let section = NetworkChunkSection {
+            non_empty_block_count: 2,
+            fluid_count: 1,
+            block_states: NetworkPalettedContainer::single(5),
+            biomes: NetworkPalettedContainer::single(7),
+        };
+        let mut bytes = Vec::new();
+        section.write(&mut bytes).unwrap();
+
+        assert_eq!(&bytes[0..2], &2_i16.to_be_bytes());
+        assert_eq!(&bytes[2..4], &1_i16.to_be_bytes());
+        assert_eq!(bytes[4], 0);
+        assert_eq!(bytes[5], 5);
+        assert_eq!(bytes[6], 0);
+        assert_eq!(bytes[7], 0);
+        assert_eq!(bytes[8], 7);
+        assert_eq!(bytes[9], 0);
+    }
+
+    #[test]
+    fn level_chunk_with_light_packet_carries_chunk_buffer_then_light_payload_data() {
+        let mut heightmaps = BTreeMap::new();
+        heightmaps.insert("WORLD_SURFACE".to_string(), Tag::LongArray(vec![1, 2, 3]));
+        let chunk = LevelChunk {
+            pos: ChunkPos { x: 4, z: -2 },
+            status: "minecraft:full".to_string(),
+            inhabited_time: 0,
+            sections: vec![ChunkSection {
+                y: 0,
+                block_states: PalettedContainer::single(Tag::Int(5), 4096).to_nbt(),
+                biomes: PalettedContainer::single(Tag::Int(7), 64).to_nbt(),
+                block_light: Some(vec![0; 2048]),
+                sky_light: Some(vec![-1; 2048]),
+            }],
+            heightmaps,
+            block_entities: vec![Tag::Compound(Vec::new())],
+            entities: Vec::new(),
+            structures: Tag::Compound(Vec::new()),
+            block_ticks: Vec::new(),
+            fluid_ticks: Vec::new(),
+            post_processing: Vec::new(),
+        };
+        let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
+        let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data.clone());
+
+        assert_eq!(packet.pos, chunk.pos);
+        let chunk_data = packet.chunk_data.as_ref().unwrap();
+        assert_eq!(chunk_data.heightmaps["WORLD_SURFACE"], vec![1, 2, 3]);
+        assert_eq!(chunk_data.block_entity_count, 1);
+        assert_eq!(chunk_data.buffer, vec![0, 0, 0, 0, 0, 5, 0, 0, 7, 0]);
+        assert_eq!(packet.light_data, Some(light_data));
     }
 
     #[test]
