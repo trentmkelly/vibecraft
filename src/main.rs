@@ -37,6 +37,7 @@ mod living_entity;
 mod log;
 mod management_security;
 mod mob_family;
+mod mob_interaction;
 mod network;
 mod non_living_entity;
 mod plant;
