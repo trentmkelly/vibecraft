@@ -36,6 +36,7 @@ mod entity_validation;
 mod entity_variants;
 mod equipment_trim;
 mod eula;
+mod experience_system;
 mod fire;
 mod fluid;
 mod game_event;
