@@ -1,0 +1,218 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { spawn } from 'node:child_process'
+
+const here = new URL('.', import.meta.url)
+const defaultOfficialJar = path.resolve(new URL('../../../server.jar', here).pathname)
+
+export function normalizeConfigurationTranscript (rawProbe) {
+  return {
+    protocolVersion: 775,
+    registries: (rawProbe.config ?? [])
+      .filter(packet => packet.id === 7)
+      .map(packet => ({
+        registry: packet.registry,
+        elements: packet.elements,
+        elementIds: packet.elementIds,
+        elementFieldPaths: packet.elementDataFields ?? {}
+      })),
+    tags: (rawProbe.config ?? [])
+      .find(packet => packet.id === 13)?.registries
+      ?.map(registry => ({
+        registry: registry.registry,
+        tags: registry.tags.map(tag => ({
+          tag: tag.tag,
+          entries: tag.entries
+        }))
+      })) ?? [],
+    knownPacks: (rawProbe.config ?? [])
+      .find(packet => packet.id === 14)?.packs ?? [],
+    finishConfigurationPacketId: rawProbe.config?.at(-1)?.id,
+    playPacketIds: (rawProbe.play ?? []).map(packet => packet.id)
+  }
+}
+
+export function diffConfigurationTranscripts (actual, official) {
+  const diffs = []
+  compareSequence(diffs, 'registry order', actual.registries.map(entry => entry.registry), official.registries.map(entry => entry.registry))
+
+  const officialRegistries = new Map(official.registries.map(entry => [entry.registry, entry]))
+  for (const actualRegistry of actual.registries) {
+    const officialRegistry = officialRegistries.get(actualRegistry.registry)
+    if (!officialRegistry) continue
+    if (actualRegistry.elements !== officialRegistry.elements) {
+      diffs.push({
+        path: `registry.${actualRegistry.registry}.elements`,
+        actual: actualRegistry.elements,
+        official: officialRegistry.elements
+      })
+    }
+    compareSequence(
+      diffs,
+      `registry.${actualRegistry.registry}.elementIds`,
+      actualRegistry.elementIds,
+      officialRegistry.elementIds
+    )
+  }
+
+  compareSequence(diffs, 'knownPacks', actual.knownPacks.map(packKey), official.knownPacks.map(packKey))
+  if (actual.finishConfigurationPacketId !== official.finishConfigurationPacketId) {
+    diffs.push({
+      path: 'finishConfigurationPacketId',
+      actual: actual.finishConfigurationPacketId,
+      official: official.finishConfigurationPacketId
+    })
+  }
+
+  return {
+    ok: diffs.length === 0,
+    diffs
+  }
+}
+
+export async function recordServerConfigurationTranscript (options = {}) {
+  const env = {
+    ...process.env,
+    RUSTCRAFT_RAW_PROBE_MODE: 'record',
+    RUSTCRAFT_HOST: options.host ?? '127.0.0.1',
+    RUSTCRAFT_PORT: String(options.port ?? 25565),
+    RUSTCRAFT_USERNAME: options.username ?? 'TranscriptProbe'
+  }
+
+  const probe = await runProcess(process.execPath, ['raw_26_1_2_join_probe.mjs'], {
+    cwd: new URL('.', import.meta.url),
+    env,
+    timeoutMs: options.timeoutMs ?? 45_000
+  })
+
+  if (probe.code !== 0) {
+    throw new Error(`raw probe failed: ${probe.stderr || probe.stdout}`)
+  }
+
+  return normalizeConfigurationTranscript(JSON.parse(probe.stdout))
+}
+
+export async function recordOfficialServerConfigurationTranscript (options = {}) {
+  const port = options.port ?? 25566
+  const workdir = await mkdtemp(path.join(os.tmpdir(), 'rustcraft-vanilla-transcript-'))
+  let server
+  try {
+    await writeFile(path.join(workdir, 'eula.txt'), 'eula=true\n')
+    await writeFile(path.join(workdir, 'server.properties'), [
+      'online-mode=false',
+      'enforce-secure-profile=false',
+      'enable-status=true',
+      'network-compression-threshold=-1',
+      `server-port=${port}`,
+      'level-name=world',
+      ''
+    ].join('\n'))
+
+    server = await startOfficialServer({
+      jar: options.jar ?? defaultOfficialJar,
+      cwd: workdir,
+      timeoutMs: options.startTimeoutMs ?? 120_000
+    })
+
+    return await recordServerConfigurationTranscript({
+      host: '127.0.0.1',
+      port,
+      username: options.username ?? 'OfficialProbe',
+      timeoutMs: options.probeTimeoutMs ?? 60_000
+    })
+  } finally {
+    if (server) await stopOfficialServer(server)
+    if (!options.keepArtifacts) await rm(workdir, { recursive: true, force: true })
+  }
+}
+
+async function startOfficialServer ({ jar, cwd, timeoutMs }) {
+  const child = spawn('java', ['-Xmx1G', '-Xms1G', '-jar', jar, 'nogui'], {
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe']
+  })
+  let output = ''
+
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM')
+      reject(new Error(`official server did not become ready within ${timeoutMs}ms:\n${output}`))
+    }, timeoutMs)
+
+    const onData = chunk => {
+      output += chunk.toString()
+      if (output.includes('Done (')) {
+        clearTimeout(timeout)
+        resolve()
+      }
+    }
+
+    child.stdout.on('data', onData)
+    child.stderr.on('data', onData)
+    child.once('exit', code => {
+      clearTimeout(timeout)
+      reject(new Error(`official server exited before readiness with code ${code}:\n${output}`))
+    })
+  })
+
+  return child
+}
+
+async function stopOfficialServer (child) {
+  if (child.exitCode !== null) return
+  child.stdin.write('stop\n')
+  await new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM')
+      resolve()
+    }, 15_000)
+    child.once('exit', () => {
+      clearTimeout(timeout)
+      resolve()
+    })
+  })
+}
+
+async function runProcess (command, args, options) {
+  return await new Promise(resolve => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    const timeout = setTimeout(() => child.kill('SIGTERM'), options.timeoutMs)
+    child.stdout.on('data', chunk => { stdout += chunk })
+    child.stderr.on('data', chunk => { stderr += chunk })
+    child.on('close', code => {
+      clearTimeout(timeout)
+      resolve({ code, stdout, stderr })
+    })
+  })
+}
+
+function compareSequence (diffs, path, actual, official) {
+  if (actual.length === official.length && actual.every((value, index) => value === official[index])) return
+  diffs.push({ path, actual, official })
+}
+
+function packKey (pack) {
+  return `${pack.namespace}:${pack.id}:${pack.version}`
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const mode = process.argv[2] ?? 'rustcraft'
+  const transcript = mode === 'official'
+    ? await recordOfficialServerConfigurationTranscript({
+        port: Number(process.env.VANILLA_TRANSCRIPT_PORT ?? 25566),
+        jar: process.env.OFFICIAL_SERVER_JAR,
+        keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+      })
+    : await recordServerConfigurationTranscript({
+        host: process.env.RUSTCRAFT_HOST,
+        port: Number(process.env.RUSTCRAFT_PORT ?? 25565)
+      })
+  console.log(JSON.stringify(transcript, null, 2))
+}

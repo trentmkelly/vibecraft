@@ -80,7 +80,7 @@ export const requiredPlayEntryEvidence = [
 ]
 
 const codecSourceByRegistry = new Map([
-  ['minecraft:biome', 'Biome.NETWORK_CODEC'],
+  ['minecraft:worldgen/biome', 'Biome.NETWORK_CODEC'],
   ['minecraft:chat_type', 'ChatType.DIRECT_CODEC'],
   ['minecraft:trim_pattern', 'TrimPattern.DIRECT_CODEC'],
   ['minecraft:trim_material', 'TrimMaterial.DIRECT_CODEC'],
@@ -111,6 +111,7 @@ const codecSourceByRegistry = new Map([
 ])
 
 function registryConstantToId (constant) {
+  if (constant === 'BIOME') return 'minecraft:worldgen/biome'
   return `minecraft:${constant.toLowerCase()}`
 }
 

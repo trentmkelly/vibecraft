@@ -32,7 +32,7 @@ export const dependencyEvidence = [
   },
   {
     id: 'vanilla-registry-bootstrap',
-    registries: ['minecraft:biome', 'minecraft:enchantment', 'minecraft:dimension_type'],
+    registries: ['minecraft:worldgen/biome', 'minecraft:enchantment', 'minecraft:dimension_type'],
     source: 'vanillaRegistries',
     needles: [
       '.add(Registries.DIMENSION_TYPE, DimensionTypes::bootstrap)',
@@ -64,21 +64,21 @@ export const dependencyEvidence = [
   },
   {
     id: 'chunk-biome-default',
-    registries: ['minecraft:biome'],
+    registries: ['minecraft:worldgen/biome'],
     source: 'palettedContainerFactory',
     needles: ['lookupOrThrow(Registries.BIOME)', 'Strategy.createForBiomes', 'Biomes.PLAINS'],
     reason: 'Chunk palette serialization needs a biome registry and vanilla plains default.'
   },
   {
     id: 'chunk-biome-palette-packet',
-    registries: ['minecraft:biome'],
+    registries: ['minecraft:worldgen/biome'],
     source: 'chunksBiomesPacket',
     needles: ['ClientboundChunksBiomesPacket', 'section.getBiomes().write(buffer)', 'getSerializedSize()'],
     reason: 'Clientbound chunk biome packets serialize section biome palettes using synced biome holder IDs.'
   },
   {
     id: 'level-chunk-section-biomes',
-    registries: ['minecraft:biome'],
+    registries: ['minecraft:worldgen/biome'],
     source: 'levelChunkSection',
     needles: ['PalettedContainerRO<Holder<Biome>> biomes', 'readBiomes', 'this.biomes.write(buffer)'],
     reason: 'Level chunk sections carry biome palettes that must resolve against the client registry.'

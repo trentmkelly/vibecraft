@@ -5,6 +5,7 @@ const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
 const protocolVersion = 775
+const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundSelectKnownPacksPacketId = 7
 const serverboundPlayerLoadedPacketId = 44
@@ -111,7 +112,7 @@ function expectPacket (packet, id, state) {
 }
 
 const expectedRegistries = [
-  'minecraft:biome',
+  'minecraft:worldgen/biome',
   'minecraft:damage_type',
   'minecraft:dimension_type',
   'minecraft:chat_type',
@@ -137,7 +138,7 @@ const expectedRegistries = [
 
 const minimumRegistryElements = new Map([
   ['minecraft:banner_pattern', 43],
-  ['minecraft:biome', 65],
+  ['minecraft:worldgen/biome', 65],
   ['minecraft:cat_sound_variant', 1],
   ['minecraft:cat_variant', 11],
   ['minecraft:chat_type', 7],
@@ -161,7 +162,7 @@ const minimumRegistryElements = new Map([
 ])
 
 const requiredRegistryElements = new Map([
-  ['minecraft:biome', [
+  ['minecraft:worldgen/biome', [
     'minecraft:plains',
     'minecraft:the_void',
     'minecraft:end_barrens'
@@ -261,7 +262,7 @@ function decodeRegistryPacket (packet) {
     if (hasData === 1) {
       const nbt = readNetworkNbt(packet.body, offset)
       offset = nbt.offset
-      if (registry.value === 'minecraft:biome') {
+      if (registry.value === 'minecraft:worldgen/biome') {
         elementDataFields[element.value] = collectNbtFieldPaths(nbt.value)
       }
     } else if (hasData !== 0) {
@@ -524,53 +525,55 @@ async function main () {
     }
     if (packet.id === 3) break
   }
-  const configIds = config.map(packet => packet.id)
-  for (const id of [12, 7, 13, 14, 3]) {
-    if (!configIds.includes(id)) throw new Error(`missing configuration packet ${id}`)
-  }
-  const knownPacksPacket = config.find(packet => packet.id === 14)
-  if (!knownPacksPacket) throw new Error('missing select_known_packs packet')
-  if (!knownPacksPacket.packs.some(pack => pack.namespace === 'minecraft' && pack.id === 'core' && pack.version === '26.1.2')) {
-    throw new Error('missing minecraft:core:26.1.2 known pack')
-  }
   const registryPackets = config.filter(packet => packet.id === 7)
-  const registryNames = new Set(registryPackets.map(packet => packet.registry))
-  for (const registry of expectedRegistries) {
-    if (!registryNames.has(registry)) throw new Error(`missing registry packet ${registry}`)
-  }
-  for (const packet of registryPackets) {
-    const minimum = minimumRegistryElements.get(packet.registry) ?? 1
-    if (packet.elements < minimum) {
-      throw new Error(`registry ${packet.registry} had ${packet.elements} elements, expected at least ${minimum}`)
+  if (!recordOnly) {
+    const configIds = config.map(packet => packet.id)
+    for (const id of [12, 7, 13, 14, 3]) {
+      if (!configIds.includes(id)) throw new Error(`missing configuration packet ${id}`)
     }
-  }
-  for (const [registry, elements] of requiredRegistryElements) {
-    const packet = registryPackets.find(packet => packet.registry === registry)
-    if (!packet) throw new Error(`missing required-element registry ${registry}`)
-    const packetElements = new Set(packet.elementIds)
-    for (const element of elements) {
-      if (!packetElements.has(element)) throw new Error(`missing registry element ${registry}/${element}`)
+    const knownPacksPacket = config.find(packet => packet.id === 14)
+    if (!knownPacksPacket) throw new Error('missing select_known_packs packet')
+    if (!knownPacksPacket.packs.some(pack => pack.namespace === 'minecraft' && pack.id === 'core' && pack.version === '26.1.2')) {
+      throw new Error('missing minecraft:core:26.1.2 known pack')
     }
-  }
-  const biomePacket = registryPackets.find(packet => packet.registry === 'minecraft:biome')
-  if (!biomePacket) throw new Error('missing biome registry for field validation')
-  for (const element of biomePacket.elementIds) {
-    const fields = new Set(biomePacket.elementDataFields?.[element] ?? [])
-    for (const field of requiredBiomeFieldPaths) {
-      if (!fields.has(field)) throw new Error(`biome ${element} missing network codec field ${field}`)
+    const registryNames = new Set(registryPackets.map(packet => packet.registry))
+    for (const registry of expectedRegistries) {
+      if (!registryNames.has(registry)) throw new Error(`missing registry packet ${registry}`)
     }
-  }
-  const tagsPacket = config.find(packet => packet.id === 13)
-  if (!tagsPacket) throw new Error('missing update_tags packet')
-  const tagRegistries = new Map(tagsPacket.registries.map(registry => [registry.registry, registry.tags]))
-  for (const [registry, tags] of requiredTags) {
-    const registryTags = tagRegistries.get(registry)
-    if (!registryTags) throw new Error(`missing tag registry ${registry}`)
-    const tagNames = new Set(registryTags.map(tag => tag.tag))
-    for (const tag of tags) {
-      if (!tagNames.has(tag)) throw new Error(`missing tag ${registry}/${tag}`)
-      const packetTag = registryTags.find(packetTag => packetTag.tag === tag)
-      if (packetTag.entries.length === 0) throw new Error(`tag ${registry}/${tag} had no entries`)
+    for (const packet of registryPackets) {
+      const minimum = minimumRegistryElements.get(packet.registry) ?? 1
+      if (packet.elements < minimum) {
+        throw new Error(`registry ${packet.registry} had ${packet.elements} elements, expected at least ${minimum}`)
+      }
+    }
+    for (const [registry, elements] of requiredRegistryElements) {
+      const packet = registryPackets.find(packet => packet.registry === registry)
+      if (!packet) throw new Error(`missing required-element registry ${registry}`)
+      const packetElements = new Set(packet.elementIds)
+      for (const element of elements) {
+        if (!packetElements.has(element)) throw new Error(`missing registry element ${registry}/${element}`)
+      }
+    }
+    const biomePacket = registryPackets.find(packet => packet.registry === 'minecraft:worldgen/biome')
+    if (!biomePacket) throw new Error('missing biome registry for field validation')
+    for (const element of biomePacket.elementIds) {
+      const fields = new Set(biomePacket.elementDataFields?.[element] ?? [])
+      for (const field of requiredBiomeFieldPaths) {
+        if (!fields.has(field)) throw new Error(`biome ${element} missing network codec field ${field}`)
+      }
+    }
+    const tagsPacket = config.find(packet => packet.id === 13)
+    if (!tagsPacket) throw new Error('missing update_tags packet')
+    const tagRegistries = new Map(tagsPacket.registries.map(registry => [registry.registry, registry.tags]))
+    for (const [registry, tags] of requiredTags) {
+      const registryTags = tagRegistries.get(registry)
+      if (!registryTags) throw new Error(`missing tag registry ${registry}`)
+      const tagNames = new Set(registryTags.map(tag => tag.tag))
+      for (const tag of tags) {
+        if (!tagNames.has(tag)) throw new Error(`missing tag ${registry}/${tag}`)
+        const packetTag = registryTags.find(packetTag => packetTag.tag === tag)
+        if (packetTag.entries.length === 0) throw new Error(`tag ${registry}/${tag} had no entries`)
+      }
     }
   }
   socket.write(frame(3))
@@ -580,22 +583,24 @@ async function main () {
     const packet = await reader.nextPacket()
     play.push({ id: packet.id, length: packet.length })
   }
-  for (const id of [49, 105, 72, 12, 48, 11]) {
-    if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
-  }
-  const loginPacket = play.find(packet => packet.id === 49)
-  if (!loginPacket || loginPacket.length !== 70) {
-    throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
-  }
-  const positionPacket = play.find(packet => packet.id === 72)
-  if (!positionPacket || positionPacket.length !== 62) {
-    throw new Error(`expected 62-byte player_position packet with fixed-int relatives, got ${positionPacket?.length}`)
+  if (!recordOnly) {
+    for (const id of [49, 105, 72, 12, 48, 11]) {
+      if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
+    }
+    const loginPacket = play.find(packet => packet.id === 49)
+    if (!loginPacket || loginPacket.length !== 70) {
+      throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
+    }
+    const positionPacket = play.find(packet => packet.id === 72)
+    if (!positionPacket || positionPacket.length !== 62) {
+      throw new Error(`expected 62-byte player_position packet with fixed-int relatives, got ${positionPacket?.length}`)
+    }
   }
   socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(frame(serverboundPlayerLoadedPacketId))
 
   socket.end()
-  console.log(JSON.stringify({ ok: true, host, port, login: login.id, config, play }, null, 2))
+  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play }, null, 2))
 }
 
 main().catch(error => {

@@ -13,7 +13,7 @@ test('configuration registry closure report covers every synchronized registry',
   const registries = report.map(entry => entry.registry)
 
   assert.equal(new Set(registries).size, registries.length, 'registry closure report must not contain duplicates')
-  assert.equal(registries[0], 'minecraft:biome', 'report must preserve decompiled synchronized registry order')
+  assert.equal(registries[0], 'minecraft:worldgen/biome', 'report must preserve decompiled synchronized registry order')
   assert.equal(registries.at(-1), 'minecraft:timeline', 'report must include the full synchronized registry list')
 
   const uncovered = report.filter(entry => {

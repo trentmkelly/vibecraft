@@ -31,7 +31,7 @@ test('configuration registry codec audit source files contain the audited codec 
 
 test('biome codec audit records the 26.1.2 network payload shape from decomp', async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
-  const biome = audit.find(entry => entry.registry === 'minecraft:biome')
+  const biome = audit.find(entry => entry.registry === 'minecraft:worldgen/biome')
   const sources = await readCodecAuditSources([biome])
   const source = sources.get(biome.sourceFile)
 

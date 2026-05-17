@@ -29,7 +29,7 @@ test('dependency graph evidence is backed by decompiled source needles', async (
 
 test('dependency graph identifies biome and dimension as play-entry dependencies', async () => {
   const graph = await loadConfigurationRegistryDependencyGraph()
-  const biome = graph.find(entry => entry.registry === 'minecraft:biome')
+  const biome = graph.find(entry => entry.registry === 'minecraft:worldgen/biome')
   const dimensionType = graph.find(entry => entry.registry === 'minecraft:dimension_type')
 
   assert.ok(biome.dependencies.includes('chunk-biome-default'))

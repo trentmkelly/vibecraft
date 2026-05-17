@@ -41,7 +41,7 @@ export const codecAuditSourceFiles = new Map([
 ])
 
 export const registryCodecAuditOverrides = new Map([
-  ['minecraft:biome', {
+  ['minecraft:worldgen/biome', {
     shape: 'network-compound',
     requiredFields: ['has_precipitation', 'temperature', 'downfall', 'effects', 'water_color'],
     optionalFields: ['temperature_modifier', 'attributes', 'foliage_color', 'dry_foliage_color', 'grass_color', 'grass_color_modifier'],

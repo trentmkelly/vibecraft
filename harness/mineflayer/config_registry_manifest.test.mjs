@@ -52,6 +52,7 @@ const playEntryEvidence = [
 ]
 
 function registryConstantToId (constant) {
+  if (constant === 'BIOME') return 'minecraft:worldgen/biome'
   return `minecraft:${constant.toLowerCase()}`
 }
 

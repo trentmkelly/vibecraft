@@ -1392,7 +1392,7 @@ fn write_minimal_single_entry_registry_packet<W: Write>(
 }
 
 fn write_minimal_biome_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:biome").unwrap())?;
+    write_identifier(writer, &Identifier::parse("minecraft:worldgen/biome").unwrap())?;
     write_var_i32(writer, BIOMES.len() as i32)?;
     for biome in BIOMES {
         write_identifier(

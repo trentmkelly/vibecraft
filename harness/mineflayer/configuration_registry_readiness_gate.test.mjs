@@ -64,7 +64,7 @@ test('configuration registry readiness gate validates raw probe registry and pla
 
 test('configuration registry readiness gate fails on missing elements, tag drift, known-pack drift, and play decode drift', () => {
   const rawProbe = passingRawProbe()
-  rawProbe.config.find(packet => packet.registry === 'minecraft:biome').elements = 64
+  rawProbe.config.find(packet => packet.registry === 'minecraft:worldgen/biome').elements = 64
   rawProbe.config.find(packet => packet.registry === 'minecraft:trim_material').elementIds = ['minecraft:iron']
   rawProbe.config.find(packet => packet.id === 13).registries
     .find(registry => registry.registry === 'minecraft:damage_type').tags

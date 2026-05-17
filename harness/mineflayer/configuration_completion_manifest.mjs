@@ -2,7 +2,7 @@ export const configurationCompletionManifest = {
   protocolVersion: 775,
   finishConfigurationPacketId: 3,
   registryOrder: [
-    'minecraft:biome',
+    'minecraft:worldgen/biome',
     'minecraft:damage_type',
     'minecraft:dimension_type',
     'minecraft:chat_type',
@@ -27,7 +27,7 @@ export const configurationCompletionManifest = {
   ],
   elementCounts: {
     'minecraft:banner_pattern': 43,
-    'minecraft:biome': 65,
+    'minecraft:worldgen/biome': 65,
     'minecraft:cat_sound_variant': 1,
     'minecraft:cat_variant': 11,
     'minecraft:chat_type': 7,
@@ -51,7 +51,7 @@ export const configurationCompletionManifest = {
   },
   requiredElements: {
     'minecraft:banner_pattern': ['minecraft:bricks', 'minecraft:curly_border', 'minecraft:flower'],
-    'minecraft:biome': ['minecraft:end_barrens', 'minecraft:plains', 'minecraft:the_void'],
+    'minecraft:worldgen/biome': ['minecraft:end_barrens', 'minecraft:plains', 'minecraft:the_void'],
     'minecraft:cat_sound_variant': ['minecraft:default'],
     'minecraft:chat_type': [
       'minecraft:chat',
