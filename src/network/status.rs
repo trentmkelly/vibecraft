@@ -176,6 +176,27 @@ struct InstrumentEntry {
     sound_event: &'static str,
 }
 
+const TRIM_PATTERNS: &[&str] = &[
+    "sentry",
+    "dune",
+    "coast",
+    "wild",
+    "ward",
+    "eye",
+    "vex",
+    "tide",
+    "snout",
+    "rib",
+    "spire",
+    "wayfinder",
+    "shaper",
+    "silence",
+    "raiser",
+    "host",
+    "flow",
+    "bolt",
+];
+
 const INSTRUMENTS: &[InstrumentEntry] = &[
     InstrumentEntry {
         id: "ponder_goat_horn",
@@ -697,6 +718,11 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_trim_pattern_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_banner_pattern_registry_packet,
     )?;
     write_framed_packet(
@@ -814,7 +840,7 @@ fn write_minimal_play_join(
         write_vec3(payload, 0.0, 0.0, 0.0)?;
         payload.write_all(&0.0f32.to_be_bytes())?;
         payload.write_all(&0.0f32.to_be_bytes())?;
-        write_var_i32(payload, 0)
+        payload.write_all(&0_i32.to_be_bytes())
     })?;
     write_framed_packet(
         stream,
@@ -987,6 +1013,23 @@ fn write_vanilla_banner_pattern_registry_packet<W: Write>(writer: &mut W) -> io:
         )?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &banner_pattern_nbt(pattern))?;
+    }
+    Ok(())
+}
+
+fn write_vanilla_trim_pattern_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:trim_pattern").unwrap(),
+    )?;
+    write_var_i32(writer, TRIM_PATTERNS.len() as i32)?;
+    for pattern in TRIM_PATTERNS {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{pattern}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &trim_pattern_nbt(pattern))?;
     }
     Ok(())
 }
@@ -1194,6 +1237,23 @@ fn trim_material_nbt(material: &TrimMaterialEntry) -> Tag {
     }
 
     Tag::Compound(fields)
+}
+
+fn trim_pattern_nbt(pattern: &str) -> Tag {
+    Tag::Compound(vec![
+        (
+            "asset_id".to_string(),
+            Tag::String(format!("minecraft:{pattern}")),
+        ),
+        (
+            "description".to_string(),
+            Tag::Compound(vec![(
+                "translate".to_string(),
+                Tag::String(format!("trim_pattern.minecraft.{pattern}")),
+            )]),
+        ),
+        ("decal".to_string(), Tag::Byte(0)),
+    ])
 }
 
 fn jukebox_song_nbt(song: &JukeboxSongEntry) -> Tag {

@@ -108,6 +108,7 @@ function expectPacket (packet, id, state) {
 const expectedRegistries = [
   'minecraft:damage_type',
   'minecraft:dimension_type',
+  'minecraft:trim_pattern',
   'minecraft:trim_material',
   'minecraft:banner_pattern',
   'minecraft:instrument',
@@ -136,6 +137,7 @@ const minimumRegistryElements = new Map([
   ['minecraft:instrument', 8],
   ['minecraft:jukebox_song', 21],
   ['minecraft:pig_variant', 3],
+  ['minecraft:trim_pattern', 18],
   ['minecraft:wolf_variant', 9]
 ])
 
@@ -200,6 +202,10 @@ async function main () {
   const loginPacket = play.find(packet => packet.id === 49)
   if (!loginPacket || loginPacket.length !== 70) {
     throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
+  }
+  const positionPacket = play.find(packet => packet.id === 72)
+  if (!positionPacket || positionPacket.length !== 62) {
+    throw new Error(`expected 62-byte player_position packet with fixed-int relatives, got ${positionPacket?.length}`)
   }
   socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(frame(serverboundPlayerLoadedPacketId))
