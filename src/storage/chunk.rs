@@ -5,6 +5,55 @@ use std::collections::BTreeMap;
 use super::nbt::Tag;
 use super::region::ChunkPos;
 
+pub const CHUNK_WIDTH: i32 = 16;
+pub const SECTION_VOLUME: usize = 16 * 16 * 16;
+pub const BIOME_SECTION_VOLUME: usize = 4 * 4 * 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionBlockPos {
+    pub x: u8,
+    pub y: u8,
+    pub z: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockStateEntry {
+    pub name: String,
+    pub properties: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PalettedContainer {
+    pub palette: Vec<Tag>,
+    pub data: Option<Vec<i64>>,
+    pub expected_entries: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeightmapKind {
+    WorldSurfaceWg,
+    WorldSurface,
+    OceanFloorWg,
+    OceanFloor,
+    MotionBlocking,
+    MotionBlockingNoLeaves,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkType {
+    ProtoChunk,
+    LevelChunk,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkStatusEntry {
+    pub id: &'static str,
+    pub parent: &'static str,
+    pub index: usize,
+    pub chunk_type: ChunkType,
+    pub heightmaps_after: &'static [HeightmapKind],
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChunkSection {
     pub y: i8,
@@ -12,6 +61,119 @@ pub struct ChunkSection {
     pub biomes: Tag,
     pub block_light: Option<Vec<i8>>,
     pub sky_light: Option<Vec<i8>>,
+}
+
+pub const WORLDGEN_HEIGHTMAPS: &[HeightmapKind] =
+    &[HeightmapKind::OceanFloorWg, HeightmapKind::WorldSurfaceWg];
+
+pub const FINAL_HEIGHTMAPS: &[HeightmapKind] = &[
+    HeightmapKind::OceanFloor,
+    HeightmapKind::WorldSurface,
+    HeightmapKind::MotionBlocking,
+    HeightmapKind::MotionBlockingNoLeaves,
+];
+
+pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
+    status_entry(
+        "minecraft:empty",
+        "minecraft:empty",
+        0,
+        ChunkType::ProtoChunk,
+        WORLDGEN_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:structure_starts",
+        "minecraft:empty",
+        1,
+        ChunkType::ProtoChunk,
+        WORLDGEN_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:structure_references",
+        "minecraft:structure_starts",
+        2,
+        ChunkType::ProtoChunk,
+        WORLDGEN_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:biomes",
+        "minecraft:structure_references",
+        3,
+        ChunkType::ProtoChunk,
+        WORLDGEN_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:noise",
+        "minecraft:biomes",
+        4,
+        ChunkType::ProtoChunk,
+        WORLDGEN_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:surface",
+        "minecraft:noise",
+        5,
+        ChunkType::ProtoChunk,
+        WORLDGEN_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:carvers",
+        "minecraft:surface",
+        6,
+        ChunkType::ProtoChunk,
+        FINAL_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:features",
+        "minecraft:carvers",
+        7,
+        ChunkType::ProtoChunk,
+        FINAL_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:initialize_light",
+        "minecraft:features",
+        8,
+        ChunkType::ProtoChunk,
+        FINAL_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:light",
+        "minecraft:initialize_light",
+        9,
+        ChunkType::ProtoChunk,
+        FINAL_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:spawn",
+        "minecraft:light",
+        10,
+        ChunkType::ProtoChunk,
+        FINAL_HEIGHTMAPS,
+    ),
+    status_entry(
+        "minecraft:full",
+        "minecraft:spawn",
+        11,
+        ChunkType::LevelChunk,
+        FINAL_HEIGHTMAPS,
+    ),
+];
+
+const fn status_entry(
+    id: &'static str,
+    parent: &'static str,
+    index: usize,
+    chunk_type: ChunkType,
+    heightmaps_after: &'static [HeightmapKind],
+) -> ChunkStatusEntry {
+    ChunkStatusEntry {
+        id,
+        parent,
+        index,
+        chunk_type,
+        heightmaps_after,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -148,6 +310,114 @@ impl ChunkSection {
     }
 }
 
+impl SectionBlockPos {
+    pub fn new(x: u8, y: u8, z: u8) -> Option<Self> {
+        if x < 16 && y < 16 && z < 16 {
+            Some(Self { x, y, z })
+        } else {
+            None
+        }
+    }
+
+    pub fn block_state_index(self) -> usize {
+        self.y as usize * 16 * 16 + self.z as usize * 16 + self.x as usize
+    }
+
+    pub fn biome_index(self) -> usize {
+        (self.y as usize / 4) * 4 * 4 + (self.z as usize / 4) * 4 + (self.x as usize / 4)
+    }
+}
+
+impl BlockStateEntry {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            properties: BTreeMap::new(),
+        }
+    }
+
+    pub fn to_nbt(&self) -> Tag {
+        let mut fields = vec![("Name".to_string(), Tag::String(self.name.clone()))];
+        if !self.properties.is_empty() {
+            fields.push((
+                "Properties".to_string(),
+                Tag::Compound(
+                    self.properties
+                        .iter()
+                        .map(|(key, value)| (key.clone(), Tag::String(value.clone())))
+                        .collect(),
+                ),
+            ));
+        }
+        Tag::Compound(fields)
+    }
+}
+
+impl PalettedContainer {
+    pub fn single(entry: Tag, expected_entries: usize) -> Self {
+        Self {
+            palette: vec![entry],
+            data: None,
+            expected_entries,
+        }
+    }
+
+    pub fn to_nbt(&self) -> Tag {
+        let mut fields = vec![("palette".to_string(), Tag::List(self.palette.clone()))];
+        if let Some(data) = &self.data {
+            fields.push(("data".to_string(), Tag::LongArray(data.clone())));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn from_nbt(tag: &Tag, expected_entries: usize) -> Result<Self, String> {
+        let compound = compound(tag)?;
+        let palette = list_field(compound, "palette")?.to_vec();
+        if palette.is_empty() {
+            return Err("paletted container palette cannot be empty".to_string());
+        }
+        let data = match compound.iter().find(|(field_name, _)| field_name == "data") {
+            Some((_name, Tag::LongArray(values))) => Some(values.clone()),
+            Some((_name, _)) => {
+                return Err("paletted container data must be a long array".to_string())
+            }
+            None => None,
+        };
+        Ok(Self {
+            palette,
+            data,
+            expected_entries,
+        })
+    }
+}
+
+impl HeightmapKind {
+    pub fn storage_name(self) -> &'static str {
+        match self {
+            Self::WorldSurfaceWg => "WORLD_SURFACE_WG",
+            Self::WorldSurface => "WORLD_SURFACE",
+            Self::OceanFloorWg => "OCEAN_FLOOR_WG",
+            Self::OceanFloor => "OCEAN_FLOOR",
+            Self::MotionBlocking => "MOTION_BLOCKING",
+            Self::MotionBlockingNoLeaves => "MOTION_BLOCKING_NO_LEAVES",
+        }
+    }
+}
+
+pub fn chunk_status(id: &str) -> Option<&'static ChunkStatusEntry> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    CHUNK_STATUS_PIPELINE.iter().find(|status| {
+        status
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|status_name| status_name == name)
+    })
+}
+
+pub fn chunk_status_is_or_after(status: &str, required: &str) -> Option<bool> {
+    Some(chunk_status(status)?.index >= chunk_status(required)?.index)
+}
+
 fn heightmap_fields(chunk: &LevelChunk) -> Vec<(String, Tag)> {
     chunk
         .heightmaps
@@ -216,7 +486,11 @@ fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<
 
 #[cfg(test)]
 mod tests {
-    use super::{ChunkSection, LevelChunk};
+    use super::{
+        chunk_status, chunk_status_is_or_after, BlockStateEntry, ChunkSection, ChunkType,
+        HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos, BIOME_SECTION_VOLUME,
+        CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+    };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
@@ -281,5 +555,73 @@ mod tests {
         let tag = LevelChunk::empty(ChunkPos { x: 9, z: 9 }).to_nbt(TARGET_DATA_VERSION);
         let err = LevelChunk::from_nbt(ChunkPos { x: 0, z: 0 }, &tag).unwrap_err();
         assert!(err.contains("wrong position"));
+    }
+
+    #[test]
+    fn section_positions_and_palettes_match_vanilla_shapes() {
+        assert_eq!(SECTION_VOLUME, 4096);
+        assert_eq!(BIOME_SECTION_VOLUME, 64);
+        assert!(SectionBlockPos::new(16, 0, 0).is_none());
+
+        let pos = SectionBlockPos::new(3, 5, 7).unwrap();
+        assert_eq!(pos.block_state_index(), 5 * 256 + 7 * 16 + 3);
+        assert_eq!(pos.biome_index(), 1 * 16 + 1 * 4);
+
+        let mut oak = BlockStateEntry::new("minecraft:oak_log");
+        oak.properties.insert("axis".to_string(), "y".to_string());
+        let block_states = PalettedContainer::single(oak.to_nbt(), SECTION_VOLUME);
+        let decoded = PalettedContainer::from_nbt(&block_states.to_nbt(), SECTION_VOLUME).unwrap();
+        assert_eq!(decoded.palette.len(), 1);
+        assert!(decoded.data.is_none());
+        assert_eq!(decoded.expected_entries, SECTION_VOLUME);
+    }
+
+    #[test]
+    fn chunk_status_pipeline_matches_vanilla_order_and_dependencies() {
+        assert_eq!(CHUNK_STATUS_PIPELINE.len(), 12);
+        assert_eq!(CHUNK_STATUS_PIPELINE[0].id, "minecraft:empty");
+        assert_eq!(CHUNK_STATUS_PIPELINE[0].parent, "minecraft:empty");
+        assert_eq!(CHUNK_STATUS_PIPELINE[11].id, "minecraft:full");
+        assert_eq!(CHUNK_STATUS_PIPELINE[11].parent, "minecraft:spawn");
+        assert_eq!(CHUNK_STATUS_PIPELINE[11].chunk_type, ChunkType::LevelChunk);
+        assert_eq!(chunk_status("full").unwrap().index, 11);
+        assert_eq!(
+            chunk_status("minecraft:carvers").unwrap().parent,
+            "minecraft:surface"
+        );
+        assert_eq!(chunk_status_is_or_after("features", "carvers"), Some(true));
+        assert_eq!(chunk_status_is_or_after("noise", "features"), Some(false));
+
+        assert_eq!(
+            WORLDGEN_HEIGHTMAPS
+                .iter()
+                .map(|kind| kind.storage_name())
+                .collect::<Vec<_>>(),
+            vec!["OCEAN_FLOOR_WG", "WORLD_SURFACE_WG"]
+        );
+        assert_eq!(
+            FINAL_HEIGHTMAPS
+                .iter()
+                .map(|kind| kind.storage_name())
+                .collect::<Vec<_>>(),
+            vec![
+                "OCEAN_FLOOR",
+                "WORLD_SURFACE",
+                "MOTION_BLOCKING",
+                "MOTION_BLOCKING_NO_LEAVES"
+            ]
+        );
+        assert_eq!(
+            chunk_status("features").unwrap().heightmaps_after,
+            FINAL_HEIGHTMAPS
+        );
+        assert_eq!(
+            chunk_status("biomes").unwrap().heightmaps_after,
+            WORLDGEN_HEIGHTMAPS
+        );
+        assert_eq!(
+            HeightmapKind::MotionBlockingNoLeaves.storage_name(),
+            "MOTION_BLOCKING_NO_LEAVES"
+        );
     }
 }
