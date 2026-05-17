@@ -24,6 +24,7 @@ const VERSION_NAME: &str = "26.1.2";
 const PROTOCOL_VERSION: i32 = 775;
 const MAX_PACKET_SIZE: usize = 2 * 1024 * 1024;
 const CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
+const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
@@ -199,6 +200,11 @@ fn handle_login_connection(
     )?;
     write_framed_packet(
         stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_minimal_damage_type_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
@@ -267,6 +273,11 @@ fn write_minimal_play_join(
         payload.write_all(&0.0f32.to_be_bytes())?;
         write_var_i32(payload, 0)
     })
+}
+
+fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
+    write_var_i32(writer, 0)
 }
 
 fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
