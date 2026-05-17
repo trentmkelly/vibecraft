@@ -97,11 +97,70 @@ pub struct ClientboundSetHeldSlotPacket {
     pub slot: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameDifficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlayerAbilities {
+    pub invulnerable: bool,
+    pub flying: bool,
+    pub may_fly: bool,
+    pub instabuild: bool,
+    pub flying_speed: f32,
+    pub walking_speed: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct JoinGameSettings {
+    pub login: ClientboundLoginPacket,
+    pub difficulty: GameDifficulty,
+    pub difficulty_locked: bool,
+    pub abilities: PlayerAbilities,
+    pub permission_level: u8,
+    pub initial_recipes: bool,
+    pub initial_recipe_book: bool,
+    pub scoreboard: bool,
+    pub server_status: bool,
+    pub player_info_existing_count: usize,
+    pub active_effect_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayInstruction {
     Login(ClientboundLoginPacket),
+    ChangeDifficulty {
+        difficulty: GameDifficulty,
+        locked: bool,
+    },
+    PlayerAbilities(PlayerAbilities),
     SetHeldSlot(ClientboundSetHeldSlotPacket),
-    PlayerPosition { teleport_id: i32 },
+    UpdateRecipes,
+    UpdatePermissionLevel(u8),
+    SendInitialRecipeBook,
+    UpdateScoreboard,
+    TeleportToSpawn {
+        teleport_id: i32,
+    },
+    ServerStatus,
+    PlayerInfoUpdate {
+        existing_players: usize,
+    },
+    BroadcastSelfPlayerInfo,
+    SendLevelInfo,
+    AddPlayerToLevel,
+    BossEventsOnConnect,
+    ActiveEffects {
+        count: usize,
+    },
+    InitInventoryMenu,
+    PlayerPosition {
+        teleport_id: i32,
+    },
     StartConfiguration,
     Disconnect(String),
 }
@@ -204,6 +263,51 @@ impl PlaySession {
             }),
             PlayInstruction::PlayerPosition { teleport_id: 0 },
         ]
+    }
+
+    pub fn vanilla_join_sequence(&mut self, settings: JoinGameSettings) -> Vec<PlayInstruction> {
+        self.state = PlayState::WaitingForPlayerLoaded;
+        let mut instructions = vec![
+            PlayInstruction::Login(settings.login),
+            PlayInstruction::ChangeDifficulty {
+                difficulty: settings.difficulty,
+                locked: settings.difficulty_locked,
+            },
+            PlayInstruction::PlayerAbilities(settings.abilities),
+            PlayInstruction::SetHeldSlot(ClientboundSetHeldSlotPacket {
+                slot: self.selected_slot as i32,
+            }),
+        ];
+        if settings.initial_recipes {
+            instructions.push(PlayInstruction::UpdateRecipes);
+        }
+        instructions.push(PlayInstruction::UpdatePermissionLevel(
+            settings.permission_level,
+        ));
+        if settings.initial_recipe_book {
+            instructions.push(PlayInstruction::SendInitialRecipeBook);
+        }
+        if settings.scoreboard {
+            instructions.push(PlayInstruction::UpdateScoreboard);
+        }
+        instructions.push(PlayInstruction::TeleportToSpawn { teleport_id: 0 });
+        if settings.server_status {
+            instructions.push(PlayInstruction::ServerStatus);
+        }
+        instructions.push(PlayInstruction::PlayerInfoUpdate {
+            existing_players: settings.player_info_existing_count,
+        });
+        instructions.push(PlayInstruction::BroadcastSelfPlayerInfo);
+        instructions.push(PlayInstruction::SendLevelInfo);
+        instructions.push(PlayInstruction::AddPlayerToLevel);
+        instructions.push(PlayInstruction::BossEventsOnConnect);
+        if settings.active_effect_count > 0 {
+            instructions.push(PlayInstruction::ActiveEffects {
+                count: settings.active_effect_count,
+            });
+        }
+        instructions.push(PlayInstruction::InitInventoryMenu);
+        instructions
     }
 
     pub fn handle_decoded(&mut self, packet: DecodedPacket) -> DispatchOutcome {
@@ -702,6 +806,79 @@ mod tests {
                 PlayInstruction::Login(login),
                 PlayInstruction::SetHeldSlot(ClientboundSetHeldSlotPacket { slot: 3 }),
                 PlayInstruction::PlayerPosition { teleport_id: 0 }
+            ]
+        );
+    }
+
+    #[test]
+    fn vanilla_join_sequence_matches_player_list_packet_and_side_effect_order() {
+        let mut session = PlaySession::new(42, 3);
+        let login = ClientboundLoginPacket {
+            player_id: 42,
+            hardcore: true,
+            levels: vec![
+                Identifier::parse("minecraft:overworld").unwrap(),
+                Identifier::parse("minecraft:the_nether").unwrap(),
+                Identifier::parse("minecraft:the_end").unwrap(),
+            ],
+            max_players: 20,
+            chunk_radius: 10,
+            simulation_distance: 10,
+            reduced_debug_info: false,
+            show_death_screen: true,
+            do_limited_crafting: false,
+            spawn_info: CommonPlayerSpawnInfo::default(),
+            enforces_secure_chat: true,
+        };
+        let abilities = PlayerAbilities {
+            invulnerable: false,
+            flying: false,
+            may_fly: false,
+            instabuild: false,
+            flying_speed: 0.05,
+            walking_speed: 0.1,
+        };
+
+        let instructions = session.vanilla_join_sequence(JoinGameSettings {
+            login: login.clone(),
+            difficulty: GameDifficulty::Hard,
+            difficulty_locked: true,
+            abilities,
+            permission_level: 2,
+            initial_recipes: true,
+            initial_recipe_book: true,
+            scoreboard: true,
+            server_status: true,
+            player_info_existing_count: 2,
+            active_effect_count: 1,
+        });
+
+        assert_eq!(session.state, PlayState::WaitingForPlayerLoaded);
+        assert_eq!(
+            instructions,
+            vec![
+                PlayInstruction::Login(login),
+                PlayInstruction::ChangeDifficulty {
+                    difficulty: GameDifficulty::Hard,
+                    locked: true,
+                },
+                PlayInstruction::PlayerAbilities(abilities),
+                PlayInstruction::SetHeldSlot(ClientboundSetHeldSlotPacket { slot: 3 }),
+                PlayInstruction::UpdateRecipes,
+                PlayInstruction::UpdatePermissionLevel(2),
+                PlayInstruction::SendInitialRecipeBook,
+                PlayInstruction::UpdateScoreboard,
+                PlayInstruction::TeleportToSpawn { teleport_id: 0 },
+                PlayInstruction::ServerStatus,
+                PlayInstruction::PlayerInfoUpdate {
+                    existing_players: 2,
+                },
+                PlayInstruction::BroadcastSelfPlayerInfo,
+                PlayInstruction::SendLevelInfo,
+                PlayInstruction::AddPlayerToLevel,
+                PlayInstruction::BossEventsOnConnect,
+                PlayInstruction::ActiveEffects { count: 1 },
+                PlayInstruction::InitInventoryMenu,
             ]
         );
     }
