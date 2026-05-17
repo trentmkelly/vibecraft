@@ -1090,13 +1090,15 @@ fn escape_json_string(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        encode_base64, escape_json_string, handle_legacy_status_connection,
-        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response, read_packet,
-        status_json, write_legacy_string, write_status_pong_packet,
+        cat_sound_variant_nbt, chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64,
+        escape_json_string, handle_legacy_status_connection, legacy_disconnect_packet,
+        legacy_version0_response, legacy_version1_response, pig_sound_variant_nbt, read_packet,
+        status_json, wolf_sound_variant_nbt, write_legacy_string, write_status_pong_packet,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
     use crate::server_properties::ServerProperties;
+    use crate::storage::nbt::Tag;
     use std::io::{Cursor, Read, Write};
     use std::path::Path;
 
@@ -1191,6 +1193,90 @@ mod tests {
         let mut echoed_time = [0u8; 8];
         input.read_exact(&mut echoed_time).unwrap();
         assert_eq!(i64::from_be_bytes(echoed_time), request.time);
+    }
+
+    #[test]
+    fn animal_sound_variant_payloads_match_nested_26_1_2_codecs() {
+        assert_sound_variant_fields(
+            cow_sound_variant_nbt(),
+            &["ambient_sound", "hurt_sound", "death_sound", "step_sound"],
+        );
+        assert_nested_sound_variant_fields(
+            chicken_sound_variant_nbt(),
+            &["ambient_sound", "hurt_sound", "death_sound", "step_sound"],
+        );
+        assert_nested_sound_variant_fields(
+            pig_sound_variant_nbt(),
+            &[
+                "ambient_sound",
+                "hurt_sound",
+                "death_sound",
+                "step_sound",
+                "eat_sound",
+            ],
+        );
+        assert_nested_sound_variant_fields(
+            cat_sound_variant_nbt(),
+            &[
+                "ambient_sound",
+                "stray_ambient_sound",
+                "hiss_sound",
+                "hurt_sound",
+                "death_sound",
+                "eat_sound",
+                "beg_for_food_sound",
+                "purr_sound",
+                "purreow_sound",
+            ],
+        );
+        assert_nested_sound_variant_fields(
+            wolf_sound_variant_nbt(),
+            &[
+                "ambient_sound",
+                "death_sound",
+                "growl_sound",
+                "hurt_sound",
+                "pant_sound",
+                "whine_sound",
+                "step_sound",
+            ],
+        );
+    }
+
+    fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
+        let adult = compound_field(&tag, "adult_sounds");
+        let baby = compound_field(&tag, "baby_sounds");
+        assert_sound_set_fields(adult, fields);
+        assert_sound_set_fields(baby, fields);
+    }
+
+    fn assert_sound_variant_fields(tag: Tag, fields: &[&str]) {
+        assert_sound_set_fields(&tag, fields);
+    }
+
+    fn assert_sound_set_fields(tag: &Tag, fields: &[&str]) {
+        for field in fields {
+            assert!(
+                matches!(field_value(tag, field), Some(Tag::String(value)) if value.starts_with("minecraft:")),
+                "missing sound field {field} in {tag:?}"
+            );
+        }
+    }
+
+    fn compound_field<'a>(tag: &'a Tag, field: &str) -> &'a Tag {
+        match field_value(tag, field) {
+            Some(value @ Tag::Compound(_)) => value,
+            value => panic!("expected compound field {field}, got {value:?}"),
+        }
+    }
+
+    fn field_value<'a>(tag: &'a Tag, field: &str) -> Option<&'a Tag> {
+        let Tag::Compound(fields) = tag else {
+            return None;
+        };
+        fields
+            .iter()
+            .find_map(|(name, value)| (name == field).then_some(value))
     }
 
     #[derive(Debug)]
