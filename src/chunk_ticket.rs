@@ -60,6 +60,19 @@ pub struct PlayerChunkTracker {
     pub simulation_distance: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkMapUpdateKind {
+    MarkPendingToSend,
+    Drop,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkMapUpdate {
+    pub player_id: String,
+    pub chunk: ChunkPos,
+    pub kind: ChunkMapUpdateKind,
+}
+
 pub const TICKET_TYPES: &[TicketTypeEntry] = &[
     ticket_type("minecraft:player_spawn", 20, FLAG_LOADING),
     ticket_type("minecraft:spawn_search", 1, FLAG_LOADING),
@@ -405,6 +418,31 @@ impl PlayerChunkTracker {
     }
 }
 
+pub fn chunk_map_updates_for_diff(
+    player_id: &str,
+    diff: &ChunkTrackingDiff,
+    pending_to_send: &BTreeSet<ChunkPos>,
+) -> Vec<ChunkMapUpdate> {
+    let mut updates = Vec::with_capacity(diff.entered.len() + diff.left.len());
+    for chunk in &diff.entered {
+        if !pending_to_send.contains(chunk) {
+            updates.push(ChunkMapUpdate {
+                player_id: player_id.to_string(),
+                chunk: *chunk,
+                kind: ChunkMapUpdateKind::MarkPendingToSend,
+            });
+        }
+    }
+    for chunk in &diff.left {
+        updates.push(ChunkMapUpdate {
+            player_id: player_id.to_string(),
+            chunk: *chunk,
+            kind: ChunkMapUpdateKind::Drop,
+        });
+    }
+    updates
+}
+
 pub fn is_within_view_distance(
     center: ChunkPos,
     view_distance: i32,
@@ -435,11 +473,12 @@ fn same_type_and_level(a: Ticket, b: Ticket) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_within_view_distance, ticket_type_by_id, ChunkTrackingView, FullChunkStatus,
-        PlayerChunkTracker, Ticket, TicketStore, BLOCK_TICKING_LEVEL, ENTITY_TICKING_LEVEL,
-        FULL_CHUNK_LEVEL, TICKET_TYPES,
+        chunk_map_updates_for_diff, is_within_view_distance, ticket_type_by_id, ChunkMapUpdateKind,
+        ChunkTrackingView, FullChunkStatus, PlayerChunkTracker, Ticket, TicketStore,
+        BLOCK_TICKING_LEVEL, ENTITY_TICKING_LEVEL, FULL_CHUNK_LEVEL, TICKET_TYPES,
     };
     use crate::storage::region::ChunkPos;
+    use std::collections::BTreeSet;
 
     #[test]
     fn ticket_types_match_vanilla_flags_and_timeouts() {
@@ -583,5 +622,31 @@ mod tests {
         let removed = tracker.remove_player("trent");
         assert!(!removed.left.is_empty());
         assert!(removed.entered.is_empty());
+    }
+
+    #[test]
+    fn chunk_map_updates_mark_enters_drop_leaves_and_skip_pending_sends() {
+        let previous = ChunkTrackingView::positioned(ChunkPos { x: 0, z: 0 }, 1);
+        let next = ChunkTrackingView::positioned(ChunkPos { x: 3, z: 0 }, 1);
+        let diff = previous.diff(&next);
+        let already_pending = diff
+            .entered
+            .iter()
+            .copied()
+            .take(1)
+            .collect::<BTreeSet<_>>();
+
+        let updates = chunk_map_updates_for_diff("trent", &diff, &already_pending);
+        assert!(updates
+            .iter()
+            .any(|update| update.kind == ChunkMapUpdateKind::Drop));
+        assert!(updates
+            .iter()
+            .any(|update| update.kind == ChunkMapUpdateKind::MarkPendingToSend));
+        assert!(!updates.iter().any(|update| {
+            update.kind == ChunkMapUpdateKind::MarkPendingToSend
+                && already_pending.contains(&update.chunk)
+        }));
+        assert!(updates.iter().all(|update| update.player_id == "trent"));
     }
 }
