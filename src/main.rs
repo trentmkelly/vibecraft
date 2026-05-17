@@ -13,6 +13,7 @@ mod console;
 mod crash;
 mod entity_variants;
 mod eula;
+mod fluid;
 mod inhabited_time;
 mod light;
 mod log;
