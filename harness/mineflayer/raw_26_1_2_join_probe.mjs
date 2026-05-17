@@ -683,6 +683,7 @@ async function main () {
     if (profileId.value !== offlineUuid(username) || profileName.value !== username || propertiesCount.value !== 0 || chatSessionPresent !== 0 || gameMode.value !== 0 || listed !== 1 || latency.value !== 0 || displayNamePresent !== 0 || listOrder.value !== 0 || showHat !== 1 || playerInfoOffset !== playerInfoPacket.body.length) {
       throw new Error('unexpected player_info_update identity or tab-list payload')
     }
+    joinState.profile = { name: profileName.value, uuid: profileId.value }
     const abilitiesPacket = packetById.get(64)?.[0]
     if (!abilitiesPacket || abilitiesPacket.body.length !== 9) {
       throw new Error(`expected 9-byte player_abilities body, got ${abilitiesPacket?.body.length}`)
