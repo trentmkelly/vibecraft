@@ -15,6 +15,7 @@ mod command;
 mod console;
 mod container_block;
 mod crash;
+mod creative_inventory;
 mod dispenser_cauldron;
 mod entity_variants;
 mod eula;
