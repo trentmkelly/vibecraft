@@ -6,11 +6,13 @@ use std::io::{self, Read, Write};
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
+use crate::storage::region::ChunkPos;
 
 pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
 pub const CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 141;
 
 pub const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
+pub const SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID: i32 = 11;
 pub const SERVERBOUND_CLIENT_COMMAND_PACKET_ID: i32 = 12;
 pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
 pub const SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID: i32 = 31;
@@ -22,6 +24,8 @@ pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
 pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
 
 pub const CLIENTBOUND_LOGIN_PACKET_ID: i32 = 49;
+pub const CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
+pub const CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 pub const CLIENTBOUND_PLAYER_COMBAT_KILL_PACKET_ID: i32 = 68;
 pub const CLIENTBOUND_PLAYER_POSITION_PACKET_ID: i32 = 72;
 pub const CLIENTBOUND_RESPAWN_PACKET_ID: i32 = 82;
@@ -98,6 +102,21 @@ pub struct ServerboundSetCarriedItemPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundSetHeldSlotPacket {
     pub slot: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerboundChunkBatchReceivedPacket {
+    pub desired_chunks_per_tick: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundChunkBatchFinishedPacket {
+    pub batch_size: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundLevelChunkWithLightPacket {
+    pub pos: ChunkPos,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -196,6 +215,12 @@ pub enum PlayInstruction {
         count: usize,
     },
     InitInventoryMenu,
+    ChunkBatchStart,
+    LevelChunkWithLight(ClientboundLevelChunkWithLightPacket),
+    ChunkBatchFinished(ClientboundChunkBatchFinishedPacket),
+    ForgetLevelChunk {
+        pos: ChunkPos,
+    },
     CombatKill(ClientboundPlayerCombatKillPacket),
     NoRespawnBlockAvailable,
     Respawn(ClientboundRespawnPacket),
@@ -230,6 +255,16 @@ pub struct PlaySession {
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerChunkSender {
+    pending_chunks: BTreeSet<ChunkPos>,
+    memory_connection: bool,
+    desired_chunks_per_tick: f32,
+    batch_quota: f32,
+    unacknowledged_batches: i32,
+    max_unacknowledged_batches: i32,
 }
 
 impl Default for PlayProtocolRegistry {
@@ -391,6 +426,15 @@ impl PlaySession {
                     Err(err) => DispatchOutcome::Disconnect(format!("bad client command: {err}")),
                 }
             }
+            SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChunkBatchReceivedPacket::read(&mut input) {
+                    Ok(_) => DispatchOutcome::Handled,
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad chunk batch received: {err}"))
+                    }
+                }
+            }
             SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
                 self.handle_move_payload(packet.payload, MoveShape::Pos)
             }
@@ -500,6 +544,113 @@ impl PlaySession {
     }
 }
 
+impl PlayerChunkSender {
+    pub const MIN_CHUNKS_PER_TICK: f32 = 0.01;
+    pub const MAX_CHUNKS_PER_TICK: f32 = 64.0;
+    pub const START_CHUNKS_PER_TICK: f32 = 9.0;
+    pub const MAX_UNACKNOWLEDGED_BATCHES_AFTER_ACK: i32 = 10;
+
+    pub fn new(memory_connection: bool) -> Self {
+        Self {
+            pending_chunks: BTreeSet::new(),
+            memory_connection,
+            desired_chunks_per_tick: Self::START_CHUNKS_PER_TICK,
+            batch_quota: 0.0,
+            unacknowledged_batches: 0,
+            max_unacknowledged_batches: 1,
+        }
+    }
+
+    pub fn mark_chunk_pending_to_send(&mut self, pos: ChunkPos) {
+        self.pending_chunks.insert(pos);
+    }
+
+    pub fn drop_chunk(&mut self, pos: ChunkPos, player_alive: bool) -> Option<PlayInstruction> {
+        if self.pending_chunks.remove(&pos) || !player_alive {
+            None
+        } else {
+            Some(PlayInstruction::ForgetLevelChunk { pos })
+        }
+    }
+
+    pub fn send_next_chunks(&mut self, player_pos: ChunkPos) -> Vec<PlayInstruction> {
+        if self.unacknowledged_batches >= self.max_unacknowledged_batches {
+            return Vec::new();
+        }
+
+        let max_batch_size = self.desired_chunks_per_tick.max(1.0);
+        self.batch_quota = (self.batch_quota + self.desired_chunks_per_tick).min(max_batch_size);
+        if self.batch_quota < 1.0 || self.pending_chunks.is_empty() {
+            return Vec::new();
+        }
+
+        let chunks_to_send = self.collect_chunks_to_send(player_pos);
+        if chunks_to_send.is_empty() {
+            return Vec::new();
+        }
+
+        self.unacknowledged_batches += 1;
+        self.batch_quota -= chunks_to_send.len() as f32;
+
+        let mut instructions = Vec::with_capacity(chunks_to_send.len() + 2);
+        instructions.push(PlayInstruction::ChunkBatchStart);
+        instructions.extend(chunks_to_send.iter().copied().map(|pos| {
+            PlayInstruction::LevelChunkWithLight(ClientboundLevelChunkWithLightPacket { pos })
+        }));
+        instructions.push(PlayInstruction::ChunkBatchFinished(
+            ClientboundChunkBatchFinishedPacket {
+                batch_size: chunks_to_send.len() as i32,
+            },
+        ));
+        instructions
+    }
+
+    pub fn on_chunk_batch_received_by_client(&mut self, desired_chunks_per_tick: f32) {
+        self.unacknowledged_batches -= 1;
+        self.desired_chunks_per_tick = if desired_chunks_per_tick.is_nan() {
+            Self::MIN_CHUNKS_PER_TICK
+        } else {
+            desired_chunks_per_tick.clamp(Self::MIN_CHUNKS_PER_TICK, Self::MAX_CHUNKS_PER_TICK)
+        };
+        if self.unacknowledged_batches == 0 {
+            self.batch_quota = 1.0;
+        }
+        self.max_unacknowledged_batches = Self::MAX_UNACKNOWLEDGED_BATCHES_AFTER_ACK;
+    }
+
+    pub fn is_pending(&self, pos: ChunkPos) -> bool {
+        self.pending_chunks.contains(&pos)
+    }
+
+    pub fn desired_chunks_per_tick(&self) -> f32 {
+        self.desired_chunks_per_tick
+    }
+
+    pub fn unacknowledged_batches(&self) -> i32 {
+        self.unacknowledged_batches
+    }
+
+    fn collect_chunks_to_send(&mut self, player_pos: ChunkPos) -> Vec<ChunkPos> {
+        let max_batch_size = self.batch_quota.floor() as usize;
+        let mut chunks: Vec<_> = self.pending_chunks.iter().copied().collect();
+        chunks.sort_by_key(|pos| (chunk_distance_squared(player_pos, *pos), *pos));
+        if !self.memory_connection && chunks.len() > max_batch_size {
+            chunks.truncate(max_batch_size);
+        }
+
+        for chunk in &chunks {
+            self.pending_chunks.remove(chunk);
+        }
+        chunks
+    }
+}
+
+fn chunk_distance_squared(from: ChunkPos, to: ChunkPos) -> i32 {
+    let dx = from.x - to.x;
+    let dz = from.z - to.z;
+    dx * dx + dz * dz
+}
+
 impl ServerboundAcceptTeleportationPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
@@ -509,6 +660,30 @@ impl ServerboundAcceptTeleportationPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.teleport_id)
+    }
+}
+
+impl ServerboundChunkBatchReceivedPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            desired_chunks_per_tick: read_f32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_f32(writer, self.desired_chunks_per_tick)
+    }
+}
+
+impl ClientboundChunkBatchFinishedPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            batch_size: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.batch_size)
     }
 }
 
@@ -627,6 +802,10 @@ fn read_f32<R: Read>(reader: &mut R) -> io::Result<f32> {
     let mut bytes = [0u8; 4];
     reader.read_exact(&mut bytes)?;
     Ok(f32::from_be_bytes(bytes))
+}
+
+fn write_f32<W: Write>(writer: &mut W, value: f32) -> io::Result<()> {
+    writer.write_all(&value.to_be_bytes())
 }
 
 fn read_f64<R: Read>(reader: &mut R) -> io::Result<f64> {
@@ -889,6 +1068,18 @@ mod tests {
             Some("player_loaded")
         );
         assert_eq!(
+            registry.serverbound_name(SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID),
+            Some("chunk_batch_received")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID),
+            Some("chunk_batch_finished")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID),
+            Some("chunk_batch_start")
+        );
+        assert_eq!(
             registry.clientbound_name(CLIENTBOUND_LOGIN_PACKET_ID),
             Some("login")
         );
@@ -898,6 +1089,105 @@ mod tests {
         );
         assert_eq!(registry.serverbound().last(), Some(&"custom_click_action"));
         assert_eq!(registry.clientbound().last(), Some(&"show_dialog"));
+    }
+
+    #[test]
+    fn chunk_sender_starts_batches_sends_nearest_chunks_and_waits_for_first_ack() {
+        let mut sender = PlayerChunkSender::new(false);
+        for pos in [
+            ChunkPos { x: 8, z: 0 },
+            ChunkPos { x: 1, z: 0 },
+            ChunkPos { x: -2, z: 0 },
+            ChunkPos { x: 3, z: 4 },
+            ChunkPos { x: 0, z: 2 },
+            ChunkPos { x: 4, z: 4 },
+            ChunkPos { x: -3, z: 3 },
+            ChunkPos { x: 0, z: -1 },
+            ChunkPos { x: 2, z: 2 },
+            ChunkPos { x: 9, z: 9 },
+        ] {
+            sender.mark_chunk_pending_to_send(pos);
+        }
+
+        let batch = sender.send_next_chunks(ChunkPos { x: 0, z: 0 });
+        assert_eq!(sender.unacknowledged_batches(), 1);
+        assert_eq!(batch.first(), Some(&PlayInstruction::ChunkBatchStart));
+        assert_eq!(
+            batch.last(),
+            Some(&PlayInstruction::ChunkBatchFinished(
+                ClientboundChunkBatchFinishedPacket { batch_size: 9 }
+            ))
+        );
+        let sent: Vec<_> = batch
+            .iter()
+            .filter_map(|instruction| match instruction {
+                PlayInstruction::LevelChunkWithLight(packet) => Some(packet.pos),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            sent,
+            vec![
+                ChunkPos { x: 0, z: -1 },
+                ChunkPos { x: 1, z: 0 },
+                ChunkPos { x: -2, z: 0 },
+                ChunkPos { x: 0, z: 2 },
+                ChunkPos { x: 2, z: 2 },
+                ChunkPos { x: -3, z: 3 },
+                ChunkPos { x: 3, z: 4 },
+                ChunkPos { x: 4, z: 4 },
+                ChunkPos { x: 8, z: 0 },
+            ]
+        );
+        assert!(sender.is_pending(ChunkPos { x: 9, z: 9 }));
+        assert!(sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+    }
+
+    #[test]
+    fn chunk_sender_applies_client_feedback_clamp_and_allows_more_unacked_batches() {
+        let mut sender = PlayerChunkSender::new(false);
+        sender.mark_chunk_pending_to_send(ChunkPos { x: 0, z: 0 });
+        assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+
+        sender.on_chunk_batch_received_by_client(f32::NAN);
+        assert_eq!(
+            sender.desired_chunks_per_tick(),
+            PlayerChunkSender::MIN_CHUNKS_PER_TICK
+        );
+        sender.mark_chunk_pending_to_send(ChunkPos { x: 1, z: 0 });
+        assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+
+        sender.on_chunk_batch_received_by_client(128.0);
+        assert_eq!(
+            sender.desired_chunks_per_tick(),
+            PlayerChunkSender::MAX_CHUNKS_PER_TICK
+        );
+
+        let mut sender = PlayerChunkSender::new(false);
+        sender.mark_chunk_pending_to_send(ChunkPos { x: 0, z: 0 });
+        assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        sender.on_chunk_batch_received_by_client(1.0);
+        for x in 0..10 {
+            sender.mark_chunk_pending_to_send(ChunkPos { x, z: 1 });
+            assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        }
+        assert_eq!(sender.unacknowledged_batches(), 10);
+        sender.mark_chunk_pending_to_send(ChunkPos { x: 10, z: 1 });
+        assert!(sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+    }
+
+    #[test]
+    fn chunk_batch_received_packet_uses_big_endian_float_payload() {
+        let packet = ServerboundChunkBatchReceivedPacket {
+            desired_chunks_per_tick: 12.5,
+        };
+        let mut bytes = Vec::new();
+        packet.write(&mut bytes).unwrap();
+        assert_eq!(bytes, 12.5_f32.to_be_bytes());
+        assert_eq!(
+            ServerboundChunkBatchReceivedPacket::read(&mut cursor(bytes)).unwrap(),
+            packet
+        );
     }
 
     #[test]
