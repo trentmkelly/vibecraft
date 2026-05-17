@@ -10,6 +10,28 @@ pub const VANILLA_PACK_ID: &str = "vanilla";
 pub const SERVER_DATA_PACK_FORMAT_MAJOR: u32 = 101;
 pub const SERVER_DATA_PACK_FORMAT_MINOR: u32 = 1;
 pub const LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT: u32 = 81;
+pub const VANILLA_PACK_MCMETA: &str = r#"{
+  "pack": {
+    "description": "dataPack.vanilla.description",
+    "min_format": [101, 0],
+    "max_format": [101, 1]
+  },
+  "features": {
+    "enabled": ["minecraft:vanilla"]
+  }
+}"#;
+
+const VANILLA_BUILTIN_RESOURCES: &[(&str, &str)] = &[
+    ("pack.mcmeta", VANILLA_PACK_MCMETA),
+    (
+        "data/minecraft/tags/block/replaceable.json",
+        r#"{"replace":false,"values":["minecraft:air"]}"#,
+    ),
+    (
+        "data/minecraft/tags/item/logs.json",
+        r#"{"replace":false,"values":["minecraft:oak_log"]}"#,
+    ),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackSource {
@@ -32,6 +54,69 @@ pub struct DataPack {
     pub source: PackSource,
     pub requested_features: FeatureFlagSet,
     pub metadata: DataPackMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuiltInDataPack {
+    id: String,
+    resources: BTreeMap<String, String>,
+    metadata: DataPackMetadata,
+}
+
+impl BuiltInDataPack {
+    pub fn vanilla_26_1_2() -> Self {
+        let resources = VANILLA_BUILTIN_RESOURCES
+            .iter()
+            .map(|(path, contents)| ((*path).to_string(), (*contents).to_string()))
+            .collect::<BTreeMap<_, _>>();
+        let metadata = parse_pack_metadata(VANILLA_PACK_MCMETA)
+            .unwrap_or_else(|err| panic!("invalid bundled vanilla pack metadata: {err}"));
+        Self {
+            id: VANILLA_PACK_ID.to_string(),
+            resources,
+            metadata,
+        }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn metadata(&self) -> &DataPackMetadata {
+        &self.metadata
+    }
+
+    pub fn as_data_pack(&self) -> DataPack {
+        DataPack::new(self.id.clone(), PackSource::BuiltIn).with_metadata(self.metadata.clone())
+    }
+
+    pub fn get(&self, path: &str) -> Option<&str> {
+        self.resources.get(path).map(String::as_str)
+    }
+
+    pub fn contains(&self, path: &str) -> bool {
+        self.resources.contains_key(path)
+    }
+
+    pub fn list_prefix(&self, prefix: &str) -> Vec<&str> {
+        self.resources
+            .keys()
+            .filter(|path| path.starts_with(prefix))
+            .map(String::as_str)
+            .collect()
+    }
+
+    pub fn namespaces(&self) -> Vec<&str> {
+        let mut namespaces = BTreeSet::new();
+        for path in self.resources.keys() {
+            if let Some(rest) = path.strip_prefix("data/") {
+                if let Some((namespace, _tail)) = rest.split_once('/') {
+                    namespaces.insert(namespace);
+                }
+            }
+        }
+        namespaces.into_iter().collect()
+    }
 }
 
 impl DataPack {
@@ -183,16 +268,7 @@ impl DataPackRepository {
     }
 
     pub fn server_repository(datapack_dir: &Path) -> Result<Self, String> {
-        let mut packs = vec![DataPack {
-            id: VANILLA_PACK_ID.to_string(),
-            source: PackSource::BuiltIn,
-            requested_features: feature_flags::default_flags_26_1_2(),
-            metadata: DataPackMetadata {
-                description: "dataPack.vanilla.description".to_string(),
-                requested_features: feature_flags::default_flags_26_1_2(),
-                ..DataPackMetadata::default_26_1_2()
-            },
-        }];
+        let mut packs = vec![BuiltInDataPack::vanilla_26_1_2().as_data_pack()];
 
         packs.extend(discover_world_data_packs(datapack_dir)?);
         Ok(Self::new(packs))
@@ -836,6 +912,43 @@ mod tests {
         assert_eq!(configured.data_packs.enabled, vec![VANILLA_PACK_ID]);
         assert!(configured.data_packs.disabled.is_empty());
         assert_eq!(repository.selected_ids(), vec![VANILLA_PACK_ID]);
+    }
+
+    #[test]
+    fn loads_vanilla_builtin_datapack_from_bundled_resources() {
+        let pack = BuiltInDataPack::vanilla_26_1_2();
+
+        assert_eq!(pack.id(), VANILLA_PACK_ID);
+        assert_eq!(pack.metadata().description, "dataPack.vanilla.description");
+        assert_eq!(
+            pack.metadata().requested_features,
+            feature_flags::default_flags_26_1_2()
+        );
+        assert!(pack.contains("pack.mcmeta"));
+        assert!(pack.contains("data/minecraft/tags/block/replaceable.json"));
+        assert_eq!(pack.namespaces(), vec!["minecraft"]);
+        assert_eq!(
+            pack.list_prefix("data/minecraft/tags/")
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![
+                "data/minecraft/tags/block/replaceable.json",
+                "data/minecraft/tags/item/logs.json"
+            ]
+        );
+
+        let repository = DataPackRepository::server_repository(Path::new("missing-datapacks"))
+            .expect("builtin repository should not require a world datapack dir");
+        let vanilla = repository
+            .available_packs()
+            .into_iter()
+            .find(|candidate| candidate.id == VANILLA_PACK_ID)
+            .expect("vanilla pack should be present");
+        assert_eq!(vanilla.source, PackSource::BuiltIn);
+        assert_eq!(
+            vanilla.requested_features,
+            feature_flags::default_flags_26_1_2()
+        );
     }
 
     #[test]
