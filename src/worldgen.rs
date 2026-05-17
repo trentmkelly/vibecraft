@@ -231,6 +231,25 @@ pub struct FeatureType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfiguredFeatureEntry {
+    pub id: &'static str,
+    pub source: ConfiguredFeatureSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfiguredFeatureSource {
+    Aquatic,
+    Cave,
+    End,
+    MiscOverworld,
+    Nether,
+    Ore,
+    Pile,
+    Tree,
+    Vegetation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureConfigurationKind {
     None,
     Tree,
@@ -1663,6 +1682,500 @@ pub const FEATURE_TYPES: &[FeatureType] = &[
     ),
 ];
 
+pub const CONFIGURED_FEATURES: &[ConfiguredFeatureEntry] = &[
+    cf("minecraft:seagrass_short", ConfiguredFeatureSource::Aquatic),
+    cf(
+        "minecraft:seagrass_slightly_less_short",
+        ConfiguredFeatureSource::Aquatic,
+    ),
+    cf("minecraft:seagrass_mid", ConfiguredFeatureSource::Aquatic),
+    cf("minecraft:seagrass_tall", ConfiguredFeatureSource::Aquatic),
+    cf("minecraft:sea_pickle", ConfiguredFeatureSource::Aquatic),
+    cf("minecraft:kelp", ConfiguredFeatureSource::Aquatic),
+    cf(
+        "minecraft:warm_ocean_vegetation",
+        ConfiguredFeatureSource::Aquatic,
+    ),
+    cf("minecraft:monster_room", ConfiguredFeatureSource::Cave),
+    cf("minecraft:fossil_coal", ConfiguredFeatureSource::Cave),
+    cf("minecraft:fossil_diamonds", ConfiguredFeatureSource::Cave),
+    cf("minecraft:dripstone_cluster", ConfiguredFeatureSource::Cave),
+    cf("minecraft:large_dripstone", ConfiguredFeatureSource::Cave),
+    cf("minecraft:pointed_dripstone", ConfiguredFeatureSource::Cave),
+    cf("minecraft:underwater_magma", ConfiguredFeatureSource::Cave),
+    cf("minecraft:glow_lichen", ConfiguredFeatureSource::Cave),
+    cf(
+        "minecraft:rooted_azalea_tree",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf("minecraft:cave_vine", ConfiguredFeatureSource::Cave),
+    cf("minecraft:cave_vine_in_moss", ConfiguredFeatureSource::Cave),
+    cf("minecraft:moss_vegetation", ConfiguredFeatureSource::Cave),
+    cf("minecraft:moss_patch", ConfiguredFeatureSource::Cave),
+    cf(
+        "minecraft:moss_patch_bonemeal",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf("minecraft:dripleaf", ConfiguredFeatureSource::Cave),
+    cf(
+        "minecraft:clay_with_dripleaves",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf(
+        "minecraft:clay_pool_with_dripleaves",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf("minecraft:lush_caves_clay", ConfiguredFeatureSource::Cave),
+    cf(
+        "minecraft:moss_patch_ceiling",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf("minecraft:spore_blossom", ConfiguredFeatureSource::Cave),
+    cf("minecraft:amethyst_geode", ConfiguredFeatureSource::Cave),
+    cf(
+        "minecraft:sculk_patch_deep_dark",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf(
+        "minecraft:sculk_patch_ancient_city",
+        ConfiguredFeatureSource::Cave,
+    ),
+    cf("minecraft:sculk_vein", ConfiguredFeatureSource::Cave),
+    cf("minecraft:end_platform", ConfiguredFeatureSource::End),
+    cf("minecraft:end_spike", ConfiguredFeatureSource::End),
+    cf("minecraft:end_gateway_return", ConfiguredFeatureSource::End),
+    cf(
+        "minecraft:end_gateway_delayed",
+        ConfiguredFeatureSource::End,
+    ),
+    cf("minecraft:chorus_plant", ConfiguredFeatureSource::End),
+    cf("minecraft:end_island", ConfiguredFeatureSource::End),
+    cf(
+        "minecraft:ice_spike",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:ice_patch",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:forest_rock",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:iceberg_packed",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:iceberg_blue",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf("minecraft:blue_ice", ConfiguredFeatureSource::MiscOverworld),
+    cf(
+        "minecraft:lake_lava",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:disk_clay",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:disk_gravel",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:disk_sand",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:freeze_top_layer",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:disk_grass",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:bonus_chest",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:void_start_platform",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:desert_well",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:spring_lava_overworld",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:spring_lava_frozen",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf(
+        "minecraft:spring_water",
+        ConfiguredFeatureSource::MiscOverworld,
+    ),
+    cf("minecraft:delta", ConfiguredFeatureSource::Nether),
+    cf(
+        "minecraft:small_basalt_columns",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf(
+        "minecraft:large_basalt_columns",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf("minecraft:basalt_blobs", ConfiguredFeatureSource::Nether),
+    cf(
+        "minecraft:blackstone_blobs",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf("minecraft:glowstone_extra", ConfiguredFeatureSource::Nether),
+    cf(
+        "minecraft:crimson_forest_vegetation",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf(
+        "minecraft:crimson_forest_vegetation_bonemeal",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf(
+        "minecraft:warped_forest_vegetation",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf(
+        "minecraft:warped_forest_vegetation_bonemeal",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf("minecraft:nether_sprouts", ConfiguredFeatureSource::Nether),
+    cf(
+        "minecraft:nether_sprouts_bonemeal",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf("minecraft:twisting_vines", ConfiguredFeatureSource::Nether),
+    cf(
+        "minecraft:twisting_vines_bonemeal",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf("minecraft:weeping_vines", ConfiguredFeatureSource::Nether),
+    cf("minecraft:crimson_roots", ConfiguredFeatureSource::Nether),
+    cf("minecraft:basalt_pillar", ConfiguredFeatureSource::Nether),
+    cf(
+        "minecraft:spring_lava_nether",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf(
+        "minecraft:spring_nether_closed",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf(
+        "minecraft:spring_nether_open",
+        ConfiguredFeatureSource::Nether,
+    ),
+    cf("minecraft:patch_fire", ConfiguredFeatureSource::Nether),
+    cf("minecraft:patch_soul_fire", ConfiguredFeatureSource::Nether),
+    cf("minecraft:ore_magma", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_soul_sand", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_nether_gold", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_quartz", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_gravel_nether", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_blackstone", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_dirt", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_gravel", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_granite", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_diorite", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_andesite", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_tuff", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_coal", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_coal_buried", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_iron", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_iron_small", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_gold", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_gold_buried", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_redstone", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_diamond_small", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_diamond_medium", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_diamond_large", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_diamond_buried", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_lapis", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_lapis_buried", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_infested", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_emerald", ConfiguredFeatureSource::Ore),
+    cf(
+        "minecraft:ore_ancient_debris_large",
+        ConfiguredFeatureSource::Ore,
+    ),
+    cf(
+        "minecraft:ore_ancient_debris_small",
+        ConfiguredFeatureSource::Ore,
+    ),
+    cf("minecraft:ore_copper_small", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_copper_large", ConfiguredFeatureSource::Ore),
+    cf("minecraft:ore_clay", ConfiguredFeatureSource::Ore),
+    cf("minecraft:pile_hay", ConfiguredFeatureSource::Pile),
+    cf("minecraft:pile_melon", ConfiguredFeatureSource::Pile),
+    cf("minecraft:pile_snow", ConfiguredFeatureSource::Pile),
+    cf("minecraft:pile_ice", ConfiguredFeatureSource::Pile),
+    cf("minecraft:pile_pumpkin", ConfiguredFeatureSource::Pile),
+    cf("minecraft:crimson_fungus", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:crimson_fungus_planted",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:warped_fungus", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:warped_fungus_planted",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf(
+        "minecraft:huge_brown_mushroom",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:huge_red_mushroom", ConfiguredFeatureSource::Tree),
+    cf("minecraft:oak", ConfiguredFeatureSource::Tree),
+    cf("minecraft:dark_oak", ConfiguredFeatureSource::Tree),
+    cf("minecraft:pale_oak", ConfiguredFeatureSource::Tree),
+    cf("minecraft:pale_oak_bonemeal", ConfiguredFeatureSource::Tree),
+    cf("minecraft:pale_oak_creaking", ConfiguredFeatureSource::Tree),
+    cf("minecraft:birch", ConfiguredFeatureSource::Tree),
+    cf("minecraft:acacia", ConfiguredFeatureSource::Tree),
+    cf("minecraft:spruce", ConfiguredFeatureSource::Tree),
+    cf("minecraft:pine", ConfiguredFeatureSource::Tree),
+    cf("minecraft:jungle_tree", ConfiguredFeatureSource::Tree),
+    cf("minecraft:fancy_oak", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:jungle_tree_no_vine",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:mega_jungle_tree", ConfiguredFeatureSource::Tree),
+    cf("minecraft:mega_spruce", ConfiguredFeatureSource::Tree),
+    cf("minecraft:mega_pine", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:super_birch_bees_0002",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:super_birch_bees", ConfiguredFeatureSource::Tree),
+    cf("minecraft:swamp_oak", ConfiguredFeatureSource::Tree),
+    cf("minecraft:jungle_bush", ConfiguredFeatureSource::Tree),
+    cf("minecraft:azalea_tree", ConfiguredFeatureSource::Tree),
+    cf("minecraft:mangrove", ConfiguredFeatureSource::Tree),
+    cf("minecraft:tall_mangrove", ConfiguredFeatureSource::Tree),
+    cf("minecraft:cherry", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:oak_bees_0002_leaf_litter",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:oak_bees_002", ConfiguredFeatureSource::Tree),
+    cf("minecraft:oak_bees_005", ConfiguredFeatureSource::Tree),
+    cf("minecraft:birch_bees_0002", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:birch_bees_0002_leaf_litter",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:birch_bees_002", ConfiguredFeatureSource::Tree),
+    cf("minecraft:birch_bees_005", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:fancy_oak_bees_0002_leaf_litter",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf(
+        "minecraft:fancy_oak_bees_002",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf(
+        "minecraft:fancy_oak_bees_005",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:fancy_oak_bees", ConfiguredFeatureSource::Tree),
+    cf("minecraft:cherry_bees_005", ConfiguredFeatureSource::Tree),
+    cf("minecraft:oak_leaf_litter", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:dark_oak_leaf_litter",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:birch_leaf_litter", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:fancy_oak_leaf_litter",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:fallen_oak_tree", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:fallen_jungle_tree",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf(
+        "minecraft:fallen_spruce_tree",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf("minecraft:fallen_birch_tree", ConfiguredFeatureSource::Tree),
+    cf(
+        "minecraft:fallen_super_birch_tree",
+        ConfiguredFeatureSource::Tree,
+    ),
+    cf(
+        "minecraft:bamboo_no_podzol",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:bamboo_some_podzol",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:vines", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:brown_mushroom",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:red_mushroom",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:sunflower", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:pumpkin", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:berry_bush", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:taiga_grass", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:grass", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:grass_jungle",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:dead_bush", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:dry_grass", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:melon", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:waterlily", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:tall_grass", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:large_fern", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:bush", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:leaf_litter", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:firefly_bush",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:cactus", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:sugar_cane", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:flower_default",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:flower_flower_forest",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:flower_swamp",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:flower_plain",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:flower_meadow",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:flower_cherry",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:flower_pale_garden",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:wildflower", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:forest_flowers",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:pale_forest_flower",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:dark_forest_vegetation",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:pale_garden_vegetation",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:pale_moss_vegetation",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:pale_moss_patch",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:pale_moss_patch_bonemeal",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:trees_flower_forest",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:meadow_trees",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:trees_taiga", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:trees_badlands",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:trees_grove", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:trees_savanna",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:trees_snowy", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:trees_birch", ConfiguredFeatureSource::Vegetation),
+    cf("minecraft:birch_tall", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:trees_windswept_hills",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf("minecraft:trees_water", ConfiguredFeatureSource::Vegetation),
+    cf(
+        "minecraft:trees_birch_and_oak_leaf_litter",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:trees_plains",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:trees_sparse_jungle",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:trees_old_growth_spruce_taiga",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:trees_old_growth_pine_taiga",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:trees_jungle",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:bamboo_vegetation",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:mushroom_island_vegetation",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+    cf(
+        "minecraft:mangrove_vegetation",
+        ConfiguredFeatureSource::Vegetation,
+    ),
+];
+
 const fn feature_type(
     id: &'static str,
     configuration: FeatureConfigurationKind,
@@ -1673,6 +2186,10 @@ const fn feature_type(
         configuration,
         family,
     }
+}
+
+const fn cf(id: &'static str, source: ConfiguredFeatureSource) -> ConfiguredFeatureEntry {
+    ConfiguredFeatureEntry { id, source }
 }
 
 impl NoiseSettings {
@@ -2085,6 +2602,16 @@ pub fn feature_type_by_id(id: &str) -> Option<&'static FeatureType> {
     })
 }
 
+pub fn configured_feature(id: &str) -> Option<&'static ConfiguredFeatureEntry> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    CONFIGURED_FEATURES.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
 pub fn carver_can_reach(
     chunk_mid_x: f64,
     chunk_mid_z: f64,
@@ -2106,14 +2633,15 @@ mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CarverShape,
-        CaveDensityOutput, DensityFunction, DensityMarker, FeatureConfigurationKind, FeatureFamily,
-        FloatProvider, FluidStatus, HeightRange, MappedDensityFunction, NoiseRouterPreset,
-        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, SurfaceRuleKind,
-        SurfaceRulePreset, VerticalAnchor, WorldCarverType, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
-        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, DENSITY_FUNCTION_TYPES,
-        END_NOISE_SETTINGS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS,
+        CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
+        FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightRange,
+        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
+        OreVeinifierConstants, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WorldCarverType,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
+        CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
+        FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS,
         ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
         SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
         Y_DENSITY,
@@ -2914,5 +3442,65 @@ mod tests {
             FeatureConfigurationKind::SculkPatch
         );
         assert_eq!(sculk_patch.family, FeatureFamily::Cave);
+    }
+
+    #[test]
+    fn configured_feature_bootstrap_keys_match_vanilla_sources() {
+        assert_eq!(CONFIGURED_FEATURES.len(), 221);
+
+        let source_counts = [
+            (ConfiguredFeatureSource::Aquatic, 7),
+            (ConfiguredFeatureSource::Cave, 24),
+            (ConfiguredFeatureSource::End, 6),
+            (ConfiguredFeatureSource::MiscOverworld, 18),
+            (ConfiguredFeatureSource::Nether, 22),
+            (ConfiguredFeatureSource::Ore, 32),
+            (ConfiguredFeatureSource::Pile, 5),
+            (ConfiguredFeatureSource::Tree, 50),
+            (ConfiguredFeatureSource::Vegetation, 57),
+        ];
+        for (source, expected_count) in source_counts {
+            assert_eq!(
+                CONFIGURED_FEATURES
+                    .iter()
+                    .filter(|feature| feature.source == source)
+                    .count(),
+                expected_count
+            );
+        }
+
+        assert_eq!(
+            CONFIGURED_FEATURES
+                .iter()
+                .take(7)
+                .map(|feature| feature.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:seagrass_short",
+                "minecraft:seagrass_slightly_less_short",
+                "minecraft:seagrass_mid",
+                "minecraft:seagrass_tall",
+                "minecraft:sea_pickle",
+                "minecraft:kelp",
+                "minecraft:warm_ocean_vegetation",
+            ]
+        );
+        assert_eq!(
+            CONFIGURED_FEATURES.last().map(|feature| feature.id),
+            Some("minecraft:mangrove_vegetation")
+        );
+
+        assert_eq!(
+            super::configured_feature("ore_diamond_buried").map(|feature| feature.source),
+            Some(ConfiguredFeatureSource::Ore)
+        );
+        assert_eq!(
+            super::configured_feature("minecraft:pale_oak_creaking").map(|feature| feature.source),
+            Some(ConfiguredFeatureSource::Tree)
+        );
+        assert_eq!(
+            super::configured_feature("sculk_patch_ancient_city").map(|feature| feature.source),
+            Some(ConfiguredFeatureSource::Cave)
+        );
     }
 }
