@@ -154,6 +154,7 @@ pub struct ServerCommandState {
     pub player_inventories: Vec<CommandPlayerInventory>,
     pub item_enchantments: Vec<CommandItemEnchantment>,
     pub player_game_modes: Vec<PlayerGameMode>,
+    pub player_experience: Vec<PlayerExperienceState>,
     pub default_game_mode: GameMode,
     pub force_game_mode: Option<GameMode>,
     pub difficulty: Difficulty,
@@ -255,6 +256,14 @@ pub struct CommandItemEnchantment {
     pub item: String,
     pub enchantment: String,
     pub level: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerExperienceState {
+    pub player: NameAndId,
+    pub level: i32,
+    pub progress: f32,
+    pub total: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -972,6 +981,7 @@ pub enum CommandError {
     EnchantLevelTooHigh,
     EnchantFailed,
     ExecuteConditionFailed,
+    ExperienceSetPointsInvalid,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1173,6 +1183,7 @@ impl Default for ServerCommandState {
             player_inventories: Vec::new(),
             item_enchantments: Vec::new(),
             player_game_modes: Vec::new(),
+            player_experience: Vec::new(),
             default_game_mode: GameMode::Survival,
             force_game_mode: None,
             difficulty: Difficulty::Easy,
@@ -1602,6 +1613,7 @@ pub fn execute_builtin_command(
         "effect" => effect_command(state, &parts),
         "enchant" => enchant_command(state, &parts),
         "execute" => execute_command(state, permissions, &parts),
+        "experience" | "xp" => experience_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -4207,6 +4219,237 @@ fn entity_state<'a>(state: &'a ServerCommandState, entity: &EntityRef) -> Option
         .entity_states
         .iter()
         .find(|state| state.entity.id == entity.id)
+}
+
+fn experience_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let parts = if parts.first() == Some(&"xp") {
+        let mut redirected = parts.to_vec();
+        redirected[0] = "experience";
+        redirected
+    } else {
+        parts.to_vec()
+    };
+    match parts.as_slice() {
+        ["experience", "add", targets, amount] => experience_add(
+            state,
+            parse_name_list(targets),
+            parse_i32(amount)?,
+            ExperienceType::Points,
+        ),
+        ["experience", "add", targets, amount, ty] => experience_add(
+            state,
+            parse_name_list(targets),
+            parse_i32(amount)?,
+            parse_experience_type(ty)?,
+        ),
+        ["experience", "set", targets, amount] => experience_set(
+            state,
+            parse_name_list(targets),
+            parse_non_negative_i32(amount)?,
+            ExperienceType::Points,
+        ),
+        ["experience", "set", targets, amount, ty] => experience_set(
+            state,
+            parse_name_list(targets),
+            parse_non_negative_i32(amount)?,
+            parse_experience_type(ty)?,
+        ),
+        ["experience", "query", target, ty] => {
+            let player = NameAndId::create_offline(target);
+            let ty = parse_experience_type(ty)?;
+            let state = player_experience(state, &player).clone();
+            Ok(CommandResult {
+                success_count: ty.query(&state),
+                feedback_key: match ty {
+                    ExperienceType::Points => "commands.experience.query.points",
+                    ExperienceType::Levels => "commands.experience.query.levels",
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn experience_add(
+    state: &mut ServerCommandState,
+    targets: Vec<NameAndId>,
+    amount: i32,
+    ty: ExperienceType,
+) -> Result<CommandResult, CommandError> {
+    for target in &targets {
+        let xp = player_experience_mut(state, target);
+        match ty {
+            ExperienceType::Points => give_experience_points(xp, amount),
+            ExperienceType::Levels => give_experience_levels(xp, amount),
+        }
+    }
+    Ok(CommandResult {
+        success_count: targets.len() as i32,
+        feedback_key: match (ty, targets.len()) {
+            (ExperienceType::Points, 1) => "commands.experience.add.points.success.single",
+            (ExperienceType::Points, _) => "commands.experience.add.points.success.multiple",
+            (ExperienceType::Levels, 1) => "commands.experience.add.levels.success.single",
+            (ExperienceType::Levels, _) => "commands.experience.add.levels.success.multiple",
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn experience_set(
+    state: &mut ServerCommandState,
+    targets: Vec<NameAndId>,
+    amount: i32,
+    ty: ExperienceType,
+) -> Result<CommandResult, CommandError> {
+    let mut success = 0;
+    for target in &targets {
+        let xp = player_experience_mut(state, target);
+        let changed = match ty {
+            ExperienceType::Points => set_experience_points(xp, amount),
+            ExperienceType::Levels => {
+                set_experience_levels(xp, amount);
+                true
+            }
+        };
+        if changed {
+            success += 1;
+        }
+    }
+    if success == 0 {
+        return Err(CommandError::ExperienceSetPointsInvalid);
+    }
+    Ok(CommandResult {
+        success_count: targets.len() as i32,
+        feedback_key: match (ty, targets.len()) {
+            (ExperienceType::Points, 1) => "commands.experience.set.points.success.single",
+            (ExperienceType::Points, _) => "commands.experience.set.points.success.multiple",
+            (ExperienceType::Levels, 1) => "commands.experience.set.levels.success.single",
+            (ExperienceType::Levels, _) => "commands.experience.set.levels.success.multiple",
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExperienceType {
+    Points,
+    Levels,
+}
+
+impl ExperienceType {
+    fn query(self, state: &PlayerExperienceState) -> i32 {
+        match self {
+            ExperienceType::Points => {
+                (state.progress * xp_needed_for_next_level(state.level) as f32).floor() as i32
+            }
+            ExperienceType::Levels => state.level,
+        }
+    }
+}
+
+fn parse_experience_type(input: &str) -> Result<ExperienceType, CommandError> {
+    match input {
+        "points" => Ok(ExperienceType::Points),
+        "levels" => Ok(ExperienceType::Levels),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn player_experience<'a>(
+    state: &'a ServerCommandState,
+    player: &NameAndId,
+) -> &'a PlayerExperienceState {
+    static ZERO_XP: std::sync::OnceLock<PlayerExperienceState> = std::sync::OnceLock::new();
+    state
+        .player_experience
+        .iter()
+        .find(|xp| xp.player.uuid == player.uuid)
+        .unwrap_or_else(|| {
+            ZERO_XP.get_or_init(|| PlayerExperienceState {
+                player: NameAndId::create_offline(""),
+                level: 0,
+                progress: 0.0,
+                total: 0,
+            })
+        })
+}
+
+fn player_experience_mut<'a>(
+    state: &'a mut ServerCommandState,
+    player: &NameAndId,
+) -> &'a mut PlayerExperienceState {
+    if let Some(index) = state
+        .player_experience
+        .iter()
+        .position(|xp| xp.player.uuid == player.uuid)
+    {
+        &mut state.player_experience[index]
+    } else {
+        state.player_experience.push(PlayerExperienceState {
+            player: player.clone(),
+            level: 0,
+            progress: 0.0,
+            total: 0,
+        });
+        state.player_experience.last_mut().unwrap()
+    }
+}
+
+fn give_experience_points(state: &mut PlayerExperienceState, amount: i32) {
+    state.progress += amount as f32 / xp_needed_for_next_level(state.level) as f32;
+    state.total = state.total.saturating_add(amount).max(0);
+    while state.progress < 0.0 {
+        let remaining = state.progress * xp_needed_for_next_level(state.level) as f32;
+        if state.level > 0 {
+            give_experience_levels(state, -1);
+            state.progress = 1.0 + remaining / xp_needed_for_next_level(state.level) as f32;
+        } else {
+            give_experience_levels(state, -1);
+            state.progress = 0.0;
+        }
+    }
+    while state.progress >= 1.0 {
+        state.progress = (state.progress - 1.0) * xp_needed_for_next_level(state.level) as f32;
+        give_experience_levels(state, 1);
+        state.progress /= xp_needed_for_next_level(state.level) as f32;
+    }
+}
+
+fn give_experience_levels(state: &mut PlayerExperienceState, amount: i32) {
+    state.level = state.level.saturating_add(amount);
+    if state.level < 0 {
+        state.level = 0;
+        state.progress = 0.0;
+        state.total = 0;
+    }
+}
+
+fn set_experience_points(state: &mut PlayerExperienceState, amount: i32) -> bool {
+    let needed = xp_needed_for_next_level(state.level);
+    if amount >= needed {
+        return false;
+    }
+    let max = (needed - 1) as f32 / needed as f32;
+    state.progress = (amount as f32 / needed as f32).clamp(0.0, max);
+    true
+}
+
+fn set_experience_levels(state: &mut PlayerExperienceState, amount: i32) {
+    state.level = amount;
+}
+
+fn xp_needed_for_next_level(level: i32) -> i32 {
+    if level >= 30 {
+        112 + (level - 30) * 9
+    } else if level >= 15 {
+        37 + (level - 15) * 5
+    } else {
+        7 + level * 2
+    }
 }
 
 fn enchant_command(
@@ -7774,6 +8017,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("effect", "/effect <give|clear> ..."),
         ("enchant", "/enchant <targets> <enchantment> [level]"),
         ("execute", "/execute ... run <command>"),
+        ("experience", "/experience <add|set|query> ..."),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -8245,13 +8489,13 @@ mod tests {
         DamageCommandSource, DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind,
         EntityMount, EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
         GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
-        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode,
-        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
-        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
-        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
-        WeatherMode,
+        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress,
+        PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
+        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
+        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -10404,6 +10648,155 @@ mod tests {
                 "execute if block 1 2 3 diamond_block run say no"
             ),
             Err(CommandError::ExecuteConditionFailed)
+        );
+    }
+
+    #[test]
+    fn experience_command_adds_sets_queries_points_and_levels() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("experience"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "experience add Steve 7"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let added = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience add Steve 16 points",
+        )
+        .unwrap();
+        assert_eq!(added.success_count, 1);
+        assert_eq!(
+            added.feedback_key,
+            "commands.experience.add.points.success.single"
+        );
+        assert_eq!(
+            state.player_experience[0].player,
+            NameAndId::create_offline("Steve")
+        );
+        assert_eq!(state.player_experience[0].level, 2);
+        assert!(state.player_experience[0].progress.abs() < 0.0001);
+        assert_eq!(state.player_experience[0].total, 16);
+
+        let levels = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "xp add Steve,Alex 3 levels",
+        )
+        .unwrap();
+        assert_eq!(levels.success_count, 2);
+        assert_eq!(
+            levels.feedback_key,
+            "commands.experience.add.levels.success.multiple"
+        );
+        assert_eq!(state.player_experience[0].level, 5);
+        assert_eq!(
+            state
+                .player_experience
+                .iter()
+                .find(|xp| xp.player.name == "Alex")
+                .unwrap()
+                .level,
+            3
+        );
+
+        let set_points = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience set Steve 5 points",
+        )
+        .unwrap();
+        assert_eq!(
+            set_points.feedback_key,
+            "commands.experience.set.points.success.single"
+        );
+        let queried_points = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience query Steve points",
+        )
+        .unwrap();
+        assert_eq!(queried_points.success_count, 5);
+        assert_eq!(
+            queried_points.feedback_key,
+            "commands.experience.query.points"
+        );
+
+        let queried_levels = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience query Steve levels",
+        )
+        .unwrap();
+        assert_eq!(queried_levels.success_count, 5);
+        assert_eq!(
+            queried_levels.feedback_key,
+            "commands.experience.query.levels"
+        );
+    }
+
+    #[test]
+    fn experience_command_rejects_invalid_set_points_and_clamps_negative_levels() {
+        let mut state = ServerCommandState {
+            player_experience: vec![PlayerExperienceState {
+                player: NameAndId::create_offline("Steve"),
+                level: 1,
+                progress: 0.5,
+                total: 10,
+            }],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "experience set Steve 9 points"
+            ),
+            Err(CommandError::ExperienceSetPointsInvalid)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "experience set Steve -1 levels"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+
+        let removed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience add Steve -20 points",
+        )
+        .unwrap();
+        assert_eq!(removed.success_count, 1);
+        assert_eq!(state.player_experience[0].level, 0);
+        assert_eq!(state.player_experience[0].progress, 0.0);
+        assert_eq!(state.player_experience[0].total, 0);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience set Steve 30 levels",
+        )
+        .unwrap();
+        assert_eq!(state.player_experience[0].level, 30);
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "experience set Steve 112 points"
+            ),
+            Err(CommandError::ExperienceSetPointsInvalid)
         );
     }
 
