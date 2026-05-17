@@ -12,7 +12,7 @@ const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
 const firstTickActionRequest = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
 const firstTickActions = new Set(firstTickActionRequest === '1'
-  ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'swing', 'use_item_on', 'use_item']
+  ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'player_input', 'swing', 'use_item_on', 'use_item']
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChatPacketId = 9
@@ -24,6 +24,7 @@ const serverboundContainerClosePacketId = 19
 const serverboundKeepAlivePacketId = 28
 const serverboundMovePlayerPosRotPacketId = 31
 const serverboundPlayerActionPacketId = 41
+const serverboundPlayerInputPacketId = 43
 const serverboundSelectKnownPacksPacketId = 7
 const serverboundSetCarriedItemPacketId = 53
 const serverboundSwingPacketId = 63
@@ -602,7 +603,8 @@ async function main () {
   if (expectLoginDisconnect) {
     expectPacket(login, 0, 'login_disconnect')
     socket.end()
-    console.log(JSON.stringify({ ok: true, disconnected: true, host, port, login: login.id, length: login.length }, null, 2))
+    const reason = readString(login.body, 0)
+    console.log(JSON.stringify({ ok: true, disconnected: true, host, port, login: login.id, length: login.length, reason: reason.value }, null, 2))
     return
   }
   let compressionThreshold = null
@@ -851,6 +853,7 @@ async function main () {
     if (firstTickActions.has('inventory_click')) socket.write(encodeClientPacket(reader, serverboundContainerClickPacketId, containerClickPayload()))
     if (firstTickActions.has('inventory_close')) socket.write(encodeClientPacket(reader, serverboundContainerClosePacketId, Buffer.from([0])))
     if (firstTickActions.has('block_action')) socket.write(encodeClientPacket(reader, serverboundPlayerActionPacketId, playerActionPayload()))
+    if (firstTickActions.has('player_input')) socket.write(encodeClientPacket(reader, serverboundPlayerInputPacketId, playerInputPayload()))
     if (firstTickActions.has('swing')) socket.write(encodeClientPacket(reader, serverboundSwingPacketId, writeVarInt(0)))
     if (firstTickActions.has('use_item_on')) socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, useItemOnPayload()))
     if (firstTickActions.has('use_item')) socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
@@ -943,6 +946,10 @@ function containerClickPayload () {
     writeVarInt(0),
     Buffer.from([0])
   ])
+}
+
+function playerInputPayload () {
+  return Buffer.from([0x09])
 }
 
 function playerActionPayload () {

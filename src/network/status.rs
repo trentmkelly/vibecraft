@@ -40,8 +40,8 @@ use crate::network::play::{
     SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
     SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
     SERVERBOUND_PLAYER_ACTION_PACKET_ID, SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
-    SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
-    SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
+    SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
+    SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess};
@@ -753,7 +753,12 @@ pub fn run_status_server(
     let favicon = load_favicon(Path::new("server-icon.png"))
         .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
     let active_logins = ActiveLoginRegistry::default();
-    let player_access = Arc::new(Mutex::new(PlayerAccess::default()));
+    let player_access = Arc::new(Mutex::new(
+        PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
+            eprintln!("status access file load error: {err}");
+            PlayerAccess::default()
+        }),
+    ));
     println!("Status listener bound to {address}");
 
     loop {
@@ -762,11 +767,12 @@ pub fn run_status_server(
             break;
         }
         match listener.accept() {
-            Ok((stream, _peer_addr)) => {
+            Ok((stream, peer_addr)) => {
                 let properties = properties.clone();
                 let favicon = favicon.clone();
                 let active_logins = active_logins.clone();
                 let player_access = Arc::clone(&player_access);
+                let remote_ip = peer_addr.ip().to_string();
                 thread::spawn(move || {
                     if let Err(err) = handle_status_connection(
                         stream,
@@ -774,6 +780,7 @@ pub fn run_status_server(
                         favicon.as_deref(),
                         &active_logins,
                         &player_access,
+                        &remote_ip,
                     ) {
                         eprintln!("status connection error: {err}");
                     }
@@ -806,6 +813,7 @@ fn handle_status_connection(
     favicon: Option<&str>,
     active_logins: &ActiveLoginRegistry,
     player_access: &Arc<Mutex<PlayerAccess>>,
+    remote_ip: &str,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
@@ -835,7 +843,13 @@ fn handle_status_connection(
         if protocol != PROTOCOL_VERSION {
             return write_login_protocol_mismatch_disconnect(&mut stream, protocol);
         }
-        return handle_login_connection(&mut stream, properties, active_logins, player_access);
+        return handle_login_connection(
+            &mut stream,
+            properties,
+            active_logins,
+            player_access,
+            remote_ip,
+        );
     }
     if next_state != 1 {
         return Err(io::Error::new(
@@ -895,6 +909,7 @@ fn handle_login_connection(
     properties: &ServerProperties,
     active_logins: &ActiveLoginRegistry,
     player_access: &Arc<Mutex<PlayerAccess>>,
+    remote_ip: &str,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -908,6 +923,18 @@ fn handle_login_connection(
 
     let mut login = LoginSession::default();
     let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
+    if let Some(reason) =
+        login_access_disconnect_reason(properties, player_access, &finished.profile, remote_ip)?
+    {
+        return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
+            ClientboundLoginDisconnectPacket {
+                reason: crate::network::codec::ComponentJson(format!(
+                    "{{\"translate\":\"{reason}\"}}"
+                )),
+            }
+            .write(payload)
+        });
+    }
     let Some(_active_login) = active_logins.try_register(&finished.profile.name) else {
         return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
             ClientboundLoginDisconnectPacket {
@@ -1161,6 +1188,7 @@ fn handle_login_connection(
                         | SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID
                         | SERVERBOUND_PLAYER_ACTION_PACKET_ID
                         | SERVERBOUND_PLAYER_COMMAND_PACKET_ID
+                        | SERVERBOUND_PLAYER_INPUT_PACKET_ID
                         | SERVERBOUND_PLAYER_LOADED_PACKET_ID
                         | SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID
                         | SERVERBOUND_SWING_PACKET_ID
@@ -1211,6 +1239,30 @@ fn cache_login_profile(
         .map_err(|_| io::Error::other("player access lock poisoned"))?;
     access.cache_user(profile.clone());
     access.save_user_cache(Path::new("."))
+}
+
+fn login_access_disconnect_reason(
+    properties: &ServerProperties,
+    player_access: &Arc<Mutex<PlayerAccess>>,
+    profile: &NameAndId,
+    remote_ip: &str,
+) -> io::Result<Option<&'static str>> {
+    let access = player_access
+        .lock()
+        .map_err(|_| io::Error::other("player access lock poisoned"))?;
+    if access.is_ip_banned(remote_ip) {
+        return Ok(Some("multiplayer.disconnect.ip_banned"));
+    }
+    if access.is_player_banned(&profile.uuid) {
+        return Ok(Some("multiplayer.disconnect.banned"));
+    }
+    if properties.enforce_whitelist
+        && !access.is_op(&profile.uuid)
+        && !access.is_whitelisted(&profile.uuid)
+    {
+        return Ok(Some("multiplayer.disconnect.not_whitelisted"));
+    }
+    Ok(None)
 }
 
 fn wait_for_configuration_packet<R: Read>(
@@ -1635,7 +1687,8 @@ fn write_superflat_block_state_container<W: Write>(writer: &mut W) -> io::Result
             for x in 0..16 {
                 let block_index = (y << 8) | (z << 4) | x;
                 let word_index = block_index / VALUES_PER_LONG;
-                let bit_index = (block_index - word_index * VALUES_PER_LONG) * BITS_PER_ENTRY as usize;
+                let bit_index =
+                    (block_index - word_index * VALUES_PER_LONG) * BITS_PER_ENTRY as usize;
                 storage[word_index] |= palette_index << bit_index;
             }
         }
@@ -2934,8 +2987,7 @@ mod tests {
         write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
-        write_superflat_block_state_container,
-        write_vanilla_banner_pattern_registry_packet,
+        write_superflat_block_state_container, write_vanilla_banner_pattern_registry_packet,
         write_vanilla_cat_sound_variant_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet,
         write_vanilla_chicken_sound_variant_registry_packet,
@@ -2948,8 +3000,8 @@ mod tests {
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet, CompressionState, BANNER_PATTERNS,
-        BANNER_PATTERN_TAGS, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS, INSTRUMENTS, JUKEBOX_SONGS,
-        BEDROCK_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID,
+        BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS,
+        DIRT_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SUPERFLAT_SOLID_BLOCK_COUNT,
@@ -3371,8 +3423,7 @@ mod tests {
             .chunks_exact(8)
             .map(|chunk| {
                 u64::from_be_bytes([
-                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                    chunk[7],
+                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
                 ])
             })
             .collect::<Vec<_>>();

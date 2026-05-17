@@ -13,6 +13,7 @@ test('raw 26.1.2 first-action matrix remains connected without retry sleeps', { 
     'inventory_click',
     'inventory_close',
     'block_action',
+    'player_input',
     'swing',
     'use_item_on',
     'use_item'

@@ -70,6 +70,19 @@ pub struct PlayerAccess {
 }
 
 impl PlayerAccess {
+    pub fn load_from_dir(dir: &Path) -> std::io::Result<Self> {
+        let mut access = Self::default();
+        access.banned_players = load_name_ban_entries(&dir.join("banned-players.json"))?;
+        access.banned_ips = load_ip_ban_entries(&dir.join("banned-ips.json"))?;
+        access.whitelist = load_name_and_id_entries(&dir.join("whitelist.json"))?;
+        access.ops = load_op_entries(&dir.join("ops.json"))?;
+        let cached = load_name_and_id_entries(&dir.join("usercache.json"))?;
+        for user in cached {
+            access.cache_user(user);
+        }
+        Ok(access)
+    }
+
     pub fn ban_player(&mut self, entry: BanEntry<NameAndId>) {
         self.banned_players
             .retain(|existing| existing.user.uuid != entry.user.uuid);
@@ -453,6 +466,187 @@ fn escape(value: &str) -> String {
         .collect()
 }
 
+fn load_name_and_id_entries(path: &Path) -> std::io::Result<Vec<NameAndId>> {
+    let raw = read_optional(path)?;
+    Ok(json_objects(&raw)
+        .into_iter()
+        .filter_map(|object| {
+            Some(NameAndId {
+                uuid: json_string_field(&object, "uuid")?,
+                name: json_string_field(&object, "name")?,
+            })
+        })
+        .collect())
+}
+
+fn load_name_ban_entries(path: &Path) -> std::io::Result<Vec<BanEntry<NameAndId>>> {
+    let raw = read_optional(path)?;
+    Ok(json_objects(&raw)
+        .into_iter()
+        .filter_map(|object| {
+            let user = NameAndId {
+                uuid: json_string_field(&object, "uuid")?,
+                name: json_string_field(&object, "name")?,
+            };
+            Some(BanEntry {
+                user,
+                created: json_string_field(&object, "created").unwrap_or_default(),
+                source: json_string_field(&object, "source").unwrap_or_default(),
+                expires: json_optional_date(&object),
+                reason: json_string_field(&object, "reason"),
+            })
+        })
+        .collect())
+}
+
+fn load_ip_ban_entries(path: &Path) -> std::io::Result<Vec<BanEntry<String>>> {
+    let raw = read_optional(path)?;
+    Ok(json_objects(&raw)
+        .into_iter()
+        .filter_map(|object| {
+            Some(BanEntry {
+                user: json_string_field(&object, "ip")?,
+                created: json_string_field(&object, "created").unwrap_or_default(),
+                source: json_string_field(&object, "source").unwrap_or_default(),
+                expires: json_optional_date(&object),
+                reason: json_string_field(&object, "reason"),
+            })
+        })
+        .collect())
+}
+
+fn load_op_entries(path: &Path) -> std::io::Result<Vec<OpEntry>> {
+    let raw = read_optional(path)?;
+    Ok(json_objects(&raw)
+        .into_iter()
+        .filter_map(|object| {
+            let user = NameAndId {
+                uuid: json_string_field(&object, "uuid")?,
+                name: json_string_field(&object, "name")?,
+            };
+            Some(OpEntry {
+                user,
+                level: json_u8_field(&object, "level").unwrap_or(4),
+                bypasses_player_limit: json_bool_field(&object, "bypassesPlayerLimit")
+                    .unwrap_or(false),
+            })
+        })
+        .collect())
+}
+
+fn read_optional(path: &Path) -> std::io::Result<String> {
+    match fs::read_to_string(path) {
+        Ok(raw) => Ok(raw),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(err) => Err(err),
+    }
+}
+
+fn json_optional_date(object: &str) -> Option<String> {
+    json_string_field(object, "expires").filter(|value| value != "forever")
+}
+
+fn json_objects(raw: &str) -> Vec<String> {
+    let mut objects = Vec::new();
+    let mut depth = 0_i32;
+    let mut start = None;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, ch) in raw.char_indices() {
+        if in_string {
+            escaped = ch == '\\' && !escaped;
+            if ch == '"' && !escaped {
+                in_string = false;
+            } else if ch != '\\' {
+                escaped = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => {
+                if depth == 0 {
+                    start = Some(index);
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(start) = start.take() {
+                        objects.push(raw[start..=index].to_string());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    objects
+}
+
+fn json_string_field(object: &str, field: &str) -> Option<String> {
+    let needle = format!("\"{field}\"");
+    let after_key = object.split_once(&needle)?.1;
+    let after_colon = after_key.split_once(':')?.1.trim_start();
+    parse_json_string(after_colon).map(|(value, _)| value)
+}
+
+fn json_u8_field(object: &str, field: &str) -> Option<u8> {
+    let needle = format!("\"{field}\"");
+    let after_key = object.split_once(&needle)?.1;
+    let after_colon = after_key.split_once(':')?.1.trim_start();
+    let digits: String = after_colon
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect();
+    digits.parse().ok()
+}
+
+fn json_bool_field(object: &str, field: &str) -> Option<bool> {
+    let needle = format!("\"{field}\"");
+    let after_key = object.split_once(&needle)?.1;
+    let after_colon = after_key.split_once(':')?.1.trim_start();
+    if after_colon.starts_with("true") {
+        Some(true)
+    } else if after_colon.starts_with("false") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+fn parse_json_string(input: &str) -> Option<(String, &str)> {
+    let mut chars = input.char_indices();
+    if chars.next()?.1 != '"' {
+        return None;
+    }
+    let mut out = String::new();
+    let mut escaped = false;
+    for (index, ch) in chars {
+        if escaped {
+            out.push(match ch {
+                '"' => '"',
+                '\\' => '\\',
+                '/' => '/',
+                'b' => '\u{0008}',
+                'f' => '\u{000c}',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                other => other,
+            });
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' {
+            return Some((out, &input[index + 1..]));
+        } else {
+            out.push(ch);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -524,6 +718,58 @@ mod tests {
         assert!(fs::read_to_string(dir.join("ops.json"))
             .unwrap()
             .contains("\"level\":3"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn loads_vanilla_access_control_files() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-access-load-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        fs::write(
+            dir.join("whitelist.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Steve\"}]",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("ops.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000002\",\"name\":\"Alex\",\"level\":3,\"bypassesPlayerLimit\":true}]",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("banned-players.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"Griefer\",\"created\":\"2026-05-17 00:00:00 +0000\",\"source\":\"Server\",\"expires\":\"forever\",\"reason\":\"test\"}]",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("banned-ips.json"),
+            "[{\"ip\":\"127.0.0.1\",\"created\":\"2026-05-17 00:00:00 +0000\",\"source\":\"Server\",\"expires\":\"forever\",\"reason\":\"test\"}]",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("usercache.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000004\",\"name\":\"Cached\"}]",
+        )
+        .unwrap();
+
+        let mut access = PlayerAccess::load_from_dir(&dir).unwrap();
+        assert!(access.is_whitelisted("00000000-0000-0000-0000-000000000001"));
+        assert_eq!(
+            access.op_level("00000000-0000-0000-0000-000000000002"),
+            Some(3)
+        );
+        assert!(access.is_player_banned("00000000-0000-0000-0000-000000000003"));
+        assert!(access.is_ip_banned("127.0.0.1"));
+        assert_eq!(
+            access
+                .lookup_cached_profile("cached", std::time::SystemTime::now())
+                .unwrap()
+                .name,
+            "Cached"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
