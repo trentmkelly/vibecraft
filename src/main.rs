@@ -212,7 +212,7 @@ fn run(options: CliOptions) -> Result<(), String> {
         "serverId={}",
         options.server_id.as_deref().unwrap_or("")
     ))?;
-    let (_console_input, _console_handle) = console::spawn_console_input_thread();
+    let (console_input, _console_handle) = console::spawn_console_input_thread();
     logger.info("Started server console input thread")?;
 
     let datapack_dir = universe.join(&world_name).join("datapacks");
@@ -297,7 +297,7 @@ fn run(options: CliOptions) -> Result<(), String> {
         ))?;
     }
     logger.info(&format!("Status listener binding to {bind_ip}:{port}"))?;
-    run_status_server(bind_ip, port, &properties)?;
+    run_status_server(bind_ip, port, &properties, &console_input)?;
 
     Ok(())
 }

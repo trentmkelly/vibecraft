@@ -2,9 +2,11 @@ use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
+use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::console::ConsoleInput;
 use crate::network::codec::{write_bitset, write_identifier, write_optional};
 use crate::network::login::{
     ClientboundLoginDisconnectPacket, LoginSession, ServerboundHelloPacket,
@@ -683,17 +685,25 @@ pub fn run_status_server(
     bind_ip: &str,
     port: u16,
     properties: &ServerProperties,
+    console_input: &Receiver<ConsoleInput>,
 ) -> Result<(), String> {
     let address = format!("{bind_ip}:{port}");
     let listener = TcpListener::bind(&address)
         .map_err(|err| format!("Failed to bind status listener on {address}: {err}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
     let favicon = load_favicon(Path::new("server-icon.png"))
         .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
     println!("Status listener bound to {address}");
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
+    loop {
+        if should_stop(console_input) {
+            println!("Status listener stopping");
+            break;
+        }
+        match listener.accept() {
+            Ok((stream, _peer_addr)) => {
                 let properties = properties.clone();
                 let favicon = favicon.clone();
                 thread::spawn(move || {
@@ -704,11 +714,25 @@ pub fn run_status_server(
                     }
                 });
             }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(25));
+            }
             Err(err) => eprintln!("status accept error: {err}"),
         }
     }
 
     Ok(())
+}
+
+fn should_stop(console_input: &Receiver<ConsoleInput>) -> bool {
+    loop {
+        match console_input.try_recv() {
+            Ok(input) if input.line.eq_ignore_ascii_case("stop") => return true,
+            Ok(_) => {}
+            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Disconnected) => return false,
+        }
+    }
 }
 
 fn handle_status_connection(
