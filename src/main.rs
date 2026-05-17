@@ -15,6 +15,7 @@ mod runtime;
 mod server_properties;
 mod storage;
 mod world;
+mod world_border;
 mod worldgen;
 
 use std::env;
