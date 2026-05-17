@@ -60,6 +60,7 @@ mod seed_validation;
 mod server_properties;
 mod special_block;
 mod storage;
+mod vehicle_entity;
 mod world;
 mod world_border;
 mod worldgen;
