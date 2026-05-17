@@ -51,6 +51,8 @@ pub struct ServerCommandState {
     pub next_jfr_recording_path: String,
     pub known_recipes: Vec<String>,
     pub player_recipes: Vec<PlayerRecipeBook>,
+    pub command_time_millis: u64,
+    pub stopwatches: Vec<StopwatchState>,
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
     pub online_players: Vec<NameAndId>,
@@ -159,6 +161,13 @@ pub struct PerfReport {
 pub struct PlayerRecipeBook {
     pub player: NameAndId,
     pub recipes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StopwatchState {
+    pub id: String,
+    pub creation_time_millis: u64,
+    pub accumulated_elapsed_millis: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -414,6 +423,8 @@ pub enum CommandError {
     SwingNoLivingEntity,
     TagAddFailed,
     TagRemoveFailed,
+    StopwatchAlreadyExists,
+    StopwatchDoesNotExist,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -499,6 +510,8 @@ impl Default for ServerCommandState {
             next_jfr_recording_path: "debug/rustcraft.jfr".to_string(),
             known_recipes: Vec::new(),
             player_recipes: Vec::new(),
+            command_time_millis: 0,
+            stopwatches: Vec::new(),
             command_source_player: None,
             command_source_entity: None,
             online_players: Vec::new(),
@@ -889,6 +902,7 @@ pub fn execute_builtin_command(
         }
         "playsound" => play_sound_command(state, &parts, permissions),
         "stopsound" => stop_sound_command(state, &parts),
+        "stopwatch" => stopwatch_command(state, &parts),
         "swing" => swing_command(state, &parts),
         "tag" => tag_command(state, &parts),
         "particle" => particle_command(state, &parts),
@@ -1462,6 +1476,85 @@ fn stop_sound_command(
     Ok(CommandResult {
         success_count: count,
         feedback_key,
+        broadcast_to_admins: true,
+    })
+}
+
+fn stopwatch_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["stopwatch", "create", id] => {
+            let id = parse_identifier(id)?;
+            if state.stopwatches.iter().any(|watch| watch.id == id) {
+                return Err(CommandError::StopwatchAlreadyExists);
+            }
+            state.stopwatches.push(StopwatchState {
+                id,
+                creation_time_millis: state.command_time_millis,
+                accumulated_elapsed_millis: 0,
+            });
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.stopwatch.create.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["stopwatch", "query", id] => query_stopwatch(state, id, 1.0),
+        ["stopwatch", "query", id, scale] => {
+            let scale = scale
+                .parse::<f64>()
+                .map_err(|_| CommandError::InvalidSyntax)?;
+            query_stopwatch(state, id, scale)
+        }
+        ["stopwatch", "restart", id] => {
+            let id = parse_identifier(id)?;
+            let Some(watch) = state.stopwatches.iter_mut().find(|watch| watch.id == id) else {
+                return Err(CommandError::StopwatchDoesNotExist);
+            };
+            watch.creation_time_millis = state.command_time_millis;
+            watch.accumulated_elapsed_millis = 0;
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.stopwatch.restart.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["stopwatch", "remove", id] => {
+            let id = parse_identifier(id)?;
+            let old_len = state.stopwatches.len();
+            state.stopwatches.retain(|watch| watch.id != id);
+            if state.stopwatches.len() == old_len {
+                return Err(CommandError::StopwatchDoesNotExist);
+            }
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.stopwatch.remove.success",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn query_stopwatch(
+    state: &ServerCommandState,
+    id: &str,
+    scale: f64,
+) -> Result<CommandResult, CommandError> {
+    let id = parse_identifier(id)?;
+    let Some(watch) = state.stopwatches.iter().find(|watch| watch.id == id) else {
+        return Err(CommandError::StopwatchDoesNotExist);
+    };
+    let elapsed_millis = watch.accumulated_elapsed_millis
+        + state
+            .command_time_millis
+            .saturating_sub(watch.creation_time_millis);
+    let elapsed_seconds = elapsed_millis as f64 / 1000.0;
+    Ok(CommandResult {
+        success_count: (elapsed_seconds * scale) as i32,
+        feedback_key: "commands.stopwatch.query",
         broadcast_to_admins: true,
     })
 }
@@ -2206,6 +2299,18 @@ fn parse_entity_list(input: &str) -> Vec<EntityRef> {
         .collect()
 }
 
+fn parse_identifier(input: &str) -> Result<String, CommandError> {
+    if input.is_empty()
+        || input.bytes().any(|byte| {
+            !byte.is_ascii_alphanumeric() && !matches!(byte, b'_' | b'-' | b'.' | b'/' | b':')
+        })
+    {
+        Err(CommandError::InvalidSyntax)
+    } else {
+        Ok(input.to_string())
+    }
+}
+
 fn parse_uuid_string(input: &str) -> Result<String, CommandError> {
     let bytes = input.as_bytes();
     if bytes.len() != 36 || [8, 13, 18, 23].iter().any(|index| bytes[*index] != b'-') {
@@ -2432,6 +2537,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("setidletimeout", "/setidletimeout <minutes>"),
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
+        (
+            "stopwatch",
+            "/stopwatch <create|query|restart|remove> <id> [scale]",
+        ),
         ("swing", "/swing [targets] [mainhand|offhand]"),
         ("tag", "/tag <targets> <add|remove|list> [name]"),
         ("teammsg", "/teammsg <message>"),
@@ -2791,7 +2900,8 @@ mod tests {
         PlaySoundRequest, PlayerRecipeBook, PublishRequest, ReloadRequest, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ServerCommandState,
         ServerPackCommandEvent, ServerPackPushRequest, SoundCommandEvent, SoundSource,
-        StopSoundRequest, SwingCommandEvent, TeamMembership, Vec3, VersionInfo, WeatherMode,
+        StopSoundRequest, StopwatchState, SwingCommandEvent, TeamMembership, Vec3, VersionInfo,
+        WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -4233,6 +4343,122 @@ mod tests {
         assert_eq!(
             result.feedback_key,
             "commands.stopsound.success.sourceless.sound"
+        );
+    }
+
+    #[test]
+    fn stopwatch_command_creates_queries_restarts_and_removes() {
+        let mut state = ServerCommandState {
+            command_time_millis: 1_000,
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("stopwatch"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "stopwatch create minecraft:test"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let created = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopwatch create minecraft:test",
+        )
+        .unwrap();
+        assert_eq!(created.success_count, 1);
+        assert_eq!(created.feedback_key, "commands.stopwatch.create.success");
+        assert_eq!(
+            state.stopwatches,
+            vec![StopwatchState {
+                id: "minecraft:test".to_string(),
+                creation_time_millis: 1_000,
+                accumulated_elapsed_millis: 0,
+            }]
+        );
+
+        state.command_time_millis = 4_250;
+        let queried = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopwatch query minecraft:test 10",
+        )
+        .unwrap();
+        assert_eq!(queried.success_count, 32);
+        assert_eq!(queried.feedback_key, "commands.stopwatch.query");
+
+        let restarted = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopwatch restart minecraft:test",
+        )
+        .unwrap();
+        assert_eq!(restarted.success_count, 1);
+        assert_eq!(state.stopwatches[0].creation_time_millis, 4_250);
+
+        let removed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopwatch remove minecraft:test",
+        )
+        .unwrap();
+        assert_eq!(removed.success_count, 1);
+        assert!(state.stopwatches.is_empty());
+    }
+
+    #[test]
+    fn stopwatch_command_reports_duplicate_missing_and_bad_syntax() {
+        let mut state = ServerCommandState::default();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopwatch create minecraft:test",
+        )
+        .unwrap();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "stopwatch create minecraft:test"
+            ),
+            Err(CommandError::StopwatchAlreadyExists)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "stopwatch query minecraft:missing"
+            ),
+            Err(CommandError::StopwatchDoesNotExist)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "stopwatch restart minecraft:missing"
+            ),
+            Err(CommandError::StopwatchDoesNotExist)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "stopwatch remove minecraft:missing"
+            ),
+            Err(CommandError::StopwatchDoesNotExist)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "stopwatch create bad id"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
