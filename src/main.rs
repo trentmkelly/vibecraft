@@ -90,6 +90,7 @@ mod status_effect;
 mod storage;
 mod vehicle_entity;
 mod vibration;
+mod villager_system;
 mod waypoint;
 mod weather;
 mod world;
