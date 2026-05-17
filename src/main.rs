@@ -23,6 +23,7 @@ mod gravity;
 mod inhabited_time;
 mod item_catalog;
 mod item_properties;
+mod item_stack;
 mod light;
 mod log;
 mod network;
