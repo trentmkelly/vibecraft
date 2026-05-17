@@ -70,6 +70,7 @@ pub struct ServerCommandState {
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
+    pub summoned_entities: Vec<SummonedEntity>,
     pub swing_events: Vec<SwingCommandEvent>,
     pub rotation_requests: Vec<RotationRequest>,
     pub return_events: Vec<ReturnCommandEvent>,
@@ -305,6 +306,15 @@ pub struct ServerPackPushRequest {
     pub prompt: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SummonedEntity {
+    pub entity_type: String,
+    pub entity: EntityRef,
+    pub position: Vec3,
+    pub nbt: Option<String>,
+    pub finalized_spawn: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwingCommandEvent {
     pub target: EntityRef,
@@ -480,6 +490,10 @@ pub enum CommandError {
     SpectateSelf,
     SpectateNotSpectator,
     SpectateCannotSpectate,
+    SummonFailed,
+    SummonFailedPeaceful,
+    SummonDuplicateUuid,
+    SummonInvalidPosition,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -584,6 +598,7 @@ impl Default for ServerCommandState {
             sound_events: Vec::new(),
             particle_events: Vec::new(),
             server_pack_events: Vec::new(),
+            summoned_entities: Vec::new(),
             swing_events: Vec::new(),
             rotation_requests: Vec::new(),
             return_events: Vec::new(),
@@ -965,6 +980,7 @@ pub fn execute_builtin_command(
         "playsound" => play_sound_command(state, &parts, permissions),
         "stopsound" => stop_sound_command(state, &parts),
         "stopwatch" => stopwatch_command(state, &parts),
+        "summon" => summon_command(state, &parts),
         "swing" => swing_command(state, &parts),
         "tag" => tag_command(state, &parts),
         "particle" => particle_command(state, &parts),
@@ -1805,6 +1821,125 @@ fn set_camera_target(state: &mut ServerCommandState, player: NameAndId, target: 
         existing.target = target;
     } else {
         state.camera_targets.push(CameraTarget { player, target });
+    }
+}
+
+fn summon_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (entity_type, position, nbt, finalized_spawn) = match parts {
+        ["summon", entity] => (
+            parse_resource_identifier(entity)?,
+            state.command_source_position,
+            None,
+            true,
+        ),
+        ["summon", entity, x, y, z] => (
+            parse_resource_identifier(entity)?,
+            parse_vec3(x, y, z)?,
+            None,
+            true,
+        ),
+        ["summon", entity, x, y, z, nbt] => (
+            parse_resource_identifier(entity)?,
+            parse_vec3(x, y, z)?,
+            Some((*nbt).to_string()),
+            false,
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+
+    if !is_in_spawnable_bounds(block_pos_containing(position)) {
+        return Err(CommandError::SummonInvalidPosition);
+    }
+    let entity_id = summoned_entity_id(&entity_type, &position, nbt.as_deref());
+    if state
+        .entity_states
+        .iter()
+        .any(|entry| entry.entity.id == entity_id)
+        || state
+            .summoned_entities
+            .iter()
+            .any(|entry| entry.entity.id == entity_id)
+    {
+        return Err(CommandError::SummonDuplicateUuid);
+    }
+
+    let entity = EntityRef {
+        id: entity_id,
+        display_name: entity_type.clone(),
+    };
+    state.entity_states.push(EntityState {
+        entity: entity.clone(),
+        kind: EntityKind::Generic,
+        dimension: state.command_source_dimension.clone(),
+    });
+    state.summoned_entities.push(SummonedEntity {
+        entity_type,
+        entity,
+        position,
+        nbt,
+        finalized_spawn,
+    });
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.summon.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn parse_vec3(x: &str, y: &str, z: &str) -> Result<Vec3, CommandError> {
+    Ok(Vec3 {
+        x: parse_f64(x)?,
+        y: parse_f64(y)?,
+        z: parse_f64(z)?,
+    })
+}
+
+fn parse_resource_identifier(input: &str) -> Result<String, CommandError> {
+    let identifier = parse_identifier(input)?;
+    if identifier.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        return Err(CommandError::InvalidSyntax);
+    }
+    if identifier.contains(':') {
+        Ok(identifier)
+    } else {
+        Ok(format!("minecraft:{identifier}"))
+    }
+}
+
+fn is_in_spawnable_bounds(pos: BlockPos) -> bool {
+    pos.x >= -30_000_000
+        && pos.z >= -30_000_000
+        && pos.x < 30_000_000
+        && pos.z < 30_000_000
+        && pos.y >= -20_000_000
+        && pos.y < 20_000_000
+}
+
+fn summoned_entity_id(entity_type: &str, position: &Vec3, nbt: Option<&str>) -> String {
+    if let Some(uuid) = nbt.and_then(extract_uuid_from_nbt) {
+        return uuid;
+    }
+    format!(
+        "{}@{:.3},{:.3},{:.3}",
+        entity_type, position.x, position.y, position.z
+    )
+}
+
+fn extract_uuid_from_nbt(nbt: &str) -> Option<String> {
+    let marker = "UUID:";
+    let start = nbt.find(marker)? + marker.len();
+    let tail = &nbt[start..];
+    let end = tail
+        .find(|ch: char| ch == ',' || ch == '}' || ch.is_whitespace())
+        .unwrap_or(tail.len());
+    let uuid = tail[..end].trim_matches('"');
+    if uuid.is_empty() {
+        None
+    } else {
+        Some(uuid.to_string())
     }
 }
 
@@ -2824,6 +2959,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "stopwatch",
             "/stopwatch <create|query|restart|remove> <id> [scale]",
         ),
+        ("summon", "/summon <entity> [pos] [nbt]"),
         ("swing", "/swing [targets] [mainhand|offhand]"),
         ("tag", "/tag <targets> <add|remove|list> [name]"),
         ("teammsg", "/teammsg <message>"),
@@ -5705,6 +5841,115 @@ mod tests {
         assert_eq!(
             execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "spectate"),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn summon_command_records_entity_spawn_with_defaults_position_and_nbt() {
+        let mut state = ServerCommandState {
+            command_source_position: Vec3 {
+                x: 1.25,
+                y: 64.0,
+                z: -2.5,
+            },
+            command_source_dimension: "minecraft:the_nether".to_string(),
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("summon"),
+            PermissionLevel::Gamemasters
+        );
+
+        let defaulted = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "summon pig",
+        )
+        .unwrap();
+        assert_eq!(defaulted.success_count, 1);
+        assert_eq!(defaulted.feedback_key, "commands.summon.success");
+        assert!(defaulted.broadcast_to_admins);
+        assert_eq!(state.summoned_entities[0].entity_type, "minecraft:pig");
+        assert_eq!(
+            state.summoned_entities[0].position,
+            state.command_source_position
+        );
+        assert!(state.summoned_entities[0].finalized_spawn);
+        assert_eq!(
+            state.entity_states[0].dimension,
+            "minecraft:the_nether".to_string()
+        );
+
+        let with_nbt = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "summon minecraft:cow 4.5 70 -8 {NoAI:1b}",
+        )
+        .unwrap();
+        assert_eq!(with_nbt.feedback_key, "commands.summon.success");
+        assert_eq!(state.summoned_entities[1].entity_type, "minecraft:cow");
+        assert_eq!(
+            state.summoned_entities[1].position,
+            Vec3 {
+                x: 4.5,
+                y: 70.0,
+                z: -8.0,
+            }
+        );
+        assert_eq!(
+            state.summoned_entities[1].nbt,
+            Some("{NoAI:1b}".to_string())
+        );
+        assert!(!state.summoned_entities[1].finalized_spawn);
+    }
+
+    #[test]
+    fn summon_command_rejects_invalid_position_duplicate_uuid_and_syntax() {
+        let mut state = ServerCommandState::default();
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "summon pig 30000000 64 0"
+            ),
+            Err(CommandError::SummonInvalidPosition)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "summon pig 0 20000000 0"
+            ),
+            Err(CommandError::SummonInvalidPosition)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "summon NotValid 0 64 0"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "summon"),
+            Err(CommandError::InvalidSyntax)
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "summon pig 0 64 0 {UUID:fixed-id}",
+        )
+        .unwrap();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "summon cow 1 64 1 {UUID:fixed-id}"
+            ),
+            Err(CommandError::SummonDuplicateUuid)
         );
     }
 }
