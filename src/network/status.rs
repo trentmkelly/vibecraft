@@ -1957,16 +1957,20 @@ fn escape_json_string(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt, cow_sound_variant_nbt,
-        encode_base64, escape_json_string, handle_legacy_status_connection, jukebox_song_nbt,
-        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
-        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, wolf_sound_variant_nbt,
-        write_legacy_string, write_status_pong_packet, write_vanilla_cat_variant_registry_packet,
+        banner_pattern_nbt, cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt,
+        cow_sound_variant_nbt, encode_base64, escape_json_string, handle_legacy_status_connection,
+        instrument_nbt, jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
+        legacy_version1_response, pig_sound_variant_nbt, read_packet, status_json,
+        trim_material_nbt, trim_pattern_nbt, wolf_sound_variant_nbt, write_legacy_string,
+        write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
+        write_minimal_trim_material_registry_packet, write_status_pong_packet,
+        write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet, write_vanilla_chicken_variant_registry_packet,
         write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
-        write_vanilla_jukebox_song_registry_packet, write_vanilla_pig_variant_registry_packet,
+        write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
+        write_vanilla_pig_variant_registry_packet, write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_variant_registry_packet, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
-        CHAT_TYPES, DAMAGE_TYPE_TAGS, JUKEBOX_SONGS, TRIM_MATERIALS,
+        CHAT_TYPES, DAMAGE_TYPE_TAGS, INSTRUMENTS, JUKEBOX_SONGS, TRIM_MATERIALS,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
@@ -2165,6 +2169,77 @@ mod tests {
             registry_element_count(write_vanilla_wolf_variant_registry_packet),
             9
         );
+    }
+
+    #[test]
+    fn synced_registry_payloads_include_expected_counts_and_fields() {
+        assert_eq!(
+            registry_element_count(write_minimal_damage_type_registry_packet),
+            50
+        );
+        assert_eq!(
+            registry_element_count(write_minimal_dimension_type_registry_packet),
+            1
+        );
+        assert_eq!(
+            registry_element_count(write_minimal_trim_material_registry_packet),
+            11
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_trim_pattern_registry_packet),
+            18
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_banner_pattern_registry_packet),
+            43
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_instrument_registry_packet),
+            8
+        );
+
+        let trim_pattern = trim_pattern_nbt("sentry");
+        assert!(matches!(
+            field_value(&trim_pattern, "asset_id"),
+            Some(Tag::String(value)) if value == "minecraft:sentry"
+        ));
+        assert!(matches!(
+            field_value(&trim_pattern, "decal"),
+            Some(Tag::Byte(0))
+        ));
+        let trim_description = compound_field(&trim_pattern, "description");
+        assert!(matches!(
+            field_value(trim_description, "translate"),
+            Some(Tag::String(value)) if value == "trim_pattern.minecraft.sentry"
+        ));
+
+        let banner = banner_pattern_nbt("flower");
+        assert!(matches!(
+            field_value(&banner, "asset_id"),
+            Some(Tag::String(value)) if value == "minecraft:flower"
+        ));
+        assert!(matches!(
+            field_value(&banner, "translation_key"),
+            Some(Tag::String(value)) if value == "block.minecraft.banner.flower"
+        ));
+
+        let instrument = INSTRUMENTS
+            .iter()
+            .find(|instrument| instrument.id == "ponder_goat_horn")
+            .expect("ponder goat horn should be sent");
+        let instrument_tag = instrument_nbt(instrument);
+        assert!(matches!(
+            field_value(&instrument_tag, "sound_event"),
+            Some(Tag::String(value)) if value == "minecraft:item.goat_horn.sound.0"
+        ));
+        assert!(matches!(
+            field_value(&instrument_tag, "use_duration"),
+            Some(Tag::Float(value)) if (*value - 7.0).abs() < f32::EPSILON
+        ));
+        assert!(matches!(
+            field_value(&instrument_tag, "range"),
+            Some(Tag::Float(value)) if (*value - 256.0).abs() < f32::EPSILON
+        ));
     }
 
     #[test]
