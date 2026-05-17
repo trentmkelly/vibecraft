@@ -6,6 +6,7 @@ use crate::enchantment_system::{are_compatible, enchantment};
 use crate::entity_category::mob_category;
 use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
+use crate::worldgen::configured_feature;
 
 const VANILLA_TRIM_PATTERNS: &[&str] = &[
     "minecraft:sentry",
@@ -170,6 +171,8 @@ pub struct ServerCommandState {
     pub command_loot_tables: Vec<CommandLootTable>,
     pub entity_loot_tables: Vec<CommandEntityLootTable>,
     pub loot_events: Vec<CommandLootEvent>,
+    pub available_templates: Vec<String>,
+    pub place_events: Vec<CommandPlaceEvent>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub player_experience: Vec<PlayerExperienceState>,
     pub default_game_mode: GameMode,
@@ -329,6 +332,28 @@ pub enum CommandLootSource {
         block: String,
         tool: Option<String>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandPlaceEvent {
+    pub kind: PlaceKind,
+    pub id: String,
+    pub position: BlockPos,
+    pub rotation: Option<String>,
+    pub mirror: Option<String>,
+    pub integrity: Option<f32>,
+    pub seed: Option<i32>,
+    pub strict: bool,
+    pub target: Option<String>,
+    pub max_depth: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaceKind {
+    Feature,
+    Jigsaw,
+    Structure,
+    Template,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1232,6 +1257,11 @@ pub enum CommandError {
     LootNoHeldItems,
     LootNoEntityLootTable,
     LootNoBlockLootTable,
+    PlaceFeatureFailed,
+    PlaceJigsawFailed,
+    PlaceStructureFailed,
+    PlaceTemplateInvalid,
+    PlaceTemplateFailed,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1452,6 +1482,8 @@ impl Default for ServerCommandState {
             command_loot_tables: Vec::new(),
             entity_loot_tables: Vec::new(),
             loot_events: Vec::new(),
+            available_templates: Vec::new(),
+            place_events: Vec::new(),
             player_game_modes: Vec::new(),
             player_experience: Vec::new(),
             default_game_mode: GameMode::Survival,
@@ -1894,6 +1926,7 @@ pub fn execute_builtin_command(
         "item" => item_command(state, &parts),
         "locate" => locate_command(state, &parts),
         "loot" => loot_command(state, &parts),
+        "place" => place_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
@@ -4003,6 +4036,262 @@ fn offset_slot(slot: &str, offset: usize) -> String {
         return (base + offset).to_string();
     }
     format!("{slot}+{offset}")
+}
+
+fn place_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["place", "feature", feature] => {
+            place_feature_command(state, feature, command_source_block_pos(state))
+        }
+        ["place", "feature", feature, x, y, z] => {
+            place_feature_command(state, feature, parse_block_pos(x, y, z)?)
+        }
+        ["place", "jigsaw", pool, target, max_depth] => place_jigsaw_command(
+            state,
+            pool,
+            target,
+            max_depth,
+            command_source_block_pos(state),
+        ),
+        ["place", "jigsaw", pool, target, max_depth, x, y, z] => {
+            place_jigsaw_command(state, pool, target, max_depth, parse_block_pos(x, y, z)?)
+        }
+        ["place", "structure", structure] => {
+            place_structure_command(state, structure, command_source_block_pos(state))
+        }
+        ["place", "structure", structure, x, y, z] => {
+            place_structure_command(state, structure, parse_block_pos(x, y, z)?)
+        }
+        ["place", "template", template] => place_template_command(
+            state,
+            template,
+            command_source_block_pos(state),
+            "none",
+            "none",
+            1.0,
+            0,
+            false,
+        ),
+        ["place", "template", template, x, y, z] => place_template_command(
+            state,
+            template,
+            parse_block_pos(x, y, z)?,
+            "none",
+            "none",
+            1.0,
+            0,
+            false,
+        ),
+        ["place", "template", template, x, y, z, rotation] => place_template_command(
+            state,
+            template,
+            parse_block_pos(x, y, z)?,
+            rotation,
+            "none",
+            1.0,
+            0,
+            false,
+        ),
+        ["place", "template", template, x, y, z, rotation, mirror] => place_template_command(
+            state,
+            template,
+            parse_block_pos(x, y, z)?,
+            rotation,
+            mirror,
+            1.0,
+            0,
+            false,
+        ),
+        ["place", "template", template, x, y, z, rotation, mirror, integrity] => {
+            place_template_command(
+                state,
+                template,
+                parse_block_pos(x, y, z)?,
+                rotation,
+                mirror,
+                parse_integrity(integrity)?,
+                0,
+                false,
+            )
+        }
+        ["place", "template", template, x, y, z, rotation, mirror, integrity, seed] => {
+            place_template_command(
+                state,
+                template,
+                parse_block_pos(x, y, z)?,
+                rotation,
+                mirror,
+                parse_integrity(integrity)?,
+                parse_i32(seed)?,
+                false,
+            )
+        }
+        ["place", "template", template, x, y, z, rotation, mirror, integrity, seed, "strict"] => {
+            place_template_command(
+                state,
+                template,
+                parse_block_pos(x, y, z)?,
+                rotation,
+                mirror,
+                parse_integrity(integrity)?,
+                parse_i32(seed)?,
+                true,
+            )
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn place_feature_command(
+    state: &mut ServerCommandState,
+    feature: &str,
+    position: BlockPos,
+) -> Result<CommandResult, CommandError> {
+    let feature = parse_resource_identifier(feature)?;
+    if configured_feature(&feature).is_none() {
+        return Err(CommandError::PlaceFeatureFailed);
+    }
+    state.place_events.push(CommandPlaceEvent {
+        kind: PlaceKind::Feature,
+        id: feature,
+        position,
+        rotation: None,
+        mirror: None,
+        integrity: None,
+        seed: None,
+        strict: false,
+        target: None,
+        max_depth: None,
+    });
+    Ok(place_result("commands.place.feature.success"))
+}
+
+fn place_jigsaw_command(
+    state: &mut ServerCommandState,
+    pool: &str,
+    target: &str,
+    max_depth: &str,
+    position: BlockPos,
+) -> Result<CommandResult, CommandError> {
+    let pool = parse_resource_identifier(pool)?;
+    let target = parse_resource_identifier(target)?;
+    let max_depth = parse_i32(max_depth)?;
+    if !(1..=20).contains(&max_depth) {
+        return Err(CommandError::InvalidSyntax);
+    }
+    state.place_events.push(CommandPlaceEvent {
+        kind: PlaceKind::Jigsaw,
+        id: pool,
+        position,
+        rotation: None,
+        mirror: None,
+        integrity: None,
+        seed: None,
+        strict: false,
+        target: Some(target),
+        max_depth: Some(max_depth),
+    });
+    Ok(place_result("commands.place.jigsaw.success"))
+}
+
+fn place_structure_command(
+    state: &mut ServerCommandState,
+    structure: &str,
+    position: BlockPos,
+) -> Result<CommandResult, CommandError> {
+    let structure = parse_resource_identifier(structure)?;
+    if !known_locate_structure_ids().contains(&structure.as_str()) {
+        return Err(CommandError::PlaceStructureFailed);
+    }
+    state.place_events.push(CommandPlaceEvent {
+        kind: PlaceKind::Structure,
+        id: structure,
+        position,
+        rotation: None,
+        mirror: None,
+        integrity: None,
+        seed: None,
+        strict: false,
+        target: None,
+        max_depth: None,
+    });
+    Ok(place_result("commands.place.structure.success"))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_template_command(
+    state: &mut ServerCommandState,
+    template: &str,
+    position: BlockPos,
+    rotation: &str,
+    mirror: &str,
+    integrity: f32,
+    seed: i32,
+    strict: bool,
+) -> Result<CommandResult, CommandError> {
+    let template = parse_resource_identifier(template)?;
+    if !state.available_templates.contains(&template) {
+        return Err(CommandError::PlaceTemplateInvalid);
+    }
+    let rotation = parse_template_rotation(rotation)?;
+    let mirror = parse_template_mirror(mirror)?;
+    state.place_events.push(CommandPlaceEvent {
+        kind: PlaceKind::Template,
+        id: template,
+        position,
+        rotation: Some(rotation),
+        mirror: Some(mirror),
+        integrity: Some(integrity),
+        seed: Some(seed),
+        strict,
+        target: None,
+        max_depth: None,
+    });
+    Ok(place_result("commands.place.template.success"))
+}
+
+fn place_result(feedback_key: &'static str) -> CommandResult {
+    CommandResult {
+        success_count: 1,
+        feedback_key,
+        broadcast_to_admins: true,
+    }
+}
+
+fn command_source_block_pos(state: &ServerCommandState) -> BlockPos {
+    BlockPos {
+        x: state.command_source_position.x.floor() as i32,
+        y: state.command_source_position.y.floor() as i32,
+        z: state.command_source_position.z.floor() as i32,
+    }
+}
+
+fn parse_integrity(input: &str) -> Result<f32, CommandError> {
+    let integrity = input
+        .parse::<f32>()
+        .map_err(|_| CommandError::InvalidSyntax)?;
+    if (0.0..=1.0).contains(&integrity) {
+        Ok(integrity)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+fn parse_template_rotation(input: &str) -> Result<String, CommandError> {
+    match input {
+        "none" | "clockwise_90" | "180" | "counterclockwise_90" => Ok(input.to_string()),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_template_mirror(input: &str) -> Result<String, CommandError> {
+    match input {
+        "none" | "left_right" | "front_back" => Ok(input.to_string()),
+        _ => Err(CommandError::InvalidSyntax),
+    }
 }
 
 fn clone_command(
@@ -9739,6 +10028,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("item", "/item <replace|modify> <block|entity> ..."),
         ("locate", "/locate <structure|biome|poi> <target>"),
         ("loot", "/loot <give|insert|replace|spawn> ... <fish|loot|kill|mine> ..."),
+        ("place", "/place <feature|jigsaw|structure|template> ..."),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -10213,13 +10503,13 @@ mod tests {
         EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
         FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
         LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport, Permission,
-        PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState,
-        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
-        QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
-        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
+        PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
+        PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
+        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
+        ScoreboardObjective, ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest,
+        SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
+        SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -14926,6 +15216,144 @@ mod tests {
                 "loot give Steve kill Zombie"
             ),
             Err(CommandError::LootNoEntityLootTable)
+        );
+    }
+
+    #[test]
+    fn place_command_records_feature_jigsaw_structure_and_template_placements() {
+        let mut state = ServerCommandState {
+            command_source_position: Vec3 {
+                x: 10.8,
+                y: 64.0,
+                z: -3.2,
+            },
+            available_templates: vec![
+                "minecraft:village/plains/houses/plains_small_house_1".to_string()
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("place"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "place feature oak"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let feature = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "place feature oak",
+        )
+        .unwrap();
+        assert_eq!(feature.feedback_key, "commands.place.feature.success");
+        assert_eq!(state.place_events[0].kind, PlaceKind::Feature);
+        assert_eq!(
+            state.place_events[0].position,
+            BlockPos {
+                x: 10,
+                y: 64,
+                z: -4,
+            }
+        );
+
+        let jigsaw = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "place jigsaw village/plains/town_centers minecraft:bottom 4 0 65 0",
+        )
+        .unwrap();
+        assert_eq!(jigsaw.feedback_key, "commands.place.jigsaw.success");
+
+        let structure = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "place structure stronghold 32 70 48",
+        )
+        .unwrap();
+        assert_eq!(structure.feedback_key, "commands.place.structure.success");
+
+        let template = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "place template village/plains/houses/plains_small_house_1 1 64 2 clockwise_90 left_right 0.75 42 strict",
+        )
+        .unwrap();
+        assert_eq!(template.feedback_key, "commands.place.template.success");
+        assert_eq!(state.place_events.len(), 4);
+        assert_eq!(state.place_events[3].kind, PlaceKind::Template);
+        assert_eq!(
+            state.place_events[3].id,
+            "minecraft:village/plains/houses/plains_small_house_1"
+        );
+        assert_eq!(
+            state.place_events[3].rotation.as_deref(),
+            Some("clockwise_90")
+        );
+        assert_eq!(state.place_events[3].mirror.as_deref(), Some("left_right"));
+        assert_eq!(state.place_events[3].integrity, Some(0.75));
+        assert_eq!(state.place_events[3].seed, Some(42));
+        assert!(state.place_events[3].strict);
+    }
+
+    #[test]
+    fn place_command_reports_vanilla_failure_paths() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "place feature not_a_feature"
+            ),
+            Err(CommandError::PlaceFeatureFailed)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "place jigsaw village/plains/town_centers minecraft:bottom 0"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "place structure not_a_structure"
+            ),
+            Err(CommandError::PlaceStructureFailed)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "place template missing_template"
+            ),
+            Err(CommandError::PlaceTemplateInvalid)
+        );
+        state
+            .available_templates
+            .push("minecraft:house".to_string());
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "place template house 0 64 0 bad_rotation"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "place template house 0 64 0 none none 1.5"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
