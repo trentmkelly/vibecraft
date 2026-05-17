@@ -121,6 +121,20 @@ impl<T> RegistryEntry<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SerializedRegistryEntry {
+    pub id: u32,
+    pub location: Identifier,
+    pub value: String,
+    pub lifecycle: Lifecycle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SerializedRegistry {
+    pub registry: Identifier,
+    pub entries: Vec<SerializedRegistryEntry>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Registry<T> {
     registry_id: Identifier,
@@ -188,6 +202,60 @@ impl<T> Registry<T> {
 
     pub fn is_frozen(&self) -> bool {
         self.frozen
+    }
+
+    pub fn serialize_with<F>(&self, mut encode: F) -> SerializedRegistry
+    where
+        F: FnMut(&T) -> String,
+    {
+        SerializedRegistry {
+            registry: self.registry_id.clone(),
+            entries: self
+                .entries
+                .iter()
+                .map(|entry| SerializedRegistryEntry {
+                    id: entry.id,
+                    location: entry.key.location().clone(),
+                    value: encode(&entry.value),
+                    lifecycle: entry.lifecycle,
+                })
+                .collect(),
+        }
+    }
+
+    pub fn deserialize_with<F>(snapshot: SerializedRegistry, mut decode: F) -> Result<Self, String>
+    where
+        F: FnMut(&str) -> Result<T, String>,
+    {
+        let mut registry = Self::new(snapshot.registry);
+        for (expected_id, entry) in snapshot.entries.into_iter().enumerate() {
+            if entry.id != expected_id as u32 {
+                return Err(format!(
+                    "registry snapshot id mismatch for {}: expected {}, got {}",
+                    entry.location, expected_id, entry.id
+                ));
+            }
+            registry.register(entry.location, decode(&entry.value)?, entry.lifecycle)?;
+        }
+        Ok(registry)
+    }
+
+    pub fn apply_data_pack_overrides(
+        &mut self,
+        overrides: impl IntoIterator<Item = (Identifier, T, Lifecycle)>,
+    ) -> Result<(), String> {
+        if self.frozen {
+            return Err(format!("registry {} is frozen", self.registry_id));
+        }
+        for (location, value, lifecycle) in overrides {
+            if let Some(index) = self.by_location.get(&location).copied() {
+                self.entries[index].value = value;
+                self.entries[index].lifecycle = lifecycle;
+            } else {
+                self.register(location, value, lifecycle)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -401,6 +469,95 @@ mod tests {
                 Lifecycle::Stable
             )
             .is_err());
+    }
+
+    #[test]
+    fn registry_snapshots_round_trip_in_numeric_id_order() {
+        let mut registry = Registry::new(Identifier::parse(registries::ITEM).unwrap());
+        registry
+            .register(
+                Identifier::parse("stick").unwrap(),
+                "stick item".to_string(),
+                Lifecycle::Stable,
+            )
+            .unwrap();
+        registry
+            .register(
+                Identifier::parse("trial_key").unwrap(),
+                "trial key item".to_string(),
+                Lifecycle::Experimental,
+            )
+            .unwrap();
+
+        let snapshot = registry.serialize_with(Clone::clone);
+        assert_eq!(
+            snapshot.registry,
+            Identifier::parse(registries::ITEM).unwrap()
+        );
+        assert_eq!(snapshot.entries[0].id, 0);
+        assert_eq!(
+            snapshot.entries[1].location,
+            Identifier::parse("trial_key").unwrap()
+        );
+
+        let decoded = Registry::deserialize_with(snapshot, |value| Ok(value.to_string())).unwrap();
+        assert_eq!(
+            decoded
+                .get(&Identifier::parse("stick").unwrap())
+                .unwrap()
+                .value(),
+            "stick item"
+        );
+        assert_eq!(
+            decoded.get_by_id(1).unwrap().lifecycle(),
+            Lifecycle::Experimental
+        );
+    }
+
+    #[test]
+    fn registry_data_pack_overrides_preserve_existing_ids_and_append_new_entries() {
+        let mut registry = Registry::new(Identifier::parse(registries::ITEM).unwrap());
+        registry
+            .register(
+                Identifier::parse("stick").unwrap(),
+                "vanilla stick".to_string(),
+                Lifecycle::Stable,
+            )
+            .unwrap();
+        registry
+            .register(
+                Identifier::parse("apple").unwrap(),
+                "vanilla apple".to_string(),
+                Lifecycle::Stable,
+            )
+            .unwrap();
+
+        registry
+            .apply_data_pack_overrides(vec![
+                (
+                    Identifier::parse("stick").unwrap(),
+                    "pack stick".to_string(),
+                    Lifecycle::Experimental,
+                ),
+                (
+                    Identifier::parse("custom").unwrap(),
+                    "pack custom".to_string(),
+                    Lifecycle::Stable,
+                ),
+            ])
+            .unwrap();
+
+        let stick = registry.get(&Identifier::parse("stick").unwrap()).unwrap();
+        assert_eq!(stick.id(), 0);
+        assert_eq!(stick.value(), "pack stick");
+        assert_eq!(stick.lifecycle(), Lifecycle::Experimental);
+        assert_eq!(
+            registry
+                .get(&Identifier::parse("custom").unwrap())
+                .unwrap()
+                .id(),
+            2
+        );
     }
 
     #[test]
