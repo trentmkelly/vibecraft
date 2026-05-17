@@ -1,0 +1,88 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  commandScenarioManifest,
+  observeCommandFeedback,
+  offlineCommandScenarios,
+  runCommandScenario
+} from './command_scenarios.mjs'
+
+test('offlineCommandScenarios cover required Mineflayer command surface', () => {
+  assert.deepEqual(offlineCommandScenarios().map(scenario => scenario.command), [
+    '/list',
+    '/tell RustCraftBot1 hello',
+    '/msg RustCraftBot1 hello',
+    '/me waves',
+    '/help list',
+    '/seed',
+    '/gamemode creative RustCraftBot',
+    '/gamemode creative'
+  ])
+})
+
+test('offlineCommandScenarios include feedback expectations and permission-denied case', () => {
+  const scenarios = offlineCommandScenarios({ primary: 'Steve', secondary: 'Alex' })
+  assert.equal(scenarios.find(entry => entry.command === '/seed').minPermission, 2)
+  assert.equal(scenarios.find(entry => entry.command === '/gamemode creative').expectDenied, true)
+  assert.equal(
+    scenarios.find(entry => entry.command === '/gamemode creative Steve').expectedFeedbackKey,
+    'commands.gamemode.success.other'
+  )
+})
+
+test('observeCommandFeedback matches translatable feedback keys and permission denial', () => {
+  assert.deepEqual(observeCommandFeedback({
+    timeline: [{ name: 'message', summary: ['commands.list.players'] }]
+  }, {
+    expectedFeedbackKey: 'commands.list.players'
+  }), {
+    matched: true,
+    denied: false,
+    messages: [['commands.list.players']]
+  })
+  assert.equal(observeCommandFeedback({
+    timeline: [{ name: 'message', summary: ['commands.generic.permission'] }]
+  }, {
+    expectedFeedbackKey: 'commands.seed.success'
+  }).denied, true)
+})
+
+test('runCommandScenario dispatches commands and reports observed feedback', async () => {
+  const sent = []
+  const session = {
+    timeline: [{ name: 'message', summary: ['commands.help.success'] }]
+  }
+  const result = await runCommandScenario(session, {
+    command: '/help list',
+    expectedFeedbackKey: 'commands.help.success',
+    expectDenied: false
+  }, {
+    dispatch: (_session, command) => {
+      sent.push(command)
+      return { command }
+    }
+  })
+  assert.deepEqual(sent, ['/help list'])
+  assert.equal(result.ok, true)
+})
+
+test('runCommandScenario treats permission denied feedback as expected only for denied scenarios', async () => {
+  const session = {
+    timeline: [{ name: 'message', summary: ['commands.generic.permission'] }]
+  }
+  assert.equal((await runCommandScenario(session, {
+    command: '/gamemode creative',
+    expectedFeedbackKey: 'commands.generic.permission',
+    expectDenied: true
+  }, {
+    dispatch: () => ({})
+  })).ok, true)
+})
+
+test('commandScenarioManifest serializes offline command test metadata', () => {
+  const manifest = commandScenarioManifest({ primary: 'Steve', secondary: 'Alex' })
+  assert.equal(manifest.mode, 'offline')
+  assert.equal(manifest.auth, 'offline')
+  assert.equal(manifest.commands.length, 8)
+  assert.ok(manifest.commands.some(command => command.command === '/tell Alex hello'))
+})
