@@ -27,6 +27,7 @@ mod enchantment_system;
 mod entity_category;
 mod entity_validation;
 mod entity_variants;
+mod equipment_trim;
 mod eula;
 mod fire;
 mod fluid;
