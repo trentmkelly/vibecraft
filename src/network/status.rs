@@ -1691,6 +1691,8 @@ fn write_minimal_play_join(
     profile: &NameAndId,
     play_state: &PlaySessionState,
 ) -> io::Result<()> {
+    let center_chunk_x = chunk_coordinate(play_state.x);
+    let center_chunk_z = chunk_coordinate(play_state.z);
     let login = ClientboundLoginPacket {
         player_id: 1,
         hardcore: properties.hardcore,
@@ -1822,8 +1824,8 @@ fn write_minimal_play_join(
         compression,
         CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
         |payload| {
-            write_var_i32(payload, 0)?;
-            write_var_i32(payload, 0)
+            write_var_i32(payload, center_chunk_x)?;
+            write_var_i32(payload, center_chunk_z)
         },
     )?;
     write_framed_packet_with_compression(
@@ -1874,8 +1876,12 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
         |_payload| Ok(()),
     )?;
-    for z in -SPAWN_CHUNK_BATCH_RADIUS..=SPAWN_CHUNK_BATCH_RADIUS {
-        for x in -SPAWN_CHUNK_BATCH_RADIUS..=SPAWN_CHUNK_BATCH_RADIUS {
+    for z in
+        (center_chunk_z - SPAWN_CHUNK_BATCH_RADIUS)..=(center_chunk_z + SPAWN_CHUNK_BATCH_RADIUS)
+    {
+        for x in (center_chunk_x - SPAWN_CHUNK_BATCH_RADIUS)
+            ..=(center_chunk_x + SPAWN_CHUNK_BATCH_RADIUS)
+        {
             write_framed_packet_with_compression(
                 stream,
                 compression,
@@ -1890,6 +1896,10 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, SPAWN_CHUNK_BATCH_SIZE),
     )
+}
+
+fn chunk_coordinate(block_coordinate: f64) -> i32 {
+    (block_coordinate.floor() as i32).div_euclid(16)
 }
 
 fn write_player_info_initializing_packet<W: Write>(

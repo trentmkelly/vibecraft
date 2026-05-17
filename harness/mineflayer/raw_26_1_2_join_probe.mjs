@@ -904,12 +904,22 @@ async function main () {
     if (!chunkCacheRadius || chunkCacheRadius.offset !== chunkCacheRadiusPacket.body.length) {
       throw new Error('missing chunk cache radius payload')
     }
+    const chunkCacheCenterPacket = packetById.get(94)?.[0]
+    const chunkCacheCenterX = chunkCacheCenterPacket && readVarInt(chunkCacheCenterPacket.body)
+    const chunkCacheCenterZ = chunkCacheCenterX && readVarInt(chunkCacheCenterPacket.body, chunkCacheCenterX.offset)
+    if (!chunkCacheCenterX || !chunkCacheCenterZ || chunkCacheCenterZ.offset !== chunkCacheCenterPacket.body.length) {
+      throw new Error('missing chunk cache center payload')
+    }
     const chunkBatchFinishedPacket = packetById.get(11)?.[0]
     const chunkBatchSize = chunkBatchFinishedPacket && readVarInt(chunkBatchFinishedPacket.body)
     if (!chunkBatchSize || chunkBatchSize.offset !== chunkBatchFinishedPacket.body.length) {
       throw new Error('missing chunk batch finished payload')
     }
     joinState.chunkStreaming = {
+      cacheCenter: {
+        x: chunkCacheCenterX.value,
+        z: chunkCacheCenterZ.value
+      },
       cacheRadius: chunkCacheRadius.value,
       batchSize: chunkBatchSize.value,
       chunks: (packetById.get(45) ?? []).map(packet => ({
