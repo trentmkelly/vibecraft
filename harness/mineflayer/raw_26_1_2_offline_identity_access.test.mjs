@@ -208,6 +208,24 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(rejoined.ok, true)
   })
 
+  await withRestartableServer({ username: 'BadSlot' }, async ({ port, username, restart }) => {
+    const changed = await runJoinProbe(port, username, {
+      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
+      RUSTCRAFT_RAW_PROBE_HELD_SLOT: '12',
+      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+    })
+    assert.equal(changed.ok, true)
+    assert.equal(changed.aborted, true)
+
+    await delay(250)
+    await restart()
+
+    const rejoined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_HELD_SLOT: '0'
+    })
+    assert.equal(rejoined.ok, true)
+  })
+
   await withRestartableServer({ username: 'FreshSave' }, async ({ port, root, username, restart }) => {
     const uuid = offlineUuid(username)
     const playerdata = path.join(root, 'world', 'playerdata', `${uuid}.dat`)
