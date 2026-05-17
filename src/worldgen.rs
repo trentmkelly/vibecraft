@@ -324,6 +324,12 @@ pub struct StructureFamilyEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawPoolBootstrapSource {
+    pub source_file: &'static str,
+    pub registrations: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructureFamily {
     Village,
     Stronghold,
@@ -2929,6 +2935,157 @@ pub const STRUCTURE_FAMILIES: &[StructureFamilyEntry] = &[
     ),
 ];
 
+pub const STRUCTURE_POOL_ELEMENT_TYPES: &[&str] = &[
+    "minecraft:single_pool_element",
+    "minecraft:list_pool_element",
+    "minecraft:feature_pool_element",
+    "minecraft:empty_pool_element",
+    "minecraft:legacy_single_pool_element",
+];
+
+pub const STRUCTURE_PROCESSOR_TYPES: &[&str] = &[
+    "minecraft:block_ignore",
+    "minecraft:block_rot",
+    "minecraft:gravity",
+    "minecraft:jigsaw_replacement",
+    "minecraft:rule",
+    "minecraft:nop",
+    "minecraft:block_age",
+    "minecraft:blackstone_replace",
+    "minecraft:lava_submerged_block",
+    "minecraft:protected_blocks",
+    "minecraft:capped",
+];
+
+pub const STRUCTURE_RULE_TEST_TYPES: &[&str] = &[
+    "minecraft:always_true",
+    "minecraft:block_match",
+    "minecraft:blockstate_match",
+    "minecraft:tag_match",
+    "minecraft:random_block_match",
+    "minecraft:random_blockstate_match",
+];
+
+pub const STRUCTURE_POS_RULE_TEST_TYPES: &[&str] = &[
+    "minecraft:always_true",
+    "minecraft:linear_pos",
+    "minecraft:axis_aligned_linear_pos",
+];
+
+pub const STRUCTURE_PROCESSOR_LISTS: &[&str] = &[
+    "minecraft:empty",
+    "minecraft:zombie_plains",
+    "minecraft:zombie_savanna",
+    "minecraft:zombie_snowy",
+    "minecraft:zombie_taiga",
+    "minecraft:zombie_desert",
+    "minecraft:mossify_10_percent",
+    "minecraft:mossify_20_percent",
+    "minecraft:mossify_70_percent",
+    "minecraft:street_plains",
+    "minecraft:street_savanna",
+    "minecraft:street_snowy_or_taiga",
+    "minecraft:farm_plains",
+    "minecraft:farm_savanna",
+    "minecraft:farm_snowy",
+    "minecraft:farm_taiga",
+    "minecraft:farm_desert",
+    "minecraft:outpost_rot",
+    "minecraft:bottom_rampart",
+    "minecraft:treasure_rooms",
+    "minecraft:housing",
+    "minecraft:side_wall_degradation",
+    "minecraft:stable_degradation",
+    "minecraft:bastion_generic_degradation",
+    "minecraft:rampart_degradation",
+    "minecraft:entrance_replacement",
+    "minecraft:bridge",
+    "minecraft:roof",
+    "minecraft:high_wall",
+    "minecraft:high_rampart",
+    "minecraft:fossil_rot",
+    "minecraft:fossil_coal",
+    "minecraft:fossil_diamonds",
+    "minecraft:ancient_city_start_degradation",
+    "minecraft:ancient_city_generic_degradation",
+    "minecraft:ancient_city_walls_degradation",
+    "minecraft:trail_ruins_houses_archaeology",
+    "minecraft:trail_ruins_roads_archaeology",
+    "minecraft:trail_ruins_tower_top_archaeology",
+    "minecraft:trial_chambers_copper_bulb_degradation",
+];
+
+pub const JIGSAW_POOL_BOOTSTRAP_SOURCES: &[JigsawPoolBootstrapSource] = &[
+    JigsawPoolBootstrapSource {
+        source_file: "AncientCityStructurePieces.java",
+        registrations: 1,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "AncientCityStructurePools.java",
+        registrations: 6,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "BastionBridgePools.java",
+        registrations: 7,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "BastionHoglinStablePools.java",
+        registrations: 13,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "BastionHousingUnitsPools.java",
+        registrations: 15,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "BastionPieces.java",
+        registrations: 1,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "BastionSharedPools.java",
+        registrations: 4,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "BastionTreasureRoomPools.java",
+        registrations: 20,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "DesertVillagePools.java",
+        registrations: 12,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "PillagerOutpostPools.java",
+        registrations: 4,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "PlainVillagePools.java",
+        registrations: 17,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "Pools.java",
+        registrations: 2,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "SavannaVillagePools.java",
+        registrations: 12,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "SnowyVillagePools.java",
+        registrations: 11,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "TaigaVillagePools.java",
+        registrations: 10,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "TrailRuinsStructurePools.java",
+        registrations: 7,
+    },
+    JigsawPoolBootstrapSource {
+        source_file: "TrialChambersStructurePools.java",
+        registrations: 34,
+    },
+];
+
 const fn structure_family(
     family: StructureFamily,
     structures: &'static [&'static str],
@@ -3474,9 +3631,11 @@ mod tests {
         BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
         CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
         DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLOATING_ISLANDS_NOISE_SETTINGS, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
-        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_TYPES,
+        FLOATING_ISLANDS_NOISE_SETTINGS, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
+        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES,
+        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
+        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
         SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
         WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
     };
@@ -4573,5 +4732,47 @@ mod tests {
             .unwrap()
             .structures
             .contains(&"minecraft:trial_chambers"));
+    }
+
+    #[test]
+    fn jigsaw_and_processor_registries_match_vanilla_bootstrap_surface() {
+        assert_eq!(STRUCTURE_POOL_ELEMENT_TYPES.len(), 5);
+        assert_eq!(STRUCTURE_PROCESSOR_TYPES.len(), 11);
+        assert_eq!(STRUCTURE_RULE_TEST_TYPES.len(), 6);
+        assert_eq!(STRUCTURE_POS_RULE_TEST_TYPES.len(), 3);
+        assert_eq!(STRUCTURE_PROCESSOR_LISTS.len(), 40);
+        assert_eq!(
+            STRUCTURE_PROCESSOR_LISTS.first().copied(),
+            Some("minecraft:empty")
+        );
+        assert_eq!(
+            STRUCTURE_PROCESSOR_LISTS.last().copied(),
+            Some("minecraft:trial_chambers_copper_bulb_degradation")
+        );
+        assert!(STRUCTURE_PROCESSOR_TYPES.contains(&"minecraft:jigsaw_replacement"));
+        assert!(STRUCTURE_POOL_ELEMENT_TYPES.contains(&"minecraft:legacy_single_pool_element"));
+
+        assert_eq!(JIGSAW_POOL_BOOTSTRAP_SOURCES.len(), 17);
+        assert_eq!(
+            JIGSAW_POOL_BOOTSTRAP_SOURCES
+                .iter()
+                .map(|source| source.registrations)
+                .sum::<usize>(),
+            176
+        );
+        assert_eq!(
+            JIGSAW_POOL_BOOTSTRAP_SOURCES
+                .iter()
+                .find(|source| source.source_file == "TrialChambersStructurePools.java")
+                .map(|source| source.registrations),
+            Some(34)
+        );
+        assert_eq!(
+            JIGSAW_POOL_BOOTSTRAP_SOURCES
+                .iter()
+                .find(|source| source.source_file == "PlainVillagePools.java")
+                .map(|source| source.registrations),
+            Some(17)
+        );
     }
 }
