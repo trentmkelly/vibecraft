@@ -36,7 +36,7 @@ export const configurationCompletionManifest = {
     'minecraft:cow_sound_variant': 1,
     'minecraft:cow_variant': 3,
     'minecraft:damage_type': 50,
-    'minecraft:dimension_type': 1,
+    'minecraft:dimension_type': 4,
     'minecraft:frog_variant': 3,
     'minecraft:instrument': 8,
     'minecraft:jukebox_song': 21,
@@ -66,6 +66,7 @@ export const configurationCompletionManifest = {
     'minecraft:chicken_variant': ['minecraft:cold', 'minecraft:temperate', 'minecraft:warm'],
     'minecraft:cow_sound_variant': ['minecraft:default'],
     'minecraft:damage_type': ['minecraft:spear'],
+    'minecraft:dimension_type': ['minecraft:overworld', 'minecraft:overworld_caves', 'minecraft:the_end', 'minecraft:the_nether'],
     'minecraft:instrument': ['minecraft:ponder_goat_horn'],
     'minecraft:jukebox_song': [
       'minecraft:11',

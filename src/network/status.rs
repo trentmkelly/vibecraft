@@ -314,6 +314,8 @@ const BIOMES: &[&str] = &[
     "wooded_badlands",
 ];
 
+const DIMENSION_TYPES: &[&str] = &["overworld", "overworld_caves", "the_end", "the_nether"];
+
 const TRIM_PATTERNS: &[&str] = &[
     "sentry",
     "dune",
@@ -1191,10 +1193,16 @@ fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io:
         writer,
         &Identifier::parse("minecraft:dimension_type").unwrap(),
     )?;
-    write_var_i32(writer, 1)?;
-    write_identifier(writer, &Identifier::parse("minecraft:overworld").unwrap())?;
-    write_bool(writer, true)?;
-    write_network_nbt(writer, &overworld_dimension_type_nbt())
+    write_var_i32(writer, DIMENSION_TYPES.len() as i32)?;
+    for dimension_type in DIMENSION_TYPES {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{dimension_type}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &dimension_type_nbt(dimension_type))?;
+    }
+    Ok(())
 }
 
 fn write_vanilla_chat_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
@@ -1476,10 +1484,47 @@ fn vanilla_baseline_biome_nbt(biome: &str) -> Tag {
     ])
 }
 
-fn overworld_dimension_type_nbt() -> Tag {
+fn dimension_type_nbt(dimension_type: &str) -> Tag {
+    match dimension_type {
+        "overworld" => overworld_dimension_type_nbt(false),
+        "overworld_caves" => overworld_dimension_type_nbt(true),
+        "the_end" => fixed_dimension_type_nbt(
+            true,
+            false,
+            true,
+            1.0,
+            0,
+            256,
+            256,
+            "#minecraft:infiniburn_end",
+            0.25,
+            Tag::Int(15),
+            0,
+        ),
+        "the_nether" => fixed_dimension_type_nbt(
+            false,
+            true,
+            false,
+            8.0,
+            0,
+            256,
+            128,
+            "#minecraft:infiniburn_nether",
+            0.1,
+            Tag::Int(7),
+            15,
+        ),
+        _ => overworld_dimension_type_nbt(false),
+    }
+}
+
+fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
     Tag::Compound(vec![
         ("has_skylight".to_string(), Tag::Byte(1)),
-        ("has_ceiling".to_string(), Tag::Byte(0)),
+        (
+            "has_ceiling".to_string(),
+            Tag::Byte(if has_ceiling { 1 } else { 0 }),
+        ),
         ("has_ender_dragon_fight".to_string(), Tag::Byte(0)),
         ("coordinate_scale".to_string(), Tag::Double(1.0)),
         ("min_y".to_string(), Tag::Int(-64)),
@@ -1502,6 +1547,52 @@ fn overworld_dimension_type_nbt() -> Tag {
             ]),
         ),
         ("monster_spawn_block_light_limit".to_string(), Tag::Int(0)),
+    ])
+}
+
+fn fixed_dimension_type_nbt(
+    has_skylight: bool,
+    has_ceiling: bool,
+    has_ender_dragon_fight: bool,
+    coordinate_scale: f64,
+    min_y: i32,
+    height: i32,
+    logical_height: i32,
+    infiniburn: &str,
+    ambient_light: f32,
+    monster_spawn_light_level: Tag,
+    monster_spawn_block_light_limit: i32,
+) -> Tag {
+    Tag::Compound(vec![
+        (
+            "has_skylight".to_string(),
+            Tag::Byte(if has_skylight { 1 } else { 0 }),
+        ),
+        (
+            "has_ceiling".to_string(),
+            Tag::Byte(if has_ceiling { 1 } else { 0 }),
+        ),
+        (
+            "has_ender_dragon_fight".to_string(),
+            Tag::Byte(if has_ender_dragon_fight { 1 } else { 0 }),
+        ),
+        ("coordinate_scale".to_string(), Tag::Double(coordinate_scale)),
+        ("min_y".to_string(), Tag::Int(min_y)),
+        ("height".to_string(), Tag::Int(height)),
+        ("logical_height".to_string(), Tag::Int(logical_height)),
+        (
+            "infiniburn".to_string(),
+            Tag::String(infiniburn.to_string()),
+        ),
+        ("ambient_light".to_string(), Tag::Float(ambient_light)),
+        (
+            "monster_spawn_light_level".to_string(),
+            monster_spawn_light_level,
+        ),
+        (
+            "monster_spawn_block_light_limit".to_string(),
+            Tag::Int(monster_spawn_block_light_limit),
+        ),
     ])
 }
 
@@ -2409,7 +2500,7 @@ mod tests {
         );
         assert_eq!(
             registry_element_count(write_minimal_dimension_type_registry_packet),
-            1
+            4
         );
         assert_eq!(
             registry_element_count(write_minimal_trim_material_registry_packet),
