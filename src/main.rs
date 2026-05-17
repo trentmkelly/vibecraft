@@ -15,6 +15,7 @@ mod network;
 mod player;
 mod player_access;
 mod random_source;
+mod random_tick;
 mod registry;
 mod resources;
 mod runtime;
