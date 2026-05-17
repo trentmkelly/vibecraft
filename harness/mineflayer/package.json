@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test *.test.mjs",
-    "login": "node runner.mjs"
+    "login": "node runner.mjs",
+    "gate:login": "node login_gate.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
