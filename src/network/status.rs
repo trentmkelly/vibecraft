@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
@@ -1870,6 +1871,7 @@ fn write_minimal_play_join(
             payload.write_all(&0.0f32.to_be_bytes())
         },
     )?;
+    delay_initial_chunk_batch_for_probe(stream, compression)?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -1896,6 +1898,41 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, SPAWN_CHUNK_BATCH_SIZE),
     )
+}
+
+fn delay_initial_chunk_batch_for_probe(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+) -> io::Result<()> {
+    let delay_ms = env::var("RUSTCRAFT_INITIAL_CHUNK_DELAY_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    if delay_ms == 0 {
+        return Ok(());
+    }
+
+    let deadline = Instant::now() + Duration::from_millis(delay_ms);
+    let mut last_keep_alive = Instant::now();
+    let mut keep_alive_id = 0_i64;
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            break;
+        }
+        if now.duration_since(last_keep_alive) >= PLAY_KEEP_ALIVE_INTERVAL {
+            keep_alive_id = keep_alive_id.wrapping_add(1);
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+                |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
+            )?;
+            last_keep_alive = now;
+        }
+        thread::sleep(Duration::from_millis(25).min(deadline.saturating_duration_since(now)));
+    }
+    Ok(())
 }
 
 fn chunk_coordinate(block_coordinate: f64) -> i32 {

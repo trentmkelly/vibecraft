@@ -732,14 +732,25 @@ async function main () {
   const play = []
   const playPackets = []
   const joinState = {}
+  let keepAliveReplies = 0
   const expectedPlayPacketIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
-  for (let i = 0; i < expectedPlayPacketIds.length; i++) {
+  for (let i = 0; i < expectedPlayPacketIds.length;) {
     const packet = await reader.nextPacket()
+    if (packet.id === clientboundKeepAlivePacketId) {
+      if (packet.body.length !== 8) {
+        throw new Error(`expected 8-byte keep_alive payload, got ${packet.body.length}`)
+      }
+      keepAliveReplies += 1
+      play.push({ id: packet.id, length: packet.length })
+      socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
+      continue
+    }
     playPackets.push(packet)
     play.push({ id: packet.id, length: packet.length })
     if (abortAfter === 'join_game' && packet.id === 49) return abortSocket(socket, 'join_game', { login: login.id, config, play })
     if (abortAfter === 'first_chunk' && packet.id === 45) return abortSocket(socket, 'first_chunk', { login: login.id, config, play })
     if (abortAfter === 'chunk_batch_finished' && packet.id === 11) return abortSocket(socket, 'chunk_batch_finished', { login: login.id, config, play })
+    i += 1
   }
   if (!recordOnly) {
     for (const id of expectedPlayPacketIds) {
@@ -951,7 +962,6 @@ async function main () {
     if (abortAfter === 'first_tick_actions') return abortSocket(socket, 'first_tick_actions', { login: login.id, config, play, joinState })
   }
 
-  let keepAliveReplies = 0
   let commandSuggestionSeen = false
   if (keepAliveProbeMs > 0) {
     const deadline = Date.now() + keepAliveProbeMs
