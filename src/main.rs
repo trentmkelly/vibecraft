@@ -15,6 +15,7 @@ mod chunk_task;
 mod chunk_ticket;
 mod chunk_watchdog;
 mod cli;
+mod collision_shape;
 mod combat_damage;
 mod command;
 mod console;
