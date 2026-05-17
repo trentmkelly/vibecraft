@@ -14036,6 +14036,108 @@ mod tests {
     }
 
     #[test]
+    fn operator_command_smoke_matrix_covers_permissions_feedback_and_state_changes() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            online_players: vec![steve.clone(), alex.clone()],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "op Steve"),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let op = execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "op Steve")
+            .unwrap();
+        assert_eq!(op.success_count, 1);
+        assert_eq!(op.feedback_key, "commands.op.success");
+        assert!(state.operator_names().contains(&"Steve"));
+
+        let whitelist = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "whitelist add Alex",
+        )
+        .unwrap();
+        assert_eq!(whitelist.feedback_key, "commands.whitelist.add.success");
+        assert_eq!(state.whitelist_names(), vec!["Alex"]);
+
+        let ban = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "ban Alex -- smoke",
+        )
+        .unwrap();
+        assert_eq!(ban.feedback_key, "commands.ban.success");
+        assert_eq!(state.banned_player_names(), vec!["Alex"]);
+        assert_eq!(
+            state.disconnected_players.last().unwrap().reason,
+            "multiplayer.disconnect.banned"
+        );
+
+        let pardon =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "pardon Alex")
+                .unwrap();
+        assert_eq!(pardon.feedback_key, "commands.pardon.success");
+        assert!(state.banned_players.is_empty());
+
+        let gamemode = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamemode creative",
+        )
+        .unwrap();
+        assert_eq!(gamemode.feedback_key, "commands.gamemode.success.self");
+        assert_eq!(
+            state
+                .player_game_modes
+                .iter()
+                .find(|entry| entry.player.uuid == steve.uuid)
+                .map(|entry| entry.gamemode),
+            Some(GameMode::Creative)
+        );
+
+        let teleport = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tp Alex 1 80 2",
+        )
+        .unwrap();
+        assert_eq!(
+            teleport.feedback_key,
+            "commands.teleport.success.location.single"
+        );
+        assert_eq!(state.entity_positions.last().unwrap().entity.id, "Alex");
+
+        let give = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "give Steve stone 2",
+        )
+        .unwrap();
+        assert_eq!(give.feedback_key, "commands.give.success.single");
+        assert_eq!(state.player_inventories[0].items[0].count, 2);
+
+        let effect = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect give Steve speed",
+        )
+        .unwrap();
+        assert_eq!(effect.feedback_key, "commands.effect.give.success.single");
+        assert_eq!(state.active_effects[0].effect, "minecraft:speed");
+
+        let deop =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve")
+                .unwrap();
+        assert_eq!(deop.feedback_key, "commands.deop.success");
+        assert!(state.operator_players.is_empty());
+    }
+
+    #[test]
     fn debug_command_starts_stops_and_records_function_traces() {
         let mut state = ServerCommandState {
             debug_profiler_results: vec![super::DebugProfilerResult {
