@@ -106,6 +106,7 @@ mod world;
 mod world_border;
 mod world_time;
 mod worldgen;
+mod worldgen_comparison;
 
 use std::env;
 use std::path::PathBuf;
