@@ -38,6 +38,7 @@ mod network;
 mod plant;
 mod player;
 mod player_access;
+mod player_entity;
 mod player_inventory;
 mod player_online_auth;
 mod player_profile_key;
