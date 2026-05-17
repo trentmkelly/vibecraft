@@ -25,7 +25,44 @@ const PROTOCOL_VERSION: i32 = 775;
 const MAX_PACKET_SIZE: usize = 2 * 1024 * 1024;
 const CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
+const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
+const DAMAGE_TYPE_TAGS: &[&str] = &[
+    "minecraft:damages_helmet",
+    "minecraft:bypasses_armor",
+    "minecraft:bypasses_shield",
+    "minecraft:bypasses_invulnerability",
+    "minecraft:bypasses_cooldown",
+    "minecraft:bypasses_effects",
+    "minecraft:bypasses_resistance",
+    "minecraft:bypasses_enchantments",
+    "minecraft:is_fire",
+    "minecraft:is_projectile",
+    "minecraft:witch_resistant_to",
+    "minecraft:is_explosion",
+    "minecraft:is_fall",
+    "minecraft:is_drowning",
+    "minecraft:is_freezing",
+    "minecraft:is_lightning",
+    "minecraft:no_anger",
+    "minecraft:no_impact",
+    "minecraft:always_most_significant_fall",
+    "minecraft:wither_immune_to",
+    "minecraft:ignites_armor_stands",
+    "minecraft:burns_armor_stands",
+    "minecraft:avoids_guardian_thorns",
+    "minecraft:always_triggers_silverfish",
+    "minecraft:always_hurts_ender_dragons",
+    "minecraft:no_knockback",
+    "minecraft:always_kills_armor_stands",
+    "minecraft:can_break_armor_stand",
+    "minecraft:bypasses_wolf_armor",
+    "minecraft:is_player_attack",
+    "minecraft:burn_from_stepping",
+    "minecraft:panic_causes",
+    "minecraft:panic_environmental_causes",
+    "minecraft:mace_smash",
+];
 
 pub fn run_status_server(
     bind_ip: &str,
@@ -162,6 +199,11 @@ fn handle_login_connection(
     )?;
     write_framed_packet(
         stream,
+        CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
+        write_minimal_update_tags_packet,
+    )?;
+    write_framed_packet(
+        stream,
         CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
         |_payload| Ok(()),
     )?;
@@ -225,6 +267,17 @@ fn write_minimal_play_join(
         payload.write_all(&0.0f32.to_be_bytes())?;
         write_var_i32(payload, 0)
     })
+}
+
+fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_var_i32(writer, 1)?;
+    write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
+    write_var_i32(writer, DAMAGE_TYPE_TAGS.len() as i32)?;
+    for tag in DAMAGE_TYPE_TAGS {
+        write_identifier(writer, &Identifier::parse(tag).unwrap())?;
+        write_var_i32(writer, 0)?;
+    }
+    Ok(())
 }
 
 fn write_clientbound_login_packet<W: Write>(
