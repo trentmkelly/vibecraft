@@ -28,6 +28,7 @@ mod item_properties;
 mod item_stack;
 mod light;
 mod log;
+mod management_security;
 mod network;
 mod plant;
 mod player;
