@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 
 use crate::console::ConsoleInput;
 use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
+use crate::network::common::ClientboundDisconnectPacket;
+use crate::network::codec::ComponentJson;
 use crate::network::login::{
     ClientboundLoginDisconnectPacket, LoginSession, ServerboundHelloPacket,
     ServerboundLoginAcknowledgedPacket, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
@@ -18,7 +20,8 @@ use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequest
 use crate::network::play::{
     ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
     CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
     CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
     CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
@@ -1018,9 +1021,19 @@ fn handle_login_connection(
         match read_packet(stream) {
             Ok(packet) => {
                 let mut input = Cursor::new(packet);
-                if read_var_i32(&mut input)? == SERVERBOUND_KEEP_ALIVE_PACKET_ID {
+                let packet_id = read_var_i32(&mut input)?;
+                if packet_id == SERVERBOUND_KEEP_ALIVE_PACKET_ID {
                     continue;
                 }
+                write_framed_packet(stream, CLIENTBOUND_DISCONNECT_PACKET_ID, |payload| {
+                    ClientboundDisconnectPacket {
+                        reason: ComponentJson(format!(
+                            "{{\"text\":\"unexpected play packet {packet_id}\"}}"
+                        )),
+                    }
+                    .write(payload)
+                })?;
+                return Ok(());
             }
             Err(err)
                 if matches!(
