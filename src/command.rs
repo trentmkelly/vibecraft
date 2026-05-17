@@ -105,6 +105,9 @@ pub struct ServerCommandState {
     pub available_data_packs: Vec<String>,
     pub selected_data_packs: Vec<String>,
     pub disabled_data_packs: Vec<String>,
+    pub feature_data_packs: Vec<String>,
+    pub unavailable_feature_data_packs: Vec<String>,
+    pub created_data_packs: Vec<CreatedDataPack>,
     pub reload_requests: Vec<ReloadRequest>,
     pub transfer_requests: Vec<TransferRequest>,
     pub chase_session: Option<ChaseSession>,
@@ -278,6 +281,12 @@ pub struct PlayerDisconnect {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReloadRequest {
     pub selected_packs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatedDataPack {
+    pub id: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -826,6 +835,14 @@ pub enum CommandError {
     CloneTooBig,
     CloneFailed,
     DamageInvulnerable,
+    DataPackUnknown,
+    DataPackAlreadyEnabled,
+    DataPackAlreadyDisabled,
+    DataPackCannotDisableFeature,
+    DataPackFeaturesNotEnabled,
+    DataPackInvalidName,
+    DataPackInvalidFullName,
+    DataPackAlreadyExists,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,
@@ -965,6 +982,9 @@ impl Default for ServerCommandState {
             available_data_packs: vec!["vanilla".to_string()],
             selected_data_packs: vec!["vanilla".to_string()],
             disabled_data_packs: Vec::new(),
+            feature_data_packs: Vec::new(),
+            unavailable_feature_data_packs: Vec::new(),
+            created_data_packs: Vec::new(),
             reload_requests: Vec::new(),
             transfer_requests: Vec::new(),
             chase_session: None,
@@ -1380,6 +1400,7 @@ pub fn execute_builtin_command(
         "clear" => clear_command(state, &parts),
         "clone" => clone_command(state, &parts),
         "damage" => damage_command(state, &parts),
+        "datapack" => datapack_command(state, &parts, permissions),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -2941,6 +2962,250 @@ fn parse_damage_amount(input: &str) -> Result<f32, CommandError> {
     } else {
         Ok(amount)
     }
+}
+
+fn datapack_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+    permissions: LevelBasedPermissionSet,
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["datapack", "list"] => {
+            let enabled = datapack_enabled_count(state);
+            let available = datapack_available_count(state);
+            Ok(CommandResult {
+                success_count: enabled + available,
+                feedback_key: "commands.datapack.list.success",
+                broadcast_to_admins: false,
+            })
+        }
+        ["datapack", "list", "enabled"] => {
+            let count = datapack_enabled_count(state);
+            Ok(CommandResult {
+                success_count: count,
+                feedback_key: if count == 0 {
+                    "commands.datapack.list.enabled.none"
+                } else {
+                    "commands.datapack.list.enabled.success"
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        ["datapack", "list", "available"] => {
+            let count = datapack_available_count(state);
+            Ok(CommandResult {
+                success_count: count,
+                feedback_key: if count == 0 {
+                    "commands.datapack.list.available.none"
+                } else {
+                    "commands.datapack.list.available.success"
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        ["datapack", "enable", id] => datapack_enable(state, id, DataPackInsert::Default),
+        ["datapack", "enable", id, "first"] => datapack_enable(state, id, DataPackInsert::First),
+        ["datapack", "enable", id, "last"] => datapack_enable(state, id, DataPackInsert::Last),
+        ["datapack", "enable", id, "before", existing] => {
+            datapack_enable(state, id, DataPackInsert::Before(existing))
+        }
+        ["datapack", "enable", id, "after", existing] => {
+            datapack_enable(state, id, DataPackInsert::After(existing))
+        }
+        ["datapack", "disable", id] => datapack_disable(state, id),
+        ["datapack", "create", id, description @ ..] => {
+            if !permissions.has_permission(Permission::CommandLevel(PermissionLevel::Owners)) {
+                return Err(CommandError::PermissionDenied);
+            }
+            if description.is_empty() {
+                return Err(CommandError::InvalidSyntax);
+            }
+            datapack_create(state, id, &description.join(" "))
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DataPackInsert<'a> {
+    Default,
+    First,
+    Last,
+    Before(&'a str),
+    After(&'a str),
+}
+
+fn datapack_enabled_count(state: &ServerCommandState) -> i32 {
+    state
+        .selected_data_packs
+        .iter()
+        .filter(|id| state.available_data_packs.contains(id))
+        .count() as i32
+}
+
+fn datapack_available_count(state: &ServerCommandState) -> i32 {
+    state
+        .available_data_packs
+        .iter()
+        .filter(|id| {
+            !state.selected_data_packs.contains(id)
+                && !state.unavailable_feature_data_packs.contains(id)
+        })
+        .count() as i32
+}
+
+fn datapack_enable(
+    state: &mut ServerCommandState,
+    id: &str,
+    insert: DataPackInsert<'_>,
+) -> Result<CommandResult, CommandError> {
+    datapack_check_known(state, id)?;
+    if state
+        .selected_data_packs
+        .iter()
+        .any(|selected| selected == id)
+    {
+        return Err(CommandError::DataPackAlreadyEnabled);
+    }
+    if state
+        .unavailable_feature_data_packs
+        .iter()
+        .any(|pack| pack == id)
+    {
+        return Err(CommandError::DataPackFeaturesNotEnabled);
+    }
+
+    let index = match insert {
+        DataPackInsert::Default | DataPackInsert::Last => state.selected_data_packs.len(),
+        DataPackInsert::First => 0,
+        DataPackInsert::Before(existing) => selected_pack_index(state, existing)?,
+        DataPackInsert::After(existing) => selected_pack_index(state, existing)? + 1,
+    };
+    state.selected_data_packs.insert(index, id.to_string());
+    state.disabled_data_packs.retain(|disabled| disabled != id);
+    state.reload_requests.push(ReloadRequest {
+        selected_packs: state.selected_data_packs.clone(),
+    });
+    Ok(CommandResult {
+        success_count: state.selected_data_packs.len() as i32,
+        feedback_key: "commands.datapack.modify.enable",
+        broadcast_to_admins: true,
+    })
+}
+
+fn datapack_disable(
+    state: &mut ServerCommandState,
+    id: &str,
+) -> Result<CommandResult, CommandError> {
+    datapack_check_known(state, id)?;
+    if state
+        .unavailable_feature_data_packs
+        .iter()
+        .any(|pack| pack == id)
+    {
+        return Err(CommandError::DataPackFeaturesNotEnabled);
+    }
+    if state
+        .feature_data_packs
+        .iter()
+        .any(|feature_pack| feature_pack == id)
+    {
+        return Err(CommandError::DataPackCannotDisableFeature);
+    }
+    if !state
+        .selected_data_packs
+        .iter()
+        .any(|selected| selected == id)
+    {
+        return Err(CommandError::DataPackAlreadyDisabled);
+    }
+
+    state.selected_data_packs.retain(|selected| selected != id);
+    if !state
+        .disabled_data_packs
+        .iter()
+        .any(|disabled| disabled == id)
+    {
+        state.disabled_data_packs.push(id.to_string());
+    }
+    state.reload_requests.push(ReloadRequest {
+        selected_packs: state.selected_data_packs.clone(),
+    });
+    Ok(CommandResult {
+        success_count: state.selected_data_packs.len() as i32,
+        feedback_key: "commands.datapack.modify.disable",
+        broadcast_to_admins: true,
+    })
+}
+
+fn datapack_create(
+    state: &mut ServerCommandState,
+    id: &str,
+    description: &str,
+) -> Result<CommandResult, CommandError> {
+    if !is_valid_datapack_name(id) {
+        return Err(CommandError::DataPackInvalidName);
+    }
+    if !is_portable_datapack_name(id) {
+        return Err(CommandError::DataPackInvalidFullName);
+    }
+    let pack_id = format!("file/{id}");
+    if state
+        .available_data_packs
+        .iter()
+        .any(|pack| pack == &pack_id)
+        || state.created_data_packs.iter().any(|pack| pack.id == id)
+    {
+        return Err(CommandError::DataPackAlreadyExists);
+    }
+
+    state.created_data_packs.push(CreatedDataPack {
+        id: id.to_string(),
+        description: description.to_string(),
+    });
+    state.available_data_packs.push(pack_id);
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.datapack.create.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn datapack_check_known(state: &ServerCommandState, id: &str) -> Result<(), CommandError> {
+    if state.available_data_packs.iter().any(|pack| pack == id) {
+        Ok(())
+    } else {
+        Err(CommandError::DataPackUnknown)
+    }
+}
+
+fn selected_pack_index(state: &ServerCommandState, id: &str) -> Result<usize, CommandError> {
+    datapack_check_known(state, id)?;
+    state
+        .selected_data_packs
+        .iter()
+        .position(|selected| selected == id)
+        .ok_or(CommandError::DataPackAlreadyDisabled)
+}
+
+fn is_valid_datapack_name(id: &str) -> bool {
+    !id.is_empty()
+        && !id.contains('/')
+        && !id.contains('\\')
+        && id != "."
+        && id != ".."
+        && id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.'))
+}
+
+fn is_portable_datapack_name(id: &str) -> bool {
+    let upper = id.to_ascii_uppercase();
+    const RESERVED: &[&str] = &[
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    !RESERVED.contains(&upper.as_str()) && !id.ends_with('.') && !id.ends_with(' ')
 }
 
 fn kill_entities(
@@ -6179,6 +6444,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "damage",
             "/damage <target> <amount> [damageType] [at <location>|by <entity> [from <cause>]]",
         ),
+        (
+            "datapack",
+            "/datapack <list|enable|disable|create>",
+        ),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -9255,6 +9524,190 @@ mod tests {
             Err(CommandError::DamageInvulnerable)
         );
         assert!(state.damage_events.is_empty());
+    }
+
+    #[test]
+    fn datapack_command_lists_enables_disables_and_reloads_selection() {
+        let mut state = ServerCommandState {
+            available_data_packs: vec![
+                "vanilla".to_string(),
+                "file/low".to_string(),
+                "file/high".to_string(),
+                "file/extra".to_string(),
+            ],
+            selected_data_packs: vec!["vanilla".to_string(), "file/low".to_string()],
+            disabled_data_packs: vec!["file/high".to_string()],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("datapack"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "datapack list"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let available = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "datapack list available",
+        )
+        .unwrap();
+        assert_eq!(available.success_count, 2);
+        assert_eq!(
+            available.feedback_key,
+            "commands.datapack.list.available.success"
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "datapack enable file/high before file/low",
+        )
+        .unwrap();
+        assert_eq!(
+            state.selected_data_packs,
+            vec!["vanilla", "file/high", "file/low"]
+        );
+        assert!(state.disabled_data_packs.is_empty());
+        assert_eq!(
+            state.reload_requests.last().unwrap(),
+            &ReloadRequest {
+                selected_packs: vec![
+                    "vanilla".to_string(),
+                    "file/high".to_string(),
+                    "file/low".to_string(),
+                ],
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "datapack enable file/extra last",
+        )
+        .unwrap();
+        assert_eq!(
+            state.selected_data_packs,
+            vec!["vanilla", "file/high", "file/low", "file/extra"]
+        );
+
+        let disabled = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "datapack disable file/high",
+        )
+        .unwrap();
+        assert_eq!(disabled.success_count, 3);
+        assert_eq!(disabled.feedback_key, "commands.datapack.modify.disable");
+        assert_eq!(
+            state.selected_data_packs,
+            vec!["vanilla", "file/low", "file/extra"]
+        );
+        assert_eq!(state.disabled_data_packs, vec!["file/high"]);
+    }
+
+    #[test]
+    fn datapack_command_reports_vanilla_failures_and_creates_empty_packs() {
+        let mut state = ServerCommandState {
+            available_data_packs: vec![
+                "vanilla".to_string(),
+                "feature/redstone".to_string(),
+                "file/locked".to_string(),
+            ],
+            selected_data_packs: vec!["vanilla".to_string(), "feature/redstone".to_string()],
+            feature_data_packs: vec!["feature/redstone".to_string()],
+            unavailable_feature_data_packs: vec!["file/locked".to_string()],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "datapack enable missing"
+            ),
+            Err(CommandError::DataPackUnknown)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "datapack enable vanilla"
+            ),
+            Err(CommandError::DataPackAlreadyEnabled)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "datapack disable file/locked"
+            ),
+            Err(CommandError::DataPackFeaturesNotEnabled)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "datapack disable feature/redstone"
+            ),
+            Err(CommandError::DataPackCannotDisableFeature)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "datapack create test_pack Empty test pack"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::OWNER,
+                "datapack create bad/name Empty"
+            ),
+            Err(CommandError::DataPackInvalidName)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::OWNER,
+                "datapack create CON Empty"
+            ),
+            Err(CommandError::DataPackInvalidFullName)
+        );
+
+        let created = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::OWNER,
+            "datapack create test_pack Empty test pack",
+        )
+        .unwrap();
+        assert_eq!(created.feedback_key, "commands.datapack.create.success");
+        assert_eq!(
+            state.created_data_packs,
+            vec![super::CreatedDataPack {
+                id: "test_pack".to_string(),
+                description: "Empty test pack".to_string(),
+            }]
+        );
+        assert!(state
+            .available_data_packs
+            .contains(&"file/test_pack".to_string()));
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::OWNER,
+                "datapack create test_pack Empty"
+            ),
+            Err(CommandError::DataPackAlreadyExists)
+        );
     }
 
     #[test]
