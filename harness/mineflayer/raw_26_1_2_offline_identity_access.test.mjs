@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:net'
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { access, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -189,6 +189,31 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.deepEqual(rejoined.joinState.position, movedPosition)
   })
 
+  await withRestartableServer({ username: 'FreshSave' }, async ({ port, root, username, restart }) => {
+    const uuid = offlineUuid(username)
+    const playerdata = path.join(root, 'world', 'playerdata', `${uuid}.dat`)
+    const advancements = path.join(root, 'world', 'advancements', `${uuid}.json`)
+    const stats = path.join(root, 'world', 'stats', `${uuid}.json`)
+
+    const aborted = await runJoinProbe(port, username, {
+      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'login_success'
+    })
+    assert.equal(aborted.ok, true)
+    assert.equal(aborted.aborted, true)
+    await delay(250)
+    assert.equal(await exists(playerdata), false, 'login success alone must not create playerdata')
+
+    await restart()
+    const joined = await runJoinProbe(port, username)
+    assert.equal(joined.ok, true)
+    await delay(250)
+
+    const bytes = await readFile(playerdata)
+    assert.deepEqual([...bytes.subarray(0, 2)], [0x1f, 0x8b], 'playerdata must be gzip-compressed NBT')
+    assert.equal(await exists(advancements), false, 'fresh raw login should not create advancements before advancement progress exists')
+    assert.equal(await exists(stats), false, 'fresh raw login should not create stats before stat changes exist')
+  })
+
   for (const [label, username, initialUsercache] of [
     ['missing', 'CrbMiss', null],
     ['empty', 'CrbEmpty', '[]\n'],
@@ -283,6 +308,15 @@ function profile (name) {
 
 function delay (ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function exists (file) {
+  try {
+    await access(file)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function reservePort () {
