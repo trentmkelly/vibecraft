@@ -120,8 +120,15 @@ export const configurationCompletionManifest = {
   ],
   playEntryPackets: [
     'clientbound/minecraft:login',
+    'clientbound/minecraft:change_difficulty',
+    'clientbound/minecraft:player_abilities',
     'clientbound/minecraft:set_held_slot',
     'clientbound/minecraft:player_position',
+    'clientbound/minecraft:initialize_border',
+    'clientbound/minecraft:set_default_spawn_position',
+    'clientbound/minecraft:set_chunk_cache_center',
+    'clientbound/minecraft:set_chunk_cache_radius',
+    'clientbound/minecraft:game_event',
     'clientbound/minecraft:chunk_batch_start',
     'clientbound/minecraft:level_chunk_with_light',
     'clientbound/minecraft:chunk_batch_finished'

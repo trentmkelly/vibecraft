@@ -14,9 +14,13 @@ use crate::network::login::{
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
     ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
 };
-use crate::network::varint::{read_var_i32, write_var_i32};
+use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
@@ -42,6 +46,7 @@ const SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID: i32 = 9;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
+const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
 const EMPTY_SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const DAMAGE_TYPES: &[&str] = &[
     "arrow",
@@ -1013,6 +1018,15 @@ fn write_minimal_play_join(
     write_framed_packet(stream, CLIENTBOUND_LOGIN_PACKET_ID, |payload| {
         write_clientbound_login_packet(payload, &login)
     })?;
+    write_framed_packet(stream, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, |payload| {
+        payload.write_all(&[1])?;
+        write_bool(payload, false)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, |payload| {
+        payload.write_all(&[0])?;
+        payload.write_all(&0.05f32.to_be_bytes())?;
+        payload.write_all(&0.1f32.to_be_bytes())
+    })?;
     write_framed_packet(stream, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, |payload| {
         write_var_i32(payload, 0)
     })?;
@@ -1023,6 +1037,23 @@ fn write_minimal_play_join(
         payload.write_all(&0.0f32.to_be_bytes())?;
         payload.write_all(&0.0f32.to_be_bytes())?;
         payload.write_all(&0_i32.to_be_bytes())
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, |payload| {
+        write_initialize_world_border_packet(payload)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, |payload| {
+        write_default_spawn_position_packet(payload, 0, 80, 0)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, |payload| {
+        write_var_i32(payload, 0)?;
+        write_var_i32(payload, 0)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, |payload| {
+        write_var_i32(payload, properties.view_distance as i32)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
+        payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
+        payload.write_all(&0.0f32.to_be_bytes())
     })?;
     write_framed_packet(
         stream,
@@ -1039,6 +1070,43 @@ fn write_minimal_play_join(
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, 1),
     )
+}
+
+fn write_initialize_world_border_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    writer.write_all(&0.0f64.to_be_bytes())?;
+    writer.write_all(&0.0f64.to_be_bytes())?;
+    writer.write_all(&59_999_968.0f64.to_be_bytes())?;
+    writer.write_all(&59_999_968.0f64.to_be_bytes())?;
+    write_var_i64(writer, 0)?;
+    write_var_i32(writer, 29_999_984)?;
+    write_var_i32(writer, 5)?;
+    write_var_i32(writer, 15)
+}
+
+fn write_default_spawn_position_packet<W: Write>(
+    writer: &mut W,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:overworld").unwrap())?;
+    writer.write_all(&block_pos_as_long(x, y, z).to_be_bytes())?;
+    writer.write_all(&0.0f32.to_be_bytes())?;
+    writer.write_all(&0.0f32.to_be_bytes())
+}
+
+fn block_pos_as_long(x: i32, y: i32, z: i32) -> i64 {
+    const PACKED_HORIZONTAL_LENGTH: u32 = 26;
+    const PACKED_Y_LENGTH: u32 = 12;
+    const Z_OFFSET: u32 = PACKED_Y_LENGTH;
+    const X_OFFSET: u32 = PACKED_Y_LENGTH + PACKED_HORIZONTAL_LENGTH;
+    const PACKED_X_MASK: i64 = (1_i64 << PACKED_HORIZONTAL_LENGTH) - 1;
+    const PACKED_Y_MASK: i64 = (1_i64 << PACKED_Y_LENGTH) - 1;
+    const PACKED_Z_MASK: i64 = (1_i64 << PACKED_HORIZONTAL_LENGTH) - 1;
+
+    ((x as i64 & PACKED_X_MASK) << X_OFFSET)
+        | (y as i64 & PACKED_Y_MASK)
+        | ((z as i64 & PACKED_Z_MASK) << Z_OFFSET)
 }
 
 fn write_empty_spawn_chunk_packet<W: Write>(writer: &mut W) -> io::Result<()> {

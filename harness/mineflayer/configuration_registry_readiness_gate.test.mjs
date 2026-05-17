@@ -35,8 +35,15 @@ function passingRawProbe () {
     ],
     play: [
       { id: 49, length: 70 },
+      { id: 10, length: 3 },
+      { id: 64, length: 10 },
       { id: 105, length: 2 },
       { id: 72, length: 62 },
+      { id: 43, length: 40 },
+      { id: 97, length: 34 },
+      { id: 94, length: 3 },
+      { id: 95, length: 2 },
+      { id: 38, length: 6 },
       { id: 12, length: 1 },
       { id: 45, length: 259 },
       { id: 11, length: 2 }
