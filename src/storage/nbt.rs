@@ -1,5 +1,9 @@
 use std::io::{self, Read, Write};
 
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tag {
     End,
@@ -157,6 +161,100 @@ impl Tag {
             }
         }
     }
+
+    pub fn payload_size(&self) -> usize {
+        match self {
+            Tag::End => 0,
+            Tag::Byte(_) => 1,
+            Tag::Short(_) => 2,
+            Tag::Int(_) | Tag::Float(_) => 4,
+            Tag::Long(_) | Tag::Double(_) => 8,
+            Tag::ByteArray(values) => 4 + values.len(),
+            Tag::String(value) => 2 + value.len(),
+            Tag::List(values) => 5 + values.iter().map(Tag::payload_size).sum::<usize>(),
+            Tag::Compound(values) => {
+                1 + values
+                    .iter()
+                    .map(|(name, value)| 1 + 2 + name.len() + value.payload_size())
+                    .sum::<usize>()
+            }
+            Tag::IntArray(values) => 4 + values.len() * 4,
+            Tag::LongArray(values) => 4 + values.len() * 8,
+        }
+    }
+
+    pub fn to_snbt(&self) -> String {
+        match self {
+            Tag::End => "END".to_string(),
+            Tag::Byte(value) => format!("{value}b"),
+            Tag::Short(value) => format!("{value}s"),
+            Tag::Int(value) => value.to_string(),
+            Tag::Long(value) => format!("{value}l"),
+            Tag::Float(value) => format!("{value}f"),
+            Tag::Double(value) => format!("{value}d"),
+            Tag::ByteArray(values) => format!(
+                "[B;{}]",
+                values
+                    .iter()
+                    .map(|value| format!("{value}b"))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            Tag::String(value) => format!("\"{}\"", escape_snbt_string(value)),
+            Tag::List(values) => format!(
+                "[{}]",
+                values
+                    .iter()
+                    .map(Tag::to_snbt)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            Tag::Compound(values) => format!(
+                "{{{}}}",
+                values
+                    .iter()
+                    .map(|(name, value)| format!("{}:{}", quote_snbt_key(name), value.to_snbt()))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            Tag::IntArray(values) => format!(
+                "[I;{}]",
+                values
+                    .iter()
+                    .map(i32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            Tag::LongArray(values) => format!(
+                "[L;{}]",
+                values
+                    .iter()
+                    .map(|value| format!("{value}l"))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        }
+    }
+
+    pub fn visit_depth_first<F>(&self, visitor: &mut F)
+    where
+        F: FnMut(&Tag),
+    {
+        visitor(self);
+        match self {
+            Tag::List(values) => {
+                for value in values {
+                    value.visit_depth_first(visitor);
+                }
+            }
+            Tag::Compound(values) => {
+                for (_name, value) in values {
+                    value.visit_depth_first(visitor);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 pub fn read_named_tag<R: Read>(reader: &mut R) -> io::Result<(String, Tag)> {
@@ -176,6 +274,32 @@ pub fn write_named_tag<W: Write>(writer: &mut W, name: &str, tag: &Tag) -> io::R
         tag.write_payload(writer)?;
     }
     Ok(())
+}
+
+pub fn read_gzip_named_tag<R: Read>(reader: R) -> io::Result<(String, Tag)> {
+    read_named_tag(&mut GzDecoder::new(reader))
+}
+
+pub fn write_gzip_named_tag<W: Write>(writer: W, name: &str, tag: &Tag) -> io::Result<()> {
+    let mut encoder = GzEncoder::new(writer, Compression::default());
+    write_named_tag(&mut encoder, name, tag)?;
+    encoder.finish()?;
+    Ok(())
+}
+
+fn quote_snbt_key(key: &str) -> String {
+    if key
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.' | '+'))
+    {
+        key.to_string()
+    } else {
+        format!("\"{}\"", escape_snbt_string(key))
+    }
+}
+
+fn escape_snbt_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
@@ -257,7 +381,7 @@ fn write_len_i32<W: Write>(writer: &mut W, len: usize) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_named_tag, write_named_tag, Tag};
+    use super::{read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
     use std::io::Cursor;
 
     #[test]
@@ -305,5 +429,42 @@ mod tests {
             .write_payload(&mut bytes)
             .unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn compressed_nbt_round_trips_named_tags() {
+        let tag = Tag::Compound(vec![("DataVersion".to_string(), Tag::Int(4790))]);
+        let mut bytes = Vec::new();
+        write_gzip_named_tag(&mut bytes, "level", &tag).unwrap();
+
+        assert_eq!(&bytes[..2], &[0x1f, 0x8b]);
+        let (name, decoded) = read_gzip_named_tag(Cursor::new(bytes)).unwrap();
+        assert_eq!(name, "level");
+        assert_eq!(decoded, tag);
+    }
+
+    #[test]
+    fn snbt_printer_size_accounting_and_traversal_cover_nested_tags() {
+        let tag = Tag::Compound(vec![
+            (
+                "name".to_string(),
+                Tag::String("A \"quoted\" name".to_string()),
+            ),
+            ("bytes".to_string(), Tag::ByteArray(vec![1, 2])),
+            (
+                "nested".to_string(),
+                Tag::List(vec![Tag::Int(1), Tag::Int(2)]),
+            ),
+        ]);
+
+        assert_eq!(
+            tag.to_snbt(),
+            "{name:\"A \\\"quoted\\\" name\",bytes:[B;1b,2b],nested:[1,2]}"
+        );
+        assert_eq!(tag.payload_size(), 61);
+
+        let mut ids = Vec::new();
+        tag.visit_depth_first(&mut |visited| ids.push(visited.id()));
+        assert_eq!(ids, vec![10, 8, 7, 9, 3, 3]);
     }
 }
