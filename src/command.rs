@@ -121,6 +121,7 @@ pub struct ServerCommandState {
     pub config_players: Vec<NameAndId>,
     pub config_dialog_events: Vec<DebugConfigDialogEvent>,
     pub dialog_events: Vec<DialogCommandEvent>,
+    pub active_effects: Vec<ActiveEffect>,
     pub mob_spawning_events: Vec<DebugMobSpawningEvent>,
     pub debug_path_events: Vec<DebugPathEvent>,
     pub unreachable_debug_paths: Vec<BlockPos>,
@@ -359,6 +360,15 @@ pub enum DialogCommandEvent {
     Clear {
         targets: Vec<NameAndId>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveEffect {
+    pub target: EntityRef,
+    pub effect: String,
+    pub duration_ticks: i32,
+    pub amplifier: u8,
+    pub show_particles: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -917,6 +927,9 @@ pub enum CommandError {
     DebugPathNoPath,
     DebugPathNotComplete,
     DifficultyAlreadySame,
+    EffectGiveFailed,
+    EffectClearEverythingFailed,
+    EffectClearSpecificFailed,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1086,6 +1099,7 @@ impl Default for ServerCommandState {
             config_players: Vec::new(),
             config_dialog_events: Vec::new(),
             dialog_events: Vec::new(),
+            active_effects: Vec::new(),
             mob_spawning_events: Vec::new(),
             debug_path_events: Vec::new(),
             unreachable_debug_paths: Vec::new(),
@@ -1541,6 +1555,7 @@ pub fn execute_builtin_command(
         "defaultgamemode" => default_gamemode_command(state, &parts),
         "difficulty" => difficulty_command(state, &parts),
         "dialog" => dialog_command(state, &parts),
+        "effect" => effect_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -3672,6 +3687,231 @@ fn dialog_command(
         }
         _ => Err(CommandError::InvalidSyntax),
     }
+}
+
+fn effect_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["effect", "give", targets, effect] => {
+            give_effect(state, parse_name_list(targets), effect, None, 0, true)
+        }
+        ["effect", "give", targets, effect, "infinite"] => {
+            give_effect(state, parse_name_list(targets), effect, Some(-1), 0, true)
+        }
+        ["effect", "give", targets, effect, "infinite", amplifier] => give_effect(
+            state,
+            parse_name_list(targets),
+            effect,
+            Some(-1),
+            parse_effect_amplifier(amplifier)?,
+            true,
+        ),
+        ["effect", "give", targets, effect, "infinite", amplifier, hide_particles] => give_effect(
+            state,
+            parse_name_list(targets),
+            effect,
+            Some(-1),
+            parse_effect_amplifier(amplifier)?,
+            !parse_bool(hide_particles)?,
+        ),
+        ["effect", "give", targets, effect, seconds] => give_effect(
+            state,
+            parse_name_list(targets),
+            effect,
+            Some(parse_effect_seconds(seconds)?),
+            0,
+            true,
+        ),
+        ["effect", "give", targets, effect, seconds, amplifier] => give_effect(
+            state,
+            parse_name_list(targets),
+            effect,
+            Some(parse_effect_seconds(seconds)?),
+            parse_effect_amplifier(amplifier)?,
+            true,
+        ),
+        ["effect", "give", targets, effect, seconds, amplifier, hide_particles] => give_effect(
+            state,
+            parse_name_list(targets),
+            effect,
+            Some(parse_effect_seconds(seconds)?),
+            parse_effect_amplifier(amplifier)?,
+            !parse_bool(hide_particles)?,
+        ),
+        ["effect", "clear"] => {
+            let source = state
+                .command_source_entity
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?;
+            clear_all_effects(state, vec![source])
+        }
+        ["effect", "clear", targets] => clear_all_effects(
+            state,
+            parse_name_list(targets)
+                .into_iter()
+                .map(|profile| entity_ref(&profile.name))
+                .collect(),
+        ),
+        ["effect", "clear", targets, effect] => clear_specific_effect(
+            state,
+            parse_name_list(targets)
+                .into_iter()
+                .map(|profile| entity_ref(&profile.name))
+                .collect(),
+            &parse_resource_identifier(effect)?,
+        ),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn give_effect(
+    state: &mut ServerCommandState,
+    targets: Vec<NameAndId>,
+    effect: &str,
+    seconds: Option<i32>,
+    amplifier: u8,
+    show_particles: bool,
+) -> Result<CommandResult, CommandError> {
+    let effect = parse_resource_identifier(effect)?;
+    let duration_ticks = effect_duration_ticks(&effect, seconds);
+    let mut count = 0;
+    for target in targets.iter().map(|profile| entity_ref(&profile.name)) {
+        if matches!(entity_kind(state, &target), EntityKind::NonLiving) {
+            continue;
+        }
+        upsert_active_effect(
+            state,
+            ActiveEffect {
+                target,
+                effect: effect.clone(),
+                duration_ticks,
+                amplifier,
+                show_particles,
+            },
+        );
+        count += 1;
+    }
+    if count == 0 {
+        return Err(CommandError::EffectGiveFailed);
+    }
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: if targets.len() == 1 {
+            "commands.effect.give.success.single"
+        } else {
+            "commands.effect.give.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn clear_all_effects(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+) -> Result<CommandResult, CommandError> {
+    let mut count = 0;
+    for target in &targets {
+        if matches!(entity_kind(state, target), EntityKind::NonLiving) {
+            continue;
+        }
+        let before = state.active_effects.len();
+        state
+            .active_effects
+            .retain(|effect| effect.target.id != target.id);
+        if state.active_effects.len() != before {
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return Err(CommandError::EffectClearEverythingFailed);
+    }
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: if targets.len() == 1 {
+            "commands.effect.clear.everything.success.single"
+        } else {
+            "commands.effect.clear.everything.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn clear_specific_effect(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    effect: &str,
+) -> Result<CommandResult, CommandError> {
+    let mut count = 0;
+    for target in &targets {
+        if matches!(entity_kind(state, target), EntityKind::NonLiving) {
+            continue;
+        }
+        let before = state.active_effects.len();
+        state
+            .active_effects
+            .retain(|active| active.target.id != target.id || active.effect != effect);
+        if state.active_effects.len() != before {
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return Err(CommandError::EffectClearSpecificFailed);
+    }
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: if targets.len() == 1 {
+            "commands.effect.clear.specific.success.single"
+        } else {
+            "commands.effect.clear.specific.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn upsert_active_effect(state: &mut ServerCommandState, effect: ActiveEffect) {
+    if let Some(existing) = state
+        .active_effects
+        .iter_mut()
+        .find(|active| active.target.id == effect.target.id && active.effect == effect.effect)
+    {
+        *existing = effect;
+    } else {
+        state.active_effects.push(effect);
+    }
+}
+
+fn effect_duration_ticks(effect: &str, seconds: Option<i32>) -> i32 {
+    match seconds {
+        Some(-1) => -1,
+        Some(seconds) if is_instant_effect(effect) => seconds,
+        Some(seconds) => seconds * 20,
+        None if is_instant_effect(effect) => 1,
+        None => 600,
+    }
+}
+
+fn is_instant_effect(effect: &str) -> bool {
+    matches!(
+        effect,
+        "minecraft:instant_health" | "minecraft:instant_damage" | "minecraft:saturation"
+    )
+}
+
+fn parse_effect_seconds(input: &str) -> Result<i32, CommandError> {
+    let seconds = input
+        .parse::<i32>()
+        .map_err(|_| CommandError::InvalidSyntax)?;
+    if (1..=1_000_000).contains(&seconds) {
+        Ok(seconds)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+fn parse_effect_amplifier(input: &str) -> Result<u8, CommandError> {
+    input.parse::<u8>().map_err(|_| CommandError::InvalidSyntax)
 }
 
 fn gamemode_command(
@@ -7078,6 +7318,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("defaultgamemode", "/defaultgamemode <gamemode>"),
         ("difficulty", "/difficulty [difficulty]"),
         ("dialog", "/dialog <show|clear> <targets> [dialog]"),
+        ("effect", "/effect <give|clear> ..."),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -7542,16 +7783,16 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
-        visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
-        BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent,
-        ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability, CommandError,
-        CommandItemStack, CommandPlayerInventory, DamageCommandSource, DialogCommandEvent,
-        EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState,
-        EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent,
-        PerfReport, Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress,
-        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
-        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
-        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
+        AttributeOperation, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
+        ChaseEvent, ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability,
+        CommandError, CommandItemStack, CommandPlayerInventory, DamageCommandSource,
+        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityRef,
+        EntityState, EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet,
+        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
+        PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
+        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
+        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
         ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
         SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
         TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
@@ -9234,6 +9475,181 @@ mod tests {
                 "dialog show Steve"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn effect_command_gives_default_timed_infinite_and_instant_effects() {
+        let mut state = ServerCommandState {
+            entity_states: vec![EntityState {
+                entity: EntityRef {
+                    id: "armor_stand".to_string(),
+                    display_name: "Armor Stand".to_string(),
+                },
+                kind: EntityKind::NonLiving,
+                dimension: "minecraft:overworld".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("effect"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "effect give Steve speed"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let default = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect give Steve speed",
+        )
+        .unwrap();
+        assert_eq!(default.success_count, 1);
+        assert_eq!(default.feedback_key, "commands.effect.give.success.single");
+        assert_eq!(
+            state.active_effects[0],
+            ActiveEffect {
+                target: EntityRef {
+                    id: "Steve".to_string(),
+                    display_name: "Steve".to_string(),
+                },
+                effect: "minecraft:speed".to_string(),
+                duration_ticks: 600,
+                amplifier: 0,
+                show_particles: true,
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect give Steve,Alex strength 5 2 true",
+        )
+        .unwrap();
+        assert!(state.active_effects.iter().any(|effect| {
+            effect.target.id == "Alex"
+                && effect.effect == "minecraft:strength"
+                && effect.duration_ticks == 100
+                && effect.amplifier == 2
+                && !effect.show_particles
+        }));
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect give Steve regeneration infinite 1 false",
+        )
+        .unwrap();
+        assert!(state.active_effects.iter().any(|effect| {
+            effect.target.id == "Steve"
+                && effect.effect == "minecraft:regeneration"
+                && effect.duration_ticks == -1
+                && effect.amplifier == 1
+                && effect.show_particles
+        }));
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect give Steve instant_health",
+        )
+        .unwrap();
+        assert!(state.active_effects.iter().any(|effect| {
+            effect.target.id == "Steve"
+                && effect.effect == "minecraft:instant_health"
+                && effect.duration_ticks == 1
+        }));
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "effect give armor_stand speed"
+            ),
+            Err(CommandError::EffectGiveFailed)
+        );
+    }
+
+    #[test]
+    fn effect_command_clears_all_or_specific_effects_and_reports_failures() {
+        let mut state = ServerCommandState {
+            command_source_entity: Some(EntityRef {
+                id: "Steve".to_string(),
+                display_name: "Steve".to_string(),
+            }),
+            active_effects: vec![
+                ActiveEffect {
+                    target: super::entity_ref("Steve"),
+                    effect: "minecraft:speed".to_string(),
+                    duration_ticks: 600,
+                    amplifier: 0,
+                    show_particles: true,
+                },
+                ActiveEffect {
+                    target: super::entity_ref("Alex"),
+                    effect: "minecraft:strength".to_string(),
+                    duration_ticks: 100,
+                    amplifier: 0,
+                    show_particles: true,
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        let clear_specific = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect clear Alex strength",
+        )
+        .unwrap();
+        assert_eq!(clear_specific.success_count, 1);
+        assert_eq!(
+            clear_specific.feedback_key,
+            "commands.effect.clear.specific.success.single"
+        );
+        assert_eq!(
+            state.active_effects,
+            vec![ActiveEffect {
+                target: super::entity_ref("Steve"),
+                effect: "minecraft:speed".to_string(),
+                duration_ticks: 600,
+                amplifier: 0,
+                show_particles: true,
+            }]
+        );
+
+        let clear_source = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "effect clear",
+        )
+        .unwrap();
+        assert_eq!(clear_source.success_count, 1);
+        assert_eq!(
+            clear_source.feedback_key,
+            "commands.effect.clear.everything.success.single"
+        );
+        assert!(state.active_effects.is_empty());
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "effect clear Steve"
+            ),
+            Err(CommandError::EffectClearEverythingFailed)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "effect clear Alex strength"
+            ),
+            Err(CommandError::EffectClearSpecificFailed)
         );
     }
 
