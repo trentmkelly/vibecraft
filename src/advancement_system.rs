@@ -53,6 +53,27 @@ pub struct PlayerAdvancementSet {
     dirty: BTreeSet<Identifier>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlayerRecipeUnlocks {
+    known: BTreeSet<Identifier>,
+    highlight: BTreeSet<Identifier>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeDefinition {
+    pub id: Identifier,
+    pub special: bool,
+    pub show_notification: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeUnlockEvent {
+    pub recipe: Identifier,
+    pub show_notification: bool,
+    pub highlight: bool,
+    pub advancement_rewards: Vec<AdvancementRewardEvent>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdvancementRewardEvent {
     pub advancement: Identifier,
@@ -61,6 +82,13 @@ pub struct AdvancementRewardEvent {
     pub recipes: Vec<Identifier>,
     pub function: Option<Identifier>,
     pub announce_chat: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeUnlockedCriterion {
+    pub advancement: Identifier,
+    pub criterion: String,
+    pub recipe: Identifier,
 }
 
 impl AdvancementDefinition {
@@ -299,6 +327,110 @@ impl PlayerAdvancementSet {
     }
 }
 
+impl PlayerRecipeUnlocks {
+    pub fn contains(&self, recipe: &Identifier) -> bool {
+        self.known.contains(recipe)
+    }
+
+    pub fn highlighted(&self, recipe: &Identifier) -> bool {
+        self.highlight.contains(recipe)
+    }
+
+    pub fn unlock_recipes(
+        &mut self,
+        recipes: &[RecipeDefinition],
+        advancements: &[AdvancementDefinition],
+        triggers: &[RecipeUnlockedCriterion],
+        player_advancements: &mut PlayerAdvancementSet,
+        obtained_epoch_seconds: u64,
+    ) -> Vec<RecipeUnlockEvent> {
+        let mut events = Vec::new();
+        for recipe in recipes {
+            if recipe.special || self.known.contains(&recipe.id) {
+                continue;
+            }
+            self.known.insert(recipe.id.clone());
+            self.highlight.insert(recipe.id.clone());
+            let advancement_rewards = trigger_recipe_unlocked(
+                &recipe.id,
+                advancements,
+                triggers,
+                player_advancements,
+                obtained_epoch_seconds,
+            );
+            events.push(RecipeUnlockEvent {
+                recipe: recipe.id.clone(),
+                show_notification: recipe.show_notification,
+                highlight: true,
+                advancement_rewards,
+            });
+        }
+        events
+    }
+
+    pub fn remove_recipes(&mut self, recipes: &[Identifier]) -> Vec<Identifier> {
+        let mut removed = Vec::new();
+        for recipe in recipes {
+            if self.known.remove(recipe) {
+                self.highlight.remove(recipe);
+                removed.push(recipe.clone());
+            }
+        }
+        removed
+    }
+
+    pub fn clear_highlight(&mut self, recipe: &Identifier) {
+        self.highlight.remove(recipe);
+    }
+
+    pub fn pack(&self) -> (Vec<Identifier>, Vec<Identifier>) {
+        (
+            self.known.iter().cloned().collect(),
+            self.highlight.iter().cloned().collect(),
+        )
+    }
+
+    pub fn load_untrusted(
+        known: Vec<Identifier>,
+        highlight: Vec<Identifier>,
+        validator: impl Fn(&Identifier) -> bool,
+    ) -> Self {
+        let known = known
+            .into_iter()
+            .filter(|recipe| validator(recipe))
+            .collect::<BTreeSet<_>>();
+        let highlight = highlight
+            .into_iter()
+            .filter(|recipe| known.contains(recipe))
+            .collect();
+        Self { known, highlight }
+    }
+}
+
+pub fn trigger_recipe_unlocked(
+    recipe: &Identifier,
+    advancements: &[AdvancementDefinition],
+    triggers: &[RecipeUnlockedCriterion],
+    player_advancements: &mut PlayerAdvancementSet,
+    obtained_epoch_seconds: u64,
+) -> Vec<AdvancementRewardEvent> {
+    let mut rewards = Vec::new();
+    for trigger in triggers.iter().filter(|trigger| trigger.recipe == *recipe) {
+        let Some(advancement) = advancements
+            .iter()
+            .find(|advancement| advancement.id == trigger.advancement)
+        else {
+            continue;
+        };
+        if let Some(reward) =
+            player_advancements.grant(advancement, &trigger.criterion, obtained_epoch_seconds)
+        {
+            rewards.push(reward);
+        }
+    }
+    rewards
+}
+
 pub fn assign_tree_layout(definitions: &mut [AdvancementDefinition]) {
     let mut child_counts: BTreeMap<Option<Identifier>, i32> = BTreeMap::new();
     for definition in definitions {
@@ -407,5 +539,97 @@ mod tests {
         assert!(json.contains("\"DataVersion\":4189"));
         assert!(json.contains("\"minecraft:story/root\""));
         assert!(json.contains("\"done\":true"));
+    }
+
+    #[test]
+    fn recipe_unlocks_skip_special_known_recipes_and_trigger_advancement_criteria() {
+        let recipe = Identifier::parse("minecraft:oak_planks").unwrap();
+        let special = Identifier::parse("minecraft:special").unwrap();
+        let advancement = AdvancementDefinition::all_of(
+            "minecraft:recipes/building_blocks/oak_planks",
+            None,
+            &["has_the_recipe"],
+            AdvancementRewards {
+                experience: 1,
+                loot: Vec::new(),
+                recipes: vec![recipe.clone()],
+                function: None,
+            },
+            Some(display(false, true)),
+        )
+        .unwrap();
+        let triggers = vec![RecipeUnlockedCriterion {
+            advancement: advancement.id.clone(),
+            criterion: "has_the_recipe".to_string(),
+            recipe: recipe.clone(),
+        }];
+        let mut unlocks = PlayerRecipeUnlocks::default();
+        let mut progress = PlayerAdvancementSet::default();
+
+        let events = unlocks.unlock_recipes(
+            &[
+                RecipeDefinition {
+                    id: recipe.clone(),
+                    special: false,
+                    show_notification: true,
+                },
+                RecipeDefinition {
+                    id: special.clone(),
+                    special: true,
+                    show_notification: true,
+                },
+            ],
+            &[advancement.clone()],
+            &triggers,
+            &mut progress,
+            10,
+        );
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].recipe, recipe);
+        assert!(events[0].show_notification);
+        assert!(events[0].highlight);
+        assert_eq!(events[0].advancement_rewards[0].experience, 1);
+        assert!(unlocks.contains(&events[0].recipe));
+        assert!(unlocks.highlighted(&events[0].recipe));
+        assert!(!unlocks.contains(&special));
+        assert!(progress.is_done(&advancement.id));
+
+        assert!(unlocks
+            .unlock_recipes(
+                &[RecipeDefinition {
+                    id: events[0].recipe.clone(),
+                    special: false,
+                    show_notification: true,
+                }],
+                &[advancement],
+                &triggers,
+                &mut progress,
+                11,
+            )
+            .is_empty());
+    }
+
+    #[test]
+    fn recipe_unlocks_remove_clear_highlight_and_load_only_valid_recipes() {
+        let stone = Identifier::parse("minecraft:stone").unwrap();
+        let dirt = Identifier::parse("minecraft:dirt").unwrap();
+        let bad = Identifier::parse("minecraft:bad").unwrap();
+        let mut unlocks = PlayerRecipeUnlocks::load_untrusted(
+            vec![stone.clone(), bad.clone()],
+            vec![stone.clone(), dirt.clone()],
+            |recipe| recipe != &bad,
+        );
+        assert!(unlocks.contains(&stone));
+        assert!(!unlocks.contains(&bad));
+        assert!(unlocks.highlighted(&stone));
+        assert!(!unlocks.highlighted(&dirt));
+
+        unlocks.clear_highlight(&stone);
+        assert!(!unlocks.highlighted(&stone));
+        assert_eq!(unlocks.remove_recipes(&[stone.clone(), dirt]), vec![stone]);
+        let (known, highlight) = unlocks.pack();
+        assert!(known.is_empty());
+        assert!(highlight.is_empty());
     }
 }
