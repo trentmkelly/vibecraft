@@ -39,6 +39,7 @@ mod eula;
 mod fire;
 mod fluid;
 mod game_event;
+mod game_rules;
 mod gravity;
 mod inhabited_time;
 mod inventory;
