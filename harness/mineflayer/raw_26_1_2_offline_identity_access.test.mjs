@@ -6,7 +6,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { gzipSync } from 'node:zlib'
+import { gunzipSync, gzipSync } from 'node:zlib'
 
 import {
   createTempWorld,
@@ -318,13 +318,16 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
   await withServer({
     username: 'DefaultSpectator',
     properties: { gamemode: 'spectator' }
-  }, async ({ port, username }) => {
+  }, async ({ port, root, username }) => {
     const joined = await runJoinProbe(port, username, {
       RUSTCRAFT_EXPECT_GAME_MODE: '3',
       RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
       RUSTCRAFT_EXPECT_ABILITY_FLAGS: '15'
     })
     assert.equal(joined.ok, true)
+    const uuid = offlineUuid(username)
+    assert.equal(await readPlayerDataInt(root, uuid, 'playerGameType'), 3)
+    assert.equal(await readPlayerDataInt(root, uuid, 'previousPlayerGameType'), undefined)
   })
 
   await withServer({
@@ -353,6 +356,8 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
+    assert.equal(await readPlayerDataInt(root, uuid, 'playerGameType'), 2)
+    assert.equal(await readPlayerDataInt(root, uuid, 'previousPlayerGameType'), 0)
   })
 
   await withRestartableServer({ username: 'FreshSave' }, async ({ port, root, username, restart }) => {
@@ -531,6 +536,26 @@ async function writePlayerData (root, uuid, saved) {
   await writeFile(path.join(dir, `${uuid}.dat`), playerDataNbt(saved))
 }
 
+async function readPlayerDataInt (root, uuid, name) {
+  const bytes = await readFile(path.join(root, 'world', 'playerdata', `${uuid}.dat`))
+  return topLevelNbtInt(gunzipSync(bytes), name)
+}
+
+function topLevelNbtInt (buffer, wantedName) {
+  let offset = 0
+  assert.equal(buffer[offset++], 10)
+  const rootNameLength = buffer.readUInt16BE(offset); offset += 2 + rootNameLength
+  while (offset < buffer.length) {
+    const type = buffer[offset++]
+    if (type === 0) return undefined
+    const nameLength = buffer.readUInt16BE(offset); offset += 2
+    const name = buffer.toString('utf8', offset, offset + nameLength); offset += nameLength
+    if (type === 3 && name === wantedName) return buffer.readInt32BE(offset)
+    offset = skipNbtPayload(buffer, offset, type)
+  }
+  return undefined
+}
+
 function playerDataNbt (saved) {
   const entries = [
     nbtInt('DataVersion', 4791),
@@ -591,6 +616,27 @@ function nbtList (name, type, payloads) {
   const length = Buffer.alloc(4)
   length.writeInt32BE(payloads.length)
   return nbtNamed(9, name, Buffer.concat([Buffer.from([type]), length, ...payloads]))
+}
+
+function skipNbtPayload (buffer, offset, type) {
+  switch (type) {
+    case 1: return offset + 1
+    case 3: return offset + 4
+    case 5: return offset + 4
+    case 6: return offset + 8
+    case 8: {
+      const length = buffer.readUInt16BE(offset)
+      return offset + 2 + length
+    }
+    case 9: {
+      const childType = buffer[offset++]
+      const length = buffer.readInt32BE(offset); offset += 4
+      for (let i = 0; i < length; i++) offset = skipNbtPayload(buffer, offset, childType)
+      return offset
+    }
+    default:
+      throw new Error(`unsupported test NBT type ${type}`)
+  }
 }
 
 function utf16Name (value) {
