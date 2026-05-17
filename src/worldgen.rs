@@ -224,6 +224,72 @@ pub struct CarverDebugSettings {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeatureType {
+    pub id: &'static str,
+    pub configuration: FeatureConfigurationKind,
+    pub family: FeatureFamily,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeatureConfigurationKind {
+    None,
+    Tree,
+    FallenTree,
+    BlockPile,
+    Spring,
+    ReplaceBlock,
+    Fossil,
+    HugeMushroom,
+    Spike,
+    BlockColumn,
+    VegetationPatch,
+    RootSystem,
+    MultifaceGrowth,
+    UnderwaterMagma,
+    BlockState,
+    BlockBlob,
+    Disk,
+    Lake,
+    Ore,
+    EndSpike,
+    EndGateway,
+    Probability,
+    Count,
+    SimpleBlock,
+    HugeFungus,
+    NetherForestVegetation,
+    TwistingVines,
+    Column,
+    Delta,
+    ReplaceSphere,
+    Layer,
+    RandomFeature,
+    SimpleRandomFeature,
+    RandomBooleanFeature,
+    Geode,
+    DripstoneCluster,
+    LargeDripstone,
+    PointedDripstone,
+    SculkPatch,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeatureFamily {
+    Selector,
+    Tree,
+    Vegetation,
+    Cave,
+    Ore,
+    Lake,
+    Disk,
+    End,
+    Nether,
+    Aquatic,
+    StructureLike,
+    BlockPlacement,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseRouterPreset {
     Overworld { large_biomes: bool, amplified: bool },
     Nether,
@@ -1294,6 +1360,321 @@ pub const CONFIGURED_CARVERS: &[ConfiguredCarver] = &[
     },
 ];
 
+pub const FEATURE_TYPES: &[FeatureType] = &[
+    feature_type(
+        "minecraft:no_op",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Selector,
+    ),
+    feature_type(
+        "minecraft:tree",
+        FeatureConfigurationKind::Tree,
+        FeatureFamily::Tree,
+    ),
+    feature_type(
+        "minecraft:fallen_tree",
+        FeatureConfigurationKind::FallenTree,
+        FeatureFamily::Tree,
+    ),
+    feature_type(
+        "minecraft:block_pile",
+        FeatureConfigurationKind::BlockPile,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:spring_feature",
+        FeatureConfigurationKind::Spring,
+        FeatureFamily::Cave,
+    ),
+    feature_type(
+        "minecraft:chorus_plant",
+        FeatureConfigurationKind::None,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:replace_single_block",
+        FeatureConfigurationKind::ReplaceBlock,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:void_start_platform",
+        FeatureConfigurationKind::None,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:desert_well",
+        FeatureConfigurationKind::None,
+        FeatureFamily::StructureLike,
+    ),
+    feature_type(
+        "minecraft:fossil",
+        FeatureConfigurationKind::Fossil,
+        FeatureFamily::StructureLike,
+    ),
+    feature_type(
+        "minecraft:huge_red_mushroom",
+        FeatureConfigurationKind::HugeMushroom,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:huge_brown_mushroom",
+        FeatureConfigurationKind::HugeMushroom,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:spike",
+        FeatureConfigurationKind::Spike,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:glowstone_blob",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:freeze_top_layer",
+        FeatureConfigurationKind::None,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:vines",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:block_column",
+        FeatureConfigurationKind::BlockColumn,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:vegetation_patch",
+        FeatureConfigurationKind::VegetationPatch,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:waterlogged_vegetation_patch",
+        FeatureConfigurationKind::VegetationPatch,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:root_system",
+        FeatureConfigurationKind::RootSystem,
+        FeatureFamily::Tree,
+    ),
+    feature_type(
+        "minecraft:multiface_growth",
+        FeatureConfigurationKind::MultifaceGrowth,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:underwater_magma",
+        FeatureConfigurationKind::UnderwaterMagma,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:monster_room",
+        FeatureConfigurationKind::None,
+        FeatureFamily::StructureLike,
+    ),
+    feature_type(
+        "minecraft:blue_ice",
+        FeatureConfigurationKind::None,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:iceberg",
+        FeatureConfigurationKind::BlockState,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:block_blob",
+        FeatureConfigurationKind::BlockBlob,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:disk",
+        FeatureConfigurationKind::Disk,
+        FeatureFamily::Disk,
+    ),
+    feature_type(
+        "minecraft:lake",
+        FeatureConfigurationKind::Lake,
+        FeatureFamily::Lake,
+    ),
+    feature_type(
+        "minecraft:ore",
+        FeatureConfigurationKind::Ore,
+        FeatureFamily::Ore,
+    ),
+    feature_type(
+        "minecraft:end_platform",
+        FeatureConfigurationKind::None,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:end_spike",
+        FeatureConfigurationKind::EndSpike,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:end_island",
+        FeatureConfigurationKind::None,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:end_gateway",
+        FeatureConfigurationKind::EndGateway,
+        FeatureFamily::End,
+    ),
+    feature_type(
+        "minecraft:seagrass",
+        FeatureConfigurationKind::Probability,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:kelp",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:coral_tree",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:coral_mushroom",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:coral_claw",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:sea_pickle",
+        FeatureConfigurationKind::Count,
+        FeatureFamily::Aquatic,
+    ),
+    feature_type(
+        "minecraft:simple_block",
+        FeatureConfigurationKind::SimpleBlock,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:bamboo",
+        FeatureConfigurationKind::Probability,
+        FeatureFamily::Vegetation,
+    ),
+    feature_type(
+        "minecraft:huge_fungus",
+        FeatureConfigurationKind::HugeFungus,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:nether_forest_vegetation",
+        FeatureConfigurationKind::NetherForestVegetation,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:weeping_vines",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:twisting_vines",
+        FeatureConfigurationKind::TwistingVines,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:basalt_columns",
+        FeatureConfigurationKind::Column,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:delta_feature",
+        FeatureConfigurationKind::Delta,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:netherrack_replace_blobs",
+        FeatureConfigurationKind::ReplaceSphere,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:fill_layer",
+        FeatureConfigurationKind::Layer,
+        FeatureFamily::BlockPlacement,
+    ),
+    feature_type(
+        "minecraft:bonus_chest",
+        FeatureConfigurationKind::None,
+        FeatureFamily::StructureLike,
+    ),
+    feature_type(
+        "minecraft:basalt_pillar",
+        FeatureConfigurationKind::None,
+        FeatureFamily::Nether,
+    ),
+    feature_type(
+        "minecraft:scattered_ore",
+        FeatureConfigurationKind::Ore,
+        FeatureFamily::Ore,
+    ),
+    feature_type(
+        "minecraft:random_selector",
+        FeatureConfigurationKind::RandomFeature,
+        FeatureFamily::Selector,
+    ),
+    feature_type(
+        "minecraft:simple_random_selector",
+        FeatureConfigurationKind::SimpleRandomFeature,
+        FeatureFamily::Selector,
+    ),
+    feature_type(
+        "minecraft:random_boolean_selector",
+        FeatureConfigurationKind::RandomBooleanFeature,
+        FeatureFamily::Selector,
+    ),
+    feature_type(
+        "minecraft:geode",
+        FeatureConfigurationKind::Geode,
+        FeatureFamily::Cave,
+    ),
+    feature_type(
+        "minecraft:dripstone_cluster",
+        FeatureConfigurationKind::DripstoneCluster,
+        FeatureFamily::Cave,
+    ),
+    feature_type(
+        "minecraft:large_dripstone",
+        FeatureConfigurationKind::LargeDripstone,
+        FeatureFamily::Cave,
+    ),
+    feature_type(
+        "minecraft:pointed_dripstone",
+        FeatureConfigurationKind::PointedDripstone,
+        FeatureFamily::Cave,
+    ),
+    feature_type(
+        "minecraft:sculk_patch",
+        FeatureConfigurationKind::SculkPatch,
+        FeatureFamily::Cave,
+    ),
+];
+
+const fn feature_type(
+    id: &'static str,
+    configuration: FeatureConfigurationKind,
+    family: FeatureFamily,
+) -> FeatureType {
+    FeatureType {
+        id,
+        configuration,
+        family,
+    }
+}
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -1694,6 +2075,16 @@ pub fn configured_carver(id: &str) -> Option<&'static ConfiguredCarver> {
     })
 }
 
+pub fn feature_type_by_id(id: &str) -> Option<&'static FeatureType> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    FEATURE_TYPES.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
 pub fn carver_can_reach(
     chunk_mid_x: f64,
     chunk_mid_z: f64,
@@ -1715,16 +2106,17 @@ mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CarverShape,
-        CaveDensityOutput, DensityFunction, DensityMarker, FloatProvider, FluidStatus, HeightRange,
-        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WorldCarverType,
-        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
-        CONFIGURED_CARVERS, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
-        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS,
-        ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, SURFACE_CONDITION_TYPES,
-        SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, Y_DENSITY,
+        CaveDensityOutput, DensityFunction, DensityMarker, FeatureConfigurationKind, FeatureFamily,
+        FloatProvider, FluidStatus, HeightRange, MappedDensityFunction, NoiseRouterPreset,
+        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, SurfaceRuleKind,
+        SurfaceRulePreset, VerticalAnchor, WorldCarverType, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, DENSITY_FUNCTION_TYPES,
+        END_NOISE_SETTINGS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS,
+        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -2427,5 +2819,100 @@ mod tests {
         assert!(super::carver_can_reach(8.0, 8.0, 8.0, 8.0, 0, 10, 1.0));
         assert!(super::carver_can_reach(8.0, 8.0, 30.0, 8.0, 0, 10, 4.0));
         assert!(!super::carver_can_reach(8.0, 8.0, 80.0, 8.0, 9, 10, 1.0));
+    }
+
+    #[test]
+    fn feature_type_registry_matches_vanilla_feature_order() {
+        assert_eq!(FEATURE_TYPES.len(), 60);
+        assert_eq!(
+            FEATURE_TYPES
+                .iter()
+                .map(|feature| feature.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:no_op",
+                "minecraft:tree",
+                "minecraft:fallen_tree",
+                "minecraft:block_pile",
+                "minecraft:spring_feature",
+                "minecraft:chorus_plant",
+                "minecraft:replace_single_block",
+                "minecraft:void_start_platform",
+                "minecraft:desert_well",
+                "minecraft:fossil",
+                "minecraft:huge_red_mushroom",
+                "minecraft:huge_brown_mushroom",
+                "minecraft:spike",
+                "minecraft:glowstone_blob",
+                "minecraft:freeze_top_layer",
+                "minecraft:vines",
+                "minecraft:block_column",
+                "minecraft:vegetation_patch",
+                "minecraft:waterlogged_vegetation_patch",
+                "minecraft:root_system",
+                "minecraft:multiface_growth",
+                "minecraft:underwater_magma",
+                "minecraft:monster_room",
+                "minecraft:blue_ice",
+                "minecraft:iceberg",
+                "minecraft:block_blob",
+                "minecraft:disk",
+                "minecraft:lake",
+                "minecraft:ore",
+                "minecraft:end_platform",
+                "minecraft:end_spike",
+                "minecraft:end_island",
+                "minecraft:end_gateway",
+                "minecraft:seagrass",
+                "minecraft:kelp",
+                "minecraft:coral_tree",
+                "minecraft:coral_mushroom",
+                "minecraft:coral_claw",
+                "minecraft:sea_pickle",
+                "minecraft:simple_block",
+                "minecraft:bamboo",
+                "minecraft:huge_fungus",
+                "minecraft:nether_forest_vegetation",
+                "minecraft:weeping_vines",
+                "minecraft:twisting_vines",
+                "minecraft:basalt_columns",
+                "minecraft:delta_feature",
+                "minecraft:netherrack_replace_blobs",
+                "minecraft:fill_layer",
+                "minecraft:bonus_chest",
+                "minecraft:basalt_pillar",
+                "minecraft:scattered_ore",
+                "minecraft:random_selector",
+                "minecraft:simple_random_selector",
+                "minecraft:random_boolean_selector",
+                "minecraft:geode",
+                "minecraft:dripstone_cluster",
+                "minecraft:large_dripstone",
+                "minecraft:pointed_dripstone",
+                "minecraft:sculk_patch",
+            ]
+        );
+
+        let tree = super::feature_type_by_id("tree").unwrap();
+        assert_eq!(tree.configuration, FeatureConfigurationKind::Tree);
+        assert_eq!(tree.family, FeatureFamily::Tree);
+
+        let ore = super::feature_type_by_id("minecraft:ore").unwrap();
+        assert_eq!(ore.configuration, FeatureConfigurationKind::Ore);
+        assert_eq!(ore.family, FeatureFamily::Ore);
+
+        let random_selector = super::feature_type_by_id("random_selector").unwrap();
+        assert_eq!(
+            random_selector.configuration,
+            FeatureConfigurationKind::RandomFeature
+        );
+        assert_eq!(random_selector.family, FeatureFamily::Selector);
+
+        let sculk_patch = super::feature_type_by_id("sculk_patch").unwrap();
+        assert_eq!(
+            sculk_patch.configuration,
+            FeatureConfigurationKind::SculkPatch
+        );
+        assert_eq!(sculk_patch.family, FeatureFamily::Cave);
     }
 }
