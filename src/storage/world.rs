@@ -71,6 +71,10 @@ impl WorldLayout {
         self.playerdata_dir().join(format!("{uuid}.dat"))
     }
 
+    pub fn player_data_old_file(&self, uuid: &str) -> PathBuf {
+        self.playerdata_dir().join(format!("{uuid}.dat_old"))
+    }
+
     pub fn advancements_file(&self, uuid: &str) -> PathBuf {
         self.advancements_dir().join(format!("{uuid}.json"))
     }
@@ -188,13 +192,37 @@ impl WorldLayout {
         fs::create_dir_all(self.playerdata_dir())?;
         let mut bytes = Vec::new();
         write_gzip_named_tag(&mut bytes, "", tag)?;
-        durable_write_with_backup(&self.player_data_file(uuid), None, &bytes)
+        durable_write_with_backup(
+            &self.player_data_file(uuid),
+            Some(&self.player_data_old_file(uuid)),
+            &bytes,
+        )
     }
 
     pub fn load_player_data(&self, uuid: &str) -> std::io::Result<Tag> {
-        let bytes = fs::read(self.player_data_file(uuid))?;
-        let (_name, tag) = read_gzip_named_tag(bytes.as_slice())?;
-        Ok(tag)
+        match read_gzip_named_tag_file(&self.player_data_file(uuid)) {
+            Ok((_name, tag)) => Ok(tag),
+            Err(primary_err) => {
+                self.backup_corrupt_player_data(uuid, ".dat")?;
+                match read_gzip_named_tag_file(&self.player_data_old_file(uuid)) {
+                    Ok((_name, tag)) => Ok(tag),
+                    Err(_) => Err(primary_err),
+                }
+            }
+        }
+    }
+
+    pub fn backup_corrupt_player_data(&self, uuid: &str, suffix: &str) -> std::io::Result<()> {
+        let source = self.playerdata_dir().join(format!("{uuid}{suffix}"));
+        if source.is_file() {
+            let backup = self.playerdata_dir().join(format!(
+                "{uuid}_corrupted_{}{}",
+                corruption_backup_stamp(),
+                suffix
+            ));
+            fs::copy(source, backup)?;
+        }
+        Ok(())
     }
 
     pub fn save_json_sidecar(&self, path: PathBuf, json: &str) -> std::io::Result<()> {
@@ -318,6 +346,21 @@ fn data_version_from_level_dat(tag: &Tag) -> Option<i32> {
 fn read_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)> {
     let bytes = fs::read(path)?;
     read_named_tag(&mut bytes.as_slice())
+}
+
+fn read_gzip_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)> {
+    let bytes = fs::read(path)?;
+    read_gzip_named_tag(bytes.as_slice())
+}
+
+fn corruption_backup_stamp() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    seconds.to_string()
 }
 
 fn durable_write_with_backup(
@@ -467,6 +510,53 @@ mod tests {
             layout.load_stats(uuid).unwrap(),
             "{\"minecraft:custom\":{}}"
         );
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn player_data_uses_dat_old_and_corrupt_backup_like_vanilla_storage() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-player-corrupt-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        let uuid = "00000000-0000-0000-0000-000000000002";
+        let first = crate::storage::nbt::Tag::Compound(vec![(
+            "Pos".to_string(),
+            crate::storage::nbt::Tag::List(vec![
+                crate::storage::nbt::Tag::Double(1.0),
+                crate::storage::nbt::Tag::Double(80.0),
+                crate::storage::nbt::Tag::Double(1.0),
+            ]),
+        )]);
+        let second = crate::storage::nbt::Tag::Compound(vec![(
+            "Pos".to_string(),
+            crate::storage::nbt::Tag::List(vec![
+                crate::storage::nbt::Tag::Double(2.0),
+                crate::storage::nbt::Tag::Double(81.0),
+                crate::storage::nbt::Tag::Double(2.0),
+            ]),
+        )]);
+
+        layout.save_player_data(uuid, &first).unwrap();
+        layout.save_player_data(uuid, &second).unwrap();
+        assert_eq!(layout.load_player_data(uuid).unwrap(), second);
+        assert!(layout.player_data_old_file(uuid).is_file());
+
+        fs::write(layout.player_data_file(uuid), b"corrupt playerdata").unwrap();
+        assert_eq!(layout.load_player_data(uuid).unwrap(), first);
+        let corrupt_backups = fs::read_dir(layout.playerdata_dir())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(&format!("{uuid}_corrupted_"))
+            })
+            .count();
+        assert_eq!(corrupt_backups, 1);
 
         let _ = fs::remove_dir_all(&path);
     }
