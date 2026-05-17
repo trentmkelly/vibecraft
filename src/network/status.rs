@@ -846,22 +846,7 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_damage_type_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_dimension_type_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chat_type_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_trim_material_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -871,37 +856,17 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_banner_pattern_registry_packet,
+        write_minimal_trim_material_registry_packet,
     )?;
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_instrument_registry_packet,
+        write_vanilla_wolf_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_jukebox_song_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cat_variant_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chicken_variant_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cow_variant_registry_packet,
-    )?;
-    write_framed_packet(
-        stream,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_frog_variant_registry_packet,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:wolf_sound_variant"),
     )?;
     write_framed_packet(
         stream,
@@ -911,15 +876,78 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_wolf_variant_registry_packet,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:pig_sound_variant"),
     )?;
-    for registry in MINIMAL_NON_EMPTY_REGISTRIES {
-        write_framed_packet(
-            stream,
-            CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-            |writer| write_minimal_single_entry_registry_packet(writer, registry),
-        )?;
-    }
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_frog_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_cat_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:cat_sound_variant"),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:cow_sound_variant"),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_cow_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:chicken_sound_variant"),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_chicken_variant_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:zombie_nautilus_variant"),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        |writer| write_minimal_named_registry_packet(writer, "minecraft:painting_variant"),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_minimal_dimension_type_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_minimal_damage_type_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_banner_pattern_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_jukebox_song_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_instrument_registry_packet,
+    )?;
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
@@ -1389,6 +1417,14 @@ fn write_minimal_single_entry_registry_packet<W: Write>(
     write_identifier(writer, &Identifier::parse(registry.entry).unwrap())?;
     write_bool(writer, true)?;
     write_network_nbt(writer, &(registry.value)())
+}
+
+fn write_minimal_named_registry_packet<W: Write>(writer: &mut W, registry_id: &str) -> io::Result<()> {
+    let registry = MINIMAL_NON_EMPTY_REGISTRIES
+        .iter()
+        .find(|entry| entry.registry == registry_id)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "unknown minimal registry"))?;
+    write_minimal_single_entry_registry_packet(writer, registry)
 }
 
 fn write_minimal_biome_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
