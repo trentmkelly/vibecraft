@@ -4,17 +4,20 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 import test from 'node:test'
 import { promisify } from 'node:util'
+import { inflateSync } from 'node:zlib'
 
 const execFileAsync = promisify(execFile)
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
 
-test('raw 26.1.2 half-open login sockets time out and leave later login usable', { timeout: 150_000 }, async () => {
+test('raw 26.1.2 half-open login sockets time out and leave later login usable', { timeout: 240_000 }, async () => {
   const phases = [
     ['tcp_connect', openIdleTcpConnect],
     ['handshake', openIdleAfterHandshake],
-    ['login_start', openIdleAfterLoginStart]
+    ['login_start', openIdleAfterLoginStart],
+    ['login_acknowledged', openIdleAfterLoginAcknowledged],
+    ['configuration_known_packs', openIdleAfterKnownPacksRequest]
   ]
 
   for (const [phase, open] of phases) {
@@ -45,8 +48,32 @@ async function openIdleAfterLoginStart (username) {
   const socket = await connect()
   socket.write(frame(0, handshakePayload()))
   socket.write(frame(0, writeString(username), randomUuidBytes()))
-  const login = await readOnePacket(socket)
-  assert.equal(login.id, 2)
+  const reader = new FrameReader(socket)
+  await readLoginSuccess(reader)
+  return await waitForServerClose(socket)
+}
+
+async function openIdleAfterLoginAcknowledged (username) {
+  const socket = await connect()
+  socket.write(frame(0, handshakePayload()))
+  socket.write(frame(0, writeString(username), randomUuidBytes()))
+  const reader = new FrameReader(socket)
+  await readLoginSuccess(reader)
+  socket.write(encodeClientPacket(reader.compressionThreshold, 3))
+  await waitForPacket(reader, 14)
+  return await waitForServerClose(socket)
+}
+
+async function openIdleAfterKnownPacksRequest (username) {
+  const socket = await connect()
+  socket.write(frame(0, handshakePayload()))
+  socket.write(frame(0, writeString(username), randomUuidBytes()))
+  const reader = new FrameReader(socket)
+  await readLoginSuccess(reader)
+  socket.write(encodeClientPacket(reader.compressionThreshold, 3))
+  await waitForPacket(reader, 14)
+  socket.write(encodeClientPacket(reader.compressionThreshold, 7, writeVarInt(0)))
+  await waitForPacket(reader, 3)
   return await waitForServerClose(socket)
 }
 
@@ -95,6 +122,86 @@ async function connect () {
   return socket
 }
 
+async function readLoginSuccess (reader) {
+  let login = await reader.nextPacket()
+  if (login.id === 3) {
+    const threshold = readVarInt(login.body, 0)
+    if (!threshold) throw new Error('missing compression threshold')
+    reader.setCompression(threshold.value)
+    login = await reader.nextPacket()
+  }
+  assert.equal(login.id, 2)
+}
+
+async function waitForPacket (reader, packetId) {
+  const deadline = Date.now() + 10_000
+  while (Date.now() < deadline) {
+    const packet = await reader.nextPacket()
+    if (packet.id === packetId) return packet
+  }
+  throw new Error(`timed out waiting for packet ${packetId}`)
+}
+
+class FrameReader {
+  constructor (socket) {
+    this.buffer = Buffer.alloc(0)
+    this.waiters = []
+    this.compressionThreshold = null
+    socket.on('data', chunk => {
+      this.buffer = Buffer.concat([this.buffer, chunk])
+      this.pump()
+    })
+    socket.once('error', error => this.rejectAll(error))
+    socket.once('close', () => this.rejectAll(new Error('socket closed')))
+  }
+
+  nextPacket () {
+    return new Promise((resolve, reject) => {
+      this.waiters.push({ resolve, reject })
+      this.pump()
+    })
+  }
+
+  setCompression (threshold) {
+    this.compressionThreshold = threshold
+  }
+
+  pump () {
+    while (this.waiters.length > 0) {
+      const decoded = tryDecodePacket(this.buffer, this.compressionThreshold)
+      if (!decoded) return
+      this.buffer = this.buffer.subarray(decoded.frameLength)
+      this.waiters.shift().resolve(decoded.packet)
+    }
+  }
+
+  rejectAll (error) {
+    for (const waiter of this.waiters.splice(0)) waiter.reject(error)
+  }
+}
+
+function tryDecodePacket (buffer, compressionThreshold = null) {
+  const length = readVarInt(buffer)
+  if (!length) return null
+  const end = length.offset + length.value
+  if (buffer.length < end) return null
+  let payload = buffer.subarray(length.offset, end)
+  if (compressionThreshold != null) {
+    const dataLength = readVarInt(payload)
+    if (!dataLength) return null
+    const body = payload.subarray(dataLength.offset)
+    payload = dataLength.value > 0 ? inflateSync(body) : body
+  }
+  const packetId = readVarInt(payload)
+  return {
+    frameLength: end,
+    packet: {
+      id: packetId.value,
+      body: payload.subarray(packetId.offset)
+    }
+  }
+}
+
 function handshakePayload () {
   return Buffer.concat([
     writeVarInt(protocolVersion),
@@ -109,41 +216,16 @@ function frame (packetId, ...parts) {
   return Buffer.concat([writeVarInt(payload.length), payload])
 }
 
+function encodeClientPacket (compressionThreshold, packetId, ...parts) {
+  const payload = Buffer.concat([writeVarInt(packetId), ...parts])
+  if (compressionThreshold == null) return Buffer.concat([writeVarInt(payload.length), payload])
+  const compressedPayload = Buffer.concat([writeVarInt(0), payload])
+  return Buffer.concat([writeVarInt(compressedPayload.length), compressedPayload])
+}
+
 function writeString (value) {
   const data = Buffer.from(value, 'utf8')
   return Buffer.concat([writeVarInt(data.length), data])
-}
-
-async function readOnePacket (socket) {
-  let buffer = Buffer.alloc(0)
-  return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('timed out waiting for packet')), 5000)
-    socket.on('data', onData)
-    socket.once('error', onError)
-
-    function onData (chunk) {
-      buffer = Buffer.concat([buffer, chunk])
-      const length = readVarInt(buffer)
-      if (!length) return
-      const end = length.offset + length.value
-      if (buffer.length < end) return
-      cleanup()
-      const payload = buffer.subarray(length.offset, end)
-      const packetId = readVarInt(payload)
-      resolve({ id: packetId.value, body: payload.subarray(packetId.offset) })
-    }
-
-    function onError (error) {
-      cleanup()
-      reject(error)
-    }
-
-    function cleanup () {
-      clearTimeout(timeout)
-      socket.off('data', onData)
-      socket.off('error', onError)
-    }
-  })
 }
 
 function readVarInt (buffer, offset = 0) {
