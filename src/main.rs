@@ -82,6 +82,7 @@ mod statistics;
 mod status_effect;
 mod storage;
 mod vehicle_entity;
+mod waypoint;
 mod weather;
 mod world;
 mod world_border;

@@ -7,6 +7,10 @@ pub const MOON_CYCLE_TICKS: i64 = DAY_LENGTH_TICKS * 8;
 pub const WAKE_UP_FROM_SLEEP_TIME: i64 = 0;
 pub const PHANTOM_INSOMNIA_THRESHOLD_TICKS: i32 = 72_000;
 pub const MOON_BRIGHTNESS_PER_PHASE: [f32; 8] = [1.0, 0.75, 0.5, 0.25, 0.0, 0.25, 0.5, 0.75];
+pub const OVERWORLD_DAY_TIMELINE: &str = "minecraft:day";
+pub const MOON_TIMELINE: &str = "minecraft:moon";
+pub const VILLAGER_SCHEDULE_TIMELINE: &str = "minecraft:villager_schedule";
+pub const EARLY_GAME_TIMELINE: &str = "minecraft:early_game";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldClock {
@@ -60,6 +64,14 @@ pub enum TimeEvent {
     WakePlayers,
     ResetWeatherCycle,
     DayTimeChanged(i64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimelineDefinition {
+    pub id: &'static str,
+    pub clock: &'static str,
+    pub period_ticks: i64,
+    pub markers: &'static [(&'static str, i64)],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -301,6 +313,49 @@ pub fn is_insomniac(player: PlayerSleepState, spawn_phantoms_rule: bool) -> bool
         && player.time_since_rest >= PHANTOM_INSOMNIA_THRESHOLD_TICKS
 }
 
+pub fn builtin_timelines() -> &'static [TimelineDefinition] {
+    const DAY_MARKERS: &[(&str, i64)] = &[
+        ("minecraft:day", 1_000),
+        ("minecraft:noon", 6_000),
+        ("minecraft:night", 13_000),
+        ("minecraft:midnight", 18_000),
+        ("minecraft:wake_up_from_sleep", 0),
+        ("minecraft:roll_village_siege", 18_000),
+    ];
+    const VILLAGER_MARKERS: &[(&str, i64)] = &[
+        ("minecraft:work", 2_000),
+        ("minecraft:home", 9_000),
+        ("minecraft:rest", 12_000),
+    ];
+    const TIMELINES: &[TimelineDefinition] = &[
+        TimelineDefinition {
+            id: OVERWORLD_DAY_TIMELINE,
+            clock: "minecraft:overworld",
+            period_ticks: DAY_LENGTH_TICKS,
+            markers: DAY_MARKERS,
+        },
+        TimelineDefinition {
+            id: MOON_TIMELINE,
+            clock: "minecraft:overworld",
+            period_ticks: MOON_CYCLE_TICKS,
+            markers: &[],
+        },
+        TimelineDefinition {
+            id: VILLAGER_SCHEDULE_TIMELINE,
+            clock: "minecraft:overworld",
+            period_ticks: DAY_LENGTH_TICKS,
+            markers: VILLAGER_MARKERS,
+        },
+        TimelineDefinition {
+            id: EARLY_GAME_TIMELINE,
+            clock: "minecraft:overworld",
+            period_ticks: DAY_LENGTH_TICKS,
+            markers: &[],
+        },
+    ];
+    TIMELINES
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -457,5 +512,25 @@ mod tests {
         assert_eq!(players[2].time_since_rest, 71_999);
         assert!(is_insomniac(players[0], true));
         assert!(!is_insomniac(players[0], false));
+    }
+
+    #[test]
+    fn builtin_timeline_surface_matches_new_registry_entries() {
+        let timelines = builtin_timelines();
+        assert_eq!(
+            timelines.iter().map(|timeline| timeline.id).collect::<Vec<_>>(),
+            vec![
+                "minecraft:day",
+                "minecraft:moon",
+                "minecraft:villager_schedule",
+                "minecraft:early_game"
+            ]
+        );
+        assert_eq!(timelines[0].period_ticks, DAY_LENGTH_TICKS);
+        assert!(timelines[0]
+            .markers
+            .contains(&("minecraft:wake_up_from_sleep", 0)));
+        assert_eq!(timelines[1].period_ticks, MOON_CYCLE_TICKS);
+        assert!(timelines.iter().all(|timeline| timeline.clock == "minecraft:overworld"));
     }
 }
