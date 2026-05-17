@@ -18,6 +18,7 @@ mod container_block;
 mod crash;
 mod creative_inventory;
 mod dispenser_cauldron;
+mod entity_category;
 mod entity_variants;
 mod eula;
 mod fire;
