@@ -1,3 +1,4 @@
+mod base_entity;
 mod biome;
 mod block_behavior;
 mod block_catalog;
