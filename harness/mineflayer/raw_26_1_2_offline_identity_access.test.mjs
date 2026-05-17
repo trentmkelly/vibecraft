@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:net'
-import { access, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { gzipSync } from 'node:zlib'
 
 import {
   createTempWorld,
@@ -226,6 +227,33 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(rejoined.ok, true)
   })
 
+  await withRestartableServer({ username: 'LoadedStats' }, async ({ port, root, username }) => {
+    const uuid = offlineUuid(username)
+    const saved = {
+      health: 13.5,
+      foodLevel: 7,
+      foodSaturation: 2.5,
+      xpProgress: 0.375,
+      xpLevel: 9,
+      xpTotal: 123,
+      selectedSlot: 3,
+      position: { x: 2.5, y: 83, z: 4.5, yaw: 35, pitch: -10 }
+    }
+    await writePlayerData(root, uuid, saved)
+
+    const joined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(saved.position),
+      RUSTCRAFT_EXPECT_HELD_SLOT: String(saved.selectedSlot),
+      RUSTCRAFT_EXPECT_HEALTH: String(saved.health),
+      RUSTCRAFT_EXPECT_FOOD_LEVEL: String(saved.foodLevel),
+      RUSTCRAFT_EXPECT_FOOD_SATURATION: String(saved.foodSaturation),
+      RUSTCRAFT_EXPECT_XP_PROGRESS: String(saved.xpProgress),
+      RUSTCRAFT_EXPECT_XP_LEVEL: String(saved.xpLevel),
+      RUSTCRAFT_EXPECT_XP_TOTAL: String(saved.xpTotal)
+    })
+    assert.equal(joined.ok, true)
+  })
+
   await withRestartableServer({ username: 'FreshSave' }, async ({ port, root, username, restart }) => {
     const uuid = offlineUuid(username)
     const playerdata = path.join(root, 'world', 'playerdata', `${uuid}.dat`)
@@ -394,6 +422,88 @@ async function corruptBackups (root, uuid) {
   const dir = path.join(root, 'world', 'playerdata')
   const entries = await readdir(dir)
   return entries.filter(name => name.startsWith(`${uuid}_corrupted_`) && name.endsWith('.dat'))
+}
+
+async function writePlayerData (root, uuid, saved) {
+  const dir = path.join(root, 'world', 'playerdata')
+  await mkdir(dir, { recursive: true })
+  await writeFile(path.join(dir, `${uuid}.dat`), playerDataNbt(saved))
+}
+
+function playerDataNbt (saved) {
+  return gzipSync(nbtRoot([
+    nbtInt('DataVersion', 4791),
+    nbtList('Pos', 6, [
+      doublePayload(saved.position.x),
+      doublePayload(saved.position.y),
+      doublePayload(saved.position.z)
+    ]),
+    nbtList('Rotation', 5, [
+      floatPayload(saved.position.yaw),
+      floatPayload(saved.position.pitch)
+    ]),
+    nbtList('Motion', 6, [doublePayload(0), doublePayload(0), doublePayload(0)]),
+    nbtByte('OnGround', 1),
+    nbtFloat('Health', saved.health),
+    nbtInt('foodLevel', saved.foodLevel),
+    nbtFloat('foodSaturationLevel', saved.foodSaturation),
+    nbtInt('XpLevel', saved.xpLevel),
+    nbtFloat('XpP', saved.xpProgress),
+    nbtInt('XpTotal', saved.xpTotal),
+    nbtInt('SelectedItemSlot', saved.selectedSlot),
+    nbtString('Dimension', 'minecraft:overworld')
+  ]))
+}
+
+function nbtRoot (entries) {
+  return Buffer.concat([Buffer.from([10, 0, 0]), ...entries, Buffer.from([0])])
+}
+
+function nbtNamed (type, name, payload) {
+  return Buffer.concat([Buffer.from([type]), utf16Name(name), payload])
+}
+
+function nbtByte (name, value) {
+  return nbtNamed(1, name, Buffer.from([value & 0xff]))
+}
+
+function nbtInt (name, value) {
+  const payload = Buffer.alloc(4)
+  payload.writeInt32BE(value)
+  return nbtNamed(3, name, payload)
+}
+
+function nbtFloat (name, value) {
+  return nbtNamed(5, name, floatPayload(value))
+}
+
+function nbtString (name, value) {
+  return nbtNamed(8, name, Buffer.concat([utf16Name(value)]))
+}
+
+function nbtList (name, type, payloads) {
+  const length = Buffer.alloc(4)
+  length.writeInt32BE(payloads.length)
+  return nbtNamed(9, name, Buffer.concat([Buffer.from([type]), length, ...payloads]))
+}
+
+function utf16Name (value) {
+  const data = Buffer.from(value, 'utf8')
+  const length = Buffer.alloc(2)
+  length.writeUInt16BE(data.length)
+  return Buffer.concat([length, data])
+}
+
+function floatPayload (value) {
+  const payload = Buffer.alloc(4)
+  payload.writeFloatBE(value)
+  return payload
+}
+
+function doublePayload (value) {
+  const payload = Buffer.alloc(8)
+  payload.writeDoubleBE(value)
+  return payload
 }
 
 async function reservePort () {

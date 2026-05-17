@@ -18,6 +18,12 @@ const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_
 const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 const expectedHeldSlot = Number(process.env.RUSTCRAFT_EXPECT_HELD_SLOT ?? 0)
 const carriedItemSlot = Number(process.env.RUSTCRAFT_RAW_PROBE_HELD_SLOT ?? 4)
+const expectedHealth = Number(process.env.RUSTCRAFT_EXPECT_HEALTH ?? 20)
+const expectedFoodLevel = Number(process.env.RUSTCRAFT_EXPECT_FOOD_LEVEL ?? 20)
+const expectedFoodSaturation = Number(process.env.RUSTCRAFT_EXPECT_FOOD_SATURATION ?? 5)
+const expectedXpProgress = Number(process.env.RUSTCRAFT_EXPECT_XP_PROGRESS ?? 0)
+const expectedXpLevel = Number(process.env.RUSTCRAFT_EXPECT_XP_LEVEL ?? 0)
+const expectedXpTotal = Number(process.env.RUSTCRAFT_EXPECT_XP_TOTAL ?? 0)
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
@@ -772,18 +778,18 @@ async function main () {
       throw new Error(`expected selected hotbar slot ${expectedHeldSlot}`)
     }
     const experiencePacket = packetById.get(103)?.[0]
-    if (!experiencePacket || experiencePacket.body.length !== 6 || experiencePacket.body.readFloatBE(0) !== 0) {
-      throw new Error(`expected zeroed set_experience payload, got ${experiencePacket?.body.toString('hex')}`)
+    if (!experiencePacket || experiencePacket.body.length < 6 || !nearlyEqual(experiencePacket.body.readFloatBE(0), expectedXpProgress)) {
+      throw new Error(`expected set_experience progress=${expectedXpProgress}, got ${experiencePacket?.body.toString('hex')}`)
     }
     const experienceLevel = readVarInt(experiencePacket.body, 4)
     const totalExperience = experienceLevel && readVarInt(experiencePacket.body, experienceLevel.offset)
-    if (!experienceLevel || !totalExperience || experienceLevel.value !== 0 || totalExperience.value !== 0 || totalExperience.offset !== experiencePacket.body.length) {
-      throw new Error('expected zero experience level and total')
+    if (!experienceLevel || !totalExperience || experienceLevel.value !== expectedXpLevel || totalExperience.value !== expectedXpTotal || totalExperience.offset !== experiencePacket.body.length) {
+      throw new Error(`expected experience level=${expectedXpLevel} total=${expectedXpTotal}`)
     }
     const healthPacket = packetById.get(104)?.[0]
     const food = healthPacket && readVarInt(healthPacket.body, 4)
-    if (!healthPacket || healthPacket.body.length !== 9 || healthPacket.body.readFloatBE(0) !== 20 || !food || food.value !== 20 || healthPacket.body.readFloatBE(food.offset) !== 5) {
-      throw new Error(`expected full-health login payload, got ${healthPacket?.body.toString('hex')}`)
+    if (!healthPacket || healthPacket.body.length < 9 || !nearlyEqual(healthPacket.body.readFloatBE(0), expectedHealth) || !food || food.value !== expectedFoodLevel || !nearlyEqual(healthPacket.body.readFloatBE(food.offset), expectedFoodSaturation)) {
+      throw new Error(`expected health=${expectedHealth} food=${expectedFoodLevel} saturation=${expectedFoodSaturation}, got ${healthPacket?.body.toString('hex')}`)
     }
     const inventoryPacket = packetById.get(18)?.[0]
     if (!inventoryPacket || inventoryPacket.body[0] !== 0) throw new Error('expected player inventory container content for container 0')

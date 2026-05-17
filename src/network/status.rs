@@ -89,6 +89,12 @@ struct PlaySessionState {
     pitch: f32,
     on_ground: bool,
     selected_slot: i32,
+    health: f32,
+    food_level: i32,
+    food_saturation: f32,
+    xp_progress: f32,
+    xp_level: i32,
+    xp_total: i32,
 }
 
 impl Default for PlaySessionState {
@@ -101,6 +107,12 @@ impl Default for PlaySessionState {
             pitch: 0.0,
             on_ground: true,
             selected_slot: 0,
+            health: 20.0,
+            food_level: 20,
+            food_saturation: 5.0,
+            xp_progress: 0.0,
+            xp_level: 0,
+            xp_total: 0,
         }
     }
 }
@@ -1405,12 +1417,12 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)]),
         ),
         ("OnGround".to_string(), Tag::Byte(i8::from(state.on_ground))),
-        ("Health".to_string(), Tag::Float(20.0)),
-        ("foodLevel".to_string(), Tag::Int(20)),
-        ("foodSaturationLevel".to_string(), Tag::Float(5.0)),
-        ("XpLevel".to_string(), Tag::Int(0)),
-        ("XpP".to_string(), Tag::Float(0.0)),
-        ("XpTotal".to_string(), Tag::Int(0)),
+        ("Health".to_string(), Tag::Float(state.health)),
+        ("foodLevel".to_string(), Tag::Int(state.food_level)),
+        ("foodSaturationLevel".to_string(), Tag::Float(state.food_saturation)),
+        ("XpLevel".to_string(), Tag::Int(state.xp_level)),
+        ("XpP".to_string(), Tag::Float(state.xp_progress)),
+        ("XpTotal".to_string(), Tag::Int(state.xp_total)),
         ("SelectedItemSlot".to_string(), Tag::Int(state.selected_slot)),
         (
             "Dimension".to_string(),
@@ -1440,6 +1452,30 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
         Some(Tag::Int(value)) if (0..9).contains(value) => *value,
         _ => 0,
     };
+    let health = match compound_tag(compound, "Health") {
+        Some(Tag::Float(value)) => value.clamp(0.0, 20.0),
+        _ => 20.0,
+    };
+    let food_level = match compound_tag(compound, "foodLevel") {
+        Some(Tag::Int(value)) => (*value).clamp(0, 20),
+        _ => 20,
+    };
+    let food_saturation = match compound_tag(compound, "foodSaturationLevel") {
+        Some(Tag::Float(value)) => value.clamp(0.0, food_level as f32),
+        _ => 5.0,
+    };
+    let xp_progress = match compound_tag(compound, "XpP") {
+        Some(Tag::Float(value)) => value.clamp(0.0, 1.0),
+        _ => 0.0,
+    };
+    let xp_level = match compound_tag(compound, "XpLevel") {
+        Some(Tag::Int(value)) => (*value).max(0),
+        _ => 0,
+    };
+    let xp_total = match compound_tag(compound, "XpTotal") {
+        Some(Tag::Int(value)) => (*value).max(0),
+        _ => 0,
+    };
     Some(PlaySessionState {
         x: *x,
         y: *y,
@@ -1448,6 +1484,12 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
         pitch: *pitch,
         on_ground,
         selected_slot,
+        health,
+        food_level,
+        food_saturation,
+        xp_progress,
+        xp_level,
+        xp_total,
     })
 }
 
@@ -1626,9 +1668,9 @@ fn write_minimal_play_join(
         compression,
         CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
         |payload| {
-            payload.write_all(&0.0f32.to_be_bytes())?;
-            write_var_i32(payload, 0)?;
-            write_var_i32(payload, 0)
+            payload.write_all(&play_state.xp_progress.to_be_bytes())?;
+            write_var_i32(payload, play_state.xp_level)?;
+            write_var_i32(payload, play_state.xp_total)
         },
     )?;
     write_framed_packet_with_compression(
@@ -1636,9 +1678,9 @@ fn write_minimal_play_join(
         compression,
         CLIENTBOUND_SET_HEALTH_PACKET_ID,
         |payload| {
-            payload.write_all(&20.0f32.to_be_bytes())?;
-            write_var_i32(payload, 20)?;
-            payload.write_all(&5.0f32.to_be_bytes())
+            payload.write_all(&play_state.health.to_be_bytes())?;
+            write_var_i32(payload, play_state.food_level)?;
+            payload.write_all(&play_state.food_saturation.to_be_bytes())
         },
     )?;
     write_framed_packet_with_compression(
