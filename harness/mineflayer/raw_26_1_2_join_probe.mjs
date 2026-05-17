@@ -11,6 +11,7 @@ const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === 
 const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
 const serverboundAcceptTeleportationPacketId = 0
+const serverboundChunkBatchReceivedPacketId = 11
 const serverboundKeepAlivePacketId = 28
 const serverboundSelectKnownPacksPacketId = 7
 const serverboundPlayerLoadedPacketId = 44
@@ -822,6 +823,7 @@ async function main () {
     ? null
     : play.filter(packet => packet.id === 45).length - 1
   socket.write(encodeClientPacket(reader, serverboundAcceptTeleportationPacketId, writeVarInt(0)))
+  socket.write(encodeClientPacket(reader, serverboundChunkBatchReceivedPacketId, Buffer.alloc(4)))
   socket.write(encodeClientPacket(reader, serverboundPlayerLoadedPacketId))
 
   let keepAliveReplies = 0
