@@ -21,6 +21,7 @@ mod collision_shape;
 mod combat_damage;
 mod command;
 mod command_feedback;
+mod command_parity;
 mod command_execution;
 mod command_selector;
 mod command_tree;
