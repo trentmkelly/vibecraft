@@ -12,12 +12,19 @@ const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
 const firstTickActions = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS === '1'
 const serverboundAcceptTeleportationPacketId = 0
+const serverboundChatPacketId = 9
 const serverboundChunkBatchReceivedPacketId = 11
 const serverboundClientInformationPacketId = 14
+const serverboundCommandSuggestionPacketId = 15
+const serverboundContainerClosePacketId = 19
 const serverboundKeepAlivePacketId = 28
 const serverboundMovePlayerPosRotPacketId = 31
+const serverboundPlayerActionPacketId = 41
 const serverboundSelectKnownPacksPacketId = 7
 const serverboundSetCarriedItemPacketId = 53
+const serverboundSwingPacketId = 63
+const serverboundUseItemOnPacketId = 66
+const serverboundUseItemPacketId = 67
 const serverboundPlayerLoadedPacketId = 44
 const clientboundKeepAlivePacketId = 44
 
@@ -833,6 +840,13 @@ async function main () {
     socket.write(encodeClientPacket(reader, serverboundClientInformationPacketId, clientInformationPayload()))
     socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, Buffer.from([0, 4])))
     socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload()))
+    socket.write(encodeClientPacket(reader, serverboundChatPacketId, chatPayload('first tick')))
+    socket.write(encodeClientPacket(reader, serverboundCommandSuggestionPacketId, commandSuggestionPayload('/list')))
+    socket.write(encodeClientPacket(reader, serverboundContainerClosePacketId, Buffer.from([0])))
+    socket.write(encodeClientPacket(reader, serverboundPlayerActionPacketId, playerActionPayload()))
+    socket.write(encodeClientPacket(reader, serverboundSwingPacketId, writeVarInt(0)))
+    socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, useItemOnPayload()))
+    socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
   }
 
   let keepAliveReplies = 0
@@ -888,6 +902,67 @@ function movePlayerPosRotPayload () {
   payload.writeFloatBE(0, 24)
   payload.writeFloatBE(0, 28)
   payload.writeUInt8(1, 32)
+  return payload
+}
+
+function chatPayload (message) {
+  return Buffer.concat([
+    writeString(message),
+    Buffer.alloc(8),
+    Buffer.alloc(8),
+    Buffer.from([0]),
+    writeVarInt(0),
+    Buffer.from([0])
+  ])
+}
+
+function commandSuggestionPayload (command) {
+  const transaction = Buffer.alloc(4)
+  transaction.writeInt32BE(1, 0)
+  return Buffer.concat([transaction, writeString(command)])
+}
+
+function playerActionPayload () {
+  const sequence = writeVarInt(1)
+  const payload = Buffer.alloc(10 + sequence.length)
+  // START_DESTROY_BLOCK at the block under the player, facing up.
+  payload[0] = 0
+  payload.writeBigInt64BE(80n, 1)
+  payload[9] = 1
+  sequence.copy(payload, 10)
+  return payload
+}
+
+function useItemOnPayload () {
+  const sequence = writeVarInt(2)
+  const payload = Buffer.alloc(22 + sequence.length)
+  let offset = 0
+  writeVarInt(0).copy(payload, offset)
+  offset += 1
+  payload.writeBigInt64BE(80n, offset)
+  offset += 8
+  writeVarInt(1).copy(payload, offset)
+  offset += 1
+  payload.writeFloatBE(0.5, offset)
+  payload.writeFloatBE(1.0, offset + 4)
+  payload.writeFloatBE(0.5, offset + 8)
+  offset += 12
+  payload[offset++] = 0
+  payload[offset++] = 0
+  sequence.copy(payload, offset)
+  return payload
+}
+
+function useItemPayload () {
+  const sequence = writeVarInt(3)
+  const payload = Buffer.alloc(10 + sequence.length)
+  let offset = 0
+  writeVarInt(0).copy(payload, offset)
+  offset += 1
+  sequence.copy(payload, offset)
+  offset += sequence.length
+  payload.writeFloatBE(0, offset)
+  payload.writeFloatBE(0, offset + 4)
   return payload
 }
 
