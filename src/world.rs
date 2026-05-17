@@ -74,6 +74,54 @@ pub struct LevelStem {
     pub dimension_type: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldPreset {
+    pub id: &'static str,
+    pub dimensions: &'static [PresetDimension],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PresetDimension {
+    pub level_stem: &'static str,
+    pub dimension_type: &'static str,
+    pub generator: ChunkGeneratorKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkGeneratorKind {
+    Noise {
+        biome_source: BiomeSourceKind,
+        noise_settings: &'static str,
+    },
+    Flat {
+        settings: FlatGeneratorSettings,
+    },
+    Debug {
+        biome: &'static str,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BiomeSourceKind {
+    MultiNoisePreset(&'static str),
+    Fixed(&'static str),
+    TheEnd,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlatGeneratorSettings {
+    pub biome: &'static str,
+    pub layers: &'static [FlatLayer],
+    pub lakes: bool,
+    pub features: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlatLayer {
+    pub block: &'static str,
+    pub height: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldOptions {
     pub seed: i64,
@@ -201,6 +249,151 @@ pub const LEVEL_STEMS: &[LevelStem] = &[
     LevelStem {
         id: "minecraft:the_end",
         dimension_type: "minecraft:the_end",
+    },
+];
+
+pub const FLAT_OVERWORLD_LAYERS: &[FlatLayer] = &[
+    FlatLayer {
+        block: "minecraft:bedrock",
+        height: 1,
+    },
+    FlatLayer {
+        block: "minecraft:dirt",
+        height: 2,
+    },
+    FlatLayer {
+        block: "minecraft:grass_block",
+        height: 1,
+    },
+];
+
+pub const DEFAULT_FLAT_GENERATOR_SETTINGS: FlatGeneratorSettings = FlatGeneratorSettings {
+    biome: "minecraft:plains",
+    layers: FLAT_OVERWORLD_LAYERS,
+    lakes: false,
+    features: false,
+};
+
+pub const NORMAL_OVERWORLD: PresetDimension = PresetDimension {
+    level_stem: "minecraft:overworld",
+    dimension_type: "minecraft:overworld",
+    generator: ChunkGeneratorKind::Noise {
+        biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:overworld"),
+        noise_settings: "minecraft:overworld",
+    },
+};
+
+pub const LARGE_BIOMES_OVERWORLD: PresetDimension = PresetDimension {
+    generator: ChunkGeneratorKind::Noise {
+        biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:overworld"),
+        noise_settings: "minecraft:large_biomes",
+    },
+    ..NORMAL_OVERWORLD
+};
+
+pub const AMPLIFIED_OVERWORLD: PresetDimension = PresetDimension {
+    generator: ChunkGeneratorKind::Noise {
+        biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:overworld"),
+        noise_settings: "minecraft:amplified",
+    },
+    ..NORMAL_OVERWORLD
+};
+
+pub const SINGLE_BIOME_SURFACE_OVERWORLD: PresetDimension = PresetDimension {
+    generator: ChunkGeneratorKind::Noise {
+        biome_source: BiomeSourceKind::Fixed("minecraft:plains"),
+        noise_settings: "minecraft:overworld",
+    },
+    ..NORMAL_OVERWORLD
+};
+
+pub const FLAT_OVERWORLD: PresetDimension = PresetDimension {
+    generator: ChunkGeneratorKind::Flat {
+        settings: DEFAULT_FLAT_GENERATOR_SETTINGS,
+    },
+    ..NORMAL_OVERWORLD
+};
+
+pub const DEBUG_OVERWORLD: PresetDimension = PresetDimension {
+    generator: ChunkGeneratorKind::Debug {
+        biome: "minecraft:plains",
+    },
+    ..NORMAL_OVERWORLD
+};
+
+pub const NETHER_PRESET_DIMENSION: PresetDimension = PresetDimension {
+    level_stem: "minecraft:the_nether",
+    dimension_type: "minecraft:the_nether",
+    generator: ChunkGeneratorKind::Noise {
+        biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:nether"),
+        noise_settings: "minecraft:nether",
+    },
+};
+
+pub const END_PRESET_DIMENSION: PresetDimension = PresetDimension {
+    level_stem: "minecraft:the_end",
+    dimension_type: "minecraft:the_end",
+    generator: ChunkGeneratorKind::Noise {
+        biome_source: BiomeSourceKind::TheEnd,
+        noise_settings: "minecraft:end",
+    },
+};
+
+pub const NORMAL_WORLD_DIMENSIONS: &[PresetDimension] = &[
+    NORMAL_OVERWORLD,
+    NETHER_PRESET_DIMENSION,
+    END_PRESET_DIMENSION,
+];
+pub const LARGE_BIOMES_WORLD_DIMENSIONS: &[PresetDimension] = &[
+    LARGE_BIOMES_OVERWORLD,
+    NETHER_PRESET_DIMENSION,
+    END_PRESET_DIMENSION,
+];
+pub const AMPLIFIED_WORLD_DIMENSIONS: &[PresetDimension] = &[
+    AMPLIFIED_OVERWORLD,
+    NETHER_PRESET_DIMENSION,
+    END_PRESET_DIMENSION,
+];
+pub const SINGLE_BIOME_SURFACE_WORLD_DIMENSIONS: &[PresetDimension] = &[
+    SINGLE_BIOME_SURFACE_OVERWORLD,
+    NETHER_PRESET_DIMENSION,
+    END_PRESET_DIMENSION,
+];
+pub const FLAT_WORLD_DIMENSIONS: &[PresetDimension] = &[
+    FLAT_OVERWORLD,
+    NETHER_PRESET_DIMENSION,
+    END_PRESET_DIMENSION,
+];
+pub const DEBUG_WORLD_DIMENSIONS: &[PresetDimension] = &[
+    DEBUG_OVERWORLD,
+    NETHER_PRESET_DIMENSION,
+    END_PRESET_DIMENSION,
+];
+
+pub const BUILTIN_WORLD_PRESETS: &[WorldPreset] = &[
+    WorldPreset {
+        id: "minecraft:normal",
+        dimensions: NORMAL_WORLD_DIMENSIONS,
+    },
+    WorldPreset {
+        id: "minecraft:flat",
+        dimensions: FLAT_WORLD_DIMENSIONS,
+    },
+    WorldPreset {
+        id: "minecraft:large_biomes",
+        dimensions: LARGE_BIOMES_WORLD_DIMENSIONS,
+    },
+    WorldPreset {
+        id: "minecraft:amplified",
+        dimensions: AMPLIFIED_WORLD_DIMENSIONS,
+    },
+    WorldPreset {
+        id: "minecraft:single_biome_surface",
+        dimensions: SINGLE_BIOME_SURFACE_WORLD_DIMENSIONS,
+    },
+    WorldPreset {
+        id: "minecraft:debug_all_block_states",
+        dimensions: DEBUG_WORLD_DIMENSIONS,
     },
 ];
 
@@ -336,13 +529,54 @@ pub fn builtin_dimension_type(id: &str) -> Option<DimensionType> {
     }
 }
 
+pub fn builtin_world_preset(id: &str) -> Option<&'static WorldPreset> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    BUILTIN_WORLD_PRESETS.iter().find(|preset| {
+        preset
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|preset_name| preset_name == name)
+    })
+}
+
+impl WorldPreset {
+    pub fn overworld(self) -> Option<PresetDimension> {
+        self.dimensions
+            .iter()
+            .copied()
+            .find(|dimension| dimension.level_stem == "minecraft:overworld")
+    }
+
+    pub fn validate(self) -> Result<(), String> {
+        if self.overworld().is_none() {
+            return Err("Missing overworld dimension".to_string());
+        }
+        for (idx, dimension) in self.dimensions.iter().enumerate() {
+            if dimension.level_stem == "minecraft:overworld" && idx != 0 {
+                return Err(
+                    "overworld dimension must be first in vanilla world dimension order"
+                        .to_string(),
+                );
+            }
+            if builtin_dimension_type(dimension.dimension_type).is_none() {
+                return Err(format!(
+                    "unknown dimension type {}",
+                    dimension.dimension_type
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        builtin_dimension_type, BedSpawnRule, CardinalLight, MonsterSpawnLightLevel, Skybox,
-        SleepRule, WorldOptions, END, END_GENERATION_HEIGHT, END_ISLAND_BASE_Y, LEVEL_STEMS,
-        NETHER, NETHER_GENERATION_HEIGHT, OVERWORLD, OVERWORLD_CAVES, OVERWORLD_CLOUD_HEIGHT,
-        OVERWORLD_GENERATION_HEIGHT,
+        builtin_dimension_type, builtin_world_preset, BedSpawnRule, BiomeSourceKind, CardinalLight,
+        ChunkGeneratorKind, MonsterSpawnLightLevel, Skybox, SleepRule, WorldOptions,
+        BUILTIN_WORLD_PRESETS, DEFAULT_FLAT_GENERATOR_SETTINGS, END, END_GENERATION_HEIGHT,
+        END_ISLAND_BASE_Y, LEVEL_STEMS, NETHER, NETHER_GENERATION_HEIGHT, OVERWORLD,
+        OVERWORLD_CAVES, OVERWORLD_CLOUD_HEIGHT, OVERWORLD_GENERATION_HEIGHT,
     };
     use std::path::Path;
 
@@ -361,6 +595,107 @@ mod tests {
                 "minecraft:the_nether",
                 "minecraft:the_end"
             ]
+        );
+    }
+
+    #[test]
+    fn builtin_world_presets_match_26_1_2_bootstrap_keys_and_order() {
+        assert_eq!(
+            BUILTIN_WORLD_PRESETS
+                .iter()
+                .map(|preset| preset.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:normal",
+                "minecraft:flat",
+                "minecraft:large_biomes",
+                "minecraft:amplified",
+                "minecraft:single_biome_surface",
+                "minecraft:debug_all_block_states",
+            ]
+        );
+
+        for preset in BUILTIN_WORLD_PRESETS {
+            assert!(preset.validate().is_ok());
+            assert_eq!(
+                preset
+                    .dimensions
+                    .iter()
+                    .map(|dimension| dimension.level_stem)
+                    .collect::<Vec<_>>(),
+                vec![
+                    "minecraft:overworld",
+                    "minecraft:the_nether",
+                    "minecraft:the_end"
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn world_preset_generators_match_worldpresets_bootstrap() {
+        let normal = builtin_world_preset("normal").unwrap();
+        assert_eq!(
+            normal.overworld().unwrap().generator,
+            ChunkGeneratorKind::Noise {
+                biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:overworld"),
+                noise_settings: "minecraft:overworld",
+            }
+        );
+
+        let large_biomes = builtin_world_preset("minecraft:large_biomes").unwrap();
+        assert_eq!(
+            large_biomes.overworld().unwrap().generator,
+            ChunkGeneratorKind::Noise {
+                biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:overworld"),
+                noise_settings: "minecraft:large_biomes",
+            }
+        );
+
+        let amplified = builtin_world_preset("amplified").unwrap();
+        assert_eq!(
+            amplified.overworld().unwrap().generator,
+            ChunkGeneratorKind::Noise {
+                biome_source: BiomeSourceKind::MultiNoisePreset("minecraft:overworld"),
+                noise_settings: "minecraft:amplified",
+            }
+        );
+
+        let single_biome = builtin_world_preset("single_biome_surface").unwrap();
+        assert_eq!(
+            single_biome.overworld().unwrap().generator,
+            ChunkGeneratorKind::Noise {
+                biome_source: BiomeSourceKind::Fixed("minecraft:plains"),
+                noise_settings: "minecraft:overworld",
+            }
+        );
+
+        let flat = builtin_world_preset("flat").unwrap();
+        assert_eq!(
+            flat.overworld().unwrap().generator,
+            ChunkGeneratorKind::Flat {
+                settings: DEFAULT_FLAT_GENERATOR_SETTINGS,
+            }
+        );
+        assert_eq!(
+            DEFAULT_FLAT_GENERATOR_SETTINGS
+                .layers
+                .iter()
+                .map(|layer| (layer.block, layer.height))
+                .collect::<Vec<_>>(),
+            vec![
+                ("minecraft:bedrock", 1),
+                ("minecraft:dirt", 2),
+                ("minecraft:grass_block", 1),
+            ]
+        );
+
+        let debug = builtin_world_preset("debug_all_block_states").unwrap();
+        assert_eq!(
+            debug.overworld().unwrap().generator,
+            ChunkGeneratorKind::Debug {
+                biome: "minecraft:plains",
+            }
         );
     }
 
