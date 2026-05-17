@@ -23,6 +23,7 @@ mod network;
 mod plant;
 mod player;
 mod player_access;
+mod portal;
 mod post_processing;
 mod random_source;
 mod random_tick;
