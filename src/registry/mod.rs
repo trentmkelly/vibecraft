@@ -288,6 +288,71 @@ pub enum HolderSet<T> {
     Named(TagKey<T>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagFile {
+    pub registry: Identifier,
+    pub tag: Identifier,
+    pub replace: bool,
+    pub entries: Vec<TagEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagEntry {
+    pub id: Identifier,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadedTags {
+    tags: BTreeMap<(Identifier, Identifier), Vec<Identifier>>,
+}
+
+impl LoadedTags {
+    pub fn load<T>(
+        registry: &Registry<T>,
+        files: impl IntoIterator<Item = TagFile>,
+    ) -> Result<Self, Vec<String>> {
+        let mut tags = BTreeMap::new();
+        let mut errors = Vec::new();
+        for file in files {
+            if &file.registry != registry.registry_id() {
+                errors.push(format!(
+                    "tag {} targets registry {}, expected {}",
+                    file.tag,
+                    file.registry,
+                    registry.registry_id()
+                ));
+                continue;
+            }
+            let key = (file.registry.clone(), file.tag.clone());
+            if file.replace {
+                tags.insert(key.clone(), Vec::new());
+            }
+            let values = tags.entry(key).or_insert_with(Vec::new);
+            for entry in file.entries {
+                if registry.get(&entry.id).is_some() {
+                    if !values.contains(&entry.id) {
+                        values.push(entry.id);
+                    }
+                } else if entry.required {
+                    errors.push(format!("missing required tag entry {}", entry.id));
+                }
+            }
+        }
+        if errors.is_empty() {
+            Ok(Self { tags })
+        } else {
+            Err(errors)
+        }
+    }
+
+    pub fn values(&self, registry: &Identifier, tag: &Identifier) -> Option<&[Identifier]> {
+        self.tags
+            .get(&(registry.clone(), tag.clone()))
+            .map(Vec::as_slice)
+    }
+}
+
 pub mod registries {
     pub const BLOCK: &str = "minecraft:block";
     pub const ITEM: &str = "minecraft:item";
@@ -829,6 +894,82 @@ mod tests {
             .registry(&Identifier::parse(registries::BIOME).unwrap())
             .unwrap()
             .is_frozen());
+    }
+
+    #[test]
+    fn tag_loading_handles_replace_optional_entries_and_errors() {
+        let mut registry = Registry::new(Identifier::parse(registries::ITEM).unwrap());
+        registry
+            .register(
+                Identifier::parse("stick").unwrap(),
+                "stick".to_string(),
+                Lifecycle::Stable,
+            )
+            .unwrap();
+        registry
+            .register(
+                Identifier::parse("apple").unwrap(),
+                "apple".to_string(),
+                Lifecycle::Stable,
+            )
+            .unwrap();
+        let tag = Identifier::parse("test/items").unwrap();
+
+        let loaded = super::LoadedTags::load(
+            &registry,
+            vec![
+                super::TagFile {
+                    registry: Identifier::parse(registries::ITEM).unwrap(),
+                    tag: tag.clone(),
+                    replace: false,
+                    entries: vec![super::TagEntry {
+                        id: Identifier::parse("stick").unwrap(),
+                        required: true,
+                    }],
+                },
+                super::TagFile {
+                    registry: Identifier::parse(registries::ITEM).unwrap(),
+                    tag: tag.clone(),
+                    replace: true,
+                    entries: vec![
+                        super::TagEntry {
+                            id: Identifier::parse("apple").unwrap(),
+                            required: true,
+                        },
+                        super::TagEntry {
+                            id: Identifier::parse("missing_optional").unwrap(),
+                            required: false,
+                        },
+                    ],
+                },
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            loaded
+                .values(&Identifier::parse(registries::ITEM).unwrap(), &tag)
+                .unwrap(),
+            &[Identifier::parse("apple").unwrap()]
+        );
+
+        let errors = super::LoadedTags::load(
+            &registry,
+            vec![super::TagFile {
+                registry: Identifier::parse(registries::ITEM).unwrap(),
+                tag,
+                replace: false,
+                entries: vec![super::TagEntry {
+                    id: Identifier::parse("missing_required").unwrap(),
+                    required: true,
+                }],
+            }],
+        )
+        .unwrap_err();
+        assert_eq!(
+            errors,
+            vec!["missing required tag entry minecraft:missing_required"]
+        );
     }
 
     #[test]
