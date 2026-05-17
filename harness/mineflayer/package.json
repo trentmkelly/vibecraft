@@ -6,7 +6,8 @@
     "test": "node --test *.test.mjs",
     "login": "node runner.mjs",
     "gate:login": "node login_gate.mjs",
-    "ci:login": "node ci_login_shard.mjs"
+    "ci:login": "node ci_login_shard.mjs",
+    "bisect:login": "node login_bisect.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
