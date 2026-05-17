@@ -23,5 +23,5 @@ test('raw 26.1.2 play probe survives the first keepalive interval', async () => 
   const result = JSON.parse(stdout)
   assert.equal(result.ok, true)
   assert.ok(result.keepAliveReplies >= 1, 'expected at least one keepalive round trip')
-  assert.ok(result.play.some(packet => packet.id === 113), 'expected clientbound keep_alive packet')
+  assert.ok(result.play.some(packet => packet.id === 44), 'expected clientbound keep_alive packet')
 })

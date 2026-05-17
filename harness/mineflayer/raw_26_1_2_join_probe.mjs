@@ -11,7 +11,7 @@ const serverboundAcceptTeleportationPacketId = 0
 const serverboundKeepAlivePacketId = 28
 const serverboundSelectKnownPacksPacketId = 7
 const serverboundPlayerLoadedPacketId = 44
-const clientboundKeepAlivePacketId = 113
+const clientboundKeepAlivePacketId = 44
 
 function writeVarInt (value) {
   let remaining = value >>> 0
