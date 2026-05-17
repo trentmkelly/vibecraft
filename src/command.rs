@@ -133,6 +133,9 @@ pub struct ServerCommandState {
     pub killed_entities: Vec<EntityRef>,
     pub teams: Vec<TeamState>,
     pub player_teams: Vec<TeamMembership>,
+    pub scoreboard_objectives: Vec<ScoreboardObjective>,
+    pub scoreboard_scores: Vec<ScoreboardScore>,
+    pub scoreboard_display_slots: Vec<ScoreboardDisplaySlot>,
     pub chat_events: Vec<ChatCommandEvent>,
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
@@ -349,6 +352,32 @@ impl TeamState {
             suffix: String::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoreboardObjective {
+    pub name: String,
+    pub criteria: String,
+    pub display_name: String,
+    pub render_type: String,
+    pub display_auto_update: bool,
+    pub number_format: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoreboardScore {
+    pub owner: String,
+    pub objective: String,
+    pub value: i32,
+    pub locked: bool,
+    pub display_name: Option<String>,
+    pub number_format: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoreboardDisplaySlot {
+    pub slot: String,
+    pub objective: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -656,6 +685,13 @@ pub enum CommandError {
     SpreadPlayersInvalidMaxHeight,
     SpreadPlayersFailedEntities,
     SpreadPlayersFailedTeams,
+    ScoreboardObjectiveAlreadyExists,
+    ScoreboardObjectiveNotFound,
+    ScoreboardScoreNotFound,
+    ScoreboardDisplayAlreadyEmpty,
+    ScoreboardDisplayAlreadySet,
+    ScoreboardTriggerAlreadyEnabled,
+    ScoreboardNotTrigger,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -762,6 +798,9 @@ impl Default for ServerCommandState {
             killed_entities: Vec::new(),
             teams: Vec::new(),
             player_teams: Vec::new(),
+            scoreboard_objectives: Vec::new(),
+            scoreboard_scores: Vec::new(),
+            scoreboard_display_slots: Vec::new(),
             chat_events: Vec::new(),
             sound_events: Vec::new(),
             particle_events: Vec::new(),
@@ -1150,6 +1189,7 @@ pub fn execute_builtin_command(
         }
         "playsound" => play_sound_command(state, &parts, permissions),
         "schedule" => schedule_command(state, &parts),
+        "scoreboard" => scoreboard_command(state, &parts),
         "stopsound" => stop_sound_command(state, &parts),
         "stopwatch" => stopwatch_command(state, &parts),
         "summon" => summon_command(state, &parts),
@@ -1924,6 +1964,281 @@ fn schedule_command(
     }
 }
 
+fn scoreboard_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["scoreboard", "objectives", "list"] => Ok(CommandResult {
+            success_count: state.scoreboard_objectives.len() as i32,
+            feedback_key: if state.scoreboard_objectives.is_empty() {
+                "commands.scoreboard.objectives.list.empty"
+            } else {
+                "commands.scoreboard.objectives.list.success"
+            },
+            broadcast_to_admins: false,
+        }),
+        ["scoreboard", "objectives", "add", objective, criteria] => {
+            add_scoreboard_objective(state, objective, criteria, objective)
+        }
+        ["scoreboard", "objectives", "add", objective, criteria, display] => {
+            add_scoreboard_objective(state, objective, criteria, display)
+        }
+        ["scoreboard", "objectives", "remove", objective] => {
+            require_scoreboard_objective(state, objective)?;
+            state
+                .scoreboard_objectives
+                .retain(|entry| entry.name != *objective);
+            state
+                .scoreboard_scores
+                .retain(|entry| entry.objective != *objective);
+            state
+                .scoreboard_display_slots
+                .retain(|entry| entry.objective != *objective);
+            Ok(CommandResult {
+                success_count: state.scoreboard_objectives.len() as i32,
+                feedback_key: "commands.scoreboard.objectives.remove.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["scoreboard", "objectives", "modify", objective, "displayname", display] => {
+            let objective = scoreboard_objective_mut(state, objective)?;
+            objective.display_name = (*display).to_string();
+            Ok(scoreboard_result(
+                "commands.scoreboard.objectives.modify.displayname",
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "objectives", "modify", objective, "rendertype", render_type] => {
+            if !matches!(*render_type, "integer" | "hearts") {
+                return Err(CommandError::InvalidSyntax);
+            }
+            let objective = scoreboard_objective_mut(state, objective)?;
+            objective.render_type = (*render_type).to_string();
+            Ok(scoreboard_result(
+                "commands.scoreboard.objectives.modify.rendertype",
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "objectives", "modify", objective, "displayautoupdate", value] => {
+            let value = parse_bool(value)?;
+            let objective = scoreboard_objective_mut(state, objective)?;
+            objective.display_auto_update = value;
+            Ok(scoreboard_result(
+                if value {
+                    "commands.scoreboard.objectives.modify.displayAutoUpdate.enable"
+                } else {
+                    "commands.scoreboard.objectives.modify.displayAutoUpdate.disable"
+                },
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "objectives", "modify", objective, "numberformat"] => {
+            let objective = scoreboard_objective_mut(state, objective)?;
+            objective.number_format = None;
+            Ok(scoreboard_result(
+                "commands.scoreboard.objectives.modify.objectiveFormat.clear",
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "objectives", "modify", objective, "numberformat", format @ ..]
+            if !format.is_empty() =>
+        {
+            let value = parse_score_number_format(format)?;
+            let objective = scoreboard_objective_mut(state, objective)?;
+            objective.number_format = Some(value);
+            Ok(scoreboard_result(
+                "commands.scoreboard.objectives.modify.objectiveFormat.set",
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "objectives", "setdisplay", slot] => {
+            if !state
+                .scoreboard_display_slots
+                .iter()
+                .any(|entry| entry.slot == *slot)
+            {
+                return Err(CommandError::ScoreboardDisplayAlreadyEmpty);
+            }
+            state
+                .scoreboard_display_slots
+                .retain(|entry| entry.slot != *slot);
+            Ok(scoreboard_result(
+                "commands.scoreboard.objectives.display.cleared",
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "objectives", "setdisplay", slot, objective] => {
+            require_scoreboard_objective(state, objective)?;
+            if state
+                .scoreboard_display_slots
+                .iter()
+                .any(|entry| entry.slot == *slot && entry.objective == *objective)
+            {
+                return Err(CommandError::ScoreboardDisplayAlreadySet);
+            }
+            state
+                .scoreboard_display_slots
+                .retain(|entry| entry.slot != *slot);
+            state.scoreboard_display_slots.push(ScoreboardDisplaySlot {
+                slot: (*slot).to_string(),
+                objective: (*objective).to_string(),
+            });
+            Ok(scoreboard_result(
+                "commands.scoreboard.objectives.display.set",
+                0,
+                true,
+            ))
+        }
+        ["scoreboard", "players", "list"] => {
+            let count = tracked_score_holders(state).len();
+            Ok(scoreboard_result(
+                if count == 0 {
+                    "commands.scoreboard.players.list.empty"
+                } else {
+                    "commands.scoreboard.players.list.success"
+                },
+                count as i32,
+                false,
+            ))
+        }
+        ["scoreboard", "players", "list", target] => {
+            let count = state
+                .scoreboard_scores
+                .iter()
+                .filter(|entry| entry.owner == *target)
+                .count();
+            Ok(scoreboard_result(
+                if count == 0 {
+                    "commands.scoreboard.players.list.entity.empty"
+                } else {
+                    "commands.scoreboard.players.list.entity.success"
+                },
+                count as i32,
+                false,
+            ))
+        }
+        ["scoreboard", "players", "get", target, objective] => {
+            require_scoreboard_objective(state, objective)?;
+            let score = scoreboard_score(state, target, objective)
+                .ok_or(CommandError::ScoreboardScoreNotFound)?;
+            Ok(scoreboard_result(
+                "commands.scoreboard.players.get.success",
+                score.value,
+                false,
+            ))
+        }
+        ["scoreboard", "players", "set", targets, objective, value] => {
+            let value = parse_i32(value)?;
+            set_scores(state, targets, objective, value)
+        }
+        ["scoreboard", "players", "add", targets, objective, value] => {
+            let value = parse_non_negative_i32(value)?;
+            add_scores(state, targets, objective, value)
+        }
+        ["scoreboard", "players", "remove", targets, objective, value] => {
+            let value = parse_non_negative_i32(value)?;
+            add_scores(state, targets, objective, -value)
+        }
+        ["scoreboard", "players", "reset", targets] => {
+            let names = parse_score_holders(targets);
+            for name in &names {
+                state.scoreboard_scores.retain(|entry| entry.owner != *name);
+            }
+            Ok(scoreboard_result(
+                if names.len() == 1 {
+                    "commands.scoreboard.players.reset.all.single"
+                } else {
+                    "commands.scoreboard.players.reset.all.multiple"
+                },
+                names.len() as i32,
+                true,
+            ))
+        }
+        ["scoreboard", "players", "reset", targets, objective] => {
+            require_scoreboard_objective(state, objective)?;
+            let names = parse_score_holders(targets);
+            for name in &names {
+                state
+                    .scoreboard_scores
+                    .retain(|entry| entry.owner != *name || entry.objective != *objective);
+            }
+            Ok(scoreboard_result(
+                if names.len() == 1 {
+                    "commands.scoreboard.players.reset.specific.single"
+                } else {
+                    "commands.scoreboard.players.reset.specific.multiple"
+                },
+                names.len() as i32,
+                true,
+            ))
+        }
+        ["scoreboard", "players", "enable", targets, objective] => {
+            if require_scoreboard_objective(state, objective)?.criteria != "trigger" {
+                return Err(CommandError::ScoreboardNotTrigger);
+            }
+            let names = parse_score_holders(targets);
+            let mut changed = 0;
+            for name in &names {
+                let score = scoreboard_score_mut_or_create(state, name, objective);
+                if !score.locked {
+                    continue;
+                }
+                score.locked = false;
+                changed += 1;
+            }
+            if changed == 0 {
+                return Err(CommandError::ScoreboardTriggerAlreadyEnabled);
+            }
+            Ok(scoreboard_result(
+                if names.len() == 1 {
+                    "commands.scoreboard.players.enable.success.single"
+                } else {
+                    "commands.scoreboard.players.enable.success.multiple"
+                },
+                changed,
+                true,
+            ))
+        }
+        ["scoreboard", "players", "display", "name", targets, objective] => {
+            set_score_display_name(state, targets, objective, None)
+        }
+        ["scoreboard", "players", "display", "name", targets, objective, name] => {
+            set_score_display_name(state, targets, objective, Some((*name).to_string()))
+        }
+        ["scoreboard", "players", "display", "numberformat", targets, objective] => {
+            set_score_number_format(state, targets, objective, None)
+        }
+        ["scoreboard", "players", "display", "numberformat", targets, objective, format @ ..]
+            if !format.is_empty() =>
+        {
+            set_score_number_format(
+                state,
+                targets,
+                objective,
+                Some(parse_score_number_format(format)?),
+            )
+        }
+        ["scoreboard", "players", "operation", targets, target_objective, operation, sources, source_objective] => {
+            scoreboard_operation(
+                state,
+                targets,
+                target_objective,
+                operation,
+                sources,
+                source_objective,
+            )
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
 fn schedule_function(
     state: &mut ServerCommandState,
     function: &str,
@@ -1971,6 +2286,321 @@ fn parse_schedule_function(input: &str) -> Result<(String, bool), CommandError> 
     } else {
         Ok((parse_resource_identifier(input)?, false))
     }
+}
+
+fn add_scoreboard_objective(
+    state: &mut ServerCommandState,
+    objective: &str,
+    criteria: &str,
+    display_name: &str,
+) -> Result<CommandResult, CommandError> {
+    parse_identifier(objective)?;
+    if state
+        .scoreboard_objectives
+        .iter()
+        .any(|entry| entry.name == objective)
+    {
+        return Err(CommandError::ScoreboardObjectiveAlreadyExists);
+    }
+    state.scoreboard_objectives.push(ScoreboardObjective {
+        name: objective.to_string(),
+        criteria: criteria.to_string(),
+        display_name: display_name.to_string(),
+        render_type: "integer".to_string(),
+        display_auto_update: true,
+        number_format: None,
+    });
+    Ok(scoreboard_result(
+        "commands.scoreboard.objectives.add.success",
+        state.scoreboard_objectives.len() as i32,
+        true,
+    ))
+}
+
+fn scoreboard_result(
+    feedback_key: &'static str,
+    success_count: i32,
+    broadcast_to_admins: bool,
+) -> CommandResult {
+    CommandResult {
+        success_count,
+        feedback_key,
+        broadcast_to_admins,
+    }
+}
+
+fn require_scoreboard_objective<'a>(
+    state: &'a ServerCommandState,
+    objective: &str,
+) -> Result<&'a ScoreboardObjective, CommandError> {
+    state
+        .scoreboard_objectives
+        .iter()
+        .find(|entry| entry.name == objective)
+        .ok_or(CommandError::ScoreboardObjectiveNotFound)
+}
+
+fn scoreboard_objective_mut<'a>(
+    state: &'a mut ServerCommandState,
+    objective: &str,
+) -> Result<&'a mut ScoreboardObjective, CommandError> {
+    state
+        .scoreboard_objectives
+        .iter_mut()
+        .find(|entry| entry.name == objective)
+        .ok_or(CommandError::ScoreboardObjectiveNotFound)
+}
+
+fn scoreboard_score<'a>(
+    state: &'a ServerCommandState,
+    owner: &str,
+    objective: &str,
+) -> Option<&'a ScoreboardScore> {
+    state
+        .scoreboard_scores
+        .iter()
+        .find(|entry| entry.owner == owner && entry.objective == objective)
+}
+
+fn scoreboard_score_mut_or_create<'a>(
+    state: &'a mut ServerCommandState,
+    owner: &str,
+    objective: &str,
+) -> &'a mut ScoreboardScore {
+    let index = if let Some(index) = state
+        .scoreboard_scores
+        .iter()
+        .position(|entry| entry.owner == owner && entry.objective == objective)
+    {
+        index
+    } else {
+        state.scoreboard_scores.push(ScoreboardScore {
+            owner: owner.to_string(),
+            objective: objective.to_string(),
+            value: 0,
+            locked: true,
+            display_name: None,
+            number_format: None,
+        });
+        state.scoreboard_scores.len() - 1
+    };
+    &mut state.scoreboard_scores[index]
+}
+
+fn parse_score_holders(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn tracked_score_holders(state: &ServerCommandState) -> Vec<String> {
+    let mut holders = Vec::new();
+    for score in &state.scoreboard_scores {
+        if !holders.contains(&score.owner) {
+            holders.push(score.owner.clone());
+        }
+    }
+    holders
+}
+
+fn set_scores(
+    state: &mut ServerCommandState,
+    targets: &str,
+    objective: &str,
+    value: i32,
+) -> Result<CommandResult, CommandError> {
+    require_scoreboard_objective(state, objective)?;
+    let names = parse_score_holders(targets);
+    for name in &names {
+        scoreboard_score_mut_or_create(state, name, objective).value = value;
+    }
+    Ok(scoreboard_result(
+        if names.len() == 1 {
+            "commands.scoreboard.players.set.success.single"
+        } else {
+            "commands.scoreboard.players.set.success.multiple"
+        },
+        names.len() as i32,
+        true,
+    ))
+}
+
+fn add_scores(
+    state: &mut ServerCommandState,
+    targets: &str,
+    objective: &str,
+    delta: i32,
+) -> Result<CommandResult, CommandError> {
+    require_scoreboard_objective(state, objective)?;
+    let names = parse_score_holders(targets);
+    let mut last = 0;
+    for name in &names {
+        let score = scoreboard_score_mut_or_create(state, name, objective);
+        score.value += delta;
+        last = score.value;
+    }
+    Ok(scoreboard_result(
+        if delta >= 0 {
+            if names.len() == 1 {
+                "commands.scoreboard.players.add.success.single"
+            } else {
+                "commands.scoreboard.players.add.success.multiple"
+            }
+        } else if names.len() == 1 {
+            "commands.scoreboard.players.remove.success.single"
+        } else {
+            "commands.scoreboard.players.remove.success.multiple"
+        },
+        if names.len() == 1 {
+            last
+        } else {
+            names.len() as i32
+        },
+        true,
+    ))
+}
+
+fn set_score_display_name(
+    state: &mut ServerCommandState,
+    targets: &str,
+    objective: &str,
+    display_name: Option<String>,
+) -> Result<CommandResult, CommandError> {
+    require_scoreboard_objective(state, objective)?;
+    let names = parse_score_holders(targets);
+    for name in &names {
+        scoreboard_score_mut_or_create(state, name, objective).display_name = display_name.clone();
+    }
+    Ok(scoreboard_result(
+        if display_name.is_some() {
+            if names.len() == 1 {
+                "commands.scoreboard.players.display.name.set.success.single"
+            } else {
+                "commands.scoreboard.players.display.name.set.success.multiple"
+            }
+        } else if names.len() == 1 {
+            "commands.scoreboard.players.display.name.clear.success.single"
+        } else {
+            "commands.scoreboard.players.display.name.clear.success.multiple"
+        },
+        names.len() as i32,
+        true,
+    ))
+}
+
+fn set_score_number_format(
+    state: &mut ServerCommandState,
+    targets: &str,
+    objective: &str,
+    number_format: Option<String>,
+) -> Result<CommandResult, CommandError> {
+    require_scoreboard_objective(state, objective)?;
+    let names = parse_score_holders(targets);
+    for name in &names {
+        scoreboard_score_mut_or_create(state, name, objective).number_format =
+            number_format.clone();
+    }
+    Ok(scoreboard_result(
+        if number_format.is_some() {
+            if names.len() == 1 {
+                "commands.scoreboard.players.display.numberFormat.set.success.single"
+            } else {
+                "commands.scoreboard.players.display.numberFormat.set.success.multiple"
+            }
+        } else if names.len() == 1 {
+            "commands.scoreboard.players.display.numberFormat.clear.success.single"
+        } else {
+            "commands.scoreboard.players.display.numberFormat.clear.success.multiple"
+        },
+        names.len() as i32,
+        true,
+    ))
+}
+
+fn parse_score_number_format(parts: &[&str]) -> Result<String, CommandError> {
+    match parts {
+        ["blank"] => Ok("blank".to_string()),
+        ["fixed", contents] => Ok(format!("fixed:{contents}")),
+        ["styled", style] => Ok(format!("styled:{style}")),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_operation(
+    state: &mut ServerCommandState,
+    targets: &str,
+    target_objective: &str,
+    operation: &str,
+    sources: &str,
+    source_objective: &str,
+) -> Result<CommandResult, CommandError> {
+    require_scoreboard_objective(state, target_objective)?;
+    require_scoreboard_objective(state, source_objective)?;
+    let targets = parse_score_holders(targets);
+    let sources = parse_score_holders(sources);
+    if sources.is_empty() || targets.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let source_values = sources
+        .iter()
+        .map(|source| {
+            scoreboard_score(state, source, source_objective)
+                .map(|score| score.value)
+                .ok_or(CommandError::ScoreboardScoreNotFound)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut last = 0;
+    for target in &targets {
+        for source_value in &source_values {
+            let score = scoreboard_score_mut_or_create(state, target, target_objective);
+            apply_score_operation(score, operation, *source_value)?;
+            last = score.value;
+        }
+    }
+    Ok(scoreboard_result(
+        if targets.len() == 1 {
+            "commands.scoreboard.players.operation.success.single"
+        } else {
+            "commands.scoreboard.players.operation.success.multiple"
+        },
+        if targets.len() == 1 {
+            last
+        } else {
+            targets.len() as i32
+        },
+        true,
+    ))
+}
+
+fn apply_score_operation(
+    score: &mut ScoreboardScore,
+    operation: &str,
+    source_value: i32,
+) -> Result<(), CommandError> {
+    match operation {
+        "=" => score.value = source_value,
+        "+=" => score.value += source_value,
+        "-=" => score.value -= source_value,
+        "*=" => score.value *= source_value,
+        "/=" => {
+            if source_value == 0 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            score.value /= source_value;
+        }
+        "%=" => {
+            if source_value == 0 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            score.value %= source_value;
+        }
+        "<" => score.value = score.value.min(source_value),
+        ">" => score.value = score.value.max(source_value),
+        _ => return Err(CommandError::InvalidSyntax),
+    }
+    Ok(())
 }
 
 fn setworldspawn_command(
@@ -3663,6 +4293,15 @@ fn parse_f64(input: &str) -> Result<f64, CommandError> {
         .map_err(|_| CommandError::InvalidSyntax)
 }
 
+fn parse_non_negative_i32(input: &str) -> Result<i32, CommandError> {
+    let value = parse_i32(input)?;
+    if value >= 0 {
+        Ok(value)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
 fn parse_f32(input: &str) -> Result<f32, CommandError> {
     input
         .parse::<f32>()
@@ -3775,6 +4414,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         (
             "schedule",
             "/schedule function <function|#tag> <time> [append|replace]|clear <id>",
+        ),
+        (
+            "scoreboard",
+            "/scoreboard objectives|players ...",
         ),
         ("seed", "/seed"),
         (
@@ -4182,9 +4825,9 @@ mod tests {
         Permission, PermissionLevel, PlaySoundRequest, PlayerGameMode, PlayerRecipeBook,
         PlayerSpawn, PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        ScoreboardObjective, ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest,
+        SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
+        SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -4451,6 +5094,281 @@ mod tests {
         assert_eq!(result.success_count, 8_675_309);
         assert_eq!(result.feedback_key, "commands.seed.success");
         assert!(!result.broadcast_to_admins);
+    }
+
+    #[test]
+    fn scoreboard_objectives_and_display_slots_follow_vanilla_feedbacks() {
+        let mut state = ServerCommandState::default();
+
+        assert_eq!(
+            command_required_permission("scoreboard"),
+            PermissionLevel::Gamemasters
+        );
+        let empty = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives list",
+        )
+        .unwrap();
+        assert_eq!(
+            empty.feedback_key,
+            "commands.scoreboard.objectives.list.empty"
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives add kills dummy Kills",
+        )
+        .unwrap();
+        assert_eq!(
+            state.scoreboard_objectives[0],
+            ScoreboardObjective {
+                name: "kills".to_string(),
+                criteria: "dummy".to_string(),
+                display_name: "Kills".to_string(),
+                render_type: "integer".to_string(),
+                display_auto_update: true,
+                number_format: None,
+            }
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard objectives add kills dummy"
+            ),
+            Err(CommandError::ScoreboardObjectiveAlreadyExists)
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives modify kills rendertype hearts",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives modify kills displayautoupdate false",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives modify kills numberformat fixed !",
+        )
+        .unwrap();
+        assert_eq!(state.scoreboard_objectives[0].render_type, "hearts");
+        assert!(!state.scoreboard_objectives[0].display_auto_update);
+        assert_eq!(
+            state.scoreboard_objectives[0].number_format,
+            Some("fixed:!".to_string())
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives setdisplay sidebar kills",
+        )
+        .unwrap();
+        assert_eq!(state.scoreboard_display_slots[0].slot, "sidebar");
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard objectives setdisplay sidebar kills"
+            ),
+            Err(CommandError::ScoreboardDisplayAlreadySet)
+        );
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard objectives setdisplay sidebar",
+        )
+        .unwrap();
+        assert!(state.scoreboard_display_slots.is_empty());
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard objectives setdisplay sidebar"
+            ),
+            Err(CommandError::ScoreboardDisplayAlreadyEmpty)
+        );
+    }
+
+    #[test]
+    fn scoreboard_players_set_get_arithmetic_reset_and_display_overrides() {
+        let mut state = ServerCommandState {
+            scoreboard_objectives: vec![ScoreboardObjective {
+                name: "kills".to_string(),
+                criteria: "dummy".to_string(),
+                display_name: "Kills".to_string(),
+                render_type: "integer".to_string(),
+                display_auto_update: true,
+                number_format: None,
+            }],
+            ..ServerCommandState::default()
+        };
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players set Steve kills 5",
+        )
+        .unwrap();
+        assert_eq!(state.scoreboard_scores[0].value, 5);
+        let get = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players get Steve kills",
+        )
+        .unwrap();
+        assert_eq!(get.success_count, 5);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players add Steve kills 2",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players remove Steve kills 3",
+        )
+        .unwrap();
+        assert_eq!(state.scoreboard_scores[0].value, 4);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players display name Steve kills Slayer",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players display numberformat Steve kills blank",
+        )
+        .unwrap();
+        assert_eq!(
+            state.scoreboard_scores[0].display_name,
+            Some("Slayer".to_string())
+        );
+        assert_eq!(
+            state.scoreboard_scores[0].number_format,
+            Some("blank".to_string())
+        );
+
+        let list = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players list",
+        )
+        .unwrap();
+        assert_eq!(list.success_count, 1);
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players reset Steve kills",
+        )
+        .unwrap();
+        assert!(state.scoreboard_scores.is_empty());
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard players get Steve kills"
+            ),
+            Err(CommandError::ScoreboardScoreNotFound)
+        );
+    }
+
+    #[test]
+    fn scoreboard_players_trigger_and_operations_match_core_rules() {
+        let mut state = ServerCommandState {
+            scoreboard_objectives: vec![
+                ScoreboardObjective {
+                    name: "triggered".to_string(),
+                    criteria: "trigger".to_string(),
+                    display_name: "Triggered".to_string(),
+                    render_type: "integer".to_string(),
+                    display_auto_update: true,
+                    number_format: None,
+                },
+                ScoreboardObjective {
+                    name: "kills".to_string(),
+                    criteria: "dummy".to_string(),
+                    display_name: "Kills".to_string(),
+                    render_type: "integer".to_string(),
+                    display_auto_update: true,
+                    number_format: None,
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players enable Steve triggered",
+        )
+        .unwrap();
+        assert!(!state.scoreboard_scores[0].locked);
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard players enable Steve triggered"
+            ),
+            Err(CommandError::ScoreboardTriggerAlreadyEnabled)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard players enable Steve kills"
+            ),
+            Err(CommandError::ScoreboardNotTrigger)
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players set Steve kills 4",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players set Alex kills 3",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "scoreboard players operation Steve kills += Alex kills",
+        )
+        .unwrap();
+        assert_eq!(
+            state
+                .scoreboard_scores
+                .iter()
+                .find(|score| score.owner == "Steve" && score.objective == "kills")
+                .unwrap()
+                .value,
+            7
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "scoreboard players operation Steve kills /= Alex missing"
+            ),
+            Err(CommandError::ScoreboardObjectiveNotFound)
+        );
     }
 
     #[test]
