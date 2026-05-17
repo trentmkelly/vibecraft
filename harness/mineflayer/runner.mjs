@@ -216,7 +216,7 @@ function startScenarioServer(options) {
 
 export async function stopServer(child) {
   if (child.exitCode !== null || child.signalCode !== null) return
-  child.stdin?.write('stop\n')
+  child.stdin?.write('stop\n', () => {})
   const exited = onceWithTimeout(child, 'exit', 3_000).catch(async () => {
     child.kill('SIGTERM')
     await onceWithTimeout(child, 'exit', 3_000).catch(() => child.kill('SIGKILL'))
