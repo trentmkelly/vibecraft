@@ -69,6 +69,7 @@ pub struct ServerCommandState {
     pub ride_events: Vec<RideCommandEvent>,
     pub entity_mounts: Vec<EntityMount>,
     pub entity_states: Vec<EntityState>,
+    pub entity_tags: Vec<EntityTags>,
     pub weather: WeatherState,
     pub whitelist_enabled: bool,
     pub whitelisted_players: Vec<NameAndId>,
@@ -333,6 +334,12 @@ pub struct EntityState {
     pub dimension: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntityTags {
+    pub entity: EntityRef,
+    pub tags: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityKind {
     Generic,
@@ -405,6 +412,8 @@ pub enum CommandError {
     RecipeGiveFailed,
     RecipeTakeFailed,
     SwingNoLivingEntity,
+    TagAddFailed,
+    TagRemoveFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -508,6 +517,7 @@ impl Default for ServerCommandState {
             ride_events: Vec::new(),
             entity_mounts: Vec::new(),
             entity_states: Vec::new(),
+            entity_tags: Vec::new(),
             weather: WeatherState::default(),
             whitelist_enabled: false,
             whitelisted_players: Vec::new(),
@@ -880,6 +890,7 @@ pub fn execute_builtin_command(
         "playsound" => play_sound_command(state, &parts, permissions),
         "stopsound" => stop_sound_command(state, &parts),
         "swing" => swing_command(state, &parts),
+        "tag" => tag_command(state, &parts),
         "particle" => particle_command(state, &parts),
         "perf" => perf_command(state, &parts),
         "rotate" => rotate_command(state, &parts),
@@ -1498,6 +1509,138 @@ fn swing_command(
         },
         broadcast_to_admins: true,
     })
+}
+
+fn tag_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["tag", targets, "add", name] => add_entity_tag(state, parse_entity_list(targets), name),
+        ["tag", targets, "remove", name] => {
+            remove_entity_tag(state, parse_entity_list(targets), name)
+        }
+        ["tag", targets, "list"] => list_entity_tags(state, parse_entity_list(targets)),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn add_entity_tag(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    name: &str,
+) -> Result<CommandResult, CommandError> {
+    if targets.is_empty() || name.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let target_count = targets.len();
+    let mut success = 0;
+    for target in targets {
+        let index = entity_tags_index(state, target);
+        if !state.entity_tags[index].tags.iter().any(|tag| tag == name) {
+            state.entity_tags[index].tags.push(name.to_string());
+            success += 1;
+        }
+    }
+    if success == 0 {
+        return Err(CommandError::TagAddFailed);
+    }
+    Ok(CommandResult {
+        success_count: success,
+        feedback_key: if target_count == 1 {
+            "commands.tag.add.success.single"
+        } else {
+            "commands.tag.add.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn remove_entity_tag(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    name: &str,
+) -> Result<CommandResult, CommandError> {
+    if targets.is_empty() || name.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let target_count = targets.len();
+    let mut success = 0;
+    for target in targets {
+        if let Some(index) = state
+            .entity_tags
+            .iter()
+            .position(|entry| entry.entity.id == target.id)
+        {
+            let old_len = state.entity_tags[index].tags.len();
+            state.entity_tags[index].tags.retain(|tag| tag != name);
+            if state.entity_tags[index].tags.len() != old_len {
+                success += 1;
+            }
+        }
+    }
+    if success == 0 {
+        return Err(CommandError::TagRemoveFailed);
+    }
+    Ok(CommandResult {
+        success_count: success,
+        feedback_key: if target_count == 1 {
+            "commands.tag.remove.success.single"
+        } else {
+            "commands.tag.remove.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn list_entity_tags(
+    state: &ServerCommandState,
+    targets: Vec<EntityRef>,
+) -> Result<CommandResult, CommandError> {
+    if targets.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let mut tags = Vec::<String>::new();
+    for target in &targets {
+        if let Some(entry) = state
+            .entity_tags
+            .iter()
+            .find(|entry| entry.entity.id == target.id)
+        {
+            for tag in &entry.tags {
+                if !tags.contains(tag) {
+                    tags.push(tag.clone());
+                }
+            }
+        }
+    }
+    let empty = tags.is_empty();
+    Ok(CommandResult {
+        success_count: tags.len() as i32,
+        feedback_key: match (targets.len(), empty) {
+            (1, true) => "commands.tag.list.single.empty",
+            (1, false) => "commands.tag.list.single.success",
+            (_, true) => "commands.tag.list.multiple.empty",
+            (_, false) => "commands.tag.list.multiple.success",
+        },
+        broadcast_to_admins: false,
+    })
+}
+
+fn entity_tags_index(state: &mut ServerCommandState, entity: EntityRef) -> usize {
+    if let Some(index) = state
+        .entity_tags
+        .iter()
+        .position(|entry| entry.entity.id == entity.id)
+    {
+        index
+    } else {
+        state.entity_tags.push(EntityTags {
+            entity,
+            tags: Vec::new(),
+        });
+        state.entity_tags.len() - 1
+    }
 }
 
 fn particle_command(
@@ -2290,6 +2433,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
         ("swing", "/swing [targets] [mainhand|offhand]"),
+        ("tag", "/tag <targets> <add|remove|list> [name]"),
         ("teammsg", "/teammsg <message>"),
         ("tell", "/tell <targets> <message>"),
         ("tellraw", "/tellraw <targets> <message>"),
@@ -2642,7 +2786,7 @@ mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, ChatCommandKind, CommandAvailability, CommandError, EntityAnchor,
-        EntityKind, EntityMount, EntityRef, EntityState, GameMode, InteractionHand,
+        EntityKind, EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
         LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
         PlaySoundRequest, PlayerRecipeBook, PublishRequest, ReloadRequest, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ServerCommandState,
@@ -4168,6 +4312,111 @@ mod tests {
                 LevelBasedPermissionSet::GAMEMASTER,
                 "swing pig wronghand"
             ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn tag_command_adds_removes_and_lists_entity_tags() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("tag"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "tag pig add angry"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let added = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tag pig,cow add angry",
+        )
+        .unwrap();
+        assert_eq!(added.success_count, 2);
+        assert_eq!(added.feedback_key, "commands.tag.add.success.multiple");
+        assert_eq!(
+            state.entity_tags,
+            vec![
+                EntityTags {
+                    entity: EntityRef {
+                        id: "pig".to_string(),
+                        display_name: "pig".to_string(),
+                    },
+                    tags: vec!["angry".to_string()],
+                },
+                EntityTags {
+                    entity: EntityRef {
+                        id: "cow".to_string(),
+                        display_name: "cow".to_string(),
+                    },
+                    tags: vec!["angry".to_string()],
+                },
+            ]
+        );
+
+        let listed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tag pig,cow list",
+        )
+        .unwrap();
+        assert_eq!(listed.success_count, 1);
+        assert_eq!(listed.feedback_key, "commands.tag.list.multiple.success");
+        assert!(!listed.broadcast_to_admins);
+
+        let removed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tag pig remove angry",
+        )
+        .unwrap();
+        assert_eq!(removed.success_count, 1);
+        assert_eq!(removed.feedback_key, "commands.tag.remove.success.single");
+        assert!(state.entity_tags[0].tags.is_empty());
+    }
+
+    #[test]
+    fn tag_command_reports_empty_lists_and_failed_mutations() {
+        let mut state = ServerCommandState::default();
+        let empty = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tag pig list",
+        )
+        .unwrap();
+        assert_eq!(empty.success_count, 0);
+        assert_eq!(empty.feedback_key, "commands.tag.list.single.empty");
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tag pig add angry",
+        )
+        .unwrap();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "tag pig add angry"
+            ),
+            Err(CommandError::TagAddFailed)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "tag cow remove angry"
+            ),
+            Err(CommandError::TagRemoveFailed)
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "tag pig"),
             Err(CommandError::InvalidSyntax)
         );
     }
