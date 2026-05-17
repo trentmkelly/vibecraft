@@ -17,6 +17,7 @@ pub const CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 141;
 pub const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
 pub const SERVERBOUND_CHAT_ACK_PACKET_ID: i32 = 6;
 pub const SERVERBOUND_CHAT_COMMAND_PACKET_ID: i32 = 7;
+pub const SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID: i32 = 8;
 pub const SERVERBOUND_CHAT_PACKET_ID: i32 = 9;
 pub const SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID: i32 = 11;
 pub const SERVERBOUND_CLIENT_COMMAND_PACKET_ID: i32 = 12;
@@ -883,6 +884,15 @@ impl PlaySession {
             ));
         }
 
+        if matches!(self.state, PlayState::WaitingForPlayerLoaded)
+            && is_command_like_play_packet(packet.id)
+        {
+            return DispatchOutcome::Disconnect(format!(
+                "command packet {} before player_loaded",
+                packet.id
+            ));
+        }
+
         match packet.id {
             SERVERBOUND_PLAYER_LOADED_PACKET_ID => {
                 self.loaded = true;
@@ -1025,6 +1035,16 @@ impl PlaySession {
             Err(err) => DispatchOutcome::Disconnect(format!("bad movement packet: {err}")),
         }
     }
+}
+
+fn is_command_like_play_packet(packet_id: i32) -> bool {
+    matches!(
+        packet_id,
+        SERVERBOUND_CHAT_COMMAND_PACKET_ID
+            | SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
+            | SERVERBOUND_CHAT_PACKET_ID
+            | SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID
+    )
 }
 
 impl PlayerChunkSender {
@@ -2683,6 +2703,37 @@ mod tests {
         );
         assert_eq!(session.state, PlayState::Playing);
         assert!(session.loaded);
+    }
+
+    #[test]
+    fn command_like_packets_wait_for_player_loaded_boundary() {
+        let mut session = PlaySession::new(1, 0);
+        session.state = PlayState::WaitingForPlayerLoaded;
+
+        for id in [
+            SERVERBOUND_CHAT_COMMAND_PACKET_ID,
+            SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+            SERVERBOUND_CHAT_PACKET_ID,
+            SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+        ] {
+            assert!(matches!(
+                session.handle_decoded(decoded(id, Vec::new())),
+                DispatchOutcome::Disconnect(reason)
+                    if reason == format!("command packet {id} before player_loaded")
+            ));
+        }
+
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_PLAYER_LOADED_PACKET_ID, Vec::new())),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+                Vec::new()
+            )),
+            DispatchOutcome::Handled
+        );
     }
 
     #[test]
