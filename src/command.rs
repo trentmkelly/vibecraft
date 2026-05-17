@@ -63,6 +63,7 @@ pub struct ServerCommandState {
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
+    pub swing_events: Vec<SwingCommandEvent>,
     pub rotation_requests: Vec<RotationRequest>,
     pub return_events: Vec<ReturnCommandEvent>,
     pub ride_events: Vec<RideCommandEvent>,
@@ -253,6 +254,18 @@ pub struct ServerPackPushRequest {
     pub prompt: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwingCommandEvent {
+    pub target: EntityRef,
+    pub hand: InteractionHand,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InteractionHand {
+    MainHand,
+    OffHand,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RotationRequest {
     pub target: EntityRef,
@@ -323,6 +336,7 @@ pub struct EntityState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityKind {
     Generic,
+    NonLiving,
     Player,
 }
 
@@ -390,6 +404,7 @@ pub enum CommandError {
     JfrDumpFailed,
     RecipeGiveFailed,
     RecipeTakeFailed,
+    SwingNoLivingEntity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -487,6 +502,7 @@ impl Default for ServerCommandState {
             sound_events: Vec::new(),
             particle_events: Vec::new(),
             server_pack_events: Vec::new(),
+            swing_events: Vec::new(),
             rotation_requests: Vec::new(),
             return_events: Vec::new(),
             ride_events: Vec::new(),
@@ -863,6 +879,7 @@ pub fn execute_builtin_command(
         }
         "playsound" => play_sound_command(state, &parts, permissions),
         "stopsound" => stop_sound_command(state, &parts),
+        "swing" => swing_command(state, &parts),
         "particle" => particle_command(state, &parts),
         "perf" => perf_command(state, &parts),
         "rotate" => rotate_command(state, &parts),
@@ -1438,6 +1455,51 @@ fn stop_sound_command(
     })
 }
 
+fn swing_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (targets, hand) = match parts {
+        ["swing"] => (
+            vec![state
+                .command_source_entity
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?],
+            InteractionHand::MainHand,
+        ),
+        ["swing", targets] => (parse_entity_list(targets), InteractionHand::MainHand),
+        ["swing", targets, "mainhand"] => (parse_entity_list(targets), InteractionHand::MainHand),
+        ["swing", targets, "offhand"] => (parse_entity_list(targets), InteractionHand::OffHand),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    if targets.is_empty() {
+        return Err(CommandError::SwingNoLivingEntity);
+    }
+
+    let mut success = 0;
+    for target in targets {
+        if entity_kind(state, &target) == EntityKind::NonLiving {
+            continue;
+        }
+        state.swing_events.push(SwingCommandEvent { target, hand });
+        success += 1;
+    }
+
+    if success == 0 {
+        return Err(CommandError::SwingNoLivingEntity);
+    }
+
+    Ok(CommandResult {
+        success_count: success,
+        feedback_key: if success == 1 {
+            "commands.swing.success.single"
+        } else {
+            "commands.swing.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
 fn particle_command(
     state: &mut ServerCommandState,
     parts: &[&str],
@@ -1911,16 +1973,18 @@ fn is_self_or_passenger_of(
 }
 
 fn entity_kind(state: &ServerCommandState, entity: &EntityRef) -> EntityKind {
-    if state
+    if let Some(kind) = state
         .entity_states
         .iter()
         .find(|known| known.entity.id == entity.id)
         .map(|known| known.kind)
-        .is_some_and(|kind| kind == EntityKind::Player)
-        || state
-            .online_players
-            .iter()
-            .any(|player| player.name == entity.id)
+    {
+        return kind;
+    }
+    if state
+        .online_players
+        .iter()
+        .any(|player| player.name == entity.id)
     {
         EntityKind::Player
     } else {
@@ -1988,6 +2052,14 @@ fn parse_name_list(input: &str) -> Vec<NameAndId> {
         .split(',')
         .filter(|name| !name.is_empty())
         .map(NameAndId::create_offline)
+        .collect()
+}
+
+fn parse_entity_list(input: &str) -> Vec<EntityRef> {
+    input
+        .split(',')
+        .filter(|id| !id.is_empty())
+        .map(entity_ref)
         .collect()
 }
 
@@ -2217,6 +2289,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("setidletimeout", "/setidletimeout <minutes>"),
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
+        ("swing", "/swing [targets] [mainhand|offhand]"),
         ("teammsg", "/teammsg <message>"),
         ("tell", "/tell <targets> <message>"),
         ("tellraw", "/tellraw <targets> <message>"),
@@ -2569,12 +2642,12 @@ mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, ChatCommandKind, CommandAvailability, CommandError, EntityAnchor,
-        EntityKind, EntityMount, EntityRef, EntityState, GameMode, LevelBasedPermissionSet,
-        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
-        PlayerRecipeBook, PublishRequest, ReloadRequest, ReturnCommandEvent, RideCommandEvent,
-        RotationMode, RotationRequest, SaveAllRequest, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SoundCommandEvent, SoundSource, StopSoundRequest, TeamMembership,
-        Vec3, VersionInfo, WeatherMode,
+        EntityKind, EntityMount, EntityRef, EntityState, GameMode, InteractionHand,
+        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
+        PlaySoundRequest, PlayerRecipeBook, PublishRequest, ReloadRequest, ReturnCommandEvent,
+        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ServerCommandState,
+        ServerPackCommandEvent, ServerPackPushRequest, SoundCommandEvent, SoundSource,
+        StopSoundRequest, SwingCommandEvent, TeamMembership, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -4016,6 +4089,86 @@ mod tests {
         assert_eq!(
             result.feedback_key,
             "commands.stopsound.success.sourceless.sound"
+        );
+    }
+
+    #[test]
+    fn swing_command_defaults_to_source_entity_and_accepts_hands() {
+        let mut state = ServerCommandState {
+            command_source_entity: Some(EntityRef {
+                id: "Steve".to_string(),
+                display_name: "Steve".to_string(),
+            }),
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("swing"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::MODERATOR, "swing"),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let own = execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "swing")
+            .unwrap();
+        assert_eq!(own.success_count, 1);
+        assert_eq!(own.feedback_key, "commands.swing.success.single");
+        assert_eq!(
+            state.swing_events[0],
+            SwingCommandEvent {
+                target: EntityRef {
+                    id: "Steve".to_string(),
+                    display_name: "Steve".to_string(),
+                },
+                hand: InteractionHand::MainHand,
+            }
+        );
+
+        let offhand = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "swing pig,cow offhand",
+        )
+        .unwrap();
+        assert_eq!(offhand.success_count, 2);
+        assert_eq!(offhand.feedback_key, "commands.swing.success.multiple");
+        assert_eq!(state.swing_events[1].hand, InteractionHand::OffHand);
+        assert_eq!(state.swing_events[2].target.id, "cow");
+    }
+
+    #[test]
+    fn swing_command_fails_when_no_living_entity_swings() {
+        let mut state = ServerCommandState {
+            entity_states: vec![EntityState {
+                entity: EntityRef {
+                    id: "minecart".to_string(),
+                    display_name: "minecart".to_string(),
+                },
+                kind: EntityKind::NonLiving,
+                dimension: "minecraft:overworld".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "swing minecart"
+            ),
+            Err(CommandError::SwingNoLivingEntity)
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "swing"),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "swing pig wronghand"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
