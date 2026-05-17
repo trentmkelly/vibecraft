@@ -4,8 +4,9 @@ import crypto from 'node:crypto'
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
-const protocolVersion = 775
+const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
 const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
+const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === '1'
 const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
 const serverboundAcceptTeleportationPacketId = 0
@@ -520,6 +521,12 @@ async function main () {
   socket.write(frame(0, writeString(username), randomUuidBytes()))
 
   const login = await reader.nextPacket()
+  if (expectLoginDisconnect) {
+    expectPacket(login, 0, 'login_disconnect')
+    socket.end()
+    console.log(JSON.stringify({ ok: true, disconnected: true, host, port, login: login.id, length: login.length }, null, 2))
+    return
+  }
   expectPacket(login, 2, 'login_finished')
   if (abortAfter === 'login_success') return abortSocket(socket, 'login_success', { login: login.id })
   socket.write(frame(3))

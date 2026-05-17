@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 
 use crate::network::codec::{write_identifier, write_optional};
 use crate::network::login::{
-    LoginSession, ServerboundHelloPacket, ServerboundLoginAcknowledgedPacket,
+    ClientboundLoginDisconnectPacket, LoginSession, ServerboundHelloPacket,
+    ServerboundLoginAcknowledgedPacket, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
     CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, SERVERBOUND_HELLO_PACKET_ID,
     SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID,
 };
@@ -725,13 +726,16 @@ fn handle_status_connection(
         ));
     }
 
-    let _protocol = read_var_i32(&mut input)?;
+    let protocol = read_var_i32(&mut input)?;
     let _server_address = read_string(&mut input, 255)?;
     let mut port_bytes = [0u8; 2];
     input.read_exact(&mut port_bytes)?;
     let _server_port = u16::from_be_bytes(port_bytes);
     let next_state = read_var_i32(&mut input)?;
     if next_state == 2 {
+        if protocol != PROTOCOL_VERSION {
+            return write_login_protocol_mismatch_disconnect(&mut stream, protocol);
+        }
         return handle_login_connection(&mut stream, properties);
     }
     if next_state != 1 {
@@ -765,6 +769,23 @@ fn handle_status_connection(
             }
         }
     }
+}
+
+fn write_login_protocol_mismatch_disconnect(stream: &mut TcpStream, protocol: i32) -> io::Result<()> {
+    let key = if protocol < 754 {
+        "multiplayer.disconnect.outdated_client"
+    } else {
+        "multiplayer.disconnect.incompatible"
+    };
+    write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
+        ClientboundLoginDisconnectPacket {
+            reason: crate::network::codec::ComponentJson(format!(
+                "{{\"translate\":\"{}\",\"with\":[\"{}\"]}}",
+                key, VERSION_NAME
+            )),
+        }
+        .write(payload)
+    })
 }
 
 fn handle_login_connection(

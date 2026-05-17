@@ -3,7 +3,8 @@ import { createConnection } from 'node:net'
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const timeoutMs = Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 5000)
-const protocolVersion = 775
+const targetProtocolVersion = 775
+const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
 const versionName = '26.1.2'
 
 function writeVarInt (value) {
@@ -129,7 +130,7 @@ async function runStatusProbe () {
     pong: pong.toString(),
     expectedPong: pongPayload.toString(),
     assertions: {
-      protocol: status.version?.protocol === protocolVersion,
+      protocol: status.version?.protocol === targetProtocolVersion,
       versionName: status.version?.name === versionName,
       motdText: typeof status.description?.text === 'string',
       playerCounts: Number.isInteger(status.players?.online) && Number.isInteger(status.players?.max),
