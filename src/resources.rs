@@ -99,6 +99,34 @@ pub enum DataResourceKind {
 }
 
 impl DataResourceKind {
+    pub const ALL: &'static [Self] = &[
+        Self::Advancement,
+        Self::BannerPattern,
+        Self::ChatType,
+        Self::DamageType,
+        Self::Dialog,
+        Self::DimensionType,
+        Self::Enchantment,
+        Self::EnchantmentProvider,
+        Self::Instrument,
+        Self::JukeboxSong,
+        Self::LootTable,
+        Self::PaintingVariant,
+        Self::Recipe,
+        Self::Structure,
+        Self::Tags,
+        Self::TestEnvironment,
+        Self::TestInstance,
+        Self::Timeline,
+        Self::TradeSet,
+        Self::TrialSpawner,
+        Self::TrimMaterial,
+        Self::TrimPattern,
+        Self::VillagerTrade,
+        Self::WorldClock,
+        Self::Worldgen,
+    ];
+
     pub fn path_component(self) -> &'static str {
         match self {
             Self::Advancement => "advancement",
@@ -1213,6 +1241,42 @@ mod tests {
             vanilla.requested_features,
             feature_flags::default_flags_26_1_2()
         );
+    }
+
+    #[test]
+    fn indexes_all_vanilla_data_resource_roots_by_kind() {
+        let resources = DataResourceKind::ALL
+            .iter()
+            .map(|kind| {
+                let id = if *kind == DataResourceKind::Tags {
+                    "block/example"
+                } else {
+                    "example"
+                };
+                let path = format!("data/minecraft/{}/{id}.json", kind.path_component());
+                (
+                    path,
+                    r#"{"loaded":true}"#.to_string(),
+                    *kind,
+                    id.to_string(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let index = DataResourceIndex::from_resources(
+            resources
+                .iter()
+                .map(|(path, contents, _kind, _id)| (path.as_str(), contents.as_str())),
+        )
+        .unwrap();
+
+        for (_path, contents, kind, id) in resources {
+            assert_eq!(
+                index.get("minecraft", kind, &id),
+                Some(contents.as_str()),
+                "missing indexed resource kind {:?}",
+                kind
+            );
+        }
     }
 
     #[test]
