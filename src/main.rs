@@ -24,6 +24,7 @@ mod gravity;
 mod inhabited_time;
 mod inventory;
 mod item_catalog;
+mod item_family_behavior;
 mod item_properties;
 mod item_stack;
 mod light;
