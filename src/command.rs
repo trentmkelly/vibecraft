@@ -112,6 +112,8 @@ pub struct ServerCommandState {
     pub next_jfr_recording_path: String,
     pub known_recipes: Vec<String>,
     pub player_recipes: Vec<PlayerRecipeBook>,
+    pub advancements: Vec<AdvancementDefinition>,
+    pub player_advancements: Vec<PlayerAdvancementProgress>,
     pub command_time_millis: u64,
     pub game_time_ticks: u64,
     pub stopwatches: Vec<StopwatchState>,
@@ -242,6 +244,20 @@ pub struct PerfReport {
 pub struct PlayerRecipeBook {
     pub player: NameAndId,
     pub recipes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvancementDefinition {
+    pub id: String,
+    pub parent: Option<String>,
+    pub criteria: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerAdvancementProgress {
+    pub player: NameAndId,
+    pub advancement: String,
+    pub completed_criteria: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -692,6 +708,8 @@ pub enum CommandError {
     ScoreboardDisplayAlreadySet,
     ScoreboardTriggerAlreadyEnabled,
     ScoreboardNotTrigger,
+    AdvancementNoAction,
+    AdvancementCriterionNotFound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -777,6 +795,8 @@ impl Default for ServerCommandState {
             next_jfr_recording_path: "debug/rustcraft.jfr".to_string(),
             known_recipes: Vec::new(),
             player_recipes: Vec::new(),
+            advancements: Vec::new(),
+            player_advancements: Vec::new(),
             command_time_millis: 0,
             game_time_ticks: 0,
             stopwatches: Vec::new(),
@@ -1075,6 +1095,7 @@ pub fn execute_builtin_command(
             _ => Err(CommandError::InvalidSyntax),
         },
         "jfr" => jfr_command(state, &parts),
+        "advancement" => advancement_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -1735,6 +1756,270 @@ fn play_sound_command(
         },
         broadcast_to_admins: true,
     })
+}
+
+fn advancement_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let action = match parts.get(1).copied() {
+        Some("grant") => AdvancementAction::Grant,
+        Some("revoke") => AdvancementAction::Revoke,
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    let targets = parts.get(2).ok_or(CommandError::InvalidSyntax)?;
+    let targets = parse_name_list(targets);
+    if targets.is_empty() {
+        return Err(CommandError::NoPlayers);
+    }
+    match parts.get(3).copied() {
+        Some("everything") if parts.len() == 4 => {
+            let advancement_ids = state
+                .advancements
+                .iter()
+                .map(|advancement| advancement.id.clone())
+                .collect::<Vec<_>>();
+            perform_advancement_action(state, action, &targets, &advancement_ids, None, false)
+        }
+        Some(mode @ ("only" | "from" | "until" | "through")) => {
+            let advancement = parts.get(4).ok_or(CommandError::InvalidSyntax)?;
+            let criterion = if mode == "only" && parts.len() > 5 {
+                Some(parts[5..].join(" "))
+            } else if parts.len() == 5 {
+                None
+            } else {
+                return Err(CommandError::InvalidSyntax);
+            };
+            let advancement_ids = advancement_selection(state, advancement, mode)?;
+            perform_advancement_action(
+                state,
+                action,
+                &targets,
+                &advancement_ids,
+                criterion.as_deref(),
+                true,
+            )
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AdvancementAction {
+    Grant,
+    Revoke,
+}
+
+fn advancement_selection(
+    state: &ServerCommandState,
+    target: &str,
+    mode: &str,
+) -> Result<Vec<String>, CommandError> {
+    let target = parse_resource_identifier(target)?;
+    if state.advancements.iter().all(|entry| entry.id != target) {
+        return Ok(vec![target]);
+    }
+    let mut output = Vec::new();
+    if matches!(mode, "until" | "through") {
+        let mut parent = state
+            .advancements
+            .iter()
+            .find(|entry| entry.id == target)
+            .and_then(|entry| entry.parent.clone());
+        let mut parents = Vec::new();
+        while let Some(parent_id) = parent {
+            parents.push(parent_id.clone());
+            parent = state
+                .advancements
+                .iter()
+                .find(|entry| entry.id == parent_id)
+                .and_then(|entry| entry.parent.clone());
+        }
+        parents.reverse();
+        output.extend(parents);
+    }
+    output.push(target.clone());
+    if matches!(mode, "from" | "through") {
+        add_advancement_children(state, &target, &mut output);
+    }
+    Ok(output)
+}
+
+fn add_advancement_children(state: &ServerCommandState, parent: &str, output: &mut Vec<String>) {
+    for child in state
+        .advancements
+        .iter()
+        .filter(|entry| entry.parent.as_deref() == Some(parent))
+    {
+        output.push(child.id.clone());
+        add_advancement_children(state, &child.id, output);
+    }
+}
+
+fn perform_advancement_action(
+    state: &mut ServerCommandState,
+    action: AdvancementAction,
+    targets: &[NameAndId],
+    advancements: &[String],
+    criterion: Option<&str>,
+    show_advancements: bool,
+) -> Result<CommandResult, CommandError> {
+    let mut count = 0;
+    for target in targets {
+        for advancement in advancements {
+            if let Some(criterion) = criterion {
+                let definition = state
+                    .advancements
+                    .iter()
+                    .find(|entry| entry.id == *advancement)
+                    .ok_or(CommandError::AdvancementCriterionNotFound)?;
+                if !definition.criteria.iter().any(|entry| entry == criterion) {
+                    return Err(CommandError::AdvancementCriterionNotFound);
+                }
+                if perform_advancement_criterion(state, action, target, advancement, criterion) {
+                    count += 1;
+                }
+            } else if perform_advancement(state, action, target, advancement) {
+                count += 1;
+            }
+        }
+    }
+    if count == 0 {
+        return Err(CommandError::AdvancementNoAction);
+    }
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: match (
+            action,
+            criterion.is_some(),
+            advancements.len(),
+            targets.len(),
+        ) {
+            (AdvancementAction::Grant, true, _, 1) => {
+                "commands.advancement.grant.criterion.to.one.success"
+            }
+            (AdvancementAction::Grant, true, _, _) => {
+                "commands.advancement.grant.criterion.to.many.success"
+            }
+            (AdvancementAction::Revoke, true, _, 1) => {
+                "commands.advancement.revoke.criterion.to.one.success"
+            }
+            (AdvancementAction::Revoke, true, _, _) => {
+                "commands.advancement.revoke.criterion.to.many.success"
+            }
+            (AdvancementAction::Grant, false, 1, 1) => {
+                "commands.advancement.grant.one.to.one.success"
+            }
+            (AdvancementAction::Grant, false, 1, _) => {
+                "commands.advancement.grant.one.to.many.success"
+            }
+            (AdvancementAction::Grant, false, _, 1) => {
+                "commands.advancement.grant.many.to.one.success"
+            }
+            (AdvancementAction::Grant, false, _, _) => {
+                "commands.advancement.grant.many.to.many.success"
+            }
+            (AdvancementAction::Revoke, false, 1, 1) => {
+                "commands.advancement.revoke.one.to.one.success"
+            }
+            (AdvancementAction::Revoke, false, 1, _) => {
+                "commands.advancement.revoke.one.to.many.success"
+            }
+            (AdvancementAction::Revoke, false, _, 1) => {
+                "commands.advancement.revoke.many.to.one.success"
+            }
+            (AdvancementAction::Revoke, false, _, _) => {
+                "commands.advancement.revoke.many.to.many.success"
+            }
+        },
+        broadcast_to_admins: show_advancements,
+    })
+}
+
+fn perform_advancement(
+    state: &mut ServerCommandState,
+    action: AdvancementAction,
+    target: &NameAndId,
+    advancement: &str,
+) -> bool {
+    let criteria = state
+        .advancements
+        .iter()
+        .find(|entry| entry.id == advancement)
+        .map(|entry| entry.criteria.clone())
+        .unwrap_or_else(|| vec!["impossible".to_string()]);
+    let progress = player_advancement_progress_mut(state, target, advancement);
+    match action {
+        AdvancementAction::Grant => {
+            let missing = criteria
+                .into_iter()
+                .filter(|criterion| !progress.completed_criteria.contains(criterion))
+                .collect::<Vec<_>>();
+            if missing.is_empty() {
+                return false;
+            }
+            progress.completed_criteria.extend(missing);
+            true
+        }
+        AdvancementAction::Revoke => {
+            if progress.completed_criteria.is_empty() {
+                return false;
+            }
+            progress.completed_criteria.clear();
+            true
+        }
+    }
+}
+
+fn perform_advancement_criterion(
+    state: &mut ServerCommandState,
+    action: AdvancementAction,
+    target: &NameAndId,
+    advancement: &str,
+    criterion: &str,
+) -> bool {
+    let progress = player_advancement_progress_mut(state, target, advancement);
+    match action {
+        AdvancementAction::Grant => {
+            if progress
+                .completed_criteria
+                .iter()
+                .any(|entry| entry == criterion)
+            {
+                false
+            } else {
+                progress.completed_criteria.push(criterion.to_string());
+                true
+            }
+        }
+        AdvancementAction::Revoke => {
+            let old_len = progress.completed_criteria.len();
+            progress
+                .completed_criteria
+                .retain(|entry| entry != criterion);
+            progress.completed_criteria.len() != old_len
+        }
+    }
+}
+
+fn player_advancement_progress_mut<'a>(
+    state: &'a mut ServerCommandState,
+    player: &NameAndId,
+    advancement: &str,
+) -> &'a mut PlayerAdvancementProgress {
+    if let Some(index) = state
+        .player_advancements
+        .iter()
+        .position(|entry| entry.player.uuid == player.uuid && entry.advancement == advancement)
+    {
+        return &mut state.player_advancements[index];
+    }
+    state.player_advancements.push(PlayerAdvancementProgress {
+        player: player.clone(),
+        advancement: advancement.to_string(),
+        completed_criteria: Vec::new(),
+    });
+    state.player_advancements.last_mut().unwrap()
 }
 
 fn stop_sound_command(
@@ -4382,6 +4667,10 @@ pub fn command_usage(command: &str, permissions: LevelBasedPermissionSet) -> Opt
 
 fn known_command_usages() -> &'static [(&'static str, &'static str)] {
     &[
+        (
+            "advancement",
+            "/advancement <grant|revoke> <targets> <everything|only|from|until|through>",
+        ),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -4819,15 +5108,16 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
-        visible_command_usages, BlockPos, BlockStateEntry, ChatCommandKind, CommandAvailability,
-        CommandError, EntityAnchor, EntityKind, EntityMount, EntityRef, EntityState, EntityTags,
-        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
-        Permission, PermissionLevel, PlaySoundRequest, PlayerGameMode, PlayerRecipeBook,
-        PlayerSpawn, PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent,
-        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
-        ScoreboardObjective, ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest,
-        SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
-        SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        visible_command_usages, AdvancementDefinition, BlockPos, BlockStateEntry, ChatCommandKind,
+        CommandAvailability, CommandError, EntityAnchor, EntityKind, EntityMount, EntityRef,
+        EntityState, EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet,
+        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
+        PlayerAdvancementProgress, PlayerGameMode, PlayerRecipeBook, PlayerSpawn, PublishRequest,
+        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
+        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -8299,5 +8589,115 @@ mod tests {
             ),
             Err(CommandError::TeamNotFound)
         );
+    }
+
+    #[test]
+    fn advancement_grant_revoke_modes_walk_parent_child_tree() {
+        let mut state = ServerCommandState {
+            advancements: vec![
+                AdvancementDefinition {
+                    id: "minecraft:story/root".to_string(),
+                    parent: None,
+                    criteria: vec!["tick".to_string()],
+                },
+                AdvancementDefinition {
+                    id: "minecraft:story/mine_stone".to_string(),
+                    parent: Some("minecraft:story/root".to_string()),
+                    criteria: vec!["stone".to_string()],
+                },
+                AdvancementDefinition {
+                    id: "minecraft:story/iron_tools".to_string(),
+                    parent: Some("minecraft:story/mine_stone".to_string()),
+                    criteria: vec!["iron".to_string()],
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        let granted = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "advancement grant Steve through minecraft:story/mine_stone",
+        )
+        .unwrap();
+        assert_eq!(granted.success_count, 3);
+        assert_eq!(
+            granted.feedback_key,
+            "commands.advancement.grant.many.to.one.success"
+        );
+        let player = NameAndId::create_offline("Steve");
+        assert!(state.player_advancements.iter().any(|progress| {
+            progress.player.uuid == player.uuid
+                && progress.advancement == "minecraft:story/root"
+                && progress.completed_criteria == vec!["tick".to_string()]
+        }));
+
+        let revoked = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "advancement revoke Steve from minecraft:story/mine_stone",
+        )
+        .unwrap();
+        assert_eq!(revoked.success_count, 2);
+        assert!(state.player_advancements.iter().any(|progress| {
+            progress.advancement == "minecraft:story/root"
+                && progress.completed_criteria == vec!["tick".to_string()]
+        }));
+    }
+
+    #[test]
+    fn advancement_everything_and_criterion_paths_match_vanilla_outcomes() {
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            advancements: vec![AdvancementDefinition {
+                id: "minecraft:adventure/root".to_string(),
+                parent: None,
+                criteria: vec!["a".to_string(), "b".to_string()],
+            }],
+            player_advancements: vec![PlayerAdvancementProgress {
+                player: alex.clone(),
+                advancement: "minecraft:adventure/root".to_string(),
+                completed_criteria: vec!["a".to_string()],
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let criterion = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "advancement grant Alex only minecraft:adventure/root b",
+        )
+        .unwrap();
+        assert_eq!(criterion.success_count, 1);
+        assert_eq!(
+            criterion.feedback_key,
+            "commands.advancement.grant.criterion.to.one.success"
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "advancement grant Alex only minecraft:adventure/root missing"
+            ),
+            Err(CommandError::AdvancementCriterionNotFound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "advancement grant Alex only minecraft:adventure/root b"
+            ),
+            Err(CommandError::AdvancementNoAction)
+        );
+
+        let revoked = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "advancement revoke Alex everything",
+        )
+        .unwrap();
+        assert_eq!(revoked.success_count, 1);
+        assert!(!revoked.broadcast_to_admins);
+        assert!(state.player_advancements[0].completed_criteria.is_empty());
     }
 }
