@@ -330,6 +330,28 @@ pub struct JigsawPoolBootstrapSource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlendingConstants {
+    pub height_blending_range_cells: i32,
+    pub height_blending_range_chunks: i32,
+    pub density_blending_range_cells: i32,
+    pub density_blending_range_chunks: i32,
+    pub old_chunk_xz_radius: i32,
+    pub cell_width: i32,
+    pub cell_height: i32,
+    pub cell_ratio: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpgradeDataModel {
+    pub tag_indices: &'static str,
+    pub tag_sides: &'static str,
+    pub tag_neighbor_block_ticks: &'static str,
+    pub tag_neighbor_fluid_ticks: &'static str,
+    pub block_fixers: &'static [&'static str],
+    pub chunky_fixers: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructureFamily {
     Village,
     Stronghold,
@@ -3086,6 +3108,26 @@ pub const JIGSAW_POOL_BOOTSTRAP_SOURCES: &[JigsawPoolBootstrapSource] = &[
     },
 ];
 
+pub const BLENDING_CONSTANTS: BlendingConstants = BlendingConstants {
+    height_blending_range_cells: 27,
+    height_blending_range_chunks: 7,
+    density_blending_range_cells: 2,
+    density_blending_range_chunks: 2,
+    old_chunk_xz_radius: 8,
+    cell_width: 4,
+    cell_height: 8,
+    cell_ratio: 2,
+};
+
+pub const UPGRADE_DATA_MODEL: UpgradeDataModel = UpgradeDataModel {
+    tag_indices: "Indices",
+    tag_sides: "Sides",
+    tag_neighbor_block_ticks: "neighbor_block_ticks",
+    tag_neighbor_fluid_ticks: "neighbor_fluid_ticks",
+    block_fixers: &["blacklist", "default", "chest", "leaves", "stem_block"],
+    chunky_fixers: &["leaves"],
+};
+
 const fn structure_family(
     family: StructureFamily,
     structures: &'static [&'static str],
@@ -3600,6 +3642,19 @@ pub fn ore_vein_sphere_is_shadowed(radius_delta: f64, dx: f64, dy: f64, dz: f64)
     radius_delta * radius_delta > dx * dx + dy * dy + dz * dz
 }
 
+pub fn blending_height_to_offset(height: f64) -> f64 {
+    let target_y = height + 0.5;
+    let target_y_mod = target_y.rem_euclid(8.0);
+    (32.0 * (target_y - 128.0) - 3.0 * (target_y - 120.0) * target_y_mod
+        + 3.0 * target_y_mod * target_y_mod)
+        / (128.0 * (32.0 - 3.0 * target_y_mod))
+}
+
+pub fn blending_smooth_alpha(distance: f64, range_cells: i32) -> f64 {
+    let alpha = (distance / f64::from(range_cells + 1)).clamp(0.0, 1.0);
+    3.0 * alpha * alpha - 2.0 * alpha * alpha * alpha
+}
+
 pub fn carver_can_reach(
     chunk_mid_x: f64,
     chunk_mid_z: f64,
@@ -3627,17 +3682,18 @@ mod tests {
         OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, StructureFamily,
         StructurePlacementKind, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor,
         WorldCarverType, AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
-        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLOATING_ISLANDS_NOISE_SETTINGS, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
-        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES,
-        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
-        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
-        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
-        WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
+        BLENDING_CONSTANTS, BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS,
+        BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS,
+        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
+        CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
+        FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS,
+        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
+        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES,
+        STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
+        STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4774,5 +4830,40 @@ mod tests {
                 .map(|source| source.registrations),
             Some(17)
         );
+    }
+
+    #[test]
+    fn terrain_blending_and_upgrade_data_match_vanilla_constants() {
+        assert_eq!(BLENDING_CONSTANTS.height_blending_range_cells, 27);
+        assert_eq!(BLENDING_CONSTANTS.height_blending_range_chunks, 7);
+        assert_eq!(BLENDING_CONSTANTS.density_blending_range_cells, 2);
+        assert_eq!(BLENDING_CONSTANTS.density_blending_range_chunks, 2);
+        assert_eq!(BLENDING_CONSTANTS.old_chunk_xz_radius, 8);
+        assert_eq!(BLENDING_CONSTANTS.cell_width, 4);
+        assert_eq!(BLENDING_CONSTANTS.cell_height, 8);
+        assert_eq!(BLENDING_CONSTANTS.cell_ratio, 2);
+
+        assert_eq!(super::blending_smooth_alpha(0.0, 27), 0.0);
+        assert_eq!(super::blending_smooth_alpha(28.0, 27), 1.0);
+        assert!((super::blending_smooth_alpha(14.0, 27) - 0.5).abs() < f64::EPSILON);
+        assert!((super::blending_height_to_offset(127.5)).abs() < f64::EPSILON);
+        assert!(super::blending_height_to_offset(63.5) < 0.0);
+        assert!(super::blending_height_to_offset(191.5) > 0.0);
+
+        assert_eq!(UPGRADE_DATA_MODEL.tag_indices, "Indices");
+        assert_eq!(UPGRADE_DATA_MODEL.tag_sides, "Sides");
+        assert_eq!(
+            UPGRADE_DATA_MODEL.tag_neighbor_block_ticks,
+            "neighbor_block_ticks"
+        );
+        assert_eq!(
+            UPGRADE_DATA_MODEL.tag_neighbor_fluid_ticks,
+            "neighbor_fluid_ticks"
+        );
+        assert_eq!(
+            UPGRADE_DATA_MODEL.block_fixers,
+            &["blacklist", "default", "chest", "leaves", "stem_block"]
+        );
+        assert_eq!(UPGRADE_DATA_MODEL.chunky_fixers, &["leaves"]);
     }
 }
