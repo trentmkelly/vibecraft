@@ -1237,7 +1237,7 @@ fn handle_login_connection(
         "finish configuration",
     )?;
 
-    let mut play_state = load_play_session_state(world_root, &finished.profile.uuid);
+    let mut play_state = load_play_session_state(world_root, &finished.profile.uuid, properties);
     write_minimal_play_join(
         stream,
         compression,
@@ -1384,13 +1384,25 @@ fn update_play_session_state<R: Read>(
     }
 }
 
-fn load_play_session_state(world_root: &Path, uuid: &str) -> PlaySessionState {
+fn load_play_session_state(
+    world_root: &Path,
+    uuid: &str,
+    properties: &ServerProperties,
+) -> PlaySessionState {
     let layout = WorldLayout::new(world_root);
-    layout
+    let default_game_mode = game_mode_from_name(&properties.game_mode);
+    let mut state = layout
         .load_player_data(uuid)
         .ok()
-        .and_then(|tag| play_session_state_from_nbt(&tag))
-        .unwrap_or_default()
+        .and_then(|tag| play_session_state_from_nbt(&tag, default_game_mode))
+        .unwrap_or_else(|| PlaySessionState {
+            game_mode: default_game_mode,
+            ..PlaySessionState::default()
+        });
+    if properties.force_game_mode {
+        state.game_mode = default_game_mode;
+    }
+    state
 }
 
 fn save_play_session_state(
@@ -1446,7 +1458,7 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
     Tag::Compound(values)
 }
 
-fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
+fn play_session_state_from_nbt(tag: &Tag, default_game_mode: GameMode) -> Option<PlaySessionState> {
     let compound = match tag {
         Tag::Compound(values) => values,
         _ => return None,
@@ -1493,7 +1505,7 @@ fn play_session_state_from_nbt(tag: &Tag) -> Option<PlaySessionState> {
     };
     let game_mode = match compound_tag(compound, "playerGameType") {
         Some(Tag::Int(value)) => game_mode_from_legacy_id(*value),
-        _ => GameMode::Survival,
+        _ => default_game_mode,
     };
     let previous_game_mode = match compound_tag(compound, "previousPlayerGameType") {
         Some(Tag::Int(value)) if *value == -1 => None,
@@ -2954,6 +2966,15 @@ fn game_mode_from_legacy_id(id: i32) -> GameMode {
         1 => GameMode::Creative,
         2 => GameMode::Adventure,
         3 => GameMode::Spectator,
+        _ => GameMode::Survival,
+    }
+}
+
+fn game_mode_from_name(name: &str) -> GameMode {
+    match name {
+        "creative" => GameMode::Creative,
+        "adventure" => GameMode::Adventure,
+        "spectator" => GameMode::Spectator,
         _ => GameMode::Survival,
     }
 }

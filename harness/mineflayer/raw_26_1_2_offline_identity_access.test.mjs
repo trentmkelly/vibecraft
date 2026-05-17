@@ -291,6 +291,46 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(joined.ok, true)
   })
 
+  await withServer({
+    username: 'DefaultCreative',
+    properties: { gamemode: 'creative' }
+  }, async ({ port, username }) => {
+    const joined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_GAME_MODE: '1',
+      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+    })
+    assert.equal(joined.ok, true)
+  })
+
+  await withServer({
+    username: 'ForcedAdventure',
+    properties: { gamemode: 'adventure', 'force-gamemode': 'true' }
+  }, async ({ port, root, username }) => {
+    const uuid = offlineUuid(username)
+    const position = { x: 3.5, y: 80, z: 3.5, yaw: 15, pitch: 5 }
+    await writePlayerData(root, uuid, {
+      health: 20,
+      foodLevel: 20,
+      foodSaturation: 5,
+      xpProgress: 0,
+      xpLevel: 0,
+      xpTotal: 0,
+      selectedSlot: 0,
+      gameMode: 1,
+      previousGameMode: 0,
+      position
+    })
+
+    const joined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
+      RUSTCRAFT_EXPECT_GAME_MODE: '2',
+      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
+      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+    })
+    assert.equal(joined.ok, true)
+  })
+
   await withRestartableServer({ username: 'FreshSave' }, async ({ port, root, username, restart }) => {
     const uuid = offlineUuid(username)
     const playerdata = path.join(root, 'world', 'playerdata', `${uuid}.dat`)
