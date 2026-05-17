@@ -16244,6 +16244,45 @@ mod tests {
     }
 
     #[test]
+    fn list_command_tracks_login_replacement_and_disconnect_counts() {
+        let mut state = ServerCommandState {
+            max_players: 40,
+            ..ServerCommandState::default()
+        };
+
+        let empty =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
+        assert_eq!(empty.success_count, 0);
+        assert_eq!(empty.feedback_key, "commands.list.players");
+
+        state.online_players = vec![NameAndId::create_offline("Steve")];
+        let joined =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
+        assert_eq!(joined.success_count, 1);
+        assert_eq!(joined.feedback_key, "commands.list.players");
+
+        state.online_players = vec![NameAndId::create_offline("Steve")];
+        let replaced =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list uuids")
+                .unwrap();
+        assert_eq!(replaced.success_count, 1);
+        assert_eq!(replaced.feedback_key, "commands.list.players");
+
+        state.online_players = vec![
+            NameAndId::create_offline("Steve"),
+            NameAndId::create_offline("Alex"),
+        ];
+        let two_players =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
+        assert_eq!(two_players.success_count, 2);
+
+        state.online_players = vec![NameAndId::create_offline("Alex")];
+        let after_disconnect =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
+        assert_eq!(after_disconnect.success_count, 1);
+    }
+
+    #[test]
     fn kick_command_requires_admin_published_server_and_non_owner_target() {
         let mut state = ServerCommandState::default();
         assert_eq!(command_required_permission("kick"), PermissionLevel::Admins);
