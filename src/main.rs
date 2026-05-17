@@ -7,6 +7,7 @@ mod block_entity;
 mod block_metadata;
 mod block_regression;
 mod block_update;
+mod boss_fight;
 mod chat_trust;
 mod chunk_manager;
 mod chunk_task;
