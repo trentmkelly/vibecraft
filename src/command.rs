@@ -1028,6 +1028,114 @@ impl TeamState {
             suffix: String::new(),
         }
     }
+
+    pub fn packed_options(&self) -> u8 {
+        u8::from(self.friendly_fire) | (u8::from(self.see_friendly_invisibles) << 1)
+    }
+
+    pub fn apply_packed_options(&mut self, options: u8) {
+        self.friendly_fire = options & 1 != 0;
+        self.see_friendly_invisibles = options & 2 != 0;
+    }
+
+    pub fn formatted_member_name(&self, member_name: &str) -> String {
+        let name = format!("{}{}{}", self.prefix, member_name, self.suffix);
+        if self.color == "reset" {
+            name
+        } else {
+            format!("{}:{name}", self.color)
+        }
+    }
+
+    pub fn formatted_display_name(&self) -> String {
+        if self.color == "reset" {
+            format!("[{}]", self.display_name)
+        } else {
+            format!("{}:[{}]", self.color, self.display_name)
+        }
+    }
+}
+
+pub fn player_team<'a>(
+    teams: &'a [TeamState],
+    memberships: &[TeamMembership],
+    player: &NameAndId,
+) -> Option<&'a TeamState> {
+    let team_name = memberships
+        .iter()
+        .find(|membership| membership.player.uuid == player.uuid)
+        .map(|membership| membership.team.as_str())?;
+    teams.iter().find(|team| team.name == team_name)
+}
+
+pub fn players_allied(
+    memberships: &[TeamMembership],
+    first: &NameAndId,
+    second: &NameAndId,
+) -> bool {
+    let first_team = memberships
+        .iter()
+        .find(|membership| membership.player.uuid == first.uuid)
+        .map(|membership| membership.team.as_str());
+    first_team.is_some_and(|team| {
+        memberships
+            .iter()
+            .any(|membership| membership.player.uuid == second.uuid && membership.team == team)
+    })
+}
+
+pub fn team_allows_friendly_damage(
+    teams: &[TeamState],
+    memberships: &[TeamMembership],
+    attacker: &NameAndId,
+    victim: &NameAndId,
+) -> bool {
+    if !players_allied(memberships, attacker, victim) {
+        return true;
+    }
+    player_team(teams, memberships, attacker).is_none_or(|team| team.friendly_fire)
+}
+
+pub fn team_allows_collision(
+    teams: &[TeamState],
+    memberships: &[TeamMembership],
+    first: &NameAndId,
+    second: &NameAndId,
+) -> bool {
+    let allied = players_allied(memberships, first, second);
+    let Some(team) = player_team(teams, memberships, first) else {
+        return true;
+    };
+    match team.collision_rule.as_str() {
+        "never" => false,
+        "pushOwnTeam" => allied,
+        "pushOtherTeams" => !allied,
+        _ => true,
+    }
+}
+
+pub fn team_allows_visibility(
+    teams: &[TeamState],
+    memberships: &[TeamMembership],
+    viewer: &NameAndId,
+    subject: &NameAndId,
+    death_message: bool,
+) -> bool {
+    let allied = players_allied(memberships, viewer, subject);
+    let Some(team) = player_team(teams, memberships, subject) else {
+        return true;
+    };
+    let rule = if death_message {
+        &team.death_message_visibility
+    } else {
+        &team.nametag_visibility
+    };
+    match rule.as_str() {
+        "never" => false,
+        "hideForOtherTeams" => allied,
+        "hideForOwnTeam" => !allied,
+        _ => true,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11968,12 +12076,13 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, entity_position, entity_ref,
-        execute_builtin_command, visible_command_usages, ActiveEffect, AdvancementDefinition,
-        AttributeModifierState, AttributeOperation, AvatarProfile, BiomeEntry, BlockPos,
-        BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession,
-        ChatCommandKind, ChunkPos, CloneFilter, CloneMode, CommandAvailability,
-        CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable, CommandError,
-        CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
+        execute_builtin_command, player_team, players_allied, team_allows_collision,
+        team_allows_friendly_damage, team_allows_visibility, visible_command_usages, ActiveEffect,
+        AdvancementDefinition, AttributeModifierState, AttributeOperation, AvatarProfile,
+        BiomeEntry, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
+        ChaseEvent, ChaseSession, ChatCommandKind, ChunkPos, CloneFilter, CloneMode,
+        CommandAvailability, CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable,
+        CommandError, CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
         CommandItemModifierEvent, CommandItemStack, CommandItemTarget, CommandLocatableEntry,
         CommandLocateResult, CommandLootSource, CommandLootTable, CommandLootTarget,
         CommandPlayerInventory, CommandRaidEvent, CommandRaidState, DamageCommandSource,
@@ -20098,6 +20207,16 @@ mod tests {
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red seeFriendlyInvisibles false",
+        )
+        .unwrap();
+        assert_eq!(state.teams[0].packed_options(), 0);
+        state.teams[0].apply_packed_options(3);
+        assert!(state.teams[0].friendly_fire);
+        assert!(state.teams[0].see_friendly_invisibles);
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
             "team modify red nametagVisibility never",
         )
         .unwrap();
@@ -20105,10 +20224,34 @@ mod tests {
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red deathMessageVisibility hideForOtherTeams",
+        )
+        .unwrap();
+        assert_eq!(state.teams[0].death_message_visibility, "hideForOtherTeams");
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
             "team modify red collisionRule pushOwnTeam",
         )
         .unwrap();
         assert_eq!(state.teams[0].collision_rule, "pushOwnTeam");
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red prefix <",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red suffix >",
+        )
+        .unwrap();
+        assert_eq!(
+            state.teams[0].formatted_member_name("Steve"),
+            "blue:<Steve>"
+        );
+        assert_eq!(state.teams[0].formatted_display_name(), "blue:[Red Team]");
         assert_eq!(
             execute_builtin_command(
                 &mut state,
@@ -20125,6 +20268,84 @@ mod tests {
             ),
             Err(CommandError::TeamNotFound)
         );
+    }
+
+    #[test]
+    fn team_runtime_rules_apply_alliance_visibility_collision_and_friendly_fire() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let blake = NameAndId::create_offline("Blake");
+        let teams = vec![TeamState {
+            name: "red".to_string(),
+            display_name: "Red".to_string(),
+            color: "red".to_string(),
+            friendly_fire: false,
+            see_friendly_invisibles: true,
+            nametag_visibility: "hideForOtherTeams".to_string(),
+            death_message_visibility: "hideForOwnTeam".to_string(),
+            collision_rule: "pushOtherTeams".to_string(),
+            prefix: String::new(),
+            suffix: String::new(),
+        }];
+        let memberships = vec![
+            TeamMembership {
+                player: steve.clone(),
+                team: "red".to_string(),
+            },
+            TeamMembership {
+                player: alex.clone(),
+                team: "red".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            player_team(&teams, &memberships, &steve).map(|team| team.name.as_str()),
+            Some("red")
+        );
+        assert!(players_allied(&memberships, &steve, &alex));
+        assert!(!players_allied(&memberships, &steve, &blake));
+        assert!(!team_allows_friendly_damage(
+            &teams,
+            &memberships,
+            &steve,
+            &alex
+        ));
+        assert!(team_allows_friendly_damage(
+            &teams,
+            &memberships,
+            &steve,
+            &blake
+        ));
+        assert!(!team_allows_collision(&teams, &memberships, &steve, &alex));
+        assert!(team_allows_collision(&teams, &memberships, &steve, &blake));
+        assert!(team_allows_visibility(
+            &teams,
+            &memberships,
+            &alex,
+            &steve,
+            false
+        ));
+        assert!(!team_allows_visibility(
+            &teams,
+            &memberships,
+            &blake,
+            &steve,
+            false
+        ));
+        assert!(!team_allows_visibility(
+            &teams,
+            &memberships,
+            &alex,
+            &steve,
+            true
+        ));
+        assert!(team_allows_visibility(
+            &teams,
+            &memberships,
+            &blake,
+            &steve,
+            true
+        ));
     }
 
     #[test]
