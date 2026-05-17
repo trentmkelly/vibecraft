@@ -21,6 +21,7 @@ export async function createTempWorld(prefix = 'rustcraft-mf-') {
 }
 
 export async function writeOfflineServerFiles(root, options = {}) {
+  await mkdir(root, { recursive: true })
   const properties = {
     'online-mode': 'false',
     'enforce-secure-profile': 'false',
@@ -46,6 +47,26 @@ export function startRustCraft(options) {
     '--port', String(options.port)
   ]
   const child = spawn(options.binary, args, {
+    cwd: options.root,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, ...(options.env ?? {}) }
+  })
+  const logs = []
+  child.stdout.setEncoding('utf8')
+  child.stderr.setEncoding('utf8')
+  child.stdout.on('data', chunk => logs.push({ stream: 'stdout', text: chunk }))
+  child.stderr.on('data', chunk => logs.push({ stream: 'stderr', text: chunk }))
+  return { child, logs, args }
+}
+
+export function startOfficialServer(options) {
+  const args = [
+    ...(options.javaArgs ?? ['-Xms512M', '-Xmx512M']),
+    '-jar',
+    options.jar,
+    '--nogui'
+  ]
+  const child = spawn(options.java ?? 'java', args, {
     cwd: options.root,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, ...(options.env ?? {}) }
@@ -100,7 +121,7 @@ export async function connectOfflineBot(options) {
 export async function runOfflineLoginScenario(options) {
   const root = options.root ?? await createTempWorld()
   await writeOfflineServerFiles(root, options)
-  const server = startRustCraft({ ...options, root })
+  const server = startScenarioServer({ ...options, root })
   try {
     await waitForPort(options.port, options.host, options.timeoutMs)
     const session = await connectOfflineBot({
@@ -131,6 +152,33 @@ export async function runOfflineLoginScenario(options) {
   }
 }
 
+export async function runParityScenario(options) {
+  const basePort = options.port
+  const official = await runOfflineLoginScenario({
+    ...options,
+    root: options.officialRoot ?? await createTempWorld('rustcraft-mf-official-'),
+    serverKind: 'official',
+    port: basePort,
+    keepArtifacts: true
+  })
+  const rebuilt = await runOfflineLoginScenario({
+    ...options,
+    root: options.rebuiltRoot ?? await createTempWorld('rustcraft-mf-rustcraft-'),
+    serverKind: 'rustcraft',
+    port: options.rebuiltPort ?? basePort + 1,
+    keepArtifacts: true
+  })
+  const diff = diffArtifacts(
+    normalizeArtifacts(official.artifacts, { root: official.root, port: basePort }),
+    normalizeArtifacts(rebuilt.artifacts, { root: rebuilt.root, port: options.rebuiltPort ?? basePort + 1 })
+  )
+  if (options.keepArtifacts !== true) {
+    await rm(official.root, { recursive: true, force: true })
+    await rm(rebuilt.root, { recursive: true, force: true })
+  }
+  return { official, rebuilt, diff, equivalent: diff.length === 0 }
+}
+
 export async function collectArtifacts(root, events, logs) {
   return {
     root,
@@ -141,6 +189,31 @@ export async function collectArtifacts(root, events, logs) {
   }
 }
 
+export function normalizeArtifacts(artifacts, options = {}) {
+  return {
+    events: artifacts.events.map(normalizeEvent),
+    logs: normalizeLogs(artifacts.logs, options),
+    serverProperties: normalizeProperties(artifacts.serverProperties, options),
+    eula: artifacts.eula
+  }
+}
+
+export function diffArtifacts(left, right) {
+  const diffs = []
+  compareJson(diffs, 'events', left.events, right.events)
+  compareJson(diffs, 'logs', left.logs, right.logs)
+  compareJson(diffs, 'serverProperties', left.serverProperties, right.serverProperties)
+  compareJson(diffs, 'eula', left.eula, right.eula)
+  return diffs
+}
+
+function startScenarioServer(options) {
+  if (options.serverKind === 'official') {
+    return startOfficialServer(options)
+  }
+  return startRustCraft(options)
+}
+
 export async function stopServer(child) {
   if (child.exitCode !== null || child.signalCode !== null) return
   child.stdin?.write('stop\n')
@@ -149,6 +222,49 @@ export async function stopServer(child) {
     await onceWithTimeout(child, 'exit', 3_000).catch(() => child.kill('SIGKILL'))
   })
   await exited
+}
+
+function normalizeEvent(event) {
+  return {
+    name: event.name,
+    summary: event.summary
+  }
+}
+
+function normalizeLogs(logs, options = {}) {
+  return logs
+    .flatMap(entry => entry.text.split(/\r?\n/).filter(Boolean).map(line => ({
+      stream: entry.stream,
+      text: normalizeVolatileText(line, options)
+    })))
+    .filter(entry => !/^\s*$/.test(entry.text))
+}
+
+function normalizeProperties(body, options = {}) {
+  if (body == null) return null
+  return body
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(line => normalizeVolatileText(line, options))
+    .sort()
+    .join('\n')
+}
+
+function normalizeVolatileText(text, options = {}) {
+  let output = text
+  if (options.root) output = output.replaceAll(options.root, '<run-dir>')
+  if (options.port) output = output.replaceAll(String(options.port), '<port>')
+  return output
+    .replace(/\b\d{4}-\d{2}-\d{2}[T ][0-9:.Z+-]+/g, '<timestamp>')
+    .replace(/rustcraft-mf-(official|rustcraft|files|spawn)-[A-Za-z0-9._-]+/g, 'rustcraft-mf-<run>')
+}
+
+function compareJson(diffs, path, left, right) {
+  const leftJson = JSON.stringify(left)
+  const rightJson = JSON.stringify(right)
+  if (leftJson !== rightJson) {
+    diffs.push({ path, official: left, rebuilt: right })
+  }
 }
 
 export function captureBotEvents(bot, events) {

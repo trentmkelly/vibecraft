@@ -4,7 +4,11 @@ import { readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import {
   createTempWorld,
+  diffArtifacts,
+  normalizeArtifacts,
   offlineUuid,
+  runParityScenario,
+  startOfficialServer,
   startRustCraft,
   stopServer,
   waitForPort,
@@ -64,9 +68,79 @@ test('startRustCraft builds vanilla-compatible CLI arguments and captures logs',
   }
 })
 
+test('startOfficialServer builds java -jar command and captures logs', async () => {
+  const root = await createTempWorld('rustcraft-mf-official-test-')
+  const server = startOfficialServer({
+    java: process.execPath,
+    jar: '/tmp/server.jar',
+    root,
+    javaArgs: ['--version']
+  })
+  try {
+    assert.deepEqual(server.args, ['--version', '-jar', '/tmp/server.jar', '--nogui'])
+  } finally {
+    await stopServer(server.child)
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('waitForPort fails fast with actionable endpoint details', async () => {
   await assert.rejects(
     () => waitForPort(9, '127.0.0.1', 50),
     /Timed out waiting for 127\.0\.0\.1:9/
   )
+})
+
+test('normalizeArtifacts redacts roots, ports, and timestamps before diffing', () => {
+  const official = normalizeArtifacts({
+    root: '/tmp/a',
+    events: [{ name: 'spawn', at: 1, summary: ['ok'] }],
+    logs: [{ stream: 'stdout', text: '2026-05-17T12:00:00Z started /tmp/a on 25565\n' }],
+    serverProperties: 'server-port=25565\nlevel-seed=123\n',
+    eula: 'eula=true\n'
+  }, { root: '/tmp/a', port: 25565 })
+  const rebuilt = normalizeArtifacts({
+    root: '/tmp/b',
+    events: [{ name: 'spawn', at: 2, summary: ['ok'] }],
+    logs: [{ stream: 'stdout', text: '2026-05-17T12:00:01Z started /tmp/b on 25566\n' }],
+    serverProperties: 'level-seed=123\nserver-port=25566\n',
+    eula: 'eula=true\n'
+  }, { root: '/tmp/b', port: 25566 })
+  assert.deepEqual(diffArtifacts(official, rebuilt), [])
+})
+
+test('diffArtifacts reports observable parity differences by surface', () => {
+  const diffs = diffArtifacts(
+    { events: [{ name: 'spawn', summary: [] }], logs: [], serverProperties: '', eula: 'eula=true\n' },
+    { events: [{ name: 'kicked', summary: ['no'] }], logs: [], serverProperties: '', eula: 'eula=true\n' }
+  )
+  assert.equal(diffs.length, 1)
+  assert.equal(diffs[0].path, 'events')
+})
+
+test('runParityScenario runs identical script through official and RustCraft adapters', async () => {
+  const root = await createTempWorld('rustcraft-mf-parity-')
+  const officialRoot = path.join(root, 'official')
+  const rebuiltRoot = path.join(root, 'rebuilt')
+  const fake = path.join(root, 'fake-server.mjs')
+  await import('node:fs/promises').then(fs =>
+    fs.writeFile(fake, "console.log('ready'); setTimeout(() => {}, 5000)\n")
+  )
+  try {
+    const result = await runParityScenario({
+      jar: fake,
+      java: process.execPath,
+      binary: process.execPath,
+      officialRoot,
+      rebuiltRoot,
+      port: 33333,
+      rebuiltPort: 33334,
+      timeoutMs: 25,
+      keepArtifacts: false
+    })
+    assert.equal(result.equivalent, false)
+    assert.ok(result.diff.some(entry => entry.path === 'logs' || entry.path === 'serverProperties'))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })
