@@ -28,31 +28,31 @@ export const configurationCompletionManifest = {
   elementCounts: {
     'minecraft:banner_pattern': 43,
     'minecraft:worldgen/biome': 65,
-    'minecraft:cat_sound_variant': 1,
+    'minecraft:cat_sound_variant': 2,
     'minecraft:cat_variant': 11,
     'minecraft:chat_type': 7,
-    'minecraft:chicken_sound_variant': 1,
+    'minecraft:chicken_sound_variant': 2,
     'minecraft:chicken_variant': 3,
-    'minecraft:cow_sound_variant': 1,
+    'minecraft:cow_sound_variant': 2,
     'minecraft:cow_variant': 3,
     'minecraft:damage_type': 50,
     'minecraft:dimension_type': 4,
     'minecraft:frog_variant': 3,
     'minecraft:instrument': 8,
     'minecraft:jukebox_song': 21,
-    'minecraft:painting_variant': 1,
-    'minecraft:pig_sound_variant': 1,
+    'minecraft:painting_variant': 51,
+    'minecraft:pig_sound_variant': 3,
     'minecraft:pig_variant': 3,
     'minecraft:trim_material': 11,
     'minecraft:trim_pattern': 18,
-    'minecraft:wolf_sound_variant': 1,
+    'minecraft:wolf_sound_variant': 7,
     'minecraft:wolf_variant': 9,
-    'minecraft:zombie_nautilus_variant': 1
+    'minecraft:zombie_nautilus_variant': 2
   },
   requiredElements: {
     'minecraft:banner_pattern': ['minecraft:bricks', 'minecraft:curly_border', 'minecraft:flower'],
     'minecraft:worldgen/biome': ['minecraft:end_barrens', 'minecraft:plains', 'minecraft:the_void'],
-    'minecraft:cat_sound_variant': ['minecraft:default'],
+    'minecraft:cat_sound_variant': ['minecraft:classic', 'minecraft:royal'],
     'minecraft:chat_type': [
       'minecraft:chat',
       'minecraft:emote_command',
@@ -62,9 +62,9 @@ export const configurationCompletionManifest = {
       'minecraft:team_msg_command_incoming',
       'minecraft:team_msg_command_outgoing'
     ],
-    'minecraft:chicken_sound_variant': ['minecraft:default'],
+    'minecraft:chicken_sound_variant': ['minecraft:classic', 'minecraft:picky'],
     'minecraft:chicken_variant': ['minecraft:cold', 'minecraft:temperate', 'minecraft:warm'],
-    'minecraft:cow_sound_variant': ['minecraft:default'],
+    'minecraft:cow_sound_variant': ['minecraft:classic', 'minecraft:moody'],
     'minecraft:damage_type': ['minecraft:spear'],
     'minecraft:dimension_type': ['minecraft:overworld', 'minecraft:overworld_caves', 'minecraft:the_end', 'minecraft:the_nether'],
     'minecraft:instrument': ['minecraft:ponder_goat_horn'],
@@ -78,7 +78,8 @@ export const configurationCompletionManifest = {
       'minecraft:precipice',
       'minecraft:tears'
     ],
-    'minecraft:pig_sound_variant': ['minecraft:default'],
+    'minecraft:painting_variant': ['minecraft:alban', 'minecraft:kebab', 'minecraft:wither'],
+    'minecraft:pig_sound_variant': ['minecraft:big', 'minecraft:classic', 'minecraft:mini'],
     'minecraft:trim_material': [
       'minecraft:amethyst',
       'minecraft:copper',
@@ -92,8 +93,8 @@ export const configurationCompletionManifest = {
       'minecraft:redstone',
       'minecraft:resin'
     ],
-    'minecraft:wolf_sound_variant': ['minecraft:default'],
-    'minecraft:zombie_nautilus_variant': ['minecraft:default']
+    'minecraft:wolf_sound_variant': ['minecraft:angry', 'minecraft:big', 'minecraft:classic', 'minecraft:cute', 'minecraft:grumpy', 'minecraft:puglin', 'minecraft:sad'],
+    'minecraft:zombie_nautilus_variant': ['minecraft:temperate', 'minecraft:warm']
   },
   requiredTags: {
     'minecraft:banner_pattern': {

@@ -161,12 +161,6 @@ const DAMAGE_TYPE_TAGS: &[(&str, &[i32])] = &[
     ("minecraft:mace_smash", &[26]),
 ];
 
-struct MinimalRegistryEntry {
-    registry: &'static str,
-    entry: &'static str,
-    value: fn() -> Tag,
-}
-
 struct TrimMaterialEntry {
     id: &'static str,
     asset_name: &'static str,
@@ -669,44 +663,6 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     },
 ];
 
-const MINIMAL_NON_EMPTY_REGISTRIES: &[MinimalRegistryEntry] = &[
-    MinimalRegistryEntry {
-        registry: "minecraft:cat_sound_variant",
-        entry: "minecraft:default",
-        value: cat_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:chicken_sound_variant",
-        entry: "minecraft:default",
-        value: chicken_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:cow_sound_variant",
-        entry: "minecraft:default",
-        value: cow_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:painting_variant",
-        entry: "minecraft:kebab",
-        value: painting_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:pig_sound_variant",
-        entry: "minecraft:default",
-        value: pig_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:wolf_sound_variant",
-        entry: "minecraft:default",
-        value: wolf_sound_variant_nbt,
-    },
-    MinimalRegistryEntry {
-        registry: "minecraft:zombie_nautilus_variant",
-        entry: "minecraft:default",
-        value: zombie_nautilus_variant_nbt,
-    },
-];
-
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
@@ -868,7 +824,7 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:wolf_sound_variant"),
+        write_vanilla_wolf_sound_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -878,7 +834,7 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:pig_sound_variant"),
+        write_vanilla_pig_sound_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -893,12 +849,12 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:cat_sound_variant"),
+        write_vanilla_cat_sound_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:cow_sound_variant"),
+        write_vanilla_cow_sound_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -908,7 +864,7 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:chicken_sound_variant"),
+        write_vanilla_chicken_sound_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -918,12 +874,12 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:zombie_nautilus_variant"),
+        write_vanilla_zombie_nautilus_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        |writer| write_minimal_named_registry_packet(writer, "minecraft:painting_variant"),
+        write_vanilla_painting_variant_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -1303,17 +1259,17 @@ fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io::Res
 
 fn write_vanilla_cat_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const CATS: &[&str] = &[
-        "tabby",
+        "all_black",
         "black",
-        "red",
-        "siamese",
         "british_shorthair",
         "calico",
+        "jellie",
         "persian",
         "ragdoll",
+        "red",
+        "siamese",
+        "tabby",
         "white",
-        "jellie",
-        "all_black",
     ];
     write_variant_registry(writer, "minecraft:cat_variant", CATS, |cat| {
         animal_texture_variant_nbt("cat", &format!("cat_{cat}"), "normal")
@@ -1376,6 +1332,64 @@ fn write_vanilla_wolf_variant_registry_packet<W: Write>(writer: &mut W) -> io::R
     })
 }
 
+fn write_vanilla_cat_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const VARIANTS: &[&str] = &["classic", "royal"];
+    write_variant_registry(writer, "minecraft:cat_sound_variant", VARIANTS, |_| {
+        cat_sound_variant_nbt()
+    })
+}
+
+fn write_vanilla_chicken_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const VARIANTS: &[&str] = &["classic", "picky"];
+    write_variant_registry(writer, "minecraft:chicken_sound_variant", VARIANTS, |_| {
+        chicken_sound_variant_nbt()
+    })
+}
+
+fn write_vanilla_cow_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const VARIANTS: &[&str] = &["classic", "moody"];
+    write_variant_registry(writer, "minecraft:cow_sound_variant", VARIANTS, |_| {
+        cow_sound_variant_nbt()
+    })
+}
+
+fn write_vanilla_pig_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const VARIANTS: &[&str] = &["big", "classic", "mini"];
+    write_variant_registry(writer, "minecraft:pig_sound_variant", VARIANTS, |_| {
+        pig_sound_variant_nbt()
+    })
+}
+
+fn write_vanilla_wolf_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const VARIANTS: &[&str] = &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"];
+    write_variant_registry(writer, "minecraft:wolf_sound_variant", VARIANTS, |_| {
+        wolf_sound_variant_nbt()
+    })
+}
+
+fn write_vanilla_zombie_nautilus_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const VARIANTS: &[&str] = &["temperate", "warm"];
+    write_variant_registry(writer, "minecraft:zombie_nautilus_variant", VARIANTS, |id| {
+        zombie_nautilus_variant_nbt(id)
+    })
+}
+
+fn write_vanilla_painting_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    const PAINTINGS: &[&str] = &[
+        "alban", "aztec", "aztec2", "backyard", "baroque", "bomb", "bouquet",
+        "burning_skull", "bust", "cavebird", "changing", "cotan", "courbet", "creebet",
+        "dennis", "donkey_kong", "earth", "endboss", "fern", "fighters", "finding",
+        "fire", "graham", "humble", "kebab", "lowmist", "match", "meditative", "orb",
+        "owlemons", "passage", "pigscene", "plant", "pointer", "pond", "pool",
+        "prairie_ride", "sea", "skeleton", "skull_and_roses", "stage", "sunflowers",
+        "sunset", "tides", "unpacked", "void", "wanderer", "wasteland", "water",
+        "wind", "wither",
+    ];
+    write_variant_registry(writer, "minecraft:painting_variant", PAINTINGS, |id| {
+        painting_variant_nbt(id)
+    })
+}
+
 fn write_variant_registry<W, T, F>(
     writer: &mut W,
     registry: &str,
@@ -1414,25 +1428,6 @@ impl VariantRegistryElement for (&str, &str) {
     fn id(&self) -> &str {
         self.0
     }
-}
-
-fn write_minimal_single_entry_registry_packet<W: Write>(
-    writer: &mut W,
-    registry: &MinimalRegistryEntry,
-) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse(registry.registry).unwrap())?;
-    write_var_i32(writer, 1)?;
-    write_identifier(writer, &Identifier::parse(registry.entry).unwrap())?;
-    write_bool(writer, true)?;
-    write_network_nbt(writer, &(registry.value)())
-}
-
-fn write_minimal_named_registry_packet<W: Write>(writer: &mut W, registry_id: &str) -> io::Result<()> {
-    let registry = MINIMAL_NON_EMPTY_REGISTRIES
-        .iter()
-        .find(|entry| entry.registry == registry_id)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "unknown minimal registry"))?;
-    write_minimal_single_entry_registry_packet(writer, registry)
 }
 
 fn write_minimal_biome_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
@@ -1788,23 +1783,24 @@ fn wolf_assets_nbt(file_name: &str, suffix: &str) -> Tag {
     ])
 }
 
-fn zombie_nautilus_variant_nbt() -> Tag {
+fn zombie_nautilus_variant_nbt(variant: &str) -> Tag {
+    let (asset_id, model) = match variant {
+        "warm" => ("minecraft:entity/nautilus/zombie_nautilus_coral", "warm"),
+        _ => ("minecraft:entity/nautilus/zombie_nautilus", "normal"),
+    };
     Tag::Compound(vec![
-        (
-            "asset_id".to_string(),
-            Tag::String("minecraft:entity/nautilus/zombie_nautilus".to_string()),
-        ),
-        ("model".to_string(), Tag::String("normal".to_string())),
+        ("asset_id".to_string(), Tag::String(asset_id.to_string())),
+        ("model".to_string(), Tag::String(model.to_string())),
     ])
 }
 
-fn painting_variant_nbt() -> Tag {
+fn painting_variant_nbt(id: &str) -> Tag {
     Tag::Compound(vec![
         ("width".to_string(), Tag::Int(1)),
         ("height".to_string(), Tag::Int(1)),
         (
             "asset_id".to_string(),
-            Tag::String("minecraft:kebab".to_string()),
+            Tag::String(format!("minecraft:{id}")),
         ),
     ])
 }
@@ -2281,11 +2277,17 @@ mod tests {
         write_minimal_biome_registry_packet, write_minimal_trim_material_registry_packet,
         write_status_pong_packet,
         write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_variant_registry_packet,
+        write_vanilla_cat_sound_variant_registry_packet,
         write_vanilla_chat_type_registry_packet, write_vanilla_chicken_variant_registry_packet,
-        write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
+        write_vanilla_chicken_sound_variant_registry_packet,
+        write_vanilla_cow_variant_registry_packet, write_vanilla_cow_sound_variant_registry_packet,
+        write_vanilla_frog_variant_registry_packet,
         write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
-        write_vanilla_pig_variant_registry_packet, write_vanilla_trim_pattern_registry_packet,
-        write_vanilla_wolf_variant_registry_packet, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BIOMES,
+        write_vanilla_painting_variant_registry_packet,
+        write_vanilla_pig_variant_registry_packet, write_vanilla_pig_sound_variant_registry_packet,
+        write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
+        write_vanilla_wolf_variant_registry_packet, write_vanilla_zombie_nautilus_variant_registry_packet,
+        BANNER_PATTERNS, BANNER_PATTERN_TAGS, BIOMES,
         wait_for_configuration_packet, write_framed_packet, CHAT_TYPES, DAMAGE_TYPE_TAGS,
         INSTRUMENTS, JUKEBOX_SONGS, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
@@ -2489,6 +2491,34 @@ mod tests {
         assert_eq!(
             registry_element_count(write_vanilla_wolf_variant_registry_packet),
             9
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_cat_sound_variant_registry_packet),
+            2
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_chicken_sound_variant_registry_packet),
+            2
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_cow_sound_variant_registry_packet),
+            2
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_pig_sound_variant_registry_packet),
+            3
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_wolf_sound_variant_registry_packet),
+            7
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_zombie_nautilus_variant_registry_packet),
+            2
+        );
+        assert_eq!(
+            registry_element_count(write_vanilla_painting_variant_registry_packet),
+            51
         );
     }
 
