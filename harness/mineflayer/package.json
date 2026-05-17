@@ -1,0 +1,12 @@
+{
+  "name": "rustcraft-mineflayer-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "login": "node runner.mjs"
+  },
+  "dependencies": {
+    "mineflayer": "^4.37.1"
+  }
+}
