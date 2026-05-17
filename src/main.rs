@@ -1,3 +1,4 @@
+mod biome;
 mod cli;
 mod command;
 mod console;
