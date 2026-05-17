@@ -49,6 +49,11 @@ export async function runObservedOfflineLogin(options = {}) {
     return buildSession({
       root,
       paths,
+      endpoint: {
+        host: options.host ?? '127.0.0.1',
+        port: options.port,
+        version: options.version
+      },
       server,
       bot,
       timeline,
@@ -61,6 +66,11 @@ export async function runObservedOfflineLogin(options = {}) {
     const session = buildSession({
       root,
       paths,
+      endpoint: {
+        host: options.host ?? '127.0.0.1',
+        port: options.port,
+        version: options.version
+      },
       server,
       bot,
       timeline,
@@ -136,10 +146,11 @@ export function loginSessionPaths(root, levelName = 'world') {
   }
 }
 
-function buildSession({ root, paths, server, bot, timeline, packetTrace, profile, serverLogStart, cleanup }) {
+function buildSession({ root, paths, endpoint, server, bot, timeline, packetTrace, profile, serverLogStart, cleanup }) {
   const session = {
     root,
     paths,
+    endpoint,
     server,
     bot,
     profile,
