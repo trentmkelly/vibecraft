@@ -15,7 +15,8 @@
     "smoke:gameplay": "node gameplay_smoke.mjs",
     "regress:offline": "node offline_mode_regression.mjs",
     "gate:release": "node release_gate.mjs",
-    "lifecycle": "node lifecycle_scenarios.mjs"
+    "lifecycle": "node lifecycle_scenarios.mjs",
+    "matrix:properties": "node property_matrix.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
