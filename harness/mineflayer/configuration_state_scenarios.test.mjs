@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  createConfigurationCustomPayloadPlan,
   createConfigurationStatePlan,
+  summarizeConfigurationCustomPayloadEvidence,
   summarizeConfigurationStateEvidence
 } from './configuration_state_scenarios.mjs'
 
@@ -71,4 +73,41 @@ test('configuration regression evidence rejects play without complete configurat
   const noFinishSummary = summarizeConfigurationStateEvidence(noFinish, plan)
   assert.equal(noFinishSummary.ok, false)
   assert.ok(noFinishSummary.missing.includes('finish-configuration-after-known-packs'))
+})
+
+test('configuration custom payload plan covers unknown payloads, brand, client info, cookies, and disconnects', () => {
+  const plan = createConfigurationCustomPayloadPlan()
+
+  assert.equal(plan.name, 'mineflayer-offline-configuration-custom-payload')
+  assert.deepEqual(plan.required, [
+    'records-unknown-custom-payload',
+    'records-brand-exchange',
+    'records-client-information',
+    'records-cookie-request-response',
+    'records-configuration-disconnect'
+  ])
+})
+
+test('configuration custom payload evidence requires every diagnostic surface', () => {
+  const complete = {
+    packetTrace: [
+      { name: 'custom_payload', channel: 'minecraft:brand' },
+      { name: 'custom_payload', channel: 'rustcraft:unknown_probe' },
+      { name: 'client_information' },
+      { name: 'cookie_request' },
+      { name: 'cookie_response' },
+      { name: 'disconnect' }
+    ],
+    timeline: []
+  }
+
+  assert.equal(summarizeConfigurationCustomPayloadEvidence(complete).ok, true)
+
+  const missingCookieResponse = {
+    ...complete,
+    packetTrace: complete.packetTrace.filter(packet => packet.name !== 'cookie_response')
+  }
+  const summary = summarizeConfigurationCustomPayloadEvidence(missingCookieResponse)
+  assert.equal(summary.ok, false)
+  assert.ok(summary.missing.includes('records-cookie-request-response'))
 })

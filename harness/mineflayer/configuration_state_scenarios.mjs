@@ -18,6 +18,21 @@ export function createConfigurationStatePlan() {
   }
 }
 
+export function createConfigurationCustomPayloadPlan() {
+  return {
+    name: 'mineflayer-offline-configuration-custom-payload',
+    mode: 'offline',
+    auth: 'offline',
+    required: [
+      'records-unknown-custom-payload',
+      'records-brand-exchange',
+      'records-client-information',
+      'records-cookie-request-response',
+      'records-configuration-disconnect'
+    ]
+  }
+}
+
 export function summarizeConfigurationStateEvidence(evidence, plan = createConfigurationStatePlan()) {
   const configIds = evidence.configPackets?.map(packet => packet.id) ?? []
   const registryOrder = evidence.configPackets
@@ -36,6 +51,28 @@ export function summarizeConfigurationStateEvidence(evidence, plan = createConfi
     'known-packs-before-finish': Boolean(knownPacksPacket) && knownPackIndex < finishIndex && hasManifestKnownPack(knownPacksPacket, plan.manifest),
     'finish-configuration-after-known-packs': finishIndex > knownPackIndex,
     'play-entry-after-client-finish': [49, 105, 72, 12, 48, 11].every(id => playIds.includes(id))
+  }
+
+  const missing = plan.required.filter(requirement => !checks[requirement])
+  return {
+    ok: missing.length === 0,
+    checks,
+    missing
+  }
+}
+
+export function summarizeConfigurationCustomPayloadEvidence(evidence, plan = createConfigurationCustomPayloadPlan()) {
+  const packets = evidence.packetTrace ?? []
+  const events = evidence.timeline ?? []
+  const packetNames = packets.map(packet => packet.name)
+  const payloadChannels = packets.map(packet => packet.channel).filter(Boolean)
+
+  const checks = {
+    'records-unknown-custom-payload': payloadChannels.some(channel => channel !== 'minecraft:brand'),
+    'records-brand-exchange': payloadChannels.includes('minecraft:brand'),
+    'records-client-information': packetNames.includes('client_information'),
+    'records-cookie-request-response': packetNames.includes('cookie_request') && packetNames.includes('cookie_response'),
+    'records-configuration-disconnect': packetNames.includes('disconnect') || events.some(event => event.name === 'kicked')
   }
 
   const missing = plan.required.filter(requirement => !checks[requirement])
