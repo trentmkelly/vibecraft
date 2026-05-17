@@ -8,6 +8,7 @@ mod console;
 mod crash;
 mod entity_variants;
 mod eula;
+mod inhabited_time;
 mod light;
 mod log;
 mod network;
