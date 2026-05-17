@@ -203,6 +203,7 @@ pub struct ServerCommandState {
     pub title_events: Vec<TitleCommandEvent>,
     pub sound_events: Vec<SoundCommandEvent>,
     pub particle_events: Vec<ParticleCommandEvent>,
+    pub warden_spawn_trackers: Vec<WardenSpawnTrackerState>,
     pub setblock_events: Vec<SetBlockEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
     pub summoned_entities: Vec<SummonedEntity>,
@@ -994,6 +995,12 @@ pub enum SoundCommandEvent {
     Stop(StopSoundRequest),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WardenSpawnTrackerState {
+    pub player: NameAndId,
+    pub warning_level: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlaySoundRequest {
     pub sound: String,
@@ -1572,6 +1579,7 @@ impl Default for ServerCommandState {
             title_events: Vec::new(),
             sound_events: Vec::new(),
             particle_events: Vec::new(),
+            warden_spawn_trackers: Vec::new(),
             setblock_events: Vec::new(),
             server_pack_events: Vec::new(),
             summoned_entities: Vec::new(),
@@ -2165,6 +2173,7 @@ pub fn execute_builtin_command(
                 broadcast_to_admins: false,
             })
         }
+        "warden_spawn_tracker" => warden_spawn_tracker_command(state, &parts),
         "list" => match parts.as_slice() {
             ["list"] => Ok(CommandResult {
                 success_count: state.online_players.len() as i32,
@@ -4999,6 +5008,58 @@ fn title_feedback_multiple(prefix: &str) -> &'static str {
         "commands.title.show.subtitle" => "commands.title.show.subtitle.multiple",
         "commands.title.show.actionbar" => "commands.title.show.actionbar.multiple",
         _ => "commands.title.show.title.multiple",
+    }
+}
+
+fn warden_spawn_tracker_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["warden_spawn_tracker", "clear"] => {
+            let player = state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::NoPlayers)?;
+            set_warden_warning_level(state, player, 0);
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.warden_spawn_tracker.clear.success.single",
+                broadcast_to_admins: true,
+            })
+        }
+        ["warden_spawn_tracker", "set", warning_level] => {
+            let warning_level = parse_i32(warning_level)?;
+            if !(0..=4).contains(&warning_level) {
+                return Err(CommandError::InvalidSyntax);
+            }
+            let player = state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::NoPlayers)?;
+            set_warden_warning_level(state, player, warning_level);
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.warden_spawn_tracker.set.success.single",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn set_warden_warning_level(state: &mut ServerCommandState, player: NameAndId, warning_level: i32) {
+    if let Some(existing) = state
+        .warden_spawn_trackers
+        .iter_mut()
+        .find(|entry| entry.player.uuid == player.uuid)
+    {
+        existing.warning_level = warning_level;
+    } else {
+        state.warden_spawn_trackers.push(WardenSpawnTrackerState {
+            player,
+            warning_level,
+        });
     }
 }
 
@@ -10889,6 +10950,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("tp", "/tp <targets|location> ..."),
         ("transfer", "/transfer <hostname> [port] [players]"),
         ("version", "/version"),
+        (
+            "warden_spawn_tracker",
+            "/warden_spawn_tracker <clear|set> [warning_level]",
+        ),
         ("weather", "/weather <clear|rain|thunder> [duration]"),
         ("whitelist", "/whitelist <on|off|list|add|remove|reload>"),
         ("deop", "/deop <targets>"),
@@ -11291,7 +11356,7 @@ mod tests {
         ScoreboardObjective, ScoreboardScore, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
         StopwatchState, SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction,
-        TitleTextKind, Vec3, VersionInfo, WeatherMode,
+        TitleTextKind, Vec3, VersionInfo, WardenSpawnTrackerState, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -14559,6 +14624,92 @@ mod tests {
                 "weather rain 0"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn warden_spawn_tracker_command_sets_and_clears_source_tracker() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("warden_spawn_tracker"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "warden_spawn_tracker set 1"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let set = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "warden_spawn_tracker set 4",
+        )
+        .unwrap();
+        assert_eq!(set.success_count, 1);
+        assert_eq!(
+            set.feedback_key,
+            "commands.warden_spawn_tracker.set.success.single"
+        );
+        assert!(set.broadcast_to_admins);
+        assert_eq!(
+            state.warden_spawn_trackers,
+            vec![WardenSpawnTrackerState {
+                player: NameAndId::create_offline("Steve"),
+                warning_level: 4,
+            }]
+        );
+
+        let clear = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "warden_spawn_tracker clear",
+        )
+        .unwrap();
+        assert_eq!(clear.success_count, 1);
+        assert_eq!(
+            clear.feedback_key,
+            "commands.warden_spawn_tracker.clear.success.single"
+        );
+        assert_eq!(state.warden_spawn_trackers[0].warning_level, 0);
+    }
+
+    #[test]
+    fn warden_spawn_tracker_command_rejects_bad_levels_and_non_players() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "warden_spawn_tracker set 5"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "warden_spawn_tracker set -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        state.command_source_player = None;
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "warden_spawn_tracker clear"
+            ),
+            Err(CommandError::NoPlayers)
         );
     }
 
