@@ -125,6 +125,10 @@ async function main () {
   for (const id of [12, 7, 13, 3]) {
     if (!configIds.includes(id)) throw new Error(`missing configuration packet ${id}`)
   }
+  const registryPackets = config.filter(packet => packet.id === 7)
+  if (registryPackets.length < 15) {
+    throw new Error(`expected at least 15 registry packets, got ${registryPackets.length}`)
+  }
   socket.write(frame(3))
 
   const play = []
@@ -134,6 +138,10 @@ async function main () {
   }
   for (const id of [49, 105, 72]) {
     if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
+  }
+  const loginPacket = play.find(packet => packet.id === 49)
+  if (!loginPacket || loginPacket.length !== 70) {
+    throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
   }
 
   socket.end()

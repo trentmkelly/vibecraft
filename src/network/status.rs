@@ -574,27 +574,35 @@ fn chicken_variant_nbt() -> Tag {
             "asset_id".to_string(),
             Tag::String("minecraft:entity/chicken/temperate_chicken".to_string()),
         ),
+        (
+            "baby_asset_id".to_string(),
+            Tag::String("minecraft:entity/chicken/temperate_chicken_baby".to_string()),
+        ),
         ("model".to_string(), Tag::String("normal".to_string())),
     ])
 }
 
 fn wolf_variant_nbt() -> Tag {
+    let assets = wolf_assets_nbt();
+    Tag::Compound(vec![
+        ("assets".to_string(), assets.clone()),
+        ("baby_assets".to_string(), assets),
+    ])
+}
+
+fn wolf_assets_nbt() -> Tag {
     Tag::Compound(vec![
         (
-            "wild_texture".to_string(),
+            "wild".to_string(),
             Tag::String("minecraft:entity/wolf/wolf".to_string()),
         ),
         (
-            "tame_texture".to_string(),
+            "tame".to_string(),
             Tag::String("minecraft:entity/wolf/wolf_tame".to_string()),
         ),
         (
-            "angry_texture".to_string(),
+            "angry".to_string(),
             Tag::String("minecraft:entity/wolf/wolf_angry".to_string()),
-        ),
-        (
-            "biomes".to_string(),
-            Tag::String("#minecraft:is_overworld".to_string()),
         ),
     ])
 }
@@ -672,6 +680,14 @@ fn cat_sound_set_nbt() -> Tag {
 }
 
 fn wolf_sound_variant_nbt() -> Tag {
+    let sounds = wolf_sound_set_nbt();
+    Tag::Compound(vec![
+        ("adult_sounds".to_string(), sounds.clone()),
+        ("baby_sounds".to_string(), sounds),
+    ])
+}
+
+fn wolf_sound_set_nbt() -> Tag {
     Tag::Compound(vec![
         sound_field("ambient_sound", "minecraft:entity.wolf.ambient"),
         sound_field("death_sound", "minecraft:entity.wolf.death"),
@@ -679,6 +695,7 @@ fn wolf_sound_variant_nbt() -> Tag {
         sound_field("hurt_sound", "minecraft:entity.wolf.hurt"),
         sound_field("pant_sound", "minecraft:entity.wolf.pant"),
         sound_field("whine_sound", "minecraft:entity.wolf.whine"),
+        sound_field("step_sound", "minecraft:entity.wolf.step"),
     ])
 }
 
