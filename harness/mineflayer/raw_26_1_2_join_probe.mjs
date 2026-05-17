@@ -54,6 +54,18 @@ function readString (buffer, offset = 0) {
   return { value: buffer.subarray(length.offset, end).toString('utf8'), offset: end }
 }
 
+function readBlockPos (buffer, offset = 0) {
+  const packed = buffer.readBigInt64BE(offset)
+  const x = Number(packed >> 38n)
+  const y = Number((packed << 52n) >> 52n)
+  const z = Number((packed << 26n) >> 38n)
+  return { x, y, z, offset: offset + 8 }
+}
+
+function nearlyEqual (actual, expected, epsilon = 0.000001) {
+  return Math.abs(actual - expected) <= epsilon
+}
+
 function frame (packetId, ...parts) {
   const payload = Buffer.concat([writeVarInt(packetId), ...parts])
   return Buffer.concat([writeVarInt(payload.length), payload])
@@ -609,23 +621,84 @@ async function main () {
   socket.write(frame(3))
 
   const play = []
-  const expectedPlayPacketIds = [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
+  const playPackets = []
+  const expectedPlayPacketIds = [49, 10, 64, 105, 103, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
   for (let i = 0; i < expectedPlayPacketIds.length; i++) {
     const packet = await reader.nextPacket()
+    playPackets.push(packet)
     play.push({ id: packet.id, length: packet.length })
     if (abortAfter === 'first_chunk' && packet.id === 45) return abortSocket(socket, 'first_chunk', { login: login.id, config, play })
   }
   if (!recordOnly) {
-  for (const id of expectedPlayPacketIds) {
+    for (const id of expectedPlayPacketIds) {
       if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
     }
-    const loginPacket = play.find(packet => packet.id === 49)
+    const packetById = new Map()
+    for (const packet of playPackets) {
+      if (!packetById.has(packet.id)) packetById.set(packet.id, [])
+      packetById.get(packet.id).push(packet)
+    }
+    const loginPacket = packetById.get(49)?.[0]
     if (!loginPacket || loginPacket.length !== 70) {
       throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
     }
-    const positionPacket = play.find(packet => packet.id === 72)
+    const abilitiesPacket = packetById.get(64)?.[0]
+    if (!abilitiesPacket || abilitiesPacket.body.length !== 9) {
+      throw new Error(`expected 9-byte player_abilities body, got ${abilitiesPacket?.body.length}`)
+    }
+    if (abilitiesPacket.body[0] !== 0 || !nearlyEqual(abilitiesPacket.body.readFloatBE(1), 0.05) || !nearlyEqual(abilitiesPacket.body.readFloatBE(5), 0.1)) {
+      throw new Error('unexpected first-spawn player abilities payload')
+    }
+    const heldSlotPacket = packetById.get(105)?.[0]
+    const heldSlot = heldSlotPacket && readVarInt(heldSlotPacket.body)
+    if (!heldSlot || heldSlot.value !== 0 || heldSlot.offset !== heldSlotPacket.body.length) {
+      throw new Error('expected selected hotbar slot 0')
+    }
+    const experiencePacket = packetById.get(103)?.[0]
+    if (!experiencePacket || experiencePacket.body.length !== 6 || experiencePacket.body.readFloatBE(0) !== 0) {
+      throw new Error(`expected zeroed set_experience payload, got ${experiencePacket?.body.toString('hex')}`)
+    }
+    const experienceLevel = readVarInt(experiencePacket.body, 4)
+    const totalExperience = experienceLevel && readVarInt(experiencePacket.body, experienceLevel.offset)
+    if (!experienceLevel || !totalExperience || experienceLevel.value !== 0 || totalExperience.value !== 0 || totalExperience.offset !== experiencePacket.body.length) {
+      throw new Error('expected zero experience level and total')
+    }
+    const timePacket = packetById.get(113)?.[0]
+    const clockCount = timePacket && readVarInt(timePacket.body, 8)
+    if (!timePacket || timePacket.body.length !== 9 || timePacket.body.readBigInt64BE(0) !== 0n || !clockCount || clockCount.value !== 0) {
+      throw new Error(`expected set_time gameTime=0 with no clock updates, got ${timePacket?.body.toString('hex')}`)
+    }
+    const positionPacket = packetById.get(72)?.[0]
     if (!positionPacket || positionPacket.length !== 62) {
       throw new Error(`expected 62-byte player_position packet with fixed-int relatives, got ${positionPacket?.length}`)
+    }
+    let offset = 0
+    const teleportId = readVarInt(positionPacket.body, offset)
+    if (!teleportId || teleportId.value !== 0) throw new Error('expected teleport id 0')
+    offset = teleportId.offset
+    const x = positionPacket.body.readDoubleBE(offset); offset += 8
+    const y = positionPacket.body.readDoubleBE(offset); offset += 8
+    const z = positionPacket.body.readDoubleBE(offset); offset += 8
+    offset += 24
+    const yaw = positionPacket.body.readFloatBE(offset); offset += 4
+    const pitch = positionPacket.body.readFloatBE(offset); offset += 4
+    const relatives = positionPacket.body.readInt32BE(offset)
+    if (x !== 0.5 || y !== 80 || z !== 0.5 || yaw !== 0 || pitch !== 0 || relatives !== 0) {
+      throw new Error('unexpected first-spawn position/look payload')
+    }
+    const spawnPacket = packetById.get(97)?.[0]
+    if (!spawnPacket) throw new Error('missing default spawn position packet')
+    const spawnDimension = readString(spawnPacket.body, 0)
+    const spawnPos = readBlockPos(spawnPacket.body, spawnDimension.offset)
+    if (spawnDimension.value !== 'minecraft:overworld' || spawnPos.x !== 0 || spawnPos.y !== 80 || spawnPos.z !== 0) {
+      throw new Error(`unexpected default spawn ${spawnDimension.value} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`)
+    }
+    const gameEvents = packetById.get(38) ?? []
+    const gameEventPairs = gameEvents.map(packet => [packet.body[0], packet.body.readFloatBE(1)])
+    for (const expected of [[2, 0], [7, 0], [8, 0], [13, 0]]) {
+      if (!gameEventPairs.some(([event, param]) => event === expected[0] && param === expected[1])) {
+        throw new Error(`missing first-spawn game_event ${expected[0]}=${expected[1]}`)
+      }
     }
   }
   socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))

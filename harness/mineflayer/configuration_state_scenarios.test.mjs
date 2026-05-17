@@ -32,7 +32,7 @@ test('configuration state evidence passes only when manifest order reaches play 
       { id: 14, packs: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }] },
       { id: 3 }
     ],
-    playPackets: [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11].map(id => ({ id }))
+    playPackets: [49, 10, 64, 105, 103, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11].map(id => ({ id }))
   }
 
   assert.equal(summarizeConfigurationStateEvidence(complete, plan).ok, true)
@@ -55,7 +55,7 @@ test('configuration regression evidence rejects play without complete configurat
       { id: 14, packs: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }] },
       { id: 3 }
     ],
-    playPackets: [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11].map(id => ({ id }))
+    playPackets: [49, 10, 64, 105, 103, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11].map(id => ({ id }))
   }
 
   const summary = summarizeConfigurationStateEvidence(incomplete, plan)
@@ -69,7 +69,7 @@ test('configuration regression evidence rejects play without complete configurat
       { id: 13 },
       { id: 14, packs: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }] }
     ],
-    playPackets: [49, 10, 64, 105, 72, 43, 97, 94, 95, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11].map(id => ({ id }))
+    playPackets: [49, 10, 64, 105, 103, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11].map(id => ({ id }))
   }
 
   const noFinishSummary = summarizeConfigurationStateEvidence(noFinish, plan)

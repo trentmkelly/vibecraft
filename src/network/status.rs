@@ -22,7 +22,8 @@ use crate::network::play::{
     CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
     CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
@@ -1107,6 +1108,15 @@ fn write_minimal_play_join(
     write_framed_packet(stream, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, |payload| {
         write_var_i32(payload, 0)
     })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, |payload| {
+        payload.write_all(&0.0f32.to_be_bytes())?;
+        write_var_i32(payload, 0)?;
+        write_var_i32(payload, 0)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_TIME_PACKET_ID, |payload| {
+        payload.write_all(&0_i64.to_be_bytes())?;
+        write_var_i32(payload, 0)
+    })?;
     write_framed_packet(stream, CLIENTBOUND_PLAYER_POSITION_PACKET_ID, |payload| {
         write_var_i32(payload, 0)?;
         write_vec3(payload, 0.5, 80.0, 0.5)?;
@@ -1127,6 +1137,18 @@ fn write_minimal_play_join(
     })?;
     write_framed_packet(stream, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, |payload| {
         write_var_i32(payload, properties.view_distance as i32)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
+        payload.write_all(&[2])?;
+        payload.write_all(&0.0f32.to_be_bytes())
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
+        payload.write_all(&[7])?;
+        payload.write_all(&0.0f32.to_be_bytes())
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
+        payload.write_all(&[8])?;
+        payload.write_all(&0.0f32.to_be_bytes())
     })?;
     write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
         payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
