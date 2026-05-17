@@ -57,6 +57,34 @@ pub struct ValidationEnvironment {
     pub tick_rate_runs_normally: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VehicleMovementState {
+    pub current: Vec3,
+    pub first_good: Vec3,
+    pub last_good: Vec3,
+    pub velocity: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
+    pub controlling_player: bool,
+    pub same_vehicle_as_last_tick: bool,
+    pub singleplayer_owner: bool,
+    pub allow_flight: bool,
+    pub flying_vehicle: bool,
+    pub no_gravity: bool,
+    pub vertical_collision_below: bool,
+    pub no_blocks_around: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FloatingState {
+    pub client_is_floating: bool,
+    pub above_ground_ticks: i32,
+    pub gravity: f64,
+    pub sleeping: bool,
+    pub passenger: bool,
+    pub dead_or_dying: bool,
+}
+
 impl Default for ValidationEnvironment {
     fn default() -> Self {
         Self {
@@ -71,6 +99,7 @@ impl Default for ValidationEnvironment {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MovementDecision {
     Accept(AcceptedMove),
+    AcceptVehicle(AcceptedVehicleMove),
     RotateWhileAwaitingTeleport { y_rot: f32, x_rot: f32 },
     ResendAwaitingTeleport { target: Vec3 },
     TeleportBack(TeleportCorrection),
@@ -94,6 +123,16 @@ pub struct AcceptedMove {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AcceptedVehicleMove {
+    pub target: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
+    pub client_delta: Vec3,
+    pub client_vehicle_is_floating: bool,
+    pub updated_last_good: Vec3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TeleportCorrection {
     pub target: Vec3,
     pub y_rot: f32,
@@ -105,7 +144,9 @@ pub struct TeleportCorrection {
 pub enum CorrectionReason {
     SleepingMovedTooFar,
     MovedTooQuickly,
+    VehicleMovedTooQuickly,
     MovedWrongly,
+    VehicleMovedWrongly,
     NewCollision,
 }
 
@@ -158,6 +199,28 @@ impl ServerMovementState {
             mayfly: false,
             levitation: false,
             no_physics: false,
+            vertical_collision_below: true,
+            no_blocks_around: false,
+        }
+    }
+}
+
+impl VehicleMovementState {
+    pub fn at(x: f64, y: f64, z: f64) -> Self {
+        let position = Vec3 { x, y, z };
+        Self {
+            current: position,
+            first_good: position,
+            last_good: position,
+            velocity: Vec3::ZERO,
+            y_rot: 0.0,
+            x_rot: 0.0,
+            controlling_player: true,
+            same_vehicle_as_last_tick: true,
+            singleplayer_owner: false,
+            allow_flight: false,
+            flying_vehicle: false,
+            no_gravity: false,
             vertical_collision_below: true,
             no_blocks_around: false,
         }
@@ -332,6 +395,99 @@ pub fn maximum_flying_ticks(gravity: f64) -> i32 {
         i32::MAX
     } else {
         (80.0 * (0.08 / gravity).max(1.0)).ceil() as i32
+    }
+}
+
+pub fn validate_vehicle_move(
+    state: VehicleMovementState,
+    packet: MovePacket,
+    env: ValidationEnvironment,
+) -> MovementDecision {
+    if contains_invalid_values(packet.x, packet.y, packet.z, packet.y_rot, packet.x_rot) {
+        return MovementDecision::Disconnect("multiplayer.disconnect.invalid_vehicle_movement");
+    }
+    if !state.controlling_player || !state.same_vehicle_as_last_tick {
+        return MovementDecision::IgnoreUntilLoaded;
+    }
+
+    let target = Vec3 {
+        x: clamp_horizontal(packet.x),
+        y: clamp_vertical(packet.y),
+        z: clamp_horizontal(packet.z),
+    };
+    let target_y_rot = wrap_degrees(packet.y_rot);
+    let target_x_rot = wrap_degrees(packet.x_rot);
+    let first_delta = sub(target, state.first_good);
+    if first_delta.length_sqr() - state.velocity.length_sqr() > 100.0 && !state.singleplayer_owner {
+        return MovementDecision::TeleportBack(TeleportCorrection {
+            target: state.current,
+            y_rot: state.y_rot,
+            x_rot: state.x_rot,
+            reason: CorrectionReason::VehicleMovedTooQuickly,
+        });
+    }
+
+    let remainder = env.collision_remainder;
+    let adjusted_remainder = Vec3 {
+        x: remainder.x,
+        y: if remainder.y > -0.5 || remainder.y < 0.5 {
+            0.0
+        } else {
+            remainder.y
+        },
+        z: remainder.z,
+    };
+    let vehicle_moved_wrongly = adjusted_remainder.length_sqr() > 0.0625;
+    if (vehicle_moved_wrongly && env.old_box_still_clear) || env.collides_with_new_blocks {
+        return MovementDecision::TeleportBack(TeleportCorrection {
+            target: state.current,
+            y_rot: target_y_rot,
+            x_rot: target_x_rot,
+            reason: if vehicle_moved_wrongly {
+                CorrectionReason::VehicleMovedWrongly
+            } else {
+                CorrectionReason::NewCollision
+            },
+        });
+    }
+
+    let requested_delta = sub(target, state.last_good);
+    let client_vehicle_is_floating = requested_delta.y >= -0.03125
+        && !state.vertical_collision_below
+        && !state.allow_flight
+        && !state.flying_vehicle
+        && !state.no_gravity
+        && state.no_blocks_around;
+    MovementDecision::AcceptVehicle(AcceptedVehicleMove {
+        target,
+        y_rot: target_y_rot,
+        x_rot: target_x_rot,
+        client_delta: sub(target, state.current),
+        client_vehicle_is_floating,
+        updated_last_good: target,
+    })
+}
+
+pub fn illegal_position_or_stance(packet: MovePacket) -> bool {
+    contains_invalid_values(packet.x, packet.y, packet.z, packet.y_rot, packet.x_rot)
+        || packet.y < -2.0E7
+        || packet.y > 2.0E7
+        || packet.x < -3.0E7
+        || packet.x > 3.0E7
+        || packet.z < -3.0E7
+        || packet.z > 3.0E7
+}
+
+pub fn tick_floating_state(state: FloatingState) -> Result<i32, &'static str> {
+    if state.client_is_floating && !state.sleeping && !state.passenger && !state.dead_or_dying {
+        let ticks = state.above_ground_ticks + 1;
+        if ticks > maximum_flying_ticks(state.gravity) {
+            Err("multiplayer.disconnect.flying")
+        } else {
+            Ok(ticks)
+        }
+    } else {
+        Ok(0)
     }
 }
 
@@ -656,5 +812,119 @@ mod tests {
         assert_eq!(maximum_flying_ticks(0.08), 80);
         assert_eq!(maximum_flying_ticks(0.04), 160);
         assert_eq!(maximum_flying_ticks(0.0), i32::MAX);
+    }
+
+    #[test]
+    fn anti_cheat_vehicle_movement_corrects_too_fast_wrong_and_floating_moves() {
+        let state = VehicleMovementState::at(0.0, 64.0, 0.0);
+        assert_eq!(
+            validate_vehicle_move(
+                state,
+                packet_at(10.1, 64.0, 0.0),
+                ValidationEnvironment::default()
+            ),
+            MovementDecision::TeleportBack(TeleportCorrection {
+                target: state.current,
+                y_rot: state.y_rot,
+                x_rot: state.x_rot,
+                reason: CorrectionReason::VehicleMovedTooQuickly
+            })
+        );
+
+        assert_eq!(
+            validate_vehicle_move(
+                state,
+                packet_at(0.1, 64.0, 0.0),
+                ValidationEnvironment {
+                    collision_remainder: Vec3 {
+                        x: 0.26,
+                        y: 0.0,
+                        z: 0.0
+                    },
+                    old_box_still_clear: true,
+                    collides_with_new_blocks: false,
+                    tick_rate_runs_normally: true,
+                }
+            ),
+            MovementDecision::TeleportBack(TeleportCorrection {
+                target: state.current,
+                y_rot: 0.0,
+                x_rot: 0.0,
+                reason: CorrectionReason::VehicleMovedWrongly
+            })
+        );
+
+        let mut floating = state;
+        floating.vertical_collision_below = false;
+        floating.no_blocks_around = true;
+        match validate_vehicle_move(
+            floating,
+            packet_at(0.1, 64.0, 0.0),
+            ValidationEnvironment::default(),
+        ) {
+            MovementDecision::AcceptVehicle(move_) => {
+                assert_eq!(
+                    move_.target,
+                    Vec3 {
+                        x: 0.1,
+                        y: 64.0,
+                        z: 0.0
+                    }
+                );
+                assert!(move_.client_vehicle_is_floating);
+            }
+            other => panic!("expected vehicle accept, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn anti_cheat_illegal_stance_position_and_flying_ticks_match_vanilla_thresholds() {
+        assert!(illegal_position_or_stance(MovePacket {
+            x: 3.0E7 + 1.0,
+            ..packet_at(0.0, 64.0, 0.0)
+        }));
+        assert!(illegal_position_or_stance(MovePacket {
+            y: -2.0E7 - 1.0,
+            ..packet_at(0.0, 64.0, 0.0)
+        }));
+        assert!(illegal_position_or_stance(MovePacket {
+            x_rot: f32::INFINITY,
+            ..packet_at(0.0, 64.0, 0.0)
+        }));
+        assert!(!illegal_position_or_stance(packet_at(3.0E7, 2.0E7, -3.0E7)));
+
+        assert_eq!(
+            tick_floating_state(FloatingState {
+                client_is_floating: true,
+                above_ground_ticks: 79,
+                gravity: 0.08,
+                sleeping: false,
+                passenger: false,
+                dead_or_dying: false,
+            }),
+            Ok(80)
+        );
+        assert_eq!(
+            tick_floating_state(FloatingState {
+                client_is_floating: true,
+                above_ground_ticks: 80,
+                gravity: 0.08,
+                sleeping: false,
+                passenger: false,
+                dead_or_dying: false,
+            }),
+            Err("multiplayer.disconnect.flying")
+        );
+        assert_eq!(
+            tick_floating_state(FloatingState {
+                client_is_floating: true,
+                above_ground_ticks: 80,
+                gravity: 0.08,
+                sleeping: true,
+                passenger: false,
+                dead_or_dying: false,
+            }),
+            Ok(0)
+        );
     }
 }
