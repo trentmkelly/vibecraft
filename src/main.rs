@@ -14,6 +14,7 @@ mod crash;
 mod entity_variants;
 mod eula;
 mod fluid;
+mod gravity;
 mod inhabited_time;
 mod light;
 mod log;
