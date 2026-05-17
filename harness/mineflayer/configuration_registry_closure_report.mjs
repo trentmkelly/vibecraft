@@ -21,17 +21,6 @@ export const rawProbePath = path.join(here, 'raw_26_1_2_join_probe.mjs')
 
 export const documentedRegistryOmissions = new Map([
   [
-    'minecraft:biome',
-    {
-      milestone: 'void-world join',
-      evidence: [
-        'Biome.NETWORK_CODEC still needs an encoder for climate settings, optional positional attributes, and special effects.',
-        'Initial chunk biome palette parity has not yet been compared against an official server.jar transcript.'
-      ],
-      next: 'Emit codec-valid baseline biome entries and assert them in the raw probe before broad client compatibility is marked complete.'
-    }
-  ],
-  [
     'minecraft:enchantment',
     {
       milestone: 'void-world join',

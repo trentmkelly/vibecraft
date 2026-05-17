@@ -246,6 +246,74 @@ const CHAT_TYPES: &[ChatTypeEntry] = &[
     },
 ];
 
+const BIOMES: &[&str] = &[
+    "the_void",
+    "plains",
+    "sunflower_plains",
+    "snowy_plains",
+    "ice_spikes",
+    "desert",
+    "swamp",
+    "mangrove_swamp",
+    "forest",
+    "flower_forest",
+    "birch_forest",
+    "dark_forest",
+    "pale_garden",
+    "old_growth_birch_forest",
+    "old_growth_pine_taiga",
+    "old_growth_spruce_taiga",
+    "taiga",
+    "snowy_taiga",
+    "savanna",
+    "savanna_plateau",
+    "windswept_hills",
+    "windswept_gravelly_hills",
+    "windswept_forest",
+    "windswept_savanna",
+    "jungle",
+    "sparse_jungle",
+    "bamboo_jungle",
+    "badlands",
+    "eroded_badlands",
+    "wooded_badlands",
+    "meadow",
+    "cherry_grove",
+    "grove",
+    "snowy_slopes",
+    "frozen_peaks",
+    "jagged_peaks",
+    "stony_peaks",
+    "river",
+    "frozen_river",
+    "beach",
+    "snowy_beach",
+    "stony_shore",
+    "warm_ocean",
+    "lukewarm_ocean",
+    "deep_lukewarm_ocean",
+    "ocean",
+    "deep_ocean",
+    "cold_ocean",
+    "deep_cold_ocean",
+    "frozen_ocean",
+    "deep_frozen_ocean",
+    "mushroom_fields",
+    "dripstone_caves",
+    "lush_caves",
+    "deep_dark",
+    "nether_wastes",
+    "warped_forest",
+    "crimson_forest",
+    "soul_sand_valley",
+    "basalt_deltas",
+    "the_end",
+    "end_highlands",
+    "end_midlands",
+    "small_end_islands",
+    "end_barrens",
+];
+
 const TRIM_PATTERNS: &[&str] = &[
     "sentry",
     "dune",
@@ -769,6 +837,11 @@ fn handle_login_connection(
             write_var_i32(payload, 1)?;
             write_identifier(payload, &Identifier::parse("minecraft:vanilla").unwrap())
         },
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_minimal_biome_registry_packet,
     )?;
     write_framed_packet(
         stream,
@@ -1316,6 +1389,55 @@ fn write_minimal_single_entry_registry_packet<W: Write>(
     write_identifier(writer, &Identifier::parse(registry.entry).unwrap())?;
     write_bool(writer, true)?;
     write_network_nbt(writer, &(registry.value)())
+}
+
+fn write_minimal_biome_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:biome").unwrap())?;
+    write_var_i32(writer, BIOMES.len() as i32)?;
+    for biome in BIOMES {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{biome}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &vanilla_baseline_biome_nbt(biome))?;
+    }
+    Ok(())
+}
+
+fn vanilla_baseline_biome_nbt(biome: &str) -> Tag {
+    let (has_precipitation, temperature, downfall, water_color) = match biome {
+        "the_void" => (false, 0.5, 0.5, 4_159_204),
+        "snowy_plains" | "ice_spikes" | "snowy_taiga" | "frozen_river" | "snowy_beach"
+        | "frozen_ocean" | "deep_frozen_ocean" | "grove" | "snowy_slopes"
+        | "frozen_peaks" | "jagged_peaks" => (true, 0.0, 0.5, 4_020_182),
+        "desert" | "savanna" | "savanna_plateau" | "windswept_savanna" | "badlands"
+        | "eroded_badlands" | "wooded_badlands" | "nether_wastes" | "warped_forest"
+        | "crimson_forest" | "soul_sand_valley" | "basalt_deltas" => {
+            (false, 2.0, 0.0, 4_159_204)
+        }
+        "warm_ocean" => (true, 0.5, 0.5, 4_446_778),
+        "lukewarm_ocean" | "deep_lukewarm_ocean" => (true, 0.5, 0.5, 4_566_514),
+        "cold_ocean" | "deep_cold_ocean" => (true, 0.5, 0.5, 4_020_182),
+        "swamp" | "mangrove_swamp" => (true, 0.8, 0.9, 6_388_580),
+        "the_end" | "end_highlands" | "end_midlands" | "small_end_islands" | "end_barrens" => {
+            (false, 0.5, 0.5, 4_159_204)
+        }
+        _ => (true, 0.8, 0.4, 4_159_204),
+    };
+
+    Tag::Compound(vec![
+        (
+            "has_precipitation".to_string(),
+            Tag::Byte(if has_precipitation { 1 } else { 0 }),
+        ),
+        ("temperature".to_string(), Tag::Float(temperature)),
+        ("downfall".to_string(), Tag::Float(downfall)),
+        (
+            "effects".to_string(),
+            Tag::Compound(vec![("water_color".to_string(), Tag::Int(water_color))]),
+        ),
+    ])
 }
 
 fn overworld_dimension_type_nbt() -> Tag {
@@ -2027,14 +2149,16 @@ mod tests {
         instrument_nbt, jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
         legacy_version1_response, pig_sound_variant_nbt, read_packet, status_json,
         trim_material_nbt, trim_pattern_nbt, wolf_sound_variant_nbt, write_legacy_string,
+        vanilla_baseline_biome_nbt,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
-        write_minimal_trim_material_registry_packet, write_status_pong_packet,
+        write_minimal_biome_registry_packet, write_minimal_trim_material_registry_packet,
+        write_status_pong_packet,
         write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet, write_vanilla_chicken_variant_registry_packet,
         write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
         write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
         write_vanilla_pig_variant_registry_packet, write_vanilla_trim_pattern_registry_packet,
-        write_vanilla_wolf_variant_registry_packet, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
+        write_vanilla_wolf_variant_registry_packet, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BIOMES,
         wait_for_configuration_packet, write_framed_packet, CHAT_TYPES, DAMAGE_TYPE_TAGS,
         INSTRUMENTS, JUKEBOX_SONGS, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
@@ -2337,6 +2461,33 @@ mod tests {
             Some(Tag::String(value)) if value == "chat.type.text.narrate"
         ));
         assert_string_list(field_value(narration, "parameters"), &["sender", "content"]);
+    }
+
+    #[test]
+    fn biome_registry_payloads_include_full_vanilla_id_set_with_plains() {
+        assert_eq!(BIOMES.len(), 65);
+        assert!(BIOMES.contains(&"plains"));
+        assert!(BIOMES.contains(&"the_void"));
+        assert!(BIOMES.contains(&"end_barrens"));
+        assert_eq!(
+            registry_element_count(write_minimal_biome_registry_packet),
+            BIOMES.len() as i32
+        );
+
+        let plains = vanilla_baseline_biome_nbt("plains");
+        assert!(matches!(
+            field_value(&plains, "has_precipitation"),
+            Some(Tag::Byte(1))
+        ));
+        assert!(matches!(
+            field_value(&plains, "temperature"),
+            Some(Tag::Float(value)) if (*value - 0.8).abs() < f32::EPSILON
+        ));
+        let effects = compound_field(&plains, "effects");
+        assert!(matches!(
+            field_value(effects, "water_color"),
+            Some(Tag::Int(4_159_204))
+        ));
     }
 
     #[test]

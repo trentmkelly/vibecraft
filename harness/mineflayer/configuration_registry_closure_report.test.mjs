@@ -53,7 +53,6 @@ test('omitted registry report entries carry actionable milestone evidence', asyn
   assert.deepEqual(
     omitted.map(entry => entry.registry),
     [
-      'minecraft:biome',
       'minecraft:enchantment',
       'minecraft:test_environment',
       'minecraft:test_instance',

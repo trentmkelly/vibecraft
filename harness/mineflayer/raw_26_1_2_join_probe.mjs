@@ -111,6 +111,7 @@ function expectPacket (packet, id, state) {
 }
 
 const expectedRegistries = [
+  'minecraft:biome',
   'minecraft:damage_type',
   'minecraft:dimension_type',
   'minecraft:chat_type',
@@ -136,6 +137,7 @@ const expectedRegistries = [
 
 const minimumRegistryElements = new Map([
   ['minecraft:banner_pattern', 43],
+  ['minecraft:biome', 65],
   ['minecraft:cat_sound_variant', 1],
   ['minecraft:cat_variant', 11],
   ['minecraft:chat_type', 7],
@@ -159,6 +161,11 @@ const minimumRegistryElements = new Map([
 ])
 
 const requiredRegistryElements = new Map([
+  ['minecraft:biome', [
+    'minecraft:plains',
+    'minecraft:the_void',
+    'minecraft:end_barrens'
+  ]],
   ['minecraft:chat_type', [
     'minecraft:chat',
     'minecraft:emote_command',

@@ -20,10 +20,6 @@ const rawProbePath = path.join(here, 'raw_26_1_2_join_probe.mjs')
 
 const documentedOmissions = new Map([
   [
-    'minecraft:biome',
-    'Minimal void-world join milestone has not implemented vanilla biome codec payloads or chunk biome palette parity yet.'
-  ],
-  [
     'minecraft:enchantment',
     'Enchantment registry sync is deferred until item component initialization can be verified against vanilla item data.'
   ],
