@@ -58,6 +58,9 @@ pub struct ServerCommandState {
     pub command_source_position: Vec3,
     pub command_source_dimension: String,
     pub online_players: Vec<NameAndId>,
+    pub player_game_modes: Vec<PlayerGameMode>,
+    pub camera_targets: Vec<CameraTarget>,
+    pub untrackable_entities: Vec<EntityRef>,
     pub max_players: u32,
     pub singleplayer_owner: Option<NameAndId>,
     pub disconnected_players: Vec<PlayerDisconnect>,
@@ -165,6 +168,18 @@ pub struct PerfReport {
 pub struct PlayerRecipeBook {
     pub player: NameAndId,
     pub recipes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerGameMode {
+    pub player: NameAndId,
+    pub gamemode: GameMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CameraTarget {
+    pub player: NameAndId,
+    pub target: Option<EntityRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -462,6 +477,9 @@ pub enum CommandError {
     TagRemoveFailed,
     StopwatchAlreadyExists,
     StopwatchDoesNotExist,
+    SpectateSelf,
+    SpectateNotSpectator,
+    SpectateCannotSpectate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -554,6 +572,9 @@ impl Default for ServerCommandState {
             command_source_position: Vec3::default(),
             command_source_dimension: "minecraft:overworld".to_string(),
             online_players: Vec::new(),
+            player_game_modes: Vec::new(),
+            camera_targets: Vec::new(),
+            untrackable_entities: Vec::new(),
             max_players: 20,
             singleplayer_owner: None,
             disconnected_players: Vec::new(),
@@ -963,6 +984,7 @@ pub fn execute_builtin_command(
         }
         "serverpack" => server_pack_command(state, &parts),
         "setworldspawn" => setworldspawn_command(state, &parts),
+        "spectate" => spectate_command(state, &parts),
         "spawnpoint" => spawnpoint_command(state, &parts),
         "version" => {
             if parts.len() != 1 {
@@ -1708,6 +1730,81 @@ fn set_player_spawn(state: &mut ServerCommandState, player: NameAndId, respawn: 
             respawn,
             forced: true,
         });
+    }
+}
+
+fn spectate_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (target, player) = match parts {
+        ["spectate"] => (
+            None,
+            state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?,
+        ),
+        ["spectate", target] => (
+            Some(entity_ref(target)),
+            state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?,
+        ),
+        ["spectate", target, player] => {
+            (Some(entity_ref(target)), NameAndId::create_offline(player))
+        }
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    if target
+        .as_ref()
+        .is_some_and(|target| target.id == player.name || target.id == player.uuid)
+    {
+        return Err(CommandError::SpectateSelf);
+    }
+    if player_gamemode(state, &player) != GameMode::Spectator {
+        return Err(CommandError::SpectateNotSpectator);
+    }
+    if let Some(target) = &target {
+        if state
+            .untrackable_entities
+            .iter()
+            .any(|entity| entity.id == target.id)
+        {
+            return Err(CommandError::SpectateCannotSpectate);
+        }
+    }
+    set_camera_target(state, player, target.clone());
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: if target.is_some() {
+            "commands.spectate.success.started"
+        } else {
+            "commands.spectate.success.stopped"
+        },
+        broadcast_to_admins: false,
+    })
+}
+
+fn player_gamemode(state: &ServerCommandState, player: &NameAndId) -> GameMode {
+    state
+        .player_game_modes
+        .iter()
+        .find(|entry| entry.player.uuid == player.uuid)
+        .map(|entry| entry.gamemode)
+        .unwrap_or(GameMode::Survival)
+}
+
+fn set_camera_target(state: &mut ServerCommandState, player: NameAndId, target: Option<EntityRef>) {
+    if let Some(existing) = state
+        .camera_targets
+        .iter_mut()
+        .find(|entry| entry.player.uuid == player.uuid)
+    {
+        existing.target = target;
+    } else {
+        state.camera_targets.push(CameraTarget { player, target });
     }
 }
 
@@ -2719,6 +2816,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ),
         ("setidletimeout", "/setidletimeout <minutes>"),
         ("setworldspawn", "/setworldspawn [pos] [rotation]"),
+        ("spectate", "/spectate [target] [player]"),
         ("spawnpoint", "/spawnpoint [targets] [pos] [rotation]"),
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
@@ -3082,9 +3180,9 @@ mod tests {
         visible_command_usages, BlockPos, ChatCommandKind, CommandAvailability, CommandError,
         EntityAnchor, EntityKind, EntityMount, EntityRef, EntityState, EntityTags, GameMode,
         InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
-        PermissionLevel, PlaySoundRequest, PlayerRecipeBook, PlayerSpawn, PublishRequest,
-        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
-        RotationRequest, SaveAllRequest, ServerCommandState, ServerPackCommandEvent,
+        PermissionLevel, PlaySoundRequest, PlayerGameMode, PlayerRecipeBook, PlayerSpawn,
+        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
+        RotationMode, RotationRequest, SaveAllRequest, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
         SwingCommandEvent, TeamMembership, Vec3, VersionInfo, WeatherMode,
     };
@@ -5493,6 +5591,119 @@ mod tests {
         );
         assert_eq!(
             execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "ride pig"),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn spectate_command_updates_camera_for_spectators() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            online_players: vec![steve.clone(), alex.clone()],
+            player_game_modes: vec![
+                PlayerGameMode {
+                    player: steve.clone(),
+                    gamemode: GameMode::Spectator,
+                },
+                PlayerGameMode {
+                    player: alex.clone(),
+                    gamemode: GameMode::Spectator,
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("spectate"),
+            PermissionLevel::Gamemasters
+        );
+
+        let started = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spectate cow",
+        )
+        .unwrap();
+        assert_eq!(started.success_count, 1);
+        assert_eq!(started.feedback_key, "commands.spectate.success.started");
+        assert_eq!(
+            state.camera_targets[0].target,
+            Some(EntityRef {
+                id: "cow".to_string(),
+                display_name: "cow".to_string(),
+            })
+        );
+
+        let explicit = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spectate pig Alex",
+        )
+        .unwrap();
+        assert_eq!(explicit.feedback_key, "commands.spectate.success.started");
+        assert_eq!(state.camera_targets[1].player, alex);
+        assert_eq!(
+            state.camera_targets[1].target,
+            Some(EntityRef {
+                id: "pig".to_string(),
+                display_name: "pig".to_string(),
+            })
+        );
+
+        let stopped =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "spectate")
+                .unwrap();
+        assert_eq!(stopped.feedback_key, "commands.spectate.success.stopped");
+        assert_eq!(state.camera_targets[0].target, None);
+    }
+
+    #[test]
+    fn spectate_command_rejects_vanilla_failures() {
+        let steve = NameAndId::create_offline("Steve");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            player_game_modes: vec![PlayerGameMode {
+                player: steve.clone(),
+                gamemode: GameMode::Spectator,
+            }],
+            untrackable_entities: vec![EntityRef {
+                id: "marker".to_string(),
+                display_name: "marker".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spectate Steve"
+            ),
+            Err(CommandError::SpectateSelf)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spectate marker"
+            ),
+            Err(CommandError::SpectateCannotSpectate)
+        );
+
+        state.player_game_modes.clear();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spectate pig"
+            ),
+            Err(CommandError::SpectateNotSpectator)
+        );
+        state.command_source_player = None;
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "spectate"),
             Err(CommandError::InvalidSyntax)
         );
     }
