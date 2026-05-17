@@ -5,6 +5,8 @@ const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
 const protocolVersion = 775
+const serverboundAcceptTeleportationPacketId = 0
+const serverboundPlayerLoadedPacketId = 44
 
 function writeVarInt (value) {
   let remaining = value >>> 0
@@ -180,6 +182,8 @@ async function main () {
   if (!loginPacket || loginPacket.length !== 70) {
     throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
   }
+  socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))
+  socket.write(frame(serverboundPlayerLoadedPacketId))
 
   socket.end()
   console.log(JSON.stringify({ ok: true, host, port, login: login.id, config, play }, null, 2))
