@@ -161,6 +161,8 @@ pub struct ServerCommandState {
     pub rotation_requests: Vec<RotationRequest>,
     pub return_events: Vec<ReturnCommandEvent>,
     pub ride_events: Vec<RideCommandEvent>,
+    pub damage_events: Vec<DamageCommandEvent>,
+    pub invulnerable_entities: Vec<EntityRef>,
     pub entity_mounts: Vec<EntityMount>,
     pub entity_positions: Vec<EntityPosition>,
     pub entity_states: Vec<EntityState>,
@@ -695,6 +697,30 @@ pub enum RideCommandEvent {
     },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct DamageCommandEvent {
+    pub target: EntityRef,
+    pub amount: f32,
+    pub source: DamageCommandSource,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DamageCommandSource {
+    Generic,
+    Type {
+        damage_type: String,
+    },
+    At {
+        damage_type: String,
+        location: Vec3,
+    },
+    By {
+        damage_type: String,
+        entity: EntityRef,
+        cause: Option<EntityRef>,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityMount {
     pub target: EntityRef,
@@ -799,6 +825,7 @@ pub enum CommandError {
     CloneOverlap,
     CloneTooBig,
     CloneFailed,
+    DamageInvulnerable,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,
@@ -994,6 +1021,8 @@ impl Default for ServerCommandState {
             rotation_requests: Vec::new(),
             return_events: Vec::new(),
             ride_events: Vec::new(),
+            damage_events: Vec::new(),
+            invulnerable_entities: Vec::new(),
             entity_mounts: Vec::new(),
             entity_positions: Vec::new(),
             entity_states: Vec::new(),
@@ -1350,6 +1379,7 @@ pub fn execute_builtin_command(
         "chase" => chase_command(state, &parts),
         "clear" => clear_command(state, &parts),
         "clone" => clone_command(state, &parts),
+        "damage" => damage_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -2831,6 +2861,85 @@ fn clone_filter_matches(filter: CloneFilter, filtered_block: Option<&str>, block
         CloneFilter::Replace => true,
         CloneFilter::Masked => block != "minecraft:air",
         CloneFilter::Filtered => filtered_block.is_some_and(|filtered| filtered == block),
+    }
+}
+
+fn damage_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (target, amount, source) = match parts {
+        ["damage", target, amount] => (
+            entity_ref(target),
+            parse_damage_amount(amount)?,
+            DamageCommandSource::Generic,
+        ),
+        ["damage", target, amount, damage_type] => (
+            entity_ref(target),
+            parse_damage_amount(amount)?,
+            DamageCommandSource::Type {
+                damage_type: parse_resource_identifier(damage_type)?,
+            },
+        ),
+        ["damage", target, amount, damage_type, "at", x, y, z] => (
+            entity_ref(target),
+            parse_damage_amount(amount)?,
+            DamageCommandSource::At {
+                damage_type: parse_resource_identifier(damage_type)?,
+                location: Vec3 {
+                    x: parse_f64(x)?,
+                    y: parse_f64(y)?,
+                    z: parse_f64(z)?,
+                },
+            },
+        ),
+        ["damage", target, amount, damage_type, "by", entity] => (
+            entity_ref(target),
+            parse_damage_amount(amount)?,
+            DamageCommandSource::By {
+                damage_type: parse_resource_identifier(damage_type)?,
+                entity: entity_ref(entity),
+                cause: None,
+            },
+        ),
+        ["damage", target, amount, damage_type, "by", entity, "from", cause] => (
+            entity_ref(target),
+            parse_damage_amount(amount)?,
+            DamageCommandSource::By {
+                damage_type: parse_resource_identifier(damage_type)?,
+                entity: entity_ref(entity),
+                cause: Some(entity_ref(cause)),
+            },
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+
+    if state
+        .invulnerable_entities
+        .iter()
+        .any(|entity| entity.id == target.id)
+    {
+        return Err(CommandError::DamageInvulnerable);
+    }
+
+    state.damage_events.push(DamageCommandEvent {
+        target,
+        amount,
+        source,
+    });
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.damage.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn parse_damage_amount(input: &str) -> Result<f32, CommandError> {
+    let amount = parse_f32(input)?;
+    if amount < 0.0 {
+        Err(CommandError::InvalidSyntax)
+    } else {
+        Ok(amount)
     }
 }
 
@@ -6066,6 +6175,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "clone",
             "/clone [from <sourceDimension>] <begin> <end> [to <targetDimension>] [strict] <destination> [replace|masked|filtered <filter>] [force|move|normal]",
         ),
+        (
+            "damage",
+            "/damage <target> <amount> [damageType] [at <location>|by <entity> [from <cause>]]",
+        ),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -6508,11 +6621,11 @@ mod tests {
         visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
         BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent,
         ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability, CommandError,
-        CommandItemStack, CommandPlayerInventory, EntityAnchor, EntityAttributeState, EntityKind,
-        EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
-        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
-        PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress,
-        PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        CommandItemStack, CommandPlayerInventory, DamageCommandSource, EntityAnchor,
+        EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState, EntityTags,
+        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
+        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode,
+        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
         ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
         ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
@@ -9044,6 +9157,104 @@ mod tests {
             ),
             Err(CommandError::CloneFailed)
         );
+    }
+
+    #[test]
+    fn damage_command_records_generic_typed_positioned_and_entity_sources() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "damage zombie 4"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let generic = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "damage zombie 4",
+        )
+        .unwrap();
+        assert_eq!(generic.success_count, 1);
+        assert_eq!(generic.feedback_key, "commands.damage.success");
+        assert_eq!(state.damage_events[0].source, DamageCommandSource::Generic);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "damage zombie 2 magic at 1.5 65 -2",
+        )
+        .unwrap();
+        assert_eq!(
+            state.damage_events[1].source,
+            DamageCommandSource::At {
+                damage_type: "minecraft:magic".to_string(),
+                location: Vec3 {
+                    x: 1.5,
+                    y: 65.0,
+                    z: -2.0,
+                },
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "damage zombie 3 arrow by arrow_entity from skeleton",
+        )
+        .unwrap();
+        assert_eq!(
+            state.damage_events[2].source,
+            DamageCommandSource::By {
+                damage_type: "minecraft:arrow".to_string(),
+                entity: EntityRef {
+                    id: "arrow_entity".to_string(),
+                    display_name: "arrow_entity".to_string(),
+                },
+                cause: Some(EntityRef {
+                    id: "skeleton".to_string(),
+                    display_name: "skeleton".to_string(),
+                }),
+            }
+        );
+    }
+
+    #[test]
+    fn damage_command_rejects_negative_amount_bad_syntax_and_invulnerable_targets() {
+        let mut state = ServerCommandState {
+            invulnerable_entities: vec![EntityRef {
+                id: "armor_stand".to_string(),
+                display_name: "Armor Stand".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "damage zombie -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "damage zombie 1 magic at 1 2"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "damage armor_stand 1 generic"
+            ),
+            Err(CommandError::DamageInvulnerable)
+        );
+        assert!(state.damage_events.is_empty());
     }
 
     #[test]
