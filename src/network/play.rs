@@ -31,25 +31,64 @@ pub const CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 pub const CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 pub const CLIENTBOUND_ADD_ENTITY_PACKET_ID: i32 = 1;
 pub const CLIENTBOUND_ANIMATE_PACKET_ID: i32 = 2;
+pub const CLIENTBOUND_AWARD_STATS_PACKET_ID: i32 = 3;
+pub const CLIENTBOUND_BOSS_EVENT_PACKET_ID: i32 = 9;
+pub const CLIENTBOUND_CLEAR_TITLES_PACKET_ID: i32 = 14;
+pub const CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID: i32 = 15;
+pub const CLIENTBOUND_COMMANDS_PACKET_ID: i32 = 16;
+pub const CLIENTBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 17;
+pub const CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID: i32 = 18;
+pub const CLIENTBOUND_CONTAINER_SET_DATA_PACKET_ID: i32 = 19;
+pub const CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID: i32 = 20;
+pub const CLIENTBOUND_DEBUG_BLOCK_VALUE_PACKET_ID: i32 = 26;
+pub const CLIENTBOUND_DEBUG_CHUNK_VALUE_PACKET_ID: i32 = 27;
+pub const CLIENTBOUND_DEBUG_ENTITY_VALUE_PACKET_ID: i32 = 28;
+pub const CLIENTBOUND_DEBUG_EVENT_PACKET_ID: i32 = 29;
+pub const CLIENTBOUND_DEBUG_SAMPLE_PACKET_ID: i32 = 30;
+pub const CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID: i32 = 43;
+pub const CLIENTBOUND_LEVEL_PARTICLES_PACKET_ID: i32 = 47;
+pub const CLIENTBOUND_MAP_ITEM_DATA_PACKET_ID: i32 = 51;
+pub const CLIENTBOUND_MERCHANT_OFFERS_PACKET_ID: i32 = 52;
 pub const CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID: i32 = 53;
 pub const CLIENTBOUND_MOVE_ENTITY_POS_ROT_PACKET_ID: i32 = 54;
 pub const CLIENTBOUND_MOVE_ENTITY_ROT_PACKET_ID: i32 = 56;
 pub const CLIENTBOUND_PLAYER_COMBAT_KILL_PACKET_ID: i32 = 68;
+pub const CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID: i32 = 74;
+pub const CLIENTBOUND_RECIPE_BOOK_REMOVE_PACKET_ID: i32 = 75;
+pub const CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID: i32 = 76;
 pub const CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID: i32 = 77;
+pub const CLIENTBOUND_RESET_SCORE_PACKET_ID: i32 = 79;
 pub const CLIENTBOUND_PLAYER_POSITION_PACKET_ID: i32 = 72;
 pub const CLIENTBOUND_RESPAWN_PACKET_ID: i32 = 82;
 pub const CLIENTBOUND_ROTATE_HEAD_PACKET_ID: i32 = 83;
+pub const CLIENTBOUND_SET_ACTION_BAR_TEXT_PACKET_ID: i32 = 87;
+pub const CLIENTBOUND_SET_BORDER_CENTER_PACKET_ID: i32 = 88;
+pub const CLIENTBOUND_SET_BORDER_LERP_SIZE_PACKET_ID: i32 = 89;
+pub const CLIENTBOUND_SET_BORDER_SIZE_PACKET_ID: i32 = 90;
+pub const CLIENTBOUND_SET_BORDER_WARNING_DELAY_PACKET_ID: i32 = 91;
+pub const CLIENTBOUND_SET_BORDER_WARNING_DISTANCE_PACKET_ID: i32 = 92;
+pub const CLIENTBOUND_SET_DISPLAY_OBJECTIVE_PACKET_ID: i32 = 98;
 pub const CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID: i32 = 99;
 pub const CLIENTBOUND_SET_ENTITY_LINK_PACKET_ID: i32 = 100;
 pub const CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID: i32 = 101;
 pub const CLIENTBOUND_SET_EQUIPMENT_PACKET_ID: i32 = 102;
 pub const CLIENTBOUND_SET_HELD_SLOT_PACKET_ID: i32 = 105;
+pub const CLIENTBOUND_SET_OBJECTIVE_PACKET_ID: i32 = 106;
 pub const CLIENTBOUND_SET_PASSENGERS_PACKET_ID: i32 = 107;
+pub const CLIENTBOUND_SET_PLAYER_TEAM_PACKET_ID: i32 = 109;
+pub const CLIENTBOUND_SET_SCORE_PACKET_ID: i32 = 110;
+pub const CLIENTBOUND_SET_SUBTITLE_TEXT_PACKET_ID: i32 = 112;
+pub const CLIENTBOUND_SET_TITLE_TEXT_PACKET_ID: i32 = 114;
+pub const CLIENTBOUND_SET_TITLES_ANIMATION_PACKET_ID: i32 = 115;
+pub const CLIENTBOUND_SOUND_ENTITY_PACKET_ID: i32 = 116;
+pub const CLIENTBOUND_SOUND_PACKET_ID: i32 = 117;
 pub const CLIENTBOUND_START_CONFIGURATION_PACKET_ID: i32 = 118;
 pub const CLIENTBOUND_DISCONNECT_PACKET_ID: i32 = 32;
 pub const CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID: i32 = 125;
+pub const CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID: i32 = 130;
 pub const CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID: i32 = 131;
 pub const CLIENTBOUND_UPDATE_MOB_EFFECT_PACKET_ID: i32 = 132;
+pub const CLIENTBOUND_UPDATE_RECIPES_PACKET_ID: i32 = 133;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayProtocolRegistry {
@@ -305,6 +344,161 @@ pub struct EntitySpawnBundle {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundContainerPacket {
+    pub container_id: i32,
+    pub state_id: i32,
+    pub slots: Vec<Option<i32>>,
+    pub carried_item: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundRecipePacket {
+    pub recipes: Vec<Identifier>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundAdvancementsPacket {
+    pub reset: bool,
+    pub added: Vec<Identifier>,
+    pub removed: Vec<Identifier>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundAwardStatsPacket {
+    pub stats: Vec<(Identifier, i32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundScoreboardPacket {
+    pub objective: String,
+    pub owner: Option<String>,
+    pub score: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundBossEventPacket {
+    pub event_id: Uuid,
+    pub operation: BossEventOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BossEventOperation {
+    Add,
+    Remove,
+    UpdateProgress,
+    UpdateName,
+    UpdateStyle,
+    UpdateProperties,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundTitlePacket {
+    pub kind: TitlePacketKind,
+    pub text: Option<String>,
+    pub fade_in: Option<i32>,
+    pub stay: Option<i32>,
+    pub fade_out: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitlePacketKind {
+    Title,
+    Subtitle,
+    ActionBar,
+    Times,
+    Clear,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSoundPacket {
+    pub sound_id: i32,
+    pub source_id: i32,
+    pub position: Vec3,
+    pub volume: f32,
+    pub pitch: f32,
+    pub seed: i64,
+    pub entity_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundParticlePacket {
+    pub particle_id: i32,
+    pub long_distance: bool,
+    pub always_show: bool,
+    pub position: Vec3,
+    pub offset: Vec3,
+    pub max_speed: f32,
+    pub count: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundMapItemDataPacket {
+    pub map_id: i32,
+    pub scale: u8,
+    pub locked: bool,
+    pub decorations: usize,
+    pub color_patch: Option<MapPatch>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapPatch {
+    pub width: u8,
+    pub height: u8,
+    pub start_x: u8,
+    pub start_y: u8,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundWorldBorderPacket {
+    pub kind: WorldBorderPacketKind,
+    pub center: Option<(f64, f64)>,
+    pub old_size: Option<f64>,
+    pub new_size: Option<f64>,
+    pub lerp_time_ms: Option<i64>,
+    pub warning_blocks: Option<i32>,
+    pub warning_time: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldBorderPacketKind {
+    Initialize,
+    SetCenter,
+    LerpSize,
+    SetSize,
+    SetWarningDelay,
+    SetWarningDistance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundCommandsPacket {
+    pub root_index: i32,
+    pub node_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundCommandSuggestionsPacket {
+    pub transaction_id: i32,
+    pub start: i32,
+    pub length: i32,
+    pub matches: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundDebugPacket {
+    pub kind: DebugPacketKind,
+    pub payload_size: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DebugPacketKind {
+    BlockValue,
+    ChunkValue,
+    EntityValue,
+    Event,
+    Sample,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundLevelChunkWithLightPacket {
     pub pos: ChunkPos,
     pub chunk_data: Option<ClientboundLevelChunkPacketData>,
@@ -464,6 +658,20 @@ pub enum PlayInstruction {
     SetEntityLink(ClientboundSetEntityLinkPacket),
     RotateHead(ClientboundRotateHeadPacket),
     Animate(ClientboundAnimatePacket),
+    Container(ClientboundContainerPacket),
+    Recipes(ClientboundRecipePacket),
+    Advancements(ClientboundAdvancementsPacket),
+    AwardStats(ClientboundAwardStatsPacket),
+    Scoreboard(ClientboundScoreboardPacket),
+    BossEvent(ClientboundBossEventPacket),
+    Title(ClientboundTitlePacket),
+    Sound(ClientboundSoundPacket),
+    Particle(ClientboundParticlePacket),
+    MapItemData(ClientboundMapItemDataPacket),
+    WorldBorder(ClientboundWorldBorderPacket),
+    Commands(ClientboundCommandsPacket),
+    CommandSuggestions(ClientboundCommandSuggestionsPacket),
+    Debug(ClientboundDebugPacket),
     CombatKill(ClientboundPlayerCombatKillPacket),
     NoRespawnBlockAvailable,
     Respawn(ClientboundRespawnPacket),
@@ -1713,6 +1921,42 @@ mod tests {
             Some("update_mob_effect")
         );
         assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID),
+            Some("container_set_content")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID),
+            Some("recipe_book_add")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID),
+            Some("update_advancements")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_SET_OBJECTIVE_PACKET_ID),
+            Some("set_objective")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_BOSS_EVENT_PACKET_ID),
+            Some("boss_event")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_SOUND_PACKET_ID),
+            Some("sound")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_LEVEL_PARTICLES_PACKET_ID),
+            Some("level_particles")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_COMMANDS_PACKET_ID),
+            Some("commands")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_DEBUG_SAMPLE_PACKET_ID),
+            Some("debug_sample")
+        );
+        assert_eq!(
             registry.clientbound_name(CLIENTBOUND_LOGIN_PACKET_ID),
             Some("login")
         );
@@ -1722,6 +1966,104 @@ mod tests {
         );
         assert_eq!(registry.serverbound().last(), Some(&"custom_click_action"));
         assert_eq!(registry.clientbound().last(), Some(&"show_dialog"));
+    }
+
+    #[test]
+    fn broad_play_packet_families_are_represented_as_distinct_instructions() {
+        let instructions = vec![
+            PlayInstruction::Container(ClientboundContainerPacket {
+                container_id: 1,
+                state_id: 2,
+                slots: vec![Some(5), None],
+                carried_item: None,
+            }),
+            PlayInstruction::Recipes(ClientboundRecipePacket {
+                recipes: vec![Identifier::parse("minecraft:stone").unwrap()],
+            }),
+            PlayInstruction::Advancements(ClientboundAdvancementsPacket {
+                reset: true,
+                added: vec![Identifier::parse("minecraft:story/root").unwrap()],
+                removed: Vec::new(),
+            }),
+            PlayInstruction::AwardStats(ClientboundAwardStatsPacket {
+                stats: vec![(Identifier::parse("minecraft:jump").unwrap(), 3)],
+            }),
+            PlayInstruction::Scoreboard(ClientboundScoreboardPacket {
+                objective: "sidebar".to_string(),
+                owner: Some("Steve".to_string()),
+                score: Some(10),
+            }),
+            PlayInstruction::BossEvent(ClientboundBossEventPacket {
+                event_id: Uuid([2; 16]),
+                operation: BossEventOperation::UpdateProgress,
+            }),
+            PlayInstruction::Title(ClientboundTitlePacket {
+                kind: TitlePacketKind::Times,
+                text: None,
+                fade_in: Some(10),
+                stay: Some(70),
+                fade_out: Some(20),
+            }),
+            PlayInstruction::Sound(ClientboundSoundPacket {
+                sound_id: 1,
+                source_id: 2,
+                position: Vec3::ZERO,
+                volume: 1.0,
+                pitch: 1.0,
+                seed: 99,
+                entity_id: None,
+            }),
+            PlayInstruction::Particle(ClientboundParticlePacket {
+                particle_id: 1,
+                long_distance: false,
+                always_show: true,
+                position: Vec3::ZERO,
+                offset: Vec3::ZERO,
+                max_speed: 0.0,
+                count: 1,
+            }),
+            PlayInstruction::MapItemData(ClientboundMapItemDataPacket {
+                map_id: 1,
+                scale: 2,
+                locked: false,
+                decorations: 1,
+                color_patch: Some(MapPatch {
+                    width: 1,
+                    height: 1,
+                    start_x: 0,
+                    start_y: 0,
+                }),
+            }),
+            PlayInstruction::WorldBorder(ClientboundWorldBorderPacket {
+                kind: WorldBorderPacketKind::Initialize,
+                center: Some((0.0, 0.0)),
+                old_size: Some(6.0e7),
+                new_size: Some(6.0e7),
+                lerp_time_ms: Some(0),
+                warning_blocks: Some(5),
+                warning_time: Some(15),
+            }),
+            PlayInstruction::Commands(ClientboundCommandsPacket {
+                root_index: 0,
+                node_count: 1,
+            }),
+            PlayInstruction::CommandSuggestions(ClientboundCommandSuggestionsPacket {
+                transaction_id: 4,
+                start: 0,
+                length: 2,
+                matches: vec!["help".to_string()],
+            }),
+            PlayInstruction::Debug(ClientboundDebugPacket {
+                kind: DebugPacketKind::Sample,
+                payload_size: 8,
+            }),
+        ];
+
+        assert_eq!(instructions.len(), 14);
+        assert!(matches!(instructions[0], PlayInstruction::Container(_)));
+        assert!(matches!(instructions[4], PlayInstruction::Scoreboard(_)));
+        assert!(matches!(instructions[10], PlayInstruction::WorldBorder(_)));
+        assert!(matches!(instructions[13], PlayInstruction::Debug(_)));
     }
 
     #[test]
