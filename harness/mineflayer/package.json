@@ -20,7 +20,8 @@
     "rules:server": "node server_rules_scenarios.mjs",
     "stability:tick": "node tick_stability_scenarios.mjs",
     "registry": "node registry_scenarios.mjs",
-    "datapack": "node datapack_scenarios.mjs"
+    "datapack": "node datapack_scenarios.mjs",
+    "probe:raw-26": "node raw_26_1_2_join_probe.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
