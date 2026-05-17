@@ -36,10 +36,20 @@ test('biome codec audit records the 26.1.2 network payload shape from decomp', a
   const source = sources.get(biome.sourceFile)
 
   assert.deepEqual(biome.requiredFields, ['has_precipitation', 'temperature', 'downfall', 'effects', 'water_color'])
-  assert.ok(biome.optionalFields.includes('attributes'))
+  assert.deepEqual(biome.optionalFields, [
+    'temperature_modifier',
+    'attributes',
+    'foliage_color',
+    'dry_foliage_color',
+    'grass_color',
+    'grass_color_modifier'
+  ])
+  assert.deepEqual(biome.directOnlyFields, ['generation_settings', 'spawners'])
   assert.ok(source.includes('Biome.ClimateSettings.CODEC.forGetter'))
   assert.ok(source.includes('EnvironmentAttributeMap.NETWORK_CODEC.optionalFieldOf("attributes"'))
   assert.ok(source.includes('BiomeSpecialEffects.CODEC.fieldOf("effects"'))
+  assert.ok(source.includes('BiomeGenerationSettings.CODEC.forGetter'))
+  assert.ok(source.includes('MobSpawnSettings.CODEC.forGetter'))
   assert.ok(source.includes('BiomeGenerationSettings.EMPTY'))
   assert.ok(source.includes('MobSpawnSettings.EMPTY'))
 })

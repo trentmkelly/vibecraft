@@ -45,6 +45,7 @@ export const registryCodecAuditOverrides = new Map([
     shape: 'network-compound',
     requiredFields: ['has_precipitation', 'temperature', 'downfall', 'effects', 'water_color'],
     optionalFields: ['temperature_modifier', 'attributes', 'foliage_color', 'dry_foliage_color', 'grass_color', 'grass_color_modifier'],
+    directOnlyFields: ['generation_settings', 'spawners'],
     holderFields: [],
     tagFields: [],
     notes: [
@@ -77,6 +78,7 @@ export function createConfigurationRegistryCodecAudit (closureReport) {
       shape: override?.shape ?? (entry.codec.includes('NETWORK_CODEC') ? 'network-compound' : 'direct-compound'),
       requiredFields: override?.requiredFields ?? [],
       optionalFields: override?.optionalFields ?? [],
+      directOnlyFields: override?.directOnlyFields ?? [],
       holderFields: override?.holderFields ?? [],
       tagFields: override?.tagFields ?? [],
       omission: entry.emitted ? null : documentedRegistryOmissions.get(entry.registry),
