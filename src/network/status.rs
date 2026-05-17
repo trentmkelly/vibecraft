@@ -1965,7 +1965,8 @@ mod tests {
         write_vanilla_chat_type_registry_packet, write_vanilla_chicken_variant_registry_packet,
         write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
         write_vanilla_jukebox_song_registry_packet, write_vanilla_pig_variant_registry_packet,
-        write_vanilla_wolf_variant_registry_packet, CHAT_TYPES, JUKEBOX_SONGS, TRIM_MATERIALS,
+        write_vanilla_wolf_variant_registry_packet, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
+        CHAT_TYPES, DAMAGE_TYPE_TAGS, JUKEBOX_SONGS, TRIM_MATERIALS,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
@@ -2224,6 +2225,26 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn synced_tag_registries_include_required_names_and_indices() {
+        let is_fire = damage_type_tag_entries("minecraft:is_fire");
+        assert_eq!(is_fire, &[21, 3, 31, 24, 20, 46, 14]);
+
+        let bypasses_shield = damage_type_tag_entries("minecraft:bypasses_shield");
+        assert!(bypasses_shield.contains(&11));
+        assert!(bypasses_shield.contains(&13));
+
+        let flower = banner_pattern_tag_entries("minecraft:pattern_item/flower");
+        assert_eq!(flower, vec![banner_pattern_index("flower")]);
+
+        let field_masoned = banner_pattern_tag_entries("minecraft:pattern_item/field_masoned");
+        assert_eq!(field_masoned, vec![banner_pattern_index("bricks")]);
+
+        let bordure_indented =
+            banner_pattern_tag_entries("minecraft:pattern_item/bordure_indented");
+        assert_eq!(bordure_indented, vec![banner_pattern_index("curly_border")]);
+    }
+
     fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
         let adult = compound_field(&tag, "adult_sounds");
         let baby = compound_field(&tag, "baby_sounds");
@@ -2256,6 +2277,34 @@ mod tests {
             })
             .collect();
         assert_eq!(actual, expected);
+    }
+
+    fn damage_type_tag_entries(tag: &str) -> &'static [i32] {
+        DAMAGE_TYPE_TAGS
+            .iter()
+            .find_map(|(name, entries)| (*name == tag).then_some(*entries))
+            .unwrap_or_else(|| panic!("missing damage type tag {tag}"))
+    }
+
+    fn banner_pattern_tag_entries(tag: &str) -> Vec<usize> {
+        BANNER_PATTERN_TAGS
+            .iter()
+            .find_map(|(name, entries)| {
+                (*name == tag).then(|| {
+                    entries
+                        .iter()
+                        .map(|entry| banner_pattern_index(entry))
+                        .collect()
+                })
+            })
+            .unwrap_or_else(|| panic!("missing banner pattern tag {tag}"))
+    }
+
+    fn banner_pattern_index(pattern: &str) -> usize {
+        BANNER_PATTERNS
+            .iter()
+            .position(|entry| *entry == pattern)
+            .unwrap_or_else(|| panic!("missing banner pattern {pattern}"))
     }
 
     fn compound_field<'a>(tag: &'a Tag, field: &str) -> &'a Tag {
