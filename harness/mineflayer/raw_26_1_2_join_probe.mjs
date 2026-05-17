@@ -701,7 +701,9 @@ async function main () {
     const packet = await reader.nextPacket()
     playPackets.push(packet)
     play.push({ id: packet.id, length: packet.length })
+    if (abortAfter === 'join_game' && packet.id === 49) return abortSocket(socket, 'join_game', { login: login.id, config, play })
     if (abortAfter === 'first_chunk' && packet.id === 45) return abortSocket(socket, 'first_chunk', { login: login.id, config, play })
+    if (abortAfter === 'chunk_batch_finished' && packet.id === 11) return abortSocket(socket, 'chunk_batch_finished', { login: login.id, config, play })
   }
   if (!recordOnly) {
     for (const id of expectedPlayPacketIds) {
@@ -847,6 +849,7 @@ async function main () {
     socket.write(encodeClientPacket(reader, serverboundSwingPacketId, writeVarInt(0)))
     socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, useItemOnPayload()))
     socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
+    if (abortAfter === 'first_tick_actions') return abortSocket(socket, 'first_tick_actions', { login: login.id, config, play, joinState })
   }
 
   let keepAliveReplies = 0
@@ -866,6 +869,7 @@ async function main () {
       }
       keepAliveReplies += 1
       play.push({ id: packet.id, length: packet.length })
+      if (abortAfter === 'first_keepalive') return abortSocket(socket, 'first_keepalive', { login: login.id, config, play, joinState, keepAliveReplies })
       socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
     }
     if (!recordOnly && keepAliveReplies === 0) {
