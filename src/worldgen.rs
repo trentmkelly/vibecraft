@@ -154,6 +154,75 @@ pub struct OreVeinDecisionInput {
     pub debug_ore_veins: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ConfiguredCarver {
+    pub id: &'static str,
+    pub carver_type: WorldCarverType,
+    pub probability: f32,
+    pub y: HeightRange,
+    pub y_scale: FloatProvider,
+    pub lava_level: VerticalAnchor,
+    pub debug: CarverDebugSettings,
+    pub replaceable_tag: &'static str,
+    pub shape: CarverShape,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldCarverType {
+    Cave,
+    NetherCave,
+    Canyon,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CarverShape {
+    Cave {
+        horizontal_radius_multiplier: FloatProvider,
+        vertical_radius_multiplier: FloatProvider,
+        floor_level: FloatProvider,
+    },
+    Canyon {
+        vertical_rotation: FloatProvider,
+        shape: CanyonShapeConfiguration,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CanyonShapeConfiguration {
+    pub distance_factor: FloatProvider,
+    pub thickness: FloatProvider,
+    pub width_smoothness: i32,
+    pub horizontal_radius_factor: FloatProvider,
+    pub vertical_radius_default_factor: f32,
+    pub vertical_radius_center_factor: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FloatProvider {
+    Constant(f32),
+    Uniform { min: f32, max: f32 },
+    Trapezoid { min: f32, max: f32, plateau: f32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeightRange {
+    pub min: VerticalAnchor,
+    pub max: VerticalAnchor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerticalAnchor {
+    Absolute(i32),
+    AboveBottom(i32),
+    BelowTop(i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CarverDebugSettings {
+    pub enabled: bool,
+    pub barrier_state: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseRouterPreset {
     Overworld { large_biomes: bool, amplified: bool },
@@ -1107,6 +1176,124 @@ pub const ORE_VEIN_TYPES: &[OreVeinType] = &[
     },
 ];
 
+pub const WORLD_CARVER_TYPES: &[WorldCarverType] = &[
+    WorldCarverType::Cave,
+    WorldCarverType::NetherCave,
+    WorldCarverType::Canyon,
+];
+
+pub const CONFIGURED_CARVERS: &[ConfiguredCarver] = &[
+    ConfiguredCarver {
+        id: "minecraft:cave",
+        carver_type: WorldCarverType::Cave,
+        probability: 0.15,
+        y: HeightRange {
+            min: VerticalAnchor::AboveBottom(8),
+            max: VerticalAnchor::Absolute(180),
+        },
+        y_scale: FloatProvider::Uniform { min: 0.1, max: 0.9 },
+        lava_level: VerticalAnchor::AboveBottom(8),
+        debug: CarverDebugSettings {
+            enabled: false,
+            barrier_state: "minecraft:crimson_button",
+        },
+        replaceable_tag: "#minecraft:overworld_carver_replaceables",
+        shape: CarverShape::Cave {
+            horizontal_radius_multiplier: FloatProvider::Uniform { min: 0.7, max: 1.4 },
+            vertical_radius_multiplier: FloatProvider::Uniform { min: 0.8, max: 1.3 },
+            floor_level: FloatProvider::Uniform {
+                min: -1.0,
+                max: -0.4,
+            },
+        },
+    },
+    ConfiguredCarver {
+        id: "minecraft:cave_extra_underground",
+        carver_type: WorldCarverType::Cave,
+        probability: 0.07,
+        y: HeightRange {
+            min: VerticalAnchor::AboveBottom(8),
+            max: VerticalAnchor::Absolute(47),
+        },
+        y_scale: FloatProvider::Uniform { min: 0.1, max: 0.9 },
+        lava_level: VerticalAnchor::AboveBottom(8),
+        debug: CarverDebugSettings {
+            enabled: false,
+            barrier_state: "minecraft:oak_button",
+        },
+        replaceable_tag: "#minecraft:overworld_carver_replaceables",
+        shape: CarverShape::Cave {
+            horizontal_radius_multiplier: FloatProvider::Uniform { min: 0.7, max: 1.4 },
+            vertical_radius_multiplier: FloatProvider::Uniform { min: 0.8, max: 1.3 },
+            floor_level: FloatProvider::Uniform {
+                min: -1.0,
+                max: -0.4,
+            },
+        },
+    },
+    ConfiguredCarver {
+        id: "minecraft:canyon",
+        carver_type: WorldCarverType::Canyon,
+        probability: 0.01,
+        y: HeightRange {
+            min: VerticalAnchor::Absolute(10),
+            max: VerticalAnchor::Absolute(67),
+        },
+        y_scale: FloatProvider::Constant(3.0),
+        lava_level: VerticalAnchor::AboveBottom(8),
+        debug: CarverDebugSettings {
+            enabled: false,
+            barrier_state: "minecraft:warped_button",
+        },
+        replaceable_tag: "#minecraft:overworld_carver_replaceables",
+        shape: CarverShape::Canyon {
+            vertical_rotation: FloatProvider::Uniform {
+                min: -0.125,
+                max: 0.125,
+            },
+            shape: CanyonShapeConfiguration {
+                distance_factor: FloatProvider::Uniform {
+                    min: 0.75,
+                    max: 1.0,
+                },
+                thickness: FloatProvider::Trapezoid {
+                    min: 0.0,
+                    max: 6.0,
+                    plateau: 2.0,
+                },
+                width_smoothness: 3,
+                horizontal_radius_factor: FloatProvider::Uniform {
+                    min: 0.75,
+                    max: 1.0,
+                },
+                vertical_radius_default_factor: 1.0,
+                vertical_radius_center_factor: 0.0,
+            },
+        },
+    },
+    ConfiguredCarver {
+        id: "minecraft:nether_cave",
+        carver_type: WorldCarverType::NetherCave,
+        probability: 0.2,
+        y: HeightRange {
+            min: VerticalAnchor::Absolute(0),
+            max: VerticalAnchor::BelowTop(1),
+        },
+        y_scale: FloatProvider::Constant(0.5),
+        lava_level: VerticalAnchor::AboveBottom(10),
+        debug: CarverDebugSettings {
+            enabled: false,
+            barrier_state: "minecraft:air",
+        },
+        replaceable_tag: "#minecraft:nether_carver_replaceables",
+        shape: CarverShape::Cave {
+            horizontal_radius_multiplier: FloatProvider::Constant(1.0),
+            vertical_radius_multiplier: FloatProvider::Constant(1.0),
+            floor_level: FloatProvider::Constant(-0.7),
+        },
+    },
+];
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -1497,20 +1684,47 @@ fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f6
     to_min + progress * (to_max - to_min)
 }
 
+pub fn configured_carver(id: &str) -> Option<&'static ConfiguredCarver> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    CONFIGURED_CARVERS.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
+pub fn carver_can_reach(
+    chunk_mid_x: f64,
+    chunk_mid_z: f64,
+    x: f64,
+    z: f64,
+    current_step: i32,
+    total_steps: i32,
+    thickness: f32,
+) -> bool {
+    let xd = x - chunk_mid_x;
+    let zd = z - chunk_mid_z;
+    let remaining = f64::from(total_steps - current_step);
+    let rr = f64::from(thickness + 2.0 + 16.0);
+    xd * xd + zd * zd - remaining * remaining <= rr * rr
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CaveDensityOutput,
-        DensityFunction, DensityMarker, FluidStatus, MappedDensityFunction, NoiseRouterPreset,
-        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, SurfaceRuleKind,
-        SurfaceRulePreset, AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CarverShape,
+        CaveDensityOutput, DensityFunction, DensityMarker, FloatProvider, FluidStatus, HeightRange,
+        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
+        OreVeinifierConstants, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WorldCarverType,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
         BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
         BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FLOATING_ISLANDS_NOISE_SETTINGS,
-        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, Y_DENSITY,
+        CONFIGURED_CARVERS, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
+        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS,
+        ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, SURFACE_CONDITION_TYPES,
+        SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -2134,5 +2348,84 @@ mod tests {
             }),
             Some("minecraft:oak_button")
         );
+    }
+
+    #[test]
+    fn configured_carvers_match_vanilla_bootstrap_entries() {
+        assert_eq!(
+            CONFIGURED_CARVERS
+                .iter()
+                .map(|carver| carver.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:cave",
+                "minecraft:cave_extra_underground",
+                "minecraft:canyon",
+                "minecraft:nether_cave",
+            ]
+        );
+
+        let cave = super::configured_carver("cave").unwrap();
+        assert_eq!(cave.carver_type, WorldCarverType::Cave);
+        assert_eq!(cave.probability, 0.15);
+        assert_eq!(
+            cave.y,
+            HeightRange {
+                min: VerticalAnchor::AboveBottom(8),
+                max: VerticalAnchor::Absolute(180),
+            }
+        );
+        assert_eq!(cave.y_scale, FloatProvider::Uniform { min: 0.1, max: 0.9 });
+        assert_eq!(cave.lava_level, VerticalAnchor::AboveBottom(8));
+        assert_eq!(cave.debug.barrier_state, "minecraft:crimson_button");
+        assert_eq!(
+            cave.replaceable_tag,
+            "#minecraft:overworld_carver_replaceables"
+        );
+
+        let extra = super::configured_carver("cave_extra_underground").unwrap();
+        assert_eq!(extra.probability, 0.07);
+        assert_eq!(extra.y.max, VerticalAnchor::Absolute(47));
+        assert_eq!(extra.debug.barrier_state, "minecraft:oak_button");
+
+        let canyon = super::configured_carver("canyon").unwrap();
+        assert_eq!(canyon.carver_type, WorldCarverType::Canyon);
+        assert_eq!(canyon.probability, 0.01);
+        assert_eq!(canyon.y_scale, FloatProvider::Constant(3.0));
+        assert_eq!(canyon.debug.barrier_state, "minecraft:warped_button");
+        assert!(matches!(
+            canyon.shape,
+            CarverShape::Canyon {
+                vertical_rotation: FloatProvider::Uniform {
+                    min: -0.125,
+                    max: 0.125
+                },
+                ..
+            }
+        ));
+
+        let nether = super::configured_carver("nether_cave").unwrap();
+        assert_eq!(nether.carver_type, WorldCarverType::NetherCave);
+        assert_eq!(nether.probability, 0.2);
+        assert_eq!(nether.y.min, VerticalAnchor::Absolute(0));
+        assert_eq!(nether.y.max, VerticalAnchor::BelowTop(1));
+        assert_eq!(
+            nether.replaceable_tag,
+            "#minecraft:nether_carver_replaceables"
+        );
+        assert!(matches!(
+            nether.shape,
+            CarverShape::Cave {
+                floor_level: FloatProvider::Constant(-0.7),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn world_carver_can_reach_matches_vanilla_distance_gate() {
+        assert!(super::carver_can_reach(8.0, 8.0, 8.0, 8.0, 0, 10, 1.0));
+        assert!(super::carver_can_reach(8.0, 8.0, 30.0, 8.0, 0, 10, 4.0));
+        assert!(!super::carver_can_reach(8.0, 8.0, 80.0, 8.0, 9, 10, 1.0));
     }
 }
