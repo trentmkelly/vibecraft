@@ -2,6 +2,7 @@
 
 use std::net::IpAddr;
 
+use crate::entity_category::mob_category;
 use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
 
@@ -114,6 +115,15 @@ pub struct ServerCommandState {
     pub chase_events: Vec<ChaseEvent>,
     pub perf_recording: bool,
     pub perf_reports: Vec<PerfReport>,
+    pub debug_profiler_running: bool,
+    pub debug_profiler_results: Vec<DebugProfilerResult>,
+    pub debug_trace_events: Vec<DebugTraceEvent>,
+    pub config_players: Vec<NameAndId>,
+    pub config_dialog_events: Vec<DebugConfigDialogEvent>,
+    pub mob_spawning_events: Vec<DebugMobSpawningEvent>,
+    pub debug_path_events: Vec<DebugPathEvent>,
+    pub unreachable_debug_paths: Vec<BlockPos>,
+    pub incomplete_debug_paths: Vec<BlockPos>,
     pub jfr_recording: bool,
     pub jfr_recordings: Vec<String>,
     pub next_jfr_recording_path: String,
@@ -294,6 +304,37 @@ pub struct CreatedDataPack {
 pub struct PerfReport {
     pub ticks: u32,
     pub duration_nanos: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebugProfilerResult {
+    pub duration_nanos: u64,
+    pub tick_duration: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebugTraceEvent {
+    pub function: String,
+    pub output: String,
+    pub command_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebugConfigDialogEvent {
+    pub target: String,
+    pub dialog: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebugMobSpawningEvent {
+    pub category: String,
+    pub position: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebugPathEvent {
+    pub source: EntityRef,
+    pub target: BlockPos,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -831,6 +872,14 @@ pub enum CommandError {
     PardonIpFailed,
     OpFailed,
     DeOpFailed,
+    DebugAlreadyRunning,
+    DebugNotRunning,
+    DebugNoRecursiveTraces,
+    DebugNoReturnRun,
+    DebugConfigPlayerMissing,
+    DebugPathNotMob,
+    DebugPathNoPath,
+    DebugPathNotComplete,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -994,6 +1043,15 @@ impl Default for ServerCommandState {
             chase_events: Vec::new(),
             perf_recording: false,
             perf_reports: Vec::new(),
+            debug_profiler_running: false,
+            debug_profiler_results: Vec::new(),
+            debug_trace_events: Vec::new(),
+            config_players: Vec::new(),
+            config_dialog_events: Vec::new(),
+            mob_spawning_events: Vec::new(),
+            debug_path_events: Vec::new(),
+            unreachable_debug_paths: Vec::new(),
+            incomplete_debug_paths: Vec::new(),
             jfr_recording: false,
             jfr_recordings: Vec::new(),
             next_jfr_recording_path: "debug/rustcraft.jfr".to_string(),
@@ -1434,6 +1492,10 @@ pub fn execute_builtin_command(
         "clone" => clone_command(state, &parts),
         "damage" => damage_command(state, &parts),
         "datapack" => datapack_command(state, &parts, permissions),
+        "debug" => debug_command(state, &parts),
+        "debugconfig" => debug_config_command(state, &parts),
+        "debugmobspawning" => debug_mob_spawning_command(state, &parts),
+        "debugpath" => debug_path_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -3279,6 +3341,192 @@ fn is_portable_datapack_name(id: &str) -> bool {
         "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
     !RESERVED.contains(&upper.as_str()) && !id.ends_with('.') && !id.ends_with(' ')
+}
+
+fn debug_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["debug", "start"] => {
+            if state.debug_profiler_running {
+                return Err(CommandError::DebugAlreadyRunning);
+            }
+            state.debug_profiler_running = true;
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.debug.started",
+                broadcast_to_admins: true,
+            })
+        }
+        ["debug", "stop"] => {
+            if !state.debug_profiler_running {
+                return Err(CommandError::DebugNotRunning);
+            }
+            state.debug_profiler_running = false;
+            let result = state
+                .debug_profiler_results
+                .pop()
+                .unwrap_or(DebugProfilerResult {
+                    duration_nanos: 1_000_000_000,
+                    tick_duration: 20,
+                });
+            let tps = if result.duration_nanos == 0 {
+                0
+            } else {
+                ((result.tick_duration as f64) / ((result.duration_nanos as f64) / 1_000_000_000.0))
+                    .round() as i32
+            };
+            Ok(CommandResult {
+                success_count: tps,
+                feedback_key: "commands.debug.stopped",
+                broadcast_to_admins: true,
+            })
+        }
+        ["debug", "function", "return"] => Err(CommandError::DebugNoReturnRun),
+        ["debug", "function", "recursive"] => Err(CommandError::DebugNoRecursiveTraces),
+        ["debug", "function", function] => {
+            state.debug_trace_events.push(DebugTraceEvent {
+                function: parse_resource_identifier(function)?,
+                output: format!("debug-trace-{}.txt", state.debug_trace_events.len() + 1),
+                command_count: state
+                    .macro_functions
+                    .iter()
+                    .filter(|known| known.as_str() == *function)
+                    .count()
+                    .max(1),
+            });
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.debug.function.success.single",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn debug_config_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["debugconfig", "config", target] => {
+            let profile = NameAndId::create_offline(target);
+            if !state
+                .config_players
+                .iter()
+                .any(|known| known.uuid == profile.uuid)
+            {
+                state.config_players.push(profile);
+            }
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.debugconfig.config",
+                broadcast_to_admins: false,
+            })
+        }
+        ["debugconfig", "unconfig", target] => {
+            let old_len = state.config_players.len();
+            state
+                .config_players
+                .retain(|known| known.uuid != *target && known.name != *target);
+            Ok(CommandResult {
+                success_count: if old_len == state.config_players.len() {
+                    0
+                } else {
+                    1
+                },
+                feedback_key: if old_len == state.config_players.len() {
+                    "commands.debugconfig.missing"
+                } else {
+                    "commands.debugconfig.unconfig"
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        ["debugconfig", "dialog", target, dialog] => {
+            if !state
+                .config_players
+                .iter()
+                .any(|known| known.uuid == *target || known.name == *target)
+            {
+                return Ok(CommandResult {
+                    success_count: 0,
+                    feedback_key: "commands.debugconfig.missing",
+                    broadcast_to_admins: false,
+                });
+            }
+            state.config_dialog_events.push(DebugConfigDialogEvent {
+                target: (*target).to_string(),
+                dialog: parse_resource_identifier(dialog)?,
+            });
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.debugconfig.dialog",
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn debug_mob_spawning_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["debugmobspawning", category, x, y, z] => {
+            if mob_category(category).is_none() {
+                return Err(CommandError::InvalidSyntax);
+            }
+            let position = parse_block_pos(x, y, z)?;
+            state.mob_spawning_events.push(DebugMobSpawningEvent {
+                category: (*category).to_string(),
+                position,
+            });
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.debugmobspawning.success",
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn debug_path_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let ["debugpath", x, y, z] = parts else {
+        return Err(CommandError::InvalidSyntax);
+    };
+    let source = state
+        .command_source_entity
+        .clone()
+        .ok_or(CommandError::DebugPathNotMob)?;
+    if matches!(
+        entity_kind(state, &source),
+        EntityKind::Player | EntityKind::NonLiving
+    ) {
+        return Err(CommandError::DebugPathNotMob);
+    }
+    let target = parse_block_pos(x, y, z)?;
+    if state.unreachable_debug_paths.contains(&target) {
+        return Err(CommandError::DebugPathNoPath);
+    }
+    if state.incomplete_debug_paths.contains(&target) {
+        return Err(CommandError::DebugPathNotComplete);
+    }
+    state
+        .debug_path_events
+        .push(DebugPathEvent { source, target });
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.debugpath.success",
+        broadcast_to_admins: true,
+    })
 }
 
 fn kill_entities(
@@ -6521,6 +6769,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "datapack",
             "/datapack <list|enable|disable|create>",
         ),
+        ("debug", "/debug <start|stop|function>"),
+        ("debugconfig", "/debugconfig <config|unconfig|dialog>"),
+        ("debugmobspawning", "/debugmobspawning <category> <pos>"),
+        ("debugpath", "/debugpath <to>"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -8245,6 +8497,217 @@ mod tests {
         assert_eq!(
             execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve"),
             Err(CommandError::DeOpFailed)
+        );
+    }
+
+    #[test]
+    fn debug_command_starts_stops_and_records_function_traces() {
+        let mut state = ServerCommandState {
+            debug_profiler_results: vec![super::DebugProfilerResult {
+                duration_nanos: 2_000_000_000,
+                tick_duration: 40,
+            }],
+            macro_functions: vec!["minecraft:test".to_string(), "minecraft:test".to_string()],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("debug"),
+            PermissionLevel::Admins
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "debug start"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "debug stop"),
+            Err(CommandError::DebugNotRunning)
+        );
+
+        let started =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "debug start")
+                .unwrap();
+        assert_eq!(started.success_count, 0);
+        assert_eq!(started.feedback_key, "commands.debug.started");
+        assert!(state.debug_profiler_running);
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "debug start"),
+            Err(CommandError::DebugAlreadyRunning)
+        );
+
+        let stopped =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "debug stop")
+                .unwrap();
+        assert_eq!(stopped.success_count, 20);
+        assert_eq!(stopped.feedback_key, "commands.debug.stopped");
+        assert!(!state.debug_profiler_running);
+
+        let traced = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "debug function minecraft:test",
+        )
+        .unwrap();
+        assert_eq!(
+            traced.feedback_key,
+            "commands.debug.function.success.single"
+        );
+        assert_eq!(
+            state.debug_trace_events,
+            vec![super::DebugTraceEvent {
+                function: "minecraft:test".to_string(),
+                output: "debug-trace-1.txt".to_string(),
+                command_count: 2,
+            }]
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ADMIN,
+                "debug function return"
+            ),
+            Err(CommandError::DebugNoReturnRun)
+        );
+    }
+
+    #[test]
+    fn debugconfig_moves_players_through_configuration_and_dialogs() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("debugconfig"),
+            PermissionLevel::Admins
+        );
+
+        let config = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "debugconfig config Steve",
+        )
+        .unwrap();
+        assert_eq!(config.success_count, 1);
+        assert_eq!(
+            state.config_players,
+            vec![NameAndId::create_offline("Steve")]
+        );
+
+        let dialog = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "debugconfig dialog Steve minecraft:test_dialog",
+        )
+        .unwrap();
+        assert_eq!(dialog.success_count, 1);
+        assert_eq!(
+            state.config_dialog_events,
+            vec![super::DebugConfigDialogEvent {
+                target: "Steve".to_string(),
+                dialog: "minecraft:test_dialog".to_string(),
+            }]
+        );
+
+        let unconfig = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "debugconfig unconfig Steve",
+        )
+        .unwrap();
+        assert_eq!(unconfig.success_count, 1);
+        assert!(state.config_players.is_empty());
+        let missing = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "debugconfig dialog Steve minecraft:test_dialog",
+        )
+        .unwrap();
+        assert_eq!(missing.success_count, 0);
+        assert_eq!(missing.feedback_key, "commands.debugconfig.missing");
+    }
+
+    #[test]
+    fn debugmobspawning_and_debugpath_record_debug_actions() {
+        let mut state = ServerCommandState {
+            command_source_entity: Some(EntityRef {
+                id: "zombie".to_string(),
+                display_name: "Zombie".to_string(),
+            }),
+            unreachable_debug_paths: vec![BlockPos { x: 2, y: 64, z: 2 }],
+            incomplete_debug_paths: vec![BlockPos { x: 3, y: 64, z: 3 }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("debugmobspawning"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "debugmobspawning monster 0 64 0"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "debugmobspawning monster 0 64 0",
+        )
+        .unwrap();
+        assert_eq!(
+            state.mob_spawning_events,
+            vec![super::DebugMobSpawningEvent {
+                category: "monster".to_string(),
+                position: BlockPos { x: 0, y: 64, z: 0 },
+            }]
+        );
+
+        let path = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "debugpath 1 64 1",
+        )
+        .unwrap();
+        assert_eq!(path.success_count, 1);
+        assert_eq!(path.feedback_key, "commands.debugpath.success");
+        assert_eq!(
+            state.debug_path_events[0].target,
+            BlockPos { x: 1, y: 64, z: 1 }
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "debugpath 2 64 2"
+            ),
+            Err(CommandError::DebugPathNoPath)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "debugpath 3 64 3"
+            ),
+            Err(CommandError::DebugPathNotComplete)
+        );
+
+        state.entity_states.push(EntityState {
+            entity: EntityRef {
+                id: "zombie".to_string(),
+                display_name: "Zombie".to_string(),
+            },
+            kind: EntityKind::NonLiving,
+            dimension: "minecraft:overworld".to_string(),
+        });
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "debugpath 4 64 4"
+            ),
+            Err(CommandError::DebugPathNotMob)
         );
     }
 
