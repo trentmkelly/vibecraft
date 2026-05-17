@@ -108,6 +108,7 @@ function expectPacket (packet, id, state) {
 const expectedRegistries = [
   'minecraft:damage_type',
   'minecraft:dimension_type',
+  'minecraft:trim_material',
   'minecraft:cat_sound_variant',
   'minecraft:cat_variant',
   'minecraft:chicken_sound_variant',

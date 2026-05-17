@@ -157,6 +157,82 @@ struct MinimalRegistryEntry {
     value: fn() -> Tag,
 }
 
+struct TrimMaterialEntry {
+    id: &'static str,
+    asset_name: &'static str,
+    color: &'static str,
+    overrides: &'static [(&'static str, &'static str)],
+}
+
+const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
+    TrimMaterialEntry {
+        id: "quartz",
+        asset_name: "quartz",
+        color: "#e3d4bd",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "iron",
+        asset_name: "iron",
+        color: "#ececec",
+        overrides: &[("minecraft:iron", "iron_darker")],
+    },
+    TrimMaterialEntry {
+        id: "netherite",
+        asset_name: "netherite",
+        color: "#625859",
+        overrides: &[("minecraft:netherite", "netherite_darker")],
+    },
+    TrimMaterialEntry {
+        id: "redstone",
+        asset_name: "redstone",
+        color: "#971607",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "copper",
+        asset_name: "copper",
+        color: "#b4684d",
+        overrides: &[("minecraft:copper", "copper_darker")],
+    },
+    TrimMaterialEntry {
+        id: "gold",
+        asset_name: "gold",
+        color: "#decf2a",
+        overrides: &[("minecraft:gold", "gold_darker")],
+    },
+    TrimMaterialEntry {
+        id: "emerald",
+        asset_name: "emerald",
+        color: "#11a036",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "diamond",
+        asset_name: "diamond",
+        color: "#6eead6",
+        overrides: &[("minecraft:diamond", "diamond_darker")],
+    },
+    TrimMaterialEntry {
+        id: "lapis",
+        asset_name: "lapis",
+        color: "#416e97",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "amethyst",
+        asset_name: "amethyst",
+        color: "#9a5cc6",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "resin",
+        asset_name: "resin",
+        color: "#fc7812",
+        overrides: &[],
+    },
+];
+
 const MINIMAL_NON_EMPTY_REGISTRIES: &[MinimalRegistryEntry] = &[
     MinimalRegistryEntry {
         registry: "minecraft:cat_sound_variant",
@@ -368,6 +444,11 @@ fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_dimension_type_registry_packet,
     )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_minimal_trim_material_registry_packet,
+    )?;
     for registry in MINIMAL_NON_EMPTY_REGISTRIES {
         write_framed_packet(
             stream,
@@ -548,6 +629,23 @@ fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io:
     write_network_nbt(writer, &overworld_dimension_type_nbt())
 }
 
+fn write_minimal_trim_material_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:trim_material").unwrap(),
+    )?;
+    write_var_i32(writer, TRIM_MATERIALS.len() as i32)?;
+    for material in TRIM_MATERIALS {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{}", material.id)).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &trim_material_nbt(material))?;
+    }
+    Ok(())
+}
+
 fn write_minimal_single_entry_registry_packet<W: Write>(
     writer: &mut W,
     registry: &MinimalRegistryEntry,
@@ -586,6 +684,42 @@ fn overworld_dimension_type_nbt() -> Tag {
         ),
         ("monster_spawn_block_light_limit".to_string(), Tag::Int(0)),
     ])
+}
+
+fn trim_material_nbt(material: &TrimMaterialEntry) -> Tag {
+    let mut fields = vec![
+        (
+            "asset_name".to_string(),
+            Tag::String(material.asset_name.to_string()),
+        ),
+        (
+            "description".to_string(),
+            Tag::Compound(vec![
+                (
+                    "translate".to_string(),
+                    Tag::String(format!("trim_material.minecraft.{}", material.id)),
+                ),
+                ("color".to_string(), Tag::String(material.color.to_string())),
+            ]),
+        ),
+    ];
+
+    if !material.overrides.is_empty() {
+        fields.push((
+            "override_armor_assets".to_string(),
+            Tag::Compound(
+                material
+                    .overrides
+                    .iter()
+                    .map(|(asset, suffix)| {
+                        ((*asset).to_string(), Tag::String((*suffix).to_string()))
+                    })
+                    .collect(),
+            ),
+        ));
+    }
+
+    Tag::Compound(fields)
 }
 
 fn single_texture_variant_nbt() -> Tag {
@@ -1146,7 +1280,8 @@ mod tests {
         cat_sound_variant_nbt, chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64,
         escape_json_string, handle_legacy_status_connection, legacy_disconnect_packet,
         legacy_version0_response, legacy_version1_response, pig_sound_variant_nbt, read_packet,
-        status_json, wolf_sound_variant_nbt, write_legacy_string, write_status_pong_packet,
+        status_json, trim_material_nbt, wolf_sound_variant_nbt, write_legacy_string,
+        write_status_pong_packet, TRIM_MATERIALS,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
@@ -1294,6 +1429,29 @@ mod tests {
                 "step_sound",
             ],
         );
+    }
+
+    #[test]
+    fn trim_material_registry_payload_includes_redstone_component_data() {
+        let redstone = TRIM_MATERIALS
+            .iter()
+            .find(|material| material.id == "redstone")
+            .expect("redstone trim material should be sent");
+        let tag = trim_material_nbt(redstone);
+
+        assert!(matches!(
+            field_value(&tag, "asset_name"),
+            Some(Tag::String(value)) if value == "redstone"
+        ));
+        let description = compound_field(&tag, "description");
+        assert!(matches!(
+            field_value(description, "translate"),
+            Some(Tag::String(value)) if value == "trim_material.minecraft.redstone"
+        ));
+        assert!(matches!(
+            field_value(description, "color"),
+            Some(Tag::String(value)) if value == "#971607"
+        ));
     }
 
     fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
