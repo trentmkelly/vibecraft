@@ -47,6 +47,7 @@ mod game_rules;
 mod gravity;
 mod inhabited_time;
 mod inventory;
+mod inventory_transactions;
 mod item_catalog;
 mod item_family_behavior;
 mod item_properties;
