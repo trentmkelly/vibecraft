@@ -119,6 +119,41 @@ pub enum CaveDensityOutput {
     Max,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OreVeinifierConstants {
+    pub veininess_threshold: f64,
+    pub edge_roundoff_begin: i32,
+    pub max_edge_roundoff: f64,
+    pub vein_solidness: f64,
+    pub min_richness: f64,
+    pub max_richness: f64,
+    pub max_richness_threshold: f64,
+    pub chance_of_raw_ore_block: f64,
+    pub skip_ore_if_gap_noise_is_below: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OreVeinType {
+    pub id: &'static str,
+    pub ore: &'static str,
+    pub raw_ore_block: &'static str,
+    pub filler: &'static str,
+    pub min_y: i32,
+    pub max_y: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OreVeinDecisionInput {
+    pub y: i32,
+    pub vein_toggle: f64,
+    pub vein_ridged: f64,
+    pub vein_gap: f64,
+    pub solidness_random: f64,
+    pub richness_random: f64,
+    pub raw_ore_random: f64,
+    pub debug_ore_veins: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseRouterPreset {
     Overworld { large_biomes: bool, amplified: bool },
@@ -1041,6 +1076,37 @@ pub const CAVE_GENERATION_FAMILIES: &[CaveGenerationFamily] = &[
     },
 ];
 
+pub const ORE_VEINIFIER_CONSTANTS: OreVeinifierConstants = OreVeinifierConstants {
+    veininess_threshold: 0.4,
+    edge_roundoff_begin: 20,
+    max_edge_roundoff: 0.2,
+    vein_solidness: 0.7,
+    min_richness: 0.1,
+    max_richness: 0.3,
+    max_richness_threshold: 0.6,
+    chance_of_raw_ore_block: 0.02,
+    skip_ore_if_gap_noise_is_below: -0.3,
+};
+
+pub const ORE_VEIN_TYPES: &[OreVeinType] = &[
+    OreVeinType {
+        id: "copper",
+        ore: "minecraft:copper_ore",
+        raw_ore_block: "minecraft:raw_copper_block",
+        filler: "minecraft:granite",
+        min_y: 0,
+        max_y: 50,
+    },
+    OreVeinType {
+        id: "iron",
+        ore: "minecraft:deepslate_iron_ore",
+        raw_ore_block: "minecraft:raw_iron_block",
+        filler: "minecraft:tuff",
+        min_y: -60,
+        max_y: -8,
+    },
+];
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -1363,17 +1429,86 @@ pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily>
     })
 }
 
+pub fn ore_vein_type_for_toggle(vein_toggle: f64) -> OreVeinType {
+    if vein_toggle > 0.0 {
+        ORE_VEIN_TYPES[0]
+    } else {
+        ORE_VEIN_TYPES[1]
+    }
+}
+
+pub fn ore_vein_richness(veininess_ridged: f64) -> f64 {
+    clamped_map(
+        veininess_ridged,
+        ORE_VEINIFIER_CONSTANTS.veininess_threshold,
+        ORE_VEINIFIER_CONSTANTS.max_richness_threshold,
+        ORE_VEINIFIER_CONSTANTS.min_richness,
+        ORE_VEINIFIER_CONSTANTS.max_richness,
+    )
+}
+
+pub fn ore_vein_decision(input: OreVeinDecisionInput) -> Option<&'static str> {
+    let default_state = input.debug_ore_veins.then_some("minecraft:air");
+    let vein_type = ore_vein_type_for_toggle(input.vein_toggle);
+    let veininess_ridged = input.vein_toggle.abs();
+    let distance_from_top = vein_type.max_y - input.y;
+    let distance_from_bottom = input.y - vein_type.min_y;
+    if distance_from_bottom < 0 || distance_from_top < 0 {
+        return default_state;
+    }
+
+    let distance_from_edge = distance_from_top.min(distance_from_bottom);
+    let edge_roundoff = clamped_map(
+        f64::from(distance_from_edge),
+        0.0,
+        f64::from(ORE_VEINIFIER_CONSTANTS.edge_roundoff_begin),
+        -ORE_VEINIFIER_CONSTANTS.max_edge_roundoff,
+        0.0,
+    );
+    if veininess_ridged + edge_roundoff < ORE_VEINIFIER_CONSTANTS.veininess_threshold {
+        return default_state;
+    }
+    if input.solidness_random > ORE_VEINIFIER_CONSTANTS.vein_solidness {
+        return default_state;
+    }
+    if input.vein_ridged >= 0.0 {
+        return default_state;
+    }
+
+    let richness = ore_vein_richness(veininess_ridged);
+    if input.richness_random < richness
+        && input.vein_gap > ORE_VEINIFIER_CONSTANTS.skip_ore_if_gap_noise_is_below
+    {
+        if input.raw_ore_random < ORE_VEINIFIER_CONSTANTS.chance_of_raw_ore_block {
+            Some(vein_type.raw_ore_block)
+        } else {
+            Some(vein_type.ore)
+        }
+    } else if input.debug_ore_veins {
+        Some("minecraft:oak_button")
+    } else {
+        Some(vein_type.filler)
+    }
+}
+
+fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
+    let clamped = value.clamp(from_min, from_max);
+    let progress = (clamped - from_min) / (from_max - from_min);
+    to_min + progress * (to_max - to_min)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CaveDensityOutput,
         DensityFunction, DensityMarker, FluidStatus, MappedDensityFunction, NoiseRouterPreset,
-        NoiseSettings, SurfaceRuleKind, SurfaceRulePreset, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
-        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
-        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS,
+        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, SurfaceRuleKind,
+        SurfaceRulePreset, AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FLOATING_ISLANDS_NOISE_SETTINGS,
+        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
         OVERWORLD_SPAWN_TARGET, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
         TEST_POSITIVE_DENSITY, Y_DENSITY,
     };
@@ -1893,6 +2028,111 @@ mod tests {
         assert_eq!(
             spaghetti_2d.output,
             CaveDensityOutput::Clamp { min: -1, max: 1 }
+        );
+    }
+
+    #[test]
+    fn ore_veinifier_constants_and_vein_types_match_decompiled_values() {
+        assert_eq!(
+            ORE_VEINIFIER_CONSTANTS,
+            OreVeinifierConstants {
+                veininess_threshold: 0.4,
+                edge_roundoff_begin: 20,
+                max_edge_roundoff: 0.2,
+                vein_solidness: 0.7,
+                min_richness: 0.1,
+                max_richness: 0.3,
+                max_richness_threshold: 0.6,
+                chance_of_raw_ore_block: 0.02,
+                skip_ore_if_gap_noise_is_below: -0.3,
+            }
+        );
+        assert_eq!(ORE_VEIN_TYPES.len(), 2);
+        assert_eq!(ORE_VEIN_TYPES[0].id, "copper");
+        assert_eq!(ORE_VEIN_TYPES[0].ore, "minecraft:copper_ore");
+        assert_eq!(
+            ORE_VEIN_TYPES[0].raw_ore_block,
+            "minecraft:raw_copper_block"
+        );
+        assert_eq!(ORE_VEIN_TYPES[0].filler, "minecraft:granite");
+        assert_eq!((ORE_VEIN_TYPES[0].min_y, ORE_VEIN_TYPES[0].max_y), (0, 50));
+        assert_eq!(ORE_VEIN_TYPES[1].id, "iron");
+        assert_eq!(ORE_VEIN_TYPES[1].ore, "minecraft:deepslate_iron_ore");
+        assert_eq!(ORE_VEIN_TYPES[1].raw_ore_block, "minecraft:raw_iron_block");
+        assert_eq!(ORE_VEIN_TYPES[1].filler, "minecraft:tuff");
+        assert_eq!(
+            (ORE_VEIN_TYPES[1].min_y, ORE_VEIN_TYPES[1].max_y),
+            (-60, -8)
+        );
+    }
+
+    #[test]
+    fn ore_veinifier_decision_matches_vanilla_branching() {
+        let base = OreVeinDecisionInput {
+            y: 25,
+            vein_toggle: 0.61,
+            vein_ridged: -0.1,
+            vein_gap: 0.0,
+            solidness_random: 0.5,
+            richness_random: 0.2,
+            raw_ore_random: 0.5,
+            debug_ore_veins: false,
+        };
+        assert_eq!(super::ore_vein_richness(0.4), 0.1);
+        assert_eq!(super::ore_vein_richness(0.6), 0.3);
+        assert_eq!(super::ore_vein_decision(base), Some("minecraft:copper_ore"));
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                raw_ore_random: 0.01,
+                ..base
+            }),
+            Some("minecraft:raw_copper_block")
+        );
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                y: -30,
+                vein_toggle: -0.61,
+                raw_ore_random: 0.5,
+                ..base
+            }),
+            Some("minecraft:deepslate_iron_ore")
+        );
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                richness_random: 0.99,
+                ..base
+            }),
+            Some("minecraft:granite")
+        );
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                vein_gap: -0.31,
+                ..base
+            }),
+            Some("minecraft:granite")
+        );
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                solidness_random: 0.71,
+                ..base
+            }),
+            None
+        );
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                y: 100,
+                debug_ore_veins: true,
+                ..base
+            }),
+            Some("minecraft:air")
+        );
+        assert_eq!(
+            super::ore_vein_decision(OreVeinDecisionInput {
+                richness_random: 0.99,
+                debug_ore_veins: true,
+                ..base
+            }),
+            Some("minecraft:oak_button")
         );
     }
 }
