@@ -25,6 +25,27 @@ pub enum WorldUpgradeStep {
     RewriteUpgradedChunks,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldUpgradeReport {
+    pub decision: DataFixDecision,
+    pub steps: Vec<WorldUpgradeStep>,
+    pub safe_to_load: bool,
+}
+
+impl WorldUpgradeReport {
+    pub fn refusal_message(&self) -> Option<String> {
+        match self.decision {
+            DataFixDecision::Current => None,
+            DataFixDecision::Blocked {
+                found_data_version,
+                target_data_version,
+            } => Some(format!(
+                "Unsupported world DataVersion {found_data_version}; RustCraft supports {target_data_version}. Use external DataFixerUpper-compatible tooling before loading this world."
+            )),
+        }
+    }
+}
+
 pub fn check_world_data_version(found_data_version: i32) -> DataFixDecision {
     if found_data_version == TARGET_DATA_VERSION {
         DataFixDecision::Current
@@ -69,11 +90,33 @@ pub fn plan_world_upgrade(options: WorldUpgradeOptions) -> Vec<WorldUpgradeStep>
     steps
 }
 
+pub fn plan_compatible_world_upgrade(
+    found_data_version: i32,
+    options: WorldUpgradeOptions,
+) -> WorldUpgradeReport {
+    let decision = check_world_data_version(found_data_version);
+    let safe_to_load = matches!(decision, DataFixDecision::Current);
+    let steps = if safe_to_load {
+        plan_world_upgrade(options)
+    } else {
+        vec![
+            WorldUpgradeStep::ScanWorld,
+            WorldUpgradeStep::ValidateDataVersion,
+        ]
+    };
+    WorldUpgradeReport {
+        decision,
+        steps,
+        safe_to_load,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        check_world_data_version, plan_world_upgrade, require_current_world_data_version,
-        DataFixDecision, WorldUpgradeOptions, WorldUpgradeStep, TARGET_DATA_VERSION,
+        check_world_data_version, plan_compatible_world_upgrade, plan_world_upgrade,
+        require_current_world_data_version, DataFixDecision, WorldUpgradeOptions, WorldUpgradeStep,
+        TARGET_DATA_VERSION,
     };
 
     #[test]
@@ -123,5 +166,48 @@ mod tests {
                 WorldUpgradeStep::RewriteUpgradedChunks,
             ]
         );
+    }
+
+    #[test]
+    fn compatible_upgrade_report_allows_current_worlds_and_refuses_unsafe_migrations() {
+        let current = plan_compatible_world_upgrade(
+            TARGET_DATA_VERSION,
+            WorldUpgradeOptions {
+                force_upgrade: true,
+                erase_cache: false,
+                recreate_region_files: false,
+            },
+        );
+        assert!(current.safe_to_load);
+        assert_eq!(
+            current.steps,
+            vec![
+                WorldUpgradeStep::ScanWorld,
+                WorldUpgradeStep::ValidateDataVersion,
+                WorldUpgradeStep::RewriteUpgradedChunks,
+            ]
+        );
+        assert_eq!(current.refusal_message(), None);
+
+        let old = plan_compatible_world_upgrade(
+            TARGET_DATA_VERSION - 10,
+            WorldUpgradeOptions {
+                force_upgrade: true,
+                erase_cache: true,
+                recreate_region_files: true,
+            },
+        );
+        assert!(!old.safe_to_load);
+        assert_eq!(
+            old.steps,
+            vec![
+                WorldUpgradeStep::ScanWorld,
+                WorldUpgradeStep::ValidateDataVersion,
+            ]
+        );
+        assert!(old
+            .refusal_message()
+            .unwrap()
+            .contains("external DataFixerUpper-compatible tooling"));
     }
 }
