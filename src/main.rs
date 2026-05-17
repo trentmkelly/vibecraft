@@ -66,6 +66,7 @@ mod player_access;
 mod player_entity;
 mod player_inventory;
 mod player_list;
+mod player_presentation;
 mod player_online_auth;
 mod player_profile_key;
 mod portal;
