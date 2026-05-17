@@ -1384,6 +1384,7 @@ pub enum CommandError {
     ScoreboardDisplayAlreadySet,
     ScoreboardTriggerAlreadyEnabled,
     ScoreboardNotTrigger,
+    TriggerNotPrimed,
     AdvancementNoAction,
     AdvancementCriterionNotFound,
     AttributeNotLiving,
@@ -2409,6 +2410,7 @@ pub fn execute_builtin_command(
             }
             _ => Err(CommandError::InvalidSyntax),
         },
+        "trigger" => trigger_command(state, &parts),
         "transfer" => match parts.as_slice() {
             ["transfer", host] => {
                 let source = state
@@ -8608,6 +8610,71 @@ fn scoreboard_score_mut_or_create<'a>(
     &mut state.scoreboard_scores[index]
 }
 
+fn trigger_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["trigger", objective] => trigger_score(state, objective, TriggerMode::Simple),
+        ["trigger", objective, "add", value] => {
+            trigger_score(state, objective, TriggerMode::Add(parse_i32(value)?))
+        }
+        ["trigger", objective, "set", value] => {
+            trigger_score(state, objective, TriggerMode::Set(parse_i32(value)?))
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TriggerMode {
+    Simple,
+    Add(i32),
+    Set(i32),
+}
+
+fn trigger_score(
+    state: &mut ServerCommandState,
+    objective: &str,
+    mode: TriggerMode,
+) -> Result<CommandResult, CommandError> {
+    let player = state
+        .command_source_player
+        .as_ref()
+        .ok_or(CommandError::NoPlayers)?
+        .name
+        .clone();
+    if require_scoreboard_objective(state, objective)?.criteria != "trigger" {
+        return Err(CommandError::ScoreboardNotTrigger);
+    }
+    let score = state
+        .scoreboard_scores
+        .iter_mut()
+        .find(|entry| entry.owner == player && entry.objective == objective)
+        .filter(|entry| !entry.locked)
+        .ok_or(CommandError::TriggerNotPrimed)?;
+    let (success_count, feedback_key) = match mode {
+        TriggerMode::Simple => {
+            score.value = score.value.saturating_add(1);
+            (score.value, "commands.trigger.simple.success")
+        }
+        TriggerMode::Add(value) => {
+            score.value = score.value.saturating_add(value);
+            (score.value, "commands.trigger.add.success")
+        }
+        TriggerMode::Set(value) => {
+            score.value = value;
+            (value, "commands.trigger.set.success")
+        }
+    };
+    score.locked = true;
+    Ok(CommandResult {
+        success_count,
+        feedback_key,
+        broadcast_to_admins: true,
+    })
+}
+
 fn parse_score_holders(input: &str) -> Vec<String> {
     input
         .split(',')
@@ -10817,6 +10884,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("tick", "/tick query|rate|step|sprint|freeze|unfreeze"),
         ("time", "/time <set|add|query|pause|resume|rate> ..."),
         ("title", "/title <targets> <clear|reset|title|subtitle|actionbar|times> ..."),
+        ("trigger", "/trigger <objective> [add|set] [value]"),
         ("tm", "/tm <message>"),
         ("tp", "/tp <targets|location> ..."),
         ("transfer", "/transfer <hostname> [port] [players]"),
@@ -11220,10 +11288,10 @@ mod tests {
         PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
         PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
-        ScoreboardObjective, ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest,
-        SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
-        SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction, TitleTextKind, Vec3,
-        VersionInfo, WeatherMode,
+        ScoreboardObjective, ScoreboardScore, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
+        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction,
+        TitleTextKind, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -11893,6 +11961,119 @@ mod tests {
                 "scoreboard players operation Steve kills /= Alex missing"
             ),
             Err(CommandError::ScoreboardObjectiveNotFound)
+        );
+    }
+
+    #[test]
+    fn trigger_command_consumes_enabled_trigger_scores() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            scoreboard_objectives: vec![ScoreboardObjective {
+                name: "quest".to_string(),
+                criteria: "trigger".to_string(),
+                display_name: "Quest".to_string(),
+                render_type: "integer".to_string(),
+                display_auto_update: true,
+                number_format: None,
+            }],
+            scoreboard_scores: vec![ScoreboardScore {
+                owner: "Steve".to_string(),
+                objective: "quest".to_string(),
+                value: 0,
+                locked: false,
+                display_name: None,
+                number_format: None,
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(command_required_permission("trigger"), PermissionLevel::All);
+
+        let simple =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "trigger quest")
+                .unwrap();
+        assert_eq!(simple.success_count, 1);
+        assert_eq!(simple.feedback_key, "commands.trigger.simple.success");
+        assert!(simple.broadcast_to_admins);
+        assert_eq!(state.scoreboard_scores[0].value, 1);
+        assert!(state.scoreboard_scores[0].locked);
+
+        state.scoreboard_scores[0].locked = false;
+        let add = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ALL,
+            "trigger quest add 4",
+        )
+        .unwrap();
+        assert_eq!(add.success_count, 5);
+        assert_eq!(add.feedback_key, "commands.trigger.add.success");
+        assert_eq!(state.scoreboard_scores[0].value, 5);
+        assert!(state.scoreboard_scores[0].locked);
+
+        state.scoreboard_scores[0].locked = false;
+        let set = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ALL,
+            "trigger quest set -3",
+        )
+        .unwrap();
+        assert_eq!(set.success_count, -3);
+        assert_eq!(set.feedback_key, "commands.trigger.set.success");
+        assert_eq!(state.scoreboard_scores[0].value, -3);
+        assert!(state.scoreboard_scores[0].locked);
+    }
+
+    #[test]
+    fn trigger_command_rejects_unprimed_non_trigger_and_non_player_sources() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            scoreboard_objectives: vec![
+                ScoreboardObjective {
+                    name: "quest".to_string(),
+                    criteria: "trigger".to_string(),
+                    display_name: "Quest".to_string(),
+                    render_type: "integer".to_string(),
+                    display_auto_update: true,
+                    number_format: None,
+                },
+                ScoreboardObjective {
+                    name: "kills".to_string(),
+                    criteria: "dummy".to_string(),
+                    display_name: "Kills".to_string(),
+                    render_type: "integer".to_string(),
+                    display_auto_update: true,
+                    number_format: None,
+                },
+            ],
+            scoreboard_scores: vec![ScoreboardScore {
+                owner: "Steve".to_string(),
+                objective: "quest".to_string(),
+                value: 0,
+                locked: true,
+                display_name: None,
+                number_format: None,
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "trigger quest"),
+            Err(CommandError::TriggerNotPrimed)
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "trigger kills"),
+            Err(CommandError::ScoreboardNotTrigger)
+        );
+        state.command_source_player = None;
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "trigger quest"),
+            Err(CommandError::NoPlayers)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ALL,
+                "trigger quest add"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
