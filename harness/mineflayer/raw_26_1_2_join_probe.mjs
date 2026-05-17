@@ -10,6 +10,7 @@ const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
 const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === '1'
 const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
+const postActionProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_POST_ACTION_MS ?? 0)
 const firstTickActionRequest = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
 const firstTickActions = new Set(firstTickActionRequest === '1'
   ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'player_input', 'swing', 'use_item_on', 'use_item']
@@ -960,6 +961,49 @@ async function main () {
     if (firstTickActions.has('use_item_on')) socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, useItemOnPayload()))
     if (firstTickActions.has('use_item')) socket.write(encodeClientPacket(reader, serverboundUseItemPacketId, useItemPayload()))
     if (abortAfter === 'first_tick_actions') return abortSocket(socket, 'first_tick_actions', { login: login.id, config, play, joinState })
+  }
+
+  if (postActionProbeMs > 0) {
+    const deadline = Date.now() + postActionProbeMs
+    while (Date.now() < deadline) {
+      const waitMs = Math.max(1, deadline - Date.now())
+      const next = await nextPacketWithin(reader, waitMs)
+      if (next.timeout) break
+      const packet = next.packet
+      if (packet.id === clientboundKeepAlivePacketId) {
+        if (packet.body.length !== 8) {
+          throw new Error(`expected 8-byte keep_alive payload, got ${packet.body.length}`)
+        }
+        keepAliveReplies += 1
+        socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
+      }
+      play.push({ id: packet.id, length: packet.length })
+      playPackets.push(packet)
+    }
+    const dynamicPackets = playPackets.slice(expectedPlayPacketIds.length)
+    const dynamicById = new Map()
+    for (const packet of dynamicPackets) {
+      if (!dynamicById.has(packet.id)) dynamicById.set(packet.id, [])
+      dynamicById.get(packet.id).push(packet)
+    }
+    const dynamicCenterPacket = dynamicById.get(94)?.at(-1)
+    const dynamicCenterX = dynamicCenterPacket && readVarInt(dynamicCenterPacket.body)
+    const dynamicCenterZ = dynamicCenterX && readVarInt(dynamicCenterPacket.body, dynamicCenterX.offset)
+    const dynamicBatchFinishedPacket = dynamicById.get(11)?.at(-1)
+    const dynamicBatchSize = dynamicBatchFinishedPacket && readVarInt(dynamicBatchFinishedPacket.body)
+    if (dynamicCenterX && dynamicCenterZ && dynamicBatchSize) {
+      joinState.dynamicChunkStreaming = {
+        cacheCenter: {
+          x: dynamicCenterX.value,
+          z: dynamicCenterZ.value
+        },
+        batchSize: dynamicBatchSize.value,
+        chunks: (dynamicById.get(45) ?? []).map(packet => ({
+          x: packet.body.readInt32BE(0),
+          z: packet.body.readInt32BE(4)
+        }))
+      }
+    }
   }
 
   let commandSuggestionSeen = false

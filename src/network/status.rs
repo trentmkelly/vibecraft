@@ -1269,6 +1269,8 @@ fn handle_login_connection(
         &finished.profile,
         &play_state,
     )?;
+    let mut current_chunk_x = chunk_coordinate(play_state.x);
+    let mut current_chunk_z = chunk_coordinate(play_state.z);
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
@@ -1288,6 +1290,19 @@ fn handle_login_connection(
                 let mut input = Cursor::new(packet);
                 let packet_id = read_var_i32(&mut input)?;
                 if update_play_session_state(packet_id, &mut input, &mut play_state)? {
+                    let next_chunk_x = chunk_coordinate(play_state.x);
+                    let next_chunk_z = chunk_coordinate(play_state.z);
+                    if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
+                        current_chunk_x = next_chunk_x;
+                        current_chunk_z = next_chunk_z;
+                        write_play_chunk_batch(
+                            stream,
+                            compression,
+                            current_chunk_x,
+                            current_chunk_z,
+                            true,
+                        )?;
+                    }
                     continue;
                 }
                 if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
@@ -1872,6 +1887,27 @@ fn write_minimal_play_join(
         },
     )?;
     delay_initial_chunk_batch_for_probe(stream, compression)?;
+    write_play_chunk_batch(stream, compression, center_chunk_x, center_chunk_z, false)
+}
+
+fn write_play_chunk_batch(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    center_chunk_x: i32,
+    center_chunk_z: i32,
+    update_cache_center: bool,
+) -> io::Result<()> {
+    if update_cache_center {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+            |payload| {
+                write_var_i32(payload, center_chunk_x)?;
+                write_var_i32(payload, center_chunk_z)
+            },
+        )?;
+    }
     write_framed_packet_with_compression(
         stream,
         compression,
