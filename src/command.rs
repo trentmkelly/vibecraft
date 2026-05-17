@@ -107,6 +107,8 @@ pub struct ServerCommandState {
     pub disabled_data_packs: Vec<String>,
     pub reload_requests: Vec<ReloadRequest>,
     pub transfer_requests: Vec<TransferRequest>,
+    pub chase_session: Option<ChaseSession>,
+    pub chase_events: Vec<ChaseEvent>,
     pub perf_recording: bool,
     pub perf_reports: Vec<PerfReport>,
     pub jfr_recording: bool,
@@ -191,6 +193,20 @@ pub struct TransferRequest {
 pub struct PlayerIpAddress {
     pub player: NameAndId,
     pub ip: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChaseSession {
+    Leading { bind_address: String, port: u16 },
+    Following { host: String, port: u16 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChaseEvent {
+    LeadStarted { bind_address: String, port: u16 },
+    FollowStarted { host: String, port: u16 },
+    LeadStopped,
+    FollowStopped,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -735,6 +751,7 @@ pub enum CommandError {
     PardonFailed,
     PardonIpInvalid,
     PardonIpFailed,
+    ChaseAlreadyRunning,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,
@@ -876,6 +893,8 @@ impl Default for ServerCommandState {
             disabled_data_packs: Vec::new(),
             reload_requests: Vec::new(),
             transfer_requests: Vec::new(),
+            chase_session: None,
+            chase_events: Vec::new(),
             perf_recording: false,
             perf_reports: Vec::new(),
             jfr_recording: false,
@@ -1278,6 +1297,7 @@ pub fn execute_builtin_command(
         "advancement" => advancement_command(state, &parts),
         "attribute" => attribute_command(state, &parts),
         "bossbar" => bossbar_command(state, &parts),
+        "chase" => chase_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -2256,6 +2276,99 @@ fn same_players(left: &[NameAndId], right: &[NameAndId]) -> bool {
             .iter()
             .zip(right)
             .all(|(left, right)| left.uuid == right.uuid)
+}
+
+fn chase_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["chase", "follow"] => start_chase_follow(state, "localhost", 10000),
+        ["chase", "follow", host] => start_chase_follow(state, host, 10000),
+        ["chase", "follow", host, port] => {
+            start_chase_follow(state, host, parse_chase_port(port, 1)?)
+        }
+        ["chase", "lead"] => start_chase_lead(state, "0.0.0.0", 10000),
+        ["chase", "lead", bind_address] => start_chase_lead(state, bind_address, 10000),
+        ["chase", "lead", bind_address, port] => {
+            start_chase_lead(state, bind_address, parse_chase_port(port, 1024)?)
+        }
+        ["chase", "stop"] => {
+            if let Some(session) = state.chase_session.take() {
+                match session {
+                    ChaseSession::Leading { .. } => {
+                        state.chase_events.push(ChaseEvent::LeadStopped)
+                    }
+                    ChaseSession::Following { .. } => {
+                        state.chase_events.push(ChaseEvent::FollowStopped)
+                    }
+                }
+            }
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.chase.stop",
+                broadcast_to_admins: false,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn start_chase_follow(
+    state: &mut ServerCommandState,
+    host: &str,
+    port: u16,
+) -> Result<CommandResult, CommandError> {
+    if state.chase_session.is_some() {
+        return Err(CommandError::ChaseAlreadyRunning);
+    }
+    state.chase_session = Some(ChaseSession::Following {
+        host: host.to_string(),
+        port,
+    });
+    state.chase_events.push(ChaseEvent::FollowStarted {
+        host: host.to_string(),
+        port,
+    });
+    Ok(CommandResult {
+        success_count: 0,
+        feedback_key: "commands.chase.follow.success",
+        broadcast_to_admins: false,
+    })
+}
+
+fn start_chase_lead(
+    state: &mut ServerCommandState,
+    bind_address: &str,
+    port: u16,
+) -> Result<CommandResult, CommandError> {
+    if state.chase_session.is_some() {
+        return Err(CommandError::ChaseAlreadyRunning);
+    }
+    state.chase_session = Some(ChaseSession::Leading {
+        bind_address: bind_address.to_string(),
+        port,
+    });
+    state.chase_events.push(ChaseEvent::LeadStarted {
+        bind_address: bind_address.to_string(),
+        port,
+    });
+    Ok(CommandResult {
+        success_count: 0,
+        feedback_key: "commands.chase.lead.success",
+        broadcast_to_admins: false,
+    })
+}
+
+fn parse_chase_port(input: &str, min: u16) -> Result<u16, CommandError> {
+    let port = input
+        .parse::<u16>()
+        .map_err(|_| CommandError::InvalidSyntax)?;
+    if port < min {
+        Err(CommandError::InvalidSyntax)
+    } else {
+        Ok(port)
+    }
 }
 
 fn kill_entities(
@@ -5484,6 +5597,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("ban-ip", "/ban-ip <target> [reason]"),
         ("banlist", "/banlist [ips|players]"),
         ("bossbar", "/bossbar <add|remove|list|set|get> ..."),
+        ("chase", "/chase <follow|lead|stop> [host|bind_address] [port]"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -5906,8 +6020,8 @@ fn parse_time_ticks_allow_zero(input: &str) -> Result<u32, CommandError> {
 
 pub fn command_required_permission(command: &str) -> PermissionLevel {
     match command {
-        "" | "help" | "list" | "me" | "msg" | "random" | "teammsg" | "tell" | "tm" | "trigger"
-        | "w" | "version" => PermissionLevel::All,
+        "" | "chase" | "help" | "list" | "me" | "msg" | "random" | "teammsg" | "tell" | "tm"
+        | "trigger" | "w" | "version" => PermissionLevel::All,
         "ban" | "ban-ip" | "banlist" | "deop" | "debug" | "debugconfig" | "kick" | "op"
         | "pardon" | "pardon-ip" | "setidletimeout" | "tick" | "transfer" | "whitelist" => {
             PermissionLevel::Admins
@@ -5924,12 +6038,12 @@ mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
-        BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChatCommandKind,
-        CommandAvailability, CommandError, EntityAnchor, EntityAttributeState, EntityKind,
-        EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
-        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
-        PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress,
-        PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent,
+        ChaseSession, ChatCommandKind, CommandAvailability, CommandError, EntityAnchor,
+        EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState, EntityTags,
+        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
+        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode,
+        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
         ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
         ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
         ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
@@ -8121,6 +8235,113 @@ mod tests {
             cleared.feedback_key,
             "commands.bossbar.set.players.success.none"
         );
+    }
+
+    #[test]
+    fn chase_command_starts_follow_lead_and_stop_sessions_with_vanilla_defaults() {
+        let mut state = ServerCommandState::default();
+        let follow =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "chase follow")
+                .unwrap();
+        assert_eq!(follow.success_count, 0);
+        assert_eq!(follow.feedback_key, "commands.chase.follow.success");
+        assert!(!follow.broadcast_to_admins);
+        assert_eq!(
+            state.chase_session,
+            Some(ChaseSession::Following {
+                host: "localhost".to_string(),
+                port: 10000,
+            })
+        );
+        assert_eq!(
+            state.chase_events,
+            vec![ChaseEvent::FollowStarted {
+                host: "localhost".to_string(),
+                port: 10000,
+            }]
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "chase lead"),
+            Err(CommandError::ChaseAlreadyRunning)
+        );
+
+        let stopped =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "chase stop")
+                .unwrap();
+        assert_eq!(stopped.feedback_key, "commands.chase.stop");
+        assert_eq!(state.chase_session, None);
+        assert_eq!(state.chase_events[1], ChaseEvent::FollowStopped);
+
+        let lead = execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "chase lead")
+            .unwrap();
+        assert_eq!(lead.feedback_key, "commands.chase.lead.success");
+        assert_eq!(
+            state.chase_session,
+            Some(ChaseSession::Leading {
+                bind_address: "0.0.0.0".to_string(),
+                port: 10000,
+            })
+        );
+    }
+
+    #[test]
+    fn chase_command_accepts_explicit_endpoints_and_rejects_bad_ports() {
+        let mut state = ServerCommandState::default();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ALL,
+            "chase follow example.test 25565",
+        )
+        .unwrap();
+        assert_eq!(
+            state.chase_session,
+            Some(ChaseSession::Following {
+                host: "example.test".to_string(),
+                port: 25565,
+            })
+        );
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "chase stop").unwrap();
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ALL,
+            "chase lead 127.0.0.1 12000",
+        )
+        .unwrap();
+        assert_eq!(
+            state.chase_session,
+            Some(ChaseSession::Leading {
+                bind_address: "127.0.0.1".to_string(),
+                port: 12000,
+            })
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ALL,
+                "chase lead host 1024"
+            ),
+            Err(CommandError::ChaseAlreadyRunning)
+        );
+
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ALL,
+                "chase follow host 0"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ALL,
+                "chase lead host 1023"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(command_required_permission("chase"), PermissionLevel::All);
     }
 
     #[test]
