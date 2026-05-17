@@ -85,6 +85,7 @@ mod vehicle_entity;
 mod weather;
 mod world;
 mod world_border;
+mod world_time;
 mod worldgen;
 
 use std::env;
