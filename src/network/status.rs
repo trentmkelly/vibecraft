@@ -740,6 +740,9 @@ fn handle_status_connection(
             "unsupported handshake target state",
         ));
     }
+    if !properties.enable_status {
+        return Ok(());
+    }
 
     loop {
         let packet = read_packet(&mut stream)?;
@@ -2289,7 +2292,10 @@ fn load_favicon(path: &Path) -> io::Result<Option<String>> {
 
 pub fn status_json(properties: &ServerProperties, favicon: Option<&str>) -> String {
     let players = if properties.hide_online_players {
-        "\"players\":{\"max\":0,\"online\":0}".to_string()
+        format!(
+            "\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}}",
+            properties.max_players
+        )
     } else {
         format!(
             "\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}}",
@@ -2411,6 +2417,17 @@ mod tests {
         assert!(json.contains("\"name\":\"26.1.2\""));
         assert!(json.contains("\"protocol\":775"));
         assert!(json.contains("\"max\":20"));
+    }
+
+    #[test]
+    fn hidden_online_players_preserves_counts_and_omits_sample_entries() {
+        let mut properties = test_properties();
+        properties.set("hide-online-players", "true");
+        properties.set("max-players", "37");
+
+        let json = status_json(&properties, None);
+
+        assert!(json.contains("\"players\":{\"max\":37,\"online\":0,\"sample\":[]}"));
     }
 
     #[test]
