@@ -3,7 +3,7 @@ use std::io::{self, Cursor, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::network::codec::{write_identifier, write_optional};
 use crate::network::login::{
@@ -15,10 +15,11 @@ use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequest
 use crate::network::play::{
     ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode, CLIENTBOUND_LOGIN_PACKET_ID,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
     CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
@@ -47,6 +48,7 @@ const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
+const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const EMPTY_SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const DAMAGE_TYPES: &[&str] = &[
     "arrow",
@@ -939,15 +941,34 @@ fn handle_login_connection(
     )?;
 
     write_minimal_play_join(stream, properties)?;
+    stream.set_read_timeout(Some(Duration::from_secs(1)))?;
+    let mut last_keep_alive = Instant::now();
+    let mut keep_alive_id = 0_i64;
     loop {
+        if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
+            keep_alive_id = keep_alive_id.wrapping_add(1);
+            write_framed_packet(stream, CLIENTBOUND_KEEP_ALIVE_PACKET_ID, |payload| {
+                payload.write_all(&keep_alive_id.to_be_bytes())
+            })?;
+            last_keep_alive = Instant::now();
+        }
         match read_packet(stream) {
-            Ok(_packet) => {}
+            Ok(packet) => {
+                let mut input = Cursor::new(packet);
+                if read_var_i32(&mut input)? == SERVERBOUND_KEEP_ALIVE_PACKET_ID {
+                    continue;
+                }
+            }
             Err(err)
                 if matches!(
                     err.kind(),
-                    io::ErrorKind::UnexpectedEof
-                        | io::ErrorKind::ConnectionReset
-                        | io::ErrorKind::TimedOut
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) =>
+            {}
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
                 ) =>
             {
                 return Ok(())
