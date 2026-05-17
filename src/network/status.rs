@@ -29,8 +29,16 @@ const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 14;
+const SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID: i32 = 0;
+const SERVERBOUND_CONFIGURATION_COOKIE_RESPONSE_PACKET_ID: i32 = 1;
+const SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID: i32 = 2;
 const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
+const SERVERBOUND_CONFIGURATION_KEEP_ALIVE_PACKET_ID: i32 = 4;
+const SERVERBOUND_CONFIGURATION_PONG_PACKET_ID: i32 = 5;
+const SERVERBOUND_CONFIGURATION_RESOURCE_PACK_PACKET_ID: i32 = 6;
 const SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 7;
+const SERVERBOUND_CONFIGURATION_CUSTOM_CLICK_ACTION_PACKET_ID: i32 = 8;
+const SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID: i32 = 9;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 48;
@@ -849,29 +857,22 @@ fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         write_vanilla_known_packs_packet,
     )?;
-    let selected_known_packs = read_packet(stream)?;
-    let mut selected_known_packs = Cursor::new(selected_known_packs);
-    let selected_known_packs_packet_id = read_var_i32(&mut selected_known_packs)?;
-    if selected_known_packs_packet_id != SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "expected selected known packs",
-        ));
-    }
+    wait_for_configuration_packet(
+        stream,
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+        "selected known packs",
+    )?;
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
         |_payload| Ok(()),
     )?;
 
-    loop {
-        let packet = read_packet(stream)?;
-        let mut input = Cursor::new(packet);
-        let packet_id = read_var_i32(&mut input)?;
-        if packet_id == SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID {
-            break;
-        }
-    }
+    wait_for_configuration_packet(
+        stream,
+        SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
+        "finish configuration",
+    )?;
 
     write_minimal_play_join(stream, properties)?;
     loop {
@@ -890,6 +891,47 @@ fn handle_login_connection(
             Err(err) => return Err(err),
         }
     }
+}
+
+fn wait_for_configuration_packet<R: Read>(
+    reader: &mut R,
+    expected_packet_id: i32,
+    expected_name: &'static str,
+) -> io::Result<()> {
+    for _ in 0..32 {
+        let packet = read_packet(reader)?;
+        let mut input = Cursor::new(packet);
+        let packet_id = read_var_i32(&mut input)?;
+        if packet_id == expected_packet_id {
+            return Ok(());
+        }
+        if is_tolerated_serverbound_configuration_packet(packet_id) {
+            continue;
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("expected {expected_name}, got configuration packet {packet_id}"),
+        ));
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::TimedOut,
+        format!("timed out waiting for {expected_name}"),
+    ))
+}
+
+fn is_tolerated_serverbound_configuration_packet(packet_id: i32) -> bool {
+    matches!(
+        packet_id,
+        SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_COOKIE_RESPONSE_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_KEEP_ALIVE_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_PONG_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_RESOURCE_PACK_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_CUSTOM_CLICK_ACTION_PACKET_ID
+            | SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID
+    )
 }
 
 fn write_minimal_play_join(
@@ -1993,13 +2035,18 @@ mod tests {
         write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
         write_vanilla_pig_variant_registry_packet, write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_variant_registry_packet, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
-        CHAT_TYPES, DAMAGE_TYPE_TAGS, INSTRUMENTS, JUKEBOX_SONGS, TRIM_MATERIALS,
+        wait_for_configuration_packet, write_framed_packet, CHAT_TYPES, DAMAGE_TYPE_TAGS,
+        INSTRUMENTS, JUKEBOX_SONGS, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
+        SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, TRIM_MATERIALS, VERSION_NAME,
     };
+    use crate::network::codec::write_identifier;
     use crate::network::ping::ServerboundPingRequestPacket;
-    use crate::network::varint::read_var_i32;
+    use crate::network::varint::{read_var_i32, write_var_i32};
+    use crate::registry::Identifier;
     use crate::server_properties::ServerProperties;
     use crate::storage::nbt::Tag;
-    use std::io::{Cursor, Read, Write};
+    use std::io::{self, Cursor, Read, Write};
     use std::path::Path;
 
     fn test_properties() -> ServerProperties {
@@ -2341,6 +2388,65 @@ mod tests {
         let bordure_indented =
             banner_pattern_tag_entries("minecraft:pattern_item/bordure_indented");
         assert_eq!(bordure_indented, vec![banner_pattern_index("curly_border")]);
+    }
+
+    #[test]
+    fn configuration_wait_ignores_vanilla_common_packets_before_known_packs() {
+        let mut input = Vec::new();
+        write_framed_packet(
+            &mut input,
+            SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
+            |payload| {
+                crate::network::codec::write_string(payload, "en_us", 16)?;
+                payload.write_all(&[12, 0, 0, 0, 1, 1, 0, 0])?;
+                write_var_i32(payload, 127)?;
+                Ok(())
+            },
+        )
+        .unwrap();
+        write_framed_packet(
+            &mut input,
+            SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
+            |payload| {
+                write_identifier(payload, &Identifier::parse("minecraft:brand").unwrap())?;
+                crate::network::codec::write_string(payload, "vanilla", 32767)
+            },
+        )
+        .unwrap();
+        write_framed_packet(
+            &mut input,
+            SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+            |payload| {
+                write_var_i32(payload, 1)?;
+                crate::network::codec::write_string(payload, "minecraft", 32767)?;
+                crate::network::codec::write_string(payload, "core", 32767)?;
+                crate::network::codec::write_string(payload, VERSION_NAME, 32767)
+            },
+        )
+        .unwrap();
+
+        let mut stream = Cursor::new(input);
+        wait_for_configuration_packet(
+            &mut stream,
+            SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+            "selected known packs",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn configuration_wait_rejects_unexpected_packets() {
+        let mut input = Vec::new();
+        write_framed_packet(&mut input, 42, |_payload| Ok(())).unwrap();
+
+        let err = wait_for_configuration_packet(
+            &mut Cursor::new(input),
+            SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+            "selected known packs",
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("configuration packet 42"));
     }
 
     fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
