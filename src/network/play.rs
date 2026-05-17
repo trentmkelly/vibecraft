@@ -11,6 +11,7 @@ pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
 pub const CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 141;
 
 pub const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
+pub const SERVERBOUND_CLIENT_COMMAND_PACKET_ID: i32 = 12;
 pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
 pub const SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID: i32 = 31;
 pub const SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID: i32 = 32;
@@ -21,7 +22,9 @@ pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
 pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
 
 pub const CLIENTBOUND_LOGIN_PACKET_ID: i32 = 49;
+pub const CLIENTBOUND_PLAYER_COMBAT_KILL_PACKET_ID: i32 = 68;
 pub const CLIENTBOUND_PLAYER_POSITION_PACKET_ID: i32 = 72;
+pub const CLIENTBOUND_RESPAWN_PACKET_ID: i32 = 82;
 pub const CLIENTBOUND_SET_HELD_SLOT_PACKET_ID: i32 = 105;
 pub const CLIENTBOUND_START_CONFIGURATION_PACKET_ID: i32 = 118;
 pub const CLIENTBOUND_DISCONNECT_PACKET_ID: i32 = 32;
@@ -97,6 +100,41 @@ pub struct ClientboundSetHeldSlotPacket {
     pub slot: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundRespawnPacket {
+    pub spawn_info: CommonPlayerSpawnInfo,
+    pub data_to_keep: RespawnDataToKeep,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RespawnDataToKeep {
+    bits: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundPlayerCombatKillPacket {
+    pub player_id: i32,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RespawnReason {
+    Death,
+    WonGameReturnToOverworld,
+    DimensionChange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RespawnRequest {
+    pub reason: RespawnReason,
+    pub keep_all_player_data: bool,
+    pub missing_respawn_block: bool,
+    pub hardcore: bool,
+    pub active_effect_count: usize,
+    pub respawn_anchor_depleted: bool,
+    pub spawn_info: CommonPlayerSpawnInfo,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameDifficulty {
     Peaceful,
@@ -158,6 +196,15 @@ pub enum PlayInstruction {
         count: usize,
     },
     InitInventoryMenu,
+    CombatKill(ClientboundPlayerCombatKillPacket),
+    NoRespawnBlockAvailable,
+    Respawn(ClientboundRespawnPacket),
+    SetDefaultSpawnPosition,
+    SetExperience,
+    SetHealth,
+    SetGameModeSpectator,
+    DisableSpectatorsGenerateChunks,
+    RespawnAnchorDepleteSound,
     PlayerPosition {
         teleport_id: i32,
     },
@@ -334,6 +381,16 @@ impl PlaySession {
                     Err(err) => DispatchOutcome::Disconnect(format!("bad teleport ack: {err}")),
                 }
             }
+            SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match read_var_i32(&mut input) {
+                    Ok(0..=2) => DispatchOutcome::Handled,
+                    Ok(action) => DispatchOutcome::Disconnect(format!(
+                        "invalid client command action {action}"
+                    )),
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad client command: {err}")),
+                }
+            }
             SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
                 self.handle_move_payload(packet.payload, MoveShape::Pos)
             }
@@ -384,6 +441,53 @@ impl PlaySession {
         PlayInstruction::Disconnect(reason)
     }
 
+    pub fn death_screen(&self, message: impl Into<String>) -> PlayInstruction {
+        PlayInstruction::CombatKill(ClientboundPlayerCombatKillPacket {
+            player_id: self.entity_id,
+            message: message.into(),
+        })
+    }
+
+    pub fn respawn_flow(&mut self, request: RespawnRequest) -> Vec<PlayInstruction> {
+        let mut instructions = Vec::new();
+        if request.missing_respawn_block {
+            instructions.push(PlayInstruction::NoRespawnBlockAvailable);
+        }
+        instructions.push(PlayInstruction::Respawn(ClientboundRespawnPacket {
+            spawn_info: request.spawn_info,
+            data_to_keep: if request.keep_all_player_data {
+                RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS
+            } else {
+                RespawnDataToKeep::NONE
+            },
+        }));
+        instructions.push(PlayInstruction::TeleportToSpawn { teleport_id: 0 });
+        instructions.push(PlayInstruction::SetDefaultSpawnPosition);
+        instructions.push(PlayInstruction::ChangeDifficulty {
+            difficulty: GameDifficulty::Normal,
+            locked: false,
+        });
+        instructions.push(PlayInstruction::SetExperience);
+        if request.active_effect_count > 0 {
+            instructions.push(PlayInstruction::ActiveEffects {
+                count: request.active_effect_count,
+            });
+        }
+        instructions.push(PlayInstruction::SendLevelInfo);
+        instructions.push(PlayInstruction::UpdatePermissionLevel(0));
+        instructions.push(PlayInstruction::AddPlayerToLevel);
+        instructions.push(PlayInstruction::InitInventoryMenu);
+        instructions.push(PlayInstruction::SetHealth);
+        if matches!(request.reason, RespawnReason::Death) && request.hardcore {
+            instructions.push(PlayInstruction::SetGameModeSpectator);
+            instructions.push(PlayInstruction::DisableSpectatorsGenerateChunks);
+        }
+        if request.respawn_anchor_depleted {
+            instructions.push(PlayInstruction::RespawnAnchorDepleteSound);
+        }
+        instructions
+    }
+
     fn handle_move_payload(&mut self, payload: Vec<u8>, shape: MoveShape) -> DispatchOutcome {
         let mut input = &payload[..];
         match ServerboundMovePlayerPacket::read_shape(&mut input, shape) {
@@ -405,6 +509,21 @@ impl ServerboundAcceptTeleportationPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.teleport_id)
+    }
+}
+
+impl RespawnDataToKeep {
+    pub const NONE: Self = Self { bits: 0 };
+    pub const KEEP_ATTRIBUTE_MODIFIERS: Self = Self { bits: 1 };
+    pub const KEEP_ENTITY_DATA: Self = Self { bits: 2 };
+    pub const KEEP_ALL_DATA: Self = Self { bits: 3 };
+
+    pub fn should_keep(self, mask: Self) -> bool {
+        self.bits & mask.bits != 0
+    }
+
+    pub fn bits(self) -> u8 {
+        self.bits
     }
 }
 
@@ -881,6 +1000,85 @@ mod tests {
                 PlayInstruction::InitInventoryMenu,
             ]
         );
+    }
+
+    #[test]
+    fn death_and_respawn_flow_match_player_list_respawn_packet_order() {
+        let mut session = PlaySession::new(99, 0);
+        assert_eq!(
+            session.death_screen("{\"translate\":\"death.attack.generic\"}"),
+            PlayInstruction::CombatKill(ClientboundPlayerCombatKillPacket {
+                player_id: 99,
+                message: "{\"translate\":\"death.attack.generic\"}".to_string(),
+            })
+        );
+
+        let flow = session.respawn_flow(RespawnRequest {
+            reason: RespawnReason::Death,
+            keep_all_player_data: false,
+            missing_respawn_block: true,
+            hardcore: true,
+            active_effect_count: 2,
+            respawn_anchor_depleted: true,
+            spawn_info: CommonPlayerSpawnInfo::default(),
+        });
+
+        assert_eq!(
+            flow,
+            vec![
+                PlayInstruction::NoRespawnBlockAvailable,
+                PlayInstruction::Respawn(ClientboundRespawnPacket {
+                    spawn_info: CommonPlayerSpawnInfo::default(),
+                    data_to_keep: RespawnDataToKeep::NONE,
+                }),
+                PlayInstruction::TeleportToSpawn { teleport_id: 0 },
+                PlayInstruction::SetDefaultSpawnPosition,
+                PlayInstruction::ChangeDifficulty {
+                    difficulty: GameDifficulty::Normal,
+                    locked: false,
+                },
+                PlayInstruction::SetExperience,
+                PlayInstruction::ActiveEffects { count: 2 },
+                PlayInstruction::SendLevelInfo,
+                PlayInstruction::UpdatePermissionLevel(0),
+                PlayInstruction::AddPlayerToLevel,
+                PlayInstruction::InitInventoryMenu,
+                PlayInstruction::SetHealth,
+                PlayInstruction::SetGameModeSpectator,
+                PlayInstruction::DisableSpectatorsGenerateChunks,
+                PlayInstruction::RespawnAnchorDepleteSound,
+            ]
+        );
+    }
+
+    #[test]
+    fn dimension_return_respawn_keeps_attribute_modifiers_like_vanilla_keep_all_path() {
+        let mut session = PlaySession::new(99, 0);
+        let flow = session.respawn_flow(RespawnRequest {
+            reason: RespawnReason::WonGameReturnToOverworld,
+            keep_all_player_data: true,
+            missing_respawn_block: false,
+            hardcore: false,
+            active_effect_count: 0,
+            respawn_anchor_depleted: false,
+            spawn_info: CommonPlayerSpawnInfo {
+                dimension: Identifier::parse("minecraft:overworld").unwrap(),
+                previous_game_mode: Some(GameMode::Survival),
+                ..CommonPlayerSpawnInfo::default()
+            },
+        });
+
+        let PlayInstruction::Respawn(packet) = &flow[0] else {
+            panic!("respawn packet should be first");
+        };
+        assert_eq!(packet.data_to_keep.bits(), 1);
+        assert!(packet
+            .data_to_keep
+            .should_keep(RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS));
+        assert!(!packet
+            .data_to_keep
+            .should_keep(RespawnDataToKeep::KEEP_ENTITY_DATA));
+        assert!(!flow.contains(&PlayInstruction::SetGameModeSpectator));
     }
 
     #[test]
