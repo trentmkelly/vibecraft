@@ -5,3 +5,4 @@ edition = "2021"
 license = "UNLICENSED"
 
 [dependencies]
+flate2 = "1"

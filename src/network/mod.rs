@@ -1,6 +1,7 @@
 pub mod bundle;
 pub mod codec;
 pub mod common;
+pub mod compression;
 pub mod configuration;
 pub mod cookie;
 pub mod dispatch;
