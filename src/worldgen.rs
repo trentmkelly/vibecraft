@@ -318,6 +318,37 @@ pub enum RandomSpreadType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureFamilyEntry {
+    pub family: StructureFamily,
+    pub structures: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureFamily {
+    Village,
+    Stronghold,
+    Mineshaft,
+    OceanMonument,
+    WoodlandMansion,
+    Bastion,
+    Fortress,
+    AncientCity,
+    TrialChambers,
+    EndCity,
+    RuinedPortal,
+    Shipwreck,
+    BuriedTreasure,
+    Igloo,
+    SwampHut,
+    PillagerOutpost,
+    TrailRuins,
+    Fossil,
+    DesertPyramid,
+    JungleTemple,
+    OceanRuins,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureConfigurationKind {
     None,
     Tree,
@@ -2833,6 +2864,78 @@ pub const BUILTIN_STRUCTURE_SETS: &[StructureSetEntry] = &[
     ),
 ];
 
+pub const STRUCTURE_FAMILIES: &[StructureFamilyEntry] = &[
+    structure_family(
+        StructureFamily::Village,
+        &[
+            "minecraft:village_plains",
+            "minecraft:village_desert",
+            "minecraft:village_savanna",
+            "minecraft:village_snowy",
+            "minecraft:village_taiga",
+        ],
+    ),
+    structure_family(StructureFamily::Stronghold, &["minecraft:stronghold"]),
+    structure_family(
+        StructureFamily::Mineshaft,
+        &["minecraft:mineshaft", "minecraft:mineshaft_mesa"],
+    ),
+    structure_family(StructureFamily::OceanMonument, &["minecraft:monument"]),
+    structure_family(StructureFamily::WoodlandMansion, &["minecraft:mansion"]),
+    structure_family(StructureFamily::Bastion, &["minecraft:bastion_remnant"]),
+    structure_family(StructureFamily::Fortress, &["minecraft:fortress"]),
+    structure_family(StructureFamily::AncientCity, &["minecraft:ancient_city"]),
+    structure_family(
+        StructureFamily::TrialChambers,
+        &["minecraft:trial_chambers"],
+    ),
+    structure_family(StructureFamily::EndCity, &["minecraft:end_city"]),
+    structure_family(
+        StructureFamily::RuinedPortal,
+        &[
+            "minecraft:ruined_portal",
+            "minecraft:ruined_portal_desert",
+            "minecraft:ruined_portal_jungle",
+            "minecraft:ruined_portal_swamp",
+            "minecraft:ruined_portal_mountain",
+            "minecraft:ruined_portal_ocean",
+            "minecraft:ruined_portal_nether",
+        ],
+    ),
+    structure_family(
+        StructureFamily::Shipwreck,
+        &["minecraft:shipwreck", "minecraft:shipwreck_beached"],
+    ),
+    structure_family(
+        StructureFamily::BuriedTreasure,
+        &["minecraft:buried_treasure"],
+    ),
+    structure_family(StructureFamily::Igloo, &["minecraft:igloo"]),
+    structure_family(StructureFamily::SwampHut, &["minecraft:swamp_hut"]),
+    structure_family(
+        StructureFamily::PillagerOutpost,
+        &["minecraft:pillager_outpost"],
+    ),
+    structure_family(StructureFamily::TrailRuins, &["minecraft:trail_ruins"]),
+    structure_family(StructureFamily::Fossil, &["minecraft:nether_fossil"]),
+    structure_family(
+        StructureFamily::DesertPyramid,
+        &["minecraft:desert_pyramid"],
+    ),
+    structure_family(StructureFamily::JungleTemple, &["minecraft:jungle_pyramid"]),
+    structure_family(
+        StructureFamily::OceanRuins,
+        &["minecraft:ocean_ruin_cold", "minecraft:ocean_ruin_warm"],
+    ),
+];
+
+const fn structure_family(
+    family: StructureFamily,
+    structures: &'static [&'static str],
+) -> StructureFamilyEntry {
+    StructureFamilyEntry { family, structures }
+}
+
 const fn structure_set(
     id: &'static str,
     structures: &'static [&'static str],
@@ -3364,18 +3467,18 @@ mod tests {
         CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightRange,
         MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, StructurePlacementKind,
-        SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WorldCarverType,
-        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, StructureFamily,
+        StructurePlacementKind, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor,
+        WorldCarverType, AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
         BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
         BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
         CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
         DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
         FLOATING_ISLANDS_NOISE_SETTINGS, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
         ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES,
-        SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, WORLDGEN_TYPE_REGISTRIES,
-        Y_DENSITY,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_TYPES,
+        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
+        WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4430,5 +4533,45 @@ mod tests {
                 spread_type: RandomSpreadType::Triangular,
             }
         );
+    }
+
+    #[test]
+    fn structure_family_coverage_matches_builtin_structure_keys() {
+        assert_eq!(STRUCTURE_FAMILIES.len(), 21);
+        assert_eq!(
+            STRUCTURE_FAMILIES
+                .iter()
+                .map(|entry| entry.structures.len())
+                .sum::<usize>(),
+            BUILTIN_STRUCTURES.len()
+        );
+
+        let villages = STRUCTURE_FAMILIES
+            .iter()
+            .find(|entry| entry.family == StructureFamily::Village)
+            .unwrap();
+        assert_eq!(villages.structures.len(), 5);
+
+        let ruined_portals = STRUCTURE_FAMILIES
+            .iter()
+            .find(|entry| entry.family == StructureFamily::RuinedPortal)
+            .unwrap();
+        assert_eq!(ruined_portals.structures.len(), 7);
+        assert!(ruined_portals
+            .structures
+            .contains(&"minecraft:ruined_portal_nether"));
+
+        assert!(STRUCTURE_FAMILIES
+            .iter()
+            .find(|entry| entry.family == StructureFamily::OceanRuins)
+            .unwrap()
+            .structures
+            .contains(&"minecraft:ocean_ruin_warm"));
+        assert!(STRUCTURE_FAMILIES
+            .iter()
+            .find(|entry| entry.family == StructureFamily::TrialChambers)
+            .unwrap()
+            .structures
+            .contains(&"minecraft:trial_chambers"));
     }
 }
