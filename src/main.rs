@@ -7,6 +7,7 @@ mod console;
 mod crash;
 mod entity_variants;
 mod eula;
+mod light;
 mod log;
 mod network;
 mod player;
