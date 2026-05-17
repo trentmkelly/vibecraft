@@ -6,6 +6,7 @@ use crate::enchantment_system::{are_compatible, enchantment};
 use crate::entity_category::mob_category;
 use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
+use crate::world_border::{WorldBorder, WORLD_BORDER_MAX_CENTER_COORDINATE, WORLD_BORDER_MAX_SIZE};
 use crate::worldgen::configured_feature;
 
 const VANILLA_TRIM_PATTERNS: &[&str] = &[
@@ -205,6 +206,7 @@ pub struct ServerCommandState {
     pub particle_events: Vec<ParticleCommandEvent>,
     pub warden_spawn_trackers: Vec<WardenSpawnTrackerState>,
     pub waypoints: Vec<WaypointState>,
+    pub world_border: WorldBorder,
     pub setblock_events: Vec<SetBlockEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
     pub summoned_entities: Vec<SummonedEntity>,
@@ -1336,6 +1338,15 @@ pub enum CommandError {
     TimeNoTimeMarkerFound,
     TimeWrongTimeline,
     WaypointInvalid,
+    WorldBorderSameCenter,
+    WorldBorderSameSize,
+    WorldBorderTooSmall,
+    WorldBorderTooBig,
+    WorldBorderTooFarOut,
+    WorldBorderSameWarningTime,
+    WorldBorderSameWarningDistance,
+    WorldBorderSameDamageBuffer,
+    WorldBorderSameDamageAmount,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1591,6 +1602,7 @@ impl Default for ServerCommandState {
             particle_events: Vec::new(),
             warden_spawn_trackers: Vec::new(),
             waypoints: Vec::new(),
+            world_border: WorldBorder::default(),
             setblock_events: Vec::new(),
             server_pack_events: Vec::new(),
             summoned_entities: Vec::new(),
@@ -2186,6 +2198,7 @@ pub fn execute_builtin_command(
         }
         "warden_spawn_tracker" => warden_spawn_tracker_command(state, &parts),
         "waypoint" => waypoint_command(state, &parts),
+        "worldborder" => worldborder_command(state, &parts),
         "list" => match parts.as_slice() {
             ["list"] => Ok(CommandResult {
                 success_count: state.online_players.len() as i32,
@@ -5179,6 +5192,141 @@ fn parse_named_color(input: &str) -> Result<i32, CommandError> {
         "white" => Ok(0xFFFFFF),
         _ => Err(CommandError::InvalidSyntax),
     }
+}
+
+fn worldborder_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["worldborder", "get"] => Ok(CommandResult {
+            success_count: (state.world_border.size() + 0.5).floor() as i32,
+            feedback_key: "commands.worldborder.get",
+            broadcast_to_admins: false,
+        }),
+        ["worldborder", "set", distance] => worldborder_set_size(state, parse_f64(distance)?, 0),
+        ["worldborder", "set", distance, time] => worldborder_set_size(
+            state,
+            parse_f64(distance)?,
+            i64::from(parse_time_ticks_allow_zero(time)?),
+        ),
+        ["worldborder", "add", distance] => {
+            let distance = state.world_border.size() + parse_f64(distance)?;
+            worldborder_set_size(state, distance, 0)
+        }
+        ["worldborder", "add", distance, time] => {
+            let distance = state.world_border.size() + parse_f64(distance)?;
+            let ticks = state
+                .world_border
+                .lerp_time()
+                .saturating_add(i64::from(parse_time_ticks_allow_zero(time)?));
+            worldborder_set_size(state, distance, ticks)
+        }
+        ["worldborder", "center", x, z] => {
+            let x = parse_f64(x)?;
+            let z = parse_f64(z)?;
+            if state.world_border.center_x == x && state.world_border.center_z == z {
+                return Err(CommandError::WorldBorderSameCenter);
+            }
+            if x.abs() > WORLD_BORDER_MAX_CENTER_COORDINATE
+                || z.abs() > WORLD_BORDER_MAX_CENTER_COORDINATE
+            {
+                return Err(CommandError::WorldBorderTooFarOut);
+            }
+            state.world_border.set_center(x, z);
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.worldborder.center.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["worldborder", "damage", "buffer", distance] => {
+            let distance = parse_non_negative_f32(distance)? as f64;
+            if state.world_border.safe_zone == distance {
+                return Err(CommandError::WorldBorderSameDamageBuffer);
+            }
+            state.world_border.safe_zone = distance;
+            Ok(CommandResult {
+                success_count: distance as i32,
+                feedback_key: "commands.worldborder.damage.buffer.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["worldborder", "damage", "amount", amount] => {
+            let amount = parse_non_negative_f32(amount)? as f64;
+            if state.world_border.damage_per_block == amount {
+                return Err(CommandError::WorldBorderSameDamageAmount);
+            }
+            state.world_border.damage_per_block = amount;
+            Ok(CommandResult {
+                success_count: amount as i32,
+                feedback_key: "commands.worldborder.damage.amount.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["worldborder", "warning", "distance", distance] => {
+            let distance = parse_non_negative_i32(distance)?;
+            if state.world_border.warning_blocks == distance {
+                return Err(CommandError::WorldBorderSameWarningDistance);
+            }
+            state.world_border.warning_blocks = distance;
+            Ok(CommandResult {
+                success_count: distance,
+                feedback_key: "commands.worldborder.warning.distance.success",
+                broadcast_to_admins: true,
+            })
+        }
+        ["worldborder", "warning", "time", time] => {
+            let ticks = parse_time_ticks_allow_zero(time)? as i32;
+            if state.world_border.warning_time == ticks {
+                return Err(CommandError::WorldBorderSameWarningTime);
+            }
+            state.world_border.warning_time = ticks;
+            Ok(CommandResult {
+                success_count: ticks,
+                feedback_key: "commands.worldborder.warning.time.success",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn worldborder_set_size(
+    state: &mut ServerCommandState,
+    distance: f64,
+    ticks: i64,
+) -> Result<CommandResult, CommandError> {
+    let current = state.world_border.size();
+    if current == distance {
+        return Err(CommandError::WorldBorderSameSize);
+    }
+    if distance < 1.0 {
+        return Err(CommandError::WorldBorderTooSmall);
+    }
+    if distance > WORLD_BORDER_MAX_SIZE {
+        return Err(CommandError::WorldBorderTooBig);
+    }
+    if ticks > 0 {
+        state
+            .world_border
+            .lerp_size_between(current, distance, ticks);
+    } else {
+        state.world_border.set_size(distance);
+    }
+    Ok(CommandResult {
+        success_count: (distance - current) as i32,
+        feedback_key: if ticks > 0 {
+            if distance > current {
+                "commands.worldborder.set.grow"
+            } else {
+                "commands.worldborder.set.shrink"
+            }
+        } else {
+            "commands.worldborder.set.immediate"
+        },
+        broadcast_to_admins: true,
+    })
 }
 
 fn clone_command(
@@ -11075,6 +11223,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("waypoint", "/waypoint <list|modify> ..."),
         ("weather", "/weather <clear|rain|thunder> [duration]"),
         ("whitelist", "/whitelist <on|off|list|add|remove|reload>"),
+        ("worldborder", "/worldborder <add|set|center|damage|get|warning> ..."),
         ("deop", "/deop <targets>"),
     ]
 }
@@ -14961,6 +15110,154 @@ mod tests {
                 "waypoint modify Steve color rainbow"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn worldborder_command_sets_adds_centers_and_queries_border() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("worldborder"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "worldborder set 100"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let set = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder set 100",
+        )
+        .unwrap();
+        assert_eq!(set.feedback_key, "commands.worldborder.set.immediate");
+        assert_eq!(state.world_border.size(), 100.0);
+        assert!(set.broadcast_to_admins);
+
+        let grow = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder add 50 2s",
+        )
+        .unwrap();
+        assert_eq!(grow.success_count, 50);
+        assert_eq!(grow.feedback_key, "commands.worldborder.set.grow");
+        assert_eq!(state.world_border.lerp_target(), 150.0);
+        assert_eq!(state.world_border.lerp_time(), 40);
+
+        let center = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder center 10.5 -20.25",
+        )
+        .unwrap();
+        assert_eq!(center.success_count, 0);
+        assert_eq!(center.feedback_key, "commands.worldborder.center.success");
+        assert_eq!(state.world_border.center_x, 10.5);
+        assert_eq!(state.world_border.center_z, -20.25);
+
+        let get = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder get",
+        )
+        .unwrap();
+        assert_eq!(get.feedback_key, "commands.worldborder.get");
+        assert_eq!(get.success_count, 100);
+        assert!(!get.broadcast_to_admins);
+    }
+
+    #[test]
+    fn worldborder_command_updates_damage_and_warning_settings() {
+        let mut state = ServerCommandState::default();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder damage buffer 8.5",
+        )
+        .unwrap();
+        assert_eq!(state.world_border.safe_zone, 8.5);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder damage amount 0.75",
+        )
+        .unwrap();
+        assert_eq!(state.world_border.damage_per_block, 0.75);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder warning distance 12",
+        )
+        .unwrap();
+        assert_eq!(state.world_border.warning_blocks, 12);
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder warning time 5s",
+        )
+        .unwrap();
+        assert_eq!(state.world_border.warning_time, 100);
+    }
+
+    #[test]
+    fn worldborder_command_rejects_vanilla_failure_paths() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "worldborder set 0.5"
+            ),
+            Err(CommandError::WorldBorderTooSmall)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "worldborder set 60000000"
+            ),
+            Err(CommandError::WorldBorderTooBig)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "worldborder center 30000000 0"
+            ),
+            Err(CommandError::WorldBorderTooFarOut)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "worldborder center 0 0"
+            ),
+            Err(CommandError::WorldBorderSameCenter)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "worldborder damage buffer 5"
+            ),
+            Err(CommandError::WorldBorderSameDamageBuffer)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "worldborder warning distance 5"
+            ),
+            Err(CommandError::WorldBorderSameWarningDistance)
         );
     }
 
