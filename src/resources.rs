@@ -63,6 +63,26 @@ pub struct BuiltInDataPack {
     metadata: DataPackMetadata,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldDataPack {
+    pub pack: DataPack,
+    resources: BTreeMap<String, String>,
+}
+
+impl WorldDataPack {
+    pub fn get(&self, path: &str) -> Option<&str> {
+        self.resources.get(path).map(String::as_str)
+    }
+
+    pub fn list_prefix(&self, prefix: &str) -> Vec<&str> {
+        self.resources
+            .keys()
+            .filter(|path| path.starts_with(prefix))
+            .map(String::as_str)
+            .collect()
+    }
+}
+
 impl BuiltInDataPack {
     pub fn vanilla_26_1_2() -> Self {
         let resources = VANILLA_BUILTIN_RESOURCES
@@ -270,7 +290,11 @@ impl DataPackRepository {
     pub fn server_repository(datapack_dir: &Path) -> Result<Self, String> {
         let mut packs = vec![BuiltInDataPack::vanilla_26_1_2().as_data_pack()];
 
-        packs.extend(discover_world_data_packs(datapack_dir)?);
+        packs.extend(
+            load_world_data_packs(datapack_dir)?
+                .into_iter()
+                .map(|loaded| loaded.pack),
+        );
         Ok(Self::new(packs))
     }
 
@@ -534,7 +558,7 @@ fn split_pack_list(value: &str) -> Vec<String> {
         .collect()
 }
 
-fn discover_world_data_packs(datapack_dir: &Path) -> Result<Vec<DataPack>, String> {
+pub fn load_world_data_packs(datapack_dir: &Path) -> Result<Vec<WorldDataPack>, String> {
     if !datapack_dir.exists() {
         return Ok(Vec::new());
     }
@@ -579,28 +603,84 @@ fn discover_world_data_packs(datapack_dir: &Path) -> Result<Vec<DataPack>, Strin
             continue;
         }
 
-        let metadata = if file_type.is_dir() {
+        let (metadata, resources) = if file_type.is_dir() {
             let metadata_path = path.join("pack.mcmeta");
             let contents = match fs::read_to_string(&metadata_path) {
                 Ok(contents) => contents,
                 Err(_) => continue,
             };
-            match parse_pack_metadata(&contents) {
+            let metadata = match parse_pack_metadata(&contents) {
                 Ok(metadata) => metadata,
                 Err(_) => continue,
-            }
+            };
+            (metadata, load_directory_pack_resources(&path)?)
         } else {
             continue;
         };
 
         if metadata.compatibility.is_compatible() {
-            packs.push(
-                DataPack::new(format!("file/{id}"), PackSource::World).with_metadata(metadata),
-            );
+            packs.push(WorldDataPack {
+                pack: DataPack::new(format!("file/{id}"), PackSource::World)
+                    .with_metadata(metadata),
+                resources,
+            });
         }
     }
 
     Ok(packs)
+}
+
+fn load_directory_pack_resources(root: &Path) -> Result<BTreeMap<String, String>, String> {
+    let mut resources = BTreeMap::new();
+    load_directory_pack_resources_inner(root, root, &mut resources)?;
+    Ok(resources)
+}
+
+fn load_directory_pack_resources_inner(
+    root: &Path,
+    current: &Path,
+    resources: &mut BTreeMap<String, String>,
+) -> Result<(), String> {
+    for entry in fs::read_dir(current).map_err(|err| {
+        format!(
+            "Failed to read datapack directory '{}': {err}",
+            current.display()
+        )
+    })? {
+        let entry = entry.map_err(|err| {
+            format!(
+                "Failed to read datapack entry in '{}': {err}",
+                current.display()
+            )
+        })?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|err| {
+            format!(
+                "Failed to inspect datapack entry '{}': {err}",
+                path.display()
+            )
+        })?;
+        if file_type.is_dir() {
+            load_directory_pack_resources_inner(root, &path, resources)?;
+        } else if file_type.is_file() {
+            let relative = path.strip_prefix(root).map_err(|err| {
+                format!(
+                    "Failed to relativize datapack path '{}' against '{}': {err}",
+                    path.display(),
+                    root.display()
+                )
+            })?;
+            let resource_path = relative.to_string_lossy().replace('\\', "/");
+            let contents = fs::read_to_string(&path).map_err(|err| {
+                format!(
+                    "Failed to read datapack resource '{}': {err}",
+                    path.display()
+                )
+            })?;
+            resources.insert(resource_path, contents);
+        }
+    }
+    Ok(())
 }
 
 fn is_valid_pack_id(id: &str) -> bool {
@@ -1216,6 +1296,14 @@ mod tests {
             }"#,
         )
         .unwrap();
+        fs::create_dir_all(datapacks.join("dir_pack").join("data/example/tags/item")).unwrap();
+        fs::write(
+            datapacks
+                .join("dir_pack")
+                .join("data/example/tags/item/test_items.json"),
+            r#"{"replace":false,"values":["minecraft:stick"]}"#,
+        )
+        .unwrap();
         fs::create_dir_all(datapacks.join("missing_meta")).unwrap();
         fs::create_dir_all(datapacks.join("old_pack")).unwrap();
         fs::write(
@@ -1231,6 +1319,18 @@ mod tests {
         ids.sort();
 
         assert_eq!(ids, vec!["file/dir_pack", VANILLA_PACK_ID]);
+
+        let loaded = load_world_data_packs(&datapacks).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].pack.id, "file/dir_pack");
+        assert_eq!(
+            loaded[0].get("data/example/tags/item/test_items.json"),
+            Some(r#"{"replace":false,"values":["minecraft:stick"]}"#)
+        );
+        assert_eq!(
+            loaded[0].list_prefix("data/example/tags/"),
+            vec!["data/example/tags/item/test_items.json"]
+        );
 
         fs::remove_dir_all(temp_dir).unwrap();
     }
