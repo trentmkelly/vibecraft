@@ -77,6 +77,7 @@ mod seed_validation;
 mod server_properties;
 mod spawning;
 mod special_block;
+mod statistics;
 mod status_effect;
 mod storage;
 mod vehicle_entity;
