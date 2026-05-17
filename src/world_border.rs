@@ -77,6 +77,14 @@ pub struct BorderBox {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BorderCollisionBox {
+    pub min_x: f64,
+    pub min_z: f64,
+    pub max_x: f64,
+    pub max_z: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RespawnData2d {
     pub x: i32,
     pub z: i32,
@@ -113,6 +121,24 @@ impl WorldBorder {
     pub fn set_center(&mut self, x: f64, z: f64) {
         self.center_x = x;
         self.center_z = z;
+    }
+
+    pub fn set_absolute_max_size(&mut self, absolute_max_size: i32) {
+        self.absolute_max_size = absolute_max_size;
+    }
+
+    pub fn settings(self) -> WorldBorderSettings {
+        WorldBorderSettings {
+            center_x: self.center_x,
+            center_z: self.center_z,
+            damage_per_block: self.damage_per_block,
+            safe_zone: self.safe_zone,
+            warning_blocks: self.warning_blocks,
+            warning_time: self.warning_time,
+            size: self.size(),
+            lerp_time: self.lerp_time(),
+            lerp_target: self.lerp_target(),
+        }
     }
 
     pub fn set_size(&mut self, size: f64) {
@@ -207,7 +233,19 @@ impl WorldBorder {
     }
 
     pub fn bounds(self) -> BorderBox {
-        let half = self.size() / 2.0;
+        self.bounds_at_delta(0.0)
+    }
+
+    pub fn bounds_at_delta(self, delta_partial_tick: f32) -> BorderBox {
+        let size = match self.extent {
+            BorderExtent::Static { size } => size,
+            BorderExtent::Moving {
+                previous_size,
+                size,
+                ..
+            } => lerp(f64::from(delta_partial_tick), previous_size, size),
+        };
+        let half = size / 2.0;
         let max = f64::from(self.absolute_max_size);
         BorderBox {
             min_x: (self.center_x - half).clamp(-max, max),
@@ -232,6 +270,18 @@ impl WorldBorder {
     pub fn is_box_within_bounds(self, min_x: f64, min_z: f64, max_x: f64, max_z: f64) -> bool {
         self.is_within_bounds(min_x, min_z)
             && self.is_within_bounds(max_x - BORDER_EPSILON, max_z - BORDER_EPSILON)
+    }
+
+    pub fn is_inside_close_to_border(
+        self,
+        x: f64,
+        z: f64,
+        box_x_size: f64,
+        box_z_size: f64,
+    ) -> bool {
+        let bb_max = box_x_size.abs().max(box_z_size.abs()).max(1.0);
+        self.distance_to_border(x, z) < bb_max * 2.0
+            && self.is_within_bounds_with_margin(x, z, bb_max)
     }
 
     pub fn is_chunk_within_bounds(self, chunk_x: i32, chunk_z: i32) -> bool {
@@ -266,6 +316,16 @@ impl WorldBorder {
             Some(1.max((-distance_with_safe_zone * self.damage_per_block).floor() as i32))
         } else {
             None
+        }
+    }
+
+    pub fn collision_box(self) -> BorderCollisionBox {
+        let bounds = self.bounds();
+        BorderCollisionBox {
+            min_x: bounds.min_x.floor(),
+            min_z: bounds.min_z.floor(),
+            max_x: bounds.max_x.ceil(),
+            max_z: bounds.max_z.ceil(),
         }
     }
 
@@ -378,6 +438,54 @@ mod tests {
         assert_eq!(border.size(), 20.0);
         assert_eq!(border.status(), BorderStatus::Stationary);
         assert_eq!(border.lerp_time(), 0);
+    }
+
+    #[test]
+    fn moving_border_bounds_interpolate_previous_and_current_size_for_partial_ticks() {
+        let mut border = WorldBorder::default();
+        border.set_center(0.0, 0.0);
+        border.lerp_size_between(10.0, 18.0, 4);
+        border.tick();
+
+        assert_eq!(border.bounds_at_delta(0.0).min_x, -5.0);
+        assert_eq!(border.bounds_at_delta(1.0).min_x, -6.0);
+        assert_eq!(border.bounds_at_delta(0.5).max_z, 5.5);
+        assert_eq!(
+            border.collision_box(),
+            super::BorderCollisionBox {
+                min_x: -5.0,
+                min_z: -5.0,
+                max_x: 5.0,
+                max_z: 5.0
+            }
+        );
+    }
+
+    #[test]
+    fn settings_absolute_max_and_close_to_border_follow_runtime_state() {
+        let mut border = WorldBorder::default();
+        border.set_absolute_max_size(100);
+        border.set_center(95.0, 0.0);
+        border.set_size(40.0);
+        border.safe_zone = 2.0;
+        border.damage_per_block = 0.5;
+        border.warning_blocks = 7;
+        border.warning_time = 42;
+
+        assert_eq!(border.bounds().max_x, 100.0);
+        assert!(border.is_inside_close_to_border(99.0, 0.0, 0.6, 0.6));
+        assert!(!border.is_inside_close_to_border(80.0, 0.0, 0.6, 0.6));
+
+        let settings = border.settings();
+        assert_eq!(settings.center_x, 95.0);
+        assert_eq!(settings.center_z, 0.0);
+        assert_eq!(settings.damage_per_block, 0.5);
+        assert_eq!(settings.safe_zone, 2.0);
+        assert_eq!(settings.warning_blocks, 7);
+        assert_eq!(settings.warning_time, 42);
+        assert_eq!(settings.size, 40.0);
+        assert_eq!(settings.lerp_time, 0);
+        assert_eq!(settings.lerp_target, 40.0);
     }
 
     #[test]
