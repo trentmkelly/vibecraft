@@ -120,6 +120,7 @@ pub struct ServerCommandState {
     pub debug_trace_events: Vec<DebugTraceEvent>,
     pub config_players: Vec<NameAndId>,
     pub config_dialog_events: Vec<DebugConfigDialogEvent>,
+    pub dialog_events: Vec<DialogCommandEvent>,
     pub mob_spawning_events: Vec<DebugMobSpawningEvent>,
     pub debug_path_events: Vec<DebugPathEvent>,
     pub unreachable_debug_paths: Vec<BlockPos>,
@@ -347,6 +348,17 @@ pub struct DebugTraceEvent {
 pub struct DebugConfigDialogEvent {
     pub target: String,
     pub dialog: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DialogCommandEvent {
+    Show {
+        targets: Vec<NameAndId>,
+        dialog: String,
+    },
+    Clear {
+        targets: Vec<NameAndId>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1073,6 +1085,7 @@ impl Default for ServerCommandState {
             debug_trace_events: Vec::new(),
             config_players: Vec::new(),
             config_dialog_events: Vec::new(),
+            dialog_events: Vec::new(),
             mob_spawning_events: Vec::new(),
             debug_path_events: Vec::new(),
             unreachable_debug_paths: Vec::new(),
@@ -1527,6 +1540,7 @@ pub fn execute_builtin_command(
         "debugpath" => debug_path_command(state, &parts),
         "defaultgamemode" => default_gamemode_command(state, &parts),
         "difficulty" => difficulty_command(state, &parts),
+        "dialog" => dialog_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -3606,6 +3620,53 @@ fn difficulty_command(
             Ok(CommandResult {
                 success_count: 0,
                 feedback_key: "commands.difficulty.success",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn dialog_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["dialog", "show", targets @ ..] if targets.len() >= 2 => {
+            let (target_names, dialog) = targets.split_at(targets.len() - 1);
+            let targets = target_names
+                .iter()
+                .map(|target| NameAndId::create_offline(target))
+                .collect::<Vec<_>>();
+            state.dialog_events.push(DialogCommandEvent::Show {
+                targets: targets.clone(),
+                dialog: parse_resource_identifier(dialog[0])?,
+            });
+            Ok(CommandResult {
+                success_count: targets.len() as i32,
+                feedback_key: if targets.len() == 1 {
+                    "commands.dialog.show.single"
+                } else {
+                    "commands.dialog.show.multiple"
+                },
+                broadcast_to_admins: true,
+            })
+        }
+        ["dialog", "clear", targets @ ..] if !targets.is_empty() => {
+            let targets = targets
+                .iter()
+                .map(|target| NameAndId::create_offline(target))
+                .collect::<Vec<_>>();
+            state.dialog_events.push(DialogCommandEvent::Clear {
+                targets: targets.clone(),
+            });
+            Ok(CommandResult {
+                success_count: targets.len() as i32,
+                feedback_key: if targets.len() == 1 {
+                    "commands.dialog.clear.single"
+                } else {
+                    "commands.dialog.clear.multiple"
+                },
                 broadcast_to_admins: true,
             })
         }
@@ -7016,6 +7077,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("debugpath", "/debugpath <to>"),
         ("defaultgamemode", "/defaultgamemode <gamemode>"),
         ("difficulty", "/difficulty [difficulty]"),
+        ("dialog", "/dialog <show|clear> <targets> [dialog]"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -7483,16 +7545,16 @@ mod tests {
         visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
         BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent,
         ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability, CommandError,
-        CommandItemStack, CommandPlayerInventory, DamageCommandSource, EntityAnchor,
-        EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState, EntityTags,
-        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
-        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode,
-        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
-        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
-        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
-        WeatherMode,
+        CommandItemStack, CommandPlayerInventory, DamageCommandSource, DialogCommandEvent,
+        EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState,
+        EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent,
+        PerfReport, Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress,
+        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
+        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
+        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -9110,6 +9172,66 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "gamerule randomTickSpeed true"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn dialog_command_shows_and_clears_dialog_packets_for_players() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("dialog"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "dialog show Steve minecraft:welcome"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let shown = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "dialog show Steve Alex minecraft:welcome",
+        )
+        .unwrap();
+        assert_eq!(shown.success_count, 2);
+        assert_eq!(shown.feedback_key, "commands.dialog.show.multiple");
+        assert!(shown.broadcast_to_admins);
+        assert_eq!(
+            state.dialog_events[0],
+            DialogCommandEvent::Show {
+                targets: vec![
+                    NameAndId::create_offline("Steve"),
+                    NameAndId::create_offline("Alex"),
+                ],
+                dialog: "minecraft:welcome".to_string(),
+            }
+        );
+
+        let cleared = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "dialog clear Steve",
+        )
+        .unwrap();
+        assert_eq!(cleared.success_count, 1);
+        assert_eq!(cleared.feedback_key, "commands.dialog.clear.single");
+        assert_eq!(
+            state.dialog_events[1],
+            DialogCommandEvent::Clear {
+                targets: vec![NameAndId::create_offline("Steve")],
+            }
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "dialog show Steve"
             ),
             Err(CommandError::InvalidSyntax)
         );
