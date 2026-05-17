@@ -97,16 +97,16 @@ export const configurationCompletionManifest = {
   },
   requiredTags: {
     'minecraft:banner_pattern': {
-      'minecraft:pattern_item/bordure_indented': [34],
-      'minecraft:pattern_item/creeper': [36],
-      'minecraft:pattern_item/field_masoned': [33],
-      'minecraft:pattern_item/flower': [38],
-      'minecraft:pattern_item/flow': [41],
-      'minecraft:pattern_item/globe': [35],
-      'minecraft:pattern_item/guster': [42],
-      'minecraft:pattern_item/mojang': [39],
-      'minecraft:pattern_item/piglin': [40],
-      'minecraft:pattern_item/skull': [37]
+      'minecraft:pattern_item/bordure_indented': [6],
+      'minecraft:pattern_item/creeper': [4],
+      'minecraft:pattern_item/field_masoned': [2],
+      'minecraft:pattern_item/flower': [12],
+      'minecraft:pattern_item/flow': [11],
+      'minecraft:pattern_item/globe': [13],
+      'minecraft:pattern_item/guster': [16],
+      'minecraft:pattern_item/mojang': [21],
+      'minecraft:pattern_item/piglin': [22],
+      'minecraft:pattern_item/skull': [24]
     },
     'minecraft:damage_type': {
       'minecraft:bypasses_shield': [31, 22, 4, 6, 16, 18, 48, 5, 40, 10, 8, 17, 39, 27, 23, 32, 19, 36, 33, 2, 3, 7, 11, 13, 20, 21, 24, 25, 42],

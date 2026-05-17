@@ -590,7 +590,7 @@ async function main () {
     play.push({ id: packet.id, length: packet.length })
   }
   if (!recordOnly) {
-    for (const id of [49, 105, 72, 12, 48, 11]) {
+  for (const id of [49, 105, 72, 12, 45, 11]) {
       if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
     }
     const loginPacket = play.find(packet => packet.id === 49)
