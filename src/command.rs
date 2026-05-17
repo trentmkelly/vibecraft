@@ -173,6 +173,8 @@ pub struct ServerCommandState {
     pub loot_events: Vec<CommandLootEvent>,
     pub available_templates: Vec<String>,
     pub place_events: Vec<CommandPlaceEvent>,
+    pub raids: Vec<CommandRaidState>,
+    pub raid_events: Vec<CommandRaidEvent>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub player_experience: Vec<PlayerExperienceState>,
     pub default_game_mode: GameMode,
@@ -354,6 +356,24 @@ pub enum PlaceKind {
     Jigsaw,
     Structure,
     Template,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandRaidState {
+    pub center: BlockPos,
+    pub omen_level: i32,
+    pub groups_spawned: i32,
+    pub raiders_alive: i32,
+    pub health: i32,
+    pub total_health: i32,
+    pub stopped: bool,
+    pub glowing: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandRaidEvent {
+    Sound { local: bool, position: Vec3 },
+    SpawnLeader { position: Vec3 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1484,6 +1504,8 @@ impl Default for ServerCommandState {
             loot_events: Vec::new(),
             available_templates: Vec::new(),
             place_events: Vec::new(),
+            raids: Vec::new(),
+            raid_events: Vec::new(),
             player_game_modes: Vec::new(),
             player_experience: Vec::new(),
             default_game_mode: GameMode::Survival,
@@ -1927,6 +1949,7 @@ pub fn execute_builtin_command(
         "locate" => locate_command(state, &parts),
         "loot" => loot_command(state, &parts),
         "place" => place_command(state, &parts),
+        "raid" => raid_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
@@ -4291,6 +4314,117 @@ fn parse_template_mirror(input: &str) -> Result<String, CommandError> {
     match input {
         "none" | "left_right" | "front_back" => Ok(input.to_string()),
         _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn raid_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let pos = raid_source_pos(state)?;
+    match parts {
+        ["raid", "start", omen] => {
+            let omen = parse_i32(omen)?;
+            if omen < 0 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            if active_raid_index(state, pos).is_some() {
+                return Ok(raid_result(-1, "commands.raid.already_started"));
+            }
+            state.raids.push(CommandRaidState {
+                center: pos,
+                omen_level: omen,
+                groups_spawned: 0,
+                raiders_alive: 0,
+                health: 0,
+                total_health: 0,
+                stopped: false,
+                glowing: false,
+            });
+            Ok(raid_result(1, "commands.raid.start.success"))
+        }
+        ["raid", "stop"] => {
+            if let Some(index) = active_raid_index(state, pos) {
+                state.raids[index].stopped = true;
+                Ok(raid_result(1, "commands.raid.stop.success"))
+            } else {
+                Ok(raid_result(-1, "commands.raid.stop.none"))
+            }
+        }
+        ["raid", "check"] => {
+            if active_raid_index(state, pos).is_some() {
+                Ok(raid_result(1, "commands.raid.check.success"))
+            } else {
+                Ok(raid_result(0, "commands.raid.check.none"))
+            }
+        }
+        ["raid", "sound", sound_type] => {
+            let local = *sound_type == "local";
+            if local {
+                state.raid_events.push(CommandRaidEvent::Sound {
+                    local,
+                    position: Vec3 {
+                        x: state.command_source_position.x + 5.0,
+                        y: state.command_source_position.y,
+                        z: state.command_source_position.z,
+                    },
+                });
+            }
+            Ok(raid_result(1, "commands.raid.sound"))
+        }
+        ["raid", "spawnleader"] => {
+            state.raid_events.push(CommandRaidEvent::SpawnLeader {
+                position: state.command_source_position,
+            });
+            Ok(raid_result(1, "commands.raid.spawnleader.success"))
+        }
+        ["raid", "setomen", level] => {
+            let level = parse_i32(level)?;
+            if level < 0 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            if let Some(index) = active_raid_index(state, pos) {
+                let max = 5;
+                if level > max {
+                    Ok(raid_result(1, "commands.raid.omen.too_high"))
+                } else {
+                    state.raids[index].omen_level = level;
+                    Ok(raid_result(1, "commands.raid.omen.changed"))
+                }
+            } else {
+                Ok(raid_result(1, "commands.raid.omen.none"))
+            }
+        }
+        ["raid", "glow"] => {
+            if let Some(index) = active_raid_index(state, pos) {
+                state.raids[index].glowing = true;
+            }
+            Ok(raid_result(1, "commands.raid.glow"))
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn raid_source_pos(state: &ServerCommandState) -> Result<BlockPos, CommandError> {
+    state
+        .command_source_player
+        .as_ref()
+        .ok_or(CommandError::InvalidSyntax)?;
+    Ok(command_source_block_pos(state))
+}
+
+fn active_raid_index(state: &ServerCommandState, pos: BlockPos) -> Option<usize> {
+    state
+        .raids
+        .iter()
+        .position(|raid| !raid.stopped && raid.center == pos)
+}
+
+fn raid_result(success_count: i32, feedback_key: &'static str) -> CommandResult {
+    CommandResult {
+        success_count,
+        feedback_key,
+        broadcast_to_admins: false,
     }
 }
 
@@ -10029,6 +10163,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("locate", "/locate <structure|biome|poi> <target>"),
         ("loot", "/loot <give|insert|replace|spawn> ... <fish|loot|kill|mine> ..."),
         ("place", "/place <feature|jigsaw|structure|template> ..."),
+        ("raid", "/raid <start|stop|check|sound|spawnleader|setomen|glow>"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -10480,6 +10615,7 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
         | "pardon" | "pardon-ip" | "setidletimeout" | "tick" | "transfer" | "whitelist" => {
             PermissionLevel::Admins
         }
+        "raid" => PermissionLevel::Admins,
         "jfr" | "perf" | "publish" | "save-all" | "save-off" | "save-on" | "stop" => {
             PermissionLevel::Owners
         }
@@ -10498,12 +10634,12 @@ mod tests {
         CommandEntityItemSlot, CommandEntityLootTable, CommandError, CommandFunctionDefinition,
         CommandFunctionTag, CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack,
         CommandItemTarget, CommandLocatableEntry, CommandLocateResult, CommandLootSource,
-        CommandLootTable, CommandLootTarget, CommandPlayerInventory, DamageCommandSource,
-        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
-        EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
-        FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
-        LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport, Permission,
-        PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
+        CommandLootTable, CommandLootTarget, CommandPlayerInventory, CommandRaidEvent,
+        CommandRaidState, DamageCommandSource, DialogCommandEvent, EntityAnchor,
+        EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
+        EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk, GameMode,
+        InteractionHand, LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport,
+        Permission, PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
         PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
         PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
@@ -15355,6 +15491,163 @@ mod tests {
             ),
             Err(CommandError::InvalidSyntax)
         );
+    }
+
+    #[test]
+    fn raid_command_starts_checks_updates_and_stops_raids() {
+        let player = NameAndId::create_offline("Steve");
+        let mut state = ServerCommandState {
+            command_source_player: Some(player),
+            command_source_position: Vec3 {
+                x: 10.0,
+                y: 64.0,
+                z: 10.0,
+            },
+            ..ServerCommandState::default()
+        };
+        assert_eq!(command_required_permission("raid"), PermissionLevel::Admins);
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "raid start 2"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let start =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid start 2")
+                .unwrap();
+        assert_eq!(start.success_count, 1);
+        assert_eq!(start.feedback_key, "commands.raid.start.success");
+        assert_eq!(
+            state.raids,
+            vec![CommandRaidState {
+                center: BlockPos {
+                    x: 10,
+                    y: 64,
+                    z: 10
+                },
+                omen_level: 2,
+                groups_spawned: 0,
+                raiders_alive: 0,
+                health: 0,
+                total_health: 0,
+                stopped: false,
+                glowing: false,
+            }]
+        );
+
+        let duplicate =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid start 1")
+                .unwrap();
+        assert_eq!(duplicate.success_count, -1);
+        assert_eq!(duplicate.feedback_key, "commands.raid.already_started");
+
+        let check =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid check")
+                .unwrap();
+        assert_eq!(check.success_count, 1);
+        assert_eq!(check.feedback_key, "commands.raid.check.success");
+
+        let setomen =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid setomen 4")
+                .unwrap();
+        assert_eq!(setomen.feedback_key, "commands.raid.omen.changed");
+        assert_eq!(state.raids[0].omen_level, 4);
+
+        let glow = execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid glow")
+            .unwrap();
+        assert_eq!(glow.success_count, 1);
+        assert!(state.raids[0].glowing);
+
+        let stop = execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid stop")
+            .unwrap();
+        assert_eq!(stop.success_count, 1);
+        assert!(state.raids[0].stopped);
+        let none =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid check")
+                .unwrap();
+        assert_eq!(none.success_count, 0);
+    }
+
+    #[test]
+    fn raid_command_records_sound_and_spawnleader_debug_actions() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Alex")),
+            command_source_position: Vec3 {
+                x: 1.0,
+                y: 65.0,
+                z: 2.0,
+            },
+            ..ServerCommandState::default()
+        };
+
+        let sound = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "raid sound local",
+        )
+        .unwrap();
+        assert_eq!(sound.success_count, 1);
+        assert_eq!(
+            state.raid_events[0],
+            CommandRaidEvent::Sound {
+                local: true,
+                position: Vec3 {
+                    x: 6.0,
+                    y: 65.0,
+                    z: 2.0,
+                },
+            }
+        );
+
+        let leader = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "raid spawnleader",
+        )
+        .unwrap();
+        assert_eq!(leader.feedback_key, "commands.raid.spawnleader.success");
+        assert_eq!(
+            state.raid_events[1],
+            CommandRaidEvent::SpawnLeader {
+                position: Vec3 {
+                    x: 1.0,
+                    y: 65.0,
+                    z: 2.0,
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn raid_command_rejects_missing_player_and_bad_omen_levels() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid start 1"),
+            Err(CommandError::InvalidSyntax)
+        );
+        state.command_source_player = Some(NameAndId::create_offline("Steve"));
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid start -1"),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ADMIN,
+                "raid setomen -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid start 1")
+            .unwrap();
+        let too_high =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "raid setomen 6")
+                .unwrap();
+        assert_eq!(too_high.feedback_key, "commands.raid.omen.too_high");
+        assert_eq!(state.raids[0].omen_level, 1);
     }
 
     #[test]
