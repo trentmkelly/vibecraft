@@ -5,6 +5,7 @@ pub mod compression;
 pub mod configuration;
 pub mod cookie;
 pub mod dispatch;
+pub mod encryption;
 pub mod handshake;
 pub mod local;
 pub mod login;

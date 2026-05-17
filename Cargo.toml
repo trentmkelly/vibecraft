@@ -5,4 +5,5 @@ edition = "2021"
 license = "UNLICENSED"
 
 [dependencies]
+aes = "0.8"
 flate2 = "1"
