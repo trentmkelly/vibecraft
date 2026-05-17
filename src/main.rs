@@ -1,4 +1,5 @@
 mod biome;
+mod block_update;
 mod chunk_manager;
 mod chunk_ticket;
 mod cli;
