@@ -1,4 +1,5 @@
 mod ai_system;
+mod attribute_system;
 mod base_entity;
 mod biome;
 mod block_behavior;
