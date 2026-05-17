@@ -1125,6 +1125,7 @@ pub enum CommandError {
     JfrDumpFailed,
     RecipeGiveFailed,
     RecipeTakeFailed,
+    GiveTooManyItems,
     SwingNoLivingEntity,
     TagAddFailed,
     TagRemoveFailed,
@@ -1744,6 +1745,7 @@ pub fn execute_builtin_command(
         "forceload" => forceload_command(state, &parts),
         "function" => function_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
+        "give" => give_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
@@ -2965,6 +2967,18 @@ impl CommandPlayerInventory {
         }
         changed
     }
+
+    fn add_item_stacks(&mut self, item: &str, count: i32, max_stack_size: i32) {
+        let mut remaining = count;
+        while remaining > 0 {
+            let size = remaining.min(max_stack_size);
+            self.items.push(CommandItemStack {
+                item: item.to_string(),
+                count: size,
+            });
+            remaining -= size;
+        }
+    }
 }
 
 fn command_inventory_mut<'a>(
@@ -2983,6 +2997,89 @@ fn command_inventory_mut<'a>(
         items: Vec::new(),
     });
     state.player_inventories.last_mut().unwrap()
+}
+
+fn give_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (targets, item, count) = match parts {
+        ["give", targets, item] => (
+            parse_name_list(targets),
+            parse_resource_identifier(item)?,
+            1,
+        ),
+        ["give", targets, item, count] => (
+            parse_name_list(targets),
+            parse_resource_identifier(item)?,
+            parse_i32(count)?,
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    if targets.is_empty() || count < 1 {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let max_stack_size = item_max_stack_size(&item);
+    let max_allowed_count = max_stack_size * 100;
+    if count > max_allowed_count {
+        return Err(CommandError::GiveTooManyItems);
+    }
+    for target in &targets {
+        command_inventory_mut(state, target).add_item_stacks(&item, count, max_stack_size);
+    }
+    Ok(CommandResult {
+        success_count: targets.len() as i32,
+        feedback_key: if targets.len() == 1 {
+            "commands.give.success.single"
+        } else {
+            "commands.give.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn item_max_stack_size(item: &str) -> i32 {
+    if item.ends_with("_sword")
+        || item.ends_with("_pickaxe")
+        || item.ends_with("_axe")
+        || item.ends_with("_shovel")
+        || item.ends_with("_hoe")
+        || item.ends_with("_helmet")
+        || item.ends_with("_chestplate")
+        || item.ends_with("_leggings")
+        || item.ends_with("_boots")
+        || matches!(
+            item,
+            "minecraft:bow"
+                | "minecraft:crossbow"
+                | "minecraft:trident"
+                | "minecraft:mace"
+                | "minecraft:shield"
+                | "minecraft:elytra"
+                | "minecraft:written_book"
+                | "minecraft:enchanted_book"
+                | "minecraft:music_disc_13"
+                | "minecraft:music_disc_cat"
+        )
+    {
+        1
+    } else if matches!(
+        item,
+        "minecraft:ender_pearl"
+            | "minecraft:snowball"
+            | "minecraft:egg"
+            | "minecraft:honey_bottle"
+            | "minecraft:bucket"
+            | "minecraft:water_bucket"
+            | "minecraft:lava_bucket"
+            | "minecraft:milk_bucket"
+            | "minecraft:oak_sign"
+            | "minecraft:oak_hanging_sign"
+    ) {
+        16
+    } else {
+        64
+    }
 }
 
 fn clone_command(
@@ -8715,6 +8812,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("function", "/function <name|#tag> [arguments]"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
+        ("give", "/give <targets> <item> [count]"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -13244,6 +13342,120 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "clear Steve stone -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn give_command_adds_items_to_single_and_multiple_player_inventories() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("give"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "give Steve stone"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let single = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "give Steve stone 65",
+        )
+        .unwrap();
+        assert_eq!(single.success_count, 1);
+        assert_eq!(single.feedback_key, "commands.give.success.single");
+        assert_eq!(
+            state.player_inventories[0],
+            CommandPlayerInventory {
+                player: NameAndId::create_offline("Steve"),
+                items: vec![
+                    CommandItemStack {
+                        item: "minecraft:stone".to_string(),
+                        count: 64,
+                    },
+                    CommandItemStack {
+                        item: "minecraft:stone".to_string(),
+                        count: 1,
+                    },
+                ],
+            }
+        );
+
+        let multiple = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "give Steve,Alex diamond_sword 2",
+        )
+        .unwrap();
+        assert_eq!(multiple.success_count, 2);
+        assert_eq!(multiple.feedback_key, "commands.give.success.multiple");
+        let alex = state
+            .player_inventories
+            .iter()
+            .find(|inventory| inventory.player.name == "Alex")
+            .unwrap();
+        assert_eq!(
+            alex.items,
+            vec![
+                CommandItemStack {
+                    item: "minecraft:diamond_sword".to_string(),
+                    count: 1,
+                },
+                CommandItemStack {
+                    item: "minecraft:diamond_sword".to_string(),
+                    count: 1,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn give_command_rejects_invalid_counts_and_too_many_stacks() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "give Steve stone 0"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "give Steve stone -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "give Steve stone 6401"
+            ),
+            Err(CommandError::GiveTooManyItems)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "give Steve diamond_sword 101"
+            ),
+            Err(CommandError::GiveTooManyItems)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "give Steve BadItem"
             ),
             Err(CommandError::InvalidSyntax)
         );
