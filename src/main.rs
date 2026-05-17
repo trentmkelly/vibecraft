@@ -23,6 +23,7 @@ mod player_access;
 mod post_processing;
 mod random_source;
 mod random_tick;
+mod redstone;
 mod registry;
 mod resources;
 mod runtime;
