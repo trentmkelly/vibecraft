@@ -132,6 +132,7 @@ pub struct ServerCommandState {
     pub debug_world: bool,
     pub blocks: Vec<BlockStateEntry>,
     pub online_players: Vec<NameAndId>,
+    pub player_inventories: Vec<CommandPlayerInventory>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub camera_targets: Vec<CameraTarget>,
     pub untrackable_entities: Vec<EntityRef>,
@@ -207,6 +208,18 @@ pub enum ChaseEvent {
     FollowStarted { host: String, port: u16 },
     LeadStopped,
     FollowStopped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandPlayerInventory {
+    pub player: NameAndId,
+    pub items: Vec<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandItemStack {
+    pub item: String,
+    pub count: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -752,6 +765,8 @@ pub enum CommandError {
     PardonIpInvalid,
     PardonIpFailed,
     ChaseAlreadyRunning,
+    ClearFailedSingle,
+    ClearFailedMultiple,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,
@@ -918,6 +933,7 @@ impl Default for ServerCommandState {
             debug_world: false,
             blocks: Vec::new(),
             online_players: Vec::new(),
+            player_inventories: Vec::new(),
             player_game_modes: Vec::new(),
             camera_targets: Vec::new(),
             untrackable_entities: Vec::new(),
@@ -1298,6 +1314,7 @@ pub fn execute_builtin_command(
         "attribute" => attribute_command(state, &parts),
         "bossbar" => bossbar_command(state, &parts),
         "chase" => chase_command(state, &parts),
+        "clear" => clear_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -2369,6 +2386,117 @@ fn parse_chase_port(input: &str, min: u16) -> Result<u16, CommandError> {
     } else {
         Ok(port)
     }
+}
+
+fn clear_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (targets, item, max_count) = match parts {
+        ["clear"] => (
+            vec![state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?],
+            None,
+            -1,
+        ),
+        ["clear", targets] => (parse_name_list(targets), None, -1),
+        ["clear", targets, item] => (
+            parse_name_list(targets),
+            Some(parse_resource_identifier(item)?),
+            -1,
+        ),
+        ["clear", targets, item, max_count] => {
+            let max_count = parse_i32(max_count)?;
+            if max_count < 0 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            (
+                parse_name_list(targets),
+                Some(parse_resource_identifier(item)?),
+                max_count,
+            )
+        }
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    if targets.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+
+    let mut cleared = 0;
+    for target in &targets {
+        let inventory = command_inventory_mut(state, target);
+        cleared += inventory.clear_or_count(item.as_deref(), max_count);
+    }
+
+    if cleared == 0 {
+        return Err(if targets.len() == 1 {
+            CommandError::ClearFailedSingle
+        } else {
+            CommandError::ClearFailedMultiple
+        });
+    }
+
+    Ok(CommandResult {
+        success_count: cleared,
+        feedback_key: match (max_count == 0, targets.len() == 1) {
+            (true, true) => "commands.clear.test.single",
+            (true, false) => "commands.clear.test.multiple",
+            (false, true) => "commands.clear.success.single",
+            (false, false) => "commands.clear.success.multiple",
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+impl CommandPlayerInventory {
+    fn clear_or_count(&mut self, item: Option<&str>, max_count: i32) -> i32 {
+        let counting_only = max_count == 0;
+        let unlimited = max_count < 0;
+        let mut changed = 0;
+        for stack in &mut self.items {
+            if stack.count <= 0 || item.is_some_and(|item| stack.item != item) {
+                continue;
+            }
+            if counting_only {
+                changed += stack.count;
+                continue;
+            }
+            let removed = if unlimited {
+                stack.count
+            } else {
+                (max_count - changed).min(stack.count)
+            };
+            stack.count -= removed;
+            changed += removed;
+            if !unlimited && changed >= max_count {
+                break;
+            }
+        }
+        if !counting_only {
+            self.items.retain(|stack| stack.count > 0);
+        }
+        changed
+    }
+}
+
+fn command_inventory_mut<'a>(
+    state: &'a mut ServerCommandState,
+    player: &NameAndId,
+) -> &'a mut CommandPlayerInventory {
+    if let Some(index) = state
+        .player_inventories
+        .iter()
+        .position(|inventory| inventory.player.uuid == player.uuid)
+    {
+        return &mut state.player_inventories[index];
+    }
+    state.player_inventories.push(CommandPlayerInventory {
+        player: player.clone(),
+        items: Vec::new(),
+    });
+    state.player_inventories.last_mut().unwrap()
 }
 
 fn kill_entities(
@@ -5598,6 +5726,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("banlist", "/banlist [ips|players]"),
         ("bossbar", "/bossbar <add|remove|list|set|get> ..."),
         ("chase", "/chase <follow|lead|stop> [host|bind_address] [port]"),
+        ("clear", "/clear [targets] [item] [maxCount]"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -6039,16 +6168,16 @@ mod tests {
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
         BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent,
-        ChaseSession, ChatCommandKind, CommandAvailability, CommandError, EntityAnchor,
-        EntityAttributeState, EntityKind, EntityMount, EntityRef, EntityState, EntityTags,
-        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
-        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode,
-        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
-        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
-        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
-        WeatherMode,
+        ChaseSession, ChatCommandKind, CommandAvailability, CommandError, CommandItemStack,
+        CommandPlayerInventory, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
+        EntityRef, EntityState, EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet,
+        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
+        PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
+        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
+        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -8342,6 +8471,110 @@ mod tests {
             Err(CommandError::InvalidSyntax)
         );
         assert_eq!(command_required_permission("chase"), PermissionLevel::All);
+    }
+
+    #[test]
+    fn clear_command_defaults_to_source_and_removes_matching_items() {
+        let steve = NameAndId::create_offline("Steve");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            player_inventories: vec![CommandPlayerInventory {
+                player: steve,
+                items: vec![
+                    CommandItemStack {
+                        item: "minecraft:stone".to_string(),
+                        count: 32,
+                    },
+                    CommandItemStack {
+                        item: "minecraft:apple".to_string(),
+                        count: 5,
+                    },
+                ],
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let cleared =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "clear")
+                .unwrap();
+        assert_eq!(cleared.success_count, 37);
+        assert_eq!(cleared.feedback_key, "commands.clear.success.single");
+        assert!(cleared.broadcast_to_admins);
+        assert!(state.player_inventories[0].items.is_empty());
+    }
+
+    #[test]
+    fn clear_command_supports_item_predicate_test_mode_limits_and_failures() {
+        let mut state = ServerCommandState {
+            player_inventories: vec![
+                CommandPlayerInventory {
+                    player: NameAndId::create_offline("Steve"),
+                    items: vec![
+                        CommandItemStack {
+                            item: "minecraft:stone".to_string(),
+                            count: 32,
+                        },
+                        CommandItemStack {
+                            item: "minecraft:apple".to_string(),
+                            count: 5,
+                        },
+                    ],
+                },
+                CommandPlayerInventory {
+                    player: NameAndId::create_offline("Alex"),
+                    items: vec![CommandItemStack {
+                        item: "minecraft:stone".to_string(),
+                        count: 12,
+                    }],
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        let counted = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clear Steve,Alex stone 0",
+        )
+        .unwrap();
+        assert_eq!(counted.success_count, 44);
+        assert_eq!(counted.feedback_key, "commands.clear.test.multiple");
+        assert_eq!(state.player_inventories[0].items[0].count, 32);
+
+        let limited = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clear Steve stone 10",
+        )
+        .unwrap();
+        assert_eq!(limited.success_count, 10);
+        assert_eq!(limited.feedback_key, "commands.clear.success.single");
+        assert_eq!(state.player_inventories[0].items[0].count, 22);
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clear Steve diamond"
+            ),
+            Err(CommandError::ClearFailedSingle)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clear Steve,Alex diamond"
+            ),
+            Err(CommandError::ClearFailedMultiple)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clear Steve stone -1"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
     }
 
     #[test]
