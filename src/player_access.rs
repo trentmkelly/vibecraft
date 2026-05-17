@@ -878,6 +878,59 @@ mod tests {
     }
 
     #[test]
+    fn reload_from_dir_reflects_hot_edited_operator_whitelist_and_ban_files() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-access-hot-edit-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        fs::write(dir.join("whitelist.json"), "[]").unwrap();
+        fs::write(
+            dir.join("ops.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Steve\",\"level\":4,\"bypassesPlayerLimit\":false}]",
+        )
+        .unwrap();
+        fs::write(dir.join("banned-players.json"), "[]").unwrap();
+        fs::write(dir.join("banned-ips.json"), "[]").unwrap();
+        fs::write(dir.join("usercache.json"), "[]").unwrap();
+
+        let first = PlayerAccess::load_from_dir(&dir).unwrap();
+        assert_eq!(
+            first.op_level("00000000-0000-0000-0000-000000000001"),
+            Some(4)
+        );
+        assert!(!first.is_whitelisted("00000000-0000-0000-0000-000000000002"));
+        assert!(!first.is_player_banned("00000000-0000-0000-0000-000000000003"));
+
+        fs::write(
+            dir.join("ops.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000002\",\"name\":\"Alex\",\"level\":2,\"bypassesPlayerLimit\":true}]",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("whitelist.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000002\",\"name\":\"Alex\"}]",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("banned-players.json"),
+            "[{\"uuid\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"Griefer\",\"created\":\"2026-05-17 00:00:00 +0000\",\"source\":\"Server\",\"expires\":\"forever\",\"reason\":\"reload\"}]",
+        )
+        .unwrap();
+
+        let reloaded = PlayerAccess::load_from_dir(&dir).unwrap();
+        assert!(!reloaded.is_op("00000000-0000-0000-0000-000000000001"));
+        assert_eq!(
+            reloaded.op_level("00000000-0000-0000-0000-000000000002"),
+            Some(2)
+        );
+        assert!(reloaded.is_whitelisted("00000000-0000-0000-0000-000000000002"));
+        assert!(reloaded.is_player_banned("00000000-0000-0000-0000-000000000003"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn usercache_loader_ignores_malformed_missing_and_expired_entries() {
         let mut dir = std::env::temp_dir();
         dir.push(format!(
