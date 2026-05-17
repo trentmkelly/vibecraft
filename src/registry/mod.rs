@@ -383,6 +383,118 @@ pub struct DynamicRegistryAccess {
     registries: BTreeMap<Identifier, Registry<String>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerReloadStage {
+    BuiltInRegistries,
+    DataPackRegistries,
+    Tags,
+    FrozenRegistries,
+    Recipes,
+    LootTables,
+    Advancements,
+    Functions,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerResourceReloadRequest {
+    pub registry_entries: Vec<DataPackRegistryEntry>,
+    pub tag_files: Vec<TagFile>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ServerResourceReload {
+    registries: DynamicRegistryAccess,
+    tags: BTreeMap<Identifier, LoadedTags>,
+    stages: Vec<ServerReloadStage>,
+}
+
+impl ServerResourceReload {
+    pub fn registries(&self) -> &DynamicRegistryAccess {
+        &self.registries
+    }
+
+    pub fn tags(&self, registry: &Identifier) -> Option<&LoadedTags> {
+        self.tags.get(registry)
+    }
+
+    pub fn stages(&self) -> &[ServerReloadStage] {
+        &self.stages
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReloadableServerRegistries {
+    builtins: BuiltInRegistries,
+    last_successful: DynamicRegistryAccess,
+    stages: Vec<ServerReloadStage>,
+}
+
+impl ReloadableServerRegistries {
+    pub fn new(builtins: BuiltInRegistries) -> Self {
+        let last_successful = DynamicRegistryAccess::from_builtins(&builtins);
+        Self {
+            builtins,
+            last_successful,
+            stages: vanilla_reload_stages(),
+        }
+    }
+
+    pub fn reload(
+        &mut self,
+        request: ServerResourceReloadRequest,
+    ) -> Result<ServerResourceReload, String> {
+        let mut registries = DynamicRegistryAccess::from_builtins(&self.builtins);
+        registries.apply_data_pack_entries(request.registry_entries)?;
+
+        let mut tags = BTreeMap::new();
+        let mut tag_files_by_registry: BTreeMap<Identifier, Vec<TagFile>> = BTreeMap::new();
+        for file in request.tag_files {
+            tag_files_by_registry
+                .entry(file.registry.clone())
+                .or_default()
+                .push(file);
+        }
+
+        for (registry_id, files) in tag_files_by_registry {
+            let registry = registries
+                .registry(&registry_id)
+                .ok_or_else(|| format!("tag reload references unknown registry {registry_id}"))?;
+            let loaded = LoadedTags::load(registry, files).map_err(|errors| errors.join("; "))?;
+            tags.insert(registry_id, loaded);
+        }
+
+        registries.freeze_all();
+        self.last_successful = registries.clone();
+
+        Ok(ServerResourceReload {
+            registries,
+            tags,
+            stages: self.stages.clone(),
+        })
+    }
+
+    pub fn last_successful(&self) -> &DynamicRegistryAccess {
+        &self.last_successful
+    }
+
+    pub fn stages(&self) -> &[ServerReloadStage] {
+        &self.stages
+    }
+}
+
+fn vanilla_reload_stages() -> Vec<ServerReloadStage> {
+    vec![
+        ServerReloadStage::BuiltInRegistries,
+        ServerReloadStage::DataPackRegistries,
+        ServerReloadStage::Tags,
+        ServerReloadStage::FrozenRegistries,
+        ServerReloadStage::Recipes,
+        ServerReloadStage::LootTables,
+        ServerReloadStage::Advancements,
+        ServerReloadStage::Functions,
+    ]
+}
+
 impl DynamicRegistryAccess {
     pub fn from_builtins(builtins: &BuiltInRegistries) -> Self {
         let mut registries = BTreeMap::new();
@@ -969,6 +1081,129 @@ mod tests {
         assert_eq!(
             errors,
             vec!["missing required tag entry minecraft:missing_required"]
+        );
+    }
+
+    #[test]
+    fn reloadable_server_registries_order_datapack_registries_before_tags_and_freeze() {
+        let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+        let mut reloadable = super::ReloadableServerRegistries::new(builtins);
+        let biome_registry = Identifier::parse(registries::BIOME).unwrap();
+        let custom_biome = Identifier::parse("example:glade").unwrap();
+        let tag = Identifier::parse("minecraft:is_overworld").unwrap();
+
+        let reload = reloadable
+            .reload(super::ServerResourceReloadRequest {
+                registry_entries: vec![super::DataPackRegistryEntry {
+                    registry: biome_registry.clone(),
+                    location: custom_biome.clone(),
+                    value: "glade codec".to_string(),
+                    lifecycle: Lifecycle::Experimental,
+                }],
+                tag_files: vec![super::TagFile {
+                    registry: biome_registry.clone(),
+                    tag: tag.clone(),
+                    replace: true,
+                    entries: vec![super::TagEntry {
+                        id: custom_biome.clone(),
+                        required: true,
+                    }],
+                }],
+            })
+            .unwrap();
+
+        assert_eq!(
+            reload.stages(),
+            &[
+                super::ServerReloadStage::BuiltInRegistries,
+                super::ServerReloadStage::DataPackRegistries,
+                super::ServerReloadStage::Tags,
+                super::ServerReloadStage::FrozenRegistries,
+                super::ServerReloadStage::Recipes,
+                super::ServerReloadStage::LootTables,
+                super::ServerReloadStage::Advancements,
+                super::ServerReloadStage::Functions,
+            ]
+        );
+        assert!(reload
+            .registries()
+            .registry(&biome_registry)
+            .unwrap()
+            .is_frozen());
+        assert_eq!(
+            reload
+                .registries()
+                .registry(&biome_registry)
+                .unwrap()
+                .get(&custom_biome)
+                .unwrap()
+                .value(),
+            "glade codec"
+        );
+        assert_eq!(
+            reload
+                .tags(&biome_registry)
+                .unwrap()
+                .values(&biome_registry, &tag),
+            Some([custom_biome].as_slice())
+        );
+    }
+
+    #[test]
+    fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() {
+        let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+        let mut reloadable = super::ReloadableServerRegistries::new(builtins);
+        let item_registry = Identifier::parse(registries::ITEM).unwrap();
+        let stick = Identifier::parse("minecraft:stick").unwrap();
+        let tag = Identifier::parse("minecraft:test_items").unwrap();
+
+        reloadable
+            .reload(super::ServerResourceReloadRequest {
+                registry_entries: Vec::new(),
+                tag_files: vec![super::TagFile {
+                    registry: item_registry.clone(),
+                    tag: tag.clone(),
+                    replace: true,
+                    entries: vec![super::TagEntry {
+                        id: stick.clone(),
+                        required: true,
+                    }],
+                }],
+            })
+            .unwrap();
+
+        let before = reloadable
+            .last_successful()
+            .registry(&item_registry)
+            .unwrap()
+            .get(&stick)
+            .unwrap()
+            .id();
+        let err = reloadable
+            .reload(super::ServerResourceReloadRequest {
+                registry_entries: Vec::new(),
+                tag_files: vec![super::TagFile {
+                    registry: item_registry.clone(),
+                    tag,
+                    replace: true,
+                    entries: vec![super::TagEntry {
+                        id: Identifier::parse("minecraft:missing_required").unwrap(),
+                        required: true,
+                    }],
+                }],
+            })
+            .unwrap_err();
+
+        assert_eq!(err, "missing required tag entry minecraft:missing_required");
+        assert_eq!(
+            reloadable
+                .last_successful()
+                .registry(&item_registry)
+                .unwrap()
+                .get(&stick)
+                .unwrap()
+                .id(),
+            before
         );
     }
 
