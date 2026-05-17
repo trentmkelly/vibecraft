@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -72,6 +74,39 @@ const AIR_BLOCK_STATE_ID: i32 = 0;
 const GRASS_BLOCK_STATE_ID: i32 = 2;
 const PLAINS_BIOME_ID: i32 = 1;
 const FULL_SECTION_BLOCK_COUNT: i16 = 16 * 16 * 16;
+
+#[derive(Clone, Default)]
+struct ActiveLoginRegistry {
+    names: Arc<Mutex<HashSet<String>>>,
+}
+
+struct ActiveLoginGuard {
+    names: Arc<Mutex<HashSet<String>>>,
+    name: String,
+}
+
+impl ActiveLoginRegistry {
+    fn try_register(&self, name: &str) -> Option<ActiveLoginGuard> {
+        let mut names = self.names.lock().ok()?;
+        if !names.insert(name.to_string()) {
+            return None;
+        }
+
+        Some(ActiveLoginGuard {
+            names: self.names.clone(),
+            name: name.to_string(),
+        })
+    }
+}
+
+impl Drop for ActiveLoginGuard {
+    fn drop(&mut self) {
+        if let Ok(mut names) = self.names.lock() {
+            names.remove(&self.name);
+        }
+    }
+}
+
 const DAMAGE_TYPES: &[&str] = &[
     "arrow",
     "bad_respawn_point",
@@ -706,6 +741,7 @@ pub fn run_status_server(
         .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
     let favicon = load_favicon(Path::new("server-icon.png"))
         .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
+    let active_logins = ActiveLoginRegistry::default();
     println!("Status listener bound to {address}");
 
     loop {
@@ -717,10 +753,14 @@ pub fn run_status_server(
             Ok((stream, _peer_addr)) => {
                 let properties = properties.clone();
                 let favicon = favicon.clone();
+                let active_logins = active_logins.clone();
                 thread::spawn(move || {
-                    if let Err(err) =
-                        handle_status_connection(stream, &properties, favicon.as_deref())
-                    {
+                    if let Err(err) = handle_status_connection(
+                        stream,
+                        &properties,
+                        favicon.as_deref(),
+                        &active_logins,
+                    ) {
                         eprintln!("status connection error: {err}");
                     }
                 });
@@ -750,6 +790,7 @@ fn handle_status_connection(
     mut stream: TcpStream,
     properties: &ServerProperties,
     favicon: Option<&str>,
+    active_logins: &ActiveLoginRegistry,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
@@ -779,7 +820,7 @@ fn handle_status_connection(
         if protocol != PROTOCOL_VERSION {
             return write_login_protocol_mismatch_disconnect(&mut stream, protocol);
         }
-        return handle_login_connection(&mut stream, properties);
+        return handle_login_connection(&mut stream, properties, active_logins);
     }
     if next_state != 1 {
         return Err(io::Error::new(
@@ -837,6 +878,7 @@ fn write_login_protocol_mismatch_disconnect(
 fn handle_login_connection(
     stream: &mut TcpStream,
     properties: &ServerProperties,
+    active_logins: &ActiveLoginRegistry,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -850,6 +892,16 @@ fn handle_login_connection(
 
     let mut login = LoginSession::default();
     let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
+    let Some(_active_login) = active_logins.try_register(&finished.profile.name) else {
+        return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
+            ClientboundLoginDisconnectPacket {
+                reason: crate::network::codec::ComponentJson(
+                    "{\"translate\":\"multiplayer.disconnect.duplicate_login\"}".to_string(),
+                ),
+            }
+            .write(payload)
+        });
+    };
     let mut compression = CompressionState::disabled();
     if properties.network_compression_threshold >= 0 {
         let threshold = properties.network_compression_threshold;
