@@ -131,6 +131,8 @@ pub struct ServerCommandState {
     pub command_source_dimension: String,
     pub debug_world: bool,
     pub blocks: Vec<BlockStateEntry>,
+    pub clone_events: Vec<CloneEvent>,
+    pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
     pub player_game_modes: Vec<PlayerGameMode>,
@@ -421,6 +423,33 @@ pub struct SetBlockEvent {
     pub mode: SetBlockMode,
     pub strict: bool,
     pub destroyed_block: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CloneEvent {
+    pub source_dimension: String,
+    pub target_dimension: String,
+    pub begin: BlockPos,
+    pub end: BlockPos,
+    pub destination: BlockPos,
+    pub filter: CloneFilter,
+    pub mode: CloneMode,
+    pub strict: bool,
+    pub count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloneFilter {
+    Replace,
+    Masked,
+    Filtered,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloneMode {
+    Normal,
+    Force,
+    Move,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -767,6 +796,9 @@ pub enum CommandError {
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
+    CloneOverlap,
+    CloneTooBig,
+    CloneFailed,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,
@@ -932,6 +964,8 @@ impl Default for ServerCommandState {
             command_source_dimension: "minecraft:overworld".to_string(),
             debug_world: false,
             blocks: Vec::new(),
+            clone_events: Vec::new(),
+            max_block_modifications: 32768,
             online_players: Vec::new(),
             player_inventories: Vec::new(),
             player_game_modes: Vec::new(),
@@ -1315,6 +1349,7 @@ pub fn execute_builtin_command(
         "bossbar" => bossbar_command(state, &parts),
         "chase" => chase_command(state, &parts),
         "clear" => clear_command(state, &parts),
+        "clone" => clone_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -2497,6 +2532,306 @@ fn command_inventory_mut<'a>(
         items: Vec::new(),
     });
     state.player_inventories.last_mut().unwrap()
+}
+
+fn clone_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let parsed = parse_clone_command(state, parts)?;
+    if state.debug_world {
+        return Err(CommandError::CloneFailed);
+    }
+    let source_box = BoundingBox::from_corners(parsed.begin, parsed.end);
+    let area = source_box.volume();
+    if area > i64::from(state.max_block_modifications) {
+        return Err(CommandError::CloneTooBig);
+    }
+    let target_end = parsed.destination.offset(source_box.size_minus_one());
+    let target_box = BoundingBox::from_corners(parsed.destination, target_end);
+    if parsed.mode == CloneMode::Normal
+        && parsed.source_dimension == parsed.target_dimension
+        && source_box.intersects(&target_box)
+    {
+        return Err(CommandError::CloneOverlap);
+    }
+
+    let offset = BlockPos {
+        x: parsed.destination.x - source_box.min.x,
+        y: parsed.destination.y - source_box.min.y,
+        z: parsed.destination.z - source_box.min.z,
+    };
+    let mut copies = Vec::new();
+    for source_pos in source_box.positions() {
+        let source_block = block_at(state, &parsed.source_dimension, source_pos);
+        if !clone_filter_matches(
+            parsed.filter,
+            parsed.filtered_block.as_deref(),
+            &source_block,
+        ) {
+            continue;
+        }
+        copies.push((
+            source_pos,
+            BlockPos {
+                x: source_pos.x + offset.x,
+                y: source_pos.y + offset.y,
+                z: source_pos.z + offset.z,
+            },
+            source_block,
+        ));
+    }
+
+    if copies.is_empty() {
+        return Err(CommandError::CloneFailed);
+    }
+
+    if parsed.mode == CloneMode::Move {
+        for (source_pos, _, _) in &copies {
+            set_block_in_dimension(
+                state,
+                &parsed.source_dimension,
+                *source_pos,
+                "minecraft:air".to_string(),
+            );
+        }
+    }
+    for (_, destination, block) in &copies {
+        set_block_in_dimension(state, &parsed.target_dimension, *destination, block.clone());
+    }
+
+    let count = copies.len() as i32;
+    state.clone_events.push(CloneEvent {
+        source_dimension: parsed.source_dimension,
+        target_dimension: parsed.target_dimension,
+        begin: parsed.begin,
+        end: parsed.end,
+        destination: parsed.destination,
+        filter: parsed.filter,
+        mode: parsed.mode,
+        strict: parsed.strict,
+        count,
+    });
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: "commands.clone.success",
+        broadcast_to_admins: true,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedCloneCommand {
+    source_dimension: String,
+    target_dimension: String,
+    begin: BlockPos,
+    end: BlockPos,
+    destination: BlockPos,
+    filter: CloneFilter,
+    filtered_block: Option<String>,
+    mode: CloneMode,
+    strict: bool,
+}
+
+fn parse_clone_command(
+    state: &ServerCommandState,
+    parts: &[&str],
+) -> Result<ParsedCloneCommand, CommandError> {
+    let mut index = 1;
+    let source_dimension = if parts.get(index) == Some(&"from") {
+        index += 1;
+        let dimension =
+            parse_resource_identifier(parts.get(index).ok_or(CommandError::InvalidSyntax)?)?;
+        index += 1;
+        dimension
+    } else {
+        state.command_source_dimension.clone()
+    };
+    let begin = parse_block_pos(
+        parts.get(index).ok_or(CommandError::InvalidSyntax)?,
+        parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?,
+        parts.get(index + 2).ok_or(CommandError::InvalidSyntax)?,
+    )?;
+    index += 3;
+    let end = parse_block_pos(
+        parts.get(index).ok_or(CommandError::InvalidSyntax)?,
+        parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?,
+        parts.get(index + 2).ok_or(CommandError::InvalidSyntax)?,
+    )?;
+    index += 3;
+    let target_dimension = if parts.get(index) == Some(&"to") {
+        index += 1;
+        let dimension =
+            parse_resource_identifier(parts.get(index).ok_or(CommandError::InvalidSyntax)?)?;
+        index += 1;
+        dimension
+    } else {
+        state.command_source_dimension.clone()
+    };
+    let strict = if parts.get(index) == Some(&"strict") {
+        index += 1;
+        true
+    } else {
+        false
+    };
+    let destination = parse_block_pos(
+        parts.get(index).ok_or(CommandError::InvalidSyntax)?,
+        parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?,
+        parts.get(index + 2).ok_or(CommandError::InvalidSyntax)?,
+    )?;
+    index += 3;
+    let mut filter = CloneFilter::Replace;
+    let mut filtered_block = None;
+    let mut mode = CloneMode::Normal;
+    if let Some(next) = parts.get(index) {
+        match *next {
+            "replace" => {
+                filter = CloneFilter::Replace;
+                index += 1;
+            }
+            "masked" => {
+                filter = CloneFilter::Masked;
+                index += 1;
+            }
+            "filtered" => {
+                filter = CloneFilter::Filtered;
+                filtered_block = Some(parse_resource_identifier(
+                    parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?,
+                )?);
+                index += 2;
+            }
+            "force" | "move" | "normal" => {}
+            _ => return Err(CommandError::InvalidSyntax),
+        }
+    }
+    if let Some(next) = parts.get(index) {
+        mode = match *next {
+            "force" => CloneMode::Force,
+            "move" => CloneMode::Move,
+            "normal" => CloneMode::Normal,
+            _ => return Err(CommandError::InvalidSyntax),
+        };
+        index += 1;
+    }
+    if index != parts.len() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    Ok(ParsedCloneCommand {
+        source_dimension,
+        target_dimension,
+        begin,
+        end,
+        destination,
+        filter,
+        filtered_block,
+        mode,
+        strict,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BoundingBox {
+    min: BlockPos,
+    max: BlockPos,
+}
+
+impl BoundingBox {
+    fn from_corners(a: BlockPos, b: BlockPos) -> Self {
+        Self {
+            min: BlockPos {
+                x: a.x.min(b.x),
+                y: a.y.min(b.y),
+                z: a.z.min(b.z),
+            },
+            max: BlockPos {
+                x: a.x.max(b.x),
+                y: a.y.max(b.y),
+                z: a.z.max(b.z),
+            },
+        }
+    }
+
+    fn size_minus_one(self) -> BlockPos {
+        BlockPos {
+            x: self.max.x - self.min.x,
+            y: self.max.y - self.min.y,
+            z: self.max.z - self.min.z,
+        }
+    }
+
+    fn volume(self) -> i64 {
+        i64::from(self.max.x - self.min.x + 1)
+            * i64::from(self.max.y - self.min.y + 1)
+            * i64::from(self.max.z - self.min.z + 1)
+    }
+
+    fn intersects(&self, other: &Self) -> bool {
+        self.max.x >= other.min.x
+            && self.min.x <= other.max.x
+            && self.max.y >= other.min.y
+            && self.min.y <= other.max.y
+            && self.max.z >= other.min.z
+            && self.min.z <= other.max.z
+    }
+
+    fn positions(self) -> Vec<BlockPos> {
+        let mut output = Vec::new();
+        for z in self.min.z..=self.max.z {
+            for y in self.min.y..=self.max.y {
+                for x in self.min.x..=self.max.x {
+                    output.push(BlockPos { x, y, z });
+                }
+            }
+        }
+        output
+    }
+}
+
+impl BlockPos {
+    fn offset(self, offset: BlockPos) -> Self {
+        Self {
+            x: self.x + offset.x,
+            y: self.y + offset.y,
+            z: self.z + offset.z,
+        }
+    }
+}
+
+fn block_at(state: &ServerCommandState, dimension: &str, position: BlockPos) -> String {
+    state
+        .blocks
+        .iter()
+        .find(|entry| entry.dimension == dimension && entry.position == position)
+        .map(|entry| entry.block.clone())
+        .unwrap_or_else(|| "minecraft:air".to_string())
+}
+
+fn set_block_in_dimension(
+    state: &mut ServerCommandState,
+    dimension: &str,
+    position: BlockPos,
+    block: String,
+) {
+    if let Some(entry) = state
+        .blocks
+        .iter_mut()
+        .find(|entry| entry.dimension == dimension && entry.position == position)
+    {
+        entry.block = block;
+    } else {
+        state.blocks.push(BlockStateEntry {
+            dimension: dimension.to_string(),
+            position,
+            block,
+        });
+    }
+}
+
+fn clone_filter_matches(filter: CloneFilter, filtered_block: Option<&str>, block: &str) -> bool {
+    match filter {
+        CloneFilter::Replace => true,
+        CloneFilter::Masked => block != "minecraft:air",
+        CloneFilter::Filtered => filtered_block.is_some_and(|filtered| filtered == block),
+    }
 }
 
 fn kill_entities(
@@ -5727,6 +6062,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("bossbar", "/bossbar <add|remove|list|set|get> ..."),
         ("chase", "/chase <follow|lead|stop> [host|bind_address] [port]"),
         ("clear", "/clear [targets] [item] [maxCount]"),
+        (
+            "clone",
+            "/clone [from <sourceDimension>] <begin> <end> [to <targetDimension>] [strict] <destination> [replace|masked|filtered <filter>] [force|move|normal]",
+        ),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -6168,16 +6507,17 @@ mod tests {
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, AdvancementDefinition, AttributeModifierState, AttributeOperation,
         BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent,
-        ChaseSession, ChatCommandKind, CommandAvailability, CommandError, CommandItemStack,
-        CommandPlayerInventory, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
-        EntityRef, EntityState, EntityTags, GameMode, InteractionHand, LevelBasedPermissionSet,
-        ParticleCommandEvent, PerfReport, Permission, PermissionLevel, PlaySoundRequest,
-        PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
-        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
-        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability, CommandError,
+        CommandItemStack, CommandPlayerInventory, EntityAnchor, EntityAttributeState, EntityKind,
+        EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
+        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
+        PlaySoundRequest, PlayerAdvancementProgress, PlayerGameMode, PlayerIpAddress,
+        PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
+        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
+        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
+        WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -8574,6 +8914,135 @@ mod tests {
                 "clear Steve stone -1"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn clone_command_copies_masked_filtered_move_and_dimension_variants() {
+        let mut state = ServerCommandState {
+            blocks: vec![
+                BlockStateEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 0, y: 64, z: 0 },
+                    block: "minecraft:stone".to_string(),
+                },
+                BlockStateEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 1, y: 64, z: 0 },
+                    block: "minecraft:air".to_string(),
+                },
+                BlockStateEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 2, y: 64, z: 0 },
+                    block: "minecraft:dirt".to_string(),
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        let cloned = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clone 0 64 0 2 64 0 10 70 0 masked force",
+        )
+        .unwrap();
+        assert_eq!(cloned.success_count, 2);
+        assert_eq!(cloned.feedback_key, "commands.clone.success");
+        assert_eq!(
+            state
+                .blocks
+                .iter()
+                .find(|entry| entry.position == BlockPos { x: 10, y: 70, z: 0 })
+                .unwrap()
+                .block,
+            "minecraft:stone"
+        );
+        assert_eq!(state.clone_events[0].filter, CloneFilter::Masked);
+        assert_eq!(state.clone_events[0].mode, CloneMode::Force);
+
+        let filtered = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clone 0 64 0 2 64 0 to the_nether 0 80 0 filtered dirt",
+        )
+        .unwrap();
+        assert_eq!(filtered.success_count, 1);
+        assert_eq!(
+            state
+                .blocks
+                .iter()
+                .find(|entry| {
+                    entry.dimension == "minecraft:the_nether"
+                        && entry.position == BlockPos { x: 2, y: 80, z: 0 }
+                })
+                .unwrap()
+                .block,
+            "minecraft:dirt"
+        );
+
+        let moved = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clone 0 64 0 0 64 0 20 70 0 replace move",
+        )
+        .unwrap();
+        assert_eq!(moved.success_count, 1);
+        assert_eq!(
+            state
+                .blocks
+                .iter()
+                .find(|entry| entry.position == BlockPos { x: 0, y: 64, z: 0 })
+                .unwrap()
+                .block,
+            "minecraft:air"
+        );
+        assert_eq!(state.clone_events.last().unwrap().mode, CloneMode::Move);
+    }
+
+    #[test]
+    fn clone_command_rejects_overlap_too_big_debug_and_empty_selection() {
+        let mut state = ServerCommandState {
+            blocks: vec![BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 0, y: 64, z: 0 },
+                block: "minecraft:stone".to_string(),
+            }],
+            max_block_modifications: 4,
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clone 0 64 0 0 64 0 0 64 0"
+            ),
+            Err(CommandError::CloneOverlap)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clone 0 64 0 4 64 0 10 64 0"
+            ),
+            Err(CommandError::CloneTooBig)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clone 0 64 0 0 64 0 10 64 0 filtered diamond"
+            ),
+            Err(CommandError::CloneFailed)
+        );
+        state.debug_world = true;
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "clone 0 64 0 0 64 0 10 64 0 force"
+            ),
+            Err(CommandError::CloneFailed)
         );
     }
 
