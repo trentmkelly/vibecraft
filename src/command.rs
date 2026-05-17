@@ -154,6 +154,7 @@ pub struct ServerCommandState {
     pub clone_events: Vec<CloneEvent>,
     pub fill_events: Vec<FillEvent>,
     pub fill_biome_events: Vec<FillBiomeEvent>,
+    pub forced_chunks: Vec<ForcedChunk>,
     pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
@@ -660,6 +661,18 @@ pub struct FillBiomeEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkPos {
+    pub x: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForcedChunk {
+    pub dimension: String,
+    pub chunk: ChunkPos,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetBlockMode {
     Replace,
     Destroy,
@@ -1057,6 +1070,10 @@ pub enum CommandError {
     FillFailed,
     FillBiomeTooBig,
     FillBiomeNotLoaded,
+    ForceLoadTooBig,
+    ForceLoadAlreadyAdded,
+    ForceLoadNotForced,
+    ForceLoadOutOfWorld,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1252,6 +1269,7 @@ impl Default for ServerCommandState {
             clone_events: Vec::new(),
             fill_events: Vec::new(),
             fill_biome_events: Vec::new(),
+            forced_chunks: Vec::new(),
             max_block_modifications: 32768,
             online_players: Vec::new(),
             player_inventories: Vec::new(),
@@ -1691,6 +1709,7 @@ pub fn execute_builtin_command(
         "fetchprofile" => fetch_profile_command(state, &parts),
         "fill" => fill_command(state, &parts),
         "fillbiome" => fill_biome_command(state, &parts),
+        "forceload" => forceload_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -3443,6 +3462,170 @@ fn set_biome_in_dimension(
             biome,
         });
     }
+}
+
+fn forceload_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["forceload", "add", x, z] => change_forceload(
+            state,
+            parse_column_pos(x, z)?,
+            parse_column_pos(x, z)?,
+            true,
+        ),
+        ["forceload", "add", from_x, from_z, to_x, to_z] => change_forceload(
+            state,
+            parse_column_pos(from_x, from_z)?,
+            parse_column_pos(to_x, to_z)?,
+            true,
+        ),
+        ["forceload", "remove", x, z] => change_forceload(
+            state,
+            parse_column_pos(x, z)?,
+            parse_column_pos(x, z)?,
+            false,
+        ),
+        ["forceload", "remove", from_x, from_z, to_x, to_z] => change_forceload(
+            state,
+            parse_column_pos(from_x, from_z)?,
+            parse_column_pos(to_x, to_z)?,
+            false,
+        ),
+        ["forceload", "remove", "all"] => {
+            let dimension = state.command_source_dimension.clone();
+            state
+                .forced_chunks
+                .retain(|chunk| chunk.dimension != dimension);
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.forceload.removed.all",
+                broadcast_to_admins: true,
+            })
+        }
+        ["forceload", "query"] => {
+            let count = state
+                .forced_chunks
+                .iter()
+                .filter(|chunk| chunk.dimension == state.command_source_dimension)
+                .count() as i32;
+            Ok(CommandResult {
+                success_count: count,
+                feedback_key: if count == 1 {
+                    "commands.forceload.list.single"
+                } else if count > 1 {
+                    "commands.forceload.list.multiple"
+                } else {
+                    "commands.forceload.added.none"
+                },
+                broadcast_to_admins: false,
+            })
+        }
+        ["forceload", "query", x, z] => {
+            let chunk = block_column_to_chunk(parse_column_pos(x, z)?);
+            if is_forced_chunk(state, &state.command_source_dimension, chunk) {
+                Ok(CommandResult {
+                    success_count: 1,
+                    feedback_key: "commands.forceload.query.success",
+                    broadcast_to_admins: false,
+                })
+            } else {
+                Err(CommandError::ForceLoadNotForced)
+            }
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn change_forceload(
+    state: &mut ServerCommandState,
+    from: ChunkPos,
+    to: ChunkPos,
+    add: bool,
+) -> Result<CommandResult, CommandError> {
+    let min_block_x = from.x.min(to.x);
+    let min_block_z = from.z.min(to.z);
+    let max_block_x = from.x.max(to.x);
+    let max_block_z = from.z.max(to.z);
+    if min_block_x < -30_000_000
+        || min_block_z < -30_000_000
+        || max_block_x >= 30_000_000
+        || max_block_z >= 30_000_000
+    {
+        return Err(CommandError::ForceLoadOutOfWorld);
+    }
+    let min = block_column_to_chunk(ChunkPos {
+        x: min_block_x,
+        z: min_block_z,
+    });
+    let max = block_column_to_chunk(ChunkPos {
+        x: max_block_x,
+        z: max_block_z,
+    });
+    let chunk_count = i64::from(max.x - min.x + 1) * i64::from(max.z - min.z + 1);
+    if chunk_count > 256 {
+        return Err(CommandError::ForceLoadTooBig);
+    }
+
+    let dimension = state.command_source_dimension.clone();
+    let mut changed = 0;
+    for x in min.x..=max.x {
+        for z in min.z..=max.z {
+            let chunk = ChunkPos { x, z };
+            let forced = is_forced_chunk(state, &dimension, chunk);
+            if add && !forced {
+                state.forced_chunks.push(ForcedChunk {
+                    dimension: dimension.clone(),
+                    chunk,
+                });
+                changed += 1;
+            } else if !add && forced {
+                state
+                    .forced_chunks
+                    .retain(|entry| !(entry.dimension == dimension && entry.chunk == chunk));
+                changed += 1;
+            }
+        }
+    }
+    if changed == 0 {
+        return Err(if add {
+            CommandError::ForceLoadAlreadyAdded
+        } else {
+            CommandError::ForceLoadNotForced
+        });
+    }
+    Ok(CommandResult {
+        success_count: changed,
+        feedback_key: match (add, changed) {
+            (true, 1) => "commands.forceload.added.single",
+            (true, _) => "commands.forceload.added.multiple",
+            (false, 1) => "commands.forceload.removed.single",
+            (false, _) => "commands.forceload.removed.multiple",
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn parse_column_pos(x: &str, z: &str) -> Result<ChunkPos, CommandError> {
+    Ok(ChunkPos {
+        x: parse_i32(x)?,
+        z: parse_i32(z)?,
+    })
+}
+
+fn block_column_to_chunk(pos: ChunkPos) -> ChunkPos {
+    ChunkPos {
+        x: pos.x.div_euclid(16),
+        z: pos.z.div_euclid(16),
+    }
+}
+
+fn is_forced_chunk(state: &ServerCommandState, dimension: &str, chunk: ChunkPos) -> bool {
+    state
+        .forced_chunks
+        .iter()
+        .any(|entry| entry.dimension == dimension && entry.chunk == chunk)
 }
 
 fn damage_command(
@@ -8406,6 +8589,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("fetchprofile", "/fetchprofile <name|id|entity> <target>"),
         ("fill", "/fill <from> <to> <block> [mode]"),
         ("fillbiome", "/fillbiome <from> <to> <biome> [replace <filter>]"),
+        ("forceload", "/forceload <add|remove|query> ..."),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -8873,18 +9057,19 @@ mod tests {
         visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
         AttributeOperation, AvatarProfile, BiomeEntry, BlockPos, BlockStateEntry,
         BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind,
-        CloneFilter, CloneMode, CommandAvailability, CommandError, CommandItemEnchantment,
-        CommandItemStack, CommandPlayerInventory, DamageCommandSource, DialogCommandEvent,
-        EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef,
-        EntityState, EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, GameMode,
-        InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
-        PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState,
-        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
-        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
-        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandError,
+        CommandItemEnchantment, CommandItemStack, CommandPlayerInventory, DamageCommandSource,
+        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
+        EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
+        FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
+        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
+        PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState, PlayerGameMode,
+        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
+        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
+        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
+        WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -10095,6 +10280,134 @@ mod tests {
                 "fillbiome 0 0 0 0 0 0 desert unless plains"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn forceload_command_adds_queries_lists_and_removes_chunks() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("forceload"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "forceload add 0 0"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let added = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload add 0 0 31 15",
+        )
+        .unwrap();
+        assert_eq!(added.success_count, 2);
+        assert_eq!(added.feedback_key, "commands.forceload.added.multiple");
+        assert_eq!(
+            state.forced_chunks,
+            vec![
+                ForcedChunk {
+                    dimension: "minecraft:overworld".to_string(),
+                    chunk: ChunkPos { x: 0, z: 0 },
+                },
+                ForcedChunk {
+                    dimension: "minecraft:overworld".to_string(),
+                    chunk: ChunkPos { x: 1, z: 0 },
+                },
+            ]
+        );
+
+        let listed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload query",
+        )
+        .unwrap();
+        assert_eq!(listed.success_count, 2);
+        assert_eq!(listed.feedback_key, "commands.forceload.list.multiple");
+
+        let queried = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload query 16 0",
+        )
+        .unwrap();
+        assert_eq!(queried.success_count, 1);
+        assert_eq!(queried.feedback_key, "commands.forceload.query.success");
+
+        let removed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload remove 0 0",
+        )
+        .unwrap();
+        assert_eq!(removed.success_count, 1);
+        assert_eq!(removed.feedback_key, "commands.forceload.removed.single");
+        assert_eq!(state.forced_chunks.len(), 1);
+
+        let all = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload remove all",
+        )
+        .unwrap();
+        assert_eq!(all.success_count, 0);
+        assert!(state.forced_chunks.is_empty());
+    }
+
+    #[test]
+    fn forceload_command_reports_range_and_noop_failures() {
+        let mut state = ServerCommandState::default();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload add -16 -16",
+        )
+        .unwrap();
+        assert_eq!(state.forced_chunks[0].chunk, ChunkPos { x: -1, z: -1 });
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "forceload add -16 -16"
+            ),
+            Err(CommandError::ForceLoadAlreadyAdded)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "forceload remove 32 32"
+            ),
+            Err(CommandError::ForceLoadNotForced)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "forceload query 32 32"
+            ),
+            Err(CommandError::ForceLoadNotForced)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "forceload add 0 0 4096 0"
+            ),
+            Err(CommandError::ForceLoadTooBig)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "forceload add -30000001 0"
+            ),
+            Err(CommandError::ForceLoadOutOfWorld)
         );
     }
 
