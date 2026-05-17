@@ -2971,11 +2971,10 @@ fn game_mode_from_legacy_id(id: i32) -> GameMode {
 }
 
 fn game_mode_from_name(name: &str) -> GameMode {
+    if let Ok(id) = name.parse::<i32>() {
+        return game_mode_from_legacy_id(id);
+    }
     match name {
-        "0" => GameMode::Survival,
-        "1" => GameMode::Creative,
-        "2" => GameMode::Adventure,
-        "3" => GameMode::Spectator,
         "creative" => GameMode::Creative,
         "adventure" => GameMode::Adventure,
         "spectator" => GameMode::Spectator,

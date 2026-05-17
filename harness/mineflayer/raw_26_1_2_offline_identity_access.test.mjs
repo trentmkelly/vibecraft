@@ -328,6 +328,18 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
   })
 
   await withServer({
+    username: 'PaddedNumMode',
+    properties: { gamemode: '01' }
+  }, async ({ port, username }) => {
+    const joined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_GAME_MODE: '1',
+      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+    })
+    assert.equal(joined.ok, true)
+  })
+
+  await withServer({
     username: 'NumericModeZero',
     properties: { gamemode: '99' }
   }, async ({ port, username }) => {
