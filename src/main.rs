@@ -15,6 +15,7 @@ mod runtime;
 mod server_properties;
 mod storage;
 mod world;
+mod worldgen;
 
 use std::env;
 use std::path::PathBuf;
