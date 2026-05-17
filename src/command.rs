@@ -150,7 +150,10 @@ pub struct ServerCommandState {
     pub execute_events: Vec<ExecuteCommandEvent>,
     pub debug_world: bool,
     pub blocks: Vec<BlockStateEntry>,
+    pub biomes: Vec<BiomeEntry>,
     pub clone_events: Vec<CloneEvent>,
+    pub fill_events: Vec<FillEvent>,
+    pub fill_biome_events: Vec<FillBiomeEvent>,
     pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
@@ -582,6 +585,13 @@ pub struct BlockStateEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BiomeEntry {
+    pub dimension: String,
+    pub position: BlockPos,
+    pub biome: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetBlockEvent {
     pub dimension: String,
     pub position: BlockPos,
@@ -616,6 +626,37 @@ pub enum CloneMode {
     Normal,
     Force,
     Move,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FillEvent {
+    pub dimension: String,
+    pub begin: BlockPos,
+    pub end: BlockPos,
+    pub block: String,
+    pub mode: FillMode,
+    pub filter: Option<String>,
+    pub strict: bool,
+    pub count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FillMode {
+    Replace,
+    Outline,
+    Hollow,
+    Destroy,
+    Keep,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FillBiomeEvent {
+    pub dimension: String,
+    pub begin: BlockPos,
+    pub end: BlockPos,
+    pub biome: String,
+    pub filter: Option<String>,
+    pub count: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1012,6 +1053,10 @@ pub enum CommandError {
     CloneOverlap,
     CloneTooBig,
     CloneFailed,
+    FillTooBig,
+    FillFailed,
+    FillBiomeTooBig,
+    FillBiomeNotLoaded,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1203,7 +1248,10 @@ impl Default for ServerCommandState {
             execute_events: Vec::new(),
             debug_world: false,
             blocks: Vec::new(),
+            biomes: Vec::new(),
             clone_events: Vec::new(),
+            fill_events: Vec::new(),
+            fill_biome_events: Vec::new(),
             max_block_modifications: 32768,
             online_players: Vec::new(),
             player_inventories: Vec::new(),
@@ -1641,6 +1689,8 @@ pub fn execute_builtin_command(
         "execute" => execute_command(state, permissions, &parts),
         "experience" | "xp" => experience_command(state, &parts),
         "fetchprofile" => fetch_profile_command(state, &parts),
+        "fill" => fill_command(state, &parts),
+        "fillbiome" => fill_biome_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -3180,6 +3230,218 @@ fn clone_filter_matches(filter: CloneFilter, filtered_block: Option<&str>, block
         CloneFilter::Replace => true,
         CloneFilter::Masked => block != "minecraft:air",
         CloneFilter::Filtered => filtered_block.is_some_and(|filtered| filtered == block),
+    }
+}
+
+fn fill_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() < 8 || parts[0] != "fill" {
+        return Err(CommandError::InvalidSyntax);
+    }
+    if state.debug_world {
+        return Err(CommandError::FillFailed);
+    }
+    let begin = parse_block_pos(parts[1], parts[2], parts[3])?;
+    let end = parse_block_pos(parts[4], parts[5], parts[6])?;
+    let block = parse_resource_identifier(parts[7])?;
+    let mut mode = FillMode::Replace;
+    let mut strict = false;
+    let mut filter = None;
+    match parts.get(8).copied() {
+        None => {}
+        Some("replace") => {
+            if let Some(predicate) = parts.get(9) {
+                filter = Some(parse_resource_identifier(predicate)?);
+                if parts.len() != 10 {
+                    return Err(CommandError::InvalidSyntax);
+                }
+            } else if parts.len() != 9 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("outline") => {
+            mode = FillMode::Outline;
+            if parts.len() != 9 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("hollow") => {
+            mode = FillMode::Hollow;
+            if parts.len() != 9 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("destroy") => {
+            mode = FillMode::Destroy;
+            if parts.len() != 9 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("keep") => {
+            mode = FillMode::Keep;
+            if parts.len() != 9 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("strict") => {
+            strict = true;
+            if parts.len() != 9 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some(_) => return Err(CommandError::InvalidSyntax),
+    }
+    let region = BoundingBox::from_corners(begin, end);
+    if region.volume() > i64::from(state.max_block_modifications) {
+        return Err(CommandError::FillTooBig);
+    }
+
+    let dimension = state.command_source_dimension.clone();
+    let mut count = 0;
+    for position in region.positions() {
+        let old_block = block_at(state, &dimension, position);
+        if filter
+            .as_deref()
+            .is_some_and(|predicate| predicate != old_block)
+        {
+            continue;
+        }
+        let replacement = match mode {
+            FillMode::Replace => Some(block.clone()),
+            FillMode::Keep if old_block == "minecraft:air" => Some(block.clone()),
+            FillMode::Keep => None,
+            FillMode::Destroy => Some(block.clone()),
+            FillMode::Outline if is_boundary(region, position) => Some(block.clone()),
+            FillMode::Outline => None,
+            FillMode::Hollow if is_boundary(region, position) => Some(block.clone()),
+            FillMode::Hollow => Some("minecraft:air".to_string()),
+        };
+        if let Some(replacement) = replacement {
+            if replacement != old_block || mode == FillMode::Destroy {
+                set_block_in_dimension(state, &dimension, position, replacement);
+                count += 1;
+            }
+        }
+    }
+    if count == 0 {
+        return Err(CommandError::FillFailed);
+    }
+    state.fill_events.push(FillEvent {
+        dimension,
+        begin,
+        end,
+        block,
+        mode,
+        filter,
+        strict,
+        count,
+    });
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: "commands.fill.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn fill_biome_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() != 8 && parts.len() != 10 {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let begin = quantize_biome_pos(parse_block_pos(parts[1], parts[2], parts[3])?);
+    let end = quantize_biome_pos(parse_block_pos(parts[4], parts[5], parts[6])?);
+    let biome = parse_resource_identifier(parts[7])?;
+    let filter = match parts.get(8).copied() {
+        None => None,
+        Some("replace") => Some(parse_resource_identifier(parts[9])?),
+        Some(_) => return Err(CommandError::InvalidSyntax),
+    };
+    let region = BoundingBox::from_corners(begin, end);
+    if region.volume() > i64::from(state.max_block_modifications) {
+        return Err(CommandError::FillBiomeTooBig);
+    }
+
+    let dimension = state.command_source_dimension.clone();
+    let mut count = 0;
+    for position in region.positions() {
+        if position.x % 4 != 0 || position.y % 4 != 0 || position.z % 4 != 0 {
+            continue;
+        }
+        let current = biome_at(state, &dimension, position);
+        if filter
+            .as_deref()
+            .is_some_and(|predicate| predicate != current)
+        {
+            continue;
+        }
+        if current != biome {
+            set_biome_in_dimension(state, &dimension, position, biome.clone());
+            count += 1;
+        }
+    }
+    state.fill_biome_events.push(FillBiomeEvent {
+        dimension,
+        begin,
+        end,
+        biome,
+        filter,
+        count,
+    });
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: "commands.fillbiome.success.count",
+        broadcast_to_admins: true,
+    })
+}
+
+fn is_boundary(region: BoundingBox, position: BlockPos) -> bool {
+    position.x == region.min.x
+        || position.x == region.max.x
+        || position.y == region.min.y
+        || position.y == region.max.y
+        || position.z == region.min.z
+        || position.z == region.max.z
+}
+
+fn quantize_biome_pos(position: BlockPos) -> BlockPos {
+    BlockPos {
+        x: position.x.div_euclid(4) * 4,
+        y: position.y.div_euclid(4) * 4,
+        z: position.z.div_euclid(4) * 4,
+    }
+}
+
+fn biome_at(state: &ServerCommandState, dimension: &str, position: BlockPos) -> String {
+    state
+        .biomes
+        .iter()
+        .find(|entry| entry.dimension == dimension && entry.position == position)
+        .map(|entry| entry.biome.clone())
+        .unwrap_or_else(|| "minecraft:plains".to_string())
+}
+
+fn set_biome_in_dimension(
+    state: &mut ServerCommandState,
+    dimension: &str,
+    position: BlockPos,
+    biome: String,
+) {
+    if let Some(entry) = state
+        .biomes
+        .iter_mut()
+        .find(|entry| entry.dimension == dimension && entry.position == position)
+    {
+        entry.biome = biome;
+    } else {
+        state.biomes.push(BiomeEntry {
+            dimension: dimension.to_string(),
+            position,
+            biome,
+        });
     }
 }
 
@@ -8142,6 +8404,8 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("execute", "/execute ... run <command>"),
         ("experience", "/experience <add|set|query> ..."),
         ("fetchprofile", "/fetchprofile <name|id|entity> <target>"),
+        ("fill", "/fill <from> <to> <block> [mode]"),
+        ("fillbiome", "/fillbiome <from> <to> <biome> [replace <filter>]"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -8607,20 +8871,20 @@ mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
-        AttributeOperation, AvatarProfile, BlockPos, BlockStateEntry, BossBarCommandColor,
-        BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind, CloneFilter, CloneMode,
-        CommandAvailability, CommandError, CommandItemEnchantment, CommandItemStack,
-        CommandPlayerInventory, DamageCommandSource, DialogCommandEvent, EntityAnchor,
-        EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
-        EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, GameMode, InteractionHand,
-        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
-        PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState, PlayerGameMode,
-        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
-        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
-        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
-        WeatherMode,
+        AttributeOperation, AvatarProfile, BiomeEntry, BlockPos, BlockStateEntry,
+        BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind,
+        CloneFilter, CloneMode, CommandAvailability, CommandError, CommandItemEnchantment,
+        CommandItemStack, CommandPlayerInventory, DamageCommandSource, DialogCommandEvent,
+        EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef,
+        EntityState, EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, GameMode,
+        InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
+        PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState,
+        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
+        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
+        RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -9624,6 +9888,211 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "setblock 1 64 0 BadBlock"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn fill_command_replaces_outlines_hollows_and_keeps_blocks() {
+        let mut state = ServerCommandState {
+            blocks: vec![BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 1, y: 1, z: 1 },
+                block: "minecraft:stone".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("fill"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "fill 0 0 0 0 0 0 stone"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let filled = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 1 1 1 dirt",
+        )
+        .unwrap();
+        assert_eq!(filled.success_count, 8);
+        assert_eq!(filled.feedback_key, "commands.fill.success");
+        assert_eq!(state.fill_events[0].mode, FillMode::Replace);
+        assert!(state.blocks.iter().any(|entry| {
+            entry.position == BlockPos { x: 1, y: 1, z: 1 } && entry.block == "minecraft:dirt"
+        }));
+
+        let hollow = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 2 2 2 glass hollow",
+        )
+        .unwrap();
+        assert_eq!(hollow.success_count, 27);
+        assert_eq!(state.fill_events.last().unwrap().mode, FillMode::Hollow);
+        assert!(state.blocks.iter().any(|entry| {
+            entry.position == BlockPos { x: 1, y: 1, z: 1 } && entry.block == "minecraft:air"
+        }));
+
+        let kept = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 1 1 1 1 1 1 gold_block keep",
+        )
+        .unwrap();
+        assert_eq!(kept.success_count, 1);
+        assert!(state.blocks.iter().any(|entry| {
+            entry.position == BlockPos { x: 1, y: 1, z: 1 } && entry.block == "minecraft:gold_block"
+        }));
+    }
+
+    #[test]
+    fn fill_command_filters_destroys_strict_and_reports_failures() {
+        let mut state = ServerCommandState {
+            blocks: vec![
+                BlockStateEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 0, y: 0, z: 0 },
+                    block: "minecraft:stone".to_string(),
+                },
+                BlockStateEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 1, y: 0, z: 0 },
+                    block: "minecraft:dirt".to_string(),
+                },
+            ],
+            max_block_modifications: 2,
+            ..ServerCommandState::default()
+        };
+
+        let filtered = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 1 0 0 diamond_block replace stone",
+        )
+        .unwrap();
+        assert_eq!(filtered.success_count, 1);
+        assert_eq!(
+            state.fill_events.last().unwrap().filter,
+            Some("minecraft:stone".to_string())
+        );
+        assert!(state.blocks.iter().any(|entry| {
+            entry.position == BlockPos { x: 0, y: 0, z: 0 }
+                && entry.block == "minecraft:diamond_block"
+        }));
+
+        let destroyed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 1 0 0 1 0 0 air destroy",
+        )
+        .unwrap();
+        assert_eq!(destroyed.success_count, 1);
+        assert_eq!(state.fill_events.last().unwrap().mode, FillMode::Destroy);
+
+        let strict = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 0 0 0 emerald_block strict",
+        )
+        .unwrap();
+        assert_eq!(strict.success_count, 1);
+        assert!(state.fill_events.last().unwrap().strict);
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fill 0 0 0 2 0 0 stone"
+            ),
+            Err(CommandError::FillTooBig)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fill 0 0 0 0 0 0 emerald_block replace stone"
+            ),
+            Err(CommandError::FillFailed)
+        );
+    }
+
+    #[test]
+    fn fillbiome_command_quantizes_replaces_and_filters_biomes() {
+        let mut state = ServerCommandState {
+            biomes: vec![
+                BiomeEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 0, y: 0, z: 0 },
+                    biome: "minecraft:plains".to_string(),
+                },
+                BiomeEntry {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos { x: 4, y: 0, z: 0 },
+                    biome: "minecraft:forest".to_string(),
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("fillbiome"),
+            PermissionLevel::Gamemasters
+        );
+
+        let changed = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fillbiome 1 0 0 7 0 0 desert replace plains",
+        )
+        .unwrap();
+        assert_eq!(changed.success_count, 1);
+        assert_eq!(changed.feedback_key, "commands.fillbiome.success.count");
+        assert_eq!(
+            state.fill_biome_events[0].begin,
+            BlockPos { x: 0, y: 0, z: 0 }
+        );
+        assert_eq!(
+            state.fill_biome_events[0].end,
+            BlockPos { x: 4, y: 0, z: 0 }
+        );
+        assert_eq!(
+            state.fill_biome_events[0].filter,
+            Some("minecraft:plains".to_string())
+        );
+        assert!(state.biomes.iter().any(|entry| {
+            entry.position == BlockPos { x: 0, y: 0, z: 0 } && entry.biome == "minecraft:desert"
+        }));
+        assert!(state.biomes.iter().any(|entry| {
+            entry.position == BlockPos { x: 4, y: 0, z: 0 } && entry.biome == "minecraft:forest"
+        }));
+    }
+
+    #[test]
+    fn fillbiome_command_reports_volume_and_syntax_failures() {
+        let mut state = ServerCommandState {
+            max_block_modifications: 1,
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fillbiome 0 0 0 4 0 0 desert"
+            ),
+            Err(CommandError::FillBiomeTooBig)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fillbiome 0 0 0 0 0 0 desert unless plains"
             ),
             Err(CommandError::InvalidSyntax)
         );
