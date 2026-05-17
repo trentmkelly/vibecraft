@@ -158,6 +158,8 @@ pub struct ServerCommandState {
     pub fill_events: Vec<FillEvent>,
     pub fill_biome_events: Vec<FillBiomeEvent>,
     pub forced_chunks: Vec<ForcedChunk>,
+    pub locatable_entries: Vec<CommandLocatableEntry>,
+    pub locate_results: Vec<CommandLocateResult>,
     pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
@@ -729,6 +731,31 @@ pub struct ForcedChunk {
     pub chunk: ChunkPos,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandLocatableEntry {
+    pub kind: LocateKind,
+    pub id: String,
+    pub tags: Vec<String>,
+    pub position: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandLocateResult {
+    pub kind: LocateKind,
+    pub query: String,
+    pub found_id: String,
+    pub position: BlockPos,
+    pub distance: i32,
+    pub include_y: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocateKind {
+    Structure,
+    Biome,
+    Poi,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetBlockMode {
     Replace,
@@ -1131,6 +1158,10 @@ pub enum CommandError {
     ForceLoadAlreadyAdded,
     ForceLoadNotForced,
     ForceLoadOutOfWorld,
+    LocateStructureInvalid,
+    LocateStructureNotFound,
+    LocateBiomeNotFound,
+    LocatePoiNotFound,
     DamageInvulnerable,
     DataPackUnknown,
     DataPackAlreadyEnabled,
@@ -1339,6 +1370,8 @@ impl Default for ServerCommandState {
             fill_events: Vec::new(),
             fill_biome_events: Vec::new(),
             forced_chunks: Vec::new(),
+            locatable_entries: Vec::new(),
+            locate_results: Vec::new(),
             max_block_modifications: 32768,
             online_players: Vec::new(),
             player_inventories: Vec::new(),
@@ -1786,6 +1819,7 @@ pub fn execute_builtin_command(
         "gamemode" => gamemode_command(state, &parts),
         "give" => give_command(state, &parts),
         "item" => item_command(state, &parts),
+        "locate" => locate_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
@@ -3446,6 +3480,158 @@ fn apply_item_modifier(
         });
     }
     Ok(output)
+}
+
+fn locate_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (kind, query, include_y, feedback_key) = match parts {
+        ["locate", "structure", query] => (
+            LocateKind::Structure,
+            parse_locate_query(query)?,
+            false,
+            "commands.locate.structure.success",
+        ),
+        ["locate", "biome", query] => (
+            LocateKind::Biome,
+            parse_locate_query(query)?,
+            true,
+            "commands.locate.biome.success",
+        ),
+        ["locate", "poi", query] => (
+            LocateKind::Poi,
+            parse_locate_query(query)?,
+            false,
+            "commands.locate.poi.success",
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+
+    if kind == LocateKind::Structure
+        && !query.is_tag
+        && !known_locate_structure_ids().contains(&query.id.as_str())
+        && !state
+            .locatable_entries
+            .iter()
+            .any(|entry| entry.kind == LocateKind::Structure && entry.id == query.id)
+    {
+        return Err(CommandError::LocateStructureInvalid);
+    }
+
+    let source_pos = BlockPos {
+        x: state.command_source_position.x.floor() as i32,
+        y: state.command_source_position.y.floor() as i32,
+        z: state.command_source_position.z.floor() as i32,
+    };
+    let nearest = state
+        .locatable_entries
+        .iter()
+        .filter(|entry| entry.kind == kind && locate_entry_matches(entry, &query))
+        .min_by_key(|entry| locate_distance(source_pos, entry.position, include_y));
+
+    let Some(found) = nearest else {
+        return Err(match kind {
+            LocateKind::Structure => CommandError::LocateStructureNotFound,
+            LocateKind::Biome => CommandError::LocateBiomeNotFound,
+            LocateKind::Poi => CommandError::LocatePoiNotFound,
+        });
+    };
+
+    let distance = locate_distance(source_pos, found.position, include_y);
+    state.locate_results.push(CommandLocateResult {
+        kind,
+        query: query.printable(),
+        found_id: found.id.clone(),
+        position: found.position,
+        distance,
+        include_y,
+    });
+    Ok(CommandResult {
+        success_count: distance,
+        feedback_key,
+        broadcast_to_admins: false,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LocateQuery {
+    id: String,
+    is_tag: bool,
+}
+
+impl LocateQuery {
+    fn printable(&self) -> String {
+        if self.is_tag {
+            format!("#{}", self.id)
+        } else {
+            self.id.clone()
+        }
+    }
+}
+
+fn parse_locate_query(input: &str) -> Result<LocateQuery, CommandError> {
+    if let Some(tag) = input.strip_prefix('#') {
+        Ok(LocateQuery {
+            id: parse_resource_identifier(tag)?,
+            is_tag: true,
+        })
+    } else {
+        Ok(LocateQuery {
+            id: parse_resource_identifier(input)?,
+            is_tag: false,
+        })
+    }
+}
+
+fn locate_entry_matches(entry: &CommandLocatableEntry, query: &LocateQuery) -> bool {
+    if query.is_tag {
+        entry.tags.iter().any(|tag| tag == &query.id)
+    } else {
+        entry.id == query.id
+    }
+}
+
+fn locate_distance(source: BlockPos, found: BlockPos, include_y: bool) -> i32 {
+    let dx = i64::from(found.x) - i64::from(source.x);
+    let dz = i64::from(found.z) - i64::from(source.z);
+    let dy = if include_y {
+        i64::from(found.y) - i64::from(source.y)
+    } else {
+        0
+    };
+    ((dx * dx + dy * dy + dz * dz) as f64).sqrt().floor() as i32
+}
+
+fn known_locate_structure_ids() -> &'static [&'static str] {
+    &[
+        "minecraft:ancient_city",
+        "minecraft:bastion_remnant",
+        "minecraft:buried_treasure",
+        "minecraft:desert_pyramid",
+        "minecraft:end_city",
+        "minecraft:fortress",
+        "minecraft:igloo",
+        "minecraft:jungle_pyramid",
+        "minecraft:mansion",
+        "minecraft:mineshaft",
+        "minecraft:monument",
+        "minecraft:nether_fossil",
+        "minecraft:ocean_ruin_cold",
+        "minecraft:ocean_ruin_warm",
+        "minecraft:pillager_outpost",
+        "minecraft:ruined_portal",
+        "minecraft:shipwreck",
+        "minecraft:stronghold",
+        "minecraft:swamp_hut",
+        "minecraft:trail_ruins",
+        "minecraft:trial_chambers",
+        "minecraft:village_desert",
+        "minecraft:village_plains",
+        "minecraft:village_savanna",
+        "minecraft:village_snowy",
+        "minecraft:village_taiga",
+    ]
 }
 
 fn clone_command(
@@ -9180,6 +9366,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("gamerule", "/gamerule <rule> [value]"),
         ("give", "/give <targets> <item> [count]"),
         ("item", "/item <replace|modify> <block|entity> ..."),
+        ("locate", "/locate <structure|biome|poi> <target>"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -9648,10 +9835,11 @@ mod tests {
         ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandBlockItemSlot,
         CommandEntityItemSlot, CommandError, CommandFunctionDefinition, CommandFunctionTag,
         CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack, CommandItemTarget,
-        CommandPlayerInventory, DamageCommandSource, DialogCommandEvent, EntityAnchor,
-        EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
-        EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk, GameMode,
-        InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
+        CommandLocatableEntry, CommandLocateResult, CommandPlayerInventory, DamageCommandSource,
+        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
+        EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
+        FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
+        LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport, Permission,
         PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState,
         PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
         QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
@@ -14025,6 +14213,181 @@ mod tests {
                 "item replace entity Steve hotbar.1 from entity Alex hotbar.0"
             ),
             Err(CommandError::ItemSourceNoSuchSlot)
+        );
+    }
+
+    #[test]
+    fn locate_command_finds_nearest_structure_biome_and_poi() {
+        let mut state = ServerCommandState {
+            command_source_position: Vec3 {
+                x: 0.0,
+                y: 64.0,
+                z: 0.0,
+            },
+            locatable_entries: vec![
+                CommandLocatableEntry {
+                    kind: LocateKind::Structure,
+                    id: "minecraft:village_plains".to_string(),
+                    tags: vec!["minecraft:village".to_string()],
+                    position: BlockPos {
+                        x: 300,
+                        y: 70,
+                        z: 400,
+                    },
+                },
+                CommandLocatableEntry {
+                    kind: LocateKind::Structure,
+                    id: "minecraft:village_taiga".to_string(),
+                    tags: vec!["minecraft:village".to_string()],
+                    position: BlockPos {
+                        x: 120,
+                        y: 80,
+                        z: 160,
+                    },
+                },
+                CommandLocatableEntry {
+                    kind: LocateKind::Biome,
+                    id: "minecraft:desert".to_string(),
+                    tags: vec!["minecraft:is_overworld".to_string()],
+                    position: BlockPos {
+                        x: 0,
+                        y: 128,
+                        z: 128,
+                    },
+                },
+                CommandLocatableEntry {
+                    kind: LocateKind::Poi,
+                    id: "minecraft:armorer".to_string(),
+                    tags: vec!["minecraft:acquirable_job_site".to_string()],
+                    position: BlockPos {
+                        x: 30,
+                        y: 64,
+                        z: 40,
+                    },
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("locate"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "locate structure #minecraft:village"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let structure = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "locate structure #minecraft:village",
+        )
+        .unwrap();
+        assert_eq!(structure.success_count, 200);
+        assert_eq!(structure.feedback_key, "commands.locate.structure.success");
+
+        let biome = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "locate biome desert",
+        )
+        .unwrap();
+        assert_eq!(biome.success_count, 143);
+        assert_eq!(biome.feedback_key, "commands.locate.biome.success");
+
+        let poi = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "locate poi armorer",
+        )
+        .unwrap();
+        assert_eq!(poi.success_count, 50);
+        assert_eq!(poi.feedback_key, "commands.locate.poi.success");
+        assert_eq!(
+            state.locate_results,
+            vec![
+                CommandLocateResult {
+                    kind: LocateKind::Structure,
+                    query: "#minecraft:village".to_string(),
+                    found_id: "minecraft:village_taiga".to_string(),
+                    position: BlockPos {
+                        x: 120,
+                        y: 80,
+                        z: 160,
+                    },
+                    distance: 200,
+                    include_y: false,
+                },
+                CommandLocateResult {
+                    kind: LocateKind::Biome,
+                    query: "minecraft:desert".to_string(),
+                    found_id: "minecraft:desert".to_string(),
+                    position: BlockPos {
+                        x: 0,
+                        y: 128,
+                        z: 128,
+                    },
+                    distance: 143,
+                    include_y: true,
+                },
+                CommandLocateResult {
+                    kind: LocateKind::Poi,
+                    query: "minecraft:armorer".to_string(),
+                    found_id: "minecraft:armorer".to_string(),
+                    position: BlockPos {
+                        x: 30,
+                        y: 64,
+                        z: 40,
+                    },
+                    distance: 50,
+                    include_y: false,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn locate_command_reports_invalid_or_missing_targets() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "locate structure not_a_structure"
+            ),
+            Err(CommandError::LocateStructureInvalid)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "locate structure stronghold"
+            ),
+            Err(CommandError::LocateStructureNotFound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "locate biome desert"
+            ),
+            Err(CommandError::LocateBiomeNotFound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "locate poi armorer"
+            ),
+            Err(CommandError::LocatePoiNotFound)
+        );
+        assert_eq!(
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "locate"),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
