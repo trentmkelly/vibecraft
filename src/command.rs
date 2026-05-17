@@ -161,6 +161,9 @@ pub struct ServerCommandState {
     pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
+    pub entity_item_slots: Vec<CommandEntityItemSlot>,
+    pub block_item_slots: Vec<CommandBlockItemSlot>,
+    pub item_modifier_events: Vec<CommandItemModifierEvent>,
     pub item_enchantments: Vec<CommandItemEnchantment>,
     pub player_game_modes: Vec<PlayerGameMode>,
     pub player_experience: Vec<PlayerExperienceState>,
@@ -257,6 +260,34 @@ pub struct CommandPlayerInventory {
 pub struct CommandItemStack {
     pub item: String,
     pub count: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandEntityItemSlot {
+    pub entity: EntityRef,
+    pub slot: String,
+    pub item: Option<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandBlockItemSlot {
+    pub pos: BlockPos,
+    pub slot: String,
+    pub item: Option<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandItemModifierEvent {
+    pub target: CommandItemTarget,
+    pub modifier: String,
+    pub input: Option<CommandItemStack>,
+    pub output: Option<CommandItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandItemTarget {
+    Entity { entity: EntityRef, slot: String },
+    Block { pos: BlockPos, slot: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1126,6 +1157,11 @@ pub enum CommandError {
     RecipeGiveFailed,
     RecipeTakeFailed,
     GiveTooManyItems,
+    ItemTargetNotContainer,
+    ItemSourceNotContainer,
+    ItemTargetNoSuchSlot,
+    ItemSourceNoSuchSlot,
+    ItemTargetNoChanges,
     SwingNoLivingEntity,
     TagAddFailed,
     TagRemoveFailed,
@@ -1306,6 +1342,9 @@ impl Default for ServerCommandState {
             max_block_modifications: 32768,
             online_players: Vec::new(),
             player_inventories: Vec::new(),
+            entity_item_slots: Vec::new(),
+            block_item_slots: Vec::new(),
+            item_modifier_events: Vec::new(),
             item_enchantments: Vec::new(),
             player_game_modes: Vec::new(),
             player_experience: Vec::new(),
@@ -1746,6 +1785,7 @@ pub fn execute_builtin_command(
         "function" => function_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "give" => give_command(state, &parts),
+        "item" => item_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
@@ -3080,6 +3120,332 @@ fn item_max_stack_size(item: &str) -> i32 {
     } else {
         64
     }
+}
+
+fn item_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["item", "replace", "entity", targets, slot, "with", item] => {
+            let stack = CommandItemStack {
+                item: parse_resource_identifier(item)?,
+                count: 1,
+            };
+            set_entity_items(
+                state,
+                parse_entity_list(targets),
+                &parse_item_slot(slot)?,
+                stack,
+            )
+        }
+        ["item", "replace", "entity", targets, slot, "with", item, count] => {
+            let count = parse_item_count(count)?;
+            let stack = CommandItemStack {
+                item: parse_resource_identifier(item)?,
+                count,
+            };
+            set_entity_items(
+                state,
+                parse_entity_list(targets),
+                &parse_item_slot(slot)?,
+                stack,
+            )
+        }
+        ["item", "replace", "block", x, y, z, slot, "with", item] => {
+            let pos = parse_block_pos(x, y, z)?;
+            let stack = CommandItemStack {
+                item: parse_resource_identifier(item)?,
+                count: 1,
+            };
+            set_block_item(state, pos, &parse_item_slot(slot)?, stack)
+        }
+        ["item", "replace", "block", x, y, z, slot, "with", item, count] => {
+            let pos = parse_block_pos(x, y, z)?;
+            let count = parse_item_count(count)?;
+            let stack = CommandItemStack {
+                item: parse_resource_identifier(item)?,
+                count,
+            };
+            set_block_item(state, pos, &parse_item_slot(slot)?, stack)
+        }
+        ["item", "replace", "entity", targets, target_slot, "from", "entity", source, source_slot] =>
+        {
+            let source = entity_ref(source);
+            let stack = get_entity_item(state, &source, &parse_item_slot(source_slot)?)?;
+            set_entity_items(
+                state,
+                parse_entity_list(targets),
+                &parse_item_slot(target_slot)?,
+                stack,
+            )
+        }
+        ["item", "replace", "entity", targets, target_slot, "from", "entity", source, source_slot, modifier] =>
+        {
+            let source = entity_ref(source);
+            let target_slot = parse_item_slot(target_slot)?;
+            let stack = get_entity_item(state, &source, &parse_item_slot(source_slot)?)?;
+            let stack = apply_item_modifier(state, None, modifier, stack)?;
+            set_entity_items(state, parse_entity_list(targets), &target_slot, stack)
+        }
+        ["item", "replace", "entity", targets, target_slot, "from", "block", x, y, z, source_slot] =>
+        {
+            let source = parse_block_pos(x, y, z)?;
+            let stack = get_block_item(state, &source, &parse_item_slot(source_slot)?)?;
+            set_entity_items(
+                state,
+                parse_entity_list(targets),
+                &parse_item_slot(target_slot)?,
+                stack,
+            )
+        }
+        ["item", "replace", "entity", targets, target_slot, "from", "block", x, y, z, source_slot, modifier] =>
+        {
+            let target_slot = parse_item_slot(target_slot)?;
+            let source = parse_block_pos(x, y, z)?;
+            let stack = get_block_item(state, &source, &parse_item_slot(source_slot)?)?;
+            let stack = apply_item_modifier(state, None, modifier, stack)?;
+            set_entity_items(state, parse_entity_list(targets), &target_slot, stack)
+        }
+        ["item", "replace", "block", x, y, z, target_slot, "from", "entity", source, source_slot] =>
+        {
+            let target = parse_block_pos(x, y, z)?;
+            let source = entity_ref(source);
+            let stack = get_entity_item(state, &source, &parse_item_slot(source_slot)?)?;
+            set_block_item(state, target, &parse_item_slot(target_slot)?, stack)
+        }
+        ["item", "replace", "block", x, y, z, target_slot, "from", "entity", source, source_slot, modifier] =>
+        {
+            let target = parse_block_pos(x, y, z)?;
+            let target_slot = parse_item_slot(target_slot)?;
+            let source = entity_ref(source);
+            let stack = get_entity_item(state, &source, &parse_item_slot(source_slot)?)?;
+            let stack = apply_item_modifier(state, None, modifier, stack)?;
+            set_block_item(state, target, &target_slot, stack)
+        }
+        ["item", "replace", "block", tx, ty, tz, target_slot, "from", "block", sx, sy, sz, source_slot] =>
+        {
+            let target = parse_block_pos(tx, ty, tz)?;
+            let source = parse_block_pos(sx, sy, sz)?;
+            let stack = get_block_item(state, &source, &parse_item_slot(source_slot)?)?;
+            set_block_item(state, target, &parse_item_slot(target_slot)?, stack)
+        }
+        ["item", "replace", "block", tx, ty, tz, target_slot, "from", "block", sx, sy, sz, source_slot, modifier] =>
+        {
+            let target = parse_block_pos(tx, ty, tz)?;
+            let target_slot = parse_item_slot(target_slot)?;
+            let source = parse_block_pos(sx, sy, sz)?;
+            let stack = get_block_item(state, &source, &parse_item_slot(source_slot)?)?;
+            let stack = apply_item_modifier(state, None, modifier, stack)?;
+            set_block_item(state, target, &target_slot, stack)
+        }
+        ["item", "modify", "entity", targets, slot, modifier] => {
+            let targets = parse_entity_list(targets);
+            let slot = parse_item_slot(slot)?;
+            let mut changed = 0;
+            for target in targets {
+                let stack = get_entity_item(state, &target, &slot)?;
+                let modified = apply_item_modifier(
+                    state,
+                    Some(CommandItemTarget::Entity {
+                        entity: target.clone(),
+                        slot: slot.clone(),
+                    }),
+                    modifier,
+                    stack,
+                )?;
+                upsert_entity_item(state, target, &slot, Some(modified));
+                changed += 1;
+            }
+            if changed == 0 {
+                Err(CommandError::ItemTargetNoChanges)
+            } else {
+                Ok(CommandResult {
+                    success_count: changed,
+                    feedback_key: if changed == 1 {
+                        "commands.item.entity.set.success.single"
+                    } else {
+                        "commands.item.entity.set.success.multiple"
+                    },
+                    broadcast_to_admins: true,
+                })
+            }
+        }
+        ["item", "modify", "block", x, y, z, slot, modifier] => {
+            let pos = parse_block_pos(x, y, z)?;
+            let slot = parse_item_slot(slot)?;
+            let stack = get_block_item(state, &pos, &slot)?;
+            let modified = apply_item_modifier(
+                state,
+                Some(CommandItemTarget::Block {
+                    pos,
+                    slot: slot.clone(),
+                }),
+                modifier,
+                stack,
+            )?;
+            set_block_item(state, pos, &slot, modified)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_item_count(input: &str) -> Result<i32, CommandError> {
+    let count = parse_i32(input)?;
+    if (1..=99).contains(&count) {
+        Ok(count)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+fn parse_item_slot(input: &str) -> Result<String, CommandError> {
+    let valid_named_slot = input == "weapon"
+        || input == "weapon.mainhand"
+        || input == "weapon.offhand"
+        || input == "armor.head"
+        || input == "armor.chest"
+        || input == "armor.legs"
+        || input == "armor.feet"
+        || input
+            .strip_prefix("container.")
+            .or_else(|| input.strip_prefix("hotbar."))
+            .or_else(|| input.strip_prefix("inventory."))
+            .and_then(|index| index.parse::<u8>().ok())
+            .is_some();
+    if valid_named_slot || input.parse::<i32>().is_ok_and(|slot| slot >= 0) {
+        Ok(input.to_string())
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+fn set_entity_items(
+    state: &mut ServerCommandState,
+    targets: Vec<EntityRef>,
+    slot: &str,
+    stack: CommandItemStack,
+) -> Result<CommandResult, CommandError> {
+    if targets.is_empty() {
+        return Err(CommandError::ItemTargetNoChanges);
+    }
+    for target in &targets {
+        upsert_entity_item(state, target.clone(), slot, Some(stack.clone()));
+    }
+    Ok(CommandResult {
+        success_count: targets.len() as i32,
+        feedback_key: if targets.len() == 1 {
+            "commands.item.entity.set.success.single"
+        } else {
+            "commands.item.entity.set.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn set_block_item(
+    state: &mut ServerCommandState,
+    pos: BlockPos,
+    slot: &str,
+    stack: CommandItemStack,
+) -> Result<CommandResult, CommandError> {
+    upsert_block_item(state, pos, slot, Some(stack));
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.item.block.set.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn get_entity_item(
+    state: &ServerCommandState,
+    entity: &EntityRef,
+    slot: &str,
+) -> Result<CommandItemStack, CommandError> {
+    state
+        .entity_item_slots
+        .iter()
+        .find(|entry| entry.entity.id == entity.id && entry.slot == slot)
+        .and_then(|entry| entry.item.clone())
+        .ok_or(CommandError::ItemSourceNoSuchSlot)
+}
+
+fn get_block_item(
+    state: &ServerCommandState,
+    pos: &BlockPos,
+    slot: &str,
+) -> Result<CommandItemStack, CommandError> {
+    state
+        .block_item_slots
+        .iter()
+        .find(|entry| entry.pos == *pos && entry.slot == slot)
+        .and_then(|entry| entry.item.clone())
+        .ok_or(CommandError::ItemSourceNoSuchSlot)
+}
+
+fn upsert_entity_item(
+    state: &mut ServerCommandState,
+    entity: EntityRef,
+    slot: &str,
+    item: Option<CommandItemStack>,
+) {
+    if let Some(entry) = state
+        .entity_item_slots
+        .iter_mut()
+        .find(|entry| entry.entity.id == entity.id && entry.slot == slot)
+    {
+        entry.item = item;
+    } else {
+        state.entity_item_slots.push(CommandEntityItemSlot {
+            entity,
+            slot: slot.to_string(),
+            item,
+        });
+    }
+}
+
+fn upsert_block_item(
+    state: &mut ServerCommandState,
+    pos: BlockPos,
+    slot: &str,
+    item: Option<CommandItemStack>,
+) {
+    if let Some(entry) = state
+        .block_item_slots
+        .iter_mut()
+        .find(|entry| entry.pos == pos && entry.slot == slot)
+    {
+        entry.item = item;
+    } else {
+        state.block_item_slots.push(CommandBlockItemSlot {
+            pos,
+            slot: slot.to_string(),
+            item,
+        });
+    }
+}
+
+fn apply_item_modifier(
+    state: &mut ServerCommandState,
+    target: Option<CommandItemTarget>,
+    modifier: &str,
+    stack: CommandItemStack,
+) -> Result<CommandItemStack, CommandError> {
+    let modifier = parse_resource_identifier(modifier)?;
+    let max_stack_size = item_max_stack_size(&stack.item);
+    let output = CommandItemStack {
+        item: stack.item.clone(),
+        count: stack.count.min(max_stack_size),
+    };
+    if let Some(target) = target {
+        state.item_modifier_events.push(CommandItemModifierEvent {
+            target,
+            modifier,
+            input: Some(stack),
+            output: Some(output.clone()),
+        });
+    }
+    Ok(output)
 }
 
 fn clone_command(
@@ -8813,6 +9179,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("give", "/give <targets> <item> [count]"),
+        ("item", "/item <replace|modify> <block|entity> ..."),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -9278,8 +9645,9 @@ mod tests {
         visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
         AttributeOperation, AvatarProfile, BiomeEntry, BlockPos, BlockStateEntry,
         BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind,
-        ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandError,
-        CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment, CommandItemStack,
+        ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandBlockItemSlot,
+        CommandEntityItemSlot, CommandError, CommandFunctionDefinition, CommandFunctionTag,
+        CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack, CommandItemTarget,
         CommandPlayerInventory, DamageCommandSource, DialogCommandEvent, EntityAnchor,
         EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
         EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk, GameMode,
@@ -13458,6 +13826,205 @@ mod tests {
                 "give Steve BadItem"
             ),
             Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn item_command_replaces_entity_and_block_slots() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            command_required_permission("item"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "item replace entity Steve weapon.mainhand with diamond_sword"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let entity = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve weapon.mainhand with diamond_sword",
+        )
+        .unwrap();
+        assert_eq!(entity.success_count, 1);
+        assert_eq!(
+            entity.feedback_key,
+            "commands.item.entity.set.success.single"
+        );
+        assert_eq!(
+            state.entity_item_slots,
+            vec![CommandEntityItemSlot {
+                entity: EntityRef {
+                    id: "Steve".to_string(),
+                    display_name: "Steve".to_string(),
+                },
+                slot: "weapon.mainhand".to_string(),
+                item: Some(CommandItemStack {
+                    item: "minecraft:diamond_sword".to_string(),
+                    count: 1,
+                }),
+            }]
+        );
+
+        let block = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace block 1 64 2 container.0 with stone 32",
+        )
+        .unwrap();
+        assert_eq!(block.success_count, 1);
+        assert_eq!(block.feedback_key, "commands.item.block.set.success");
+        assert_eq!(
+            state.block_item_slots,
+            vec![CommandBlockItemSlot {
+                pos: BlockPos { x: 1, y: 64, z: 2 },
+                slot: "container.0".to_string(),
+                item: Some(CommandItemStack {
+                    item: "minecraft:stone".to_string(),
+                    count: 32,
+                }),
+            }]
+        );
+    }
+
+    #[test]
+    fn item_command_copies_between_block_and_entity_sources() {
+        let mut state = ServerCommandState::default();
+        state.block_item_slots.push(CommandBlockItemSlot {
+            pos: BlockPos { x: 0, y: 64, z: 0 },
+            slot: "container.2".to_string(),
+            item: Some(CommandItemStack {
+                item: "minecraft:apple".to_string(),
+                count: 9,
+            }),
+        });
+
+        let to_entities = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve,Alex hotbar.0 from block 0 64 0 container.2",
+        )
+        .unwrap();
+        assert_eq!(to_entities.success_count, 2);
+        assert_eq!(
+            to_entities.feedback_key,
+            "commands.item.entity.set.success.multiple"
+        );
+        assert_eq!(state.entity_item_slots.len(), 2);
+        assert!(state.entity_item_slots.iter().all(|entry| entry.item
+            == Some(CommandItemStack {
+                item: "minecraft:apple".to_string(),
+                count: 9,
+            })));
+
+        let to_block = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace block 2 64 2 container.1 from entity Steve hotbar.0",
+        )
+        .unwrap();
+        assert_eq!(to_block.success_count, 1);
+        assert!(state.block_item_slots.iter().any(|entry| entry.pos
+            == BlockPos { x: 2, y: 64, z: 2 }
+            && entry.slot == "container.1"
+            && entry.item
+                == Some(CommandItemStack {
+                    item: "minecraft:apple".to_string(),
+                    count: 9,
+                })));
+    }
+
+    #[test]
+    fn item_command_modifies_slots_and_clamps_to_stack_size() {
+        let mut state = ServerCommandState::default();
+        state.entity_item_slots.push(CommandEntityItemSlot {
+            entity: EntityRef {
+                id: "Steve".to_string(),
+                display_name: "Steve".to_string(),
+            },
+            slot: "hotbar.0".to_string(),
+            item: Some(CommandItemStack {
+                item: "minecraft:stone".to_string(),
+                count: 80,
+            }),
+        });
+
+        let result = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item modify entity Steve hotbar.0 minecraft:set_count",
+        )
+        .unwrap();
+        assert_eq!(result.success_count, 1);
+        assert_eq!(
+            state.entity_item_slots[0].item,
+            Some(CommandItemStack {
+                item: "minecraft:stone".to_string(),
+                count: 64,
+            })
+        );
+        assert_eq!(
+            state.item_modifier_events,
+            vec![CommandItemModifierEvent {
+                target: CommandItemTarget::Entity {
+                    entity: EntityRef {
+                        id: "Steve".to_string(),
+                        display_name: "Steve".to_string(),
+                    },
+                    slot: "hotbar.0".to_string(),
+                },
+                modifier: "minecraft:set_count".to_string(),
+                input: Some(CommandItemStack {
+                    item: "minecraft:stone".to_string(),
+                    count: 80,
+                }),
+                output: Some(CommandItemStack {
+                    item: "minecraft:stone".to_string(),
+                    count: 64,
+                }),
+            }]
+        );
+    }
+
+    #[test]
+    fn item_command_rejects_invalid_counts_slots_and_missing_sources() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "item replace entity Steve hotbar.0 with stone 0"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "item replace entity Steve hotbar.0 with stone 100"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "item replace entity Steve bad_slot with stone"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "item replace entity Steve hotbar.1 from entity Alex hotbar.0"
+            ),
+            Err(CommandError::ItemSourceNoSuchSlot)
         );
     }
 
