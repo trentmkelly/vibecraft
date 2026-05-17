@@ -38,7 +38,7 @@ use crate::network::play::{
     SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
-use crate::player_access::NameAndId;
+use crate::player_access::{NameAndId, PlayerAccess};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
@@ -745,6 +745,7 @@ pub fn run_status_server(
     let favicon = load_favicon(Path::new("server-icon.png"))
         .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
     let active_logins = ActiveLoginRegistry::default();
+    let player_access = Arc::new(Mutex::new(PlayerAccess::default()));
     println!("Status listener bound to {address}");
 
     loop {
@@ -757,12 +758,14 @@ pub fn run_status_server(
                 let properties = properties.clone();
                 let favicon = favicon.clone();
                 let active_logins = active_logins.clone();
+                let player_access = Arc::clone(&player_access);
                 thread::spawn(move || {
                     if let Err(err) = handle_status_connection(
                         stream,
                         &properties,
                         favicon.as_deref(),
                         &active_logins,
+                        &player_access,
                     ) {
                         eprintln!("status connection error: {err}");
                     }
@@ -794,6 +797,7 @@ fn handle_status_connection(
     properties: &ServerProperties,
     favicon: Option<&str>,
     active_logins: &ActiveLoginRegistry,
+    player_access: &Arc<Mutex<PlayerAccess>>,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
@@ -823,7 +827,7 @@ fn handle_status_connection(
         if protocol != PROTOCOL_VERSION {
             return write_login_protocol_mismatch_disconnect(&mut stream, protocol);
         }
-        return handle_login_connection(&mut stream, properties, active_logins);
+        return handle_login_connection(&mut stream, properties, active_logins, player_access);
     }
     if next_state != 1 {
         return Err(io::Error::new(
@@ -882,6 +886,7 @@ fn handle_login_connection(
     stream: &mut TcpStream,
     properties: &ServerProperties,
     active_logins: &ActiveLoginRegistry,
+    player_access: &Arc<Mutex<PlayerAccess>>,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -905,6 +910,7 @@ fn handle_login_connection(
             .write(payload)
         });
     };
+    cache_login_profile(player_access, &finished.profile)?;
     let mut compression = CompressionState::disabled();
     if properties.network_compression_threshold >= 0 {
         let threshold = properties.network_compression_threshold;
@@ -1173,6 +1179,17 @@ fn handle_login_connection(
             Err(err) => return Err(err),
         }
     }
+}
+
+fn cache_login_profile(
+    player_access: &Arc<Mutex<PlayerAccess>>,
+    profile: &NameAndId,
+) -> io::Result<()> {
+    let mut access = player_access
+        .lock()
+        .map_err(|_| io::Error::other("player access lock poisoned"))?;
+    access.cache_user(profile.clone());
+    access.save_user_cache(Path::new("."))
 }
 
 fn wait_for_configuration_packet<R: Read>(

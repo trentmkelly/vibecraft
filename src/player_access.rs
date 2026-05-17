@@ -180,6 +180,12 @@ impl PlayerAccess {
         fs::write(dir.join("banned-ips.json"), self.banned_ips_json())?;
         fs::write(dir.join("whitelist.json"), self.whitelist_json())?;
         fs::write(dir.join("ops.json"), self.ops_json())?;
+        self.save_user_cache(dir)?;
+        Ok(())
+    }
+
+    pub fn save_user_cache(&self, dir: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(dir)?;
         fs::write(dir.join("usercache.json"), self.user_cache_json())?;
         Ok(())
     }
