@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
@@ -74,6 +74,7 @@ const SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID: i32 = 9;
 const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
+const CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID: i32 = 37;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
 const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
@@ -1271,6 +1272,7 @@ fn handle_login_connection(
     )?;
     let mut current_chunk_x = chunk_coordinate(play_state.x);
     let mut current_chunk_z = chunk_coordinate(play_state.z);
+    let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z);
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
@@ -1293,8 +1295,18 @@ fn handle_login_connection(
                     let next_chunk_x = chunk_coordinate(play_state.x);
                     let next_chunk_z = chunk_coordinate(play_state.z);
                     if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
+                        let next_loaded_chunks = chunk_window(next_chunk_x, next_chunk_z);
+                        for stale_chunk in loaded_chunks.difference(&next_loaded_chunks) {
+                            write_forget_level_chunk_packet(
+                                stream,
+                                compression,
+                                stale_chunk.0,
+                                stale_chunk.1,
+                            )?;
+                        }
                         current_chunk_x = next_chunk_x;
                         current_chunk_z = next_chunk_z;
+                        loaded_chunks = next_loaded_chunks;
                         write_play_chunk_batch(
                             stream,
                             compression,
@@ -1969,6 +1981,38 @@ fn delay_initial_chunk_batch_for_probe(
         thread::sleep(Duration::from_millis(25).min(deadline.saturating_duration_since(now)));
     }
     Ok(())
+}
+
+fn chunk_window(center_chunk_x: i32, center_chunk_z: i32) -> BTreeSet<(i32, i32)> {
+    let mut chunks = BTreeSet::new();
+    for z in
+        (center_chunk_z - SPAWN_CHUNK_BATCH_RADIUS)..=(center_chunk_z + SPAWN_CHUNK_BATCH_RADIUS)
+    {
+        for x in (center_chunk_x - SPAWN_CHUNK_BATCH_RADIUS)
+            ..=(center_chunk_x + SPAWN_CHUNK_BATCH_RADIUS)
+        {
+            chunks.insert((x, z));
+        }
+    }
+    chunks
+}
+
+fn write_forget_level_chunk_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    x: i32,
+    z: i32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
+        |payload| payload.write_all(&packed_chunk_pos(x, z).to_be_bytes()),
+    )
+}
+
+fn packed_chunk_pos(x: i32, z: i32) -> i64 {
+    (i64::from(x) & 0xffff_ffff) | ((i64::from(z) & 0xffff_ffff) << 32)
 }
 
 fn chunk_coordinate(block_coordinate: f64) -> i32 {

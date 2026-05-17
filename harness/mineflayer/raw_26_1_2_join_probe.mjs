@@ -1001,6 +1001,10 @@ async function main () {
         chunks: (dynamicById.get(45) ?? []).map(packet => ({
           x: packet.body.readInt32BE(0),
           z: packet.body.readInt32BE(4)
+        })),
+        forgottenChunks: (dynamicById.get(37) ?? []).map(packet => ({
+          x: packet.body.readInt32BE(4),
+          z: packet.body.readInt32BE(0)
         }))
       }
     }

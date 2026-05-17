@@ -61,6 +61,16 @@ test('raw 26.1.2 movement across a chunk boundary streams terrain around the new
         { x: 1, z: -1 },
         { x: 2, z: -1 },
         { x: 3, z: -1 }
+      ],
+      forgottenChunks: [
+        { x: -1, z: -1 },
+        { x: -1, z: 0 },
+        { x: -1, z: 1 },
+        { x: 0, z: -1 },
+        { x: 0, z: 0 },
+        { x: 0, z: 1 },
+        { x: 1, z: 0 },
+        { x: 1, z: 1 }
       ]
     })
   } finally {
