@@ -10,10 +10,14 @@ const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
 const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === '1'
 const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
+const firstTickActions = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS === '1'
 const serverboundAcceptTeleportationPacketId = 0
 const serverboundChunkBatchReceivedPacketId = 11
+const serverboundClientInformationPacketId = 14
 const serverboundKeepAlivePacketId = 28
+const serverboundMovePlayerPosRotPacketId = 31
 const serverboundSelectKnownPacksPacketId = 7
+const serverboundSetCarriedItemPacketId = 53
 const serverboundPlayerLoadedPacketId = 44
 const clientboundKeepAlivePacketId = 44
 
@@ -825,6 +829,11 @@ async function main () {
   socket.write(encodeClientPacket(reader, serverboundAcceptTeleportationPacketId, writeVarInt(0)))
   socket.write(encodeClientPacket(reader, serverboundChunkBatchReceivedPacketId, Buffer.alloc(4)))
   socket.write(encodeClientPacket(reader, serverboundPlayerLoadedPacketId))
+  if (firstTickActions) {
+    socket.write(encodeClientPacket(reader, serverboundClientInformationPacketId, clientInformationPayload()))
+    socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, Buffer.from([0, 4])))
+    socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload()))
+  }
 
   let keepAliveReplies = 0
   if (keepAliveProbeMs > 0) {
@@ -857,6 +866,29 @@ async function main () {
 function abortSocket (socket, phase, details) {
   socket.destroy()
   console.log(JSON.stringify({ ok: true, aborted: true, phase, ...details }, null, 2))
+}
+
+function clientInformationPayload () {
+  return Buffer.concat([
+    writeString('en_us'),
+    Buffer.from([10]),
+    writeVarInt(0),
+    Buffer.from([1, 0x7f]),
+    writeVarInt(1),
+    Buffer.from([0, 1]),
+    writeVarInt(0)
+  ])
+}
+
+function movePlayerPosRotPayload () {
+  const payload = Buffer.alloc(33)
+  payload.writeDoubleBE(0.5, 0)
+  payload.writeDoubleBE(80, 8)
+  payload.writeDoubleBE(0.5, 16)
+  payload.writeFloatBE(0, 24)
+  payload.writeFloatBE(0, 28)
+  payload.writeUInt8(1, 32)
+  return payload
 }
 
 main().catch(error => {

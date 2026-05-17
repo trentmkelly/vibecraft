@@ -33,9 +33,10 @@ use crate::network::play::{
     CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
     CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
-    SERVERBOUND_CLIENT_TICK_END_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+    SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
+    SERVERBOUND_KEEP_ALIVE_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess};
@@ -1139,12 +1140,14 @@ fn handle_login_connection(
                         | SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID
                         | SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID
                         | SERVERBOUND_CLIENT_COMMAND_PACKET_ID
+                        | SERVERBOUND_CLIENT_INFORMATION_PACKET_ID
                         | SERVERBOUND_CLIENT_TICK_END_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID
                         | SERVERBOUND_PLAYER_LOADED_PACKET_ID
+                        | SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID
                 ) {
                     continue;
                 }
@@ -1563,6 +1566,7 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
             FULL_SECTION_BLOCK_COUNT
         };
         section_buffer.write_all(&non_empty_block_count.to_be_bytes())?;
+        section_buffer.write_all(&0_i16.to_be_bytes())?;
         write_single_value_paletted_container(&mut section_buffer, block_state_id)?;
         write_single_value_paletted_container(&mut section_buffer, PLAINS_BIOME_ID)?;
     }
@@ -1584,8 +1588,7 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
 
 fn write_single_value_paletted_container<W: Write>(writer: &mut W, id: i32) -> io::Result<()> {
     writer.write_all(&[0])?;
-    write_var_i32(writer, id)?;
-    write_var_i32(writer, 0)
+    write_var_i32(writer, id)
 }
 
 fn write_empty_bitset<W: Write>(writer: &mut W) -> io::Result<()> {
