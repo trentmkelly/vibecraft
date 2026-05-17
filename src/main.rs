@@ -45,6 +45,7 @@ mod eula;
 mod experience_system;
 mod fire;
 mod fluid;
+mod fuzz_tests;
 mod game_event;
 mod game_rules;
 mod gravity;
