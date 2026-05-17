@@ -36,6 +36,7 @@ mod runtime;
 mod scheduled_tick;
 mod seed_validation;
 mod server_properties;
+mod special_block;
 mod storage;
 mod world;
 mod world_border;
