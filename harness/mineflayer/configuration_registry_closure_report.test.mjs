@@ -4,6 +4,7 @@ import test from 'node:test'
 import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
 import {
   documentedRegistryOmissions,
+  evaluateConfigurationRegistryClosureGate,
   loadConfigurationRegistryClosureReport
 } from './configuration_registry_closure_report.mjs'
 
@@ -70,4 +71,46 @@ test('omitted registry report entries carry actionable milestone evidence', asyn
     assert.ok(entry.omission.evidence.length > 0, `${entry.registry} needs evidence`)
     assert.ok(entry.omission.next.length > 30, `${entry.registry} needs an actionable next step`)
   }
+})
+
+test('configuration registry closure gate fails uncovered registries and missing play-entry evidence', () => {
+  const report = [
+    {
+      registry: 'minecraft:damage_type',
+      status: 'synced',
+      emitted: true,
+      codec: 'DamageType.DIRECT_CODEC',
+      expectedElements: 50,
+      validator: 'raw_26_1_2_join_probe',
+      omission: null
+    },
+    {
+      registry: 'minecraft:unknown_future_registry',
+      status: 'documented_omission',
+      emitted: false,
+      codec: 'Unknown.CODEC',
+      expectedElements: null,
+      validator: 'documented_omission',
+      omission: null
+    }
+  ]
+
+  const gate = evaluateConfigurationRegistryClosureGate(report, '')
+  assert.equal(gate.ok, false)
+  assert.equal(gate.checks.find(check => check.name === 'minecraft:damage_type').ok, true)
+  assert.equal(gate.checks.find(check => check.name === 'minecraft:unknown_future_registry').ok, false)
+  assert.ok(gate.checks.some(check => check.name.startsWith('play-entry:') && !check.ok))
+})
+
+test('configuration registry closure gate passes current report with raw-probe play-entry evidence', async () => {
+  const report = await loadConfigurationRegistryClosureReport()
+  const rawProbe = [
+    'expected 70-byte play login packet after holder-id encoding',
+    'expected 62-byte player_position packet with fixed-int relatives',
+    'missing play packet'
+  ].join('\n')
+
+  const gate = evaluateConfigurationRegistryClosureGate(report, rawProbe)
+  assert.equal(gate.ok, true)
+  assert.equal(gate.checks.filter(check => check.name.startsWith('play-entry:')).length, 3)
 })

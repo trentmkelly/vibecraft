@@ -84,6 +84,12 @@ export const documentedRegistryOmissions = new Map([
   ]
 ])
 
+export const requiredPlayEntryEvidence = [
+  'expected 70-byte play login packet after holder-id encoding',
+  'expected 62-byte player_position packet with fixed-int relatives',
+  'missing play packet'
+]
+
 const codecSourceByRegistry = new Map([
   ['minecraft:biome', 'Biome.NETWORK_CODEC'],
   ['minecraft:chat_type', 'ChatType.DIRECT_CODEC'],
@@ -166,6 +172,52 @@ export function createConfigurationRegistryClosureReport ({ registryDataLoader, 
   })
 }
 
+export function evaluateConfigurationRegistryClosureGate (report, rawProbe) {
+  const checks = []
+
+  for (const entry of report) {
+    if (entry.emitted) {
+      checks.push(pass(entry.registry, {
+        status: entry.status,
+        validator: entry.validator,
+        codec: entry.codec,
+        expectedElements: entry.expectedElements
+      }))
+      continue
+    }
+
+    const omission = documentedRegistryOmissions.get(entry.registry)
+    if (!omission) {
+      checks.push(fail(entry.registry, 'synchronized registry is neither emitted nor documented', entry))
+      continue
+    }
+
+    if (!omission.milestone || omission.evidence.length === 0 || omission.next.length < 30) {
+      checks.push(fail(entry.registry, 'documented omission lacks milestone evidence or next step', omission))
+      continue
+    }
+
+    checks.push(pass(entry.registry, {
+      status: entry.status,
+      validator: entry.validator,
+      milestone: omission.milestone
+    }))
+  }
+
+  for (const evidence of requiredPlayEntryEvidence) {
+    if (rawProbe.includes(evidence)) {
+      checks.push(pass(`play-entry:${evidence}`, { evidence }))
+    } else {
+      checks.push(fail(`play-entry:${evidence}`, 'raw probe is missing play-entry proof for documented omissions', { evidence }))
+    }
+  }
+
+  return {
+    ok: checks.every(check => check.ok),
+    checks
+  }
+}
+
 export async function loadConfigurationRegistryClosureReport () {
   const [registryDataLoader, rawProbe] = await Promise.all([
     readFile(registryDataLoaderPath, 'utf8'),
@@ -175,7 +227,28 @@ export async function loadConfigurationRegistryClosureReport () {
   return createConfigurationRegistryClosureReport({ registryDataLoader, rawProbe })
 }
 
+export async function runConfigurationRegistryClosureGate () {
+  const [registryDataLoader, rawProbe] = await Promise.all([
+    readFile(registryDataLoaderPath, 'utf8'),
+    readFile(rawProbePath, 'utf8')
+  ])
+  const report = createConfigurationRegistryClosureReport({ registryDataLoader, rawProbe })
+  return {
+    report,
+    gate: evaluateConfigurationRegistryClosureGate(report, rawProbe)
+  }
+}
+
+function pass (name, details) {
+  return { ok: true, name, details }
+}
+
+function fail (name, message, details) {
+  return { ok: false, name, message, details }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const report = await loadConfigurationRegistryClosureReport()
-  console.log(JSON.stringify(report, null, 2))
+  const result = await runConfigurationRegistryClosureGate()
+  console.log(JSON.stringify(result, null, 2))
+  if (!result.gate.ok) process.exitCode = 1
 }
