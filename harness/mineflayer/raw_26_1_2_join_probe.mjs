@@ -158,11 +158,14 @@ const requiredRegistryElements = new Map([
     'minecraft:bricks',
     'minecraft:curly_border'
   ]],
+  ['minecraft:cat_sound_variant', ['minecraft:default']],
   ['minecraft:chicken_variant', [
     'minecraft:cold',
     'minecraft:temperate',
     'minecraft:warm'
   ]],
+  ['minecraft:chicken_sound_variant', ['minecraft:default']],
+  ['minecraft:cow_sound_variant', ['minecraft:default']],
   ['minecraft:damage_type', ['minecraft:spear']],
   ['minecraft:instrument', ['minecraft:ponder_goat_horn']],
   ['minecraft:jukebox_song', [
@@ -175,6 +178,7 @@ const requiredRegistryElements = new Map([
     'minecraft:precipice',
     'minecraft:tears'
   ]],
+  ['minecraft:pig_sound_variant', ['minecraft:default']],
   ['minecraft:trim_material', [
     'minecraft:amethyst',
     'minecraft:copper',
@@ -187,7 +191,9 @@ const requiredRegistryElements = new Map([
     'minecraft:quartz',
     'minecraft:redstone',
     'minecraft:resin'
-  ]]
+  ]],
+  ['minecraft:wolf_sound_variant', ['minecraft:default']],
+  ['minecraft:zombie_nautilus_variant', ['minecraft:default']]
 ])
 
 const requiredTags = new Map([
