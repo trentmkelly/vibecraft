@@ -7,12 +7,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::console::ConsoleInput;
+use crate::network::codec::ComponentJson;
 use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
 use crate::network::common::ClientboundDisconnectPacket;
-use crate::network::codec::ComponentJson;
+use crate::network::compression::CompressionState;
 use crate::network::login::{
-    ClientboundLoginDisconnectPacket, LoginSession, ServerboundHelloPacket,
-    ServerboundLoginAcknowledgedPacket, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
+    ClientboundLoginCompressionPacket, ClientboundLoginDisconnectPacket, LoginSession,
+    ServerboundHelloPacket, ServerboundLoginAcknowledgedPacket,
+    CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
     CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, SERVERBOUND_HELLO_PACKET_ID,
     SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID,
 };
@@ -21,14 +23,14 @@ use crate::network::play::{
     ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
     CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
-    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-    CLIENTBOUND_SET_TIME_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
+    SERVERBOUND_KEEP_ALIVE_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::NameAndId;
@@ -54,9 +56,11 @@ const SERVERBOUND_CONFIGURATION_RESOURCE_PACK_PACKET_ID: i32 = 6;
 const SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 7;
 const SERVERBOUND_CONFIGURATION_CUSTOM_CLICK_ACTION_PACKET_ID: i32 = 8;
 const SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID: i32 = 9;
+const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
 const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
+const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
 const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
 const SPAWN_CHUNK_BATCH_RADIUS: i32 = 1;
@@ -846,11 +850,26 @@ fn handle_login_connection(
 
     let mut login = LoginSession::default();
     let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
-    write_framed_packet(stream, CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, |payload| {
-        finished.write(payload)
-    })?;
+    let mut compression = CompressionState::disabled();
+    if properties.network_compression_threshold >= 0 {
+        let threshold = properties.network_compression_threshold;
+        write_framed_packet(stream, CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID, |payload| {
+            ClientboundLoginCompressionPacket {
+                compression_threshold: threshold,
+            }
+            .write(payload)
+        })?;
+        login.set_compression(threshold);
+        compression = CompressionState::enabled(threshold);
+    }
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_LOGIN_FINISHED_PACKET_ID,
+        |payload| finished.write(payload),
+    )?;
 
-    let packet = read_packet(stream)?;
+    let packet = read_packet_with_compression(stream, compression)?;
     let mut input = Cursor::new(packet);
     let packet_id = read_var_i32(&mut input)?;
     if packet_id != SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID {
@@ -861,178 +880,219 @@ fn handle_login_connection(
     }
     login.acknowledge(ServerboundLoginAcknowledgedPacket::read(&mut input)?);
 
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
         |payload| {
             write_var_i32(payload, 1)?;
             write_identifier(payload, &Identifier::parse("minecraft:vanilla").unwrap())
         },
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_biome_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chat_type_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_trim_pattern_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_trim_material_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_wolf_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_wolf_sound_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_pig_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_pig_sound_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_frog_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cat_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cat_sound_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cow_sound_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cow_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chicken_sound_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chicken_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_zombie_nautilus_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_painting_variant_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_dimension_type_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_damage_type_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_banner_pattern_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_jukebox_song_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_instrument_registry_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         write_vanilla_known_packs_packet,
     )?;
     wait_for_configuration_packet(
         stream,
+        compression,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         "selected known packs",
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
         |_payload| Ok(()),
     )?;
 
     wait_for_configuration_packet(
         stream,
+        compression,
         SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
         "finish configuration",
     )?;
 
-    write_minimal_play_join(stream, properties, &finished.profile)?;
+    write_minimal_play_join(stream, compression, properties, &finished.profile)?;
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
             keep_alive_id = keep_alive_id.wrapping_add(1);
-            write_framed_packet(stream, CLIENTBOUND_KEEP_ALIVE_PACKET_ID, |payload| {
-                payload.write_all(&keep_alive_id.to_be_bytes())
-            })?;
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+                |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
+            )?;
             last_keep_alive = Instant::now();
         }
-        match read_packet(stream) {
+        match read_packet_with_compression(stream, compression) {
             Ok(packet) => {
                 let mut input = Cursor::new(packet);
                 let packet_id = read_var_i32(&mut input)?;
-                if packet_id == SERVERBOUND_KEEP_ALIVE_PACKET_ID {
+                if matches!(
+                    packet_id,
+                    SERVERBOUND_KEEP_ALIVE_PACKET_ID
+                        | SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID
+                        | SERVERBOUND_PLAYER_LOADED_PACKET_ID
+                ) {
                     continue;
                 }
-                write_framed_packet(stream, CLIENTBOUND_DISCONNECT_PACKET_ID, |payload| {
-                    ClientboundDisconnectPacket {
-                        reason: ComponentJson(format!(
-                            "{{\"text\":\"unexpected play packet {packet_id}\"}}"
-                        )),
-                    }
-                    .write(payload)
-                })?;
+                write_framed_packet_with_compression(
+                    stream,
+                    compression,
+                    CLIENTBOUND_DISCONNECT_PACKET_ID,
+                    |payload| {
+                        ClientboundDisconnectPacket {
+                            reason: ComponentJson(format!(
+                                "{{\"text\":\"unexpected play packet {packet_id}\"}}"
+                            )),
+                        }
+                        .write(payload)
+                    },
+                )?;
                 return Ok(());
             }
             Err(err)
@@ -1055,11 +1115,12 @@ fn handle_login_connection(
 
 fn wait_for_configuration_packet<R: Read>(
     reader: &mut R,
+    compression: CompressionState,
     expected_packet_id: i32,
     expected_name: &'static str,
 ) -> io::Result<()> {
     for _ in 0..32 {
-        let packet = read_packet(reader)?;
+        let packet = read_packet_with_compression(reader, compression)?;
         let mut input = Cursor::new(packet);
         let packet_id = read_var_i32(&mut input)?;
         if packet_id == expected_packet_id {
@@ -1096,6 +1157,7 @@ fn is_tolerated_serverbound_configuration_packet(packet_id: i32) -> bool {
 
 fn write_minimal_play_join(
     stream: &mut TcpStream,
+    compression: CompressionState,
     properties: &ServerProperties,
     profile: &NameAndId,
 ) -> io::Result<()> {
@@ -1112,38 +1174,66 @@ fn write_minimal_play_join(
         spawn_info: CommonPlayerSpawnInfo::default(),
         enforces_secure_chat: false,
     };
-    write_framed_packet(stream, CLIENTBOUND_LOGIN_PACKET_ID, |payload| {
-        write_clientbound_login_packet(payload, &login)
-    })?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
+        CLIENTBOUND_LOGIN_PACKET_ID,
+        |payload| write_clientbound_login_packet(payload, &login),
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
         CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
         |payload| write_player_info_initializing_packet(payload, profile),
     )?;
-    write_framed_packet(stream, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, |payload| {
-        payload.write_all(&[1])?;
-        write_bool(payload, false)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, |payload| {
-        payload.write_all(&[0])?;
-        payload.write_all(&0.05f32.to_be_bytes())?;
-        payload.write_all(&0.1f32.to_be_bytes())
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, |payload| {
-        write_var_i32(payload, 0)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, |payload| {
-        payload.write_all(&0.0f32.to_be_bytes())?;
-        write_var_i32(payload, 0)?;
-        write_var_i32(payload, 0)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_HEALTH_PACKET_ID, |payload| {
-        payload.write_all(&20.0f32.to_be_bytes())?;
-        write_var_i32(payload, 20)?;
-        payload.write_all(&5.0f32.to_be_bytes())
-    })?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
+        CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+        |payload| {
+            payload.write_all(&[1])?;
+            write_bool(payload, false)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+        |payload| {
+            payload.write_all(&[0])?;
+            payload.write_all(&0.05f32.to_be_bytes())?;
+            payload.write_all(&0.1f32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+        |payload| write_var_i32(payload, 0),
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+        |payload| {
+            payload.write_all(&0.0f32.to_be_bytes())?;
+            write_var_i32(payload, 0)?;
+            write_var_i32(payload, 0)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_HEALTH_PACKET_ID,
+        |payload| {
+            payload.write_all(&20.0f32.to_be_bytes())?;
+            write_var_i32(payload, 20)?;
+            payload.write_all(&5.0f32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
         CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
         |payload| {
             payload.write_all(&[0])?;
@@ -1155,74 +1245,116 @@ fn write_minimal_play_join(
             write_var_i32(payload, 0)
         },
     )?;
-    write_framed_packet(stream, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, |payload| {
-        write_var_i32(payload, 0)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_SET_TIME_PACKET_ID, |payload| {
-        payload.write_all(&0_i64.to_be_bytes())?;
-        write_var_i32(payload, 0)
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_PLAYER_POSITION_PACKET_ID, |payload| {
-        write_var_i32(payload, 0)?;
-        write_vec3(payload, 0.5, 80.0, 0.5)?;
-        write_vec3(payload, 0.0, 0.0, 0.0)?;
-        payload.write_all(&0.0f32.to_be_bytes())?;
-        payload.write_all(&0.0f32.to_be_bytes())?;
-        payload.write_all(&0_i32.to_be_bytes())
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, |payload| {
-        write_initialize_world_border_packet(payload)
-    })?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
+        CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+        |payload| write_var_i32(payload, 0),
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_TIME_PACKET_ID,
+        |payload| {
+            payload.write_all(&0_i64.to_be_bytes())?;
+            write_var_i32(payload, 0)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, 0)?;
+            write_vec3(payload, 0.5, 80.0, 0.5)?;
+            write_vec3(payload, 0.0, 0.0, 0.0)?;
+            payload.write_all(&0.0f32.to_be_bytes())?;
+            payload.write_all(&0.0f32.to_be_bytes())?;
+            payload.write_all(&0_i32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+        |payload| write_initialize_world_border_packet(payload),
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
         CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
         |payload| write_default_spawn_position_packet(payload, 0, 80, 0),
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
         |payload| {
             write_var_i32(payload, 0)?;
             write_var_i32(payload, 0)
         },
     )?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
         |payload| write_var_i32(payload, properties.view_distance as i32),
     )?;
-    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
-        payload.write_all(&[2])?;
-        payload.write_all(&0.0f32.to_be_bytes())
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
-        payload.write_all(&[7])?;
-        payload.write_all(&0.0f32.to_be_bytes())
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
-        payload.write_all(&[8])?;
-        payload.write_all(&0.0f32.to_be_bytes())
-    })?;
-    write_framed_packet(stream, CLIENTBOUND_GAME_EVENT_PACKET_ID, |payload| {
-        payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
-        payload.write_all(&0.0f32.to_be_bytes())
-    })?;
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[2])?;
+            payload.write_all(&0.0f32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[7])?;
+            payload.write_all(&0.0f32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[8])?;
+            payload.write_all(&0.0f32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
+            payload.write_all(&0.0f32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
         |_payload| Ok(()),
     )?;
     for z in -SPAWN_CHUNK_BATCH_RADIUS..=SPAWN_CHUNK_BATCH_RADIUS {
         for x in -SPAWN_CHUNK_BATCH_RADIUS..=SPAWN_CHUNK_BATCH_RADIUS {
-            write_framed_packet(
+            write_framed_packet_with_compression(
                 stream,
+                compression,
                 CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
                 |payload| write_superflat_spawn_chunk_packet(payload, x, z),
             )?;
         }
     }
-    write_framed_packet(
+    write_framed_packet_with_compression(
         stream,
+        compression,
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, SPAWN_CHUNK_BATCH_SIZE),
     )
@@ -2311,6 +2443,23 @@ where
     write_packet(writer, &payload)
 }
 
+fn write_framed_packet_with_compression<W, F>(
+    writer: &mut W,
+    compression: CompressionState,
+    packet_id: i32,
+    write_body: F,
+) -> io::Result<()>
+where
+    W: Write,
+    F: FnOnce(&mut Vec<u8>) -> io::Result<()>,
+{
+    let mut payload = Vec::new();
+    write_var_i32(&mut payload, packet_id)?;
+    write_body(&mut payload)?;
+    let frame = compression.encode_packet(&payload)?;
+    writer.write_all(&frame)
+}
+
 fn write_status_response_packet<W: Write>(writer: &mut W, json: &str) -> io::Result<()> {
     let mut payload = Vec::new();
     write_var_i32(&mut payload, 0)?;
@@ -2478,6 +2627,16 @@ fn read_packet<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
+fn read_packet_with_compression<R: Read>(
+    reader: &mut R,
+    compression: CompressionState,
+) -> io::Result<Vec<u8>> {
+    match compression.threshold() {
+        None => read_packet(reader),
+        Some(_) => compression.decode_packet(reader),
+    }
+}
+
 fn write_packet<W: Write>(writer: &mut W, payload: &[u8]) -> io::Result<()> {
     write_var_i32(writer, payload.len() as i32)?;
     writer.write_all(payload)
@@ -2615,7 +2774,7 @@ mod tests {
         write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
-        write_vanilla_zombie_nautilus_variant_registry_packet, BANNER_PATTERNS,
+        write_vanilla_zombie_nautilus_variant_registry_packet, CompressionState, BANNER_PATTERNS,
         BANNER_PATTERN_TAGS, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS, INSTRUMENTS, JUKEBOX_SONGS,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
@@ -3104,6 +3263,7 @@ mod tests {
         let mut stream = Cursor::new(input);
         wait_for_configuration_packet(
             &mut stream,
+            CompressionState::disabled(),
             SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
             "selected known packs",
         )
@@ -3117,6 +3277,7 @@ mod tests {
 
         let err = wait_for_configuration_packet(
             &mut Cursor::new(input),
+            CompressionState::disabled(),
             SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
             "selected known packs",
         )

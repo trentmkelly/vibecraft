@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import net from 'node:net'
 import test from 'node:test'
+import { inflateSync } from 'node:zlib'
 
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
@@ -35,7 +36,7 @@ test('raw 26.1.2 malformed client packets are rejected at status, login, configu
         const socket = await connect()
         const reader = new FrameReader(socket)
         await enterConfiguration(socket, reader, 'BadConfig')
-        socket.write(frame(99))
+        socket.write(encodeClientPacket(reader.compressionThreshold, 99))
         return observeRejection(socket, reader, { allowedDisconnectIds: [2] })
       }
     },
@@ -45,7 +46,7 @@ test('raw 26.1.2 malformed client packets are rejected at status, login, configu
         const socket = await connect()
         const reader = new FrameReader(socket)
         await enterPlay(socket, reader, 'BadPlay')
-        socket.write(frame(999))
+        socket.write(encodeClientPacket(reader.compressionThreshold, 999))
         return observeRejection(socket, reader, { allowedDisconnectIds: [32] })
       }
     }
@@ -61,9 +62,15 @@ test('raw 26.1.2 malformed client packets are rejected at status, login, configu
 async function enterConfiguration (socket, reader, username) {
   socket.write(frame(0, handshakePayload(2)))
   socket.write(frame(0, writeString(username), randomUuidBytes()))
-  const loginSuccess = await reader.nextFrame()
+  let loginSuccess = await reader.nextFrame()
+  if (loginSuccess.packetId === 3) {
+    const threshold = readVarInt(loginSuccess.body, 0)
+    if (!threshold) throw new Error('missing compression threshold')
+    reader.setCompression(threshold.value)
+    loginSuccess = await reader.nextFrame()
+  }
   assert.equal(loginSuccess.packetId, 2)
-  socket.write(frame(3))
+  socket.write(encodeClientPacket(reader.compressionThreshold, 3))
   while (true) {
     const packet = await reader.nextFrame()
     if (packet.packetId === 14) break
@@ -72,11 +79,11 @@ async function enterConfiguration (socket, reader, username) {
 
 async function enterPlay (socket, reader, username) {
   await enterConfiguration(socket, reader, username)
-  socket.write(frame(7, writeVarInt(0)))
+  socket.write(encodeClientPacket(reader.compressionThreshold, 7, writeVarInt(0)))
   while (true) {
     const packet = await reader.nextFrame()
     if (packet.packetId === 3) {
-      socket.write(frame(3))
+      socket.write(encodeClientPacket(reader.compressionThreshold, 3))
       break
     }
   }
@@ -131,6 +138,7 @@ class FrameReader {
   constructor (socket) {
     this.buffer = Buffer.alloc(0)
     this.waiters = []
+    this.compressionThreshold = null
     socket.on('data', chunk => {
       this.buffer = Buffer.concat([this.buffer, chunk])
       this.pump()
@@ -148,7 +156,7 @@ class FrameReader {
 
   pump () {
     while (this.waiters.length > 0) {
-      const decoded = tryDecodeFrame(this.buffer)
+      const decoded = tryDecodeFrame(this.buffer, this.compressionThreshold)
       if (!decoded) return
       this.buffer = this.buffer.subarray(decoded.frameLength)
       this.waiters.shift().resolve(decoded.frame)
@@ -158,14 +166,24 @@ class FrameReader {
   rejectAll (error) {
     for (const waiter of this.waiters.splice(0)) waiter.reject(error)
   }
+
+  setCompression (threshold) {
+    this.compressionThreshold = threshold
+  }
 }
 
-function tryDecodeFrame (buffer) {
+function tryDecodeFrame (buffer, compressionThreshold = null) {
   const length = readVarInt(buffer)
   if (!length) return null
   const end = length.offset + length.value
   if (buffer.length < end) return null
-  const payload = buffer.subarray(length.offset, end)
+  let payload = buffer.subarray(length.offset, end)
+  if (compressionThreshold != null) {
+    const dataLength = readVarInt(payload)
+    if (!dataLength) return null
+    const body = payload.subarray(dataLength.offset)
+    payload = dataLength.value > 0 ? inflateSync(body) : body
+  }
   const packetId = readVarInt(payload)
   return {
     frameLength: end,
@@ -199,6 +217,13 @@ function handshakePayload (nextState) {
 function frame (packetId, ...parts) {
   const payload = Buffer.concat([writeVarInt(packetId), ...parts])
   return Buffer.concat([writeVarInt(payload.length), payload])
+}
+
+function encodeClientPacket (compressionThreshold, packetId, ...parts) {
+  const payload = Buffer.concat([writeVarInt(packetId), ...parts])
+  if (compressionThreshold == null) return Buffer.concat([writeVarInt(payload.length), payload])
+  const compressedPayload = Buffer.concat([writeVarInt(0), payload])
+  return Buffer.concat([writeVarInt(compressedPayload.length), compressedPayload])
 }
 
 function writeString (value) {

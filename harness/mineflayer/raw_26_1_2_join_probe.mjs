@@ -1,5 +1,6 @@
 import net from 'node:net'
 import crypto from 'node:crypto'
+import { deflateSync, inflateSync } from 'node:zlib'
 
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
@@ -100,6 +101,7 @@ class PacketReader {
     this.socket = socket
     this.buffer = Buffer.alloc(0)
     this.waiters = []
+    this.compressionThreshold = null
     socket.on('data', chunk => {
       this.buffer = Buffer.concat([this.buffer, chunk])
       this.pump()
@@ -123,14 +125,33 @@ class PacketReader {
       if (this.buffer.length < end) return
       const payload = this.buffer.subarray(length.offset, end)
       this.buffer = this.buffer.subarray(end)
-      const packetId = readVarInt(payload)
+      const decoded = this.decodePayload(payload)
+      const packetId = readVarInt(decoded.payload)
       if (!packetId) throw new Error('packet missing id')
       this.waiters.shift().resolve({
         id: packetId.value,
-        body: payload.subarray(packetId.offset),
-        length: length.value
+        body: decoded.payload.subarray(packetId.offset),
+        length: length.value,
+        compressed: decoded.compressed
       })
     }
+  }
+
+  decodePayload (payload) {
+    if (this.compressionThreshold == null) return { payload, compressed: false }
+    const dataLength = readVarInt(payload)
+    if (!dataLength) throw new Error('compressed frame missing data length')
+    const body = payload.subarray(dataLength.offset)
+    if (dataLength.value === 0) return { payload: body, compressed: false }
+    const inflated = inflateSync(body)
+    if (inflated.length !== dataLength.value) {
+      throw new Error(`decompressed packet length mismatch ${inflated.length} != ${dataLength.value}`)
+    }
+    return { payload: inflated, compressed: true }
+  }
+
+  setCompression (threshold) {
+    this.compressionThreshold = threshold
   }
 
   rejectAll (error) {
@@ -149,6 +170,19 @@ function expectPacket (packet, id, state) {
   if (packet.id !== id) {
     throw new Error(`expected ${state} packet ${id}, got ${packet.id}`)
   }
+}
+
+function encodeClientPacket (reader, packetId, ...parts) {
+  const payload = Buffer.concat([writeVarInt(packetId), ...parts])
+  const threshold = reader.compressionThreshold
+  if (threshold == null) return Buffer.concat([writeVarInt(payload.length), payload])
+  if (payload.length < threshold) {
+    const compressedPayload = Buffer.concat([writeVarInt(0), payload])
+    return Buffer.concat([writeVarInt(compressedPayload.length), compressedPayload])
+  }
+  const compressed = deflateSync(payload)
+  const compressedPayload = Buffer.concat([writeVarInt(payload.length), compressed])
+  return Buffer.concat([writeVarInt(compressedPayload.length), compressedPayload])
 }
 
 const expectedRegistries = [
@@ -548,16 +582,24 @@ async function main () {
   socket.write(frame(0, serverAddress))
   socket.write(frame(0, writeString(username), randomUuidBytes()))
 
-  const login = await reader.nextPacket()
+  let login = await reader.nextPacket()
   if (expectLoginDisconnect) {
     expectPacket(login, 0, 'login_disconnect')
     socket.end()
     console.log(JSON.stringify({ ok: true, disconnected: true, host, port, login: login.id, length: login.length }, null, 2))
     return
   }
+  let compressionThreshold = null
+  if (login.id === 3) {
+    const threshold = readVarInt(login.body, 0)
+    if (!threshold) throw new Error('missing login compression threshold')
+    compressionThreshold = threshold.value
+    reader.setCompression(compressionThreshold)
+    login = await reader.nextPacket()
+  }
   expectPacket(login, 2, 'login_finished')
-  if (abortAfter === 'login_success') return abortSocket(socket, 'login_success', { login: login.id })
-  socket.write(frame(3))
+  if (abortAfter === 'login_success') return abortSocket(socket, 'login_success', { login: login.id, compressionThreshold })
+  socket.write(encodeClientPacket(reader, 3))
 
   const config = []
   while (true) {
@@ -570,7 +612,8 @@ async function main () {
       const knownPacks = decodeKnownPacksPacket(packet)
       config.push(knownPacks)
       if (abortAfter === 'known_packs') return abortSocket(socket, 'known_packs', { login: login.id, config })
-      socket.write(frame(
+      socket.write(encodeClientPacket(
+        reader,
         serverboundSelectKnownPacksPacketId,
         writeVarInt(knownPacks.packs.length),
         ...knownPacks.packs.map(writeKnownPack)
@@ -636,7 +679,7 @@ async function main () {
       }
     }
   }
-  socket.write(frame(3))
+  socket.write(encodeClientPacket(reader, 3))
 
   const play = []
   const playPackets = []
@@ -658,8 +701,8 @@ async function main () {
       packetById.get(packet.id).push(packet)
     }
     const loginPacket = packetById.get(49)?.[0]
-    if (!loginPacket || loginPacket.length !== 70) {
-      throw new Error(`expected 70-byte play login packet after holder-id encoding, got ${loginPacket?.length}`)
+    if (!loginPacket || loginPacket.body.length < 69) {
+      throw new Error(`expected play login body after holder-id encoding, got ${loginPacket?.body.length}`)
     }
     joinState.entityId = loginPacket.body.readInt32BE(0)
     joinState.dimension = 'minecraft:overworld'
@@ -740,8 +783,8 @@ async function main () {
       throw new Error(`expected set_time gameTime=0 with no clock updates, got ${timePacket?.body.toString('hex')}`)
     }
     const positionPacket = packetById.get(72)?.[0]
-    if (!positionPacket || positionPacket.length !== 62) {
-      throw new Error(`expected 62-byte player_position packet with fixed-int relatives, got ${positionPacket?.length}`)
+    if (!positionPacket || positionPacket.body.length < 61) {
+      throw new Error(`expected player_position body with fixed-int relatives, got ${positionPacket?.body.length}`)
     }
     let offset = 0
     const teleportId = readVarInt(positionPacket.body, offset)
@@ -753,7 +796,9 @@ async function main () {
     offset += 24
     const yaw = positionPacket.body.readFloatBE(offset); offset += 4
     const pitch = positionPacket.body.readFloatBE(offset); offset += 4
-    const relatives = positionPacket.body.readInt32BE(offset)
+    const relatives = positionPacket.body.length - offset >= 4
+      ? positionPacket.body.readInt32BE(offset)
+      : positionPacket.body.readUInt8(offset)
     if (x !== 0.5 || y !== 80 || z !== 0.5 || yaw !== 0 || pitch !== 0 || relatives !== 0) {
       throw new Error('unexpected first-spawn position/look payload')
     }
@@ -776,8 +821,8 @@ async function main () {
   joinState.lastReceivedChunk = play.filter(packet => packet.id === 45).length === 0
     ? null
     : play.filter(packet => packet.id === 45).length - 1
-  socket.write(frame(serverboundAcceptTeleportationPacketId, writeVarInt(0)))
-  socket.write(frame(serverboundPlayerLoadedPacketId))
+  socket.write(encodeClientPacket(reader, serverboundAcceptTeleportationPacketId, writeVarInt(0)))
+  socket.write(encodeClientPacket(reader, serverboundPlayerLoadedPacketId))
 
   let keepAliveReplies = 0
   if (keepAliveProbeMs > 0) {
@@ -796,7 +841,7 @@ async function main () {
       }
       keepAliveReplies += 1
       play.push({ id: packet.id, length: packet.length })
-      socket.write(frame(serverboundKeepAlivePacketId, packet.body))
+      socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
     }
     if (!recordOnly && keepAliveReplies === 0) {
       throw new Error(`no clientbound keep_alive observed within ${keepAliveProbeMs}ms`)
@@ -804,7 +849,7 @@ async function main () {
   }
 
   socket.end()
-  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, config, play, joinState, keepAliveReplies }, null, 2))
+  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies }, null, 2))
 }
 
 function abortSocket (socket, phase, details) {

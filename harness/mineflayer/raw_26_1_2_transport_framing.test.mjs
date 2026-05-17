@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import net from 'node:net'
 import test from 'node:test'
+import { inflateSync } from 'node:zlib'
 
 const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
@@ -19,9 +20,16 @@ test('raw 26.1.2 login transport framing preserves packet boundaries through con
   socket.write(handshakeFrame)
   socket.write(loginStartFrame)
 
-  const loginSuccess = await reader.nextFrame()
+  let compressionThreshold = null
+  let loginSuccess = await reader.nextFrame()
+  if (loginSuccess.packetId === 3) {
+    const threshold = readVarInt(loginSuccess.body, 0)
+    assert.ok(threshold)
+    compressionThreshold = threshold.value
+    reader.setCompression(compressionThreshold)
+    loginSuccess = await reader.nextFrame()
+  }
   assert.equal(loginSuccess.packetId, 2)
-  assert.equal(loginSuccess.payload.length, loginSuccess.length)
   assert.equal(loginSuccess.body.length, 16 + 1 + username.length + 1)
   assert.equal(readUuid(loginSuccess.body, 0), offlineUuid(username))
   const name = readString(loginSuccess.body, 16)
@@ -30,7 +38,7 @@ test('raw 26.1.2 login transport framing preserves packet boundaries through con
   assert.equal(properties.value, 0)
   assert.equal(properties.offset, loginSuccess.body.length)
 
-  socket.write(frame(3))
+  socket.write(encodeClientPacket(compressionThreshold, 3))
   const firstConfig = await reader.nextFrame()
   assert.equal(firstConfig.packetId, 12)
   const featureCount = readVarInt(firstConfig.body, 0)
@@ -43,7 +51,6 @@ test('raw 26.1.2 login transport framing preserves packet boundaries through con
   assert.equal(firstRegistry.packetId, 7)
   assert.equal(readString(firstRegistry.body, 0).value, 'minecraft:worldgen/biome')
 
-  assert.notEqual(loginSuccess.packetId, 3, 'offline login should not send set_compression before login success')
   socket.destroy()
 })
 
@@ -68,6 +75,7 @@ class FrameReader {
     this.socket = socket
     this.buffer = Buffer.alloc(0)
     this.waiters = []
+    this.compressionThreshold = null
     socket.on('data', chunk => {
       this.buffer = Buffer.concat([this.buffer, chunk])
       this.pump()
@@ -85,11 +93,15 @@ class FrameReader {
 
   pump () {
     while (this.waiters.length > 0) {
-      const decoded = tryDecodeFrame(this.buffer)
+      const decoded = tryDecodeFrame(this.buffer, this.compressionThreshold)
       if (!decoded) return
       this.buffer = this.buffer.subarray(decoded.frameLength)
       this.waiters.shift().resolve(decoded.frame)
     }
+  }
+
+  setCompression (threshold) {
+    this.compressionThreshold = threshold
   }
 
   rejectAll (error) {
@@ -106,12 +118,23 @@ async function connect () {
   return socket
 }
 
-function tryDecodeFrame (buffer) {
+function tryDecodeFrame (buffer, compressionThreshold = null) {
   const length = readVarInt(buffer)
   if (!length) return null
   const end = length.offset + length.value
   if (buffer.length < end) return null
-  const payload = buffer.subarray(length.offset, end)
+  let payload = buffer.subarray(length.offset, end)
+  if (compressionThreshold != null) {
+    const dataLength = readVarInt(payload)
+    if (!dataLength) return null
+    const body = payload.subarray(dataLength.offset)
+    if (dataLength.value > 0) {
+      payload = inflateSync(body)
+      assert.equal(payload.length, dataLength.value)
+    } else {
+      payload = body
+    }
+  }
   const packetId = readVarInt(payload)
   return {
     frameLength: end,
@@ -142,6 +165,13 @@ function handshakePayload ({ protocol = protocolVersion } = {}) {
 function frame (packetId, ...parts) {
   const payload = Buffer.concat([writeVarInt(packetId), ...parts])
   return Buffer.concat([writeVarInt(payload.length), payload])
+}
+
+function encodeClientPacket (compressionThreshold, packetId, ...parts) {
+  const payload = Buffer.concat([writeVarInt(packetId), ...parts])
+  if (compressionThreshold == null) return Buffer.concat([writeVarInt(payload.length), payload])
+  const framedPayload = Buffer.concat([writeVarInt(0), payload])
+  return Buffer.concat([writeVarInt(framedPayload.length), framedPayload])
 }
 
 function writeString (value) {
