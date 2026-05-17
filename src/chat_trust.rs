@@ -72,6 +72,25 @@ pub struct SignedCommandArguments {
     pub signed_arguments: BTreeMap<String, MessageSignature>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextFilterResult {
+    PassThrough(String),
+    FullyFiltered,
+    PartiallyFiltered { raw: String, mask: Vec<bool> },
+    ServiceUnavailableFallback(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerReportMetadata {
+    pub sender: Uuid,
+    pub session_id: Option<Uuid>,
+    pub message_index: Option<u32>,
+    pub signature: Option<MessageSignature>,
+    pub signed_body: Option<SignedMessageBody>,
+    pub reported_text: String,
+    pub filter_result: Option<TextFilterResult>,
+}
+
 impl ChatChain {
     pub fn new(sender: Uuid, session_id: Uuid) -> Self {
         Self {
@@ -183,6 +202,59 @@ pub fn present_player_chat(
         (None, None) => ClientChatPresentation::Unsigned {
             decorated: String::new(),
         },
+    }
+}
+
+pub fn apply_text_filter(
+    raw: impl Into<String>,
+    blocked_character_mask: Option<Vec<bool>>,
+    service_available: bool,
+) -> TextFilterResult {
+    let raw = raw.into();
+    if !service_available {
+        return TextFilterResult::ServiceUnavailableFallback(raw);
+    }
+    let Some(mask) = blocked_character_mask else {
+        return TextFilterResult::PassThrough(raw);
+    };
+    if mask.iter().all(|filtered| *filtered) {
+        TextFilterResult::FullyFiltered
+    } else if mask.iter().any(|filtered| *filtered) {
+        TextFilterResult::PartiallyFiltered { raw, mask }
+    } else {
+        TextFilterResult::PassThrough(raw)
+    }
+}
+
+pub fn report_metadata_for_message(
+    message: &SignedMessage,
+    reported_text: impl Into<String>,
+    filter_result: Option<TextFilterResult>,
+) -> PlayerReportMetadata {
+    PlayerReportMetadata {
+        sender: message.link.sender,
+        session_id: Some(message.link.session_id),
+        message_index: Some(message.link.index),
+        signature: Some(message.signature.clone()),
+        signed_body: Some(message.body.clone()),
+        reported_text: reported_text.into(),
+        filter_result,
+    }
+}
+
+pub fn report_metadata_for_unsigned(
+    sender: Uuid,
+    reported_text: impl Into<String>,
+    filter_result: Option<TextFilterResult>,
+) -> PlayerReportMetadata {
+    PlayerReportMetadata {
+        sender,
+        session_id: None,
+        message_index: None,
+        signature: None,
+        signed_body: None,
+        reported_text: reported_text.into(),
+        filter_result,
     }
 }
 
@@ -361,6 +433,56 @@ mod tests {
             command.validate_required(&["message", "target"]),
             Err(INVALID_COMMAND_SIGNATURE)
         );
+    }
+
+    #[test]
+    fn text_filter_results_preserve_vanilla_fallback_and_mask_shapes() {
+        assert_eq!(
+            apply_text_filter("hello", None, true),
+            TextFilterResult::PassThrough("hello".to_string())
+        );
+        assert_eq!(
+            apply_text_filter("bad", Some(vec![true, true, true]), true),
+            TextFilterResult::FullyFiltered
+        );
+        assert_eq!(
+            apply_text_filter("bad", Some(vec![true, false, true]), true),
+            TextFilterResult::PartiallyFiltered {
+                raw: "bad".to_string(),
+                mask: vec![true, false, true],
+            }
+        );
+        assert_eq!(
+            apply_text_filter("hello", Some(vec![true]), false),
+            TextFilterResult::ServiceUnavailableFallback("hello".to_string())
+        );
+    }
+
+    #[test]
+    fn player_report_metadata_keeps_signed_context_when_available() {
+        let message = SignedMessage {
+            link: SignedMessageLink {
+                sender: Uuid([1; 16]),
+                session_id: Uuid([2; 16]),
+                index: 5,
+            },
+            body: body("evidence"),
+            signature: MessageSignature(vec![8]),
+        };
+        let metadata = report_metadata_for_message(
+            &message,
+            "evidence",
+            Some(TextFilterResult::PassThrough("evidence".to_string())),
+        );
+        assert_eq!(metadata.sender, Uuid([1; 16]));
+        assert_eq!(metadata.session_id, Some(Uuid([2; 16])));
+        assert_eq!(metadata.message_index, Some(5));
+        assert_eq!(metadata.signature, Some(MessageSignature(vec![8])));
+        assert_eq!(metadata.signed_body.unwrap().content, "evidence");
+
+        let unsigned = report_metadata_for_unsigned(Uuid([3; 16]), "system", None);
+        assert_eq!(unsigned.session_id, None);
+        assert_eq!(unsigned.signature, None);
     }
 
     #[test]
