@@ -135,6 +135,8 @@ pub struct ServerCommandState {
     pub advancements: Vec<AdvancementDefinition>,
     pub player_advancements: Vec<PlayerAdvancementProgress>,
     pub entity_attributes: Vec<EntityAttributeState>,
+    pub fetched_profiles: Vec<FetchProfileEvent>,
+    pub avatar_profiles: Vec<AvatarProfile>,
     pub bossbars: Vec<CustomBossBar>,
     pub command_time_millis: u64,
     pub game_time_ticks: u64,
@@ -264,6 +266,27 @@ pub struct PlayerExperienceState {
     pub level: i32,
     pub progress: f32,
     pub total: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FetchProfileEvent {
+    pub query: FetchProfileQuery,
+    pub profile: NameAndId,
+    pub encoded_profile: String,
+    pub encoded_head_component: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FetchProfileQuery {
+    Name(String),
+    Id(String),
+    Entity(EntityRef),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AvatarProfile {
+    pub entity: EntityRef,
+    pub profile: NameAndId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -982,6 +1005,7 @@ pub enum CommandError {
     EnchantFailed,
     ExecuteConditionFailed,
     ExperienceSetPointsInvalid,
+    FetchProfileNotFound,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1164,6 +1188,8 @@ impl Default for ServerCommandState {
             advancements: Vec::new(),
             player_advancements: Vec::new(),
             entity_attributes: Vec::new(),
+            fetched_profiles: Vec::new(),
+            avatar_profiles: Vec::new(),
             bossbars: Vec::new(),
             command_time_millis: 0,
             game_time_ticks: 0,
@@ -1614,6 +1640,7 @@ pub fn execute_builtin_command(
         "enchant" => enchant_command(state, &parts),
         "execute" => execute_command(state, permissions, &parts),
         "experience" | "xp" => experience_command(state, &parts),
+        "fetchprofile" => fetch_profile_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -4450,6 +4477,102 @@ fn xp_needed_for_next_level(level: i32) -> i32 {
     } else {
         7 + level * 2
     }
+}
+
+fn fetch_profile_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (query, profile, feedback_key) = match parts {
+        ["fetchprofile", "name", name @ ..] if !name.is_empty() => {
+            let name = name.join(" ");
+            (
+                FetchProfileQuery::Name(name.clone()),
+                NameAndId::create_offline(&name),
+                "commands.fetchprofile.name.success",
+            )
+        }
+        ["fetchprofile", "id", id] => {
+            let id = parse_uuid_string(id)?;
+            let profile = profile_by_uuid(state, &id).ok_or(CommandError::FetchProfileNotFound)?;
+            (
+                FetchProfileQuery::Id(id),
+                profile,
+                "commands.fetchprofile.id.success",
+            )
+        }
+        ["fetchprofile", "entity", entity] => {
+            let entity = entity_ref(entity);
+            let profile = state
+                .avatar_profiles
+                .iter()
+                .find(|avatar| avatar.entity.id == entity.id)
+                .map(|avatar| avatar.profile.clone())
+                .or_else(|| {
+                    state
+                        .online_players
+                        .iter()
+                        .find(|player| player.name == entity.id)
+                        .cloned()
+                })
+                .ok_or(CommandError::FetchProfileNotFound)?;
+            (
+                FetchProfileQuery::Entity(entity),
+                profile,
+                "commands.fetchprofile.entity.success",
+            )
+        }
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+
+    state.fetched_profiles.push(FetchProfileEvent {
+        query,
+        encoded_profile: encoded_profile(&profile),
+        encoded_head_component: encoded_head_component(&profile),
+        profile,
+    });
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key,
+        broadcast_to_admins: false,
+    })
+}
+
+fn profile_by_uuid(state: &ServerCommandState, uuid: &str) -> Option<NameAndId> {
+    state
+        .online_players
+        .iter()
+        .chain(state.operator_players.iter())
+        .chain(state.whitelisted_players.iter())
+        .chain(state.banned_players.iter().map(|entry| &entry.user))
+        .chain(
+            state
+                .player_inventories
+                .iter()
+                .map(|inventory| &inventory.player),
+        )
+        .chain(state.player_experience.iter().map(|xp| &xp.player))
+        .find(|profile| profile.uuid == uuid)
+        .cloned()
+}
+
+fn encoded_profile(profile: &NameAndId) -> String {
+    format!(
+        "{{name:\"{}\",id:\"{}\"}}",
+        escape_command_string(&profile.name),
+        profile.uuid
+    )
+}
+
+fn encoded_head_component(profile: &NameAndId) -> String {
+    format!(
+        "{{type:\"object\",contents:{{type:\"player\",profile:{}}}}}",
+        encoded_profile(profile)
+    )
+}
+
+fn escape_command_string(input: &str) -> String {
+    input.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn enchant_command(
@@ -8018,6 +8141,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("enchant", "/enchant <targets> <enchantment> [level]"),
         ("execute", "/execute ... run <command>"),
         ("experience", "/experience <add|set|query> ..."),
+        ("fetchprofile", "/fetchprofile <name|id|entity> <target>"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -8483,19 +8607,20 @@ mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
         visible_command_usages, ActiveEffect, AdvancementDefinition, AttributeModifierState,
-        AttributeOperation, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
-        ChaseEvent, ChaseSession, ChatCommandKind, CloneFilter, CloneMode, CommandAvailability,
-        CommandError, CommandItemEnchantment, CommandItemStack, CommandPlayerInventory,
-        DamageCommandSource, DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind,
-        EntityMount, EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
-        GameMode, InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport,
-        Permission, PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress,
-        PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
-        PublishRequest, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
-        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
+        AttributeOperation, AvatarProfile, BlockPos, BlockStateEntry, BossBarCommandColor,
+        BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind, CloneFilter, CloneMode,
+        CommandAvailability, CommandError, CommandItemEnchantment, CommandItemStack,
+        CommandPlayerInventory, DamageCommandSource, DialogCommandEvent, EntityAnchor,
+        EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
+        EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, GameMode, InteractionHand,
+        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
+        PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState, PlayerGameMode,
+        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
+        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
+        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
+        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
+        WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -10797,6 +10922,124 @@ mod tests {
                 "experience set Steve 112 points"
             ),
             Err(CommandError::ExperienceSetPointsInvalid)
+        );
+    }
+
+    #[test]
+    fn fetchprofile_command_resolves_name_id_and_avatar_entity_profiles() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mannequin_profile = NameAndId::create_offline("DisplayAlex");
+        let mannequin = EntityRef {
+            id: "mannequin".to_string(),
+            display_name: "mannequin".to_string(),
+        };
+        let mut state = ServerCommandState {
+            online_players: vec![steve.clone()],
+            whitelisted_players: vec![alex.clone()],
+            avatar_profiles: vec![AvatarProfile {
+                entity: mannequin.clone(),
+                profile: mannequin_profile.clone(),
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("fetchprofile"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "fetchprofile name Steve"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let by_name = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fetchprofile name Steve",
+        )
+        .unwrap();
+        assert_eq!(by_name.success_count, 1);
+        assert_eq!(by_name.feedback_key, "commands.fetchprofile.name.success");
+        assert_eq!(
+            state.fetched_profiles[0].query,
+            FetchProfileQuery::Name("Steve".to_string())
+        );
+        assert_eq!(state.fetched_profiles[0].profile, steve);
+        assert!(state.fetched_profiles[0]
+            .encoded_profile
+            .contains("5627dd98-e6be-3c21-b8a8-e92344183641"));
+        assert!(state.fetched_profiles[0]
+            .encoded_head_component
+            .contains("type:\"player\""));
+
+        let by_id = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            &format!("fetchprofile id {}", alex.uuid),
+        )
+        .unwrap();
+        assert_eq!(by_id.feedback_key, "commands.fetchprofile.id.success");
+        assert_eq!(
+            state.fetched_profiles[1].query,
+            FetchProfileQuery::Id(alex.uuid.clone())
+        );
+        assert_eq!(state.fetched_profiles[1].profile, alex);
+
+        let by_entity = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fetchprofile entity mannequin",
+        )
+        .unwrap();
+        assert_eq!(
+            by_entity.feedback_key,
+            "commands.fetchprofile.entity.success"
+        );
+        assert_eq!(
+            state.fetched_profiles[2].query,
+            FetchProfileQuery::Entity(mannequin)
+        );
+        assert_eq!(state.fetched_profiles[2].profile, mannequin_profile);
+    }
+
+    #[test]
+    fn fetchprofile_command_reports_missing_and_invalid_profiles() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fetchprofile id not-a-uuid"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fetchprofile id 00000000-0000-0000-0000-000000000001"
+            ),
+            Err(CommandError::FetchProfileNotFound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fetchprofile entity pig"
+            ),
+            Err(CommandError::FetchProfileNotFound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "fetchprofile"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
