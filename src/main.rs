@@ -31,6 +31,7 @@ mod item_family_behavior;
 mod item_properties;
 mod item_stack;
 mod light;
+mod living_entity;
 mod log;
 mod management_security;
 mod network;
