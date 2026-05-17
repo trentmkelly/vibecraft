@@ -19,6 +19,7 @@ mod console;
 mod container_block;
 mod crash;
 mod creative_inventory;
+mod damage_type;
 mod dispenser_cauldron;
 mod entity_category;
 mod entity_validation;
