@@ -171,11 +171,11 @@ async function main () {
   socket.write(frame(3))
 
   const play = []
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 6; i++) {
     const packet = await reader.nextPacket()
     play.push({ id: packet.id, length: packet.length })
   }
-  for (const id of [49, 105, 72]) {
+  for (const id of [49, 105, 72, 12, 48, 11]) {
     if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
   }
   const loginPacket = play.find(packet => packet.id === 49)

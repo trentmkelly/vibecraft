@@ -29,6 +29,10 @@ const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
+const CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
+const CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
+const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 48;
+const EMPTY_SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const DAMAGE_TYPES: &[&str] = &[
     "arrow",
     "bad_respawn_point",
@@ -440,7 +444,56 @@ fn write_minimal_play_join(
         payload.write_all(&0.0f32.to_be_bytes())?;
         payload.write_all(&0.0f32.to_be_bytes())?;
         write_var_i32(payload, 0)
-    })
+    })?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
+        |_payload| Ok(()),
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
+        write_empty_spawn_chunk_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
+        |payload| write_var_i32(payload, 1),
+    )
+}
+
+fn write_empty_spawn_chunk_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    writer.write_all(&0_i32.to_be_bytes())?;
+    writer.write_all(&0_i32.to_be_bytes())?;
+    write_var_i32(writer, 0)?;
+
+    let mut section_buffer = Vec::with_capacity(EMPTY_SPAWN_CHUNK_SECTION_COUNT * 10);
+    for _ in 0..EMPTY_SPAWN_CHUNK_SECTION_COUNT {
+        section_buffer.write_all(&0_i16.to_be_bytes())?;
+        section_buffer.write_all(&0_i16.to_be_bytes())?;
+        write_single_value_paletted_container(&mut section_buffer, 0)?;
+        write_single_value_paletted_container(&mut section_buffer, 0)?;
+    }
+    write_var_i32(writer, section_buffer.len() as i32)?;
+    writer.write_all(&section_buffer)?;
+    write_var_i32(writer, 0)?;
+
+    write_empty_bitset(writer)?;
+    write_empty_bitset(writer)?;
+    write_empty_bitset(writer)?;
+    write_empty_bitset(writer)?;
+    write_var_i32(writer, 0)?;
+    write_var_i32(writer, 0)
+}
+
+fn write_single_value_paletted_container<W: Write>(writer: &mut W, id: i32) -> io::Result<()> {
+    writer.write_all(&[0])?;
+    write_var_i32(writer, id)?;
+    write_var_i32(writer, 0)
+}
+
+fn write_empty_bitset<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_var_i32(writer, 0)
 }
 
 fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
