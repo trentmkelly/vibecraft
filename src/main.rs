@@ -46,6 +46,7 @@ mod management_security;
 mod mob_family;
 mod mob_interaction;
 mod movement_physics;
+mod movement_validation;
 mod network;
 mod non_living_entity;
 mod plant;
