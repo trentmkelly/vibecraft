@@ -250,6 +250,25 @@ pub enum ConfiguredFeatureSource {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacedFeatureSourceEntry {
+    pub source: PlacedFeatureSource,
+    pub keys: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacedFeatureSource {
+    Aquatic,
+    Cave,
+    End,
+    MiscOverworld,
+    Nether,
+    Ore,
+    Tree,
+    Vegetation,
+    Village,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureConfigurationKind {
     None,
     Tree,
@@ -2176,6 +2195,312 @@ pub const CONFIGURED_FEATURES: &[ConfiguredFeatureEntry] = &[
     ),
 ];
 
+pub const PLACED_FEATURE_BOOTSTRAP_SOURCES: &[PlacedFeatureSourceEntry] = &[
+    placed_source(
+        PlacedFeatureSource::Aquatic,
+        &[
+            "minecraft:seagrass_warm",
+            "minecraft:seagrass_normal",
+            "minecraft:seagrass_cold",
+            "minecraft:seagrass_river",
+            "minecraft:seagrass_swamp",
+            "minecraft:seagrass_deep_warm",
+            "minecraft:seagrass_deep",
+            "minecraft:seagrass_deep_cold",
+            "minecraft:sea_pickle",
+            "minecraft:kelp_cold",
+            "minecraft:kelp_warm",
+            "minecraft:warm_ocean_vegetation",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::Cave,
+        &[
+            "minecraft:monster_room",
+            "minecraft:monster_room_deep",
+            "minecraft:fossil_upper",
+            "minecraft:fossil_lower",
+            "minecraft:dripstone_cluster",
+            "minecraft:large_dripstone",
+            "minecraft:pointed_dripstone",
+            "minecraft:underwater_magma",
+            "minecraft:glow_lichen",
+            "minecraft:rooted_azalea_tree",
+            "minecraft:cave_vines",
+            "minecraft:lush_caves_vegetation",
+            "minecraft:lush_caves_clay",
+            "minecraft:lush_caves_ceiling_vegetation",
+            "minecraft:spore_blossom",
+            "minecraft:classic_vines_cave_feature",
+            "minecraft:amethyst_geode",
+            "minecraft:sculk_patch_deep_dark",
+            "minecraft:sculk_patch_ancient_city",
+            "minecraft:sculk_vein",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::End,
+        &[
+            "minecraft:end_platform",
+            "minecraft:end_spike",
+            "minecraft:end_gateway_return",
+            "minecraft:chorus_plant",
+            "minecraft:end_island_decorated",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::MiscOverworld,
+        &[
+            "minecraft:ice_spike",
+            "minecraft:ice_patch",
+            "minecraft:forest_rock",
+            "minecraft:iceberg_packed",
+            "minecraft:iceberg_blue",
+            "minecraft:blue_ice",
+            "minecraft:lake_lava_underground",
+            "minecraft:lake_lava_surface",
+            "minecraft:disk_clay",
+            "minecraft:disk_gravel",
+            "minecraft:disk_sand",
+            "minecraft:disk_grass",
+            "minecraft:freeze_top_layer",
+            "minecraft:void_start_platform",
+            "minecraft:desert_well",
+            "minecraft:spring_lava",
+            "minecraft:spring_lava_frozen",
+            "minecraft:spring_water",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::Nether,
+        &[
+            "minecraft:delta",
+            "minecraft:small_basalt_columns",
+            "minecraft:large_basalt_columns",
+            "minecraft:basalt_blobs",
+            "minecraft:blackstone_blobs",
+            "minecraft:glowstone_extra",
+            "minecraft:glowstone",
+            "minecraft:crimson_forest_vegetation",
+            "minecraft:warped_forest_vegetation",
+            "minecraft:nether_sprouts",
+            "minecraft:twisting_vines",
+            "minecraft:weeping_vines",
+            "minecraft:patch_crimson_roots",
+            "minecraft:basalt_pillar",
+            "minecraft:spring_delta",
+            "minecraft:spring_closed",
+            "minecraft:spring_closed_double",
+            "minecraft:spring_open",
+            "minecraft:patch_soul_fire",
+            "minecraft:patch_fire",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::Ore,
+        &[
+            "minecraft:ore_magma",
+            "minecraft:ore_soul_sand",
+            "minecraft:ore_gold_deltas",
+            "minecraft:ore_quartz_deltas",
+            "minecraft:ore_gold_nether",
+            "minecraft:ore_quartz_nether",
+            "minecraft:ore_gravel_nether",
+            "minecraft:ore_blackstone",
+            "minecraft:ore_dirt",
+            "minecraft:ore_gravel",
+            "minecraft:ore_granite_upper",
+            "minecraft:ore_granite_lower",
+            "minecraft:ore_diorite_upper",
+            "minecraft:ore_diorite_lower",
+            "minecraft:ore_andesite_upper",
+            "minecraft:ore_andesite_lower",
+            "minecraft:ore_tuff",
+            "minecraft:ore_coal_upper",
+            "minecraft:ore_coal_lower",
+            "minecraft:ore_iron_upper",
+            "minecraft:ore_iron_middle",
+            "minecraft:ore_iron_small",
+            "minecraft:ore_gold_extra",
+            "minecraft:ore_gold",
+            "minecraft:ore_gold_lower",
+            "minecraft:ore_redstone",
+            "minecraft:ore_redstone_lower",
+            "minecraft:ore_diamond",
+            "minecraft:ore_diamond_medium",
+            "minecraft:ore_diamond_large",
+            "minecraft:ore_diamond_buried",
+            "minecraft:ore_lapis",
+            "minecraft:ore_lapis_buried",
+            "minecraft:ore_infested",
+            "minecraft:ore_emerald",
+            "minecraft:ore_ancient_debris_large",
+            "minecraft:ore_debris_small",
+            "minecraft:ore_copper",
+            "minecraft:ore_copper_large",
+            "minecraft:ore_clay",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::Tree,
+        &[
+            "minecraft:crimson_fungi",
+            "minecraft:warped_fungi",
+            "minecraft:oak_checked",
+            "minecraft:dark_oak_checked",
+            "minecraft:pale_oak_checked",
+            "minecraft:pale_oak_creaking_checked",
+            "minecraft:birch_checked",
+            "minecraft:acacia_checked",
+            "minecraft:spruce_checked",
+            "minecraft:mangrove_checked",
+            "minecraft:cherry_checked",
+            "minecraft:pine_on_snow",
+            "minecraft:spruce_on_snow",
+            "minecraft:pine_checked",
+            "minecraft:jungle_tree",
+            "minecraft:fancy_oak_checked",
+            "minecraft:mega_jungle_tree_checked",
+            "minecraft:mega_spruce_checked",
+            "minecraft:mega_pine_checked",
+            "minecraft:tall_mangrove_checked",
+            "minecraft:jungle_bush",
+            "minecraft:super_birch_bees_0002",
+            "minecraft:super_birch_bees",
+            "minecraft:oak_bees_0002_leaf_litter",
+            "minecraft:oak_bees_002",
+            "minecraft:birch_bees_0002",
+            "minecraft:birch_bees_0002_leaf_litter",
+            "minecraft:birch_bees_002",
+            "minecraft:fancy_oak_bees_0002_leaf_litter",
+            "minecraft:fancy_oak_bees_002",
+            "minecraft:fancy_oak_bees",
+            "minecraft:cherry_bees_005",
+            "minecraft:oak_leaf_litter",
+            "minecraft:dark_oak_leaf_litter",
+            "minecraft:birch_leaf_litter",
+            "minecraft:fancy_oak_leaf_litter",
+            "minecraft:fallen_oak_tree",
+            "minecraft:fallen_birch_tree",
+            "minecraft:fallen_super_birch_tree",
+            "minecraft:fallen_spruce_tree",
+            "minecraft:fallen_jungle_tree",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::Vegetation,
+        &[
+            "minecraft:bamboo_light",
+            "minecraft:bamboo",
+            "minecraft:vines",
+            "minecraft:patch_sunflower",
+            "minecraft:patch_pumpkin",
+            "minecraft:patch_grass_plain",
+            "minecraft:patch_grass_meadow",
+            "minecraft:patch_grass_forest",
+            "minecraft:patch_grass_badlands",
+            "minecraft:patch_grass_savanna",
+            "minecraft:patch_grass_normal",
+            "minecraft:patch_grass_taiga_2",
+            "minecraft:patch_grass_taiga",
+            "minecraft:patch_grass_jungle",
+            "minecraft:grass_bonemeal",
+            "minecraft:patch_dead_bush_2",
+            "minecraft:patch_dead_bush",
+            "minecraft:patch_dead_bush_badlands",
+            "minecraft:patch_dry_grass_badlands",
+            "minecraft:patch_dry_grass_desert",
+            "minecraft:patch_melon",
+            "minecraft:patch_melon_sparse",
+            "minecraft:patch_berry_common",
+            "minecraft:patch_berry_rare",
+            "minecraft:patch_waterlily",
+            "minecraft:patch_tall_grass_2",
+            "minecraft:patch_tall_grass",
+            "minecraft:patch_large_fern",
+            "minecraft:patch_bush",
+            "minecraft:patch_leaf_litter",
+            "minecraft:patch_cactus_desert",
+            "minecraft:patch_cactus_decorated",
+            "minecraft:patch_sugar_cane_swamp",
+            "minecraft:patch_sugar_cane_desert",
+            "minecraft:patch_sugar_cane_badlands",
+            "minecraft:patch_sugar_cane",
+            "minecraft:patch_firefly_bush_swamp",
+            "minecraft:patch_firefly_bush_near_water_swamp",
+            "minecraft:patch_firefly_bush_near_water",
+            "minecraft:brown_mushroom_nether",
+            "minecraft:red_mushroom_nether",
+            "minecraft:brown_mushroom_normal",
+            "minecraft:red_mushroom_normal",
+            "minecraft:brown_mushroom_taiga",
+            "minecraft:red_mushroom_taiga",
+            "minecraft:brown_mushroom_old_growth",
+            "minecraft:red_mushroom_old_growth",
+            "minecraft:brown_mushroom_swamp",
+            "minecraft:red_mushroom_swamp",
+            "minecraft:flower_warm",
+            "minecraft:flower_default",
+            "minecraft:flower_flower_forest",
+            "minecraft:flower_swamp",
+            "minecraft:flower_plains",
+            "minecraft:flower_meadow",
+            "minecraft:flower_cherry",
+            "minecraft:flower_pale_garden",
+            "minecraft:wildflowers_birch_forest",
+            "minecraft:wildflowers_meadow",
+            "minecraft:trees_plains",
+            "minecraft:dark_forest_vegetation",
+            "minecraft:pale_garden_vegetation",
+            "minecraft:flower_forest_flowers",
+            "minecraft:forest_flowers",
+            "minecraft:pale_garden_flowers",
+            "minecraft:pale_moss_patch",
+            "minecraft:trees_flower_forest",
+            "minecraft:trees_meadow",
+            "minecraft:trees_cherry",
+            "minecraft:trees_taiga",
+            "minecraft:trees_grove",
+            "minecraft:trees_badlands",
+            "minecraft:trees_snowy",
+            "minecraft:trees_swamp",
+            "minecraft:trees_windswept_savanna",
+            "minecraft:trees_savanna",
+            "minecraft:birch_tall",
+            "minecraft:trees_birch",
+            "minecraft:trees_windswept_forest",
+            "minecraft:trees_windswept_hills",
+            "minecraft:trees_water",
+            "minecraft:trees_birch_and_oak_leaf_litter",
+            "minecraft:trees_sparse_jungle",
+            "minecraft:trees_old_growth_spruce_taiga",
+            "minecraft:trees_old_growth_pine_taiga",
+            "minecraft:trees_jungle",
+            "minecraft:bamboo_vegetation",
+            "minecraft:mushroom_island_vegetation",
+            "minecraft:trees_mangrove",
+        ],
+    ),
+    placed_source(
+        PlacedFeatureSource::Village,
+        &[
+            "minecraft:pile_hay",
+            "minecraft:pile_melon",
+            "minecraft:pile_snow",
+            "minecraft:pile_ice",
+            "minecraft:pile_pumpkin",
+            "minecraft:oak",
+            "minecraft:acacia",
+            "minecraft:spruce",
+            "minecraft:pine",
+            "minecraft:patch_cactus",
+            "minecraft:flower_plain",
+            "minecraft:patch_taiga_grass",
+            "minecraft:patch_berry_bush",
+        ],
+    ),
+];
+
 const fn feature_type(
     id: &'static str,
     configuration: FeatureConfigurationKind,
@@ -2190,6 +2515,13 @@ const fn feature_type(
 
 const fn cf(id: &'static str, source: ConfiguredFeatureSource) -> ConfiguredFeatureEntry {
     ConfiguredFeatureEntry { id, source }
+}
+
+const fn placed_source(
+    source: PlacedFeatureSource,
+    keys: &'static [&'static str],
+) -> PlacedFeatureSourceEntry {
+    PlacedFeatureSourceEntry { source, keys }
 }
 
 impl NoiseSettings {
@@ -2612,6 +2944,19 @@ pub fn configured_feature(id: &str) -> Option<&'static ConfiguredFeatureEntry> {
     })
 }
 
+pub fn placed_feature_source(id: &str) -> Option<PlacedFeatureSource> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    PLACED_FEATURE_BOOTSTRAP_SOURCES
+        .iter()
+        .find(|entry| {
+            entry.keys.iter().any(|key| {
+                key.strip_prefix("minecraft:")
+                    .is_some_and(|entry_name| entry_name == name)
+            })
+        })
+        .map(|entry| entry.source)
+}
+
 pub fn carver_can_reach(
     chunk_mid_x: f64,
     chunk_mid_z: f64,
@@ -2636,15 +2981,15 @@ mod tests {
         CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightRange,
         MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WorldCarverType,
-        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
-        CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
-        FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS,
-        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
-        Y_DENSITY,
+        OreVeinifierConstants, PlacedFeatureSource, SurfaceRuleKind, SurfaceRulePreset,
+        VerticalAnchor, WorldCarverType, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS,
+        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SURFACE_CONDITION_TYPES,
+        SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -3501,6 +3846,58 @@ mod tests {
         assert_eq!(
             super::configured_feature("sculk_patch_ancient_city").map(|feature| feature.source),
             Some(ConfiguredFeatureSource::Cave)
+        );
+    }
+
+    #[test]
+    fn placed_feature_bootstrap_keys_match_vanilla_sources() {
+        assert_eq!(PLACED_FEATURE_BOOTSTRAP_SOURCES.len(), 9);
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES
+                .iter()
+                .map(|entry| (entry.source, entry.keys.len()))
+                .collect::<Vec<_>>(),
+            vec![
+                (PlacedFeatureSource::Aquatic, 12),
+                (PlacedFeatureSource::Cave, 20),
+                (PlacedFeatureSource::End, 5),
+                (PlacedFeatureSource::MiscOverworld, 18),
+                (PlacedFeatureSource::Nether, 20),
+                (PlacedFeatureSource::Ore, 40),
+                (PlacedFeatureSource::Tree, 41),
+                (PlacedFeatureSource::Vegetation, 89),
+                (PlacedFeatureSource::Village, 13),
+            ]
+        );
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES
+                .iter()
+                .map(|entry| entry.keys.len())
+                .sum::<usize>(),
+            258
+        );
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES[0].keys.first().copied(),
+            Some("minecraft:seagrass_warm")
+        );
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES
+                .last()
+                .and_then(|entry| entry.keys.last())
+                .copied(),
+            Some("minecraft:patch_berry_bush")
+        );
+        assert_eq!(
+            super::placed_feature_source("ore_diamond"),
+            Some(PlacedFeatureSource::Ore)
+        );
+        assert_eq!(
+            super::placed_feature_source("minecraft:pale_oak_creaking_checked"),
+            Some(PlacedFeatureSource::Tree)
+        );
+        assert_eq!(
+            super::placed_feature_source("trees_mangrove"),
+            Some(PlacedFeatureSource::Vegetation)
         );
     }
 }
