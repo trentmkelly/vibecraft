@@ -75,9 +75,11 @@ const SPAWN_CHUNK_BATCH_SIZE: i32 =
 const SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const SUPERFLAT_SOLID_SECTION_INDEX: usize = 8;
 const AIR_BLOCK_STATE_ID: i32 = 0;
-const GRASS_BLOCK_STATE_ID: i32 = 2;
+const GRASS_BLOCK_STATE_ID: i32 = 9;
+const DIRT_BLOCK_STATE_ID: i32 = 10;
+const BEDROCK_BLOCK_STATE_ID: i32 = 85;
 const PLAINS_BIOME_ID: i32 = 1;
-const FULL_SECTION_BLOCK_COUNT: i16 = 16 * 16 * 16;
+const SUPERFLAT_SOLID_BLOCK_COUNT: i16 = 4 * 16 * 16;
 
 #[derive(Clone, Default)]
 struct ActiveLoginRegistry {
@@ -1555,19 +1557,18 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
 
     let mut section_buffer = Vec::with_capacity(SPAWN_CHUNK_SECTION_COUNT * 10);
     for section_index in 0..SPAWN_CHUNK_SECTION_COUNT {
-        let block_state_id = if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
-            GRASS_BLOCK_STATE_ID
+        let non_empty_block_count = if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
+            SUPERFLAT_SOLID_BLOCK_COUNT
         } else {
-            AIR_BLOCK_STATE_ID
-        };
-        let non_empty_block_count = if block_state_id == AIR_BLOCK_STATE_ID {
             0
-        } else {
-            FULL_SECTION_BLOCK_COUNT
         };
         section_buffer.write_all(&non_empty_block_count.to_be_bytes())?;
         section_buffer.write_all(&0_i16.to_be_bytes())?;
-        write_single_value_paletted_container(&mut section_buffer, block_state_id)?;
+        if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
+            write_superflat_block_state_container(&mut section_buffer)?;
+        } else {
+            write_single_value_paletted_container(&mut section_buffer, AIR_BLOCK_STATE_ID)?;
+        }
         write_single_value_paletted_container(&mut section_buffer, PLAINS_BIOME_ID)?;
     }
     write_var_i32(writer, section_buffer.len() as i32)?;
@@ -1589,6 +1590,45 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
 fn write_single_value_paletted_container<W: Write>(writer: &mut W, id: i32) -> io::Result<()> {
     writer.write_all(&[0])?;
     write_var_i32(writer, id)
+}
+
+fn write_superflat_block_state_container<W: Write>(writer: &mut W) -> io::Result<()> {
+    const BITS_PER_ENTRY: u8 = 4;
+    const BLOCKS_PER_SECTION: usize = 16 * 16 * 16;
+    const VALUES_PER_LONG: usize = 64 / BITS_PER_ENTRY as usize;
+
+    writer.write_all(&[BITS_PER_ENTRY])?;
+    write_var_i32(writer, 4)?;
+    write_var_i32(writer, AIR_BLOCK_STATE_ID)?;
+    write_var_i32(writer, BEDROCK_BLOCK_STATE_ID)?;
+    write_var_i32(writer, DIRT_BLOCK_STATE_ID)?;
+    write_var_i32(writer, GRASS_BLOCK_STATE_ID)?;
+
+    let mut storage = vec![0_u64; BLOCKS_PER_SECTION / VALUES_PER_LONG];
+    for y in 0..16 {
+        let palette_index = match y {
+            12 => 1_u64,
+            13 | 14 => 2_u64,
+            15 => 3_u64,
+            _ => 0_u64,
+        };
+        if palette_index == 0 {
+            continue;
+        }
+        for z in 0..16 {
+            for x in 0..16 {
+                let block_index = (y << 8) | (z << 4) | x;
+                let word_index = block_index / VALUES_PER_LONG;
+                let bit_index = (block_index - word_index * VALUES_PER_LONG) * BITS_PER_ENTRY as usize;
+                storage[word_index] |= palette_index << bit_index;
+            }
+        }
+    }
+
+    for word in storage {
+        writer.write_all(&word.to_be_bytes())?;
+    }
+    Ok(())
 }
 
 fn write_empty_bitset<W: Write>(writer: &mut W) -> io::Result<()> {
@@ -2878,6 +2918,7 @@ mod tests {
         write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
+        write_superflat_block_state_container,
         write_vanilla_banner_pattern_registry_packet,
         write_vanilla_cat_sound_variant_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet,
@@ -2892,9 +2933,11 @@ mod tests {
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet, CompressionState, BANNER_PATTERNS,
         BANNER_PATTERN_TAGS, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS, INSTRUMENTS, JUKEBOX_SONGS,
+        BEDROCK_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
-        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, TRIM_MATERIALS, VERSION_NAME,
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SUPERFLAT_SOLID_BLOCK_COUNT,
+        TRIM_MATERIALS, VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
     use crate::network::ping::ServerboundPingRequestPacket;
@@ -3288,6 +3331,42 @@ mod tests {
                 Some(Tag::Int(_))
             ));
         }
+    }
+
+    #[test]
+    fn superflat_spawn_section_uses_sparse_bedrock_dirt_grass_layers() {
+        let mut payload = Vec::new();
+        write_superflat_block_state_container(&mut payload).unwrap();
+        let mut input = Cursor::new(payload);
+
+        let mut bits = [0_u8; 1];
+        input.read_exact(&mut bits).unwrap();
+        assert_eq!(bits[0], 4);
+        assert_eq!(read_var_i32(&mut input).unwrap(), 4);
+        assert_eq!(read_var_i32(&mut input).unwrap(), 0);
+        assert_eq!(read_var_i32(&mut input).unwrap(), BEDROCK_BLOCK_STATE_ID);
+        assert_eq!(read_var_i32(&mut input).unwrap(), DIRT_BLOCK_STATE_ID);
+        assert_eq!(read_var_i32(&mut input).unwrap(), GRASS_BLOCK_STATE_ID);
+
+        let mut raw = Vec::new();
+        input.read_to_end(&mut raw).unwrap();
+        assert_eq!(raw.len(), 2048);
+        let words = raw
+            .chunks_exact(8)
+            .map(|chunk| {
+                u64::from_be_bytes([
+                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                    chunk[7],
+                ])
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(SUPERFLAT_SOLID_BLOCK_COUNT, 1024);
+        assert_eq!(words[191], 0);
+        assert_eq!(words[192], 0x1111_1111_1111_1111);
+        assert_eq!(words[208], 0x2222_2222_2222_2222);
+        assert_eq!(words[224], 0x2222_2222_2222_2222);
+        assert_eq!(words[240], 0x3333_3333_3333_3333);
     }
 
     #[test]
