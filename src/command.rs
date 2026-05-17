@@ -3,6 +3,67 @@
 use crate::player_access::NameAndId;
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
 
+const VANILLA_TRIM_PATTERNS: &[&str] = &[
+    "minecraft:sentry",
+    "minecraft:dune",
+    "minecraft:coast",
+    "minecraft:wild",
+    "minecraft:ward",
+    "minecraft:eye",
+    "minecraft:vex",
+    "minecraft:tide",
+    "minecraft:snout",
+    "minecraft:rib",
+    "minecraft:spire",
+    "minecraft:wayfinder",
+    "minecraft:shaper",
+    "minecraft:silence",
+    "minecraft:raiser",
+    "minecraft:host",
+    "minecraft:flow",
+    "minecraft:bolt",
+];
+const VANILLA_TRIM_MATERIALS: &[&str] = &[
+    "minecraft:quartz",
+    "minecraft:iron",
+    "minecraft:netherite",
+    "minecraft:redstone",
+    "minecraft:copper",
+    "minecraft:gold",
+    "minecraft:emerald",
+    "minecraft:diamond",
+    "minecraft:lapis",
+    "minecraft:amethyst",
+    "minecraft:resin",
+];
+const TRIMMABLE_ARMOR_ITEMS: &[&str] = &[
+    "minecraft:leather_helmet",
+    "minecraft:leather_chestplate",
+    "minecraft:leather_leggings",
+    "minecraft:leather_boots",
+    "minecraft:chainmail_helmet",
+    "minecraft:chainmail_chestplate",
+    "minecraft:chainmail_leggings",
+    "minecraft:chainmail_boots",
+    "minecraft:iron_helmet",
+    "minecraft:iron_chestplate",
+    "minecraft:iron_leggings",
+    "minecraft:iron_boots",
+    "minecraft:golden_helmet",
+    "minecraft:golden_chestplate",
+    "minecraft:golden_leggings",
+    "minecraft:golden_boots",
+    "minecraft:diamond_helmet",
+    "minecraft:diamond_chestplate",
+    "minecraft:diamond_leggings",
+    "minecraft:diamond_boots",
+    "minecraft:netherite_helmet",
+    "minecraft:netherite_chestplate",
+    "minecraft:netherite_leggings",
+    "minecraft:netherite_boots",
+    "minecraft:turtle_helmet",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PermissionLevel {
     All = 0,
@@ -78,6 +139,7 @@ pub struct ServerCommandState {
     pub setblock_events: Vec<SetBlockEvent>,
     pub server_pack_events: Vec<ServerPackCommandEvent>,
     pub summoned_entities: Vec<SummonedEntity>,
+    pub armor_trim_spawns: Vec<ArmorTrimSpawn>,
     pub swing_events: Vec<SwingCommandEvent>,
     pub rotation_requests: Vec<RotationRequest>,
     pub return_events: Vec<ReturnCommandEvent>,
@@ -385,6 +447,16 @@ pub struct SummonedEntity {
     pub finalized_spawn: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArmorTrimSpawn {
+    pub pattern: String,
+    pub material: String,
+    pub item: String,
+    pub position: Vec3,
+    pub named: bool,
+    pub invisible: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwingCommandEvent {
     pub target: EntityRef,
@@ -572,6 +644,7 @@ pub enum CommandError {
     ScheduleSameTick,
     ScheduleCantRemove,
     ScheduleMacro,
+    InvalidArmorTrimPattern,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -684,6 +757,7 @@ impl Default for ServerCommandState {
             setblock_events: Vec::new(),
             server_pack_events: Vec::new(),
             summoned_entities: Vec::new(),
+            armor_trim_spawns: Vec::new(),
             swing_events: Vec::new(),
             rotation_requests: Vec::new(),
             return_events: Vec::new(),
@@ -1090,6 +1164,7 @@ pub fn execute_builtin_command(
         "setworldspawn" => setworldspawn_command(state, &parts),
         "spectate" => spectate_command(state, &parts),
         "spawnpoint" => spawnpoint_command(state, &parts),
+        "spawn_armor_trims" => spawn_armor_trims_command(state, &parts),
         "version" => {
             if parts.len() != 1 {
                 return Err(CommandError::InvalidSyntax);
@@ -1992,6 +2067,61 @@ fn set_player_spawn(state: &mut ServerCommandState, player: NameAndId, respawn: 
             forced: true,
         });
     }
+}
+
+fn spawn_armor_trims_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    state
+        .command_source_player
+        .as_ref()
+        .ok_or(CommandError::InvalidSyntax)?;
+    let patterns: Vec<&'static str> = match parts {
+        ["spawn_armor_trims", "*_lag_my_game"] => VANILLA_TRIM_PATTERNS.to_vec(),
+        ["spawn_armor_trims", pattern] => {
+            let pattern = parse_resource_identifier(pattern)?;
+            if !VANILLA_TRIM_PATTERNS.contains(&pattern.as_str()) {
+                return Err(CommandError::InvalidArmorTrimPattern);
+            }
+            vec![VANILLA_TRIM_PATTERNS
+                .iter()
+                .copied()
+                .find(|entry| *entry == pattern)
+                .expect("pattern was checked above")]
+        }
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+
+    let origin = Vec3 {
+        x: state.command_source_position.x.floor() + 0.5,
+        y: state.command_source_position.y.floor() + 0.5,
+        z: state.command_source_position.z.floor() + 5.5,
+    };
+    for (material_index, material) in VANILLA_TRIM_MATERIALS.iter().enumerate() {
+        for (pattern_index, pattern) in patterns.iter().enumerate() {
+            for (item_index, item) in TRIMMABLE_ARMOR_ITEMS.iter().enumerate() {
+                state.armor_trim_spawns.push(ArmorTrimSpawn {
+                    pattern: (*pattern).to_string(),
+                    material: (*material).to_string(),
+                    item: (*item).to_string(),
+                    position: Vec3 {
+                        x: origin.x - item_index as f64 * 3.0,
+                        y: origin.y + material_index as f64 * 3.0,
+                        z: origin.z + pattern_index as f64 * 10.0,
+                    },
+                    named: item_index == 0,
+                    invisible: item_index != 0,
+                });
+            }
+        }
+    }
+
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.spawn_armor_trims.success",
+        broadcast_to_admins: true,
+    })
 }
 
 fn spectate_command(
@@ -3482,6 +3612,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ),
         ("setworldspawn", "/setworldspawn [pos] [rotation]"),
         ("spectate", "/spectate [target] [player]"),
+        (
+            "spawn_armor_trims",
+            "/spawn_armor_trims <pattern|*_lag_my_game>",
+        ),
         ("spawnpoint", "/spawnpoint [targets] [pos] [rotation]"),
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
@@ -4292,6 +4426,87 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "setworldspawn 1 2"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn spawn_armor_trims_spawns_single_pattern_grid_from_player_position() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            command_source_position: Vec3 {
+                x: 10.2,
+                y: 64.9,
+                z: -4.1,
+            },
+            ..ServerCommandState::default()
+        };
+
+        assert_eq!(
+            command_required_permission("spawn_armor_trims"),
+            PermissionLevel::Gamemasters
+        );
+
+        let result = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spawn_armor_trims sentry",
+        )
+        .unwrap();
+        assert_eq!(result.success_count, 1);
+        assert_eq!(result.feedback_key, "commands.spawn_armor_trims.success");
+        assert!(result.broadcast_to_admins);
+        assert_eq!(state.armor_trim_spawns.len(), 11 * 25);
+        assert_eq!(state.armor_trim_spawns[0].pattern, "minecraft:sentry");
+        assert_eq!(state.armor_trim_spawns[0].material, "minecraft:quartz");
+        assert_eq!(state.armor_trim_spawns[0].item, "minecraft:leather_helmet");
+        assert_eq!(
+            state.armor_trim_spawns[0].position,
+            Vec3 {
+                x: 10.5,
+                y: 64.5,
+                z: 0.5,
+            }
+        );
+        assert!(state.armor_trim_spawns[0].named);
+        assert!(!state.armor_trim_spawns[0].invisible);
+        assert!(state.armor_trim_spawns[1].invisible);
+    }
+
+    #[test]
+    fn spawn_armor_trims_spawns_all_patterns_and_rejects_invalid_sources_or_patterns() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            ..ServerCommandState::default()
+        };
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spawn_armor_trims *_lag_my_game",
+        )
+        .unwrap();
+        assert_eq!(state.armor_trim_spawns.len(), 18 * 11 * 25);
+        assert_eq!(
+            state.armor_trim_spawns.last().unwrap().pattern,
+            "minecraft:bolt"
+        );
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spawn_armor_trims nope"
+            ),
+            Err(CommandError::InvalidArmorTrimPattern)
+        );
+        state.command_source_player = None;
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spawn_armor_trims sentry"
             ),
             Err(CommandError::InvalidSyntax)
         );
