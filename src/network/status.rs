@@ -164,6 +164,142 @@ struct TrimMaterialEntry {
     overrides: &'static [(&'static str, &'static str)],
 }
 
+struct JukeboxSongEntry {
+    id: &'static str,
+    sound_event: &'static str,
+    length_seconds: f32,
+    comparator_output: i32,
+}
+
+const JUKEBOX_SONGS: &[JukeboxSongEntry] = &[
+    JukeboxSongEntry {
+        id: "13",
+        sound_event: "minecraft:music_disc.13",
+        length_seconds: 178.0,
+        comparator_output: 1,
+    },
+    JukeboxSongEntry {
+        id: "cat",
+        sound_event: "minecraft:music_disc.cat",
+        length_seconds: 185.0,
+        comparator_output: 2,
+    },
+    JukeboxSongEntry {
+        id: "blocks",
+        sound_event: "minecraft:music_disc.blocks",
+        length_seconds: 345.0,
+        comparator_output: 3,
+    },
+    JukeboxSongEntry {
+        id: "chirp",
+        sound_event: "minecraft:music_disc.chirp",
+        length_seconds: 185.0,
+        comparator_output: 4,
+    },
+    JukeboxSongEntry {
+        id: "far",
+        sound_event: "minecraft:music_disc.far",
+        length_seconds: 174.0,
+        comparator_output: 5,
+    },
+    JukeboxSongEntry {
+        id: "mall",
+        sound_event: "minecraft:music_disc.mall",
+        length_seconds: 197.0,
+        comparator_output: 6,
+    },
+    JukeboxSongEntry {
+        id: "mellohi",
+        sound_event: "minecraft:music_disc.mellohi",
+        length_seconds: 96.0,
+        comparator_output: 7,
+    },
+    JukeboxSongEntry {
+        id: "stal",
+        sound_event: "minecraft:music_disc.stal",
+        length_seconds: 150.0,
+        comparator_output: 8,
+    },
+    JukeboxSongEntry {
+        id: "strad",
+        sound_event: "minecraft:music_disc.strad",
+        length_seconds: 188.0,
+        comparator_output: 9,
+    },
+    JukeboxSongEntry {
+        id: "ward",
+        sound_event: "minecraft:music_disc.ward",
+        length_seconds: 251.0,
+        comparator_output: 10,
+    },
+    JukeboxSongEntry {
+        id: "11",
+        sound_event: "minecraft:music_disc.11",
+        length_seconds: 71.0,
+        comparator_output: 11,
+    },
+    JukeboxSongEntry {
+        id: "wait",
+        sound_event: "minecraft:music_disc.wait",
+        length_seconds: 238.0,
+        comparator_output: 12,
+    },
+    JukeboxSongEntry {
+        id: "pigstep",
+        sound_event: "minecraft:music_disc.pigstep",
+        length_seconds: 149.0,
+        comparator_output: 13,
+    },
+    JukeboxSongEntry {
+        id: "otherside",
+        sound_event: "minecraft:music_disc.otherside",
+        length_seconds: 195.0,
+        comparator_output: 14,
+    },
+    JukeboxSongEntry {
+        id: "5",
+        sound_event: "minecraft:music_disc.5",
+        length_seconds: 178.0,
+        comparator_output: 15,
+    },
+    JukeboxSongEntry {
+        id: "relic",
+        sound_event: "minecraft:music_disc.relic",
+        length_seconds: 218.0,
+        comparator_output: 14,
+    },
+    JukeboxSongEntry {
+        id: "precipice",
+        sound_event: "minecraft:music_disc.precipice",
+        length_seconds: 299.0,
+        comparator_output: 13,
+    },
+    JukeboxSongEntry {
+        id: "creator",
+        sound_event: "minecraft:music_disc.creator",
+        length_seconds: 176.0,
+        comparator_output: 12,
+    },
+    JukeboxSongEntry {
+        id: "creator_music_box",
+        sound_event: "minecraft:music_disc.creator_music_box",
+        length_seconds: 73.0,
+        comparator_output: 11,
+    },
+    JukeboxSongEntry {
+        id: "tears",
+        sound_event: "minecraft:music_disc.tears",
+        length_seconds: 175.0,
+        comparator_output: 10,
+    },
+    JukeboxSongEntry {
+        id: "lava_chicken",
+        sound_event: "minecraft:music_disc.lava_chicken",
+        length_seconds: 134.0,
+        comparator_output: 9,
+    },
+];
+
 const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     TrimMaterialEntry {
         id: "quartz",
@@ -422,6 +558,11 @@ fn handle_login_connection(
     write_framed_packet(
         stream,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_jukebox_song_registry_packet,
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cat_variant_registry_packet,
     )?;
     write_framed_packet(
@@ -646,6 +787,23 @@ fn write_minimal_trim_material_registry_packet<W: Write>(writer: &mut W) -> io::
     Ok(())
 }
 
+fn write_vanilla_jukebox_song_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:jukebox_song").unwrap(),
+    )?;
+    write_var_i32(writer, JUKEBOX_SONGS.len() as i32)?;
+    for song in JUKEBOX_SONGS {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{}", song.id)).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &jukebox_song_nbt(song))?;
+    }
+    Ok(())
+}
+
 fn write_vanilla_cat_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const CATS: &[&str] = &[
         "tabby",
@@ -835,6 +993,30 @@ fn trim_material_nbt(material: &TrimMaterialEntry) -> Tag {
     }
 
     Tag::Compound(fields)
+}
+
+fn jukebox_song_nbt(song: &JukeboxSongEntry) -> Tag {
+    Tag::Compound(vec![
+        (
+            "sound_event".to_string(),
+            Tag::String(song.sound_event.to_string()),
+        ),
+        (
+            "description".to_string(),
+            Tag::Compound(vec![(
+                "translate".to_string(),
+                Tag::String(format!("jukebox_song.minecraft.{}", song.id)),
+            )]),
+        ),
+        (
+            "length_in_seconds".to_string(),
+            Tag::Float(song.length_seconds),
+        ),
+        (
+            "comparator_output".to_string(),
+            Tag::Int(song.comparator_output),
+        ),
+    ])
 }
 
 fn single_texture_variant_nbt(asset_id: &str) -> Tag {
@@ -1371,13 +1553,14 @@ fn escape_json_string(value: &str) -> String {
 mod tests {
     use super::{
         cat_sound_variant_nbt, chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64,
-        escape_json_string, handle_legacy_status_connection, legacy_disconnect_packet,
-        legacy_version0_response, legacy_version1_response, pig_sound_variant_nbt, read_packet,
-        status_json, trim_material_nbt, wolf_sound_variant_nbt, write_legacy_string,
-        write_status_pong_packet, write_vanilla_cat_variant_registry_packet,
+        escape_json_string, handle_legacy_status_connection, jukebox_song_nbt,
+        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
+        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, wolf_sound_variant_nbt,
+        write_legacy_string, write_status_pong_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chicken_variant_registry_packet, write_vanilla_cow_variant_registry_packet,
-        write_vanilla_frog_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
-        write_vanilla_wolf_variant_registry_packet, TRIM_MATERIALS,
+        write_vanilla_frog_variant_registry_packet, write_vanilla_jukebox_song_registry_packet,
+        write_vanilla_pig_variant_registry_packet, write_vanilla_wolf_variant_registry_packet,
+        JUKEBOX_SONGS, TRIM_MATERIALS,
     };
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::read_var_i32;
@@ -1576,6 +1759,37 @@ mod tests {
             registry_element_count(write_vanilla_wolf_variant_registry_packet),
             9
         );
+    }
+
+    #[test]
+    fn jukebox_song_registry_payloads_include_disc_13_component_data() {
+        assert_eq!(
+            registry_element_count(write_vanilla_jukebox_song_registry_packet),
+            21
+        );
+        let thirteen = JUKEBOX_SONGS
+            .iter()
+            .find(|song| song.id == "13")
+            .expect("music disc 13 should be sent");
+        let tag = jukebox_song_nbt(thirteen);
+
+        assert!(matches!(
+            field_value(&tag, "sound_event"),
+            Some(Tag::String(value)) if value == "minecraft:music_disc.13"
+        ));
+        let description = compound_field(&tag, "description");
+        assert!(matches!(
+            field_value(description, "translate"),
+            Some(Tag::String(value)) if value == "jukebox_song.minecraft.13"
+        ));
+        assert!(matches!(
+            field_value(&tag, "length_in_seconds"),
+            Some(Tag::Float(value)) if (*value - 178.0).abs() < f32::EPSILON
+        ));
+        assert!(matches!(
+            field_value(&tag, "comparator_output"),
+            Some(Tag::Int(1))
+        ));
     }
 
     fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
