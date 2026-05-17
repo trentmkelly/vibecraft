@@ -21,6 +21,7 @@ mod crash;
 mod creative_inventory;
 mod dispenser_cauldron;
 mod entity_category;
+mod entity_validation;
 mod entity_variants;
 mod eula;
 mod fire;
