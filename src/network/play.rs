@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
-use crate::network::codec::{write_bitset, write_collection, Uuid};
+use crate::network::codec::{write_bitset, write_collection, write_identifier, write_string, Uuid};
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
@@ -45,6 +45,7 @@ pub const CLIENTBOUND_DEBUG_CHUNK_VALUE_PACKET_ID: i32 = 27;
 pub const CLIENTBOUND_DEBUG_ENTITY_VALUE_PACKET_ID: i32 = 28;
 pub const CLIENTBOUND_DEBUG_EVENT_PACKET_ID: i32 = 29;
 pub const CLIENTBOUND_DEBUG_SAMPLE_PACKET_ID: i32 = 30;
+pub const CLIENTBOUND_GAME_RULE_VALUES_PACKET_ID: i32 = 39;
 pub const CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID: i32 = 43;
 pub const CLIENTBOUND_LEVEL_PARTICLES_PACKET_ID: i32 = 47;
 pub const CLIENTBOUND_MAP_ITEM_DATA_PACKET_ID: i32 = 51;
@@ -369,6 +370,11 @@ pub struct ClientboundAwardStatsPacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundGameRuleValuesPacket {
+    pub values: BTreeMap<Identifier, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundScoreboardPacket {
     pub objective: String,
     pub owner: Option<String>,
@@ -662,6 +668,7 @@ pub enum PlayInstruction {
     Recipes(ClientboundRecipePacket),
     Advancements(ClientboundAdvancementsPacket),
     AwardStats(ClientboundAwardStatsPacket),
+    GameRuleValues(ClientboundGameRuleValuesPacket),
     Scoreboard(ClientboundScoreboardPacket),
     BossEvent(ClientboundBossEventPacket),
     Title(ClientboundTitlePacket),
@@ -1549,6 +1556,17 @@ impl ClientboundSetHeldSlotPacket {
     }
 }
 
+impl ClientboundGameRuleValuesPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.values.len() as i32)?;
+        for (key, value) in &self.values {
+            write_identifier(writer, key)?;
+            write_string(writer, value, 32767)?;
+        }
+        Ok(())
+    }
+}
+
 impl ServerboundMovePlayerPacket {
     fn read_shape<R: Read>(reader: &mut R, shape: MoveShape) -> io::Result<Self> {
         let mut packet = Self {
@@ -1858,7 +1876,7 @@ static CLIENTBOUND_PLAY_PACKET_NAMES: [&str; CLIENTBOUND_PLAY_PACKET_COUNT_26_1_
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::network::codec::cursor;
+    use crate::network::codec::{cursor, read_identifier, read_string};
 
     fn decoded(id: i32, payload: Vec<u8>) -> DecodedPacket {
         DecodedPacket {
@@ -1899,6 +1917,10 @@ mod tests {
         assert_eq!(
             registry.clientbound_name(CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID),
             Some("chunk_batch_start")
+        );
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_GAME_RULE_VALUES_PACKET_ID),
+            Some("game_rule_values")
         );
         assert_eq!(
             registry.clientbound_name(CLIENTBOUND_ADD_ENTITY_PACKET_ID),
@@ -1988,6 +2010,12 @@ mod tests {
             PlayInstruction::AwardStats(ClientboundAwardStatsPacket {
                 stats: vec![(Identifier::parse("minecraft:jump").unwrap(), 3)],
             }),
+            PlayInstruction::GameRuleValues(ClientboundGameRuleValuesPacket {
+                values: BTreeMap::from([(
+                    Identifier::parse("minecraft:keep_inventory").unwrap(),
+                    "true".to_string(),
+                )]),
+            }),
             PlayInstruction::Scoreboard(ClientboundScoreboardPacket {
                 objective: "sidebar".to_string(),
                 owner: Some("Steve".to_string()),
@@ -2059,11 +2087,46 @@ mod tests {
             }),
         ];
 
-        assert_eq!(instructions.len(), 14);
+        assert_eq!(instructions.len(), 15);
         assert!(matches!(instructions[0], PlayInstruction::Container(_)));
-        assert!(matches!(instructions[4], PlayInstruction::Scoreboard(_)));
-        assert!(matches!(instructions[10], PlayInstruction::WorldBorder(_)));
-        assert!(matches!(instructions[13], PlayInstruction::Debug(_)));
+        assert!(matches!(
+            instructions[4],
+            PlayInstruction::GameRuleValues(_)
+        ));
+        assert!(matches!(instructions[5], PlayInstruction::Scoreboard(_)));
+        assert!(matches!(instructions[11], PlayInstruction::WorldBorder(_)));
+        assert!(matches!(instructions[14], PlayInstruction::Debug(_)));
+    }
+
+    #[test]
+    fn game_rule_values_packet_writes_registry_key_string_map() {
+        let packet = ClientboundGameRuleValuesPacket {
+            values: BTreeMap::from([
+                (
+                    Identifier::parse("minecraft:keep_inventory").unwrap(),
+                    "true".to_string(),
+                ),
+                (
+                    Identifier::parse("minecraft:random_tick_speed").unwrap(),
+                    "3".to_string(),
+                ),
+            ]),
+        };
+        let mut bytes = Vec::new();
+        packet.write(&mut bytes).unwrap();
+        let mut input = cursor(bytes);
+
+        assert_eq!(read_var_i32(&mut input).unwrap(), 2);
+        assert_eq!(
+            read_identifier(&mut input).unwrap(),
+            Identifier::parse("minecraft:keep_inventory").unwrap()
+        );
+        assert_eq!(read_string(&mut input, 32767).unwrap(), "true");
+        assert_eq!(
+            read_identifier(&mut input).unwrap(),
+            Identifier::parse("minecraft:random_tick_speed").unwrap()
+        );
+        assert_eq!(read_string(&mut input, 32767).unwrap(), "3");
     }
 
     #[test]

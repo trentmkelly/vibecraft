@@ -185,6 +185,7 @@ pub struct ServerCommandState {
     pub force_game_mode: Option<GameMode>,
     pub difficulty: Difficulty,
     pub game_rules: Vec<GameRuleState>,
+    pub game_rule_syncs: Vec<GameRuleSyncEvent>,
     pub camera_targets: Vec<CameraTarget>,
     pub untrackable_entities: Vec<EntityRef>,
     pub max_players: u32,
@@ -500,6 +501,12 @@ pub enum Difficulty {
 pub struct GameRuleState {
     pub name: String,
     pub value: GameRuleValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameRuleSyncEvent {
+    pub rule: String,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1683,6 +1690,7 @@ impl Default for ServerCommandState {
             force_game_mode: None,
             difficulty: Difficulty::Easy,
             game_rules: default_game_rules(),
+            game_rule_syncs: Vec::new(),
             camera_targets: Vec::new(),
             untrackable_entities: Vec::new(),
             max_players: 20,
@@ -7722,6 +7730,10 @@ fn gamerule_command(
             let current = game_rule_value(state, &normalized)?;
             let parsed = parse_game_rule_value(value, &current, definition)?;
             set_game_rule_value(state, normalized, parsed);
+            state.game_rule_syncs.push(GameRuleSyncEvent {
+                rule: format!("minecraft:{}", definition.name),
+                value: parsed.sync_value(),
+            });
             Ok(CommandResult {
                 success_count: parsed.command_result(),
                 feedback_key: "commands.gamerule.set",
@@ -9822,6 +9834,13 @@ impl GameRuleValue {
         match self {
             Self::Bool(value) => i32::from(*value),
             Self::Int(value) => *value,
+        }
+    }
+
+    fn sync_value(&self) -> String {
+        match self {
+            Self::Bool(value) => value.to_string(),
+            Self::Int(value) => value.to_string(),
         }
     }
 }
@@ -13944,6 +13963,13 @@ mod tests {
             super::game_rule_value(&state, "minecraft:doDaylightCycle").unwrap(),
             super::GameRuleValue::Bool(false)
         );
+        assert_eq!(
+            state.game_rule_syncs[0],
+            super::GameRuleSyncEvent {
+                rule: "minecraft:advance_time".to_string(),
+                value: "false".to_string(),
+            }
+        );
 
         let set_int = execute_builtin_command(
             &mut state,
@@ -13955,6 +13981,13 @@ mod tests {
         assert_eq!(
             super::game_rule_value(&state, "randomTickSpeed").unwrap(),
             super::GameRuleValue::Int(12)
+        );
+        assert_eq!(
+            state.game_rule_syncs[1],
+            super::GameRuleSyncEvent {
+                rule: "minecraft:random_tick_speed".to_string(),
+                value: "12".to_string(),
+            }
         );
         assert_eq!(
             execute_builtin_command(
