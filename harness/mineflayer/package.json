@@ -17,7 +17,8 @@
     "gate:release": "node release_gate.mjs",
     "lifecycle": "node lifecycle_scenarios.mjs",
     "matrix:properties": "node property_matrix.mjs",
-    "rules:server": "node server_rules_scenarios.mjs"
+    "rules:server": "node server_rules_scenarios.mjs",
+    "stability:tick": "node tick_stability_scenarios.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
