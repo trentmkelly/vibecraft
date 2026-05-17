@@ -142,6 +142,9 @@ pub struct ServerCommandState {
     pub game_time_ticks: u64,
     pub stopwatches: Vec<StopwatchState>,
     pub scheduled_functions: Vec<ScheduledFunction>,
+    pub available_functions: Vec<CommandFunctionDefinition>,
+    pub function_tags: Vec<CommandFunctionTag>,
+    pub queued_functions: Vec<QueuedFunctionCall>,
     pub macro_functions: Vec<String>,
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
@@ -554,6 +557,29 @@ pub struct ScheduledFunction {
     pub function: String,
     pub tag: bool,
     pub trigger_tick: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandFunctionDefinition {
+    pub id: String,
+    pub commands: Vec<String>,
+    pub macro_parameters: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandFunctionTag {
+    pub id: String,
+    pub functions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedFunctionCall {
+    pub id: String,
+    pub commands: Vec<String>,
+    pub arguments: Option<String>,
+    pub source_dimension: String,
+    pub suppressed_output: bool,
+    pub permission_level: PermissionLevel,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1116,6 +1142,9 @@ pub enum CommandError {
     TeamAlreadyEmpty,
     TeamOptionUnchanged,
     SetBlockFailed,
+    FunctionNoFunctions,
+    FunctionArgumentNotCompound,
+    FunctionInstantiationFailure,
     ScheduleSameTick,
     ScheduleCantRemove,
     ScheduleMacro,
@@ -1257,6 +1286,9 @@ impl Default for ServerCommandState {
             game_time_ticks: 0,
             stopwatches: Vec::new(),
             scheduled_functions: Vec::new(),
+            available_functions: Vec::new(),
+            function_tags: Vec::new(),
+            queued_functions: Vec::new(),
             macro_functions: Vec::new(),
             command_source_player: None,
             command_source_entity: None,
@@ -1710,6 +1742,7 @@ pub fn execute_builtin_command(
         "fill" => fill_command(state, &parts),
         "fillbiome" => fill_biome_command(state, &parts),
         "forceload" => forceload_command(state, &parts),
+        "function" => function_command(state, &parts),
         "gamemode" => gamemode_command(state, &parts),
         "gamerule" => gamerule_command(state, &parts),
         "say" => {
@@ -6048,6 +6081,95 @@ fn schedule_command(
     }
 }
 
+fn function_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() < 2 || parts[0] != "function" {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let name = parse_schedule_function(parts[1])?;
+    let mut arguments = None;
+    if parts.len() > 2 {
+        if parts[2] == "with" {
+            return Err(CommandError::FunctionArgumentNotCompound);
+        }
+        if parts.len() != 3 {
+            return Err(CommandError::InvalidSyntax);
+        }
+        if !looks_like_compound_tag(parts[2]) {
+            return Err(CommandError::FunctionArgumentNotCompound);
+        }
+        arguments = Some(parts[2].to_string());
+    }
+
+    let functions = resolve_command_functions(state, &name.0, name.1)?;
+    if functions.is_empty() {
+        return Err(CommandError::FunctionNoFunctions);
+    }
+    let mut queued = 0;
+    for function in functions {
+        if !function.macro_parameters.is_empty() && arguments.is_none() {
+            return Err(CommandError::FunctionInstantiationFailure);
+        }
+        state.queued_functions.push(QueuedFunctionCall {
+            id: function.id.clone(),
+            commands: function.commands.clone(),
+            arguments: arguments.clone(),
+            source_dimension: state.command_source_dimension.clone(),
+            suppressed_output: true,
+            permission_level: PermissionLevel::Gamemasters,
+        });
+        queued += 1;
+    }
+    Ok(CommandResult {
+        success_count: queued,
+        feedback_key: if queued == 1 {
+            "commands.function.scheduled.single"
+        } else {
+            "commands.function.scheduled.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn resolve_command_functions(
+    state: &ServerCommandState,
+    id: &str,
+    tag: bool,
+) -> Result<Vec<CommandFunctionDefinition>, CommandError> {
+    if tag {
+        let tag = state
+            .function_tags
+            .iter()
+            .find(|entry| entry.id == id)
+            .ok_or(CommandError::FunctionNoFunctions)?;
+        Ok(tag
+            .functions
+            .iter()
+            .filter_map(|function_id| {
+                state
+                    .available_functions
+                    .iter()
+                    .find(|function| function.id == *function_id)
+                    .cloned()
+            })
+            .collect())
+    } else {
+        Ok(state
+            .available_functions
+            .iter()
+            .find(|function| function.id == id)
+            .cloned()
+            .into_iter()
+            .collect())
+    }
+}
+
+fn looks_like_compound_tag(input: &str) -> bool {
+    input.starts_with('{') && input.ends_with('}')
+}
+
 fn scoreboard_command(
     state: &mut ServerCommandState,
     parts: &[&str],
@@ -8590,6 +8712,7 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("fill", "/fill <from> <to> <block> [mode]"),
         ("fillbiome", "/fillbiome <from> <to> <biome> [replace <filter>]"),
         ("forceload", "/forceload <add|remove|query> ..."),
+        ("function", "/function <name|#tag> [arguments]"),
         ("gamemode", "/gamemode <gamemode> [target]"),
         ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
@@ -9058,18 +9181,18 @@ mod tests {
         AttributeOperation, AvatarProfile, BiomeEntry, BlockPos, BlockStateEntry,
         BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession, ChatCommandKind,
         ChunkPos, CloneFilter, CloneMode, CommandAvailability, CommandError,
-        CommandItemEnchantment, CommandItemStack, CommandPlayerInventory, DamageCommandSource,
-        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
-        EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
-        FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
-        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
-        PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState, PlayerGameMode,
-        PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest, ReloadRequest, RespawnData,
-        ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest,
-        ScheduledFunction, ScoreboardObjective, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, Vec3, VersionInfo,
-        WeatherMode,
+        CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment, CommandItemStack,
+        CommandPlayerInventory, DamageCommandSource, DialogCommandEvent, EntityAnchor,
+        EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef, EntityState,
+        EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk, GameMode,
+        InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
+        PermissionLevel, PlaySoundRequest, PlayerAdvancementProgress, PlayerExperienceState,
+        PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn, PublishRequest,
+        QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent,
+        RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardObjective,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -9314,6 +9437,135 @@ mod tests {
                 &mut state,
                 LevelBasedPermissionSet::GAMEMASTER,
                 "schedule function Bad 1t"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+    }
+
+    #[test]
+    fn function_command_queues_single_function_tags_and_arguments() {
+        let mut state = ServerCommandState {
+            command_source_dimension: "minecraft:the_nether".to_string(),
+            available_functions: vec![
+                CommandFunctionDefinition {
+                    id: "minecraft:tick/foo".to_string(),
+                    commands: vec!["say one".to_string(), "return 4".to_string()],
+                    macro_parameters: Vec::new(),
+                },
+                CommandFunctionDefinition {
+                    id: "minecraft:tick/bar".to_string(),
+                    commands: vec!["say two".to_string()],
+                    macro_parameters: vec!["name".to_string()],
+                },
+            ],
+            function_tags: vec![CommandFunctionTag {
+                id: "minecraft:tick/load".to_string(),
+                functions: vec![
+                    "minecraft:tick/foo".to_string(),
+                    "minecraft:tick/bar".to_string(),
+                ],
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("function"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "function tick/foo"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let single = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "function tick/foo",
+        )
+        .unwrap();
+        assert_eq!(single.success_count, 1);
+        assert_eq!(single.feedback_key, "commands.function.scheduled.single");
+        assert_eq!(
+            state.queued_functions[0],
+            QueuedFunctionCall {
+                id: "minecraft:tick/foo".to_string(),
+                commands: vec!["say one".to_string(), "return 4".to_string()],
+                arguments: None,
+                source_dimension: "minecraft:the_nether".to_string(),
+                suppressed_output: true,
+                permission_level: PermissionLevel::Gamemasters,
+            }
+        );
+
+        let tagged = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "function #tick/load {name:\"Steve\"}",
+        )
+        .unwrap();
+        assert_eq!(tagged.success_count, 2);
+        assert_eq!(tagged.feedback_key, "commands.function.scheduled.multiple");
+        assert_eq!(state.queued_functions.len(), 3);
+        assert_eq!(
+            state.queued_functions[2].arguments,
+            Some("{name:\"Steve\"}".to_string())
+        );
+    }
+
+    #[test]
+    fn function_command_reports_missing_and_argument_failures() {
+        let mut state = ServerCommandState {
+            available_functions: vec![CommandFunctionDefinition {
+                id: "minecraft:macro".to_string(),
+                commands: vec!["say $(name)".to_string()],
+                macro_parameters: vec!["name".to_string()],
+            }],
+            function_tags: vec![CommandFunctionTag {
+                id: "minecraft:empty".to_string(),
+                functions: Vec::new(),
+            }],
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "function missing"
+            ),
+            Err(CommandError::FunctionNoFunctions)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "function #empty"
+            ),
+            Err(CommandError::FunctionNoFunctions)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "function macro"
+            ),
+            Err(CommandError::FunctionInstantiationFailure)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "function macro not_compound"
+            ),
+            Err(CommandError::FunctionArgumentNotCompound)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "function Bad"
             ),
             Err(CommandError::InvalidSyntax)
         );
