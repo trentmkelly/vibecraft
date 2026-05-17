@@ -51,6 +51,7 @@ mod item_properties;
 mod item_stack;
 mod light;
 mod living_entity;
+mod localization_keys;
 mod log;
 mod loot_system;
 mod management_security;
