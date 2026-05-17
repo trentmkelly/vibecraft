@@ -358,6 +358,304 @@ pub struct SelectableSingleInputRecipe {
     pub recipe: Option<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemAmount {
+    pub item: &'static str,
+    pub count: u32,
+}
+
+impl ItemAmount {
+    pub const fn one(item: &'static str) -> Self {
+        Self { item, count: 1 }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IngredientSpec {
+    Item(&'static str),
+    AnyOf(Vec<&'static str>),
+}
+
+impl IngredientSpec {
+    pub fn matches(&self, item: &'static str) -> bool {
+        match self {
+            IngredientSpec::Item(expected) => *expected == item,
+            IngredientSpec::AnyOf(items) => items.contains(&item),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CookingKind {
+    Smelting,
+    Blasting,
+    Smoking,
+    CampfireCooking,
+}
+
+impl CookingKind {
+    pub fn default_cooking_time(self) -> i32 {
+        match self {
+            CookingKind::Smelting => 200,
+            CookingKind::Blasting | CookingKind::Smoking => 100,
+            CookingKind::CampfireCooking => 600,
+        }
+    }
+
+    pub fn serializer(self) -> &'static str {
+        match self {
+            CookingKind::Smelting => "smelting",
+            CookingKind::Blasting => "blasting",
+            CookingKind::Smoking => "smoking",
+            CookingKind::CampfireCooking => "campfire_cooking",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialRecipeKind {
+    Transmute,
+    MapCloning,
+    MapExtending,
+    BannerDuplicate,
+    ShieldDecoration,
+    FireworkRocket,
+    FireworkStar,
+    FireworkStarFade,
+    SuspiciousStew,
+    BookCloning,
+    RepairItem,
+    DyedItem,
+    DecoratedPot,
+    Imbue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecipeKind {
+    Shaped {
+        width: usize,
+        height: usize,
+        pattern: Vec<Option<IngredientSpec>>,
+        result: ItemAmount,
+    },
+    Shapeless {
+        ingredients: Vec<IngredientSpec>,
+        result: ItemAmount,
+    },
+    Cooking {
+        kind: CookingKind,
+        ingredient: IngredientSpec,
+        result: ItemAmount,
+        experience_millis: i32,
+        cooking_time: Option<i32>,
+    },
+    Stonecutting {
+        ingredient: IngredientSpec,
+        result: ItemAmount,
+    },
+    SmithingTransform {
+        template: IngredientSpec,
+        base: IngredientSpec,
+        addition: IngredientSpec,
+        result: ItemAmount,
+    },
+    SmithingTrim {
+        template: IngredientSpec,
+        base: IngredientSpec,
+        addition: IngredientSpec,
+    },
+    Special {
+        kind: SpecialRecipeKind,
+        result_hint: Option<ItemAmount>,
+    },
+}
+
+impl RecipeKind {
+    pub fn serializer(&self) -> &'static str {
+        match self {
+            RecipeKind::Shaped { .. } => "crafting_shaped",
+            RecipeKind::Shapeless { .. } => "crafting_shapeless",
+            RecipeKind::Cooking { kind, .. } => kind.serializer(),
+            RecipeKind::Stonecutting { .. } => "stonecutting",
+            RecipeKind::SmithingTransform { .. } => "smithing_transform",
+            RecipeKind::SmithingTrim { .. } => "smithing_trim",
+            RecipeKind::Special { kind, .. } => match kind {
+                SpecialRecipeKind::Transmute => "crafting_transmute",
+                SpecialRecipeKind::MapCloning => "crafting_special_mapcloning",
+                SpecialRecipeKind::MapExtending => "crafting_special_mapextending",
+                SpecialRecipeKind::BannerDuplicate => "crafting_special_bannerduplicate",
+                SpecialRecipeKind::ShieldDecoration => "crafting_special_shielddecoration",
+                SpecialRecipeKind::FireworkRocket => "crafting_special_firework_rocket",
+                SpecialRecipeKind::FireworkStar => "crafting_special_firework_star",
+                SpecialRecipeKind::FireworkStarFade => "crafting_special_firework_star_fade",
+                SpecialRecipeKind::SuspiciousStew => "crafting_special_suspiciousstew",
+                SpecialRecipeKind::BookCloning => "crafting_special_bookcloning",
+                SpecialRecipeKind::RepairItem => "crafting_special_repairitem",
+                SpecialRecipeKind::DyedItem => "crafting_dye",
+                SpecialRecipeKind::DecoratedPot => "crafting_decorated_pot",
+                SpecialRecipeKind::Imbue => "crafting_imbue",
+            },
+        }
+    }
+
+    pub fn matches(
+        &self,
+        grid_width: usize,
+        grid_height: usize,
+        items: &[Option<&'static str>],
+    ) -> bool {
+        match self {
+            RecipeKind::Shaped {
+                width,
+                height,
+                pattern,
+                ..
+            } => shaped_matches(*width, *height, pattern, grid_width, grid_height, items),
+            RecipeKind::Shapeless { ingredients, .. } => shapeless_matches(ingredients, items),
+            RecipeKind::Cooking { ingredient, .. }
+            | RecipeKind::Stonecutting { ingredient, .. } => {
+                let mut present = items.iter().flatten();
+                let Some(item) = present.next() else {
+                    return false;
+                };
+                present.next().is_none() && ingredient.matches(item)
+            }
+            RecipeKind::SmithingTransform {
+                template,
+                base,
+                addition,
+                ..
+            }
+            | RecipeKind::SmithingTrim {
+                template,
+                base,
+                addition,
+            } => {
+                let [Some(template_item), Some(base_item), Some(addition_item)] = items else {
+                    return false;
+                };
+                template.matches(template_item)
+                    && base.matches(base_item)
+                    && addition.matches(addition_item)
+            }
+            RecipeKind::Special { .. } => false,
+        }
+    }
+
+    pub fn assemble(&self) -> Option<ItemAmount> {
+        match self {
+            RecipeKind::Shaped { result, .. }
+            | RecipeKind::Shapeless { result, .. }
+            | RecipeKind::Cooking { result, .. }
+            | RecipeKind::Stonecutting { result, .. }
+            | RecipeKind::SmithingTransform { result, .. } => Some(result.clone()),
+            RecipeKind::SmithingTrim { .. } => None,
+            RecipeKind::Special { result_hint, .. } => result_hint.clone(),
+        }
+    }
+
+    pub fn cooking_time(&self) -> Option<i32> {
+        match self {
+            RecipeKind::Cooking {
+                kind, cooking_time, ..
+            } => Some(cooking_time.unwrap_or_else(|| kind.default_cooking_time())),
+            _ => None,
+        }
+    }
+}
+
+fn shaped_matches(
+    recipe_width: usize,
+    recipe_height: usize,
+    pattern: &[Option<IngredientSpec>],
+    grid_width: usize,
+    grid_height: usize,
+    items: &[Option<&'static str>],
+) -> bool {
+    if recipe_width == 0
+        || recipe_height == 0
+        || recipe_width > grid_width
+        || recipe_height > grid_height
+        || items.len() != grid_width * grid_height
+        || pattern.len() != recipe_width * recipe_height
+    {
+        return false;
+    }
+
+    for y_offset in 0..=(grid_height - recipe_height) {
+        for x_offset in 0..=(grid_width - recipe_width) {
+            if shaped_matches_at(
+                recipe_width,
+                recipe_height,
+                pattern,
+                grid_width,
+                grid_height,
+                items,
+                x_offset,
+                y_offset,
+            ) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn shaped_matches_at(
+    recipe_width: usize,
+    recipe_height: usize,
+    pattern: &[Option<IngredientSpec>],
+    grid_width: usize,
+    grid_height: usize,
+    items: &[Option<&'static str>],
+    x_offset: usize,
+    y_offset: usize,
+) -> bool {
+    for y in 0..grid_height {
+        for x in 0..grid_width {
+            let grid_item = items[y * grid_width + x];
+            let pattern_item = if x >= x_offset
+                && x < x_offset + recipe_width
+                && y >= y_offset
+                && y < y_offset + recipe_height
+            {
+                pattern[(y - y_offset) * recipe_width + (x - x_offset)].as_ref()
+            } else {
+                None
+            };
+
+            match (pattern_item, grid_item) {
+                (None, None) => {}
+                (Some(ingredient), Some(item)) if ingredient.matches(item) => {}
+                _ => return false,
+            }
+        }
+    }
+
+    true
+}
+
+fn shapeless_matches(ingredients: &[IngredientSpec], items: &[Option<&'static str>]) -> bool {
+    let provided: Vec<&'static str> = items.iter().flatten().copied().collect();
+    if provided.len() != ingredients.len() {
+        return false;
+    }
+
+    let mut used = vec![false; provided.len()];
+    ingredients.iter().all(|ingredient| {
+        let Some(index) = provided
+            .iter()
+            .enumerate()
+            .position(|(index, item)| !used[index] && ingredient.matches(item))
+        else {
+            return false;
+        };
+        used[index] = true;
+        true
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,5 +872,185 @@ mod tests {
         assert_eq!(displays.len(), 3);
         assert!(settings.get(RecipeBookType::Furnace).open);
         assert!(settings.get(RecipeBookType::Smoker).filtering);
+    }
+
+    #[test]
+    fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
+        let shaped = RecipeKind::Shaped {
+            width: 2,
+            height: 2,
+            pattern: vec![
+                Some(IngredientSpec::Item("minecraft:oak_planks")),
+                Some(IngredientSpec::Item("minecraft:oak_planks")),
+                Some(IngredientSpec::Item("minecraft:oak_planks")),
+                Some(IngredientSpec::Item("minecraft:oak_planks")),
+            ],
+            result: ItemAmount::one("minecraft:crafting_table"),
+        };
+        let grid = vec![
+            None,
+            Some("minecraft:oak_planks"),
+            Some("minecraft:oak_planks"),
+            None,
+            Some("minecraft:oak_planks"),
+            Some("minecraft:oak_planks"),
+            None,
+            None,
+            None,
+        ];
+
+        assert!(shaped.matches(3, 3, &grid));
+        assert_eq!(shaped.serializer(), "crafting_shaped");
+        assert_eq!(
+            shaped.assemble(),
+            Some(ItemAmount::one("minecraft:crafting_table"))
+        );
+
+        let shapeless = RecipeKind::Shapeless {
+            ingredients: vec![
+                IngredientSpec::Item("minecraft:gunpowder"),
+                IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
+            ],
+            result: ItemAmount::one("minecraft:firework_star"),
+        };
+        assert!(shapeless.matches(
+            2,
+            2,
+            &[
+                Some("minecraft:blue_dye"),
+                None,
+                Some("minecraft:gunpowder"),
+                None
+            ]
+        ));
+        assert!(!shapeless.matches(
+            2,
+            2,
+            &[
+                Some("minecraft:blue_dye"),
+                Some("minecraft:gunpowder"),
+                Some("minecraft:paper"),
+                None
+            ]
+        ));
+    }
+
+    #[test]
+    fn cooking_stonecutting_and_smithing_recipes_match_single_input_contracts() {
+        for (kind, expected_time) in [
+            (CookingKind::Smelting, 200),
+            (CookingKind::Blasting, 100),
+            (CookingKind::Smoking, 100),
+            (CookingKind::CampfireCooking, 600),
+        ] {
+            let recipe = RecipeKind::Cooking {
+                kind,
+                ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                result: ItemAmount::one("minecraft:iron_ingot"),
+                experience_millis: 700,
+                cooking_time: None,
+            };
+            assert!(recipe.matches(1, 1, &[Some("minecraft:raw_iron")]));
+            assert_eq!(recipe.cooking_time(), Some(expected_time));
+            assert_eq!(recipe.serializer(), kind.serializer());
+        }
+
+        let stonecutting = RecipeKind::Stonecutting {
+            ingredient: IngredientSpec::Item("minecraft:stone"),
+            result: ItemAmount {
+                item: "minecraft:stone_slab",
+                count: 2,
+            },
+        };
+        assert!(stonecutting.matches(1, 1, &[Some("minecraft:stone")]));
+        assert!(!stonecutting.matches(1, 2, &[Some("minecraft:stone"), Some("minecraft:stone")]));
+
+        let transform = RecipeKind::SmithingTransform {
+            template: IngredientSpec::Item("minecraft:netherite_upgrade_smithing_template"),
+            base: IngredientSpec::Item("minecraft:diamond_sword"),
+            addition: IngredientSpec::Item("minecraft:netherite_ingot"),
+            result: ItemAmount::one("minecraft:netherite_sword"),
+        };
+        let trim = RecipeKind::SmithingTrim {
+            template: IngredientSpec::Item("minecraft:spire_armor_trim_smithing_template"),
+            base: IngredientSpec::Item("minecraft:iron_chestplate"),
+            addition: IngredientSpec::Item("minecraft:amethyst_shard"),
+        };
+
+        assert!(transform.matches(
+            3,
+            1,
+            &[
+                Some("minecraft:netherite_upgrade_smithing_template"),
+                Some("minecraft:diamond_sword"),
+                Some("minecraft:netherite_ingot")
+            ]
+        ));
+        assert_eq!(transform.serializer(), "smithing_transform");
+        assert!(trim.matches(
+            3,
+            1,
+            &[
+                Some("minecraft:spire_armor_trim_smithing_template"),
+                Some("minecraft:iron_chestplate"),
+                Some("minecraft:amethyst_shard")
+            ]
+        ));
+        assert_eq!(trim.serializer(), "smithing_trim");
+        assert_eq!(trim.assemble(), None);
+    }
+
+    #[test]
+    fn special_recipe_kinds_cover_checklist_families_and_serializer_names() {
+        let special = [
+            (SpecialRecipeKind::Transmute, "crafting_transmute"),
+            (SpecialRecipeKind::MapCloning, "crafting_special_mapcloning"),
+            (
+                SpecialRecipeKind::MapExtending,
+                "crafting_special_mapextending",
+            ),
+            (
+                SpecialRecipeKind::BannerDuplicate,
+                "crafting_special_bannerduplicate",
+            ),
+            (
+                SpecialRecipeKind::ShieldDecoration,
+                "crafting_special_shielddecoration",
+            ),
+            (
+                SpecialRecipeKind::FireworkRocket,
+                "crafting_special_firework_rocket",
+            ),
+            (
+                SpecialRecipeKind::FireworkStar,
+                "crafting_special_firework_star",
+            ),
+            (
+                SpecialRecipeKind::FireworkStarFade,
+                "crafting_special_firework_star_fade",
+            ),
+            (
+                SpecialRecipeKind::SuspiciousStew,
+                "crafting_special_suspiciousstew",
+            ),
+            (
+                SpecialRecipeKind::BookCloning,
+                "crafting_special_bookcloning",
+            ),
+            (SpecialRecipeKind::RepairItem, "crafting_special_repairitem"),
+            (SpecialRecipeKind::DyedItem, "crafting_dye"),
+            (SpecialRecipeKind::DecoratedPot, "crafting_decorated_pot"),
+            (SpecialRecipeKind::Imbue, "crafting_imbue"),
+        ];
+
+        for (kind, serializer) in special {
+            let recipe = RecipeKind::Special {
+                kind,
+                result_hint: None,
+            };
+            assert_eq!(recipe.serializer(), serializer);
+            assert!(!recipe.matches(3, 3, &[None; 9]));
+            assert_eq!(recipe.assemble(), None);
+        }
     }
 }
