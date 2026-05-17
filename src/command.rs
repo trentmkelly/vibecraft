@@ -55,6 +55,8 @@ pub struct ServerCommandState {
     pub stopwatches: Vec<StopwatchState>,
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
+    pub command_source_position: Vec3,
+    pub command_source_dimension: String,
     pub online_players: Vec<NameAndId>,
     pub max_players: u32,
     pub singleplayer_owner: Option<NameAndId>,
@@ -72,6 +74,8 @@ pub struct ServerCommandState {
     pub entity_mounts: Vec<EntityMount>,
     pub entity_states: Vec<EntityState>,
     pub entity_tags: Vec<EntityTags>,
+    pub world_spawn: RespawnData,
+    pub player_spawns: Vec<PlayerSpawn>,
     pub weather: WeatherState,
     pub whitelist_enabled: bool,
     pub whitelisted_players: Vec<NameAndId>,
@@ -168,6 +172,28 @@ pub struct StopwatchState {
     pub id: String,
     pub creation_time_millis: u64,
     pub accumulated_elapsed_millis: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RespawnData {
+    pub dimension: String,
+    pub position: BlockPos,
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockPos {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerSpawn {
+    pub player: NameAndId,
+    pub respawn: RespawnData,
+    pub forced: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -366,6 +392,17 @@ impl Default for Vec3 {
     }
 }
 
+impl Default for RespawnData {
+    fn default() -> Self {
+        Self {
+            dimension: "minecraft:overworld".to_string(),
+            position: BlockPos { x: 0, y: 0, z: 0 },
+            yaw: 0.0,
+            pitch: 0.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WeatherState {
     pub mode: WeatherMode,
@@ -514,6 +551,8 @@ impl Default for ServerCommandState {
             stopwatches: Vec::new(),
             command_source_player: None,
             command_source_entity: None,
+            command_source_position: Vec3::default(),
+            command_source_dimension: "minecraft:overworld".to_string(),
             online_players: Vec::new(),
             max_players: 20,
             singleplayer_owner: None,
@@ -531,6 +570,8 @@ impl Default for ServerCommandState {
             entity_mounts: Vec::new(),
             entity_states: Vec::new(),
             entity_tags: Vec::new(),
+            world_spawn: RespawnData::default(),
+            player_spawns: Vec::new(),
             weather: WeatherState::default(),
             whitelist_enabled: false,
             whitelisted_players: Vec::new(),
@@ -921,6 +962,8 @@ pub fn execute_builtin_command(
             })
         }
         "serverpack" => server_pack_command(state, &parts),
+        "setworldspawn" => setworldspawn_command(state, &parts),
+        "spawnpoint" => spawnpoint_command(state, &parts),
         "version" => {
             if parts.len() != 1 {
                 return Err(CommandError::InvalidSyntax);
@@ -1557,6 +1600,115 @@ fn query_stopwatch(
         feedback_key: "commands.stopwatch.query",
         broadcast_to_admins: true,
     })
+}
+
+fn setworldspawn_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (position, yaw, pitch) = match parts {
+        ["setworldspawn"] => (
+            block_pos_containing(state.command_source_position),
+            0.0,
+            0.0,
+        ),
+        ["setworldspawn", x, y, z] => (parse_block_pos(x, y, z)?, 0.0, 0.0),
+        ["setworldspawn", x, y, z, yaw, pitch] => (
+            parse_block_pos(x, y, z)?,
+            parse_f32(yaw)?,
+            parse_f32(pitch)?,
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    state.world_spawn = RespawnData {
+        dimension: state.command_source_dimension.clone(),
+        position,
+        yaw,
+        pitch,
+    };
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.setworldspawn.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn spawnpoint_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let (targets, position, yaw, pitch) = match parts {
+        ["spawnpoint"] => (
+            vec![state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?],
+            block_pos_containing(state.command_source_position),
+            0.0,
+            0.0,
+        ),
+        ["spawnpoint", targets] => (
+            parse_name_list(targets),
+            block_pos_containing(state.command_source_position),
+            0.0,
+            0.0,
+        ),
+        ["spawnpoint", targets, x, y, z] => (
+            parse_name_list(targets),
+            parse_block_pos(x, y, z)?,
+            0.0,
+            0.0,
+        ),
+        ["spawnpoint", targets, x, y, z, yaw, pitch] => (
+            parse_name_list(targets),
+            parse_block_pos(x, y, z)?,
+            wrap_degrees(parse_f32(yaw)?),
+            parse_f32(pitch)?.clamp(-90.0, 90.0),
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    if targets.is_empty() {
+        return Err(CommandError::NoPlayers);
+    }
+    let count = targets.len() as i32;
+    for target in targets {
+        set_player_spawn(
+            state,
+            target,
+            RespawnData {
+                dimension: state.command_source_dimension.clone(),
+                position,
+                yaw,
+                pitch,
+            },
+        );
+    }
+    Ok(CommandResult {
+        success_count: count,
+        feedback_key: if count == 1 {
+            "commands.spawnpoint.success.single"
+        } else {
+            "commands.spawnpoint.success.multiple"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn set_player_spawn(state: &mut ServerCommandState, player: NameAndId, respawn: RespawnData) {
+    if let Some(existing) = state
+        .player_spawns
+        .iter_mut()
+        .find(|spawn| spawn.player.uuid == player.uuid)
+    {
+        existing.respawn = respawn;
+        existing.forced = true;
+    } else {
+        state.player_spawns.push(PlayerSpawn {
+            player,
+            respawn,
+            forced: true,
+        });
+    }
 }
 
 fn swing_command(
@@ -2460,6 +2612,37 @@ fn parse_f64(input: &str) -> Result<f64, CommandError> {
         .map_err(|_| CommandError::InvalidSyntax)
 }
 
+fn parse_f32(input: &str) -> Result<f32, CommandError> {
+    input
+        .parse::<f32>()
+        .map_err(|_| CommandError::InvalidSyntax)
+}
+
+fn parse_block_pos(x: &str, y: &str, z: &str) -> Result<BlockPos, CommandError> {
+    Ok(BlockPos {
+        x: x.parse::<i32>().map_err(|_| CommandError::InvalidSyntax)?,
+        y: y.parse::<i32>().map_err(|_| CommandError::InvalidSyntax)?,
+        z: z.parse::<i32>().map_err(|_| CommandError::InvalidSyntax)?,
+    })
+}
+
+fn block_pos_containing(position: Vec3) -> BlockPos {
+    BlockPos {
+        x: position.x.floor() as i32,
+        y: position.y.floor() as i32,
+        z: position.z.floor() as i32,
+    }
+}
+
+fn wrap_degrees(value: f32) -> f32 {
+    let wrapped = (value % 360.0 + 540.0) % 360.0 - 180.0;
+    if wrapped == -180.0 {
+        180.0
+    } else {
+        wrapped
+    }
+}
+
 fn parse_non_negative_f32(input: &str) -> Result<f32, CommandError> {
     let value = input
         .parse::<f32>()
@@ -2535,6 +2718,8 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
             "/serverpack push <url> [uuid] [hash]|pop <uuid>",
         ),
         ("setidletimeout", "/setidletimeout <minutes>"),
+        ("setworldspawn", "/setworldspawn [pos] [rotation]"),
+        ("spawnpoint", "/spawnpoint [targets] [pos] [rotation]"),
         ("stop", "/stop"),
         ("stopsound", "/stopsound <targets> [source|*] [sound]"),
         (
@@ -2894,14 +3079,14 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, execute_builtin_command,
-        visible_command_usages, ChatCommandKind, CommandAvailability, CommandError, EntityAnchor,
-        EntityKind, EntityMount, EntityRef, EntityState, EntityTags, GameMode, InteractionHand,
-        LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission, PermissionLevel,
-        PlaySoundRequest, PlayerRecipeBook, PublishRequest, ReloadRequest, ReturnCommandEvent,
-        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ServerCommandState,
-        ServerPackCommandEvent, ServerPackPushRequest, SoundCommandEvent, SoundSource,
-        StopSoundRequest, StopwatchState, SwingCommandEvent, TeamMembership, Vec3, VersionInfo,
-        WeatherMode,
+        visible_command_usages, BlockPos, ChatCommandKind, CommandAvailability, CommandError,
+        EntityAnchor, EntityKind, EntityMount, EntityRef, EntityState, EntityTags, GameMode,
+        InteractionHand, LevelBasedPermissionSet, ParticleCommandEvent, PerfReport, Permission,
+        PermissionLevel, PlaySoundRequest, PlayerRecipeBook, PlayerSpawn, PublishRequest,
+        ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
+        RotationRequest, SaveAllRequest, ServerCommandState, ServerPackCommandEvent,
+        ServerPackPushRequest, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
+        SwingCommandEvent, TeamMembership, Vec3, VersionInfo, WeatherMode,
     };
     use crate::player_access::NameAndId;
 
@@ -3057,6 +3242,164 @@ mod tests {
         assert_eq!(result.success_count, 8_675_309);
         assert_eq!(result.feedback_key, "commands.seed.success");
         assert!(!result.broadcast_to_admins);
+    }
+
+    #[test]
+    fn setworldspawn_uses_source_or_explicit_position_and_rotation() {
+        let mut state = ServerCommandState {
+            command_source_position: Vec3 {
+                x: 12.9,
+                y: 64.0,
+                z: -3.1,
+            },
+            command_source_dimension: "minecraft:the_nether".to_string(),
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("setworldspawn"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "setworldspawn"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let source = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setworldspawn",
+        )
+        .unwrap();
+        assert_eq!(source.success_count, 1);
+        assert_eq!(source.feedback_key, "commands.setworldspawn.success");
+        assert_eq!(
+            state.world_spawn,
+            RespawnData {
+                dimension: "minecraft:the_nether".to_string(),
+                position: BlockPos {
+                    x: 12,
+                    y: 64,
+                    z: -4
+                },
+                yaw: 0.0,
+                pitch: 0.0,
+            }
+        );
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setworldspawn 1 70 2 270 -120",
+        )
+        .unwrap();
+        assert_eq!(
+            state.world_spawn,
+            RespawnData {
+                dimension: "minecraft:the_nether".to_string(),
+                position: BlockPos { x: 1, y: 70, z: 2 },
+                yaw: 270.0,
+                pitch: -120.0,
+            }
+        );
+    }
+
+    #[test]
+    fn spawnpoint_sets_single_or_multiple_player_respawns() {
+        let mut state = ServerCommandState {
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            command_source_position: Vec3 {
+                x: 10.0,
+                y: 65.5,
+                z: -2.0,
+            },
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("spawnpoint"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "spawnpoint Steve"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let own = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spawnpoint",
+        )
+        .unwrap();
+        assert_eq!(own.success_count, 1);
+        assert_eq!(own.feedback_key, "commands.spawnpoint.success.single");
+        assert_eq!(
+            state.player_spawns[0],
+            PlayerSpawn {
+                player: NameAndId::create_offline("Steve"),
+                respawn: RespawnData {
+                    dimension: "minecraft:overworld".to_string(),
+                    position: BlockPos {
+                        x: 10,
+                        y: 65,
+                        z: -2
+                    },
+                    yaw: 0.0,
+                    pitch: 0.0,
+                },
+                forced: true,
+            }
+        );
+
+        let multiple = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "spawnpoint Steve,Alex 1 70 2 270 -120",
+        )
+        .unwrap();
+        assert_eq!(multiple.success_count, 2);
+        assert_eq!(
+            multiple.feedback_key,
+            "commands.spawnpoint.success.multiple"
+        );
+        assert_eq!(state.player_spawns[0].respawn.yaw, -90.0);
+        assert_eq!(state.player_spawns[0].respawn.pitch, -90.0);
+        assert_eq!(state.player_spawns[1].player.name, "Alex");
+    }
+
+    #[test]
+    fn spawnpoint_and_setworldspawn_reject_invalid_syntax_or_missing_player() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spawnpoint"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "spawnpoint Steve 1 2"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "setworldspawn 1 2"
+            ),
+            Err(CommandError::InvalidSyntax)
+        );
     }
 
     #[test]
