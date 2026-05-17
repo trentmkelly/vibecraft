@@ -3,6 +3,7 @@ mod block_update;
 mod chunk_manager;
 mod chunk_task;
 mod chunk_ticket;
+mod chunk_watchdog;
 mod cli;
 mod command;
 mod console;
