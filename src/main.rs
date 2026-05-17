@@ -1,3 +1,4 @@
+mod advancement_system;
 mod ai_system;
 mod attribute_system;
 mod base_entity;
