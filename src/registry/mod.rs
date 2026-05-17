@@ -2,7 +2,14 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::io::{self, Read, Write};
 use std::marker::PhantomData;
+
+use crate::network::codec::{
+    read_identifier, read_registry_value_id, write_identifier, write_registry_value_id,
+    RegistryValueId,
+};
+use crate::storage::nbt::Tag;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
@@ -85,6 +92,56 @@ impl<T> ResourceKey<T> {
 
     pub fn location(&self) -> &Identifier {
         &self.location
+    }
+
+    pub fn to_json_object(&self) -> String {
+        format!(
+            "{{\"registry\":\"{}\",\"value\":\"{}\"}}",
+            self.registry, self.location
+        )
+    }
+
+    pub fn from_json_object(raw: &str) -> Result<Self, String> {
+        let registry = parse_json_object_string_field(raw, "registry")?;
+        let value = parse_json_object_string_field(raw, "value")?;
+        Ok(Self::new(
+            Identifier::parse(&registry)?,
+            Identifier::parse(&value)?,
+        ))
+    }
+
+    pub fn to_nbt(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "registry".to_string(),
+                Tag::String(self.registry.to_string()),
+            ),
+            ("value".to_string(), Tag::String(self.location.to_string())),
+        ])
+    }
+
+    pub fn from_nbt(tag: &Tag) -> Result<Self, String> {
+        let compound = match tag {
+            Tag::Compound(values) => values,
+            _ => return Err("registry key NBT must be a compound".to_string()),
+        };
+        let registry = compound_string(compound, "registry")?;
+        let value = compound_string(compound, "value")?;
+        Ok(Self::new(
+            Identifier::parse(registry)?,
+            Identifier::parse(value)?,
+        ))
+    }
+
+    pub fn write_network<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.registry)?;
+        write_identifier(writer, &self.location)
+    }
+
+    pub fn read_network<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let registry = read_identifier(reader)?;
+        let location = read_identifier(reader)?;
+        Ok(Self::new(registry, location))
     }
 }
 
@@ -188,6 +245,44 @@ impl<T> Registry<T> {
         self.entries.get(id as usize)
     }
 
+    pub fn key_by_id(&self, id: u32) -> Option<ResourceKey<T>> {
+        self.get_by_id(id).map(|entry| entry.key().clone())
+    }
+
+    pub fn id_for_location(&self, location: &Identifier) -> Option<u32> {
+        self.get(location).map(RegistryEntry::id)
+    }
+
+    pub fn write_network_id<W: Write>(
+        &self,
+        writer: &mut W,
+        location: &Identifier,
+    ) -> io::Result<()> {
+        let id = self.id_for_location(location).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("unknown registry key {location}"),
+            )
+        })?;
+        write_registry_value_id(writer, RegistryValueId(id as i32))
+    }
+
+    pub fn read_network_key<R: Read>(&self, reader: &mut R) -> io::Result<ResourceKey<T>> {
+        let id = read_registry_value_id(reader)?.0;
+        if id < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "negative registry value id",
+            ));
+        }
+        self.key_by_id(id as u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unknown registry value id {id}"),
+            )
+        })
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &RegistryEntry<T>> {
         self.entries.iter()
     }
@@ -257,6 +352,33 @@ impl<T> Registry<T> {
         }
         Ok(())
     }
+}
+
+fn parse_json_object_string_field(raw: &str, field: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if !(trimmed.starts_with('{') && trimmed.ends_with('}')) {
+        return Err("registry key JSON must be an object".to_string());
+    }
+    let needle = format!("\"{field}\":\"");
+    let start = trimmed
+        .find(&needle)
+        .ok_or_else(|| format!("missing JSON field {field}"))?
+        + needle.len();
+    let tail = &trimmed[start..];
+    let end = tail
+        .find('"')
+        .ok_or_else(|| format!("unterminated JSON field {field}"))?;
+    Ok(tail[..end].to_string())
+}
+
+fn compound_string<'a>(compound: &'a [(String, Tag)], field: &str) -> Result<&'a str, String> {
+    compound
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::String(value)) if name == field => Some(value.as_str()),
+            _ => None,
+        })
+        .ok_or_else(|| format!("missing NBT string field {field}"))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -877,6 +999,64 @@ mod tests {
             decoded.get_by_id(1).unwrap().lifecycle(),
             Lifecycle::Experimental
         );
+    }
+
+    #[test]
+    fn registry_backed_keys_round_trip_json_nbt_and_network_forms() {
+        let key = super::ResourceKey::<String>::new(
+            Identifier::parse(registries::ITEM).unwrap(),
+            Identifier::parse("minecraft:stick").unwrap(),
+        );
+
+        let decoded_json = super::ResourceKey::<String>::from_json_object(&key.to_json_object())
+            .expect("json object should decode");
+        assert_eq!(decoded_json, key);
+
+        let decoded_nbt =
+            super::ResourceKey::<String>::from_nbt(&key.to_nbt()).expect("nbt should decode");
+        assert_eq!(decoded_nbt, key);
+
+        let mut bytes = Vec::new();
+        key.write_network(&mut bytes).unwrap();
+        let mut input = crate::network::codec::cursor(bytes);
+        assert_eq!(
+            super::ResourceKey::<String>::read_network(&mut input).unwrap(),
+            key
+        );
+    }
+
+    #[test]
+    fn registry_network_ids_resolve_to_stable_resource_keys() {
+        let mut registry = Registry::new(Identifier::parse(registries::ITEM).unwrap());
+        let stick = Identifier::parse("minecraft:stick").unwrap();
+        let apple = Identifier::parse("minecraft:apple").unwrap();
+        registry
+            .register(stick.clone(), "stick".to_string(), Lifecycle::Stable)
+            .unwrap();
+        registry
+            .register(apple.clone(), "apple".to_string(), Lifecycle::Stable)
+            .unwrap();
+
+        let mut bytes = Vec::new();
+        registry.write_network_id(&mut bytes, &apple).unwrap();
+        let mut input = crate::network::codec::cursor(bytes);
+        let key = registry.read_network_key(&mut input).unwrap();
+
+        assert_eq!(key.registry(), registry.registry_id());
+        assert_eq!(key.location(), &apple);
+        assert_eq!(registry.id_for_location(&stick), Some(0));
+        assert_eq!(registry.id_for_location(&apple), Some(1));
+
+        let mut invalid = Vec::new();
+        crate::network::codec::write_registry_value_id(
+            &mut invalid,
+            crate::network::codec::RegistryValueId(99),
+        )
+        .unwrap();
+        let err = registry
+            .read_network_key(&mut crate::network::codec::cursor(invalid))
+            .unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[test]
