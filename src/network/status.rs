@@ -19,6 +19,7 @@ use crate::network::play::{
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
+use crate::storage::nbt::Tag;
 
 const VERSION_NAME: &str = "26.1.2";
 const PROTOCOL_VERSION: i32 = 775;
@@ -28,41 +29,122 @@ const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
-const DAMAGE_TYPE_TAGS: &[&str] = &[
-    "minecraft:damages_helmet",
-    "minecraft:bypasses_armor",
-    "minecraft:bypasses_shield",
-    "minecraft:bypasses_invulnerability",
-    "minecraft:bypasses_cooldown",
-    "minecraft:bypasses_effects",
-    "minecraft:bypasses_resistance",
-    "minecraft:bypasses_enchantments",
-    "minecraft:is_fire",
-    "minecraft:is_projectile",
-    "minecraft:witch_resistant_to",
-    "minecraft:is_explosion",
-    "minecraft:is_fall",
-    "minecraft:is_drowning",
-    "minecraft:is_freezing",
-    "minecraft:is_lightning",
-    "minecraft:no_anger",
-    "minecraft:no_impact",
-    "minecraft:always_most_significant_fall",
-    "minecraft:wither_immune_to",
-    "minecraft:ignites_armor_stands",
-    "minecraft:burns_armor_stands",
-    "minecraft:avoids_guardian_thorns",
-    "minecraft:always_triggers_silverfish",
-    "minecraft:always_hurts_ender_dragons",
-    "minecraft:no_knockback",
-    "minecraft:always_kills_armor_stands",
-    "minecraft:can_break_armor_stand",
-    "minecraft:bypasses_wolf_armor",
-    "minecraft:is_player_attack",
-    "minecraft:burn_from_stepping",
-    "minecraft:panic_causes",
-    "minecraft:panic_environmental_causes",
-    "minecraft:mace_smash",
+const DAMAGE_TYPES: &[&str] = &[
+    "arrow",
+    "bad_respawn_point",
+    "cactus",
+    "campfire",
+    "cramming",
+    "dragon_breath",
+    "drown",
+    "dry_out",
+    "ender_pearl",
+    "explosion",
+    "fall",
+    "falling_anvil",
+    "falling_block",
+    "falling_stalactite",
+    "fireball",
+    "fireworks",
+    "fly_into_wall",
+    "freeze",
+    "generic",
+    "generic_kill",
+    "hot_floor",
+    "in_fire",
+    "in_wall",
+    "indirect_magic",
+    "lava",
+    "lightning_bolt",
+    "mace_smash",
+    "magic",
+    "mob_attack",
+    "mob_attack_no_aggro",
+    "mob_projectile",
+    "on_fire",
+    "out_of_world",
+    "outside_border",
+    "player_attack",
+    "player_explosion",
+    "sonic_boom",
+    "spear",
+    "spit",
+    "stalagmite",
+    "starve",
+    "sting",
+    "sweet_berry_bush",
+    "thorns",
+    "thrown",
+    "trident",
+    "unattributed_fireball",
+    "wind_charge",
+    "wither",
+    "wither_skull",
+];
+const DAMAGE_TYPE_TAGS: &[(&str, &[i32])] = &[
+    ("minecraft:damages_helmet", &[11, 12, 13]),
+    (
+        "minecraft:bypasses_armor",
+        &[
+            31, 22, 4, 6, 16, 18, 48, 5, 40, 10, 8, 17, 39, 27, 23, 32, 19, 36, 33,
+        ],
+    ),
+    (
+        "minecraft:bypasses_shield",
+        &[
+            31, 22, 4, 6, 16, 18, 48, 5, 40, 10, 8, 17, 39, 27, 23, 32, 19, 36, 33, 2, 3, 7, 11,
+            13, 20, 21, 24, 25, 42,
+        ],
+    ),
+    ("minecraft:bypasses_invulnerability", &[32, 19]),
+    ("minecraft:bypasses_cooldown", &[]),
+    ("minecraft:bypasses_effects", &[40]),
+    ("minecraft:bypasses_resistance", &[32, 19]),
+    ("minecraft:bypasses_enchantments", &[36]),
+    ("minecraft:is_fire", &[21, 3, 31, 24, 20, 46, 14]),
+    ("minecraft:is_projectile", &[0, 45, 30, 46, 14, 49, 44, 47]),
+    ("minecraft:witch_resistant_to", &[27, 23, 36, 43]),
+    ("minecraft:is_explosion", &[15, 9, 35, 1]),
+    ("minecraft:is_fall", &[10, 8, 39]),
+    ("minecraft:is_drowning", &[6]),
+    ("minecraft:is_freezing", &[17]),
+    ("minecraft:is_lightning", &[25]),
+    ("minecraft:no_anger", &[29]),
+    ("minecraft:no_impact", &[6]),
+    ("minecraft:always_most_significant_fall", &[32]),
+    ("minecraft:wither_immune_to", &[6]),
+    ("minecraft:ignites_armor_stands", &[21, 3]),
+    ("minecraft:burns_armor_stands", &[31]),
+    ("minecraft:avoids_guardian_thorns", &[27, 43, 15, 9, 35, 1]),
+    ("minecraft:always_triggers_silverfish", &[27]),
+    ("minecraft:always_hurts_ender_dragons", &[15, 9, 35, 1]),
+    (
+        "minecraft:no_knockback",
+        &[
+            9, 35, 1, 21, 25, 31, 24, 20, 22, 4, 6, 40, 2, 10, 8, 16, 32, 18, 27, 48, 5, 7, 42, 17,
+            39, 33, 19, 3, 37,
+        ],
+    ),
+    ("minecraft:always_kills_armor_stands", &[0, 45, 14, 49, 47]),
+    ("minecraft:can_break_armor_stand", &[35, 34, 37, 26]),
+    (
+        "minecraft:bypasses_wolf_armor",
+        &[32, 19, 4, 6, 7, 17, 22, 23, 27, 33, 40, 43, 48],
+    ),
+    ("minecraft:is_player_attack", &[34, 37, 26]),
+    ("minecraft:burn_from_stepping", &[3, 20]),
+    (
+        "minecraft:panic_causes",
+        &[
+            2, 17, 20, 21, 24, 25, 31, 0, 5, 9, 14, 15, 23, 27, 28, 30, 35, 36, 41, 44, 45, 46, 47,
+            48, 49, 34, 37, 26,
+        ],
+    ),
+    (
+        "minecraft:panic_environmental_causes",
+        &[2, 17, 20, 21, 24, 25, 31],
+    ),
+    ("minecraft:mace_smash", &[26]),
 ];
 
 pub fn run_status_server(
@@ -277,18 +359,48 @@ fn write_minimal_play_join(
 
 fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
-    write_var_i32(writer, 0)
+    write_var_i32(writer, DAMAGE_TYPES.len() as i32)?;
+    for damage_type in DAMAGE_TYPES {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{damage_type}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(
+            writer,
+            &Tag::Compound(vec![
+                (
+                    "message_id".to_string(),
+                    Tag::String((*damage_type).to_string()),
+                ),
+                (
+                    "scaling".to_string(),
+                    Tag::String("when_caused_by_living_non_player".to_string()),
+                ),
+                ("exhaustion".to_string(), Tag::Float(0.0)),
+            ]),
+        )?;
+    }
+    Ok(())
 }
 
 fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     write_var_i32(writer, 1)?;
     write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
     write_var_i32(writer, DAMAGE_TYPE_TAGS.len() as i32)?;
-    for tag in DAMAGE_TYPE_TAGS {
+    for (tag, entries) in DAMAGE_TYPE_TAGS {
         write_identifier(writer, &Identifier::parse(tag).unwrap())?;
-        write_var_i32(writer, 0)?;
+        write_var_i32(writer, entries.len() as i32)?;
+        for entry in *entries {
+            write_var_i32(writer, *entry)?;
+        }
     }
     Ok(())
+}
+
+fn write_network_nbt<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
+    writer.write_all(&[tag.id()])?;
+    tag.write_payload(writer)
 }
 
 fn write_clientbound_login_packet<W: Write>(
