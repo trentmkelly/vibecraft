@@ -71,6 +71,13 @@ export function diffConfigurationTranscripts (actual, official) {
   }
 }
 
+export function omittedRegistriesFromTranscript (actual, official) {
+  const actualRegistries = new Set(actual.registries.map(entry => entry.registry))
+  return official.registries
+    .map(entry => entry.registry)
+    .filter(registry => !actualRegistries.has(registry))
+}
+
 export async function recordServerConfigurationTranscript (options = {}) {
   const env = {
     ...process.env,
