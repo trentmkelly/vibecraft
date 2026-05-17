@@ -254,6 +254,33 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     assert.equal(joined.ok, true)
   })
 
+  await withRestartableServer({ username: 'ClampedStats' }, async ({ port, root, username }) => {
+    const uuid = offlineUuid(username)
+    const position = { x: 1.5, y: 80, z: 1.5, yaw: 0, pitch: 0 }
+    await writePlayerData(root, uuid, {
+      health: 27.25,
+      foodLevel: 31,
+      foodSaturation: 42.5,
+      xpProgress: 1.5,
+      xpLevel: -4,
+      xpTotal: -99,
+      selectedSlot: 42,
+      position
+    })
+
+    const joined = await runJoinProbe(port, username, {
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
+      RUSTCRAFT_EXPECT_HEALTH: '20',
+      RUSTCRAFT_EXPECT_FOOD_LEVEL: '20',
+      RUSTCRAFT_EXPECT_FOOD_SATURATION: '20',
+      RUSTCRAFT_EXPECT_XP_PROGRESS: '1',
+      RUSTCRAFT_EXPECT_XP_LEVEL: '0',
+      RUSTCRAFT_EXPECT_XP_TOTAL: '0',
+      RUSTCRAFT_EXPECT_HELD_SLOT: '0'
+    })
+    assert.equal(joined.ok, true)
+  })
+
   await withRestartableServer({ username: 'FreshSave' }, async ({ port, root, username, restart }) => {
     const uuid = offlineUuid(username)
     const playerdata = path.join(root, 'world', 'playerdata', `${uuid}.dat`)
