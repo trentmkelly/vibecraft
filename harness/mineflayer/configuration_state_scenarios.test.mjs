@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   createConfigurationCustomPayloadPlan,
+  createConfigurationReplayPlan,
   createConfigurationStatePlan,
   summarizeConfigurationCustomPayloadEvidence,
+  summarizeConfigurationReplayEvidence,
   summarizeConfigurationStateEvidence
 } from './configuration_state_scenarios.mjs'
 
@@ -110,4 +112,45 @@ test('configuration custom payload evidence requires every diagnostic surface', 
   const summary = summarizeConfigurationCustomPayloadEvidence(missingCookieResponse)
   assert.equal(summary.ok, false)
   assert.ok(summary.missing.includes('records-cookie-request-response'))
+})
+
+test('configuration replay plan requires official and RustCraft transcripts without hidden sleeps', () => {
+  const plan = createConfigurationReplayPlan()
+
+  assert.equal(plan.name, 'mineflayer-offline-configuration-replay')
+  assert.deepEqual(plan.required, [
+    'records-official-configuration-transcript',
+    'records-rustcraft-configuration-transcript',
+    'matches-login-milestones',
+    'matches-configuration-milestones',
+    'matches-play-entry-milestones',
+    'no-hidden-sleeps',
+    'no-retry-only-success'
+  ])
+})
+
+test('configuration replay evidence compares milestones and rejects sleep or retry-only success', () => {
+  const milestones = ['tcp-connect', 'login-success', 'configuration-start', 'known-packs', 'finish-configuration', 'play-login']
+  const complete = {
+    official: { configPackets: [{ id: 12 }], milestones },
+    rustcraft: { configPackets: [{ id: 12 }], milestones },
+    hiddenSleeps: [],
+    retryOnlySuccess: false
+  }
+
+  assert.equal(summarizeConfigurationReplayEvidence(complete).ok, true)
+
+  const hiddenSleepSummary = summarizeConfigurationReplayEvidence({
+    ...complete,
+    hiddenSleeps: ['waited 1000ms before reading play packet']
+  })
+  assert.equal(hiddenSleepSummary.ok, false)
+  assert.ok(hiddenSleepSummary.missing.includes('no-hidden-sleeps'))
+
+  const retryOnlySummary = summarizeConfigurationReplayEvidence({
+    ...complete,
+    retryOnlySuccess: true
+  })
+  assert.equal(retryOnlySummary.ok, false)
+  assert.ok(retryOnlySummary.missing.includes('no-retry-only-success'))
 })

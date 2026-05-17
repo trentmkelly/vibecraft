@@ -33,6 +33,23 @@ export function createConfigurationCustomPayloadPlan() {
   }
 }
 
+export function createConfigurationReplayPlan() {
+  return {
+    name: 'mineflayer-offline-configuration-replay',
+    mode: 'offline',
+    auth: 'offline',
+    required: [
+      'records-official-configuration-transcript',
+      'records-rustcraft-configuration-transcript',
+      'matches-login-milestones',
+      'matches-configuration-milestones',
+      'matches-play-entry-milestones',
+      'no-hidden-sleeps',
+      'no-retry-only-success'
+    ]
+  }
+}
+
 export function summarizeConfigurationStateEvidence(evidence, plan = createConfigurationStatePlan()) {
   const configIds = evidence.configPackets?.map(packet => packet.id) ?? []
   const registryOrder = evidence.configPackets
@@ -81,6 +98,34 @@ export function summarizeConfigurationCustomPayloadEvidence(evidence, plan = cre
     checks,
     missing
   }
+}
+
+export function summarizeConfigurationReplayEvidence(evidence, plan = createConfigurationReplayPlan()) {
+  const official = evidence.official ?? {}
+  const rustcraft = evidence.rustcraft ?? {}
+  const officialMilestones = official.milestones ?? []
+  const rustcraftMilestones = rustcraft.milestones ?? []
+
+  const checks = {
+    'records-official-configuration-transcript': Array.isArray(official.configPackets) && official.configPackets.length > 0,
+    'records-rustcraft-configuration-transcript': Array.isArray(rustcraft.configPackets) && rustcraft.configPackets.length > 0,
+    'matches-login-milestones': milestonesContainBoth(officialMilestones, rustcraftMilestones, ['tcp-connect', 'login-success']),
+    'matches-configuration-milestones': milestonesContainBoth(officialMilestones, rustcraftMilestones, ['configuration-start', 'known-packs', 'finish-configuration']),
+    'matches-play-entry-milestones': milestonesContainBoth(officialMilestones, rustcraftMilestones, ['play-login']),
+    'no-hidden-sleeps': !(evidence.hiddenSleeps?.length > 0),
+    'no-retry-only-success': evidence.retryOnlySuccess !== true
+  }
+
+  const missing = plan.required.filter(requirement => !checks[requirement])
+  return {
+    ok: missing.length === 0,
+    checks,
+    missing
+  }
+}
+
+function milestonesContainBoth(official, rustcraft, milestones) {
+  return milestones.every(milestone => official.includes(milestone) && rustcraft.includes(milestone))
 }
 
 function hasManifestKnownPack(packet, manifest) {
