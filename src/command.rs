@@ -6,6 +6,7 @@ use crate::enchantment_system::{are_compatible, enchantment};
 use crate::entity_category::mob_category;
 use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
+use crate::storage::nbt::Tag;
 use crate::world_border::{WorldBorder, WORLD_BORDER_MAX_CENTER_COORDINATE, WORLD_BORDER_MAX_SIZE};
 use crate::worldgen::configured_feature;
 
@@ -1053,6 +1054,95 @@ pub struct ScoreboardScore {
 pub struct ScoreboardDisplaySlot {
     pub slot: String,
     pub objective: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoreboardPersistence {
+    pub objectives: Vec<ScoreboardObjective>,
+    pub scores: Vec<ScoreboardScore>,
+    pub display_slots: Vec<ScoreboardDisplaySlot>,
+}
+
+impl ScoreboardPersistence {
+    pub fn from_state(state: &ServerCommandState) -> Self {
+        Self {
+            objectives: state.scoreboard_objectives.clone(),
+            scores: state.scoreboard_scores.clone(),
+            display_slots: state.scoreboard_display_slots.clone(),
+        }
+    }
+
+    pub fn apply_to_state(self, state: &mut ServerCommandState) {
+        state.scoreboard_objectives = self.objectives;
+        state.scoreboard_scores = self.scores;
+        state.scoreboard_display_slots = self.display_slots;
+    }
+
+    pub fn to_nbt(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "Objectives".to_string(),
+                Tag::List(
+                    self.objectives
+                        .iter()
+                        .map(scoreboard_objective_to_nbt)
+                        .collect(),
+                ),
+            ),
+            (
+                "PlayerScores".to_string(),
+                Tag::List(self.scores.iter().map(scoreboard_score_to_nbt).collect()),
+            ),
+            (
+                "DisplaySlots".to_string(),
+                Tag::Compound(
+                    self.display_slots
+                        .iter()
+                        .map(|slot| (slot.slot.clone(), Tag::String(slot.objective.clone())))
+                        .collect(),
+                ),
+            ),
+        ])
+    }
+
+    pub fn from_nbt(tag: &Tag) -> Result<Self, String> {
+        let root = nbt_compound(tag)?;
+        let objectives = match nbt_field(root, "Objectives") {
+            Some(Tag::List(entries)) => entries
+                .iter()
+                .map(scoreboard_objective_from_nbt)
+                .collect::<Result<Vec<_>, _>>()?,
+            Some(_) => return Err("Objectives must be a list".to_string()),
+            None => Vec::new(),
+        };
+        let scores = match nbt_field(root, "PlayerScores") {
+            Some(Tag::List(entries)) => entries
+                .iter()
+                .map(scoreboard_score_from_nbt)
+                .collect::<Result<Vec<_>, _>>()?,
+            Some(_) => return Err("PlayerScores must be a list".to_string()),
+            None => Vec::new(),
+        };
+        let display_slots = match nbt_field(root, "DisplaySlots") {
+            Some(Tag::Compound(entries)) => entries
+                .iter()
+                .map(|(slot, value)| match value {
+                    Tag::String(objective) => Ok(ScoreboardDisplaySlot {
+                        slot: slot.clone(),
+                        objective: objective.clone(),
+                    }),
+                    _ => Err("DisplaySlots values must be strings".to_string()),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            Some(_) => return Err("DisplaySlots must be a compound".to_string()),
+            None => Vec::new(),
+        };
+        Ok(Self {
+            objectives,
+            scores,
+            display_slots,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9258,6 +9348,117 @@ fn parse_score_number_format(parts: &[&str]) -> Result<String, CommandError> {
     }
 }
 
+fn scoreboard_objective_to_nbt(objective: &ScoreboardObjective) -> Tag {
+    let mut fields = vec![
+        ("Name".to_string(), Tag::String(objective.name.clone())),
+        (
+            "CriteriaName".to_string(),
+            Tag::String(objective.criteria.clone()),
+        ),
+        (
+            "DisplayName".to_string(),
+            Tag::String(objective.display_name.clone()),
+        ),
+        (
+            "RenderType".to_string(),
+            Tag::String(objective.render_type.clone()),
+        ),
+        (
+            "display_auto_update".to_string(),
+            Tag::Byte(i8::from(objective.display_auto_update)),
+        ),
+    ];
+    if let Some(format) = &objective.number_format {
+        fields.push(("NumberFormat".to_string(), Tag::String(format.clone())));
+    }
+    Tag::Compound(fields)
+}
+
+fn scoreboard_objective_from_nbt(tag: &Tag) -> Result<ScoreboardObjective, String> {
+    let fields = nbt_compound(tag)?;
+    Ok(ScoreboardObjective {
+        name: nbt_string(fields, "Name")?.to_string(),
+        criteria: nbt_string(fields, "CriteriaName")?.to_string(),
+        display_name: nbt_string(fields, "DisplayName")?.to_string(),
+        render_type: nbt_string(fields, "RenderType")?.to_string(),
+        display_auto_update: nbt_bool(fields, "display_auto_update").unwrap_or(true),
+        number_format: nbt_optional_string(fields, "NumberFormat").map(str::to_string),
+    })
+}
+
+fn scoreboard_score_to_nbt(score: &ScoreboardScore) -> Tag {
+    let mut fields = vec![
+        ("Name".to_string(), Tag::String(score.owner.clone())),
+        (
+            "Objective".to_string(),
+            Tag::String(score.objective.clone()),
+        ),
+        ("Score".to_string(), Tag::Int(score.value)),
+        ("Locked".to_string(), Tag::Byte(i8::from(score.locked))),
+    ];
+    if let Some(display_name) = &score.display_name {
+        fields.push(("DisplayName".to_string(), Tag::String(display_name.clone())));
+    }
+    if let Some(format) = &score.number_format {
+        fields.push(("NumberFormat".to_string(), Tag::String(format.clone())));
+    }
+    Tag::Compound(fields)
+}
+
+fn scoreboard_score_from_nbt(tag: &Tag) -> Result<ScoreboardScore, String> {
+    let fields = nbt_compound(tag)?;
+    Ok(ScoreboardScore {
+        owner: nbt_string(fields, "Name")?.to_string(),
+        objective: nbt_string(fields, "Objective")?.to_string(),
+        value: nbt_int(fields, "Score")?,
+        locked: nbt_bool(fields, "Locked").unwrap_or(true),
+        display_name: nbt_optional_string(fields, "DisplayName").map(str::to_string),
+        number_format: nbt_optional_string(fields, "NumberFormat").map(str::to_string),
+    })
+}
+
+fn nbt_compound(tag: &Tag) -> Result<&[(String, Tag)], String> {
+    match tag {
+        Tag::Compound(fields) => Ok(fields),
+        _ => Err("expected compound".to_string()),
+    }
+}
+
+fn nbt_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a Tag> {
+    fields
+        .iter()
+        .find_map(|(key, value)| (key == name).then_some(value))
+}
+
+fn nbt_string<'a>(fields: &'a [(String, Tag)], name: &str) -> Result<&'a str, String> {
+    match nbt_field(fields, name) {
+        Some(Tag::String(value)) => Ok(value),
+        _ => Err(format!("missing string field {name}")),
+    }
+}
+
+fn nbt_optional_string<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> {
+    match nbt_field(fields, name) {
+        Some(Tag::String(value)) => Some(value),
+        _ => None,
+    }
+}
+
+fn nbt_int(fields: &[(String, Tag)], name: &str) -> Result<i32, String> {
+    match nbt_field(fields, name) {
+        Some(Tag::Int(value)) => Ok(*value),
+        _ => Err(format!("missing int field {name}")),
+    }
+}
+
+fn nbt_bool(fields: &[(String, Tag)], name: &str) -> Option<bool> {
+    match nbt_field(fields, name) {
+        Some(Tag::Byte(value)) => Some(*value != 0),
+        Some(Tag::Int(value)) => Some(*value != 0),
+        _ => None,
+    }
+}
+
 fn scoreboard_operation(
     state: &mut ServerCommandState,
     targets: &str,
@@ -11784,12 +11985,14 @@ mod tests {
         PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
         PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
-        ScoreboardObjective, ScoreboardScore, ServerCommandState, ServerPackCommandEvent,
-        ServerPackPushRequest, SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest,
-        StopwatchState, SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction,
-        TitleTextKind, Vec3, VersionInfo, WardenSpawnTrackerState, WaypointState, WeatherMode,
+        ScoreboardDisplaySlot, ScoreboardObjective, ScoreboardPersistence, ScoreboardScore,
+        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
+        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
+        TeamMembership, TeamState, TitleCommandAction, TitleTextKind, Vec3, VersionInfo,
+        WardenSpawnTrackerState, WaypointState, WeatherMode,
     };
     use crate::player_access::NameAndId;
+    use crate::storage::nbt::Tag;
 
     #[test]
     fn permission_levels_clamp_and_compare_like_vanilla() {
@@ -12458,6 +12661,63 @@ mod tests {
             ),
             Err(CommandError::ScoreboardObjectiveNotFound)
         );
+    }
+
+    #[test]
+    fn scoreboard_objectives_scores_and_display_slots_round_trip_persistence() {
+        let mut state = ServerCommandState {
+            scoreboard_objectives: vec![ScoreboardObjective {
+                name: "kills".to_string(),
+                criteria: "dummy".to_string(),
+                display_name: "Kills".to_string(),
+                render_type: "hearts".to_string(),
+                display_auto_update: false,
+                number_format: Some("fixed:!".to_string()),
+            }],
+            scoreboard_scores: vec![ScoreboardScore {
+                owner: "Steve".to_string(),
+                objective: "kills".to_string(),
+                value: 7,
+                locked: false,
+                display_name: Some("Slayer".to_string()),
+                number_format: Some("blank".to_string()),
+            }],
+            scoreboard_display_slots: vec![ScoreboardDisplaySlot {
+                slot: "sidebar".to_string(),
+                objective: "kills".to_string(),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let persisted = ScoreboardPersistence::from_state(&state);
+        let tag = persisted.to_nbt();
+        assert!(matches!(
+            &tag,
+            Tag::Compound(fields)
+                if fields.iter().any(|(name, _)| name == "Objectives")
+                    && fields.iter().any(|(name, _)| name == "PlayerScores")
+                    && fields.iter().any(|(name, _)| name == "DisplaySlots")
+        ));
+
+        let loaded = ScoreboardPersistence::from_nbt(&tag).unwrap();
+        assert_eq!(loaded.objectives, state.scoreboard_objectives);
+        assert_eq!(loaded.scores, state.scoreboard_scores);
+        assert_eq!(loaded.display_slots, state.scoreboard_display_slots);
+
+        state.scoreboard_objectives.clear();
+        state.scoreboard_scores.clear();
+        state.scoreboard_display_slots.clear();
+        loaded.apply_to_state(&mut state);
+        assert_eq!(state.scoreboard_objectives[0].criteria, "dummy");
+        assert_eq!(state.scoreboard_objectives[0].render_type, "hearts");
+        assert!(!state.scoreboard_objectives[0].display_auto_update);
+        assert_eq!(
+            state.scoreboard_objectives[0].number_format,
+            Some("fixed:!".to_string())
+        );
+        assert_eq!(state.scoreboard_scores[0].value, 7);
+        assert!(!state.scoreboard_scores[0].locked);
+        assert_eq!(state.scoreboard_display_slots[0].slot, "sidebar");
     }
 
     #[test]
