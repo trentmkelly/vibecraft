@@ -1,0 +1,38 @@
+name: Mineflayer Login Gate
+
+on:
+  pull_request:
+    paths:
+      - "src/network/**"
+      - "src/configuration*"
+      - "src/player*"
+      - "src/storage/**"
+      - "src/tick*"
+      - "harness/mineflayer/**"
+      - ".github/workflows/mineflayer-login.yml"
+
+jobs:
+  login-gate:
+    name: Minimal offline-mode login shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: harness/mineflayer/package-lock.json
+      - name: Build RustCraft
+        run: cargo build --bin rustcraft
+      - name: Install Mineflayer harness
+        working-directory: harness/mineflayer
+        run: npm ci
+      - name: Run fast Mineflayer login shard
+        working-directory: harness/mineflayer
+        env:
+          RUSTCRAFT_BIN: ../../target/debug/rustcraft
+          RUSTCRAFT_PORT: "25565"
+          RUSTCRAFT_TIMEOUT_MS: "30000"
+        run: npm run ci:login

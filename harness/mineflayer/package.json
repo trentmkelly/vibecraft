@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node --test *.test.mjs",
     "login": "node runner.mjs",
-    "gate:login": "node login_gate.mjs"
+    "gate:login": "node login_gate.mjs",
+    "ci:login": "node ci_login_shard.mjs"
   },
   "dependencies": {
     "mineflayer": "^4.37.1"
