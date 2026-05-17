@@ -122,6 +122,191 @@ pub enum LootParamSet {
     Command,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LootSurface {
+    BlockBreak,
+    EntityDeath,
+    ChestOpen,
+    FishingRetrieve,
+    ArchaeologyBrush,
+    AdvancementReward,
+    Gift,
+    PiglinBarter,
+    Command,
+}
+
+impl LootSurface {
+    pub fn param_set(self) -> LootParamSet {
+        match self {
+            Self::BlockBreak => LootParamSet::Block,
+            Self::EntityDeath => LootParamSet::Entity,
+            Self::ChestOpen => LootParamSet::Chest,
+            Self::FishingRetrieve => LootParamSet::Fishing,
+            Self::ArchaeologyBrush => LootParamSet::Archaeology,
+            Self::AdvancementReward => LootParamSet::AdvancementReward,
+            Self::Gift => LootParamSet::Gift,
+            Self::PiglinBarter => LootParamSet::Barter,
+            Self::Command => LootParamSet::Command,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LootRequest {
+    pub surface: LootSurface,
+    pub table: String,
+    pub origin: (f64, f64, f64),
+    pub actor: Option<String>,
+    pub target_entity: Option<String>,
+    pub block: Option<String>,
+    pub tool: Option<String>,
+    pub damage_source: Option<String>,
+    pub explosion_radius: Option<f32>,
+    pub luck: f32,
+    pub looting_level: i32,
+    pub killed_by_player: bool,
+}
+
+impl LootRequest {
+    pub fn new(surface: LootSurface, table: impl Into<String>) -> Self {
+        Self {
+            surface,
+            table: table.into(),
+            origin: (0.0, 0.0, 0.0),
+            actor: None,
+            target_entity: None,
+            block: None,
+            tool: None,
+            damage_source: None,
+            explosion_radius: None,
+            luck: 0.0,
+            looting_level: 0,
+            killed_by_player: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LootDelivery {
+    DropAt((f64, f64, f64), Vec<LootStack>),
+    GiveToEntity(String, Vec<LootStack>),
+    FillContainer(Vec<Option<LootStack>>),
+    ReplaceSlots { target: String, stacks: Vec<LootStack> },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LootResolution {
+    pub surface: LootSurface,
+    pub table: String,
+    pub param_set: LootParamSet,
+    pub delivery: LootDelivery,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LootBehaviorEngine {
+    tables: HashMap<String, LootTable>,
+}
+
+impl LootBehaviorEngine {
+    pub fn new() -> Self {
+        Self { tables: HashMap::new() }
+    }
+
+    pub fn insert_table(&mut self, id: impl Into<String>, table: LootTable) {
+        self.tables.insert(id.into(), table);
+    }
+
+    pub fn resolve(&self, request: LootRequest, seed: u64) -> LootResolution {
+        let mut context = self.context_for(&request, seed);
+        let table = self
+            .tables
+            .get(&request.table)
+            .cloned()
+            .unwrap_or_else(LootTable::empty);
+        context.tables = self.tables.clone();
+        let delivery = match request.surface {
+            LootSurface::ChestOpen => LootDelivery::FillContainer(table.fill_container(&mut context, 27)),
+            LootSurface::AdvancementReward | LootSurface::Gift | LootSurface::PiglinBarter => {
+                LootDelivery::GiveToEntity(
+                    request.actor.clone().unwrap_or_else(|| "unknown".to_string()),
+                    table.evaluate(&mut context),
+                )
+            }
+            LootSurface::Command if request.actor.is_some() => LootDelivery::GiveToEntity(
+                request.actor.clone().unwrap(),
+                table.evaluate(&mut context),
+            ),
+            LootSurface::Command => LootDelivery::DropAt(request.origin, table.evaluate(&mut context)),
+            LootSurface::BlockBreak
+            | LootSurface::EntityDeath
+            | LootSurface::FishingRetrieve
+            | LootSurface::ArchaeologyBrush => {
+                LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
+            }
+        };
+
+        LootResolution {
+            surface: request.surface,
+            table: request.table,
+            param_set: request.surface.param_set(),
+            delivery,
+            warnings: context.warnings,
+        }
+    }
+
+    fn context_for(&self, request: &LootRequest, seed: u64) -> LootContext {
+        let mut context = LootContext::new(request.surface.param_set(), seed);
+        context.luck = request.luck;
+        context.looting_level = request.looting_level;
+        context.killed_by_player = request.killed_by_player;
+        context.explosion_radius = request.explosion_radius;
+        context.block = request.block.clone();
+        context.tool = request.tool.clone();
+        if let Some(actor) = &request.actor {
+            context.entity_properties.insert("actor".to_string(), actor.clone());
+        }
+        if let Some(target) = &request.target_entity {
+            context
+                .entity_properties
+                .insert("this_entity".to_string(), target.clone());
+        }
+        if let Some(damage_source) = &request.damage_source {
+            context
+                .entity_properties
+                .insert("damage_source".to_string(), damage_source.clone());
+        }
+        context
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RandomizableContainerLoot {
+    pub loot_table: Option<String>,
+    pub loot_table_seed: u64,
+    pub unpacked: bool,
+}
+
+impl RandomizableContainerLoot {
+    pub fn unpack_once(
+        &mut self,
+        engine: &LootBehaviorEngine,
+        origin: (f64, f64, f64),
+    ) -> Option<Vec<Option<LootStack>>> {
+        if self.unpacked {
+            return None;
+        }
+        let table = self.loot_table.clone()?;
+        self.unpacked = true;
+        let mut request = LootRequest::new(LootSurface::ChestOpen, table);
+        request.origin = origin;
+        match engine.resolve(request, self.loot_table_seed).delivery {
+            LootDelivery::FillContainer(slots) => Some(slots),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LootPool {
     pub entries: Vec<LootEntry>,
@@ -1004,5 +1189,124 @@ mod tests {
         let errors = table.validate();
         assert!(errors.iter().any(|error| error.contains("rolls")));
         assert!(errors.iter().any(|error| error.contains("invalid tag")));
+    }
+
+    #[test]
+    fn behavior_engine_maps_named_surfaces_to_vanilla_param_sets_and_delivery() {
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:blocks/stone",
+            table_with_pool(LootPool::single(LootEntry::Item {
+                item: "minecraft:cobblestone".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: vec![LootCondition::AllOf(vec![
+                    LootCondition::BlockState {
+                        block: "minecraft:stone".to_string(),
+                    },
+                    LootCondition::MatchTool {
+                        item: "minecraft:iron_pickaxe".to_string(),
+                    },
+                ])],
+                functions: Vec::new(),
+            })),
+        );
+
+        let mut request = LootRequest::new(LootSurface::BlockBreak, "minecraft:blocks/stone");
+        request.origin = (1.0, 64.0, 2.0);
+        request.block = Some("minecraft:stone".to_string());
+        request.tool = Some("minecraft:iron_pickaxe".to_string());
+
+        let resolution = engine.resolve(request, 17);
+
+        assert_eq!(resolution.param_set, LootParamSet::Block);
+        assert_eq!(
+            resolution.delivery,
+            LootDelivery::DropAt(
+                (1.0, 64.0, 2.0),
+                vec![LootStack::new("minecraft:cobblestone", 1)]
+            )
+        );
+    }
+
+    #[test]
+    fn behavior_engine_covers_entity_fishing_archaeology_reward_gift_barter_and_command_paths() {
+        let mut engine = LootBehaviorEngine::new();
+        for (id, item) in [
+            ("minecraft:entities/zombie", "minecraft:rotten_flesh"),
+            ("minecraft:gameplay/fishing", "minecraft:cod"),
+            ("minecraft:archaeology/desert_pyramid", "minecraft:pottery_sherd"),
+            ("minecraft:advancements/story/mine_stone", "minecraft:emerald"),
+            ("minecraft:gameplay/cat_morning_gift", "minecraft:string"),
+            ("minecraft:gameplay/piglin_bartering", "minecraft:quartz"),
+            ("minecraft:commands/debug", "minecraft:stick"),
+        ] {
+            engine.insert_table(id, table_with_pool(LootPool::single(LootEntry::item(item, 1))));
+        }
+
+        let mut entity = LootRequest::new(LootSurface::EntityDeath, "minecraft:entities/zombie");
+        entity.target_entity = Some("Zombie".to_string());
+        entity.damage_source = Some("minecraft:player_attack".to_string());
+        entity.killed_by_player = true;
+        assert_eq!(engine.resolve(entity, 1).param_set, LootParamSet::Entity);
+
+        let mut fishing = LootRequest::new(LootSurface::FishingRetrieve, "minecraft:gameplay/fishing");
+        fishing.tool = Some("minecraft:fishing_rod".to_string());
+        assert_eq!(engine.resolve(fishing, 1).param_set, LootParamSet::Fishing);
+
+        let mut archaeology =
+            LootRequest::new(LootSurface::ArchaeologyBrush, "minecraft:archaeology/desert_pyramid");
+        archaeology.tool = Some("minecraft:brush".to_string());
+        assert_eq!(engine.resolve(archaeology, 1).param_set, LootParamSet::Archaeology);
+
+        let mut advancement =
+            LootRequest::new(LootSurface::AdvancementReward, "minecraft:advancements/story/mine_stone");
+        advancement.actor = Some("Steve".to_string());
+        assert_eq!(
+            engine.resolve(advancement, 1).delivery,
+            LootDelivery::GiveToEntity("Steve".to_string(), vec![LootStack::new("minecraft:emerald", 1)])
+        );
+
+        let mut gift = LootRequest::new(LootSurface::Gift, "minecraft:gameplay/cat_morning_gift");
+        gift.actor = Some("Steve".to_string());
+        assert_eq!(engine.resolve(gift, 1).param_set, LootParamSet::Gift);
+
+        let mut barter = LootRequest::new(LootSurface::PiglinBarter, "minecraft:gameplay/piglin_bartering");
+        barter.actor = Some("Piglin".to_string());
+        assert_eq!(engine.resolve(barter, 1).param_set, LootParamSet::Barter);
+
+        let mut command = LootRequest::new(LootSurface::Command, "minecraft:commands/debug");
+        command.actor = Some("Steve".to_string());
+        assert_eq!(
+            engine.resolve(command, 1).delivery,
+            LootDelivery::GiveToEntity("Steve".to_string(), vec![LootStack::new("minecraft:stick", 1)])
+        );
+    }
+
+    #[test]
+    fn randomizable_container_loot_realizes_table_once_and_preserves_seed() {
+        let mut engine = LootBehaviorEngine::new();
+        let mut pool = LootPool::single(LootEntry::Item {
+            item: "minecraft:bread".to_string(),
+            weight: 1,
+            quality: 0,
+            conditions: Vec::new(),
+            functions: vec![LootFunction::SetCount(NumberProvider::Uniform { min: 1.0, max: 4.0 })],
+        });
+        pool.rolls = NumberProvider::Constant(3.0);
+        engine.insert_table("minecraft:chests/simple_dungeon", table_with_pool(pool));
+
+        let mut first = RandomizableContainerLoot {
+            loot_table: Some("minecraft:chests/simple_dungeon".to_string()),
+            loot_table_seed: 42,
+            unpacked: false,
+        };
+        let mut second = first.clone();
+
+        let first_slots = first.unpack_once(&engine, (0.0, 64.0, 0.0)).unwrap();
+        let second_slots = second.unpack_once(&engine, (0.0, 64.0, 0.0)).unwrap();
+
+        assert_eq!(first_slots, second_slots);
+        assert!(first.unpack_once(&engine, (0.0, 64.0, 0.0)).is_none());
     }
 }
