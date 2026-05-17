@@ -50,6 +50,7 @@ mod item_stack;
 mod light;
 mod living_entity;
 mod log;
+mod loot_system;
 mod management_security;
 mod map_state;
 mod mob_family;
