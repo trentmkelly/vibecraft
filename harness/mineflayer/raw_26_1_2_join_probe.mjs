@@ -141,11 +141,184 @@ const minimumRegistryElements = new Map([
   ['minecraft:wolf_variant', 9]
 ])
 
+const requiredRegistryElements = new Map([
+  ['minecraft:banner_pattern', [
+    'minecraft:flower',
+    'minecraft:bricks',
+    'minecraft:curly_border'
+  ]],
+  ['minecraft:chicken_variant', [
+    'minecraft:cold',
+    'minecraft:temperate',
+    'minecraft:warm'
+  ]],
+  ['minecraft:damage_type', ['minecraft:spear']],
+  ['minecraft:instrument', ['minecraft:ponder_goat_horn']],
+  ['minecraft:jukebox_song', [
+    'minecraft:11',
+    'minecraft:13',
+    'minecraft:5',
+    'minecraft:creator',
+    'minecraft:creator_music_box',
+    'minecraft:lava_chicken',
+    'minecraft:precipice',
+    'minecraft:tears'
+  ]],
+  ['minecraft:trim_material', [
+    'minecraft:amethyst',
+    'minecraft:copper',
+    'minecraft:diamond',
+    'minecraft:emerald',
+    'minecraft:gold',
+    'minecraft:iron',
+    'minecraft:lapis',
+    'minecraft:netherite',
+    'minecraft:quartz',
+    'minecraft:redstone',
+    'minecraft:resin'
+  ]]
+])
+
+const requiredTags = new Map([
+  ['minecraft:banner_pattern', [
+    'minecraft:pattern_item/bordure_indented',
+    'minecraft:pattern_item/creeper',
+    'minecraft:pattern_item/field_masoned',
+    'minecraft:pattern_item/flower',
+    'minecraft:pattern_item/flow',
+    'minecraft:pattern_item/globe',
+    'minecraft:pattern_item/guster',
+    'minecraft:pattern_item/mojang',
+    'minecraft:pattern_item/piglin',
+    'minecraft:pattern_item/skull'
+  ]],
+  ['minecraft:damage_type', [
+    'minecraft:bypasses_shield',
+    'minecraft:is_explosion',
+    'minecraft:is_fire'
+  ]]
+])
+
 function decodeRegistryPacket (packet) {
   const registry = readString(packet.body)
   const count = readVarInt(packet.body, registry.offset)
   if (!count) throw new Error(`missing element count for registry ${registry.value}`)
-  return { id: packet.id, length: packet.length, registry: registry.value, elements: count.value }
+  let offset = count.offset
+  const elements = []
+  for (let i = 0; i < count.value; i++) {
+    const element = readString(packet.body, offset)
+    elements.push(element.value)
+    offset = element.offset
+    const hasData = packet.body[offset++]
+    if (hasData === 1) {
+      offset = skipNetworkNbt(packet.body, offset)
+    } else if (hasData !== 0) {
+      throw new Error(`invalid registry data marker ${hasData} for ${registry.value}/${element.value}`)
+    }
+  }
+  if (offset !== packet.body.length) {
+    throw new Error(`registry ${registry.value} had ${packet.body.length - offset} trailing bytes`)
+  }
+  return {
+    id: packet.id,
+    length: packet.length,
+    registry: registry.value,
+    elements: count.value,
+    elementIds: elements
+  }
+}
+
+function decodeTagsPacket (packet) {
+  const registryCount = readVarInt(packet.body)
+  if (!registryCount) throw new Error('missing tag registry count')
+  let offset = registryCount.offset
+  const registries = []
+  for (let i = 0; i < registryCount.value; i++) {
+    const registry = readString(packet.body, offset)
+    offset = registry.offset
+    const tagCount = readVarInt(packet.body, offset)
+    if (!tagCount) throw new Error(`missing tag count for ${registry.value}`)
+    offset = tagCount.offset
+    const tags = []
+    for (let j = 0; j < tagCount.value; j++) {
+      const tag = readString(packet.body, offset)
+      offset = tag.offset
+      const entryCount = readVarInt(packet.body, offset)
+      if (!entryCount) throw new Error(`missing tag entry count for ${registry.value}/${tag.value}`)
+      offset = entryCount.offset
+      const entries = []
+      for (let k = 0; k < entryCount.value; k++) {
+        const entry = readVarInt(packet.body, offset)
+        if (!entry) throw new Error(`missing tag entry ${k} for ${registry.value}/${tag.value}`)
+        entries.push(entry.value)
+        offset = entry.offset
+      }
+      tags.push({ tag: tag.value, entries })
+    }
+    registries.push({ registry: registry.value, tags })
+  }
+  if (offset !== packet.body.length) {
+    throw new Error(`tags packet had ${packet.body.length - offset} trailing bytes`)
+  }
+  return { id: packet.id, length: packet.length, registries }
+}
+
+function skipNetworkNbt (buffer, offset) {
+  const type = buffer[offset++]
+  if (type !== 10) throw new Error(`expected compound NBT tag, got ${type}`)
+  return skipNbtPayload(buffer, offset, type)
+}
+
+function skipNbtPayload (buffer, offset, type) {
+  switch (type) {
+    case 0:
+      return offset
+    case 1:
+      return offset + 1
+    case 2:
+      return offset + 2
+    case 3:
+    case 5:
+      return offset + 4
+    case 4:
+    case 6:
+      return offset + 8
+    case 7: {
+      const length = buffer.readInt32BE(offset)
+      return offset + 4 + length
+    }
+    case 8: {
+      const length = buffer.readUInt16BE(offset)
+      return offset + 2 + length
+    }
+    case 9: {
+      const childType = buffer[offset]
+      const length = buffer.readInt32BE(offset + 1)
+      let cursor = offset + 5
+      for (let i = 0; i < length; i++) cursor = skipNbtPayload(buffer, cursor, childType)
+      return cursor
+    }
+    case 10: {
+      let cursor = offset
+      while (true) {
+        const childType = buffer[cursor++]
+        if (childType === 0) return cursor
+        const nameLength = buffer.readUInt16BE(cursor)
+        cursor += 2 + nameLength
+        cursor = skipNbtPayload(buffer, cursor, childType)
+      }
+    }
+    case 11: {
+      const length = buffer.readInt32BE(offset)
+      return offset + 4 + length * 4
+    }
+    case 12: {
+      const length = buffer.readInt32BE(offset)
+      return offset + 4 + length * 8
+    }
+    default:
+      throw new Error(`unsupported NBT tag ${type}`)
+  }
 }
 
 async function main () {
@@ -171,7 +344,13 @@ async function main () {
   const config = []
   while (true) {
     const packet = await reader.nextPacket()
-    config.push(packet.id === 7 ? decodeRegistryPacket(packet) : { id: packet.id, length: packet.length })
+    if (packet.id === 7) {
+      config.push(decodeRegistryPacket(packet))
+    } else if (packet.id === 13) {
+      config.push(decodeTagsPacket(packet))
+    } else {
+      config.push({ id: packet.id, length: packet.length })
+    }
     if (packet.id === 3) break
   }
   const configIds = config.map(packet => packet.id)
@@ -187,6 +366,27 @@ async function main () {
     const minimum = minimumRegistryElements.get(packet.registry) ?? 1
     if (packet.elements < minimum) {
       throw new Error(`registry ${packet.registry} had ${packet.elements} elements, expected at least ${minimum}`)
+    }
+  }
+  for (const [registry, elements] of requiredRegistryElements) {
+    const packet = registryPackets.find(packet => packet.registry === registry)
+    if (!packet) throw new Error(`missing required-element registry ${registry}`)
+    const packetElements = new Set(packet.elementIds)
+    for (const element of elements) {
+      if (!packetElements.has(element)) throw new Error(`missing registry element ${registry}/${element}`)
+    }
+  }
+  const tagsPacket = config.find(packet => packet.id === 13)
+  if (!tagsPacket) throw new Error('missing update_tags packet')
+  const tagRegistries = new Map(tagsPacket.registries.map(registry => [registry.registry, registry.tags]))
+  for (const [registry, tags] of requiredTags) {
+    const registryTags = tagRegistries.get(registry)
+    if (!registryTags) throw new Error(`missing tag registry ${registry}`)
+    const tagNames = new Set(registryTags.map(tag => tag.tag))
+    for (const tag of tags) {
+      if (!tagNames.has(tag)) throw new Error(`missing tag ${registry}/${tag}`)
+      const packetTag = registryTags.find(packetTag => packetTag.tag === tag)
+      if (packetTag.entries.length === 0) throw new Error(`tag ${registry}/${tag} had no entries`)
     }
   }
   socket.write(frame(3))
