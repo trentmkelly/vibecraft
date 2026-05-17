@@ -52,6 +52,36 @@ pub struct NoiseRouterEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SurfaceRulePresetData {
+    pub id: &'static str,
+    pub rule: SurfaceRuleKind,
+    pub blocks: &'static [&'static str],
+    pub conditions: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SurfaceRuleKind {
+    OverworldLike {
+        preliminary_surface_check: bool,
+        bedrock_roof: bool,
+        bedrock_floor: bool,
+        deepslate: bool,
+    },
+    Nether,
+    State(&'static str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SurfaceRuleType {
+    pub id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SurfaceConditionType {
+    pub id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoiseRouterPreset {
     Overworld { large_biomes: bool, amplified: bool },
     Nether,
@@ -739,6 +769,152 @@ pub const BUILTIN_NOISE_ROUTERS: &[NoiseRouterEntry] = &[
     },
 ];
 
+pub const SURFACE_RULE_TYPES: &[SurfaceRuleType] = &[
+    SurfaceRuleType { id: "bandlands" },
+    SurfaceRuleType { id: "block" },
+    SurfaceRuleType { id: "sequence" },
+    SurfaceRuleType { id: "condition" },
+];
+
+pub const SURFACE_CONDITION_TYPES: &[SurfaceConditionType] = &[
+    SurfaceConditionType { id: "biome" },
+    SurfaceConditionType {
+        id: "noise_threshold",
+    },
+    SurfaceConditionType {
+        id: "vertical_gradient",
+    },
+    SurfaceConditionType { id: "y_above" },
+    SurfaceConditionType { id: "water" },
+    SurfaceConditionType { id: "stone_depth" },
+    SurfaceConditionType { id: "not" },
+    SurfaceConditionType { id: "steep" },
+    SurfaceConditionType { id: "hole" },
+    SurfaceConditionType {
+        id: "above_preliminary_surface",
+    },
+    SurfaceConditionType { id: "temperature" },
+];
+
+pub const OVERWORLD_SURFACE_BLOCKS: &[&str] = &[
+    "minecraft:air",
+    "minecraft:bedrock",
+    "minecraft:white_terracotta",
+    "minecraft:orange_terracotta",
+    "minecraft:terracotta",
+    "minecraft:red_sand",
+    "minecraft:red_sandstone",
+    "minecraft:stone",
+    "minecraft:deepslate",
+    "minecraft:dirt",
+    "minecraft:podzol",
+    "minecraft:coarse_dirt",
+    "minecraft:mycelium",
+    "minecraft:grass_block",
+    "minecraft:calcite",
+    "minecraft:gravel",
+    "minecraft:sand",
+    "minecraft:sandstone",
+    "minecraft:packed_ice",
+    "minecraft:snow_block",
+    "minecraft:mud",
+    "minecraft:powder_snow",
+    "minecraft:ice",
+    "minecraft:water",
+];
+
+pub const NETHER_SURFACE_BLOCKS: &[&str] = &[
+    "minecraft:bedrock",
+    "minecraft:gravel",
+    "minecraft:lava",
+    "minecraft:netherrack",
+    "minecraft:soul_sand",
+    "minecraft:soul_soil",
+    "minecraft:basalt",
+    "minecraft:blackstone",
+    "minecraft:warped_wart_block",
+    "minecraft:warped_nylium",
+    "minecraft:nether_wart_block",
+    "minecraft:crimson_nylium",
+];
+
+pub const OVERWORLD_SURFACE_CONDITIONS: &[&str] = &[
+    "above_preliminary_surface",
+    "bedrock_floor_vertical_gradient",
+    "deepslate_vertical_gradient",
+    "water",
+    "stone_depth",
+    "biome",
+    "noise_threshold",
+    "hole",
+    "steep",
+    "temperature",
+];
+
+pub const NETHER_SURFACE_CONDITIONS: &[&str] = &[
+    "bedrock_floor_vertical_gradient",
+    "bedrock_roof_vertical_gradient",
+    "y_above",
+    "hole",
+    "noise_threshold",
+    "biome",
+    "stone_depth",
+];
+
+pub const BUILTIN_SURFACE_RULE_PRESETS: &[SurfaceRulePresetData] = &[
+    SurfaceRulePresetData {
+        id: "minecraft:overworld",
+        rule: SurfaceRuleKind::OverworldLike {
+            preliminary_surface_check: true,
+            bedrock_roof: false,
+            bedrock_floor: true,
+            deepslate: true,
+        },
+        blocks: OVERWORLD_SURFACE_BLOCKS,
+        conditions: OVERWORLD_SURFACE_CONDITIONS,
+    },
+    SurfaceRulePresetData {
+        id: "minecraft:caves",
+        rule: SurfaceRuleKind::OverworldLike {
+            preliminary_surface_check: false,
+            bedrock_roof: true,
+            bedrock_floor: true,
+            deepslate: true,
+        },
+        blocks: OVERWORLD_SURFACE_BLOCKS,
+        conditions: OVERWORLD_SURFACE_CONDITIONS,
+    },
+    SurfaceRulePresetData {
+        id: "minecraft:floating_islands",
+        rule: SurfaceRuleKind::OverworldLike {
+            preliminary_surface_check: false,
+            bedrock_roof: false,
+            bedrock_floor: false,
+            deepslate: true,
+        },
+        blocks: OVERWORLD_SURFACE_BLOCKS,
+        conditions: OVERWORLD_SURFACE_CONDITIONS,
+    },
+    SurfaceRulePresetData {
+        id: "minecraft:nether",
+        rule: SurfaceRuleKind::Nether,
+        blocks: NETHER_SURFACE_BLOCKS,
+        conditions: NETHER_SURFACE_CONDITIONS,
+    },
+    SurfaceRulePresetData {
+        id: "minecraft:end",
+        rule: SurfaceRuleKind::State("minecraft:end_stone"),
+        blocks: &["minecraft:end_stone"],
+        conditions: &[],
+    },
+    SurfaceRulePresetData {
+        id: "minecraft:air",
+        rule: SurfaceRuleKind::State("minecraft:air"),
+        blocks: &["minecraft:air"],
+        conditions: &[],
+    },
+];
+
 impl NoiseSettings {
     pub const fn new(min_y: i32, height: i32, size_horizontal: i32, size_vertical: i32) -> Self {
         Self {
@@ -1015,16 +1191,28 @@ pub fn builtin_noise_router(id: &str) -> Option<&'static NoiseRouterEntry> {
     })
 }
 
+pub fn builtin_surface_rule_preset(id: &str) -> Option<&'static SurfaceRulePresetData> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    BUILTIN_SURFACE_RULE_PRESETS.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, BinaryDensityFunction, DensityFunction, DensityMarker,
-        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, SurfaceRulePreset,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        CAVES_NOISE_SETTINGS, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
-        FLOATING_ISLANDS_NOISE_SETTINGS, NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, Y_DENSITY,
+        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, SurfaceRuleKind,
+        SurfaceRulePreset, BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS,
+        BUILTIN_NOISE_ROUTERS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FLOATING_ISLANDS_NOISE_SETTINGS,
+        NETHER_NOISE_SETTINGS, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -1368,6 +1556,107 @@ mod tests {
         assert_eq!(
             builtin_noise_router("none").unwrap().router.final_density,
             DensityFunction::Constant(0.0)
+        );
+    }
+
+    #[test]
+    fn surface_rule_codecs_and_presets_match_surface_rule_data() {
+        assert_eq!(
+            SURFACE_RULE_TYPES
+                .iter()
+                .map(|kind| kind.id)
+                .collect::<Vec<_>>(),
+            vec!["bandlands", "block", "sequence", "condition"]
+        );
+        assert_eq!(
+            SURFACE_CONDITION_TYPES
+                .iter()
+                .map(|kind| kind.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "biome",
+                "noise_threshold",
+                "vertical_gradient",
+                "y_above",
+                "water",
+                "stone_depth",
+                "not",
+                "steep",
+                "hole",
+                "above_preliminary_surface",
+                "temperature",
+            ]
+        );
+
+        assert_eq!(
+            BUILTIN_SURFACE_RULE_PRESETS
+                .iter()
+                .map(|preset| preset.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:overworld",
+                "minecraft:caves",
+                "minecraft:floating_islands",
+                "minecraft:nether",
+                "minecraft:end",
+                "minecraft:air",
+            ]
+        );
+
+        let overworld = super::builtin_surface_rule_preset("overworld").unwrap();
+        assert_eq!(
+            overworld.rule,
+            SurfaceRuleKind::OverworldLike {
+                preliminary_surface_check: true,
+                bedrock_roof: false,
+                bedrock_floor: true,
+                deepslate: true,
+            }
+        );
+        assert!(overworld.blocks.contains(&"minecraft:grass_block"));
+        assert!(overworld.blocks.contains(&"minecraft:deepslate"));
+        assert!(overworld.blocks.contains(&"minecraft:powder_snow"));
+        assert!(overworld.conditions.contains(&"above_preliminary_surface"));
+        assert!(overworld.conditions.contains(&"temperature"));
+
+        let caves = super::builtin_surface_rule_preset("caves").unwrap();
+        assert_eq!(
+            caves.rule,
+            SurfaceRuleKind::OverworldLike {
+                preliminary_surface_check: false,
+                bedrock_roof: true,
+                bedrock_floor: true,
+                deepslate: true,
+            }
+        );
+        let floating = super::builtin_surface_rule_preset("floating_islands").unwrap();
+        assert_eq!(
+            floating.rule,
+            SurfaceRuleKind::OverworldLike {
+                preliminary_surface_check: false,
+                bedrock_roof: false,
+                bedrock_floor: false,
+                deepslate: true,
+            }
+        );
+
+        let nether = super::builtin_surface_rule_preset("nether").unwrap();
+        assert_eq!(nether.rule, SurfaceRuleKind::Nether);
+        assert!(nether.blocks.contains(&"minecraft:netherrack"));
+        assert!(nether.blocks.contains(&"minecraft:warped_nylium"));
+        assert!(nether.blocks.contains(&"minecraft:crimson_nylium"));
+        assert!(nether
+            .conditions
+            .contains(&"bedrock_roof_vertical_gradient"));
+        assert!(nether.conditions.contains(&"noise_threshold"));
+
+        assert_eq!(
+            super::builtin_surface_rule_preset("end").unwrap().rule,
+            SurfaceRuleKind::State("minecraft:end_stone")
+        );
+        assert_eq!(
+            super::builtin_surface_rule_preset("air").unwrap().rule,
+            SurfaceRuleKind::State("minecraft:air")
         );
     }
 }
