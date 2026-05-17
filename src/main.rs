@@ -30,6 +30,7 @@ mod random_tick;
 mod redstone;
 mod registry;
 mod resources;
+mod respawn;
 mod runtime;
 mod scheduled_tick;
 mod seed_validation;
