@@ -203,10 +203,10 @@ const CHAT_TYPES: &[ChatTypeEntry] = &[
         narration_parameters: &["sender", "content"],
     },
     ChatTypeEntry {
-        id: "say_command",
-        chat_translation_key: "chat.type.announcement",
+        id: "emote_command",
+        chat_translation_key: "chat.type.emote",
         chat_parameters: &["sender", "content"],
-        narration_translation_key: "chat.type.text.narrate",
+        narration_translation_key: "chat.type.emote",
         narration_parameters: &["sender", "content"],
     },
     ChatTypeEntry {
@@ -224,6 +224,13 @@ const CHAT_TYPES: &[ChatTypeEntry] = &[
         narration_parameters: &["sender", "content"],
     },
     ChatTypeEntry {
+        id: "say_command",
+        chat_translation_key: "chat.type.announcement",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
         id: "team_msg_command_incoming",
         chat_translation_key: "chat.type.team.text",
         chat_parameters: &["target", "sender", "content"],
@@ -235,13 +242,6 @@ const CHAT_TYPES: &[ChatTypeEntry] = &[
         chat_translation_key: "chat.type.team.sent",
         chat_parameters: &["target", "sender", "content"],
         narration_translation_key: "chat.type.text.narrate",
-        narration_parameters: &["sender", "content"],
-    },
-    ChatTypeEntry {
-        id: "emote_command",
-        chat_translation_key: "chat.type.emote",
-        chat_parameters: &["sender", "content"],
-        narration_translation_key: "chat.type.emote",
         narration_parameters: &["sender", "content"],
     },
 ];
@@ -317,24 +317,24 @@ const BIOMES: &[&str] = &[
 const DIMENSION_TYPES: &[&str] = &["overworld", "overworld_caves", "the_end", "the_nether"];
 
 const TRIM_PATTERNS: &[&str] = &[
-    "sentry",
-    "dune",
+    "bolt",
     "coast",
-    "wild",
-    "ward",
+    "dune",
     "eye",
-    "vex",
-    "tide",
-    "snout",
+    "flow",
+    "host",
+    "raiser",
     "rib",
-    "spire",
-    "wayfinder",
+    "sentry",
     "shaper",
     "silence",
-    "raiser",
-    "host",
-    "flow",
-    "bolt",
+    "snout",
+    "spire",
+    "tide",
+    "vex",
+    "ward",
+    "wayfinder",
+    "wild",
 ];
 
 const INSTRUMENTS: &[InstrumentEntry] = &[
@@ -602,27 +602,9 @@ const JUKEBOX_SONGS: &[JukeboxSongEntry] = &[
 
 const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     TrimMaterialEntry {
-        id: "quartz",
-        asset_name: "quartz",
-        color: "#e3d4bd",
-        overrides: &[],
-    },
-    TrimMaterialEntry {
-        id: "iron",
-        asset_name: "iron",
-        color: "#ececec",
-        overrides: &[("minecraft:iron", "iron_darker")],
-    },
-    TrimMaterialEntry {
-        id: "netherite",
-        asset_name: "netherite",
-        color: "#625859",
-        overrides: &[("minecraft:netherite", "netherite_darker")],
-    },
-    TrimMaterialEntry {
-        id: "redstone",
-        asset_name: "redstone",
-        color: "#971607",
+        id: "amethyst",
+        asset_name: "amethyst",
+        color: "#9a5cc6",
         overrides: &[],
     },
     TrimMaterialEntry {
@@ -632,10 +614,10 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
         overrides: &[("minecraft:copper", "copper_darker")],
     },
     TrimMaterialEntry {
-        id: "gold",
-        asset_name: "gold",
-        color: "#decf2a",
-        overrides: &[("minecraft:gold", "gold_darker")],
+        id: "diamond",
+        asset_name: "diamond",
+        color: "#6eead6",
+        overrides: &[("minecraft:diamond", "diamond_darker")],
     },
     TrimMaterialEntry {
         id: "emerald",
@@ -644,10 +626,16 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
         overrides: &[],
     },
     TrimMaterialEntry {
-        id: "diamond",
-        asset_name: "diamond",
-        color: "#6eead6",
-        overrides: &[("minecraft:diamond", "diamond_darker")],
+        id: "gold",
+        asset_name: "gold",
+        color: "#decf2a",
+        overrides: &[("minecraft:gold", "gold_darker")],
+    },
+    TrimMaterialEntry {
+        id: "iron",
+        asset_name: "iron",
+        color: "#ececec",
+        overrides: &[("minecraft:iron", "iron_darker")],
     },
     TrimMaterialEntry {
         id: "lapis",
@@ -656,9 +644,21 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
         overrides: &[],
     },
     TrimMaterialEntry {
-        id: "amethyst",
-        asset_name: "amethyst",
-        color: "#9a5cc6",
+        id: "netherite",
+        asset_name: "netherite",
+        color: "#625859",
+        overrides: &[("minecraft:netherite", "netherite_darker")],
+    },
+    TrimMaterialEntry {
+        id: "quartz",
+        asset_name: "quartz",
+        color: "#e3d4bd",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "redstone",
+        asset_name: "redstone",
+        color: "#971607",
         overrides: &[],
     },
     TrimMaterialEntry {
@@ -1322,9 +1322,9 @@ fn write_vanilla_cat_variant_registry_packet<W: Write>(writer: &mut W) -> io::Re
 
 fn write_vanilla_chicken_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const CHICKENS: &[(&str, &str)] = &[
+        ("cold", "cold"),
         ("temperate", "normal"),
         ("warm", "normal"),
-        ("cold", "cold"),
     ];
     write_variant_registry(
         writer,
@@ -1335,14 +1335,14 @@ fn write_vanilla_chicken_variant_registry_packet<W: Write>(writer: &mut W) -> io
 }
 
 fn write_vanilla_cow_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    const COWS: &[(&str, &str)] = &[("temperate", "normal"), ("warm", "warm"), ("cold", "cold")];
+    const COWS: &[(&str, &str)] = &[("cold", "cold"), ("temperate", "normal"), ("warm", "warm")];
     write_variant_registry(writer, "minecraft:cow_variant", COWS, |(id, model)| {
         animal_texture_variant_nbt("cow", &format!("cow_{id}"), model)
     })
 }
 
 fn write_vanilla_frog_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    const FROGS: &[&str] = &["temperate", "warm", "cold"];
+    const FROGS: &[&str] = &["cold", "temperate", "warm"];
     write_variant_registry(writer, "minecraft:frog_variant", FROGS, |frog| {
         single_texture_variant_nbt(&format!("minecraft:entity/frog/frog_{frog}"))
     })
@@ -1350,9 +1350,9 @@ fn write_vanilla_frog_variant_registry_packet<W: Write>(writer: &mut W) -> io::R
 
 fn write_vanilla_pig_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const PIGS: &[(&str, &str)] = &[
+        ("cold", "cold"),
         ("temperate", "normal"),
         ("warm", "normal"),
-        ("cold", "cold"),
     ];
     write_variant_registry(writer, "minecraft:pig_variant", PIGS, |(id, model)| {
         animal_texture_variant_nbt("pig", &format!("pig_{id}"), model)
@@ -1361,15 +1361,15 @@ fn write_vanilla_pig_variant_registry_packet<W: Write>(writer: &mut W) -> io::Re
 
 fn write_vanilla_wolf_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const WOLVES: &[(&str, &str)] = &[
-        ("pale", "wolf"),
-        ("spotted", "wolf_spotted"),
-        ("snowy", "wolf_snowy"),
-        ("black", "wolf_black"),
         ("ashen", "wolf_ashen"),
-        ("rusty", "wolf_rusty"),
-        ("woods", "wolf_woods"),
+        ("black", "wolf_black"),
         ("chestnut", "wolf_chestnut"),
+        ("pale", "wolf"),
+        ("rusty", "wolf_rusty"),
+        ("snowy", "wolf_snowy"),
+        ("spotted", "wolf_spotted"),
         ("striped", "wolf_striped"),
+        ("woods", "wolf_woods"),
     ];
     write_variant_registry(writer, "minecraft:wolf_variant", WOLVES, |(_id, file)| {
         wolf_variant_nbt(file)
