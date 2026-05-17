@@ -149,6 +149,10 @@ pub struct ServerCommandState {
     pub online_players: Vec<NameAndId>,
     pub player_inventories: Vec<CommandPlayerInventory>,
     pub player_game_modes: Vec<PlayerGameMode>,
+    pub default_game_mode: GameMode,
+    pub force_game_mode: Option<GameMode>,
+    pub difficulty: Difficulty,
+    pub game_rules: Vec<GameRuleState>,
     pub camera_targets: Vec<CameraTarget>,
     pub untrackable_entities: Vec<EntityRef>,
     pub max_players: u32,
@@ -253,6 +257,26 @@ pub enum GameMode {
     Creative,
     Adventure,
     Spectator,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Difficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameRuleState {
+    pub name: String,
+    pub value: GameRuleValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GameRuleValue {
+    Bool(bool),
+    Int(i32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -880,6 +904,7 @@ pub enum CommandError {
     DebugPathNotMob,
     DebugPathNoPath,
     DebugPathNotComplete,
+    DifficultyAlreadySame,
     ChaseAlreadyRunning,
     ClearFailedSingle,
     ClearFailedMultiple,
@@ -1077,6 +1102,10 @@ impl Default for ServerCommandState {
             online_players: Vec::new(),
             player_inventories: Vec::new(),
             player_game_modes: Vec::new(),
+            default_game_mode: GameMode::Survival,
+            force_game_mode: None,
+            difficulty: Difficulty::Easy,
+            game_rules: default_game_rules(),
             camera_targets: Vec::new(),
             untrackable_entities: Vec::new(),
             max_players: 20,
@@ -1496,6 +1525,10 @@ pub fn execute_builtin_command(
         "debugconfig" => debug_config_command(state, &parts),
         "debugmobspawning" => debug_mob_spawning_command(state, &parts),
         "debugpath" => debug_path_command(state, &parts),
+        "defaultgamemode" => default_gamemode_command(state, &parts),
+        "difficulty" => difficulty_command(state, &parts),
+        "gamemode" => gamemode_command(state, &parts),
+        "gamerule" => gamerule_command(state, &parts),
         "say" => {
             if parts.len() < 2 {
                 return Err(CommandError::InvalidSyntax);
@@ -3529,6 +3562,131 @@ fn debug_path_command(
     })
 }
 
+fn default_gamemode_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let ["defaultgamemode", mode] = parts else {
+        return Err(CommandError::InvalidSyntax);
+    };
+    let mode = parse_gamemode(mode)?;
+    state.default_game_mode = mode;
+    if let Some(force_mode) = state.force_game_mode {
+        for player in state.online_players.clone() {
+            set_player_gamemode(state, player, force_mode);
+        }
+    }
+    Ok(CommandResult {
+        success_count: if state.force_game_mode.is_some() {
+            state.online_players.len() as i32
+        } else {
+            0
+        },
+        feedback_key: "commands.defaultgamemode.success",
+        broadcast_to_admins: true,
+    })
+}
+
+fn difficulty_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["difficulty"] => Ok(CommandResult {
+            success_count: state.difficulty.id(),
+            feedback_key: "commands.difficulty.query",
+            broadcast_to_admins: false,
+        }),
+        ["difficulty", difficulty] => {
+            let difficulty = parse_difficulty(difficulty)?;
+            if state.difficulty == difficulty {
+                return Err(CommandError::DifficultyAlreadySame);
+            }
+            state.difficulty = difficulty;
+            Ok(CommandResult {
+                success_count: 0,
+                feedback_key: "commands.difficulty.success",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn gamemode_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["gamemode", mode] => {
+            let player = state
+                .command_source_player
+                .clone()
+                .ok_or(CommandError::InvalidSyntax)?;
+            set_gamemode_for_targets(state, parse_gamemode(mode)?, &[player])
+        }
+        ["gamemode", mode, targets @ ..] if !targets.is_empty() => {
+            let targets = targets
+                .iter()
+                .map(|target| NameAndId::create_offline(target))
+                .collect::<Vec<_>>();
+            set_gamemode_for_targets(state, parse_gamemode(mode)?, &targets)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn set_gamemode_for_targets(
+    state: &mut ServerCommandState,
+    mode: GameMode,
+    targets: &[NameAndId],
+) -> Result<CommandResult, CommandError> {
+    let mut changed = 0;
+    for target in targets {
+        if player_gamemode(state, target) != mode {
+            set_player_gamemode(state, target.clone(), mode);
+            changed += 1;
+        }
+    }
+    Ok(CommandResult {
+        success_count: changed,
+        feedback_key: if targets.len() == 1 {
+            "commands.gamemode.success.self"
+        } else {
+            "commands.gamemode.success.other"
+        },
+        broadcast_to_admins: true,
+    })
+}
+
+fn gamerule_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["gamerule", rule] => {
+            let value = game_rule_value(state, rule)?;
+            Ok(CommandResult {
+                success_count: value.command_result(),
+                feedback_key: "commands.gamerule.query",
+                broadcast_to_admins: false,
+            })
+        }
+        ["gamerule", rule, value] => {
+            let normalized = normalize_game_rule_name(rule);
+            let current = game_rule_value(state, &normalized)?;
+            let parsed = parse_game_rule_value(value, &current)?;
+            set_game_rule_value(state, normalized, parsed.clone());
+            Ok(CommandResult {
+                success_count: parsed.command_result(),
+                feedback_key: "commands.gamerule.set",
+                broadcast_to_admins: true,
+            })
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
 fn kill_entities(
     state: &mut ServerCommandState,
     targets: Vec<EntityRef>,
@@ -5345,6 +5503,89 @@ fn player_gamemode(state: &ServerCommandState, player: &NameAndId) -> GameMode {
         .unwrap_or(GameMode::Survival)
 }
 
+fn set_player_gamemode(state: &mut ServerCommandState, player: NameAndId, gamemode: GameMode) {
+    if let Some(existing) = state
+        .player_game_modes
+        .iter_mut()
+        .find(|entry| entry.player.uuid == player.uuid)
+    {
+        existing.gamemode = gamemode;
+    } else {
+        state
+            .player_game_modes
+            .push(PlayerGameMode { player, gamemode });
+    }
+}
+
+fn default_game_rules() -> Vec<GameRuleState> {
+    vec![
+        GameRuleState {
+            name: "doDaylightCycle".to_string(),
+            value: GameRuleValue::Bool(true),
+        },
+        GameRuleState {
+            name: "doMobSpawning".to_string(),
+            value: GameRuleValue::Bool(true),
+        },
+        GameRuleState {
+            name: "sendCommandFeedback".to_string(),
+            value: GameRuleValue::Bool(true),
+        },
+        GameRuleState {
+            name: "maxEntityCramming".to_string(),
+            value: GameRuleValue::Int(24),
+        },
+        GameRuleState {
+            name: "randomTickSpeed".to_string(),
+            value: GameRuleValue::Int(3),
+        },
+    ]
+}
+
+fn normalize_game_rule_name(rule: &str) -> String {
+    rule.strip_prefix("minecraft:").unwrap_or(rule).to_string()
+}
+
+fn game_rule_value(state: &ServerCommandState, rule: &str) -> Result<GameRuleValue, CommandError> {
+    let normalized = normalize_game_rule_name(rule);
+    state
+        .game_rules
+        .iter()
+        .find(|entry| entry.name == normalized)
+        .map(|entry| entry.value.clone())
+        .ok_or(CommandError::InvalidSyntax)
+}
+
+fn set_game_rule_value(state: &mut ServerCommandState, rule: String, value: GameRuleValue) {
+    if let Some(existing) = state.game_rules.iter_mut().find(|entry| entry.name == rule) {
+        existing.value = value;
+    } else {
+        state.game_rules.push(GameRuleState { name: rule, value });
+    }
+}
+
+fn parse_game_rule_value(
+    input: &str,
+    current: &GameRuleValue,
+) -> Result<GameRuleValue, CommandError> {
+    match current {
+        GameRuleValue::Bool(_) => Ok(GameRuleValue::Bool(parse_bool(input)?)),
+        GameRuleValue::Int(_) => input
+            .parse::<i32>()
+            .map(GameRuleValue::Int)
+            .map_err(|_| CommandError::InvalidSyntax),
+    }
+}
+
+impl GameRuleValue {
+    fn command_result(&self) -> i32 {
+        match self {
+            Self::Bool(value) => i32::from(*value),
+            Self::Int(value) => *value,
+        }
+    }
+}
+
 fn set_camera_target(state: &mut ServerCommandState, player: NameAndId, target: Option<EntityRef>) {
     if let Some(existing) = state
         .camera_targets
@@ -6773,6 +7014,10 @@ fn known_command_usages() -> &'static [(&'static str, &'static str)] {
         ("debugconfig", "/debugconfig <config|unconfig|dialog>"),
         ("debugmobspawning", "/debugmobspawning <category> <pos>"),
         ("debugpath", "/debugpath <to>"),
+        ("defaultgamemode", "/defaultgamemode <gamemode>"),
+        ("difficulty", "/difficulty [difficulty]"),
+        ("gamemode", "/gamemode <gamemode> [target]"),
+        ("gamerule", "/gamerule <rule> [value]"),
         ("help", "/help [command]"),
         ("jfr", "/jfr <start|stop>"),
         ("kick", "/kick <targets> [reason]"),
@@ -6875,6 +7120,27 @@ fn parse_gamemode(input: &str) -> Result<GameMode, CommandError> {
         "adventure" => Ok(GameMode::Adventure),
         "spectator" => Ok(GameMode::Spectator),
         _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_difficulty(input: &str) -> Result<Difficulty, CommandError> {
+    match input {
+        "peaceful" => Ok(Difficulty::Peaceful),
+        "easy" => Ok(Difficulty::Easy),
+        "normal" => Ok(Difficulty::Normal),
+        "hard" => Ok(Difficulty::Hard),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+impl Difficulty {
+    fn id(self) -> i32 {
+        match self {
+            Self::Peaceful => 0,
+            Self::Easy => 1,
+            Self::Normal => 2,
+            Self::Hard => 3,
+        }
     }
 }
 
@@ -8708,6 +8974,144 @@ mod tests {
                 "debugpath 4 64 4"
             ),
             Err(CommandError::DebugPathNotMob)
+        );
+    }
+
+    #[test]
+    fn gamemode_commands_update_defaults_players_and_forced_modes() {
+        let mut state = ServerCommandState {
+            online_players: vec![
+                NameAndId::create_offline("Steve"),
+                NameAndId::create_offline("Alex"),
+            ],
+            force_game_mode: Some(GameMode::Adventure),
+            command_source_player: Some(NameAndId::create_offline("Steve")),
+            ..ServerCommandState::default()
+        };
+        assert_eq!(
+            command_required_permission("defaultgamemode"),
+            PermissionLevel::Gamemasters
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::MODERATOR,
+                "defaultgamemode creative"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+
+        let defaulted = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "defaultgamemode creative",
+        )
+        .unwrap();
+        assert_eq!(defaulted.success_count, 2);
+        assert_eq!(defaulted.feedback_key, "commands.defaultgamemode.success");
+        assert_eq!(state.default_game_mode, GameMode::Creative);
+        assert_eq!(
+            super::player_gamemode(&state, &NameAndId::create_offline("Steve")),
+            GameMode::Adventure
+        );
+
+        let self_mode = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamemode spectator",
+        )
+        .unwrap();
+        assert_eq!(self_mode.success_count, 1);
+        assert_eq!(self_mode.feedback_key, "commands.gamemode.success.self");
+        assert_eq!(
+            super::player_gamemode(&state, &NameAndId::create_offline("Steve")),
+            GameMode::Spectator
+        );
+
+        let others = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamemode creative Steve Alex",
+        )
+        .unwrap();
+        assert_eq!(others.success_count, 2);
+        assert_eq!(others.feedback_key, "commands.gamemode.success.other");
+        assert_eq!(
+            super::player_gamemode(&state, &NameAndId::create_offline("Alex")),
+            GameMode::Creative
+        );
+    }
+
+    #[test]
+    fn difficulty_and_gamerule_commands_query_set_and_reject_noops() {
+        let mut state = ServerCommandState::default();
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "difficulty"
+            )
+            .unwrap()
+            .success_count,
+            1
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "difficulty easy"
+            ),
+            Err(CommandError::DifficultyAlreadySame)
+        );
+        let difficulty = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "difficulty hard",
+        )
+        .unwrap();
+        assert_eq!(difficulty.success_count, 0);
+        assert_eq!(difficulty.feedback_key, "commands.difficulty.success");
+        assert_eq!(state.difficulty, super::Difficulty::Hard);
+
+        let query = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamerule doDaylightCycle",
+        )
+        .unwrap();
+        assert_eq!(query.success_count, 1);
+        assert_eq!(query.feedback_key, "commands.gamerule.query");
+
+        let set_bool = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamerule doDaylightCycle false",
+        )
+        .unwrap();
+        assert_eq!(set_bool.success_count, 0);
+        assert_eq!(
+            super::game_rule_value(&state, "minecraft:doDaylightCycle").unwrap(),
+            super::GameRuleValue::Bool(false)
+        );
+
+        let set_int = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamerule randomTickSpeed 12",
+        )
+        .unwrap();
+        assert_eq!(set_int.success_count, 12);
+        assert_eq!(
+            super::game_rule_value(&state, "randomTickSpeed").unwrap(),
+            super::GameRuleValue::Int(12)
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "gamerule randomTickSpeed true"
+            ),
+            Err(CommandError::InvalidSyntax)
         );
     }
 
