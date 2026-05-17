@@ -16283,6 +16283,83 @@ mod tests {
     }
 
     #[test]
+    fn command_results_keep_source_permissions_feedback_and_side_effects_consistent() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            online_players: vec![steve.clone(), alex.clone()],
+            ..ServerCommandState::default()
+        };
+
+        let player_list =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
+        assert_eq!(player_list.success_count, 2);
+        assert_eq!(player_list.feedback_key, "commands.list.players");
+        assert!(!player_list.broadcast_to_admins);
+
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::ALL,
+                "gamemode creative"
+            ),
+            Err(CommandError::PermissionDenied)
+        );
+        assert!(state.player_game_modes.is_empty());
+
+        let op_gamemode = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamemode creative",
+        )
+        .unwrap();
+        assert_eq!(op_gamemode.success_count, 1);
+        assert_eq!(op_gamemode.feedback_key, "commands.gamemode.success.self");
+        assert!(op_gamemode.broadcast_to_admins);
+        assert_eq!(
+            state
+                .player_game_modes
+                .iter()
+                .find(|entry| entry.player.uuid == steve.uuid)
+                .map(|entry| entry.gamemode),
+            Some(GameMode::Creative)
+        );
+        assert!(!state
+            .player_game_modes
+            .iter()
+            .any(|entry| entry.player.uuid == alex.uuid));
+
+        let repeated = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamemode creative",
+        )
+        .unwrap();
+        assert_eq!(repeated.success_count, 0);
+        assert!(repeated.broadcast_to_admins);
+
+        state.command_source_player = None;
+        let console_set = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::OWNER,
+            "gamemode spectator Alex",
+        )
+        .unwrap();
+        assert_eq!(console_set.success_count, 1);
+        assert_eq!(console_set.feedback_key, "commands.gamemode.success.self");
+        assert!(console_set.broadcast_to_admins);
+        assert_eq!(
+            state
+                .player_game_modes
+                .iter()
+                .find(|entry| entry.player.uuid == alex.uuid)
+                .map(|entry| entry.gamemode),
+            Some(GameMode::Spectator)
+        );
+    }
+
+    #[test]
     fn kick_command_requires_admin_published_server_and_non_owner_target() {
         let mut state = ServerCommandState::default();
         assert_eq!(command_required_permission("kick"), PermissionLevel::Admins);
