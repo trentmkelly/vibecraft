@@ -49,6 +49,12 @@ const documentedOmissions = new Map([
   ]
 ])
 
+const playEntryEvidence = [
+  'expected 70-byte play login packet after holder-id encoding',
+  'expected 62-byte player_position packet with fixed-int relatives',
+  'missing play packet'
+]
+
 function registryConstantToId (constant) {
   return `minecraft:${constant.toLowerCase()}`
 }
@@ -90,5 +96,9 @@ test('raw 26.1.2 probe covers or documents every synchronized registry', async (
 
   for (const [registry, reason] of documentedOmissions) {
     assert.ok(reason.length >= 40, `${registry} omission needs a useful reason`)
+  }
+
+  for (const evidence of playEntryEvidence) {
+    assert.ok(rawProbe.includes(evidence), `raw probe is missing play-entry evidence: ${evidence}`)
   }
 })
