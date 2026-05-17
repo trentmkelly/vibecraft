@@ -75,6 +75,7 @@ mod player_presentation;
 mod player_profile_key;
 mod presentation_data;
 mod portal;
+mod parity_harness;
 mod post_processing;
 mod potion_fluid_container;
 mod projectile_entity;
