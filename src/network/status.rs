@@ -2491,6 +2491,23 @@ mod tests {
     }
 
     #[test]
+    fn biome_network_codec_fixture_covers_required_fields_for_every_emitted_biome() {
+        for biome in BIOMES {
+            let tag = vanilla_baseline_biome_nbt(biome);
+            assert!(matches!(
+                field_value(&tag, "has_precipitation"),
+                Some(Tag::Byte(0 | 1))
+            ));
+            assert!(matches!(field_value(&tag, "temperature"), Some(Tag::Float(_))));
+            assert!(matches!(field_value(&tag, "downfall"), Some(Tag::Float(_))));
+            assert!(matches!(field_value(&tag, "effects"), Some(Tag::Compound(_))));
+
+            let effects = compound_field(&tag, "effects");
+            assert!(matches!(field_value(effects, "water_color"), Some(Tag::Int(_))));
+        }
+    }
+
+    #[test]
     fn jukebox_song_registry_payloads_include_disc_13_component_data() {
         assert_eq!(
             registry_element_count(write_vanilla_jukebox_song_registry_packet),

@@ -238,19 +238,32 @@ const requiredTags = new Map([
   ]]
 ])
 
+const requiredBiomeFieldPaths = [
+  'has_precipitation',
+  'temperature',
+  'downfall',
+  'effects',
+  'effects.water_color'
+]
+
 function decodeRegistryPacket (packet) {
   const registry = readString(packet.body)
   const count = readVarInt(packet.body, registry.offset)
   if (!count) throw new Error(`missing element count for registry ${registry.value}`)
   let offset = count.offset
   const elements = []
+  const elementDataFields = {}
   for (let i = 0; i < count.value; i++) {
     const element = readString(packet.body, offset)
     elements.push(element.value)
     offset = element.offset
     const hasData = packet.body[offset++]
     if (hasData === 1) {
-      offset = skipNetworkNbt(packet.body, offset)
+      const nbt = readNetworkNbt(packet.body, offset)
+      offset = nbt.offset
+      if (registry.value === 'minecraft:biome') {
+        elementDataFields[element.value] = collectNbtFieldPaths(nbt.value)
+      }
     } else if (hasData !== 0) {
       throw new Error(`invalid registry data marker ${hasData} for ${registry.value}/${element.value}`)
     }
@@ -263,7 +276,8 @@ function decodeRegistryPacket (packet) {
     length: packet.length,
     registry: registry.value,
     elements: count.value,
-    elementIds: elements
+    elementIds: elements,
+    ...(Object.keys(elementDataFields).length > 0 ? { elementDataFields } : {})
   }
 }
 
@@ -324,6 +338,98 @@ function skipNetworkNbt (buffer, offset) {
   const type = buffer[offset++]
   if (type !== 10) throw new Error(`expected compound NBT tag, got ${type}`)
   return skipNbtPayload(buffer, offset, type)
+}
+
+function readNetworkNbt (buffer, offset) {
+  const type = buffer[offset++]
+  if (type !== 10) throw new Error(`expected compound NBT tag, got ${type}`)
+  return readNbtPayload(buffer, offset, type)
+}
+
+function readNbtPayload (buffer, offset, type) {
+  switch (type) {
+    case 0:
+      return { value: null, offset }
+    case 1:
+      return { value: buffer.readInt8(offset), offset: offset + 1 }
+    case 2:
+      return { value: buffer.readInt16BE(offset), offset: offset + 2 }
+    case 3:
+      return { value: buffer.readInt32BE(offset), offset: offset + 4 }
+    case 4:
+      return { value: Number(buffer.readBigInt64BE(offset)), offset: offset + 8 }
+    case 5:
+      return { value: buffer.readFloatBE(offset), offset: offset + 4 }
+    case 6:
+      return { value: buffer.readDoubleBE(offset), offset: offset + 8 }
+    case 7: {
+      const length = buffer.readInt32BE(offset)
+      return { value: [...buffer.subarray(offset + 4, offset + 4 + length)], offset: offset + 4 + length }
+    }
+    case 8: {
+      const length = buffer.readUInt16BE(offset)
+      return { value: buffer.toString('utf8', offset + 2, offset + 2 + length), offset: offset + 2 + length }
+    }
+    case 9: {
+      const childType = buffer[offset]
+      const length = buffer.readInt32BE(offset + 1)
+      let cursor = offset + 5
+      const values = []
+      for (let i = 0; i < length; i++) {
+        const child = readNbtPayload(buffer, cursor, childType)
+        values.push(child.value)
+        cursor = child.offset
+      }
+      return { value: values, offset: cursor }
+    }
+    case 10: {
+      let cursor = offset
+      const value = {}
+      while (true) {
+        const childType = buffer[cursor++]
+        if (childType === 0) return { value, offset: cursor }
+        const nameLength = buffer.readUInt16BE(cursor)
+        const name = buffer.toString('utf8', cursor + 2, cursor + 2 + nameLength)
+        cursor += 2 + nameLength
+        const child = readNbtPayload(buffer, cursor, childType)
+        value[name] = child.value
+        cursor = child.offset
+      }
+    }
+    case 11: {
+      const length = buffer.readInt32BE(offset)
+      const values = []
+      let cursor = offset + 4
+      for (let i = 0; i < length; i++) {
+        values.push(buffer.readInt32BE(cursor))
+        cursor += 4
+      }
+      return { value: values, offset: cursor }
+    }
+    case 12: {
+      const length = buffer.readInt32BE(offset)
+      const values = []
+      let cursor = offset + 4
+      for (let i = 0; i < length; i++) {
+        values.push(Number(buffer.readBigInt64BE(cursor)))
+        cursor += 8
+      }
+      return { value: values, offset: cursor }
+    }
+    default:
+      throw new Error(`unsupported NBT tag ${type}`)
+  }
+}
+
+function collectNbtFieldPaths (value, prefix = '') {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return []
+  const paths = []
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key
+    paths.push(path)
+    paths.push(...collectNbtFieldPaths(child, path))
+  }
+  return paths
 }
 
 function skipNbtPayload (buffer, offset, type) {
@@ -444,6 +550,14 @@ async function main () {
     const packetElements = new Set(packet.elementIds)
     for (const element of elements) {
       if (!packetElements.has(element)) throw new Error(`missing registry element ${registry}/${element}`)
+    }
+  }
+  const biomePacket = registryPackets.find(packet => packet.registry === 'minecraft:biome')
+  if (!biomePacket) throw new Error('missing biome registry for field validation')
+  for (const element of biomePacket.elementIds) {
+    const fields = new Set(biomePacket.elementDataFields?.[element] ?? [])
+    for (const field of requiredBiomeFieldPaths) {
+      if (!fields.has(field)) throw new Error(`biome ${element} missing network codec field ${field}`)
     }
   }
   const tagsPacket = config.find(packet => packet.id === 13)
