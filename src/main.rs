@@ -256,7 +256,7 @@ fn run(options: CliOptions) -> Result<(), String> {
         world_options.generate_bonus_chest
     ))?;
 
-    logger.info("Starting status/ping listener. Login and gameplay are not implemented yet.")?;
+    logger.info("Starting status/login listener with minimal play join support.")?;
 
     let bind_ip = if properties.server_ip.is_empty() {
         "0.0.0.0"

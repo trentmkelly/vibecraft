@@ -2,15 +2,30 @@ use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
+use std::thread;
 use std::time::Duration;
 
+use crate::network::codec::{write_identifier, write_optional};
+use crate::network::login::{
+    LoginSession, ServerboundHelloPacket, ServerboundLoginAcknowledgedPacket,
+    CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, SERVERBOUND_HELLO_PACKET_ID,
+    SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID,
+};
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
+use crate::network::play::{
+    ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+};
 use crate::network::varint::{read_var_i32, write_var_i32};
+use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 
 const VERSION_NAME: &str = "26.1.2";
 const PROTOCOL_VERSION: i32 = 775;
 const MAX_PACKET_SIZE: usize = 2 * 1024 * 1024;
+const CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
+const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
+const SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
 
 pub fn run_status_server(
     bind_ip: &str,
@@ -27,9 +42,15 @@ pub fn run_status_server(
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                if let Err(err) = handle_status_connection(stream, properties, favicon.as_deref()) {
-                    eprintln!("status connection error: {err}");
-                }
+                let properties = properties.clone();
+                let favicon = favicon.clone();
+                thread::spawn(move || {
+                    if let Err(err) =
+                        handle_status_connection(stream, &properties, favicon.as_deref())
+                    {
+                        eprintln!("status connection error: {err}");
+                    }
+                });
             }
             Err(err) => eprintln!("status accept error: {err}"),
         }
@@ -67,8 +88,14 @@ fn handle_status_connection(
     input.read_exact(&mut port_bytes)?;
     let _server_port = u16::from_be_bytes(port_bytes);
     let next_state = read_var_i32(&mut input)?;
+    if next_state == 2 {
+        return handle_login_connection(&mut stream, properties);
+    }
     if next_state != 1 {
-        return Ok(());
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unsupported handshake target state",
+        ));
     }
 
     loop {
@@ -92,6 +119,186 @@ fn handle_status_connection(
             }
         }
     }
+}
+
+fn handle_login_connection(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+) -> io::Result<()> {
+    let packet = read_packet(stream)?;
+    let mut input = Cursor::new(packet);
+    let packet_id = read_var_i32(&mut input)?;
+    if packet_id != SERVERBOUND_HELLO_PACKET_ID {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected login hello",
+        ));
+    }
+
+    let mut login = LoginSession::default();
+    let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
+    write_framed_packet(stream, CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, |payload| {
+        finished.write(payload)
+    })?;
+
+    let packet = read_packet(stream)?;
+    let mut input = Cursor::new(packet);
+    let packet_id = read_var_i32(&mut input)?;
+    if packet_id != SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected login acknowledgement",
+        ));
+    }
+    login.acknowledge(ServerboundLoginAcknowledgedPacket::read(&mut input)?);
+
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, 1)?;
+            write_identifier(payload, &Identifier::parse("minecraft:vanilla").unwrap())
+        },
+    )?;
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
+        |_payload| Ok(()),
+    )?;
+
+    let packet = read_packet(stream)?;
+    let mut input = Cursor::new(packet);
+    let packet_id = read_var_i32(&mut input)?;
+    if packet_id != SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected configuration finish",
+        ));
+    }
+
+    write_minimal_play_join(stream, properties)?;
+    loop {
+        match read_packet(stream) {
+            Ok(_packet) => {}
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    io::ErrorKind::UnexpectedEof
+                        | io::ErrorKind::ConnectionReset
+                        | io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Ok(())
+            }
+            Err(err) => return Err(err),
+        }
+    }
+}
+
+fn write_minimal_play_join(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+) -> io::Result<()> {
+    let login = ClientboundLoginPacket {
+        player_id: 1,
+        hardcore: properties.hardcore,
+        levels: vec![Identifier::parse("minecraft:overworld").unwrap()],
+        max_players: properties.max_players as i32,
+        chunk_radius: properties.view_distance as i32,
+        simulation_distance: properties.simulation_distance as i32,
+        reduced_debug_info: false,
+        show_death_screen: true,
+        do_limited_crafting: false,
+        spawn_info: CommonPlayerSpawnInfo::default(),
+        enforces_secure_chat: false,
+    };
+    write_framed_packet(stream, CLIENTBOUND_LOGIN_PACKET_ID, |payload| {
+        write_clientbound_login_packet(payload, &login)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, |payload| {
+        write_var_i32(payload, 0)
+    })?;
+    write_framed_packet(stream, CLIENTBOUND_PLAYER_POSITION_PACKET_ID, |payload| {
+        write_var_i32(payload, 0)?;
+        write_vec3(payload, 0.5, 80.0, 0.5)?;
+        write_vec3(payload, 0.0, 0.0, 0.0)?;
+        payload.write_all(&0.0f32.to_be_bytes())?;
+        payload.write_all(&0.0f32.to_be_bytes())?;
+        write_var_i32(payload, 0)
+    })
+}
+
+fn write_clientbound_login_packet<W: Write>(
+    writer: &mut W,
+    packet: &ClientboundLoginPacket,
+) -> io::Result<()> {
+    writer.write_all(&packet.player_id.to_be_bytes())?;
+    write_bool(writer, packet.hardcore)?;
+    write_var_i32(writer, packet.levels.len() as i32)?;
+    for level in &packet.levels {
+        write_identifier(writer, level)?;
+    }
+    write_var_i32(writer, packet.max_players)?;
+    write_var_i32(writer, packet.chunk_radius)?;
+    write_var_i32(writer, packet.simulation_distance)?;
+    write_bool(writer, packet.reduced_debug_info)?;
+    write_bool(writer, packet.show_death_screen)?;
+    write_bool(writer, packet.do_limited_crafting)?;
+    write_common_spawn_info(writer, &packet.spawn_info)?;
+    write_bool(writer, packet.enforces_secure_chat)
+}
+
+fn write_common_spawn_info<W: Write>(
+    writer: &mut W,
+    spawn_info: &CommonPlayerSpawnInfo,
+) -> io::Result<()> {
+    write_identifier(writer, &spawn_info.dimension_type)?;
+    write_identifier(writer, &spawn_info.dimension)?;
+    writer.write_all(&spawn_info.seed.to_be_bytes())?;
+    writer.write_all(&[spawn_info.game_mode as u8])?;
+    writer.write_all(&[match spawn_info.previous_game_mode {
+        Some(GameMode::Survival) => 0,
+        Some(GameMode::Creative) => 1,
+        Some(GameMode::Adventure) => 2,
+        Some(GameMode::Spectator) => 3,
+        None => 255,
+    }])?;
+    write_bool(writer, spawn_info.is_debug)?;
+    write_bool(writer, spawn_info.is_flat)?;
+    write_optional(
+        writer,
+        spawn_info.last_death_location.as_ref(),
+        |writer, (dimension, pos)| {
+            write_identifier(writer, dimension)?;
+            for coordinate in pos {
+                writer.write_all(&coordinate.to_be_bytes())?;
+            }
+            Ok(())
+        },
+    )?;
+    write_var_i32(writer, spawn_info.portal_cooldown)?;
+    write_var_i32(writer, spawn_info.sea_level)
+}
+
+fn write_vec3<W: Write>(writer: &mut W, x: f64, y: f64, z: f64) -> io::Result<()> {
+    writer.write_all(&x.to_be_bytes())?;
+    writer.write_all(&y.to_be_bytes())?;
+    writer.write_all(&z.to_be_bytes())
+}
+
+fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {
+    writer.write_all(&[u8::from(value)])
+}
+
+fn write_framed_packet<W, F>(writer: &mut W, packet_id: i32, write_body: F) -> io::Result<()>
+where
+    W: Write,
+    F: FnOnce(&mut Vec<u8>) -> io::Result<()>,
+{
+    let mut payload = Vec::new();
+    write_var_i32(&mut payload, packet_id)?;
+    write_body(&mut payload)?;
+    write_packet(writer, &payload)
 }
 
 fn write_status_response_packet<W: Write>(writer: &mut W, json: &str) -> io::Result<()> {
