@@ -92,6 +92,19 @@ pub struct NormalNoiseSnapshot {
     pub max_value: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlendedNoiseSnapshot {
+    pub min_limit_noise: PerlinNoiseSnapshot,
+    pub max_limit_noise: PerlinNoiseSnapshot,
+    pub main_noise: PerlinNoiseSnapshot,
+    pub xz_multiplier: f64,
+    pub y_multiplier: f64,
+    pub xz_factor: f64,
+    pub y_factor: f64,
+    pub smear_scale_multiplier: f64,
+    pub max_value: f64,
+}
+
 pub const SIMPLEX_GRADIENT: [[i32; 3]; 16] = [
     [1, 1, 0],
     [-1, 1, 0],
@@ -19515,8 +19528,30 @@ impl DensityFunction {
             }
             DensityFunction::BlendAlpha => 1.0,
             DensityFunction::BlendOffset => 0.0,
-            DensityFunction::BlendedNoise { .. }
-            | DensityFunction::EndIslands { .. }
+            DensityFunction::BlendedNoise {
+                xz_scale,
+                y_scale,
+                xz_factor,
+                y_factor,
+                smear_scale_multiplier,
+            } => blended_noise_snapshot(
+                random_state_terrain_random(seed, settings),
+                xz_scale,
+                y_scale,
+                xz_factor,
+                y_factor,
+                smear_scale_multiplier,
+            )
+            .map(|snapshot| {
+                blended_noise_sample(
+                    &snapshot,
+                    f64::from(block_x),
+                    f64::from(block_y),
+                    f64::from(block_z),
+                )
+            })
+            .unwrap_or(0.0),
+            DensityFunction::EndIslands { .. }
             | DensityFunction::Beardifier
             | DensityFunction::Spline
             | DensityFunction::FindTopSurface => 0.0,
@@ -19972,6 +20007,112 @@ pub fn perlin_noise_edge_value(snapshot: &PerlinNoiseSnapshot, noise_value: f64)
 
 pub fn perlin_noise_max_broken_value(snapshot: &PerlinNoiseSnapshot, y_scale: f64) -> f64 {
     perlin_noise_edge_value(snapshot, y_scale + 2.0)
+}
+
+const BLENDED_NOISE_LIMIT_AMPLITUDES: [f64; 16] = [1.0; 16];
+const BLENDED_NOISE_MAIN_AMPLITUDES: [f64; 8] = [1.0; 8];
+
+fn random_state_terrain_random(seed: i64, settings: NoiseGeneratorSettings) -> RandomSourceKind {
+    let algorithm = if settings.legacy_random_source {
+        RandomAlgorithm::Legacy
+    } else {
+        RandomAlgorithm::Xoroshiro
+    };
+    random_state_seed_factories(seed, algorithm).terrain
+}
+
+pub fn blended_noise_snapshot(
+    mut random: RandomSourceKind,
+    xz_scale: f64,
+    y_scale: f64,
+    xz_factor: f64,
+    y_factor: f64,
+    smear_scale_multiplier: f64,
+) -> Result<BlendedNoiseSnapshot, &'static str> {
+    let limit_parameters = NormalNoiseParameters {
+        id: "minecraft:blended_noise_limit",
+        first_octave: -15,
+        amplitudes: &BLENDED_NOISE_LIMIT_AMPLITUDES,
+    };
+    let main_parameters = NormalNoiseParameters {
+        id: "minecraft:blended_noise_main",
+        first_octave: -7,
+        amplitudes: &BLENDED_NOISE_MAIN_AMPLITUDES,
+    };
+    let min_limit_noise = perlin_noise_snapshot_from_random(&mut random, limit_parameters, false)?;
+    let max_limit_noise = perlin_noise_snapshot_from_random(&mut random, limit_parameters, false)?;
+    let main_noise = perlin_noise_snapshot_from_random(&mut random, main_parameters, false)?;
+    let xz_multiplier = 684.412 * xz_scale;
+    let y_multiplier = 684.412 * y_scale;
+    let max_value = perlin_noise_max_broken_value(&min_limit_noise, y_multiplier);
+
+    Ok(BlendedNoiseSnapshot {
+        min_limit_noise,
+        max_limit_noise,
+        main_noise,
+        xz_multiplier,
+        y_multiplier,
+        xz_factor,
+        y_factor,
+        smear_scale_multiplier,
+        max_value,
+    })
+}
+
+pub fn blended_noise_sample(snapshot: &BlendedNoiseSnapshot, x: f64, y: f64, z: f64) -> f64 {
+    let limit_x = x * snapshot.xz_multiplier;
+    let limit_y = y * snapshot.y_multiplier;
+    let limit_z = z * snapshot.xz_multiplier;
+    let main_x = limit_x / snapshot.xz_factor;
+    let main_y = limit_y / snapshot.y_factor;
+    let main_z = limit_z / snapshot.xz_factor;
+    let limit_smear = snapshot.y_multiplier * snapshot.smear_scale_multiplier;
+    let main_smear = limit_smear / snapshot.y_factor;
+    let mut main_noise_value = 0.0;
+    let mut pow = 1.0;
+
+    for noise in snapshot.main_noise.levels.iter().take(8) {
+        if let Some(noise) = noise {
+            main_noise_value += improved_noise_sample(
+                noise,
+                perlin_noise_wrap(main_x * pow),
+                perlin_noise_wrap(main_y * pow),
+                perlin_noise_wrap(main_z * pow),
+                main_smear * pow,
+                main_y * pow,
+            ) / pow;
+        }
+        pow /= 2.0;
+    }
+
+    let factor = (main_noise_value / 10.0 + 1.0) / 2.0;
+    let is_max = factor >= 1.0;
+    let is_min = factor <= 0.0;
+    let mut blend_min = 0.0;
+    let mut blend_max = 0.0;
+    pow = 1.0;
+
+    for index in 0..16 {
+        let wx = perlin_noise_wrap(limit_x * pow);
+        let wy = perlin_noise_wrap(limit_y * pow);
+        let wz = perlin_noise_wrap(limit_z * pow);
+        let y_scale_pow = limit_smear * pow;
+        if !is_max {
+            if let Some(noise) = &snapshot.min_limit_noise.levels[index] {
+                blend_min +=
+                    improved_noise_sample(noise, wx, wy, wz, y_scale_pow, limit_y * pow) / pow;
+            }
+        }
+        if !is_min {
+            if let Some(noise) = &snapshot.max_limit_noise.levels[index] {
+                blend_max +=
+                    improved_noise_sample(noise, wx, wy, wz, y_scale_pow, limit_y * pow) / pow;
+            }
+        }
+        pow /= 2.0;
+    }
+
+    lerp(factor.clamp(0.0, 1.0), blend_min / 512.0, blend_max / 512.0) / 128.0
 }
 
 pub fn normal_noise_snapshot(
@@ -26189,6 +26330,37 @@ mod tests {
         assert_eq!(super::RarityValueMapper::Type1.map_value(0.25), 1.5);
         assert_eq!(super::RarityValueMapper::Type2.map_value(-0.8), 0.5);
         assert_eq!(super::RarityValueMapper::Type2.map_value(0.8), 3.0);
+    }
+
+    #[test]
+    fn blended_noise_evaluator_uses_vanilla_legacy_octave_stack() {
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let snapshot = super::blended_noise_snapshot(
+            super::random_state_terrain_random(12345, overworld),
+            0.25,
+            0.125,
+            80.0,
+            160.0,
+            8.0,
+        )
+        .unwrap();
+        assert_eq!(snapshot.min_limit_noise.levels.len(), 16);
+        assert_eq!(snapshot.max_limit_noise.levels.len(), 16);
+        assert_eq!(snapshot.main_noise.levels.len(), 8);
+        assert!(snapshot.min_limit_noise.levels.iter().all(Option::is_some));
+        assert!(snapshot.max_limit_noise.levels.iter().all(Option::is_some));
+        assert!(snapshot.main_noise.levels.iter().all(Option::is_some));
+
+        let sample = super::blended_noise_sample(&snapshot, 16.0, 64.0, -32.0);
+        let density_sample = super::BASE_3D_NOISE_OVERWORLD_DENSITY
+            .compute_with_noise(12345, overworld, 16, 64, -32);
+        assert!((sample - -0.07132762257540634).abs() < 1e-12);
+        assert!((sample - density_sample).abs() < 1e-12);
+
+        let nether = *super::builtin_noise_generator_settings("nether").unwrap();
+        let nether_sample =
+            super::BASE_3D_NOISE_NETHER_DENSITY.compute_with_noise(12345, nether, 16, 64, -32);
+        assert!((nether_sample - -0.16910380018719748).abs() < 1e-12);
     }
 
     #[test]
