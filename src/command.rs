@@ -16037,6 +16037,72 @@ mod tests {
     }
 
     #[test]
+    fn world_state_commands_update_client_observable_runtime_state() {
+        let mut state = ServerCommandState {
+            world_clock_ticks: 23_500,
+            ..ServerCommandState::default()
+        };
+
+        let set_midnight = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time set midnight",
+        )
+        .unwrap();
+        assert_eq!(state.world_clock_ticks, 18_000);
+        assert_eq!(set_midnight.success_count, 18_000);
+        assert_eq!(set_midnight.feedback_key, "commands.time.set.time_marker");
+        assert!(set_midnight.broadcast_to_admins);
+
+        let pause = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "time pause",
+        )
+        .unwrap();
+        assert!(state.world_clock_paused);
+        assert_eq!(pause.feedback_key, "commands.time.pause");
+
+        let thunder = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "weather thunder 30s",
+        )
+        .unwrap();
+        assert_eq!(state.weather.mode, WeatherMode::Thunder);
+        assert_eq!(state.weather.duration_ticks, Some(600));
+        assert_eq!(thunder.success_count, 600);
+        assert_eq!(thunder.feedback_key, "commands.weather.set.thunder");
+        assert!(thunder.broadcast_to_admins);
+
+        let initial_border_size = state.world_border.size();
+        let border = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder set 128 10s",
+        )
+        .unwrap();
+        assert_eq!(state.world_border.lerp_target(), 128.0);
+        assert_eq!(state.world_border.lerp_time(), 200);
+        assert_eq!(border.success_count, (128.0 - initial_border_size) as i32);
+        assert_eq!(border.feedback_key, "commands.worldborder.set.shrink");
+        assert!(border.broadcast_to_admins);
+
+        let warning = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder warning distance 8",
+        )
+        .unwrap();
+        assert_eq!(state.world_border.warning_blocks, 8);
+        assert_eq!(warning.success_count, 8);
+        assert_eq!(
+            warning.feedback_key,
+            "commands.worldborder.warning.distance.success"
+        );
+    }
+
+    #[test]
     fn worldborder_command_rejects_vanilla_failure_paths() {
         let mut state = ServerCommandState::default();
         assert_eq!(
