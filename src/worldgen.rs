@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::biome::{span, ClimateParameterPoint};
+use crate::biome::{biome_source_from_stem_id, span, BiomeSourceModel, ClimateParameterPoint};
 use crate::storage::chunk::{
     BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
     BIOME_SECTION_VOLUME, SECTION_VOLUME,
@@ -474,13 +474,16 @@ pub enum ChunkGeneratorKind {
 pub enum ResolvedChunkGenerator {
     Noise {
         biome_source: &'static str,
+        biome_source_model: BiomeSourceModel,
         noise_settings: &'static NoiseGeneratorSettings,
     },
     Flat {
+        biome_source_model: BiomeSourceModel,
         settings: FlatGeneratorSettingsModel,
     },
     Debug {
         biome: &'static str,
+        biome_source_model: BiomeSourceModel,
     },
 }
 
@@ -5015,8 +5018,11 @@ pub fn resolve_level_stem(stem: &LevelStemPreset) -> Result<ResolvedLevelStem, S
                 .ok_or_else(|| format!("Noise generator {} has no settings", stem.dimension))?;
             let settings = builtin_noise_generator_settings(settings_id)
                 .ok_or_else(|| format!("Unknown noise settings {settings_id}"))?;
+            let biome_source_model = biome_source_from_stem_id(stem.biome_source)
+                .ok_or_else(|| format!("Unknown biome source {}", stem.biome_source))?;
             ResolvedChunkGenerator::Noise {
                 biome_source: stem.biome_source,
+                biome_source_model,
                 noise_settings: settings,
             }
         }
@@ -5027,7 +5033,10 @@ pub fn resolve_level_stem(stem: &LevelStemPreset) -> Result<ResolvedLevelStem, S
                     stem.dimension
                 ));
             }
+            let biome_source_model = biome_source_from_stem_id(stem.biome_source)
+                .ok_or_else(|| format!("Unknown biome source {}", stem.biome_source))?;
             ResolvedChunkGenerator::Flat {
+                biome_source_model,
                 settings: default_flat_generator_settings()?,
             }
         }
@@ -5038,8 +5047,11 @@ pub fn resolve_level_stem(stem: &LevelStemPreset) -> Result<ResolvedLevelStem, S
                     stem.dimension
                 ));
             }
+            let biome_source_model = biome_source_from_stem_id(stem.biome_source)
+                .ok_or_else(|| format!("Unknown biome source {}", stem.biome_source))?;
             ResolvedChunkGenerator::Debug {
                 biome: stem.biome_source,
+                biome_source_model,
             }
         }
     };
@@ -5064,7 +5076,7 @@ pub fn generate_chunk_for_stem(
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
-        ResolvedChunkGenerator::Flat { settings } => Ok(materialize_flat_chunk(pos, settings)),
+        ResolvedChunkGenerator::Flat { settings, .. } => Ok(materialize_flat_chunk(pos, settings)),
         ResolvedChunkGenerator::Noise { noise_settings, .. } => Err(format!(
             "Noise chunk generation for {} with {} is not implemented",
             stem.dimension, noise_settings.id
@@ -5912,7 +5924,7 @@ mod tests {
         TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
         WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
-    use crate::biome::quantize_coord;
+    use crate::biome::{quantize_coord, BiomeSourceModel};
     use crate::storage::chunk::HeightmapKind;
     use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
@@ -6579,9 +6591,16 @@ mod tests {
         match normal.overworld.generator {
             super::ResolvedChunkGenerator::Noise {
                 biome_source,
+                biome_source_model,
                 noise_settings,
             } => {
                 assert_eq!(biome_source, "minecraft:multi_noise/overworld");
+                assert_eq!(
+                    biome_source_model,
+                    BiomeSourceModel::MultiNoisePreset {
+                        preset: "minecraft:overworld"
+                    }
+                );
                 assert_eq!(noise_settings.id, "minecraft:overworld");
             }
             _ => panic!("normal overworld should resolve to noise"),
@@ -6589,9 +6608,16 @@ mod tests {
         match normal.nether.generator {
             super::ResolvedChunkGenerator::Noise {
                 biome_source,
+                biome_source_model,
                 noise_settings,
             } => {
                 assert_eq!(biome_source, "minecraft:multi_noise/nether");
+                assert_eq!(
+                    biome_source_model,
+                    BiomeSourceModel::MultiNoisePreset {
+                        preset: "minecraft:nether"
+                    }
+                );
                 assert_eq!(noise_settings.id, "minecraft:nether");
             }
             _ => panic!("normal nether should resolve to noise"),
@@ -6599,9 +6625,11 @@ mod tests {
         match normal.end.generator {
             super::ResolvedChunkGenerator::Noise {
                 biome_source,
+                biome_source_model,
                 noise_settings,
             } => {
                 assert_eq!(biome_source, "minecraft:the_end");
+                assert_eq!(biome_source_model, BiomeSourceModel::TheEnd);
                 assert_eq!(noise_settings.id, "minecraft:end");
             }
             _ => panic!("normal end should resolve to noise"),
@@ -6627,9 +6655,16 @@ mod tests {
         match single.overworld.generator {
             super::ResolvedChunkGenerator::Noise {
                 biome_source,
+                biome_source_model,
                 noise_settings,
             } => {
                 assert_eq!(biome_source, "minecraft:fixed/plains");
+                assert_eq!(
+                    biome_source_model,
+                    BiomeSourceModel::Fixed {
+                        biome: "minecraft:plains"
+                    }
+                );
                 assert_eq!(noise_settings.id, "minecraft:overworld");
             }
             _ => panic!("single biome overworld should resolve to noise"),
@@ -6637,7 +6672,16 @@ mod tests {
 
         let flat = super::resolve_world_preset("flat").unwrap();
         match flat.overworld.generator {
-            super::ResolvedChunkGenerator::Flat { settings } => {
+            super::ResolvedChunkGenerator::Flat {
+                biome_source_model,
+                settings,
+            } => {
+                assert_eq!(
+                    biome_source_model,
+                    BiomeSourceModel::Fixed {
+                        biome: "minecraft:plains"
+                    }
+                );
                 assert_eq!(settings.biome, "minecraft:plains");
                 assert_eq!(
                     settings.expanded_layers,
@@ -6654,8 +6698,17 @@ mod tests {
 
         let debug = super::resolve_world_preset("debug_all_block_states").unwrap();
         match debug.overworld.generator {
-            super::ResolvedChunkGenerator::Debug { biome } => {
+            super::ResolvedChunkGenerator::Debug {
+                biome,
+                biome_source_model,
+            } => {
                 assert_eq!(biome, "minecraft:plains");
+                assert_eq!(
+                    biome_source_model,
+                    BiomeSourceModel::Fixed {
+                        biome: "minecraft:plains"
+                    }
+                );
             }
             _ => panic!("debug overworld should resolve to debug"),
         }

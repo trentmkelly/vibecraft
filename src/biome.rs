@@ -38,6 +38,21 @@ pub struct ClimateBiomeEntry {
     pub biome: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BiomeSourceModel {
+    Fixed {
+        biome: &'static str,
+    },
+    Checkerboard {
+        biomes: Vec<&'static str>,
+        scale: i32,
+    },
+    MultiNoisePreset {
+        preset: &'static str,
+    },
+    TheEnd,
+}
+
 pub const QUANTIZATION_FACTOR: f32 = 10_000.0;
 
 pub const BUILTIN_BIOMES: &[BiomeKey] = &[
@@ -352,6 +367,103 @@ pub fn select_climate_biome(
         .map(|entry| entry.biome)
 }
 
+pub fn biome_source_codec(id: &str) -> Option<&'static str> {
+    match id.strip_prefix("minecraft:").unwrap_or(id) {
+        "fixed" => Some("minecraft:fixed"),
+        "multi_noise" => Some("minecraft:multi_noise"),
+        "checkerboard" => Some("minecraft:checkerboard"),
+        "the_end" => Some("minecraft:the_end"),
+        _ => None,
+    }
+}
+
+pub fn biome_source_from_stem_id(id: &str) -> Option<BiomeSourceModel> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    match name {
+        "plains" => Some(BiomeSourceModel::Fixed {
+            biome: "minecraft:plains",
+        }),
+        "fixed/plains" => Some(BiomeSourceModel::Fixed {
+            biome: "minecraft:plains",
+        }),
+        "multi_noise/nether" => Some(BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:nether",
+        }),
+        "multi_noise/overworld" => Some(BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:overworld",
+        }),
+        "the_end" => Some(BiomeSourceModel::TheEnd),
+        _ => None,
+    }
+}
+
+pub fn checkerboard_biome_source(
+    biomes: Vec<&'static str>,
+    scale: i32,
+) -> Result<BiomeSourceModel, String> {
+    if !(0..=62).contains(&scale) {
+        return Err("Checkerboard biome source scale must be in 0..=62".to_string());
+    }
+    if biomes.is_empty() {
+        return Err("Checkerboard biome source requires at least one biome".to_string());
+    }
+    Ok(BiomeSourceModel::Checkerboard { biomes, scale })
+}
+
+pub fn select_biome_from_source(
+    source: &BiomeSourceModel,
+    quart_x: i32,
+    quart_y: i32,
+    quart_z: i32,
+    climate: ClimateTarget,
+    end_erosion: f64,
+) -> Option<&'static str> {
+    match source {
+        BiomeSourceModel::Fixed { biome } => Some(*biome),
+        BiomeSourceModel::Checkerboard { biomes, scale } => {
+            let bit_shift = scale + 2;
+            let index =
+                ((quart_x >> bit_shift) + (quart_z >> bit_shift)).rem_euclid(biomes.len() as i32);
+            Some(biomes[index as usize])
+        }
+        BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:nether",
+        } => select_climate_biome(NETHER_BIOME_PARAMETERS, climate),
+        BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:overworld",
+        } => None,
+        BiomeSourceModel::MultiNoisePreset { .. } => None,
+        BiomeSourceModel::TheEnd => Some(select_end_biome(quart_x, quart_y, quart_z, end_erosion)),
+    }
+}
+
+pub fn select_end_biome(
+    quart_x: i32,
+    quart_y: i32,
+    quart_z: i32,
+    erosion_value: f64,
+) -> &'static str {
+    let block_x = quart_x * 4;
+    let block_z = quart_z * 4;
+    let chunk_x = block_x.div_euclid(16);
+    let chunk_z = block_z.div_euclid(16);
+    if i64::from(chunk_x) * i64::from(chunk_x) + i64::from(chunk_z) * i64::from(chunk_z) <= 4096 {
+        return "minecraft:the_end";
+    }
+    let _weird_block_x = (chunk_x * 2 + 1) * 8;
+    let _weird_block_z = (chunk_z * 2 + 1) * 8;
+    let _block_y = quart_y * 4;
+    if erosion_value > 0.25 {
+        "minecraft:end_highlands"
+    } else if erosion_value >= -0.0625 {
+        "minecraft:end_midlands"
+    } else if erosion_value < -0.21875 {
+        "minecraft:small_end_islands"
+    } else {
+        "minecraft:end_barrens"
+    }
+}
+
 pub fn builtin_biome(id: &str) -> Option<&'static BiomeKey> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_BIOMES.iter().find(|biome| {
@@ -369,8 +481,10 @@ const fn square(value: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        builtin_biome, climate_point, climate_target, quantize_coord, select_climate_biome,
-        unquantize_coord, ClimateBiomeEntry, BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
+        biome_source_codec, biome_source_from_stem_id, builtin_biome, checkerboard_biome_source,
+        climate_point, climate_target, quantize_coord, select_biome_from_source,
+        select_climate_biome, select_end_biome, unquantize_coord, BiomeSourceModel,
+        ClimateBiomeEntry, BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
     };
 
     #[test]
@@ -439,5 +553,111 @@ mod tests {
             select_climate_biome(&entries, climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),
             Some("minecraft:plains")
         );
+    }
+
+    #[test]
+    fn biome_source_codecs_match_vanilla_registry_order() {
+        assert_eq!(biome_source_codec("fixed"), Some("minecraft:fixed"));
+        assert_eq!(
+            biome_source_codec("minecraft:multi_noise"),
+            Some("minecraft:multi_noise")
+        );
+        assert_eq!(
+            biome_source_codec("checkerboard"),
+            Some("minecraft:checkerboard")
+        );
+        assert_eq!(biome_source_codec("the_end"), Some("minecraft:the_end"));
+        assert_eq!(biome_source_codec("custom"), None);
+
+        assert_eq!(
+            biome_source_from_stem_id("minecraft:plains"),
+            Some(BiomeSourceModel::Fixed {
+                biome: "minecraft:plains"
+            })
+        );
+        assert_eq!(
+            biome_source_from_stem_id("multi_noise/nether"),
+            Some(BiomeSourceModel::MultiNoisePreset {
+                preset: "minecraft:nether"
+            })
+        );
+        assert_eq!(
+            biome_source_from_stem_id("the_end"),
+            Some(BiomeSourceModel::TheEnd)
+        );
+    }
+
+    #[test]
+    fn fixed_checkerboard_nether_and_end_sources_select_like_vanilla() {
+        let fixed = BiomeSourceModel::Fixed {
+            biome: "minecraft:plains",
+        };
+        assert_eq!(
+            select_biome_from_source(
+                &fixed,
+                120,
+                -10,
+                -44,
+                climate_target(0.4, 0.0, 0.0, 0.0, 0.0, 0.0),
+                0.0
+            ),
+            Some("minecraft:plains")
+        );
+
+        let checkerboard = checkerboard_biome_source(
+            vec!["minecraft:plains", "minecraft:desert", "minecraft:forest"],
+            2,
+        )
+        .unwrap();
+        assert_eq!(
+            select_biome_from_source(
+                &checkerboard,
+                0,
+                0,
+                0,
+                climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                0.0
+            ),
+            Some("minecraft:plains")
+        );
+        assert_eq!(
+            select_biome_from_source(
+                &checkerboard,
+                16,
+                0,
+                0,
+                climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                0.0
+            ),
+            Some("minecraft:desert")
+        );
+        assert_eq!(
+            checkerboard_biome_source(vec!["minecraft:plains"], 63).unwrap_err(),
+            "Checkerboard biome source scale must be in 0..=62".to_string()
+        );
+
+        let nether = BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:nether",
+        };
+        assert_eq!(
+            select_biome_from_source(
+                &nether,
+                0,
+                0,
+                0,
+                climate_target(0.0, 0.5, 0.0, 0.0, 0.0, 0.0),
+                0.0
+            ),
+            Some("minecraft:warped_forest")
+        );
+
+        assert_eq!(select_end_biome(0, 64, 0, -1.0), "minecraft:the_end");
+        assert_eq!(select_end_biome(300, 64, 0, 0.3), "minecraft:end_highlands");
+        assert_eq!(select_end_biome(300, 64, 0, 0.0), "minecraft:end_midlands");
+        assert_eq!(
+            select_end_biome(300, 64, 0, -0.3),
+            "minecraft:small_end_islands"
+        );
+        assert_eq!(select_end_biome(300, 64, 0, -0.1), "minecraft:end_barrens");
     }
 }
