@@ -24,16 +24,18 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
+    unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
     CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
     CLIENTBOUND_SET_TIME_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
     SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
@@ -155,9 +157,10 @@ const SHORT_GRASS_BLOCK_STATE_ID: i32 = 131;
 const DANDELION_BLOCK_STATE_ID: i32 = 158;
 const POPPY_BLOCK_STATE_ID: i32 = 161;
 #[allow(dead_code)]
-const PLAINS_BIOME_ID: i32 = 1;
+const PLAINS_BIOME_ID: i32 = 40;
 const TERRAIN_BASE_Y: i32 = 64;
 const TERRAIN_MIN_SURFACE_Y: i32 = 70;
+const ITEM_ENTITY_TYPE_ID: i32 = 71;
 const SPAWN_Y: f64 = 112.0;
 
 #[derive(Clone, Default)]
@@ -417,7 +420,7 @@ const CHAT_TYPES: &[ChatTypeEntry] = &[
 
 // Source: decompiled-server-26.1.2/net/minecraft/world/level/biome/Biome.java
 // and data/minecraft/worldgen/biome/*.json
-const BIOMES: &[&str] = &[
+pub(crate) const BIOMES: &[&str] = &[
     "badlands",
     "bamboo_jungle",
     "basalt_deltas",
@@ -1345,6 +1348,7 @@ fn handle_login_connection(
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
+    let mut entity_id_counter: i32 = 0;
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
             keep_alive_id = keep_alive_id.wrapping_add(1);
@@ -1394,6 +1398,78 @@ fn handle_login_connection(
                     write_command_suggestions_response(stream, compression, &mut input)?;
                     continue;
                 }
+                if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
+                    let action = read_var_i32(&mut input)?;
+                    let mut pos_bytes = [0u8; 8];
+                    input.read_exact(&mut pos_bytes)?;
+                    let packed_pos = i64::from_be_bytes(pos_bytes);
+                    let _direction = read_var_i32(&mut input)?;
+                    let sequence = read_var_i32(&mut input)?;
+                    let should_break =
+                        action == 2 || (action == 0 && play_state.game_mode == GameMode::Creative);
+                    if should_break {
+                        write_framed_packet_with_compression(
+                            stream,
+                            compression,
+                            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+                            |p| write_var_i32(p, sequence),
+                        )?;
+                        write_framed_packet_with_compression(
+                            stream,
+                            compression,
+                            CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+                            |p| {
+                                p.write_all(&packed_pos.to_be_bytes())?;
+                                write_var_i32(p, AIR_BLOCK_STATE_ID)
+                            },
+                        )?;
+                        let (bx, by, bz) = unpack_block_position(packed_pos);
+                        let block_state = get_block_state_at(bx, by, bz);
+                        if let Some(item_id) = block_state_to_item_drop(block_state) {
+                            entity_id_counter = entity_id_counter.wrapping_add(1);
+                            let eid = entity_id_counter;
+                            let drop_x = bx as f64 + 0.5;
+                            let drop_y = by as f64 + 0.5;
+                            let drop_z = bz as f64 + 0.5;
+                            write_framed_packet_with_compression(
+                                stream,
+                                compression,
+                                CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+                                |p| {
+                                    write_var_i32(p, eid)?;
+                                    let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
+                                    let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
+                                    p.write_all(&uuid_hi.to_be_bytes())?;
+                                    p.write_all(&uuid_lo.to_be_bytes())?;
+                                    write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
+                                    p.write_all(&drop_x.to_be_bytes())?;
+                                    p.write_all(&drop_y.to_be_bytes())?;
+                                    p.write_all(&drop_z.to_be_bytes())?;
+                                    p.write_all(&[0u8, 0u8, 0u8])?; // pitch, yaw, head_yaw
+                                    write_var_i32(p, 0)?; // data
+                                    p.write_all(&[0u8, 0u8, 0u8, 0u8, 0u8, 0u8])
+                                    // vx, vy, vz
+                                },
+                            )?;
+                            write_framed_packet_with_compression(
+                                stream,
+                                compression,
+                                CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+                                |p| {
+                                    write_var_i32(p, eid)?;
+                                    p.write_all(&[8u8])?; // metadata index 8 = item stack
+                                    write_var_i32(p, 7)?; // serializer id: ItemStack
+                                    write_var_i32(p, 1)?; // count = 1
+                                    write_var_i32(p, item_id)?;
+                                    write_var_i32(p, 0)?; // add_components = 0
+                                    write_var_i32(p, 0)?; // remove_components = 0
+                                    p.write_all(&[0xFFu8]) // end of metadata
+                                },
+                            )?;
+                        }
+                    }
+                    continue;
+                }
                 if matches!(
                     packet_id,
                     SERVERBOUND_KEEP_ALIVE_PACKET_ID
@@ -1411,7 +1487,6 @@ fn handle_login_connection(
                         | SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID
-                        | SERVERBOUND_PLAYER_ACTION_PACKET_ID
                         | SERVERBOUND_PLAYER_COMMAND_PACKET_ID
                         | SERVERBOUND_PLAYER_INPUT_PACKET_ID
                         | SERVERBOUND_PLAYER_LOADED_PACKET_ID
@@ -2443,6 +2518,46 @@ fn visible_spawn_surface_top_block_id(
         27 => ANDESITE_BLOCK_STATE_ID,
         34 | 41 => DIRT_BLOCK_STATE_ID,
         _ => GRASS_BLOCK_STATE_ID,
+    }
+}
+
+fn get_block_state_at(x: i32, y: i32, z: i32) -> i32 {
+    let chunk_x = x.div_euclid(16);
+    let chunk_z = z.div_euclid(16);
+    let local_x = x.rem_euclid(16) as usize;
+    let local_z = z.rem_euclid(16) as usize;
+    let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, local_x, local_z);
+    if y < TERRAIN_BASE_Y || y > top_y + 1 {
+        return AIR_BLOCK_STATE_ID;
+    }
+    if y == TERRAIN_BASE_Y {
+        return BEDROCK_BLOCK_STATE_ID;
+    }
+    if y == top_y + 1 {
+        let surface = visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z);
+        if surface == GRASS_BLOCK_STATE_ID {
+            return visible_spawn_surface_feature_id(chunk_x, chunk_z, local_x, local_z)
+                .unwrap_or(AIR_BLOCK_STATE_ID);
+        }
+        return AIR_BLOCK_STATE_ID;
+    }
+    if y == top_y {
+        return visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z);
+    }
+    STONE_BLOCK_STATE_ID
+}
+
+fn block_state_to_item_drop(block_state_id: i32) -> Option<i32> {
+    match block_state_id {
+        STONE_BLOCK_STATE_ID => Some(35),      // stone → cobblestone
+        GRANITE_BLOCK_STATE_ID => Some(2),     // granite → granite
+        DIORITE_BLOCK_STATE_ID => Some(4),     // diorite → diorite
+        ANDESITE_BLOCK_STATE_ID => Some(6),    // andesite → andesite
+        GRASS_BLOCK_STATE_ID => Some(28),      // grass block → dirt
+        DIRT_BLOCK_STATE_ID => Some(28),       // dirt → dirt
+        DANDELION_BLOCK_STATE_ID => Some(229), // dandelion → dandelion
+        POPPY_BLOCK_STATE_ID => Some(233),     // poppy → poppy
+        _ => None,
     }
 }
 

@@ -52,6 +52,8 @@ pub const CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID: i32 = 10;
 pub const CLIENTBOUND_ADD_ENTITY_PACKET_ID: i32 = 1;
 pub const CLIENTBOUND_ANIMATE_PACKET_ID: i32 = 2;
 pub const CLIENTBOUND_AWARD_STATS_PACKET_ID: i32 = 3;
+pub const CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID: i32 = 4;
+pub const CLIENTBOUND_BLOCK_UPDATE_PACKET_ID: i32 = 8;
 pub const CLIENTBOUND_BOSS_EVENT_PACKET_ID: i32 = 9;
 pub const CLIENTBOUND_CLEAR_TITLES_PACKET_ID: i32 = 14;
 pub const CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID: i32 = 15;
@@ -1443,7 +1445,7 @@ fn pack_block_position(x: i32, y: i32, z: i32) -> i64 {
         | (y as i64 & BLOCK_POS_PACKED_Y_MASK)
 }
 
-fn unpack_block_position(packed: i64) -> (i32, i32, i32) {
+pub fn unpack_block_position(packed: i64) -> (i32, i32, i32) {
     let x = (packed << (64 - (BLOCK_POS_X_OFFSET + BLOCK_POS_PACKED_HORIZONTAL_LENGTH))
         >> (64 - BLOCK_POS_PACKED_HORIZONTAL_LENGTH)) as i32;
     let y = (packed << (64 - BLOCK_POS_PACKED_Y_LENGTH) >> (64 - BLOCK_POS_PACKED_Y_LENGTH)) as i32;
@@ -1731,8 +1733,14 @@ impl NetworkChunkSection {
         Self {
             non_empty_block_count: section_non_empty_block_count(&section.block_states),
             fluid_count: 0,
-            block_states: NetworkPalettedContainer::from_storage_container(&section.block_states),
-            biomes: NetworkPalettedContainer::from_storage_container(&section.biomes),
+            block_states: NetworkPalettedContainer::from_storage_container(
+                &section.block_states,
+                PaletteKind::BlockState,
+            ),
+            biomes: NetworkPalettedContainer::from_storage_container(
+                &section.biomes,
+                PaletteKind::Biome,
+            ),
         }
     }
 
@@ -1753,14 +1761,14 @@ impl NetworkPalettedContainer {
         }
     }
 
-    pub fn from_storage_container(tag: &Tag) -> Self {
+    fn from_storage_container(tag: &Tag, kind: PaletteKind) -> Self {
         let Ok(container) = PalettedContainer::from_nbt(tag, 0) else {
             return Self::single(0);
         };
         let palette_ids = container
             .palette
             .iter()
-            .map(storage_palette_entry_network_id)
+            .map(|entry| storage_palette_entry_network_id(entry, kind))
             .collect::<Vec<_>>();
         let data = container.data.unwrap_or_default();
         Self {
@@ -1795,6 +1803,12 @@ impl NetworkPalettedContainer {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PaletteKind {
+    BlockState,
+    Biome,
+}
+
 fn set_bit(mask: &mut Vec<u64>, index: usize) {
     let word = index / 64;
     if mask.len() <= word {
@@ -1815,9 +1829,13 @@ fn write_data_layer<W: Write>(writer: &mut W, layer: &Vec<i8>) -> io::Result<()>
     writer.write_all(&bytes)
 }
 
-fn storage_palette_entry_network_id(tag: &Tag) -> i32 {
+fn storage_palette_entry_network_id(tag: &Tag, kind: PaletteKind) -> i32 {
     match tag {
         Tag::Int(id) => *id,
+        Tag::String(name) => match kind {
+            PaletteKind::BlockState => block_state_name_network_id(name).unwrap_or(0),
+            PaletteKind::Biome => biome_name_network_id(name).unwrap_or(0),
+        },
         Tag::Compound(fields) => fields
             .iter()
             .find_map(|(name, value)| {
@@ -1833,7 +1851,10 @@ fn storage_palette_entry_network_id(tag: &Tag) -> i32 {
                     (name == "Name")
                         .then_some(value)
                         .and_then(|value| match value {
-                            Tag::String(block_name) => block_state_name_network_id(block_name),
+                            Tag::String(name) => match kind {
+                                PaletteKind::BlockState => block_state_name_network_id(name),
+                                PaletteKind::Biome => biome_name_network_id(name),
+                            },
                             _ => None,
                         })
                 })
@@ -1925,6 +1946,14 @@ fn block_state_name_network_id(name: &str) -> Option<i32> {
         "minecraft:sunflower" => 12916,
         _ => return None,
     })
+}
+
+fn biome_name_network_id(name: &str) -> Option<i32> {
+    let key = name.strip_prefix("minecraft:").unwrap_or(name);
+    crate::network::status::BIOMES
+        .iter()
+        .position(|biome| *biome == key)
+        .map(|index| index as i32)
 }
 
 impl ServerboundAcceptTeleportationPacket {
@@ -3362,11 +3391,29 @@ mod tests {
             expected_entries: 4096,
         };
 
-        let network = NetworkPalettedContainer::from_storage_container(&container.to_nbt());
+        let network = NetworkPalettedContainer::from_storage_container(
+            &container.to_nbt(),
+            PaletteKind::BlockState,
+        );
 
         assert_eq!(network.bits_per_entry, 5);
         assert_eq!(network.palette_ids.len(), 17);
         assert_eq!(network.data, vec![16]);
+    }
+
+    #[test]
+    fn biome_palette_network_ids_follow_synchronized_biome_registry_order() {
+        assert_eq!(biome_name_network_id("minecraft:plains"), Some(40));
+        assert_eq!(biome_name_network_id("plains"), Some(40));
+        assert_eq!(biome_name_network_id("minecraft:the_void"), Some(57));
+
+        let network = NetworkPalettedContainer::from_storage_container(
+            &PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64).to_nbt(),
+            PaletteKind::Biome,
+        );
+
+        assert_eq!(network.bits_per_entry, 0);
+        assert_eq!(network.palette_ids, vec![40]);
     }
 
     #[test]
