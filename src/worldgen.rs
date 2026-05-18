@@ -6725,6 +6725,57 @@ pub const SWAMP_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const MANGROVE_SWAMP_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    SWAMP_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    &[
+        "minecraft:ore_dirt",
+        "minecraft:ore_gravel",
+        "minecraft:ore_granite_upper",
+        "minecraft:ore_granite_lower",
+        "minecraft:ore_diorite_upper",
+        "minecraft:ore_diorite_lower",
+        "minecraft:ore_andesite_upper",
+        "minecraft:ore_andesite_lower",
+        "minecraft:ore_tuff",
+        "minecraft:ore_coal_upper",
+        "minecraft:ore_coal_lower",
+        "minecraft:ore_iron_upper",
+        "minecraft:ore_iron_middle",
+        "minecraft:ore_iron_small",
+        "minecraft:ore_gold",
+        "minecraft:ore_gold_lower",
+        "minecraft:ore_redstone",
+        "minecraft:ore_redstone_lower",
+        "minecraft:ore_diamond",
+        "minecraft:ore_diamond_medium",
+        "minecraft:ore_diamond_large",
+        "minecraft:ore_diamond_buried",
+        "minecraft:ore_lapis",
+        "minecraft:ore_lapis_buried",
+        "minecraft:ore_copper",
+        "minecraft:underwater_magma",
+        "minecraft:disk_grass",
+        "minecraft:disk_clay",
+    ],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_mangrove",
+        "minecraft:patch_grass_normal",
+        "minecraft:patch_dead_bush",
+        "minecraft:patch_waterlily",
+        "minecraft:seagrass_swamp",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6975,6 +7026,13 @@ pub const SWAMP_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         max_count: 5,
     },
 ];
+
+pub const MANGROVE_SWAMP_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:frog",
+    weight: 10,
+    min_count: 2,
+    max_count: 5,
+}];
 
 pub const FOREST_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
@@ -7435,6 +7493,13 @@ pub const RIVER_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataM
     max_count: 5,
 }];
 
+pub const MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:tropical_fish",
+    weight: 25,
+    min_count: 8,
+    max_count: 8,
+}];
+
 pub const RIVER_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:squid",
     weight: 2,
@@ -7722,6 +7787,41 @@ pub const SWAMP_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const MANGROVE_SWAMP_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: MANGROVE_SWAMP_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: SWAMP_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -7886,6 +7986,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: SWAMP_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:mangrove_swamp",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: MANGROVE_SWAMP_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: MANGROVE_SWAMP_SPAWNER_GROUPS,
     },
 ];
 
@@ -21976,6 +22084,41 @@ mod tests {
                 min_count: 4,
                 max_count: 4,
             })
+        );
+
+        let mangrove = super::biome_generation_settings("mangrove_swamp").unwrap();
+        assert_eq!(mangrove.biome, "minecraft:mangrove_swamp");
+        assert!(super::biome_has_placed_feature(
+            mangrove,
+            "minecraft:fossil_lower"
+        ));
+        assert!(super::biome_has_placed_feature(
+            mangrove,
+            "minecraft:trees_mangrove"
+        ));
+        assert!(super::biome_has_placed_feature(
+            mangrove,
+            "minecraft:disk_grass"
+        ));
+        assert!(super::biome_has_placed_feature(
+            mangrove,
+            "minecraft:seagrass_swamp"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            mangrove,
+            "minecraft:trees_swamp"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(mangrove, "creature"),
+            super::MANGROVE_SWAMP_CREATURE_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(mangrove, "monster"),
+            super::SWAMP_MONSTER_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(mangrove, "water_ambient"),
+            super::MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS
         );
     }
 
