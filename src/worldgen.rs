@@ -4949,6 +4949,10 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
             input: &PILLARS_DENSITY,
         },
     },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/caves/spaghetti_2d",
+        function: SPAGHETTI_2D_DENSITY,
+    },
 ];
 
 pub const RIDGE_REFERENCE_DENSITY: DensityFunction =
@@ -5097,6 +5101,81 @@ pub const PILLARS_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Mul,
     argument1: &PILLAR_FIRST_FACTOR_DENSITY,
     argument2: &PILLAR_THICKNESS_CUBED_DENSITY,
+};
+pub const SPAGHETTI_2D_MODULATOR_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_2d_modulator",
+    xz_scale: 2.0,
+    y_scale: 1.0,
+};
+pub const SPAGHETTI_2D_WEIRD_SCALED_DENSITY: DensityFunction =
+    DensityFunction::WeirdScaledSampler {
+        input: &SPAGHETTI_2D_MODULATOR_NOISE_DENSITY,
+        noise: "minecraft:spaghetti_2d",
+        rarity_mapper: RarityValueMapper::Type2,
+    };
+pub const SPAGHETTI_2D_THICKNESS_WEIGHT_DENSITY: DensityFunction = DensityFunction::Constant(0.083);
+pub const SPAGHETTI_2D_THICKNESS_WEIGHTED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &SPAGHETTI_2D_THICKNESS_WEIGHT_DENSITY,
+    argument2: &SPAGHETTI_2D_THICKNESS_MODULATOR_REFERENCE_DENSITY,
+};
+pub const SPAGHETTI_2D_THICKNESS_MODULATOR_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/caves/spaghetti_2d_thickness_modulator");
+pub const SPAGHETTI_2D_FIRST_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_2D_WEIRD_SCALED_DENSITY,
+    argument2: &SPAGHETTI_2D_THICKNESS_WEIGHTED_DENSITY,
+};
+pub const SPAGHETTI_2D_ELEVATION_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_2d_elevation",
+    xz_scale: 1.0,
+    y_scale: 0.0,
+};
+pub const SPAGHETTI_2D_ELEVATION_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(8.0);
+pub const SPAGHETTI_2D_ELEVATION_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &SPAGHETTI_2D_ELEVATION_SCALE_DENSITY,
+    argument2: &SPAGHETTI_2D_ELEVATION_NOISE_DENSITY,
+};
+pub const SPAGHETTI_2D_ELEVATION_ZERO_DENSITY: DensityFunction = DensityFunction::Constant(0.0);
+pub const SPAGHETTI_2D_ELEVATION_OFFSET_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_2D_ELEVATION_ZERO_DENSITY,
+    argument2: &SPAGHETTI_2D_ELEVATION_SCALED_DENSITY,
+};
+pub const SPAGHETTI_2D_Y_GRADIENT_DENSITY: DensityFunction = DensityFunction::YClampedGradient {
+    from_y: -64,
+    to_y: 320,
+    from_value: 8.0,
+    to_value: -40.0,
+};
+pub const SPAGHETTI_2D_ELEVATION_WITH_GRADIENT_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_2D_ELEVATION_OFFSET_DENSITY,
+    argument2: &SPAGHETTI_2D_Y_GRADIENT_DENSITY,
+};
+pub const SPAGHETTI_2D_ELEVATION_ABS_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Abs,
+    input: &SPAGHETTI_2D_ELEVATION_WITH_GRADIENT_DENSITY,
+};
+pub const SPAGHETTI_2D_SECOND_INPUT_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_2D_ELEVATION_ABS_DENSITY,
+    argument2: &SPAGHETTI_2D_THICKNESS_MODULATOR_REFERENCE_DENSITY,
+};
+pub const SPAGHETTI_2D_SECOND_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Cube,
+    input: &SPAGHETTI_2D_SECOND_INPUT_DENSITY,
+};
+pub const SPAGHETTI_2D_MAX_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Max,
+    argument1: &SPAGHETTI_2D_FIRST_DENSITY,
+    argument2: &SPAGHETTI_2D_SECOND_DENSITY,
+};
+pub const SPAGHETTI_2D_DENSITY: DensityFunction = DensityFunction::Clamp {
+    input: &SPAGHETTI_2D_MAX_DENSITY,
+    min: -1.0,
+    max: 1.0,
 };
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
@@ -27271,6 +27350,7 @@ mod tests {
                 "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
                 "minecraft:overworld/caves/spaghetti_roughness_function",
                 "minecraft:overworld/caves/pillars",
+                "minecraft:overworld/caves/spaghetti_2d",
             ]
         );
         assert_eq!(
@@ -27315,6 +27395,11 @@ mod tests {
             pillars.value_bounds(),
             (-179.00238323045266, 151.9263924897119)
         );
+        let spaghetti_2d = builtin_density_function("overworld/caves/spaghetti_2d")
+            .unwrap()
+            .function;
+        assert_eq!(spaghetti_2d.type_name(), "clamp");
+        assert_eq!(spaghetti_2d.value_bounds(), (-1.0, 1.0));
     }
 
     #[test]
