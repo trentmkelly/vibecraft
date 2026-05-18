@@ -2883,7 +2883,12 @@ pub enum DensityFunction {
     },
     Beardifier,
     Spline,
-    FindTopSurface,
+    FindTopSurface {
+        density: &'static DensityFunction,
+        upper_bound: &'static DensityFunction,
+        lower_bound: i32,
+        cell_height: i32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19475,8 +19480,18 @@ impl DensityFunction {
             | DensityFunction::EndIslands { .. }
             | DensityFunction::WeirdScaledSampler { .. }
             | DensityFunction::Beardifier
-            | DensityFunction::Spline
-            | DensityFunction::FindTopSurface => 0.0,
+            | DensityFunction::Spline => 0.0,
+            DensityFunction::FindTopSurface {
+                density,
+                upper_bound,
+                lower_bound,
+                cell_height,
+            } => find_top_surface_compute(
+                |block_y| density.compute(block_y),
+                upper_bound.compute(block_y),
+                lower_bound,
+                cell_height,
+            ),
         }
     }
 
@@ -19620,9 +19635,18 @@ impl DensityFunction {
                 block_x,
                 block_z,
             ),
-            DensityFunction::Beardifier
-            | DensityFunction::Spline
-            | DensityFunction::FindTopSurface => 0.0,
+            DensityFunction::Beardifier | DensityFunction::Spline => 0.0,
+            DensityFunction::FindTopSurface {
+                density,
+                upper_bound,
+                lower_bound,
+                cell_height,
+            } => find_top_surface_compute(
+                |sample_y| density.compute_with_noise(seed, settings, block_x, sample_y, block_z),
+                upper_bound.compute_with_noise(seed, settings, block_x, block_y, block_z),
+                lower_bound,
+                cell_height,
+            ),
         }
     }
 
@@ -19646,7 +19670,7 @@ impl DensityFunction {
             DensityFunction::BlendDensity { .. } => "blend_density",
             DensityFunction::Beardifier => "beardifier",
             DensityFunction::Spline => "spline",
-            DensityFunction::FindTopSurface => "find_top_surface",
+            DensityFunction::FindTopSurface { .. } => "find_top_surface",
         }
     }
 
@@ -19685,14 +19709,44 @@ impl DensityFunction {
             DensityFunction::BlendAlpha => (1.0, 1.0),
             DensityFunction::BlendOffset | DensityFunction::Beardifier => (0.0, 0.0),
             DensityFunction::EndIslands { .. } => (-0.84375, 0.5625),
+            DensityFunction::FindTopSurface {
+                upper_bound,
+                lower_bound,
+                ..
+            } => {
+                let upper = upper_bound.value_bounds();
+                (f64::from(lower_bound), f64::from(lower_bound).max(upper.1))
+            }
             DensityFunction::Noise { .. }
             | DensityFunction::ShiftedNoise { .. }
             | DensityFunction::BlendedNoise { .. }
             | DensityFunction::WeirdScaledSampler { .. }
-            | DensityFunction::Spline
-            | DensityFunction::FindTopSurface => (f64::NEG_INFINITY, f64::INFINITY),
+            | DensityFunction::Spline => (f64::NEG_INFINITY, f64::INFINITY),
         }
     }
+}
+
+pub fn find_top_surface_compute(
+    mut density_at_y: impl FnMut(i32) -> f64,
+    upper_bound: f64,
+    lower_bound: i32,
+    cell_height: i32,
+) -> f64 {
+    if cell_height <= 0 {
+        return f64::from(lower_bound);
+    }
+    let top_y = (upper_bound.floor() as i32).div_euclid(cell_height) * cell_height;
+    if top_y <= lower_bound {
+        return f64::from(lower_bound);
+    }
+    let mut block_y = top_y;
+    while block_y >= lower_bound {
+        if density_at_y(block_y) > 0.0 {
+            return f64::from(block_y);
+        }
+        block_y -= cell_height;
+    }
+    f64::from(lower_bound)
 }
 
 impl NoiseRouter {
@@ -26713,6 +26767,39 @@ mod tests {
             }
             .value_bounds(),
             (1.0, 1.0)
+        );
+        assert_eq!(
+            super::find_top_surface_compute(
+                |sample_y| if sample_y <= 72 { 0.25 } else { -0.25 },
+                83.9,
+                -64,
+                4,
+            ),
+            72.0
+        );
+        assert_eq!(
+            super::find_top_surface_compute(|_| -0.25, -80.0, -64, 4),
+            -64.0
+        );
+        assert_eq!(
+            DensityFunction::FindTopSurface {
+                density: &TEST_POSITIVE_DENSITY,
+                upper_bound: &TEST_POSITIVE_DENSITY,
+                lower_bound: -64,
+                cell_height: 4,
+            }
+            .type_name(),
+            "find_top_surface"
+        );
+        assert_eq!(
+            DensityFunction::FindTopSurface {
+                density: &TEST_POSITIVE_DENSITY,
+                upper_bound: &TEST_POSITIVE_DENSITY,
+                lower_bound: -64,
+                cell_height: 4,
+            }
+            .value_bounds(),
+            (-64.0, 3.0)
         );
 
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.type_name(), "range_choice");
