@@ -6638,6 +6638,32 @@ pub const OCEAN_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const DEEP_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:seagrass_deep",
+        "minecraft:kelp_cold",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const COLD_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -6659,6 +6685,32 @@ pub const COLD_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
         "minecraft:patch_sugar_cane",
         "minecraft:patch_firefly_bush_near_water",
         "minecraft:seagrass_cold",
+        "minecraft:kelp_cold",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const DEEP_COLD_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:seagrass_deep_cold",
         "minecraft:kelp_cold",
     ],
     PLAINS_FEATURE_STEPS[10],
@@ -6690,6 +6742,32 @@ pub const LUKEWARM_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const DEEP_LUKEWARM_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:seagrass_deep_warm",
+        "minecraft:kelp_warm",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const WARM_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -6713,6 +6791,34 @@ pub const WARM_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
         "minecraft:warm_ocean_vegetation",
         "minecraft:seagrass_warm",
         "minecraft:sea_pickle",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const DEEP_FROZEN_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    &[
+        "minecraft:iceberg_packed",
+        "minecraft:iceberg_blue",
+        "minecraft:amethyst_geode",
+    ],
+    PLAINS_FEATURE_STEPS[3],
+    &["minecraft:blue_ice"],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
     ],
     PLAINS_FEATURE_STEPS[10],
 ];
@@ -7090,6 +7196,13 @@ pub const BEACH_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel 
     weight: 5,
     min_count: 2,
     max_count: 5,
+}];
+
+pub const DEEP_FROZEN_OCEAN_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:polar_bear",
+    weight: 1,
+    min_count: 1,
+    max_count: 2,
 }];
 
 pub const DESERT_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
@@ -8057,6 +8170,27 @@ pub const LUKEWARM_OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const DEEP_LUKEWARM_OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cod",
+        weight: 8,
+        min_count: 3,
+        max_count: 6,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pufferfish",
+        weight: 5,
+        min_count: 1,
+        max_count: 3,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:tropical_fish",
+        weight: 25,
+        min_count: 8,
+        max_count: 8,
+    },
+];
+
 pub const WARM_OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:pufferfish",
@@ -8077,6 +8211,13 @@ pub const MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpa
     weight: 25,
     min_count: 8,
     max_count: 8,
+}];
+
+pub const DEEP_FROZEN_OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:salmon",
+    weight: 15,
+    min_count: 1,
+    max_count: 5,
 }];
 
 pub const RIVER_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
@@ -8143,6 +8284,27 @@ pub const LUKEWARM_OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const DEEP_LUKEWARM_OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:squid",
+        weight: 8,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:dolphin",
+        weight: 2,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:nautilus",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
 pub const WARM_OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:nautilus",
@@ -8161,6 +8323,21 @@ pub const WARM_OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 2,
         min_count: 1,
         max_count: 2,
+    },
+];
+
+pub const DEEP_FROZEN_OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:squid",
+        weight: 1,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:nautilus",
+        weight: 2,
+        min_count: 1,
+        max_count: 1,
     },
 ];
 
@@ -8794,6 +8971,76 @@ pub const LUKEWARM_OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const DEEP_LUKEWARM_OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: OCEAN_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: DEEP_LUKEWARM_OCEAN_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: DEEP_LUKEWARM_OCEAN_WATER_CREATURE_SPAWNS,
+    },
+];
+
+pub const DEEP_FROZEN_OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: DEEP_FROZEN_OCEAN_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: OCEAN_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: DEEP_FROZEN_OCEAN_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: DEEP_FROZEN_OCEAN_WATER_CREATURE_SPAWNS,
+    },
+];
+
 pub const WARM_OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -8909,9 +9156,25 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: OCEAN_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:deep_ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DEEP_OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: OCEAN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:cold_ocean",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: COLD_OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: COLD_OCEAN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:deep_cold_ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DEEP_COLD_OCEAN_FEATURE_STEPS,
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: COLD_OCEAN_SPAWNER_GROUPS,
@@ -8925,12 +9188,28 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: LUKEWARM_OCEAN_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:deep_lukewarm_ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DEEP_LUKEWARM_OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: DEEP_LUKEWARM_OCEAN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:warm_ocean",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: WARM_OCEAN_FEATURE_STEPS,
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: WARM_OCEAN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:deep_frozen_ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DEEP_FROZEN_OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: DEEP_FROZEN_OCEAN_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:beach",
@@ -22944,6 +23223,25 @@ mod tests {
             super::OCEAN_WATER_CREATURE_SPAWNS
         );
 
+        let deep_ocean = super::biome_generation_settings("deep_ocean").unwrap();
+        assert_eq!(deep_ocean.biome, "minecraft:deep_ocean");
+        assert!(super::biome_has_placed_feature(
+            deep_ocean,
+            "minecraft:seagrass_deep"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            deep_ocean,
+            "minecraft:seagrass_normal"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(deep_ocean, "water_ambient"),
+            super::OCEAN_WATER_AMBIENT_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(deep_ocean, "water_creature"),
+            super::OCEAN_WATER_CREATURE_SPAWNS
+        );
+
         let cold_ocean = super::biome_generation_settings("cold_ocean").unwrap();
         assert_eq!(cold_ocean.biome, "minecraft:cold_ocean");
         assert!(super::biome_has_placed_feature(
@@ -22967,6 +23265,21 @@ mod tests {
             super::COLD_OCEAN_WATER_CREATURE_SPAWNS
         );
 
+        let deep_cold_ocean = super::biome_generation_settings("deep_cold_ocean").unwrap();
+        assert_eq!(deep_cold_ocean.biome, "minecraft:deep_cold_ocean");
+        assert!(super::biome_has_placed_feature(
+            deep_cold_ocean,
+            "minecraft:seagrass_deep_cold"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            deep_cold_ocean,
+            "minecraft:seagrass_cold"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(deep_cold_ocean, "water_ambient"),
+            super::COLD_OCEAN_WATER_AMBIENT_SPAWNS
+        );
+
         let lukewarm_ocean = super::biome_generation_settings("lukewarm_ocean").unwrap();
         assert_eq!(lukewarm_ocean.biome, "minecraft:lukewarm_ocean");
         assert!(super::biome_has_placed_feature(
@@ -22988,6 +23301,25 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(lukewarm_ocean, "water_creature"),
             super::LUKEWARM_OCEAN_WATER_CREATURE_SPAWNS
+        );
+
+        let deep_lukewarm_ocean = super::biome_generation_settings("deep_lukewarm_ocean").unwrap();
+        assert_eq!(deep_lukewarm_ocean.biome, "minecraft:deep_lukewarm_ocean");
+        assert!(super::biome_has_placed_feature(
+            deep_lukewarm_ocean,
+            "minecraft:seagrass_deep_warm"
+        ));
+        assert!(super::biome_has_placed_feature(
+            deep_lukewarm_ocean,
+            "minecraft:kelp_warm"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(deep_lukewarm_ocean, "water_ambient"),
+            super::DEEP_LUKEWARM_OCEAN_WATER_AMBIENT_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(deep_lukewarm_ocean, "water_creature"),
+            super::DEEP_LUKEWARM_OCEAN_WATER_CREATURE_SPAWNS
         );
 
         let warm_ocean = super::biome_generation_settings("warm_ocean").unwrap();
@@ -23024,6 +23356,29 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(warm_ocean, "water_creature"),
             super::WARM_OCEAN_WATER_CREATURE_SPAWNS
+        );
+
+        let deep_frozen_ocean = super::biome_generation_settings("deep_frozen_ocean").unwrap();
+        assert_eq!(deep_frozen_ocean.biome, "minecraft:deep_frozen_ocean");
+        assert!(super::biome_has_placed_feature(
+            deep_frozen_ocean,
+            "minecraft:iceberg_packed"
+        ));
+        assert!(super::biome_has_placed_feature(
+            deep_frozen_ocean,
+            "minecraft:blue_ice"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            deep_frozen_ocean,
+            "minecraft:kelp_cold"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(deep_frozen_ocean, "creature"),
+            super::DEEP_FROZEN_OCEAN_CREATURE_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(deep_frozen_ocean, "water_ambient"),
+            super::DEEP_FROZEN_OCEAN_WATER_AMBIENT_SPAWNS
         );
 
         let beach = super::biome_generation_settings("minecraft:beach").unwrap();
