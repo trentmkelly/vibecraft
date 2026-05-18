@@ -726,6 +726,34 @@ pub struct AquaticPlacementBlock {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpringConfigurationModel {
+    pub state: &'static str,
+    pub requires_block_below: bool,
+    pub rock_count: i32,
+    pub hole_count: i32,
+    pub valid_blocks: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpringPlacementContext {
+    pub origin: BlockPos,
+    pub above_block: &'static str,
+    pub below_block: &'static str,
+    pub current_block: &'static str,
+    pub west_block: &'static str,
+    pub east_block: &'static str,
+    pub north_block: &'static str,
+    pub south_block: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpringPlacementPlan {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub schedule_tick: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -8370,6 +8398,46 @@ pub fn spring_feature_can_place(
         && adjacent_hole_count == required_hole_count
 }
 
+pub fn spring_placement_plan(
+    config: &SpringConfigurationModel,
+    context: SpringPlacementContext,
+) -> Option<SpringPlacementPlan> {
+    let valid_above = config.valid_blocks.contains(&context.above_block);
+    let valid_below = config.valid_blocks.contains(&context.below_block);
+    let current_is_air_or_valid = context.current_block == "minecraft:air"
+        || config.valid_blocks.contains(&context.current_block);
+    let adjacent_blocks = [
+        context.west_block,
+        context.east_block,
+        context.north_block,
+        context.south_block,
+        context.below_block,
+    ];
+    let adjacent_rock_count = adjacent_blocks
+        .iter()
+        .filter(|block| config.valid_blocks.contains(block))
+        .count() as i32;
+    let adjacent_hole_count = adjacent_blocks
+        .iter()
+        .filter(|block| **block == "minecraft:air")
+        .count() as i32;
+    spring_feature_can_place(
+        valid_above,
+        config.requires_block_below,
+        valid_below,
+        current_is_air_or_valid,
+        adjacent_rock_count,
+        adjacent_hole_count,
+        config.rock_count,
+        config.hole_count,
+    )
+    .then_some(SpringPlacementPlan {
+        pos: context.origin,
+        state: config.state,
+        schedule_tick: true,
+    })
+}
+
 pub fn monster_room_opening_count_is_valid(openings: i32) -> bool {
     openings >= MONSTER_ROOM_BOUNDS.min_openings && openings <= MONSTER_ROOM_BOUNDS.max_openings
 }
@@ -11920,6 +11988,49 @@ mod tests {
         assert!(!super::spring_feature_can_place(
             true, false, false, true, 3, 1, 4, 1
         ));
+        let spring_config = super::SpringConfigurationModel {
+            state: "minecraft:water",
+            requires_block_below: true,
+            rock_count: 4,
+            hole_count: 1,
+            valid_blocks: &["minecraft:stone", "minecraft:dirt"],
+        };
+        assert_eq!(
+            super::spring_placement_plan(
+                &spring_config,
+                super::SpringPlacementContext {
+                    origin: BlockPos { x: 4, y: 32, z: 4 },
+                    above_block: "minecraft:stone",
+                    below_block: "minecraft:stone",
+                    current_block: "minecraft:air",
+                    west_block: "minecraft:stone",
+                    east_block: "minecraft:stone",
+                    north_block: "minecraft:air",
+                    south_block: "minecraft:dirt",
+                },
+            ),
+            Some(super::SpringPlacementPlan {
+                pos: BlockPos { x: 4, y: 32, z: 4 },
+                state: "minecraft:water",
+                schedule_tick: true,
+            })
+        );
+        assert_eq!(
+            super::spring_placement_plan(
+                &spring_config,
+                super::SpringPlacementContext {
+                    origin: BlockPos { x: 4, y: 32, z: 4 },
+                    above_block: "minecraft:stone",
+                    below_block: "minecraft:air",
+                    current_block: "minecraft:air",
+                    west_block: "minecraft:stone",
+                    east_block: "minecraft:stone",
+                    north_block: "minecraft:air",
+                    south_block: "minecraft:dirt",
+                },
+            ),
+            None
+        );
         assert_eq!(MONSTER_ROOM_BOUNDS.min_y, -1);
         assert_eq!(MONSTER_ROOM_BOUNDS.max_y, 4);
         assert!(!super::monster_room_opening_count_is_valid(0));
