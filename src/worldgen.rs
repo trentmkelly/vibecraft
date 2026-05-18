@@ -19777,9 +19777,11 @@ impl DensityFunction {
             | DensityFunction::Shift { noise } => normal_noise_value_bounds(noise)
                 .map(|(min, max)| (min * 4.0, max * 4.0))
                 .unwrap_or((f64::NEG_INFINITY, f64::INFINITY)),
-            DensityFunction::BlendedNoise { .. } | DensityFunction::Spline => {
-                (f64::NEG_INFINITY, f64::INFINITY)
+            DensityFunction::BlendedNoise { y_scale, .. } => {
+                let max_value = blended_noise_max_value(y_scale);
+                (-max_value, max_value)
             }
+            DensityFunction::Spline => (f64::NEG_INFINITY, f64::INFINITY),
         }
     }
 }
@@ -20377,6 +20379,17 @@ pub fn perlin_noise_max_broken_value(snapshot: &PerlinNoiseSnapshot, y_scale: f6
 
 const BLENDED_NOISE_LIMIT_AMPLITUDES: [f64; 16] = [1.0; 16];
 const BLENDED_NOISE_MAIN_AMPLITUDES: [f64; 8] = [1.0; 8];
+
+pub fn blended_noise_max_value(y_scale: f64) -> f64 {
+    perlin_noise_edge_value_from_parameters(
+        NormalNoiseParameters {
+            id: "minecraft:blended_noise_limit",
+            first_octave: -15,
+            amplitudes: &BLENDED_NOISE_LIMIT_AMPLITUDES,
+        },
+        684.412 * y_scale + 2.0,
+    )
+}
 
 fn random_state_terrain_random(seed: i64, settings: NoiseGeneratorSettings) -> RandomSourceKind {
     let algorithm = if settings.legacy_random_source {
@@ -27047,6 +27060,11 @@ mod tests {
         assert!(snapshot.min_limit_noise.levels.iter().all(Option::is_some));
         assert!(snapshot.max_limit_noise.levels.iter().all(Option::is_some));
         assert!(snapshot.main_noise.levels.iter().all(Option::is_some));
+        assert!((snapshot.max_value - super::blended_noise_max_value(0.125)).abs() < 1e-12);
+        assert_eq!(
+            super::BASE_3D_NOISE_OVERWORLD_DENSITY.value_bounds(),
+            (-snapshot.max_value, snapshot.max_value)
+        );
 
         let sample = super::blended_noise_sample(&snapshot, 16.0, 64.0, -32.0);
         let density_sample = super::BASE_3D_NOISE_OVERWORLD_DENSITY
