@@ -105,6 +105,14 @@ pub struct BlendedNoiseSnapshot {
     pub max_value: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SimplexNoiseSnapshot {
+    pub xo: f64,
+    pub yo: f64,
+    pub zo: f64,
+    pub permutation: [u8; 256],
+}
+
 pub const SIMPLEX_GRADIENT: [[i32; 3]; 16] = [
     [1, 1, 0],
     [-1, 1, 0],
@@ -19551,8 +19559,18 @@ impl DensityFunction {
                 )
             })
             .unwrap_or(0.0),
-            DensityFunction::EndIslands { .. }
-            | DensityFunction::Beardifier
+            DensityFunction::EndIslands {
+                seed: function_seed,
+            } => end_island_density_sample(
+                if function_seed == 0 {
+                    seed
+                } else {
+                    function_seed
+                },
+                block_x,
+                block_z,
+            ),
+            DensityFunction::Beardifier
             | DensityFunction::Spline
             | DensityFunction::FindTopSurface => 0.0,
         }
@@ -20113,6 +20131,120 @@ pub fn blended_noise_sample(snapshot: &BlendedNoiseSnapshot, x: f64, y: f64, z: 
     }
 
     lerp(factor.clamp(0.0, 1.0), blend_min / 512.0, blend_max / 512.0) / 128.0
+}
+
+pub fn simplex_noise_snapshot(random: &mut RandomSourceKind) -> SimplexNoiseSnapshot {
+    let xo = random_next_f64(random) * 256.0;
+    let yo = random_next_f64(random) * 256.0;
+    let zo = random_next_f64(random) * 256.0;
+    let mut permutation = [0u8; 256];
+    for (index, value) in permutation.iter_mut().enumerate() {
+        *value = index as u8;
+    }
+    for index in 0..256 {
+        let offset = random_next_i32_bound(random, 256 - index as i32) as usize;
+        permutation.swap(index, index + offset);
+    }
+    SimplexNoiseSnapshot {
+        xo,
+        yo,
+        zo,
+        permutation,
+    }
+}
+
+fn simplex_noise_permutation(snapshot: &SimplexNoiseSnapshot, x: i32) -> i32 {
+    i32::from(snapshot.permutation[(x & 0xff) as usize])
+}
+
+fn simplex_corner_noise(index: i32, x: f64, y: f64, z: f64, base: f64) -> f64 {
+    let mut t = base - x * x - y * y - z * z;
+    if t < 0.0 {
+        0.0
+    } else {
+        t *= t;
+        t * t * gradient_dot(index as u8, x, y, z)
+    }
+}
+
+pub fn simplex_noise_sample_2d(snapshot: &SimplexNoiseSnapshot, xin: f64, yin: f64) -> f64 {
+    let sqrt_3 = 3.0_f64.sqrt();
+    let f2 = 0.5 * (sqrt_3 - 1.0);
+    let g2 = (3.0 - sqrt_3) / 6.0;
+    let s = (xin + yin) * f2;
+    let i = (xin + s).floor() as i32;
+    let j = (yin + s).floor() as i32;
+    let t = f64::from(i + j) * g2;
+    let x0 = xin - (f64::from(i) - t);
+    let y0 = yin - (f64::from(j) - t);
+    let (i1, j1) = if x0 > y0 { (1, 0) } else { (0, 1) };
+    let x1 = x0 - f64::from(i1) + g2;
+    let y1 = y0 - f64::from(j1) + g2;
+    let x2 = x0 - 1.0 + 2.0 * g2;
+    let y2 = y0 - 1.0 + 2.0 * g2;
+    let ii = i & 0xff;
+    let jj = j & 0xff;
+    let gi0 =
+        simplex_noise_permutation(snapshot, ii + simplex_noise_permutation(snapshot, jj)) % 12;
+    let gi1 = simplex_noise_permutation(
+        snapshot,
+        ii + i1 + simplex_noise_permutation(snapshot, jj + j1),
+    ) % 12;
+    let gi2 = simplex_noise_permutation(
+        snapshot,
+        ii + 1 + simplex_noise_permutation(snapshot, jj + 1),
+    ) % 12;
+    70.0 * (simplex_corner_noise(gi0, x0, y0, 0.0, 0.5)
+        + simplex_corner_noise(gi1, x1, y1, 0.0, 0.5)
+        + simplex_corner_noise(gi2, x2, y2, 0.0, 0.5))
+}
+
+pub fn end_island_height_value(
+    island_noise: &SimplexNoiseSnapshot,
+    section_x: i32,
+    section_z: i32,
+) -> f32 {
+    let chunk_x = section_x / 2;
+    let chunk_z = section_z / 2;
+    let sub_section_x = section_x % 2;
+    let sub_section_z = section_z % 2;
+    let mut doffs = 100.0 - ((section_x * section_x + section_z * section_z) as f32).sqrt() * 8.0;
+    doffs = doffs.clamp(-100.0, 80.0);
+
+    for xo in -12..=12 {
+        for zo in -12..=12 {
+            let total_chunk_x = i64::from(chunk_x + xo);
+            let total_chunk_z = i64::from(chunk_z + zo);
+            if total_chunk_x * total_chunk_x + total_chunk_z * total_chunk_z > 4096
+                && simplex_noise_sample_2d(island_noise, total_chunk_x as f64, total_chunk_z as f64)
+                    < -0.9
+            {
+                let island_size = ((total_chunk_x.unsigned_abs() as f32) * 3439.0
+                    + (total_chunk_z.unsigned_abs() as f32) * 147.0)
+                    % 13.0
+                    + 9.0;
+                let xd = (sub_section_x - xo * 2) as f32;
+                let zd = (sub_section_z - zo * 2) as f32;
+                let new_doffs =
+                    (100.0 - (xd * xd + zd * zd).sqrt() * island_size).clamp(-100.0, 80.0);
+                doffs = doffs.max(new_doffs);
+            }
+        }
+    }
+
+    doffs
+}
+
+pub fn end_island_density_sample(seed: i64, block_x: i32, block_z: i32) -> f64 {
+    let mut random = RandomSourceKind::Legacy(LegacyRandom::new(seed));
+    random.consume_count(17_292);
+    let island_noise = simplex_noise_snapshot(&mut random);
+    (f64::from(end_island_height_value(
+        &island_noise,
+        block_x / 8,
+        block_z / 8,
+    )) - 8.0)
+        / 128.0
 }
 
 pub fn normal_noise_snapshot(
@@ -26361,6 +26493,31 @@ mod tests {
         let nether_sample =
             super::BASE_3D_NOISE_NETHER_DENSITY.compute_with_noise(12345, nether, 16, 64, -32);
         assert!((nether_sample - -0.16910380018719748).abs() < 1e-12);
+    }
+
+    #[test]
+    fn end_island_density_uses_seeded_simplex_height_scan() {
+        let mut random = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
+        random.consume_count(17_292);
+        let simplex = super::simplex_noise_snapshot(&mut random);
+        assert!((simplex.xo - 217.28203870227557).abs() < 1e-12);
+        assert!((simplex.yo - 16.202358521842683).abs() < 1e-12);
+        assert!((simplex.zo - 80.38840973560625).abs() < 1e-12);
+        assert_eq!(
+            &simplex.permutation[0..8],
+            &[133, 54, 101, 16, 13, 4, 149, 66]
+        );
+
+        let simplex_value = super::simplex_noise_sample_2d(&simplex, 65.0, -71.0);
+        let height = super::end_island_height_value(&simplex, 16 / 8, -32 / 8);
+        let density = super::end_island_density_sample(12345, 16, -32);
+        let end = *super::builtin_noise_generator_settings("end").unwrap();
+        let density_function_value =
+            super::END_ISLANDS_DENSITY.compute_with_noise(12345, end, 16, 64, -32);
+        assert!((simplex_value - -0.40209723583721246).abs() < 1e-12);
+        assert!((height - 64.222916).abs() < 1e-5);
+        assert!((density - 0.43924152851104736).abs() < 1e-12);
+        assert!((density - density_function_value).abs() < 1e-12);
     }
 
     #[test]
