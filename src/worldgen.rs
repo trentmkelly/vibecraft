@@ -3328,6 +3328,7 @@ pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
             "minecraft:dark_oak_trunk_placer",
             "minecraft:fancy_trunk_placer",
             "minecraft:bending_trunk_placer",
+            "minecraft:upwards_branching_trunk_placer",
             "minecraft:cherry_trunk_placer",
         ],
     },
@@ -3343,6 +3344,7 @@ pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
             "minecraft:jungle_foliage_placer",
             "minecraft:mega_pine_foliage_placer",
             "minecraft:dark_oak_foliage_placer",
+            "minecraft:random_spread_foliage_placer",
             "minecraft:cherry_foliage_placer",
         ],
     },
@@ -3351,9 +3353,12 @@ pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
         entries: &[
             "minecraft:simple_state_provider",
             "minecraft:weighted_state_provider",
+            "minecraft:noise_threshold_provider",
             "minecraft:noise_provider",
             "minecraft:dual_noise_provider",
             "minecraft:rotated_block_provider",
+            "minecraft:randomized_int_state_provider",
+            "minecraft:rule_based_state_provider",
         ],
     },
     WorldgenTypeRegistry {
@@ -6616,9 +6621,9 @@ mod tests {
                 ("minecraft:height_provider_type", 6),
                 ("minecraft:block_predicate_type", 13),
                 ("minecraft:placement_modifier_type", 14),
-                ("minecraft:trunk_placer_type", 8),
-                ("minecraft:foliage_placer_type", 10),
-                ("minecraft:block_state_provider_type", 5),
+                ("minecraft:trunk_placer_type", 9),
+                ("minecraft:foliage_placer_type", 11),
+                ("minecraft:block_state_provider_type", 8),
                 ("minecraft:tree_decorator_type", 10),
                 ("minecraft:feature_size_type", 2),
                 ("minecraft:root_placer_type", 1),
@@ -6636,6 +6641,18 @@ mod tests {
             .unwrap()
             .entries
             .contains(&"minecraft:creaking_heart"));
+        assert!(WORLDGEN_TYPE_REGISTRIES
+            .iter()
+            .find(|registry| registry.id == "minecraft:trunk_placer_type")
+            .unwrap()
+            .entries
+            .contains(&"minecraft:upwards_branching_trunk_placer"));
+        assert!(WORLDGEN_TYPE_REGISTRIES
+            .iter()
+            .find(|registry| registry.id == "minecraft:block_state_provider_type")
+            .unwrap()
+            .entries
+            .contains(&"minecraft:rule_based_state_provider"));
     }
 
     #[test]
