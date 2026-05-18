@@ -1503,6 +1503,38 @@ pub struct StructureExclusionZoneModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureBoundingBoxModel {
+    pub min_x: i32,
+    pub min_y: i32,
+    pub min_z: i32,
+    pub max_x: i32,
+    pub max_y: i32,
+    pub max_z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructurePieceModel {
+    pub bounding_box: StructureBoundingBoxModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureStartModel {
+    pub structure: Option<&'static str>,
+    pub chunk_pos: ChunkPos,
+    pub references: i32,
+    pub pieces: Vec<StructurePieceModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureStartTagModel {
+    pub id: &'static str,
+    pub chunk_x: Option<i32>,
+    pub chunk_z: Option<i32>,
+    pub references: Option<i32>,
+    pub children: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RandomSpreadType {
     Linear,
     Triangular,
@@ -6698,6 +6730,111 @@ pub fn structure_exclusion_zone_forbids(
         source_z,
         zone.chunk_count,
     ))
+}
+
+impl StructureBoundingBoxModel {
+    pub fn union(self, other: StructureBoundingBoxModel) -> StructureBoundingBoxModel {
+        StructureBoundingBoxModel {
+            min_x: self.min_x.min(other.min_x),
+            min_y: self.min_y.min(other.min_y),
+            min_z: self.min_z.min(other.min_z),
+            max_x: self.max_x.max(other.max_x),
+            max_y: self.max_y.max(other.max_y),
+            max_z: self.max_z.max(other.max_z),
+        }
+    }
+
+    pub fn intersects(self, other: StructureBoundingBoxModel) -> bool {
+        self.max_x >= other.min_x
+            && self.min_x <= other.max_x
+            && self.max_z >= other.min_z
+            && self.min_z <= other.max_z
+            && self.max_y >= other.min_y
+            && self.min_y <= other.max_y
+    }
+
+    pub fn center(self) -> BlockPos {
+        BlockPos {
+            x: (self.min_x + self.max_x) / 2,
+            y: (self.min_y + self.max_y) / 2,
+            z: (self.min_z + self.max_z) / 2,
+        }
+    }
+}
+
+impl StructureStartModel {
+    pub fn invalid() -> Self {
+        Self {
+            structure: None,
+            chunk_pos: ChunkPos { x: 0, z: 0 },
+            references: 0,
+            pieces: Vec::new(),
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.pieces.is_empty()
+    }
+
+    pub fn max_references(&self) -> i32 {
+        1
+    }
+
+    pub fn can_be_referenced(&self) -> bool {
+        self.references < self.max_references()
+    }
+
+    pub fn add_reference(&mut self) {
+        self.references += 1;
+    }
+
+    pub fn bounding_box(&self) -> Option<StructureBoundingBoxModel> {
+        self.pieces
+            .iter()
+            .map(|piece| piece.bounding_box)
+            .reduce(StructureBoundingBoxModel::union)
+    }
+
+    pub fn create_tag(&self, chunk_pos: ChunkPos) -> StructureStartTagModel {
+        if self.is_valid() {
+            StructureStartTagModel {
+                id: self.structure.unwrap_or("minecraft:unknown"),
+                chunk_x: Some(chunk_pos.x),
+                chunk_z: Some(chunk_pos.z),
+                references: Some(self.references),
+                children: self.pieces.len(),
+            }
+        } else {
+            StructureStartTagModel {
+                id: "INVALID",
+                chunk_x: None,
+                chunk_z: None,
+                references: None,
+                children: 0,
+            }
+        }
+    }
+}
+
+pub fn structure_start_reference_pos(first_piece: StructurePieceModel) -> BlockPos {
+    let center = first_piece.bounding_box.center();
+    BlockPos {
+        x: center.x,
+        y: first_piece.bounding_box.min_y,
+        z: center.z,
+    }
+}
+
+pub fn structure_pieces_intersecting_chunk(
+    start: &StructureStartModel,
+    chunk_bb: StructureBoundingBoxModel,
+) -> Vec<StructurePieceModel> {
+    start
+        .pieces
+        .iter()
+        .copied()
+        .filter(|piece| piece.bounding_box.intersects(chunk_bb))
+        .collect()
 }
 
 const fn feature_type(
@@ -16854,6 +16991,98 @@ mod tests {
         ));
         assert!(super::structure_exclusion_zone_forbids(zone, &other_chunks, 7, -1).unwrap());
         assert!(!super::structure_exclusion_zone_forbids(zone, &other_chunks, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn structure_start_validity_references_tags_and_piece_queries_match_vanilla() {
+        let invalid = super::StructureStartModel::invalid();
+        assert!(!invalid.is_valid());
+        assert_eq!(
+            invalid.create_tag(ChunkPos { x: 4, z: -7 }),
+            super::StructureStartTagModel {
+                id: "INVALID",
+                chunk_x: None,
+                chunk_z: None,
+                references: None,
+                children: 0,
+            }
+        );
+
+        let first_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 32,
+                min_y: 20,
+                min_z: -16,
+                max_x: 47,
+                max_y: 35,
+                max_z: -1,
+            },
+        };
+        let second_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 48,
+                min_y: 18,
+                min_z: -8,
+                max_x: 63,
+                max_y: 30,
+                max_z: 7,
+            },
+        };
+        let mut start = super::StructureStartModel {
+            structure: Some("minecraft:village_plains"),
+            chunk_pos: ChunkPos { x: 2, z: -1 },
+            references: 0,
+            pieces: vec![first_piece, second_piece],
+        };
+
+        assert!(start.is_valid());
+        assert!(start.can_be_referenced());
+        start.add_reference();
+        assert_eq!(start.references, 1);
+        assert!(!start.can_be_referenced());
+        assert_eq!(
+            start.bounding_box(),
+            Some(super::StructureBoundingBoxModel {
+                min_x: 32,
+                min_y: 18,
+                min_z: -16,
+                max_x: 63,
+                max_y: 35,
+                max_z: 7,
+            })
+        );
+        assert_eq!(
+            start.create_tag(ChunkPos { x: 2, z: -1 }),
+            super::StructureStartTagModel {
+                id: "minecraft:village_plains",
+                chunk_x: Some(2),
+                chunk_z: Some(-1),
+                references: Some(1),
+                children: 2,
+            }
+        );
+        assert_eq!(
+            super::structure_start_reference_pos(first_piece),
+            BlockPos {
+                x: 39,
+                y: 20,
+                z: -8,
+            }
+        );
+        assert_eq!(
+            super::structure_pieces_intersecting_chunk(
+                &start,
+                super::StructureBoundingBoxModel {
+                    min_x: 48,
+                    min_y: -64,
+                    min_z: -16,
+                    max_x: 63,
+                    max_y: 320,
+                    max_z: -1,
+                }
+            ),
+            vec![second_piece]
+        );
     }
 
     #[test]
