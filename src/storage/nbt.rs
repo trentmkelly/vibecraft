@@ -4,6 +4,8 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
+pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tag {
     End,
@@ -19,6 +21,18 @@ pub enum Tag {
     Compound(Vec<(String, Tag)>),
     IntArray(Vec<i32>),
     LongArray(Vec<i64>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NbtSizeTracker {
+    pub payload_bytes: usize,
+    pub nodes: usize,
+    pub max_depth: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NbtFieldSelector {
+    pub path: Vec<String>,
 }
 
 impl Tag {
@@ -41,6 +55,29 @@ impl Tag {
     }
 
     pub fn read_payload<R: Read>(id: u8, reader: &mut R) -> io::Result<Self> {
+        Self::read_payload_limited(id, reader, DEFAULT_MAX_NBT_DEPTH)
+    }
+
+    pub fn read_payload_limited<R: Read>(
+        id: u8,
+        reader: &mut R,
+        max_depth: usize,
+    ) -> io::Result<Self> {
+        Self::read_payload_at_depth(id, reader, 0, max_depth)
+    }
+
+    fn read_payload_at_depth<R: Read>(
+        id: u8,
+        reader: &mut R,
+        depth: usize,
+        max_depth: usize,
+    ) -> io::Result<Self> {
+        if depth > max_depth {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "NBT depth limit exceeded",
+            ));
+        }
         Ok(match id {
             0 => Tag::End,
             1 => Tag::Byte(read_i8(reader)?),
@@ -63,7 +100,12 @@ impl Tag {
                 let len = read_len_i32(reader)?;
                 let mut values = Vec::with_capacity(len);
                 for _ in 0..len {
-                    values.push(Tag::read_payload(element_id, reader)?);
+                    values.push(Tag::read_payload_at_depth(
+                        element_id,
+                        reader,
+                        depth + 1,
+                        max_depth,
+                    )?);
                 }
                 Tag::List(values)
             }
@@ -75,7 +117,8 @@ impl Tag {
                         break;
                     }
                     let name = read_string(reader)?;
-                    let payload = Tag::read_payload(child_id, reader)?;
+                    let payload =
+                        Tag::read_payload_at_depth(child_id, reader, depth + 1, max_depth)?;
                     values.push((name, payload));
                 }
                 Tag::Compound(values)
@@ -183,6 +226,35 @@ impl Tag {
         }
     }
 
+    pub fn tracked_size(&self) -> NbtSizeTracker {
+        fn walk(tag: &Tag, depth: usize, tracker: &mut NbtSizeTracker) {
+            tracker.payload_bytes += tag.payload_size();
+            tracker.nodes += 1;
+            tracker.max_depth = tracker.max_depth.max(depth);
+            match tag {
+                Tag::List(values) => {
+                    for value in values {
+                        walk(value, depth + 1, tracker);
+                    }
+                }
+                Tag::Compound(values) => {
+                    for (_name, value) in values {
+                        walk(value, depth + 1, tracker);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut tracker = NbtSizeTracker {
+            payload_bytes: 0,
+            nodes: 0,
+            max_depth: 0,
+        };
+        walk(self, 0, &mut tracker);
+        tracker
+    }
+
     pub fn to_snbt(&self) -> String {
         match self {
             Tag::End => "END".to_string(),
@@ -255,6 +327,42 @@ impl Tag {
             _ => {}
         }
     }
+
+    pub fn select<'a>(&'a self, selector: &NbtFieldSelector) -> Option<&'a Tag> {
+        let mut current = self;
+        for part in &selector.path {
+            match current {
+                Tag::Compound(values) => {
+                    current = &values.iter().find(|(name, _)| name == part)?.1;
+                }
+                _ => return None,
+            }
+        }
+        Some(current)
+    }
+
+    pub fn visit_selected_fields<'a, F>(&'a self, selectors: &'a [NbtFieldSelector], mut visitor: F)
+    where
+        F: FnMut(&'a NbtFieldSelector, &'a Tag),
+    {
+        for selector in selectors {
+            if let Some(tag) = self.select(selector) {
+                visitor(selector, tag);
+            }
+        }
+    }
+}
+
+impl NbtFieldSelector {
+    pub fn dotted(path: &str) -> Self {
+        Self {
+            path: path
+                .split('.')
+                .filter(|part| !part.is_empty())
+                .map(ToString::to_string)
+                .collect(),
+        }
+    }
 }
 
 pub fn read_named_tag<R: Read>(reader: &mut R) -> io::Result<(String, Tag)> {
@@ -264,6 +372,19 @@ pub fn read_named_tag<R: Read>(reader: &mut R) -> io::Result<(String, Tag)> {
     }
     let name = read_string(reader)?;
     let payload = Tag::read_payload(id, reader)?;
+    Ok((name, payload))
+}
+
+pub fn read_named_tag_limited<R: Read>(
+    reader: &mut R,
+    max_depth: usize,
+) -> io::Result<(String, Tag)> {
+    let id = read_u8(reader)?;
+    if id == 0 {
+        return Ok((String::new(), Tag::End));
+    }
+    let name = read_string(reader)?;
+    let payload = Tag::read_payload_limited(id, reader, max_depth)?;
     Ok((name, payload))
 }
 
@@ -287,6 +408,19 @@ pub fn write_gzip_named_tag<W: Write>(writer: W, name: &str, tag: &Tag) -> io::R
     Ok(())
 }
 
+pub fn parse_snbt(input: &str) -> io::Result<Tag> {
+    let mut parser = SnbtParser::new(input);
+    let tag = parser.parse_tag()?;
+    parser.skip_ws();
+    if parser.peek().is_some() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "trailing SNBT input",
+        ));
+    }
+    Ok(tag)
+}
+
 fn quote_snbt_key(key: &str) -> String {
     if key
         .chars()
@@ -300,6 +434,319 @@ fn quote_snbt_key(key: &str) -> String {
 
 fn escape_snbt_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+struct SnbtParser<'a> {
+    input: &'a str,
+    cursor: usize,
+}
+
+impl<'a> SnbtParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, cursor: 0 }
+    }
+
+    fn parse_tag(&mut self) -> io::Result<Tag> {
+        self.skip_ws();
+        match self.peek() {
+            Some('{') => self.parse_compound(),
+            Some('[') => self.parse_array_or_list(),
+            Some('"') | Some('\'') => Ok(Tag::String(self.parse_quoted_string()?)),
+            Some(_) => self.parse_primitive(),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "empty SNBT input",
+            )),
+        }
+    }
+
+    fn parse_compound(&mut self) -> io::Result<Tag> {
+        self.expect('{')?;
+        let mut values = Vec::new();
+        loop {
+            self.skip_ws();
+            if self.consume('}') {
+                break;
+            }
+            let name = self.parse_key()?;
+            self.skip_ws();
+            self.expect(':')?;
+            let value = self.parse_tag()?;
+            values.push((name, value));
+            self.skip_ws();
+            if self.consume(',') {
+                continue;
+            }
+            self.expect('}')?;
+            break;
+        }
+        Ok(Tag::Compound(values))
+    }
+
+    fn parse_array_or_list(&mut self) -> io::Result<Tag> {
+        self.expect('[')?;
+        self.skip_ws();
+        if self.peek_type_array_prefix('B') {
+            self.cursor += 2;
+            return self.parse_byte_array();
+        }
+        if self.peek_type_array_prefix('I') {
+            self.cursor += 2;
+            return self.parse_int_array();
+        }
+        if self.peek_type_array_prefix('L') {
+            self.cursor += 2;
+            return self.parse_long_array();
+        }
+
+        let mut values = Vec::new();
+        loop {
+            self.skip_ws();
+            if self.consume(']') {
+                break;
+            }
+            values.push(self.parse_tag()?);
+            self.skip_ws();
+            if self.consume(',') {
+                continue;
+            }
+            self.expect(']')?;
+            break;
+        }
+        Ok(Tag::List(values))
+    }
+
+    fn parse_byte_array(&mut self) -> io::Result<Tag> {
+        let mut values = Vec::new();
+        loop {
+            self.skip_ws();
+            if self.consume(']') {
+                break;
+            }
+            match self.parse_primitive()? {
+                Tag::Byte(value) => values.push(value),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "SNBT byte array values must be bytes",
+                    ))
+                }
+            }
+            self.skip_ws();
+            if self.consume(',') {
+                continue;
+            }
+            self.expect(']')?;
+            break;
+        }
+        Ok(Tag::ByteArray(values))
+    }
+
+    fn parse_int_array(&mut self) -> io::Result<Tag> {
+        let mut values = Vec::new();
+        loop {
+            self.skip_ws();
+            if self.consume(']') {
+                break;
+            }
+            match self.parse_primitive()? {
+                Tag::Int(value) => values.push(value),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "SNBT int array values must be ints",
+                    ))
+                }
+            }
+            self.skip_ws();
+            if self.consume(',') {
+                continue;
+            }
+            self.expect(']')?;
+            break;
+        }
+        Ok(Tag::IntArray(values))
+    }
+
+    fn parse_long_array(&mut self) -> io::Result<Tag> {
+        let mut values = Vec::new();
+        loop {
+            self.skip_ws();
+            if self.consume(']') {
+                break;
+            }
+            match self.parse_primitive()? {
+                Tag::Long(value) => values.push(value),
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "SNBT long array values must be longs",
+                    ))
+                }
+            }
+            self.skip_ws();
+            if self.consume(',') {
+                continue;
+            }
+            self.expect(']')?;
+            break;
+        }
+        Ok(Tag::LongArray(values))
+    }
+
+    fn parse_key(&mut self) -> io::Result<String> {
+        self.skip_ws();
+        match self.peek() {
+            Some('"') | Some('\'') => self.parse_quoted_string(),
+            Some(_) => self.parse_unquoted_token(),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "missing SNBT key",
+            )),
+        }
+    }
+
+    fn parse_primitive(&mut self) -> io::Result<Tag> {
+        let token = self.parse_unquoted_token()?;
+        if token.eq_ignore_ascii_case("true") {
+            return Ok(Tag::Byte(1));
+        }
+        if token.eq_ignore_ascii_case("false") {
+            return Ok(Tag::Byte(0));
+        }
+        if token.eq_ignore_ascii_case("END") {
+            return Ok(Tag::End);
+        }
+
+        let suffix = token.chars().last().unwrap_or_default();
+        let number = if matches!(
+            suffix,
+            'b' | 'B' | 's' | 'S' | 'l' | 'L' | 'f' | 'F' | 'd' | 'D'
+        ) {
+            &token[..token.len() - suffix.len_utf8()]
+        } else {
+            token.as_str()
+        };
+        match suffix {
+            'b' | 'B' => number
+                .parse::<i8>()
+                .map(Tag::Byte)
+                .map_err(invalid_snbt_number),
+            's' | 'S' => number
+                .parse::<i16>()
+                .map(Tag::Short)
+                .map_err(invalid_snbt_number),
+            'l' | 'L' => number
+                .parse::<i64>()
+                .map(Tag::Long)
+                .map_err(invalid_snbt_number),
+            'f' | 'F' => number
+                .parse::<f32>()
+                .map(Tag::Float)
+                .map_err(invalid_snbt_number),
+            'd' | 'D' => number
+                .parse::<f64>()
+                .map(Tag::Double)
+                .map_err(invalid_snbt_number),
+            _ => token
+                .parse::<i32>()
+                .map(Tag::Int)
+                .or_else(|_| token.parse::<f64>().map(Tag::Double))
+                .or_else(|_| Ok(Tag::String(token))),
+        }
+    }
+
+    fn parse_quoted_string(&mut self) -> io::Result<String> {
+        let quote = self.next().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "missing SNBT string quote")
+        })?;
+        let mut output = String::new();
+        loop {
+            match self.next() {
+                Some(ch) if ch == quote => break,
+                Some('\\') => match self.next() {
+                    Some(escaped) => output.push(escaped),
+                    None => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "unterminated SNBT escape",
+                        ))
+                    }
+                },
+                Some(ch) => output.push(ch),
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "unterminated SNBT string",
+                    ))
+                }
+            }
+        }
+        Ok(output)
+    }
+
+    fn parse_unquoted_token(&mut self) -> io::Result<String> {
+        self.skip_ws();
+        let start = self.cursor;
+        while let Some(ch) = self.peek() {
+            if ch.is_whitespace() || matches!(ch, ':' | ',' | ']' | '}') {
+                break;
+            }
+            self.next();
+        }
+        if self.cursor == start {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "missing SNBT token",
+            ));
+        }
+        Ok(self.input[start..self.cursor].to_string())
+    }
+
+    fn peek_type_array_prefix(&self, prefix: char) -> bool {
+        self.input[self.cursor..].starts_with(prefix)
+            && self.input[self.cursor + prefix.len_utf8()..].starts_with(';')
+    }
+
+    fn skip_ws(&mut self) {
+        while self.peek().is_some_and(char::is_whitespace) {
+            self.next();
+        }
+    }
+
+    fn expect(&mut self, expected: char) -> io::Result<()> {
+        if self.consume(expected) {
+            Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("expected SNBT character {expected}"),
+            ))
+        }
+    }
+
+    fn consume(&mut self, expected: char) -> bool {
+        if self.peek() == Some(expected) {
+            self.next();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn peek(&self) -> Option<char> {
+        self.input[self.cursor..].chars().next()
+    }
+
+    fn next(&mut self) -> Option<char> {
+        let ch = self.peek()?;
+        self.cursor += ch.len_utf8();
+        Some(ch)
+    }
+}
+
+fn invalid_snbt_number(err: impl std::error::Error + Send + Sync + 'static) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, err)
 }
 
 fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
@@ -381,7 +828,10 @@ fn write_len_i32<W: Write>(writer: &mut W, len: usize) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
+    use super::{
+        parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited,
+        write_gzip_named_tag, write_named_tag, NbtFieldSelector, Tag,
+    };
     use std::io::Cursor;
 
     #[test]
@@ -466,5 +916,83 @@ mod tests {
         let mut ids = Vec::new();
         tag.visit_depth_first(&mut |visited| ids.push(visited.id()));
         assert_eq!(ids, vec![10, 8, 7, 9, 3, 3]);
+    }
+
+    #[test]
+    fn bounded_nbt_reads_reject_excessive_recursion() {
+        let tag = Tag::Compound(vec![(
+            "outer".to_string(),
+            Tag::Compound(vec![("inner".to_string(), Tag::Int(1))]),
+        )]);
+        let mut bytes = Vec::new();
+        write_named_tag(&mut bytes, "root", &tag).unwrap();
+
+        let err = read_named_tag_limited(&mut Cursor::new(bytes), 1).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("depth limit"));
+    }
+
+    #[test]
+    fn nbt_size_tracker_and_field_selectors_cover_streaming_use_cases() {
+        let tag = Tag::Compound(vec![
+            (
+                "Data".to_string(),
+                Tag::Compound(vec![
+                    ("DataVersion".to_string(), Tag::Int(4790)),
+                    ("LevelName".to_string(), Tag::String("world".to_string())),
+                ]),
+            ),
+            ("Other".to_string(), Tag::Byte(1)),
+        ]);
+
+        let tracked = tag.tracked_size();
+        assert_eq!(tracked.nodes, 5);
+        assert_eq!(tracked.max_depth, 2);
+        assert!(tracked.payload_bytes >= tag.payload_size());
+
+        let selectors = [
+            NbtFieldSelector::dotted("Data.DataVersion"),
+            NbtFieldSelector::dotted("Data.Missing"),
+            NbtFieldSelector::dotted("Other"),
+        ];
+        let mut selected = Vec::new();
+        tag.visit_selected_fields(&selectors, |selector, value| {
+            selected.push((selector.path.join("."), value.clone()));
+        });
+        assert_eq!(
+            selected,
+            vec![
+                ("Data.DataVersion".to_string(), Tag::Int(4790)),
+                ("Other".to_string(), Tag::Byte(1)),
+            ]
+        );
+    }
+
+    #[test]
+    fn snbt_parser_round_trips_printer_shapes_and_reports_errors() {
+        let tag = Tag::Compound(vec![
+            (
+                "name".to_string(),
+                Tag::String("A \"quoted\" name".to_string()),
+            ),
+            ("bytes".to_string(), Tag::ByteArray(vec![1, 2])),
+            ("ints".to_string(), Tag::IntArray(vec![3, 4])),
+            ("longs".to_string(), Tag::LongArray(vec![5, 6])),
+            (
+                "nested".to_string(),
+                Tag::List(vec![Tag::Int(1), Tag::Int(2)]),
+            ),
+            ("enabled".to_string(), Tag::Byte(1)),
+        ]);
+
+        let printed = tag.to_snbt();
+        assert_eq!(parse_snbt(&printed).unwrap(), tag);
+        assert_eq!(parse_snbt("{flag:true}").unwrap().to_snbt(), "{flag:1b}");
+        assert_eq!(parse_snbt("12s").unwrap(), Tag::Short(12));
+        assert_eq!(parse_snbt("3.5f").unwrap(), Tag::Float(3.5));
+        assert!(parse_snbt("{broken")
+            .unwrap_err()
+            .to_string()
+            .contains("expected"));
     }
 }
