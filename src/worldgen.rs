@@ -1535,6 +1535,15 @@ pub struct StructureStartTagModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerrainAdjustmentModel {
+    None,
+    Bury,
+    BeardThin,
+    BeardBox,
+    Encapsulate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructureCheckResultModel {
     StartPresent,
     StartNotPresent,
@@ -6767,6 +6776,68 @@ impl StructureBoundingBoxModel {
             z: (self.min_z + self.max_z) / 2,
         }
     }
+
+    pub fn inflated_by(self, amount: i32) -> StructureBoundingBoxModel {
+        StructureBoundingBoxModel {
+            min_x: self.min_x - amount,
+            min_y: self.min_y - amount,
+            min_z: self.min_z - amount,
+            max_x: self.max_x + amount,
+            max_y: self.max_y + amount,
+            max_z: self.max_z + amount,
+        }
+    }
+}
+
+impl TerrainAdjustmentModel {
+    pub fn id(self) -> &'static str {
+        match self {
+            TerrainAdjustmentModel::None => "none",
+            TerrainAdjustmentModel::Bury => "bury",
+            TerrainAdjustmentModel::BeardThin => "beard_thin",
+            TerrainAdjustmentModel::BeardBox => "beard_box",
+            TerrainAdjustmentModel::Encapsulate => "encapsulate",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "none" => Some(TerrainAdjustmentModel::None),
+            "bury" => Some(TerrainAdjustmentModel::Bury),
+            "beard_thin" => Some(TerrainAdjustmentModel::BeardThin),
+            "beard_box" => Some(TerrainAdjustmentModel::BeardBox),
+            "encapsulate" => Some(TerrainAdjustmentModel::Encapsulate),
+            _ => None,
+        }
+    }
+
+    pub fn jigsaw_edge_needed(self) -> i32 {
+        match self {
+            TerrainAdjustmentModel::None => 0,
+            TerrainAdjustmentModel::Bury
+            | TerrainAdjustmentModel::BeardThin
+            | TerrainAdjustmentModel::BeardBox
+            | TerrainAdjustmentModel::Encapsulate => 12,
+        }
+    }
+}
+
+pub fn structure_adjust_bounding_box(
+    terrain_adjustment: TerrainAdjustmentModel,
+    bounding_box: StructureBoundingBoxModel,
+) -> StructureBoundingBoxModel {
+    if terrain_adjustment == TerrainAdjustmentModel::None {
+        bounding_box
+    } else {
+        bounding_box.inflated_by(12)
+    }
+}
+
+pub fn jigsaw_max_distance_with_terrain_is_valid(
+    horizontal_max_distance_from_center: i32,
+    terrain_adjustment: TerrainAdjustmentModel,
+) -> bool {
+    horizontal_max_distance_from_center + terrain_adjustment.jigsaw_edge_needed() <= 128
 }
 
 impl StructureStartModel {
@@ -17196,6 +17267,63 @@ mod tests {
 
         let invalid = super::StructureStartModel::invalid();
         assert!(!super::structure_start_can_satisfy_lookup(&invalid, false));
+    }
+
+    #[test]
+    fn terrain_adjustment_ids_and_bounding_boxes_match_vanilla() {
+        let ids = [
+            (super::TerrainAdjustmentModel::None, "none"),
+            (super::TerrainAdjustmentModel::Bury, "bury"),
+            (super::TerrainAdjustmentModel::BeardThin, "beard_thin"),
+            (super::TerrainAdjustmentModel::BeardBox, "beard_box"),
+            (super::TerrainAdjustmentModel::Encapsulate, "encapsulate"),
+        ];
+        for (adjustment, id) in ids {
+            assert_eq!(adjustment.id(), id);
+            assert_eq!(super::TerrainAdjustmentModel::from_id(id), Some(adjustment));
+        }
+        assert_eq!(super::TerrainAdjustmentModel::from_id("beard"), None);
+
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 10,
+            min_y: 20,
+            min_z: 30,
+            max_x: 40,
+            max_y: 50,
+            max_z: 60,
+        };
+        assert_eq!(
+            super::structure_adjust_bounding_box(super::TerrainAdjustmentModel::None, bounding_box),
+            bounding_box
+        );
+        assert_eq!(
+            super::structure_adjust_bounding_box(super::TerrainAdjustmentModel::Bury, bounding_box),
+            super::StructureBoundingBoxModel {
+                min_x: -2,
+                min_y: 8,
+                min_z: 18,
+                max_x: 52,
+                max_y: 62,
+                max_z: 72,
+            }
+        );
+
+        assert!(super::jigsaw_max_distance_with_terrain_is_valid(
+            128,
+            super::TerrainAdjustmentModel::None
+        ));
+        assert!(!super::jigsaw_max_distance_with_terrain_is_valid(
+            128,
+            super::TerrainAdjustmentModel::Bury
+        ));
+        assert!(super::jigsaw_max_distance_with_terrain_is_valid(
+            116,
+            super::TerrainAdjustmentModel::Encapsulate
+        ));
+        assert!(!super::jigsaw_max_distance_with_terrain_is_valid(
+            117,
+            super::TerrainAdjustmentModel::BeardBox
+        ));
     }
 
     #[test]
