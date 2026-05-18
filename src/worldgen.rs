@@ -306,6 +306,22 @@ pub enum BlockPredicate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockPos {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacementModifier {
+    RarityFilter { chance: i32 },
+    Count { count: i32 },
+    InSquare,
+    RandomOffset { xz_spread: i32, y_spread: i32 },
+    Fixed { positions: &'static [BlockPos] },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
     pub barrier_state: &'static str,
@@ -3669,6 +3685,62 @@ pub fn block_predicate_test(
     }
 }
 
+pub fn placement_modifier_type(id: &str) -> Option<&'static str> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLDGEN_TYPE_REGISTRIES
+        .iter()
+        .find(|registry| registry.id == "minecraft:placement_modifier_type")?
+        .entries
+        .iter()
+        .copied()
+        .find(|entry| entry.strip_prefix("minecraft:").unwrap_or(entry) == name)
+}
+
+pub fn placement_modifier_positions(
+    modifier: PlacementModifier,
+    origin: BlockPos,
+    first_roll: i32,
+    second_roll: i32,
+    third_roll: i32,
+) -> Vec<BlockPos> {
+    match modifier {
+        PlacementModifier::RarityFilter { chance } => {
+            if chance > 0 && first_roll.rem_euclid(chance) == 0 {
+                vec![origin]
+            } else {
+                Vec::new()
+            }
+        }
+        PlacementModifier::Count { count } => vec![origin; count.max(0) as usize],
+        PlacementModifier::InSquare => vec![BlockPos {
+            x: origin.x + first_roll.rem_euclid(16),
+            y: origin.y,
+            z: origin.z + second_roll.rem_euclid(16),
+        }],
+        PlacementModifier::RandomOffset {
+            xz_spread,
+            y_spread,
+        } => {
+            let xz_bound = xz_spread.abs() * 2 + 1;
+            let y_bound = y_spread.abs() * 2 + 1;
+            vec![BlockPos {
+                x: origin.x + first_roll.rem_euclid(xz_bound) - xz_spread.abs(),
+                y: origin.y + second_roll.rem_euclid(y_bound) - y_spread.abs(),
+                z: origin.z + third_roll.rem_euclid(xz_bound) - xz_spread.abs(),
+            }]
+        }
+        PlacementModifier::Fixed { positions } => {
+            let chunk_x = origin.x.div_euclid(16);
+            let chunk_z = origin.z.div_euclid(16);
+            positions
+                .iter()
+                .copied()
+                .filter(|pos| pos.x.div_euclid(16) == chunk_x && pos.z.div_euclid(16) == chunk_z)
+                .collect()
+        }
+    }
+}
+
 pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGeneratorSettings> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_NOISE_GENERATOR_SETTINGS.iter().find(|settings| {
@@ -4265,27 +4337,28 @@ pub fn carver_can_reach(
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlockPredicate,
-        BlockPredicateContext, CarverShape, CaveDensityOutput, ConfiguredFeatureSource,
-        DensityFunction, DensityMarker, FeatureConfigurationKind, FeatureFamily, FloatProvider,
-        FluidStatus, HeightProvider, HeightRange, MappedDensityFunction, NoiseRouterPreset,
-        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
-        RandomSpreadType, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
-        StructurePlacementKind, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor,
-        WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
-        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS,
-        BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS,
-        BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS,
-        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
-        CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
-        FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS,
-        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
-        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS,
-        STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
-        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
-        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
+        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlockPos,
+        BlockPredicate, BlockPredicateContext, CarverShape, CaveDensityOutput,
+        ConfiguredFeatureSource, DensityFunction, DensityMarker, FeatureConfigurationKind,
+        FeatureFamily, FloatProvider, FluidStatus, HeightProvider, HeightRange,
+        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
+        OreVeinifierConstants, PlacedFeatureSource, PlacementModifier, RandomSpreadType,
+        SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
+        SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WeightedHeightProvider,
+        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS, BLOCK_PREDICATE_TYPES,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
+        FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES,
+        MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
+        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
+        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES,
+        STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
+        STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4572,6 +4645,113 @@ mod tests {
             grass,
             64
         ));
+    }
+
+    #[test]
+    fn placement_modifier_registry_and_core_positions_follow_vanilla_rules() {
+        assert!(super::placement_modifier_type("rarity_filter").is_some());
+        assert!(super::placement_modifier_type("minecraft:fixed_placement").is_some());
+        assert!(super::placement_modifier_type("matching_blocks").is_none());
+
+        let origin = BlockPos {
+            x: 32,
+            y: 70,
+            z: -16,
+        };
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::RarityFilter { chance: 4 },
+                origin,
+                8,
+                0,
+                0
+            ),
+            vec![origin]
+        );
+        assert!(super::placement_modifier_positions(
+            PlacementModifier::RarityFilter { chance: 4 },
+            origin,
+            9,
+            0,
+            0
+        )
+        .is_empty());
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::Count { count: 3 },
+                origin,
+                0,
+                0,
+                0
+            ),
+            vec![origin, origin, origin]
+        );
+        assert_eq!(
+            super::placement_modifier_positions(PlacementModifier::InSquare, origin, 19, 31, 0),
+            vec![BlockPos {
+                x: 35,
+                y: 70,
+                z: -1,
+            }]
+        );
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::RandomOffset {
+                    xz_spread: 4,
+                    y_spread: 2,
+                },
+                origin,
+                8,
+                4,
+                0
+            ),
+            vec![BlockPos {
+                x: 36,
+                y: 72,
+                z: -20,
+            }]
+        );
+
+        static FIXED_POSITIONS: &[BlockPos] = &[
+            BlockPos {
+                x: 34,
+                y: 70,
+                z: -8,
+            },
+            BlockPos {
+                x: 48,
+                y: 70,
+                z: -8,
+            },
+            BlockPos {
+                x: 35,
+                y: 71,
+                z: -1,
+            },
+        ];
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::Fixed {
+                    positions: FIXED_POSITIONS,
+                },
+                origin,
+                0,
+                0,
+                0
+            ),
+            vec![
+                BlockPos {
+                    x: 34,
+                    y: 70,
+                    z: -8
+                },
+                BlockPos {
+                    x: 35,
+                    y: 71,
+                    z: -1
+                },
+            ]
+        );
     }
 
     #[test]
