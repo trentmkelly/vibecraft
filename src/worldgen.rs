@@ -18722,6 +18722,72 @@ pub fn generate_chunk_for_stem(
     }
 }
 
+fn generated_chunk_with_status(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+    status: &'static str,
+) -> Result<LevelChunk, String> {
+    let mut chunk = generate_chunk_for_stem(pos, stem)?;
+    chunk.status = status.to_string();
+    Ok(chunk)
+}
+
+pub fn generator_create_structures_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:structure_starts")
+}
+
+pub fn generator_create_references_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:structure_references")
+}
+
+pub fn generator_create_biomes_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:biomes")
+}
+
+pub fn generator_fill_from_noise_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:noise")
+}
+
+pub fn generator_build_surface_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:surface")
+}
+
+pub fn generator_apply_carvers_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:carvers")
+}
+
+pub fn generator_apply_biome_decoration_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:features")
+}
+
+pub fn generator_spawn_original_mobs_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generated_chunk_with_status(pos, stem, "minecraft:spawn")
+}
+
 pub fn generator_base_height_for_stem(
     x: i32,
     z: i32,
@@ -24251,6 +24317,66 @@ mod tests {
         };
         assert!(palette.contains(&super::block_state_tag("minecraft:grass_block")));
         assert!(palette.contains(&super::block_state_tag("minecraft:stone")));
+    }
+
+    #[test]
+    fn generator_method_facade_exposes_vanilla_status_task_names() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let pos = ChunkPos { x: 1, z: -1 };
+
+        assert_eq!(
+            super::generator_create_structures_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:structure_starts"
+        );
+        assert_eq!(
+            super::generator_create_references_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:structure_references"
+        );
+        assert_eq!(
+            super::generator_create_biomes_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:biomes"
+        );
+        assert_eq!(
+            super::generator_fill_from_noise_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:noise"
+        );
+        assert_eq!(
+            super::generator_build_surface_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:surface"
+        );
+        assert_eq!(
+            super::generator_apply_carvers_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:carvers"
+        );
+        assert_eq!(
+            super::generator_apply_biome_decoration_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:features"
+        );
+        assert_eq!(
+            super::generator_spawn_original_mobs_for_stem(pos, &normal.overworld)
+                .unwrap()
+                .status,
+            "minecraft:spawn"
+        );
+
+        let noise_chunk =
+            super::generator_fill_from_noise_for_stem(pos, &normal.overworld).unwrap();
+        assert_eq!(noise_chunk.sections.len(), 24);
+        assert!(noise_chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
     }
 
     #[test]
