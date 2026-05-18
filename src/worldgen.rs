@@ -74,6 +74,25 @@ pub struct ImprovedNoiseSnapshot {
     pub permutation: [u8; 256],
 }
 
+pub const SIMPLEX_GRADIENT: [[i32; 3]; 16] = [
+    [1, 1, 0],
+    [-1, 1, 0],
+    [1, -1, 0],
+    [-1, -1, 0],
+    [1, 0, 1],
+    [-1, 0, 1],
+    [1, 0, -1],
+    [-1, 0, -1],
+    [0, 1, 1],
+    [0, -1, 1],
+    [0, 1, -1],
+    [0, -1, -1],
+    [1, 1, 0],
+    [0, -1, 1],
+    [-1, 1, 0],
+    [0, -1, -1],
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SynthNoiseSource {
     pub id: &'static str,
@@ -13935,6 +13954,146 @@ pub fn improved_noise_snapshot(random: &mut RandomSourceKind) -> ImprovedNoiseSn
     }
 }
 
+fn smoothstep(x: f64) -> f64 {
+    x * x * x * (x * (x * 6.0 - 15.0) + 10.0)
+}
+
+fn lerp(alpha: f64, p0: f64, p1: f64) -> f64 {
+    p0 + alpha * (p1 - p0)
+}
+
+fn lerp2(alpha1: f64, alpha2: f64, x00: f64, x10: f64, x01: f64, x11: f64) -> f64 {
+    lerp(alpha2, lerp(alpha1, x00, x10), lerp(alpha1, x01, x11))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lerp3(
+    alpha1: f64,
+    alpha2: f64,
+    alpha3: f64,
+    x000: f64,
+    x100: f64,
+    x010: f64,
+    x110: f64,
+    x001: f64,
+    x101: f64,
+    x011: f64,
+    x111: f64,
+) -> f64 {
+    lerp(
+        alpha3,
+        lerp2(alpha1, alpha2, x000, x100, x010, x110),
+        lerp2(alpha1, alpha2, x001, x101, x011, x111),
+    )
+}
+
+fn gradient_dot(hash: u8, x: f64, y: f64, z: f64) -> f64 {
+    let gradient = SIMPLEX_GRADIENT[(hash & 15) as usize];
+    f64::from(gradient[0]) * x + f64::from(gradient[1]) * y + f64::from(gradient[2]) * z
+}
+
+fn improved_noise_permutation(snapshot: &ImprovedNoiseSnapshot, x: i32) -> u8 {
+    snapshot.permutation[(x & 0xff) as usize]
+}
+
+pub fn improved_noise_sample(
+    snapshot: &ImprovedNoiseSnapshot,
+    input_x: f64,
+    input_y: f64,
+    input_z: f64,
+    y_scale: f64,
+    y_fudge: f64,
+) -> f64 {
+    let x = input_x + snapshot.xo;
+    let y = input_y + snapshot.yo;
+    let z = input_z + snapshot.zo;
+    let xf = x.floor() as i32;
+    let yf = y.floor() as i32;
+    let zf = z.floor() as i32;
+    let xr = x - f64::from(xf);
+    let yr = y - f64::from(yf);
+    let zr = z - f64::from(zf);
+    let yr_fudge = if y_scale != 0.0 {
+        let fudge_limit = if y_fudge >= 0.0 && y_fudge < yr {
+            y_fudge
+        } else {
+            yr
+        };
+        (fudge_limit / y_scale + 1.0E-7).floor() * y_scale
+    } else {
+        0.0
+    };
+
+    let x0 = i32::from(improved_noise_permutation(snapshot, xf));
+    let x1 = i32::from(improved_noise_permutation(snapshot, xf + 1));
+    let xy00 = i32::from(improved_noise_permutation(snapshot, x0 + yf));
+    let xy01 = i32::from(improved_noise_permutation(snapshot, x0 + yf + 1));
+    let xy10 = i32::from(improved_noise_permutation(snapshot, x1 + yf));
+    let xy11 = i32::from(improved_noise_permutation(snapshot, x1 + yf + 1));
+    let d000 = gradient_dot(
+        improved_noise_permutation(snapshot, xy00 + zf),
+        xr,
+        yr - yr_fudge,
+        zr,
+    );
+    let d100 = gradient_dot(
+        improved_noise_permutation(snapshot, xy10 + zf),
+        xr - 1.0,
+        yr - yr_fudge,
+        zr,
+    );
+    let d010 = gradient_dot(
+        improved_noise_permutation(snapshot, xy01 + zf),
+        xr,
+        yr - yr_fudge - 1.0,
+        zr,
+    );
+    let d110 = gradient_dot(
+        improved_noise_permutation(snapshot, xy11 + zf),
+        xr - 1.0,
+        yr - yr_fudge - 1.0,
+        zr,
+    );
+    let d001 = gradient_dot(
+        improved_noise_permutation(snapshot, xy00 + zf + 1),
+        xr,
+        yr - yr_fudge,
+        zr - 1.0,
+    );
+    let d101 = gradient_dot(
+        improved_noise_permutation(snapshot, xy10 + zf + 1),
+        xr - 1.0,
+        yr - yr_fudge,
+        zr - 1.0,
+    );
+    let d011 = gradient_dot(
+        improved_noise_permutation(snapshot, xy01 + zf + 1),
+        xr,
+        yr - yr_fudge - 1.0,
+        zr - 1.0,
+    );
+    let d111 = gradient_dot(
+        improved_noise_permutation(snapshot, xy11 + zf + 1),
+        xr - 1.0,
+        yr - yr_fudge - 1.0,
+        zr - 1.0,
+    );
+
+    lerp3(
+        smoothstep(xr),
+        smoothstep(yr),
+        smoothstep(zr),
+        d000,
+        d100,
+        d010,
+        d110,
+        d001,
+        d101,
+        d011,
+        d111,
+    )
+}
+
 impl JigsawPoolElementTypeModel {
     pub const REGISTRY_ORDER: [Self; 5] = [
         Self::Single,
@@ -23942,6 +24101,43 @@ mod tests {
                 .map(|(index, value)| (index as u32 + 1) * u32::from(*value))
                 .sum::<u32>(),
             4_254_779
+        );
+    }
+
+    #[test]
+    fn improved_noise_sample_matches_vanilla_gradient_lerp_path() {
+        let mut legacy = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
+        let legacy_snapshot = super::improved_noise_snapshot(&mut legacy);
+        assert!(
+            (super::improved_noise_sample(&legacy_snapshot, 1.25, -3.5, 8.75, 0.0, 0.0)
+                - 0.29716116151700966)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (super::improved_noise_sample(&legacy_snapshot, 1.25, -3.5, 8.75, 0.1, 0.125)
+                - 0.3187669444754645)
+                .abs()
+                < 1e-12
+        );
+
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let mut temperature_random =
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "temperature")
+                .unwrap()
+                .random;
+        let xoroshiro_snapshot = super::improved_noise_snapshot(&mut temperature_random);
+        assert!(
+            (super::improved_noise_sample(&xoroshiro_snapshot, 1.25, -3.5, 8.75, 0.0, 0.0)
+                - 0.07208119795724259)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (super::improved_noise_sample(&xoroshiro_snapshot, 1.25, -3.5, 8.75, 0.1, 0.125)
+                - 0.10323679289572503)
+                .abs()
+                < 1e-12
         );
     }
 
