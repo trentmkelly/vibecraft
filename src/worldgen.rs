@@ -7382,6 +7382,37 @@ pub const BASALT_DELTAS_FEATURE_STEPS: &[&[&str]] = &[
     ],
 ];
 
+pub const THE_END_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &["minecraft:end_spike"],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &["minecraft:end_platform"],
+];
+
+pub const END_HIGHLANDS_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &["minecraft:end_gateway_return"],
+    &[],
+    &[],
+    &[],
+    &[],
+    &["minecraft:chorus_plant"],
+];
+
+pub const END_MIDLANDS_FEATURE_STEPS: &[&[&str]] = &[];
+pub const SMALL_END_ISLANDS_FEATURE_STEPS: &[&[&str]] = &[&["minecraft:end_island_decorated"]];
+pub const END_BARRENS_FEATURE_STEPS: &[&[&str]] = &[];
+
 pub const GROVE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -9414,6 +9445,13 @@ pub const BASALT_DELTAS_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const END_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:enderman",
+    weight: 10,
+    min_count: 4,
+    max_count: 4,
+}];
+
 pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
     &[MobSpawnerDataModel {
         entity_type: "minecraft:glow_squid",
@@ -10847,6 +10885,41 @@ pub const BASALT_DELTAS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const END_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: END_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const WARPED_FOREST_SPAWN_COSTS: &[MobSpawnCostModel] = &[MobSpawnCostModel {
     entity_type: "minecraft:enderman",
     energy_budget: 0.12,
@@ -11522,6 +11595,46 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: BASALT_DELTAS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:the_end",
+        carvers: &[],
+        feature_steps: THE_END_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: END_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:end_highlands",
+        carvers: &[],
+        feature_steps: END_HIGHLANDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: END_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:end_midlands",
+        carvers: &[],
+        feature_steps: END_MIDLANDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: END_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:small_end_islands",
+        carvers: &[],
+        feature_steps: SMALL_END_ISLANDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: END_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:end_barrens",
+        carvers: &[],
+        feature_steps: END_BARRENS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: END_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:grove",
@@ -26206,6 +26319,64 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(basalt_deltas, "monster"),
             super::BASALT_DELTAS_MONSTER_SPAWNS
+        );
+
+        let the_end = super::biome_generation_settings("the_end").unwrap();
+        assert_eq!(the_end.biome, "minecraft:the_end");
+        assert!(the_end.carvers.is_empty());
+        assert_eq!(the_end.feature_steps.len(), 11);
+        assert!(super::biome_has_placed_feature(
+            the_end,
+            "minecraft:end_spike"
+        ));
+        assert!(super::biome_has_placed_feature(
+            the_end,
+            "minecraft:end_platform"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(the_end, "monster"),
+            super::END_MONSTER_SPAWNS
+        );
+
+        let end_highlands = super::biome_generation_settings("end_highlands").unwrap();
+        assert_eq!(end_highlands.biome, "minecraft:end_highlands");
+        assert_eq!(end_highlands.feature_steps.len(), 10);
+        assert!(super::biome_has_placed_feature(
+            end_highlands,
+            "minecraft:end_gateway_return"
+        ));
+        assert!(super::biome_has_placed_feature(
+            end_highlands,
+            "minecraft:chorus_plant"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            end_highlands,
+            "minecraft:end_platform"
+        ));
+
+        let end_midlands = super::biome_generation_settings("end_midlands").unwrap();
+        assert_eq!(end_midlands.biome, "minecraft:end_midlands");
+        assert!(end_midlands.carvers.is_empty());
+        assert!(end_midlands.feature_steps.is_empty());
+        assert_eq!(
+            super::biome_spawns_for_category(end_midlands, "monster"),
+            super::END_MONSTER_SPAWNS
+        );
+
+        let small_end_islands = super::biome_generation_settings("small_end_islands").unwrap();
+        assert_eq!(small_end_islands.biome, "minecraft:small_end_islands");
+        assert_eq!(small_end_islands.feature_steps.len(), 1);
+        assert!(super::biome_has_placed_feature(
+            small_end_islands,
+            "minecraft:end_island_decorated"
+        ));
+
+        let end_barrens = super::biome_generation_settings("end_barrens").unwrap();
+        assert_eq!(end_barrens.biome, "minecraft:end_barrens");
+        assert!(end_barrens.feature_steps.is_empty());
+        assert_eq!(
+            super::biome_spawns_for_category(end_barrens, "monster"),
+            super::END_MONSTER_SPAWNS
         );
 
         let grove = super::biome_generation_settings("grove").unwrap();
