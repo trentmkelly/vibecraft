@@ -1375,6 +1375,318 @@ mod tests {
         HolderSet, Identifier, Lifecycle, Registry, TagKey,
     };
 
+    const INTENTIONALLY_OMITTED_REGISTRIES: &[(&str, &str)] = &[
+        (
+            "minecraft:advancement",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:banner_pattern",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:cat_sound_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:cat_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:chat_type",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:chicken_sound_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:chicken_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:cow_sound_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:cow_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:damage_type",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:dialog",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:dimension",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:dimension_type",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:enchantment",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:enchantment_provider",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:frog_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:instrument",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:item_modifier",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:jukebox_song",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:loot_table",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:painting_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:pig_sound_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:pig_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:predicate",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:recipe",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:test_environment",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:test_instance",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:timeline",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:trade_set",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:trial_spawner",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:trim_material",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:trim_pattern",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:villager_trade",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:wolf_sound_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:wolf_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:world_clock",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/biome",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/configured_carver",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/configured_feature",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/density_function",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/flat_level_generator_preset",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/multi_noise_biome_source_parameter_list",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/noise",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/noise_settings",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/placed_feature",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/processor_list",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/structure",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/structure_set",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/template_pool",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:worldgen/world_preset",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+        (
+            "minecraft:zombie_nautilus_variant",
+            "not referenced by BuiltInRegistries in 26.1.2",
+        ),
+    ];
+
+    fn parse_java_constant_to_path_mapping(
+        source: &str,
+    ) -> std::collections::BTreeMap<String, String> {
+        let mut mapping = std::collections::BTreeMap::new();
+        let create_call = "createRegistryKey(";
+        let mut cursor = 0usize;
+
+        while let Some(create_offset) = source[cursor..].find(create_call) {
+            let create_pos = cursor + create_offset;
+            let before_call = &source[..create_pos];
+            let line_start = before_call.rfind('\n').map_or(0, |idx| idx + 1);
+            let before_call_line = &before_call[line_start..];
+            if let Some(eq_pos) = before_call_line.rfind('=') {
+                let lhs = before_call_line[..eq_pos].trim();
+                if let Some(constant) = lhs.split_whitespace().last() {
+                    let after_call = &source[create_pos + create_call.len()..];
+                    if let Some(start_quote) = after_call.find('\"') {
+                        let quoted = &after_call[start_quote + 1..];
+                        if let Some(end_quote) = quoted.find('\"') {
+                            mapping.insert(constant.to_string(), quoted[..end_quote].to_string());
+                        }
+                    }
+                }
+            }
+            cursor = create_pos + create_call.len();
+        }
+
+        assert!(
+            !mapping.is_empty(),
+            "could not parse java registry constant mapping"
+        );
+        mapping
+    }
+
+    fn is_java_all_caps_registry_identifier(candidate: &str) -> bool {
+        !candidate.is_empty()
+            && candidate
+                .chars()
+                .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
+    }
+
+    fn parse_java_registry_refs_from_source(source: &str, prefix: &str) -> Vec<String> {
+        let mut constants = Vec::new();
+        let mut cursor = source;
+
+        while let Some(index) = cursor.find(prefix) {
+            let after = &cursor[index + prefix.len()..];
+            let mut len = 0usize;
+            for ch in after.bytes() {
+                if ch.is_ascii_alphanumeric() || ch == b'_' {
+                    len += 1;
+                } else {
+                    break;
+                }
+            }
+            if len > 0 {
+                let candidate = &after[..len];
+                if is_java_all_caps_registry_identifier(candidate) {
+                    constants.push(candidate.to_string());
+                }
+            }
+            cursor = &after[len..];
+        }
+
+        constants
+    }
+
+    fn parse_java_registry_ids() -> std::collections::BTreeSet<String> {
+        let source = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java"
+        );
+        let mut registry_ids = std::collections::BTreeSet::new();
+        for id in parse_java_constant_to_path_mapping(source).values() {
+            registry_ids.insert(format!("minecraft:{id}", id = id));
+        }
+        if registry_ids.is_empty() {
+            panic!("could not parse java registry ids");
+        }
+        registry_ids
+    }
+
+    fn parse_builtin_registry_ids() -> std::collections::BTreeSet<String> {
+        let registries_java = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java"
+        );
+        let mapping = parse_java_constant_to_path_mapping(registries_java);
+        let source =
+            include_str!("../../../decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java");
+        let mut registry_ids = std::collections::BTreeSet::new();
+        for constant in parse_java_registry_refs_from_source(source, "Registries.") {
+            if constant == "ROOT_REGISTRY_NAME" || constant == "REGISTRY" {
+                continue;
+            }
+            if let Some(id) = mapping.get(&constant) {
+                registry_ids.insert(format!("minecraft:{id}", id = id));
+            } else {
+                panic!("unmapped registry constant {constant} in BuiltInRegistries.java");
+            }
+        }
+        if registry_ids.is_empty() {
+            panic!("could not parse built-in registry ids");
+        }
+        registry_ids
+    }
+
     #[test]
     fn parses_default_namespace_identifiers() {
         let id = Identifier::parse("stone").unwrap();
@@ -1594,6 +1906,51 @@ mod tests {
         assert!(builtins.entity_types.is_frozen());
         assert!(builtins.dimension_types.is_frozen());
         assert!(builtins.biomes.is_frozen());
+    }
+
+    #[test]
+    fn builtin_registry_descriptors_cover_java_builtins_or_are_documented() {
+        let java_registry_ids = parse_java_registry_ids();
+        let built_in_registry_ids = parse_builtin_registry_ids();
+        let manifest_registry_ids: std::collections::BTreeSet<String> =
+            builtin_registry_manifest_26_1_2()
+                .into_iter()
+                .map(|entry| entry.registry.to_string())
+                .collect();
+        let intentional: std::collections::BTreeMap<&str, &str> =
+            INTENTIONALLY_OMITTED_REGISTRIES.iter().copied().collect();
+
+        assert!(
+            built_in_registry_ids.is_subset(&java_registry_ids),
+            "BuiltInRegistries.java references are not in sync with Registries.java",
+        );
+        assert!(
+            built_in_registry_ids == manifest_registry_ids,
+            "BuiltInRegistries.java references are not aligned with Rust manifest",
+        );
+
+        for registry_id in java_registry_ids.iter() {
+            if built_in_registry_ids.contains(registry_id)
+                || manifest_registry_ids.contains(registry_id)
+            {
+                continue;
+            }
+            if let Some(reason) = intentional.get(registry_id.as_str()) {
+                assert!(
+                    !reason.trim().is_empty(),
+                    "omission reason missing for intentionally omitted {registry_id}"
+                );
+            } else {
+                panic!("missing built-in registry descriptor for {registry_id} with no omission reason");
+            }
+        }
+
+        for registry_id in manifest_registry_ids.iter() {
+            assert!(
+                java_registry_ids.contains(registry_id),
+                "manifest includes unknown registry {registry_id} not present in Registries.java"
+            );
+        }
     }
 
     #[test]
