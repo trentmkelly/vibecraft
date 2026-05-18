@@ -6535,6 +6535,57 @@ pub const OLD_GROWTH_BIRCH_FOREST_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const DARK_FOREST_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:dark_forest_vegetation",
+        "minecraft:forest_flowers",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_forest",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_leaf_litter",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const FLOWER_FOREST_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:flower_forest_flowers",
+        "minecraft:trees_flower_forest",
+        "minecraft:flower_flower_forest",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const RIVER_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7148,6 +7199,39 @@ pub const BIRCH_FOREST_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const FLOWER_FOREST_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:rabbit",
+        weight: 4,
+        min_count: 2,
+        max_count: 3,
+    },
+];
+
 pub const FOREST_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:spider",
@@ -7693,6 +7777,41 @@ pub const BIRCH_FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const FLOWER_FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: FLOWER_FOREST_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const DESERT_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -8054,6 +8173,22 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: BIRCH_FOREST_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:dark_forest",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DARK_FOREST_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: BIRCH_FOREST_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:flower_forest",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: FLOWER_FOREST_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: FLOWER_FOREST_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:river",
@@ -21943,6 +22078,53 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(old_growth_birch, "creature"),
             super::BIRCH_FOREST_CREATURE_SPAWNS
+        );
+
+        let dark_forest = super::biome_generation_settings("dark_forest").unwrap();
+        assert_eq!(dark_forest.biome, "minecraft:dark_forest");
+        assert!(super::biome_has_placed_feature(
+            dark_forest,
+            "minecraft:dark_forest_vegetation"
+        ));
+        assert!(super::biome_has_placed_feature(
+            dark_forest,
+            "minecraft:patch_leaf_litter"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            dark_forest,
+            "minecraft:trees_birch"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(dark_forest, "creature"),
+            super::BIRCH_FOREST_CREATURE_SPAWNS
+        );
+
+        let flower_forest = super::biome_generation_settings("flower_forest").unwrap();
+        assert_eq!(flower_forest.biome, "minecraft:flower_forest");
+        assert!(super::biome_has_placed_feature(
+            flower_forest,
+            "minecraft:flower_forest_flowers"
+        ));
+        assert!(super::biome_has_placed_feature(
+            flower_forest,
+            "minecraft:trees_flower_forest"
+        ));
+        assert!(super::biome_has_placed_feature(
+            flower_forest,
+            "minecraft:patch_grass_badlands"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            flower_forest,
+            "minecraft:patch_grass_forest"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(flower_forest, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:rabbit",
+                weight: 4,
+                min_count: 2,
+                max_count: 3,
+            })
         );
 
         let river = super::biome_generation_settings("river").unwrap();
