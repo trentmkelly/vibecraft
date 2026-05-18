@@ -490,24 +490,24 @@ const DIMENSION_TYPES: &[&str] = &["overworld", "overworld_caves", "the_end", "t
 // Source: decompiled-server-26.1.2/net/minecraft/world/item/equipment/trim/TrimPatterns.java
 // and data/minecraft/trim_pattern/*.json
 const TRIM_PATTERNS: &[&str] = &[
-    "bolt",
-    "coast",
-    "dune",
-    "eye",
-    "flow",
-    "host",
-    "raiser",
-    "rib",
     "sentry",
+    "dune",
+    "coast",
+    "wild",
+    "ward",
+    "eye",
+    "vex",
+    "tide",
+    "snout",
+    "rib",
+    "spire",
+    "wayfinder",
     "shaper",
     "silence",
-    "snout",
-    "spire",
-    "tide",
-    "vex",
-    "ward",
-    "wayfinder",
-    "wild",
+    "raiser",
+    "host",
+    "flow",
+    "bolt",
 ];
 
 // Source: decompiled-server-26.1.2/net/minecraft/world/item/InstrumentItem.java
@@ -781,9 +781,27 @@ const JUKEBOX_SONGS: &[JukeboxSongEntry] = &[
 
 const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     TrimMaterialEntry {
-        id: "amethyst",
-        asset_name: "amethyst",
-        color: "#9a5cc6",
+        id: "quartz",
+        asset_name: "quartz",
+        color: "#e3d4bd",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "iron",
+        asset_name: "iron",
+        color: "#ececec",
+        overrides: &[("minecraft:iron", "iron_darker")],
+    },
+    TrimMaterialEntry {
+        id: "netherite",
+        asset_name: "netherite",
+        color: "#625859",
+        overrides: &[("minecraft:netherite", "netherite_darker")],
+    },
+    TrimMaterialEntry {
+        id: "redstone",
+        asset_name: "redstone",
+        color: "#971607",
         overrides: &[],
     },
     TrimMaterialEntry {
@@ -793,10 +811,10 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
         overrides: &[("minecraft:copper", "copper_darker")],
     },
     TrimMaterialEntry {
-        id: "diamond",
-        asset_name: "diamond",
-        color: "#6eead6",
-        overrides: &[("minecraft:diamond", "diamond_darker")],
+        id: "gold",
+        asset_name: "gold",
+        color: "#decf2a",
+        overrides: &[("minecraft:gold", "gold_darker")],
     },
     TrimMaterialEntry {
         id: "emerald",
@@ -805,16 +823,10 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
         overrides: &[],
     },
     TrimMaterialEntry {
-        id: "gold",
-        asset_name: "gold",
-        color: "#decf2a",
-        overrides: &[("minecraft:gold", "gold_darker")],
-    },
-    TrimMaterialEntry {
-        id: "iron",
-        asset_name: "iron",
-        color: "#ececec",
-        overrides: &[("minecraft:iron", "iron_darker")],
+        id: "diamond",
+        asset_name: "diamond",
+        color: "#6eead6",
+        overrides: &[("minecraft:diamond", "diamond_darker")],
     },
     TrimMaterialEntry {
         id: "lapis",
@@ -823,21 +835,9 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
         overrides: &[],
     },
     TrimMaterialEntry {
-        id: "netherite",
-        asset_name: "netherite",
-        color: "#625859",
-        overrides: &[("minecraft:netherite", "netherite_darker")],
-    },
-    TrimMaterialEntry {
-        id: "quartz",
-        asset_name: "quartz",
-        color: "#e3d4bd",
-        overrides: &[],
-    },
-    TrimMaterialEntry {
-        id: "redstone",
-        asset_name: "redstone",
-        color: "#971607",
+        id: "amethyst",
+        asset_name: "amethyst",
+        color: "#9a5cc6",
         overrides: &[],
     },
     TrimMaterialEntry {
@@ -4195,15 +4195,15 @@ mod tests {
 
     #[test]
     fn duplicated_registry_manifest_ids_remain_in_sync_across_tables() {
-        let status_trim_materials: BTreeSet<String> = TRIM_MATERIALS
+        let status_trim_materials: Vec<String> = TRIM_MATERIALS
             .iter()
             .map(|entry| format!("minecraft:{}", entry.id))
             .collect();
-        let presentation_trim_materials: BTreeSet<String> = presentation_data::TRIM_MATERIALS
+        let presentation_trim_materials: Vec<String> = presentation_data::TRIM_MATERIALS
             .iter()
             .map(|material| material.id.to_string())
             .collect();
-        let model_trim_materials: BTreeSet<String> = equipment_trim::TRIM_MATERIALS
+        let model_trim_materials: Vec<String> = equipment_trim::TRIM_MATERIALS
             .iter()
             .map(|material| material.id.to_string())
             .collect();
@@ -4211,15 +4211,15 @@ mod tests {
         assert_eq!(status_trim_materials, presentation_trim_materials);
         assert_eq!(status_trim_materials, model_trim_materials);
 
-        let status_trim_patterns: BTreeSet<String> = TRIM_PATTERNS
+        let status_trim_patterns: Vec<String> = TRIM_PATTERNS
             .iter()
             .map(|id| format!("minecraft:{id}"))
             .collect();
-        let presentation_trim_patterns: BTreeSet<String> = presentation_data::TRIM_PATTERNS
+        let presentation_trim_patterns: Vec<String> = presentation_data::TRIM_PATTERNS
             .iter()
             .map(|pattern| pattern.id.to_string())
             .collect();
-        let model_trim_patterns: BTreeSet<String> = equipment_trim::TRIM_PATTERNS
+        let model_trim_patterns: Vec<String> = equipment_trim::TRIM_PATTERNS
             .iter()
             .map(|pattern| format!("minecraft:{}", pattern.id))
             .collect();
