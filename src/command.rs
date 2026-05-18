@@ -14589,6 +14589,68 @@ mod tests {
     }
 
     #[test]
+    fn gamerule_command_toggles_named_client_observable_rules() {
+        let mut state = ServerCommandState::default();
+        let cases = [
+            ("keepInventory", "true", "minecraft:keep_inventory", 1),
+            (
+                "doImmediateRespawn",
+                "true",
+                "minecraft:immediate_respawn",
+                1,
+            ),
+            (
+                "sendCommandFeedback",
+                "false",
+                "minecraft:send_command_feedback",
+                0,
+            ),
+            ("doDaylightCycle", "false", "minecraft:advance_time", 0),
+            ("mobGriefing", "false", "minecraft:mob_griefing", 0),
+        ];
+
+        for (rule, value, sync_rule, success_count) in cases {
+            let result = execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                &format!("gamerule {rule} {value}"),
+            )
+            .unwrap();
+            assert_eq!(result.success_count, success_count);
+            assert_eq!(result.feedback_key, "commands.gamerule.set");
+            assert!(result.broadcast_to_admins);
+            assert_eq!(
+                state.game_rule_syncs.last().unwrap(),
+                &super::GameRuleSyncEvent {
+                    rule: sync_rule.to_string(),
+                    value: value.to_string(),
+                }
+            );
+        }
+
+        assert_eq!(
+            super::game_rule_value(&state, "keep_inventory").unwrap(),
+            super::GameRuleValue::Bool(true)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "immediate_respawn").unwrap(),
+            super::GameRuleValue::Bool(true)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "send_command_feedback").unwrap(),
+            super::GameRuleValue::Bool(false)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "advance_time").unwrap(),
+            super::GameRuleValue::Bool(false)
+        );
+        assert_eq!(
+            super::game_rule_value(&state, "mob_griefing").unwrap(),
+            super::GameRuleValue::Bool(false)
+        );
+    }
+
+    #[test]
     fn dialog_command_shows_and_clears_dialog_packets_for_players() {
         let mut state = ServerCommandState::default();
         assert_eq!(
