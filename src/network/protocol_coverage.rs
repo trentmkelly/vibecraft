@@ -81,7 +81,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "accept_teleportation",
         java_class: "ServerboundAcceptTeleportationPacket",
-        field_order: "unparsed",
+        field_order: "teleport_id:var_int",
     },
     PlayPacketSpec {
         id: 1,
@@ -109,7 +109,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "change_difficulty",
         java_class: "ServerboundChangeDifficultyPacket",
-        field_order: "unparsed",
+        field_order: "difficulty:difficulty_enum",
     },
     PlayPacketSpec {
         id: 5,
@@ -158,21 +158,21 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "chunk_batch_received",
         java_class: "ServerboundChunkBatchReceivedPacket",
-        field_order: "unparsed",
+        field_order: "desired_chunks_per_tick:f32",
     },
     PlayPacketSpec {
         id: 12,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "client_command",
         java_class: "ServerboundClientCommandPacket",
-        field_order: "unparsed",
+        field_order: "action:enum",
     },
     PlayPacketSpec {
         id: 13,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "client_tick_end",
         java_class: "ServerboundClientTickEndPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 14,
@@ -284,7 +284,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "lock_difficulty",
         java_class: "ServerboundLockDifficultyPacket",
-        field_order: "unparsed",
+        field_order: "locked:bool",
     },
     PlayPacketSpec {
         id: 30,
@@ -326,7 +326,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "paddle_boat",
         java_class: "ServerboundPaddleBoatPacket",
-        field_order: "unparsed",
+        field_order: "left:bool, right:bool",
     },
     PlayPacketSpec {
         id: 36,
@@ -382,14 +382,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "player_input",
         java_class: "ServerboundPlayerInputPacket",
-        field_order: "unparsed",
+        field_order: "input:Input.STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 44,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "player_loaded",
         java_class: "ServerboundPlayerLoadedPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 45,
@@ -452,7 +452,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_carried_item",
         java_class: "ServerboundSetCarriedItemPacket",
-        field_order: "unparsed",
+        field_order: "slot:i16_be",
     },
     PlayPacketSpec {
         id: 54,
@@ -522,7 +522,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "swing",
         java_class: "ServerboundSwingPacket",
-        field_order: "unparsed",
+        field_order: "hand:enum",
     },
     PlayPacketSpec {
         id: 64,
@@ -634,7 +634,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "change_difficulty",
         java_class: "ClientboundChangeDifficultyPacket",
-        field_order: "unparsed",
+        field_order: "difficulty:difficulty_enum, locked:bool",
     },
     PlayPacketSpec {
         id: 11,
@@ -1222,14 +1222,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_chunk_cache_center",
         java_class: "ClientboundSetChunkCacheCenterPacket",
-        field_order: "unparsed",
+        field_order: "x:var_int, z:var_int",
     },
     PlayPacketSpec {
         id: 95,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_chunk_cache_radius",
         java_class: "ClientboundSetChunkCacheRadiusPacket",
-        field_order: "unparsed",
+        field_order: "radius:var_int",
     },
     PlayPacketSpec {
         id: 96,
@@ -1243,7 +1243,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_default_spawn_position",
         java_class: "ClientboundSetDefaultSpawnPositionPacket",
-        field_order: "unparsed",
+        field_order: "respawn_data:LevelData.RespawnData.STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 98,
@@ -1285,21 +1285,21 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_experience",
         java_class: "ClientboundSetExperiencePacket",
-        field_order: "unparsed",
+        field_order: "experience_progress:f32, experience_level:var_int, total_experience:var_int",
     },
     PlayPacketSpec {
         id: 104,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_health",
         java_class: "ClientboundSetHealthPacket",
-        field_order: "unparsed",
+        field_order: "health:f32, food:var_int, saturation:f32",
     },
     PlayPacketSpec {
         id: 105,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_held_slot",
         java_class: "ClientboundSetHeldSlotPacket",
-        field_order: "unparsed",
+        field_order: "slot:var_int",
     },
     PlayPacketSpec {
         id: 106,
@@ -1341,7 +1341,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_simulation_distance",
         java_class: "ClientboundSetSimulationDistancePacket",
-        field_order: "unparsed",
+        field_order: "simulation_distance:var_int",
     },
     PlayPacketSpec {
         id: 112,
@@ -1355,7 +1355,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_time",
         java_class: "ClientboundSetTimePacket",
-        field_order: "unparsed",
+        field_order: "game_time:i64, clock_updates:map",
     },
     PlayPacketSpec {
         id: 114,
@@ -1718,6 +1718,64 @@ mod tests {
             assert!(!spec.wire_name.is_empty(), "missing wire name for {:?}", spec.direction);
             assert!(!spec.java_class.is_empty(), "missing java class for {spec:?}");
             assert!(!spec.field_order.is_empty(), "missing field order for {spec:?}");
+        }
+    }
+
+    #[test]
+    fn play_packet_specification_scalar_fields_are_concretely_decoded() {
+        let specs = play_packet_specs_26_1_2();
+        let checks: &[(PacketDirection, &str, &str)] = &[
+            (PacketDirection::Serverbound, "change_difficulty", "difficulty:difficulty_enum"),
+            (PacketDirection::Serverbound, "chunk_batch_received", "desired_chunks_per_tick:f32"),
+            (PacketDirection::Serverbound, "client_command", "action:enum"),
+            (PacketDirection::Serverbound, "client_tick_end", "empty_payload"),
+            (PacketDirection::Serverbound, "lock_difficulty", "locked:bool"),
+            (PacketDirection::Serverbound, "paddle_boat", "left:bool, right:bool"),
+            (PacketDirection::Serverbound, "player_input", "input:Input.STREAM_CODEC"),
+            (PacketDirection::Serverbound, "player_loaded", "empty_payload"),
+            (PacketDirection::Serverbound, "set_carried_item", "slot:i16_be"),
+            (PacketDirection::Serverbound, "swing", "hand:enum"),
+            (
+                PacketDirection::Clientbound,
+                "change_difficulty",
+                "difficulty:difficulty_enum, locked:bool",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "set_chunk_cache_center",
+                "x:var_int, z:var_int",
+            ),
+            (PacketDirection::Clientbound, "set_chunk_cache_radius", "radius:var_int"),
+            (
+                PacketDirection::Clientbound,
+                "set_default_spawn_position",
+                "respawn_data:LevelData.RespawnData.STREAM_CODEC",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "set_experience",
+                "experience_progress:f32, experience_level:var_int, total_experience:var_int",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "set_health",
+                "health:f32, food:var_int, saturation:f32",
+            ),
+            (PacketDirection::Clientbound, "set_held_slot", "slot:var_int"),
+            (
+                PacketDirection::Clientbound,
+                "set_simulation_distance",
+                "simulation_distance:var_int",
+            ),
+            (PacketDirection::Clientbound, "set_time", "game_time:i64, clock_updates:map"),
+        ];
+
+        for (direction, wire_name, expected) in checks {
+            let spec = specs
+                .iter()
+                .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
+                .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
+            assert_eq!(spec.field_order, *expected, "{direction:?} {wire_name} field-order drift");
         }
     }
 
