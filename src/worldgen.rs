@@ -6787,9 +6787,9 @@ impl StructureBoundingBoxModel {
 
     pub fn center(self) -> BlockPos {
         BlockPos {
-            x: (self.min_x + self.max_x) / 2,
-            y: (self.min_y + self.max_y) / 2,
-            z: (self.min_z + self.max_z) / 2,
+            x: self.min_x + (self.max_x - self.min_x + 1) / 2,
+            y: self.min_y + (self.max_y - self.min_y + 1) / 2,
+            z: self.min_z + (self.max_z - self.min_z + 1) / 2,
         }
     }
 
@@ -6903,6 +6903,27 @@ pub fn structure_piece_world_pos(
         y: y + bounding_box.min_y,
         z: world_z,
     }
+}
+
+pub fn structure_piece_is_close_to_chunk(
+    piece: StructurePieceModel,
+    chunk_pos: ChunkPos,
+    distance: i32,
+) -> bool {
+    let chunk_min_x = chunk_pos.x * 16;
+    let chunk_min_z = chunk_pos.z * 16;
+    piece.bounding_box.intersects(StructureBoundingBoxModel {
+        min_x: chunk_min_x - distance,
+        min_y: i32::MIN,
+        min_z: chunk_min_z - distance,
+        max_x: chunk_min_x + 15 + distance,
+        max_y: i32::MAX,
+        max_z: chunk_min_z + 15 + distance,
+    })
+}
+
+pub fn structure_piece_locator_position(piece: StructurePieceModel) -> BlockPos {
+    piece.bounding_box.center()
 }
 
 impl TerrainAdjustmentModel {
@@ -17388,7 +17409,7 @@ mod tests {
         assert_eq!(
             super::structure_start_reference_pos(first_piece),
             BlockPos {
-                x: 39,
+                x: 40,
                 y: 20,
                 z: -8,
             }
@@ -17616,6 +17637,54 @@ mod tests {
                 z: 71,
             }
         );
+    }
+
+    #[test]
+    fn structure_piece_chunk_proximity_and_locator_position_match_vanilla() {
+        let even_sized_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 32,
+                min_y: 20,
+                min_z: -16,
+                max_x: 47,
+                max_y: 35,
+                max_z: -1,
+            },
+        };
+        assert_eq!(
+            super::structure_piece_locator_position(even_sized_piece),
+            BlockPos {
+                x: 40,
+                y: 28,
+                z: -8,
+            }
+        );
+
+        let piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 20,
+                min_y: -10,
+                min_z: 20,
+                max_x: 25,
+                max_y: 120,
+                max_z: 25,
+            },
+        };
+        assert!(super::structure_piece_is_close_to_chunk(
+            piece,
+            ChunkPos { x: 1, z: 1 },
+            0
+        ));
+        assert!(!super::structure_piece_is_close_to_chunk(
+            piece,
+            ChunkPos { x: 2, z: 1 },
+            0
+        ));
+        assert!(super::structure_piece_is_close_to_chunk(
+            piece,
+            ChunkPos { x: 2, z: 1 },
+            7
+        ));
     }
 
     #[test]
