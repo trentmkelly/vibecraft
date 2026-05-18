@@ -754,6 +754,41 @@ pub struct SpringPlacementPlan {
     pub schedule_tick: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct VegetationPatchConfigurationModel {
+    pub replaceable: &'static [&'static str],
+    pub ground_state: BlockStateProviderModel,
+    pub vegetation_feature: &'static str,
+    pub surface: CaveSurface,
+    pub depth_min: i32,
+    pub depth_max: i32,
+    pub extra_bottom_block_chance: f32,
+    pub vertical_range: i32,
+    pub vegetation_chance: f32,
+    pub xz_radius_min: i32,
+    pub xz_radius_max: i32,
+    pub extra_edge_column_chance: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VegetationPatchGroundColumn {
+    pub surface_pos: BlockPos,
+    pub ground_start: BlockPos,
+    pub depth: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VegetationPatchBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VegetationPatchPlan {
+    pub ground: Vec<VegetationPatchBlock>,
+    pub vegetation_origins: Vec<BlockPos>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -7749,6 +7784,106 @@ pub fn coral_claw_positions(
     positions
 }
 
+pub fn vegetation_patch_radius(min_radius: i32, max_radius: i32, roll: i32) -> i32 {
+    let span = (max_radius - min_radius + 1).max(1);
+    min_radius + roll.rem_euclid(span) + 1
+}
+
+pub fn vegetation_patch_should_try_column(
+    dx: i32,
+    dz: i32,
+    x_radius: i32,
+    z_radius: i32,
+    extra_edge_column_chance: f32,
+    edge_roll: f32,
+) -> bool {
+    let is_x_edge = dx == -x_radius || dx == x_radius;
+    let is_z_edge = dz == -z_radius || dz == z_radius;
+    let is_corner = is_x_edge && is_z_edge;
+    let is_edge_but_not_corner = (is_x_edge || is_z_edge) && !is_corner;
+    !is_corner
+        && (!is_edge_but_not_corner
+            || (extra_edge_column_chance != 0.0 && edge_roll <= extra_edge_column_chance))
+}
+
+pub fn vegetation_patch_depth(
+    min_depth: i32,
+    max_depth: i32,
+    depth_roll: i32,
+    extra_bottom_block_chance: f32,
+    extra_roll: f32,
+) -> i32 {
+    let span = (max_depth - min_depth + 1).max(1);
+    min_depth
+        + depth_roll.rem_euclid(span)
+        + i32::from(extra_bottom_block_chance > 0.0 && extra_roll < extra_bottom_block_chance)
+}
+
+pub fn vegetation_patch_place_ground(
+    config: &VegetationPatchConfigurationModel,
+    start: BlockPos,
+    existing_blocks: &[&'static str],
+    depth: i32,
+    random_roll: i32,
+) -> Option<Vec<VegetationPatchBlock>> {
+    let state = block_state_provider_sample(&config.ground_state, random_roll)?;
+    let mut blocks = Vec::new();
+    for i in 0..depth.max(0) {
+        let existing = existing_blocks
+            .get(i as usize)
+            .copied()
+            .unwrap_or("minecraft:air");
+        if existing == state {
+            continue;
+        }
+        if !config.replaceable.contains(&existing) {
+            return (!blocks.is_empty()).then_some(blocks);
+        }
+        blocks.push(VegetationPatchBlock {
+            pos: offset_vertical(start, config.surface, i),
+            state,
+        });
+    }
+    Some(blocks)
+}
+
+pub fn vegetation_patch_plan(
+    config: &VegetationPatchConfigurationModel,
+    columns: &[VegetationPatchGroundColumn],
+    existing_blocks: &[&[&'static str]],
+    vegetation_rolls: &[f32],
+) -> VegetationPatchPlan {
+    let mut ground = Vec::new();
+    let mut vegetation_origins = Vec::new();
+    for (index, column) in columns.iter().enumerate() {
+        if let Some(mut column_blocks) = vegetation_patch_place_ground(
+            config,
+            column.ground_start,
+            existing_blocks.get(index).copied().unwrap_or(&[]),
+            column.depth,
+            index as i32,
+        ) {
+            if !column_blocks.is_empty() {
+                ground.append(&mut column_blocks);
+                if config.vegetation_chance > 0.0
+                    && vegetation_rolls.get(index).copied().unwrap_or(1.0)
+                        < config.vegetation_chance
+                {
+                    vegetation_origins.push(offset_vertical(
+                        column.surface_pos,
+                        config.surface.opposite(),
+                        1,
+                    ));
+                }
+            }
+        }
+    }
+    VegetationPatchPlan {
+        ground,
+        vegetation_origins,
+    }
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -7786,6 +7921,30 @@ impl HorizontalDirection {
             Self::West => Self::East,
             Self::East => Self::West,
         }
+    }
+}
+
+impl CaveSurface {
+    const fn y_step(self) -> i32 {
+        match self {
+            Self::Floor => -1,
+            Self::Ceiling => 1,
+        }
+    }
+
+    const fn opposite(self) -> Self {
+        match self {
+            Self::Floor => Self::Ceiling,
+            Self::Ceiling => Self::Floor,
+        }
+    }
+}
+
+fn offset_vertical(pos: BlockPos, surface: CaveSurface, distance: i32) -> BlockPos {
+    BlockPos {
+        x: pos.x,
+        y: pos.y + surface.y_step() * distance,
+        z: pos.z,
     }
 }
 
@@ -11775,6 +11934,65 @@ mod tests {
         assert!(coral_claw.contains(&BlockPos { x: 0, y: 60, z: 0 }));
         assert!(coral_claw.contains(&BlockPos { x: 0, y: 60, z: -1 }));
         assert!(coral_claw.contains(&BlockPos { x: 1, y: 61, z: 0 }));
+        let vegetation_config = super::VegetationPatchConfigurationModel {
+            replaceable: &["minecraft:dirt", "minecraft:grass_block"],
+            ground_state: BlockStateProviderModel::Simple("minecraft:moss_block"),
+            vegetation_feature: "minecraft:patch_grass",
+            surface: CaveSurface::Floor,
+            depth_min: 1,
+            depth_max: 2,
+            extra_bottom_block_chance: 0.5,
+            vertical_range: 5,
+            vegetation_chance: 0.75,
+            xz_radius_min: 1,
+            xz_radius_max: 2,
+            extra_edge_column_chance: 0.25,
+        };
+        assert_eq!(super::vegetation_patch_radius(1, 2, 1), 3);
+        assert!(!super::vegetation_patch_should_try_column(
+            3, 3, 3, 3, 1.0, 0.0
+        ));
+        assert!(!super::vegetation_patch_should_try_column(
+            3, 0, 3, 3, 0.25, 0.5
+        ));
+        assert!(super::vegetation_patch_should_try_column(
+            3, 0, 3, 3, 0.25, 0.25
+        ));
+        assert_eq!(super::vegetation_patch_depth(1, 2, 0, 0.5, 0.25), 2);
+        assert_eq!(
+            super::vegetation_patch_place_ground(
+                &vegetation_config,
+                BlockPos { x: 5, y: 63, z: 5 },
+                &["minecraft:dirt", "minecraft:stone"],
+                3,
+                0,
+            ),
+            Some(vec![super::VegetationPatchBlock {
+                pos: BlockPos { x: 5, y: 63, z: 5 },
+                state: "minecraft:moss_block",
+            }])
+        );
+        let vegetation_plan = super::vegetation_patch_plan(
+            &vegetation_config,
+            &[super::VegetationPatchGroundColumn {
+                surface_pos: BlockPos { x: 5, y: 64, z: 5 },
+                ground_start: BlockPos { x: 5, y: 63, z: 5 },
+                depth: 1,
+            }],
+            &[&["minecraft:dirt"]],
+            &[0.25],
+        );
+        assert_eq!(
+            vegetation_plan.ground,
+            vec![super::VegetationPatchBlock {
+                pos: BlockPos { x: 5, y: 63, z: 5 },
+                state: "minecraft:moss_block",
+            }]
+        );
+        assert_eq!(
+            vegetation_plan.vegetation_origins,
+            vec![BlockPos { x: 5, y: 65, z: 5 }]
+        );
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
