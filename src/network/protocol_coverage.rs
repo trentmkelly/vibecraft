@@ -830,7 +830,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "game_event",
         java_class: "ClientboundGameEventPacket",
-        field_order: "unparsed",
+        field_order: "event:u8, param:f32",
     },
     PlayPacketSpec {
         id: 39,
@@ -1453,14 +1453,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "ticking_state",
         java_class: "ClientboundTickingStatePacket",
-        field_order: "unparsed",
+        field_order: "tick_rate:f32, is_frozen:bool",
     },
     PlayPacketSpec {
         id: 128,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "ticking_step",
         java_class: "ClientboundTickingStepPacket",
-        field_order: "unparsed",
+        field_order: "tick_steps:var_int",
     },
     PlayPacketSpec {
         id: 129,
@@ -1564,8 +1564,8 @@ mod tests {
     use std::collections::HashSet;
 
     use super::{
-        covered_packet_class_count, play_packet_specs_26_1_2, PACKET_PACKAGE_COVERAGE_26_1_2,
-        PLAYBOUND_PACKET_SPEC_COUNT_26_1_2, CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2,
+        covered_packet_class_count, play_packet_specs_26_1_2, CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2,
+        PACKET_PACKAGE_COVERAGE_26_1_2, PLAYBOUND_PACKET_SPEC_COUNT_26_1_2,
         PLAY_PACKET_SPEC_COUNT_26_1_2, TOTAL_PACKET_CLASSES_26_1_2,
     };
     use crate::network::configuration::{
@@ -1580,8 +1580,8 @@ mod tests {
         SERVERBOUND_COOKIE_RESPONSE_PACKET_ID, SERVERBOUND_HELLO_PACKET_ID,
     };
     use crate::network::play::{
-        PlayProtocolRegistry, CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2,
-        SERVERBOUND_PLAY_PACKET_COUNT_26_1_2,
+        PlayProtocolRegistry, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+        CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2, SERVERBOUND_PLAY_PACKET_COUNT_26_1_2,
     };
     use crate::registry::Identifier;
 
@@ -1626,7 +1626,10 @@ mod tests {
     fn play_packet_specification_is_complete_and_contiguous() {
         let specs = play_packet_specs_26_1_2();
         assert_eq!(specs.len(), PLAY_PACKET_SPEC_COUNT_26_1_2);
-        assert_eq!(specs.len(), PLAYBOUND_PACKET_SPEC_COUNT_26_1_2 + CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2);
+        assert_eq!(
+            specs.len(),
+            PLAYBOUND_PACKET_SPEC_COUNT_26_1_2 + CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2
+        );
 
         let serverbound_ids: Vec<_> = specs
             .iter()
@@ -1634,7 +1637,8 @@ mod tests {
             .map(|entry| entry.id)
             .collect();
         assert_eq!(serverbound_ids.len(), PLAYBOUND_PACKET_SPEC_COUNT_26_1_2);
-        let expected_serverbound = (0..(PLAYBOUND_PACKET_SPEC_COUNT_26_1_2 as i32)).collect::<Vec<_>>();
+        let expected_serverbound =
+            (0..(PLAYBOUND_PACKET_SPEC_COUNT_26_1_2 as i32)).collect::<Vec<_>>();
         let mut serverbound_ids = serverbound_ids;
         serverbound_ids.sort_unstable();
         assert_eq!(serverbound_ids, expected_serverbound);
@@ -1645,7 +1649,8 @@ mod tests {
             .map(|entry| entry.id)
             .collect();
         assert_eq!(clientbound_ids.len(), CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2);
-        let expected_clientbound = (0..(CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2 as i32)).collect::<Vec<_>>();
+        let expected_clientbound =
+            (0..(CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2 as i32)).collect::<Vec<_>>();
         let mut clientbound_ids = clientbound_ids;
         clientbound_ids.sort_unstable();
         assert_eq!(clientbound_ids, expected_clientbound);
@@ -1659,10 +1664,18 @@ mod tests {
         for spec in specs {
             match spec.direction {
                 PacketDirection::Serverbound => {
-                    assert!(seen_serverbound.insert(spec.id), "duplicate serverbound packet id {}", spec.id);
+                    assert!(
+                        seen_serverbound.insert(spec.id),
+                        "duplicate serverbound packet id {}",
+                        spec.id
+                    );
                 }
                 PacketDirection::Clientbound => {
-                    assert!(seen_clientbound.insert(spec.id), "duplicate clientbound packet id {}", spec.id);
+                    assert!(
+                        seen_clientbound.insert(spec.id),
+                        "duplicate clientbound packet id {}",
+                        spec.id
+                    );
                 }
             }
         }
@@ -1715,9 +1728,19 @@ mod tests {
     fn play_packet_specification_entry_fields_are_present() {
         let specs = play_packet_specs_26_1_2();
         for spec in specs {
-            assert!(!spec.wire_name.is_empty(), "missing wire name for {:?}", spec.direction);
-            assert!(!spec.java_class.is_empty(), "missing java class for {spec:?}");
-            assert!(!spec.field_order.is_empty(), "missing field order for {spec:?}");
+            assert!(
+                !spec.wire_name.is_empty(),
+                "missing wire name for {:?}",
+                spec.direction
+            );
+            assert!(
+                !spec.java_class.is_empty(),
+                "missing java class for {spec:?}"
+            );
+            assert!(
+                !spec.field_order.is_empty(),
+                "missing field order for {spec:?}"
+            );
         }
     }
 
@@ -1725,15 +1748,51 @@ mod tests {
     fn play_packet_specification_scalar_fields_are_concretely_decoded() {
         let specs = play_packet_specs_26_1_2();
         let checks: &[(PacketDirection, &str, &str)] = &[
-            (PacketDirection::Serverbound, "change_difficulty", "difficulty:difficulty_enum"),
-            (PacketDirection::Serverbound, "chunk_batch_received", "desired_chunks_per_tick:f32"),
-            (PacketDirection::Serverbound, "client_command", "action:enum"),
-            (PacketDirection::Serverbound, "client_tick_end", "empty_payload"),
-            (PacketDirection::Serverbound, "lock_difficulty", "locked:bool"),
-            (PacketDirection::Serverbound, "paddle_boat", "left:bool, right:bool"),
-            (PacketDirection::Serverbound, "player_input", "input:Input.STREAM_CODEC"),
-            (PacketDirection::Serverbound, "player_loaded", "empty_payload"),
-            (PacketDirection::Serverbound, "set_carried_item", "slot:i16_be"),
+            (
+                PacketDirection::Serverbound,
+                "change_difficulty",
+                "difficulty:difficulty_enum",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "chunk_batch_received",
+                "desired_chunks_per_tick:f32",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "client_command",
+                "action:enum",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "client_tick_end",
+                "empty_payload",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "lock_difficulty",
+                "locked:bool",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "paddle_boat",
+                "left:bool, right:bool",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "player_input",
+                "input:Input.STREAM_CODEC",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "player_loaded",
+                "empty_payload",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "set_carried_item",
+                "slot:i16_be",
+            ),
             (PacketDirection::Serverbound, "swing", "hand:enum"),
             (
                 PacketDirection::Clientbound,
@@ -1745,7 +1804,11 @@ mod tests {
                 "set_chunk_cache_center",
                 "x:var_int, z:var_int",
             ),
-            (PacketDirection::Clientbound, "set_chunk_cache_radius", "radius:var_int"),
+            (
+                PacketDirection::Clientbound,
+                "set_chunk_cache_radius",
+                "radius:var_int",
+            ),
             (
                 PacketDirection::Clientbound,
                 "set_default_spawn_position",
@@ -1761,13 +1824,36 @@ mod tests {
                 "set_health",
                 "health:f32, food:var_int, saturation:f32",
             ),
-            (PacketDirection::Clientbound, "set_held_slot", "slot:var_int"),
+            (
+                PacketDirection::Clientbound,
+                "set_held_slot",
+                "slot:var_int",
+            ),
             (
                 PacketDirection::Clientbound,
                 "set_simulation_distance",
                 "simulation_distance:var_int",
             ),
-            (PacketDirection::Clientbound, "set_time", "game_time:i64, clock_updates:map"),
+            (
+                PacketDirection::Clientbound,
+                "set_time",
+                "game_time:i64, clock_updates:map",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "game_event",
+                "event:u8, param:f32",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "ticking_state",
+                "tick_rate:f32, is_frozen:bool",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "ticking_step",
+                "tick_steps:var_int",
+            ),
         ];
 
         for (direction, wire_name, expected) in checks {
@@ -1775,7 +1861,10 @@ mod tests {
                 .iter()
                 .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
                 .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
-            assert_eq!(spec.field_order, *expected, "{direction:?} {wire_name} field-order drift");
+            assert_eq!(
+                spec.field_order, *expected,
+                "{direction:?} {wire_name} field-order drift"
+            );
         }
     }
 

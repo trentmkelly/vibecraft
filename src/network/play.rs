@@ -3,9 +3,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
-use crate::network::codec::{write_bitset, write_collection, write_identifier, write_string, Uuid};
+use crate::network::codec::{
+    read_identifier, write_bitset, write_collection, write_identifier, write_string, Uuid,
+};
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
-use crate::network::varint::{read_var_i32, write_var_i32};
+use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
 use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
 use crate::storage::nbt::Tag;
@@ -183,9 +185,109 @@ pub struct ServerboundSetCarriedItemPacket {
     pub slot: i16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundChangeDifficultyPacket {
+    pub difficulty: GameDifficulty,
+    pub locked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetChunkCacheCenterPacket {
+    pub x: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetChunkCacheRadiusPacket {
+    pub radius: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetDefaultSpawnPositionData {
+    pub dimension: Identifier,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetDefaultSpawnPositionPacket {
+    pub respawn_data: ClientboundSetDefaultSpawnPositionData,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetExperiencePacket {
+    pub experience_progress: f32,
+    pub experience_level: i32,
+    pub total_experience: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetHealthPacket {
+    pub health: f32,
+    pub food: i32,
+    pub saturation: f32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundSetHeldSlotPacket {
     pub slot: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClockNetworkState {
+    pub total_ticks: i64,
+    pub partial_tick: f32,
+    pub rate: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetTimePacket {
+    pub game_time: i64,
+    pub clock_updates: BTreeMap<Identifier, ClockNetworkState>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientboundGameEventType {
+    NoRespawnBlockAvailable,
+    StartRaining,
+    StopRaining,
+    ChangeGameMode,
+    WinGame,
+    DemoEvent,
+    PlayArrowHitSound,
+    RainLevelChange,
+    ThunderLevelChange,
+    PufferFishSting,
+    GuardianElderEffect,
+    ImmediateRespawn,
+    LimitedCrafting,
+    LevelChunksLoadStart,
+    Unknown(u8),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundGameEventPacket {
+    pub event: ClientboundGameEventType,
+    pub param: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetSimulationDistancePacket {
+    pub simulation_distance: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundTickingStatePacket {
+    pub tick_rate: f32,
+    pub is_frozen: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundTickingStepPacket {
+    pub tick_steps: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -616,6 +718,30 @@ pub enum GameDifficulty {
     Easy,
     Normal,
     Hard,
+}
+
+impl GameDifficulty {
+    fn from_wire_index(index: i32) -> io::Result<Self> {
+        match index {
+            0 => Ok(Self::Peaceful),
+            1 => Ok(Self::Easy),
+            2 => Ok(Self::Normal),
+            3 => Ok(Self::Hard),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid difficulty index",
+            )),
+        }
+    }
+
+    fn to_wire_index(self) -> i32 {
+        match self {
+            Self::Peaceful => 0,
+            Self::Easy => 1,
+            Self::Normal => 2,
+            Self::Hard => 3,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1158,6 +1284,47 @@ fn chunk_distance_squared(from: ChunkPos, to: ChunkPos) -> i32 {
     dx * dx + dz * dz
 }
 
+fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
+    Ok(read_u8(reader)? != 0)
+}
+
+fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {
+    writer.write_all(&[u8::from(value)])
+}
+
+const BLOCK_POS_PACKED_HORIZONTAL_LENGTH: i64 = 26;
+const BLOCK_POS_PACKED_Y_LENGTH: i64 = 12;
+const BLOCK_POS_PACKED_X_MASK: i64 = (1_i64 << BLOCK_POS_PACKED_HORIZONTAL_LENGTH) - 1;
+const BLOCK_POS_PACKED_Y_MASK: i64 = (1_i64 << BLOCK_POS_PACKED_Y_LENGTH) - 1;
+const BLOCK_POS_PACKED_Z_MASK: i64 = (1_i64 << BLOCK_POS_PACKED_HORIZONTAL_LENGTH) - 1;
+const BLOCK_POS_X_OFFSET: i64 = BLOCK_POS_PACKED_Y_LENGTH + BLOCK_POS_PACKED_HORIZONTAL_LENGTH;
+const BLOCK_POS_Z_OFFSET: i64 = BLOCK_POS_PACKED_Y_LENGTH;
+
+fn pack_block_position(x: i32, y: i32, z: i32) -> i64 {
+    ((x as i64 & BLOCK_POS_PACKED_X_MASK) << BLOCK_POS_X_OFFSET)
+        | ((z as i64 & BLOCK_POS_PACKED_Z_MASK) << BLOCK_POS_Z_OFFSET)
+        | (y as i64 & BLOCK_POS_PACKED_Y_MASK)
+}
+
+fn unpack_block_position(packed: i64) -> (i32, i32, i32) {
+    let x = (packed << (64 - (BLOCK_POS_X_OFFSET + BLOCK_POS_PACKED_HORIZONTAL_LENGTH))
+        >> (64 - BLOCK_POS_PACKED_HORIZONTAL_LENGTH)) as i32;
+    let y = (packed << (64 - BLOCK_POS_PACKED_Y_LENGTH) >> (64 - BLOCK_POS_PACKED_Y_LENGTH)) as i32;
+    let z = (packed << (64 - (BLOCK_POS_Z_OFFSET + BLOCK_POS_PACKED_HORIZONTAL_LENGTH))
+        >> (64 - BLOCK_POS_PACKED_HORIZONTAL_LENGTH)) as i32;
+    (x, y, z)
+}
+
+fn read_block_position<R: Read>(reader: &mut R) -> io::Result<(i32, i32, i32)> {
+    let mut bytes = [0u8; 8];
+    reader.read_exact(&mut bytes)?;
+    Ok(unpack_block_position(i64::from_be_bytes(bytes)))
+}
+
+fn write_block_position<W: Write>(writer: &mut W, x: i32, y: i32, z: i32) -> io::Result<()> {
+    writer.write_all(&pack_block_position(x, y, z).to_be_bytes())
+}
+
 impl ClientboundLevelChunkWithLightPacket {
     pub fn from_chunk(chunk: &LevelChunk, light_data: ClientboundLightUpdatePacketData) -> Self {
         Self {
@@ -1656,6 +1823,254 @@ impl ClientboundChunkBatchFinishedPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.batch_size)
+    }
+}
+
+impl ClientboundChangeDifficultyPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            difficulty: GameDifficulty::from_wire_index(read_var_i32(reader)?)?,
+            locked: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.difficulty.to_wire_index())?;
+        write_bool(writer, self.locked)
+    }
+}
+
+impl ClientboundSetChunkCacheCenterPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            x: read_var_i32(reader)?,
+            z: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.x)?;
+        write_var_i32(writer, self.z)
+    }
+}
+
+impl ClientboundSetChunkCacheRadiusPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            radius: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.radius)
+    }
+}
+
+impl ClientboundSetDefaultSpawnPositionPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let dimension = read_identifier(reader)?;
+        let (x, y, z) = read_block_position(reader)?;
+        Ok(Self {
+            respawn_data: ClientboundSetDefaultSpawnPositionData {
+                dimension,
+                x,
+                y,
+                z,
+                yaw: read_f32(reader)?,
+                pitch: read_f32(reader)?,
+            },
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.respawn_data.dimension)?;
+        write_block_position(
+            writer,
+            self.respawn_data.x,
+            self.respawn_data.y,
+            self.respawn_data.z,
+        )?;
+        writer.write_all(&self.respawn_data.yaw.to_be_bytes())?;
+        writer.write_all(&self.respawn_data.pitch.to_be_bytes())
+    }
+}
+
+impl ClientboundSetExperiencePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            experience_progress: read_f32(reader)?,
+            experience_level: read_var_i32(reader)?,
+            total_experience: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.experience_progress.to_be_bytes())?;
+        write_var_i32(writer, self.experience_level)?;
+        write_var_i32(writer, self.total_experience)
+    }
+}
+
+impl ClientboundSetHealthPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            health: read_f32(reader)?,
+            food: read_var_i32(reader)?,
+            saturation: read_f32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.health.to_be_bytes())?;
+        write_var_i32(writer, self.food)?;
+        writer.write_all(&self.saturation.to_be_bytes())
+    }
+}
+
+impl ClockNetworkState {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            total_ticks: read_var_i64(reader)?,
+            partial_tick: read_f32(reader)?,
+            rate: read_f32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i64(writer, self.total_ticks)?;
+        writer.write_all(&self.partial_tick.to_be_bytes())?;
+        writer.write_all(&self.rate.to_be_bytes())
+    }
+}
+
+impl ClientboundSetTimePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let game_time = read_var_i64(reader)?;
+        let clock_updates_len = read_var_i32(reader)?;
+        if clock_updates_len < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid clock update map length",
+            ));
+        }
+
+        let mut clock_updates = BTreeMap::new();
+        for _ in 0..clock_updates_len {
+            let key = read_identifier(reader)?;
+            let state = ClockNetworkState::read(reader)?;
+            clock_updates.insert(key, state);
+        }
+
+        Ok(Self {
+            game_time,
+            clock_updates,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i64(writer, self.game_time)?;
+        write_var_i32(writer, self.clock_updates.len() as i32)?;
+        for (clock, state) in &self.clock_updates {
+            write_identifier(writer, clock)?;
+            state.write(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl ClientboundGameEventType {
+    fn from_id(id: u8) -> Self {
+        match id {
+            0 => Self::NoRespawnBlockAvailable,
+            1 => Self::StartRaining,
+            2 => Self::StopRaining,
+            3 => Self::ChangeGameMode,
+            4 => Self::WinGame,
+            5 => Self::DemoEvent,
+            6 => Self::PlayArrowHitSound,
+            7 => Self::RainLevelChange,
+            8 => Self::ThunderLevelChange,
+            9 => Self::PufferFishSting,
+            10 => Self::GuardianElderEffect,
+            11 => Self::ImmediateRespawn,
+            12 => Self::LimitedCrafting,
+            13 => Self::LevelChunksLoadStart,
+            _ => Self::Unknown(id),
+        }
+    }
+
+    fn to_id(self) -> u8 {
+        match self {
+            Self::NoRespawnBlockAvailable => 0,
+            Self::StartRaining => 1,
+            Self::StopRaining => 2,
+            Self::ChangeGameMode => 3,
+            Self::WinGame => 4,
+            Self::DemoEvent => 5,
+            Self::PlayArrowHitSound => 6,
+            Self::RainLevelChange => 7,
+            Self::ThunderLevelChange => 8,
+            Self::PufferFishSting => 9,
+            Self::GuardianElderEffect => 10,
+            Self::ImmediateRespawn => 11,
+            Self::LimitedCrafting => 12,
+            Self::LevelChunksLoadStart => 13,
+            Self::Unknown(value) => value,
+        }
+    }
+}
+
+impl ClientboundGameEventPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut value = [0u8; 1];
+        reader.read_exact(&mut value)?;
+        Ok(Self {
+            event: ClientboundGameEventType::from_id(value[0]),
+            param: read_f32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.event.to_id()])?;
+        writer.write_all(&self.param.to_be_bytes())
+    }
+}
+
+impl ClientboundSetSimulationDistancePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            simulation_distance: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.simulation_distance)
+    }
+}
+
+impl ClientboundTickingStatePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            tick_rate: read_f32(reader)?,
+            is_frozen: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.tick_rate.to_be_bytes())?;
+        write_bool(writer, self.is_frozen)
+    }
+}
+
+impl ClientboundTickingStepPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            tick_steps: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.tick_steps)
     }
 }
 
@@ -3008,6 +3423,183 @@ mod tests {
         assert_eq!(
             ServerboundSetCarriedItemPacket::read(&mut cursor(carried)).unwrap(),
             ServerboundSetCarriedItemPacket { slot: 5 }
+        );
+
+        let mut change_difficulty = Vec::new();
+        ClientboundChangeDifficultyPacket {
+            difficulty: GameDifficulty::Hard,
+            locked: true,
+        }
+        .write(&mut change_difficulty)
+        .unwrap();
+        assert_eq!(
+            ClientboundChangeDifficultyPacket::read(&mut cursor(change_difficulty)).unwrap(),
+            ClientboundChangeDifficultyPacket {
+                difficulty: GameDifficulty::Hard,
+                locked: true,
+            }
+        );
+
+        let mut chunk_cache_center = Vec::new();
+        ClientboundSetChunkCacheCenterPacket { x: 12, z: -34 }
+            .write(&mut chunk_cache_center)
+            .unwrap();
+        assert_eq!(
+            ClientboundSetChunkCacheCenterPacket::read(&mut cursor(chunk_cache_center)).unwrap(),
+            ClientboundSetChunkCacheCenterPacket { x: 12, z: -34 }
+        );
+
+        let mut chunk_cache_radius = Vec::new();
+        ClientboundSetChunkCacheRadiusPacket { radius: 5 }
+            .write(&mut chunk_cache_radius)
+            .unwrap();
+        assert_eq!(
+            ClientboundSetChunkCacheRadiusPacket::read(&mut cursor(chunk_cache_radius)).unwrap(),
+            ClientboundSetChunkCacheRadiusPacket { radius: 5 }
+        );
+
+        let mut spawn_position = Vec::new();
+        ClientboundSetDefaultSpawnPositionPacket {
+            respawn_data: ClientboundSetDefaultSpawnPositionData {
+                dimension: Identifier::parse("minecraft:the_end").unwrap(),
+                x: 1,
+                y: 2,
+                z: 3,
+                yaw: 45.0,
+                pitch: -23.5,
+            },
+        }
+        .write(&mut spawn_position)
+        .unwrap();
+        assert_eq!(
+            ClientboundSetDefaultSpawnPositionPacket::read(&mut cursor(spawn_position)).unwrap(),
+            ClientboundSetDefaultSpawnPositionPacket {
+                respawn_data: ClientboundSetDefaultSpawnPositionData {
+                    dimension: Identifier::parse("minecraft:the_end").unwrap(),
+                    x: 1,
+                    y: 2,
+                    z: 3,
+                    yaw: 45.0,
+                    pitch: -23.5,
+                },
+            }
+        );
+
+        let mut experience = Vec::new();
+        ClientboundSetExperiencePacket {
+            experience_progress: 0.75,
+            experience_level: 3,
+            total_experience: 42,
+        }
+        .write(&mut experience)
+        .unwrap();
+        assert_eq!(
+            ClientboundSetExperiencePacket::read(&mut cursor(experience)).unwrap(),
+            ClientboundSetExperiencePacket {
+                experience_progress: 0.75,
+                experience_level: 3,
+                total_experience: 42,
+            }
+        );
+
+        let mut health = Vec::new();
+        ClientboundSetHealthPacket {
+            health: 14.5,
+            food: 19,
+            saturation: 2.3,
+        }
+        .write(&mut health)
+        .unwrap();
+        assert_eq!(
+            ClientboundSetHealthPacket::read(&mut cursor(health)).unwrap(),
+            ClientboundSetHealthPacket {
+                health: 14.5,
+                food: 19,
+                saturation: 2.3,
+            }
+        );
+
+        let mut set_time = Vec::new();
+        let mut clock_updates = BTreeMap::new();
+        clock_updates.insert(
+            Identifier::parse("minecraft:overworld").unwrap(),
+            ClockNetworkState {
+                total_ticks: 12345,
+                partial_tick: 0.25,
+                rate: 1.0,
+            },
+        );
+        ClientboundSetTimePacket {
+            game_time: 900_000,
+            clock_updates,
+        }
+        .write(&mut set_time)
+        .unwrap();
+        assert_eq!(
+            ClientboundSetTimePacket::read(&mut cursor(set_time)).unwrap(),
+            ClientboundSetTimePacket {
+                game_time: 900_000,
+                clock_updates: BTreeMap::from([(
+                    Identifier::parse("minecraft:overworld").unwrap(),
+                    ClockNetworkState {
+                        total_ticks: 12345,
+                        partial_tick: 0.25,
+                        rate: 1.0,
+                    },
+                )]),
+            }
+        );
+
+        let mut game_event = Vec::new();
+        ClientboundGameEventPacket {
+            event: ClientboundGameEventType::RainLevelChange,
+            param: 0.5,
+        }
+        .write(&mut game_event)
+        .unwrap();
+        assert_eq!(
+            ClientboundGameEventPacket::read(&mut cursor(game_event)).unwrap(),
+            ClientboundGameEventPacket {
+                event: ClientboundGameEventType::RainLevelChange,
+                param: 0.5,
+            }
+        );
+
+        let mut simulation = Vec::new();
+        ClientboundSetSimulationDistancePacket {
+            simulation_distance: 8,
+        }
+        .write(&mut simulation)
+        .unwrap();
+        assert_eq!(
+            ClientboundSetSimulationDistancePacket::read(&mut cursor(simulation)).unwrap(),
+            ClientboundSetSimulationDistancePacket {
+                simulation_distance: 8
+            }
+        );
+
+        let mut ticking_state = Vec::new();
+        ClientboundTickingStatePacket {
+            tick_rate: 0.5,
+            is_frozen: true,
+        }
+        .write(&mut ticking_state)
+        .unwrap();
+        assert_eq!(
+            ClientboundTickingStatePacket::read(&mut cursor(ticking_state)).unwrap(),
+            ClientboundTickingStatePacket {
+                tick_rate: 0.5,
+                is_frozen: true,
+            }
+        );
+
+        let mut ticking_step = Vec::new();
+        ClientboundTickingStepPacket { tick_steps: 7 }
+            .write(&mut ticking_step)
+            .unwrap();
+        assert_eq!(
+            ClientboundTickingStepPacket::read(&mut cursor(ticking_step)).unwrap(),
+            ClientboundTickingStepPacket { tick_steps: 7 }
         );
     }
 }
