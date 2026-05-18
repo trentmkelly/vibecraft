@@ -1270,6 +1270,40 @@ mod tests {
     }
 
     #[test]
+    fn banner_pattern_tag_names_cover_pattern_item_tags() {
+        let pattern_item_tags: [&str; 10] = [
+            "minecraft:pattern_item/flower",
+            "minecraft:pattern_item/creeper",
+            "minecraft:pattern_item/skull",
+            "minecraft:pattern_item/mojang",
+            "minecraft:pattern_item/globe",
+            "minecraft:pattern_item/piglin",
+            "minecraft:pattern_item/flow",
+            "minecraft:pattern_item/guster",
+            "minecraft:pattern_item/field_masoned",
+            "minecraft:pattern_item/bordure_indented",
+        ];
+
+        let mut declared = pattern_item_tags;
+        let pattern_item_tag_names: [&str; 10] = [
+            "minecraft:pattern_item/flower",
+            "minecraft:pattern_item/creeper",
+            "minecraft:pattern_item/skull",
+            "minecraft:pattern_item/mojang",
+            "minecraft:pattern_item/globe",
+            "minecraft:pattern_item/piglin",
+            "minecraft:pattern_item/flow",
+            "minecraft:pattern_item/guster",
+            "minecraft:pattern_item/field_masoned",
+            "minecraft:pattern_item/bordure_indented",
+        ];
+        declared.sort_unstable();
+        let mut expected = pattern_item_tag_names;
+        expected.sort_unstable();
+        assert_eq!(declared, expected);
+    }
+
+    #[test]
     fn trim_materials_and_patterns_expose_bootstrap_assets() {
         assert_eq!(TRIM_MATERIALS.len(), 11);
         assert!(TRIM_MATERIALS.iter().any(|material| {
