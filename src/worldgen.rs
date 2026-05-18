@@ -6,7 +6,10 @@ use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
     ClimateParameterPoint,
 };
-use crate::random_source::{large_feature_seed_with_salt, LegacyRandom, RandomSourceKind};
+use crate::random_source::{
+    large_feature_seed_with_salt, random_state_seed_factories, LegacyRandom, RandomAlgorithm,
+    RandomSourceKind,
+};
 use crate::registry::Identifier;
 use crate::storage::chunk::{
     BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
@@ -28,6 +31,15 @@ pub struct NormalNoiseParameters {
     pub id: &'static str,
     pub first_octave: i32,
     pub amplitudes: &'static [f64],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalNoiseInstantiationPlan {
+    pub id: &'static str,
+    pub first_octave: i32,
+    pub non_zero_octaves: Vec<i32>,
+    pub use_new_initialization: bool,
+    pub random: RandomSourceKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19255,6 +19267,54 @@ pub fn normal_noise_value_factor(parameters: NormalNoiseParameters) -> f64 {
     NORMAL_NOISE_TARGET_DEVIATION / 2.0 / normal_noise_expected_deviation(max_octave - min_octave)
 }
 
+pub fn normal_noise_non_zero_octaves(parameters: NormalNoiseParameters) -> Vec<i32> {
+    parameters
+        .amplitudes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, amplitude)| {
+            (*amplitude != 0.0).then_some(parameters.first_octave + index as i32)
+        })
+        .collect()
+}
+
+pub fn random_state_normal_noise_instantiation_plan(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    noise_id: &str,
+) -> Option<NormalNoiseInstantiationPlan> {
+    let parameters = *builtin_normal_noise_parameters(noise_id)?;
+    let use_legacy_nether_biome = matches!(
+        parameters.id,
+        "minecraft:nether/temperature" | "minecraft:nether/vegetation"
+    );
+    let random = if use_legacy_nether_biome {
+        let offset = if parameters.id == "minecraft:nether/vegetation" {
+            1
+        } else {
+            0
+        };
+        RandomSourceKind::Legacy(LegacyRandom::new(seed.wrapping_add(offset)))
+    } else {
+        let algorithm = if settings.legacy_random_source {
+            RandomAlgorithm::Legacy
+        } else {
+            RandomAlgorithm::Xoroshiro
+        };
+        random_state_seed_factories(seed, algorithm)
+            .base
+            .from_hash_of(parameters.id)
+    };
+
+    Some(NormalNoiseInstantiationPlan {
+        id: parameters.id,
+        first_octave: parameters.first_octave,
+        non_zero_octaves: normal_noise_non_zero_octaves(parameters),
+        use_new_initialization: !use_legacy_nether_biome,
+        random,
+    })
+}
+
 pub fn builtin_density_function(id: &str) -> Option<&'static DensityFunctionEntry> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_DENSITY_FUNCTIONS.iter().find(|entry| {
@@ -23599,6 +23659,65 @@ mod tests {
         );
         assert!(super::synth_noise_source("blended_noise").is_some());
         assert!(super::synth_noise_source("value_noise").is_none());
+    }
+
+    #[test]
+    fn random_state_normal_noise_instantiation_plan_matches_java_wiring() {
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let temperature =
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "temperature")
+                .unwrap();
+        assert_eq!(temperature.id, "minecraft:temperature");
+        assert!(temperature.use_new_initialization);
+        assert_eq!(temperature.first_octave, -10);
+        assert_eq!(temperature.non_zero_octaves, vec![-10, -8]);
+        match temperature.random {
+            super::RandomSourceKind::Xoroshiro(mut random) => {
+                assert_eq!(random.next_i64(), 5_634_266_678_086_618_857);
+            }
+            super::RandomSourceKind::Legacy(_) => {
+                panic!("overworld normal noise should use xoroshiro")
+            }
+        }
+
+        let nether = *super::builtin_noise_generator_settings("nether").unwrap();
+        let nether_temperature = super::random_state_normal_noise_instantiation_plan(
+            12345,
+            nether,
+            "minecraft:nether/temperature",
+        )
+        .unwrap();
+        assert_eq!(nether_temperature.non_zero_octaves, vec![-7, -6]);
+        assert!(!nether_temperature.use_new_initialization);
+        match nether_temperature.random {
+            super::RandomSourceKind::Legacy(mut random) => {
+                assert_eq!(random.next_i64(), 6_674_089_274_190_705_457);
+            }
+            super::RandomSourceKind::Xoroshiro(_) => {
+                panic!("nether biome temperature should use legacy seed + 0")
+            }
+        }
+
+        let nether_vegetation = super::random_state_normal_noise_instantiation_plan(
+            12345,
+            nether,
+            "minecraft:nether/vegetation",
+        )
+        .unwrap();
+        assert!(!nether_vegetation.use_new_initialization);
+        match nether_vegetation.random {
+            super::RandomSourceKind::Legacy(mut random) => {
+                assert_eq!(random.next_i64(), 6_679_046_728_135_725_137);
+            }
+            super::RandomSourceKind::Xoroshiro(_) => {
+                panic!("nether biome vegetation should use legacy seed + 1")
+            }
+        }
+
+        assert!(
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "missing")
+                .is_none()
+        );
     }
 
     #[test]
