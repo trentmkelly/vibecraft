@@ -6805,6 +6805,106 @@ impl StructureBoundingBoxModel {
     }
 }
 
+pub fn structure_make_bounding_box(
+    x: i32,
+    y: i32,
+    z: i32,
+    direction: HorizontalDirection,
+    width: i32,
+    height: i32,
+    depth: i32,
+) -> StructureBoundingBoxModel {
+    match direction {
+        HorizontalDirection::North | HorizontalDirection::South => StructureBoundingBoxModel {
+            min_x: x,
+            min_y: y,
+            min_z: z,
+            max_x: x + width - 1,
+            max_y: y + height - 1,
+            max_z: z + depth - 1,
+        },
+        HorizontalDirection::West | HorizontalDirection::East => StructureBoundingBoxModel {
+            min_x: x,
+            min_y: y,
+            min_z: z,
+            max_x: x + depth - 1,
+            max_y: y + height - 1,
+            max_z: z + width - 1,
+        },
+    }
+}
+
+pub fn structure_orient_box(
+    foot: BlockPos,
+    offset: BlockPos,
+    width: i32,
+    height: i32,
+    depth: i32,
+    direction: HorizontalDirection,
+) -> StructureBoundingBoxModel {
+    match direction {
+        HorizontalDirection::South => StructureBoundingBoxModel {
+            min_x: foot.x + offset.x,
+            min_y: foot.y + offset.y,
+            min_z: foot.z + offset.z,
+            max_x: foot.x + width - 1 + offset.x,
+            max_y: foot.y + height - 1 + offset.y,
+            max_z: foot.z + depth - 1 + offset.z,
+        },
+        HorizontalDirection::North => StructureBoundingBoxModel {
+            min_x: foot.x + offset.x,
+            min_y: foot.y + offset.y,
+            min_z: foot.z - depth + 1 + offset.z,
+            max_x: foot.x + width - 1 + offset.x,
+            max_y: foot.y + height - 1 + offset.y,
+            max_z: foot.z + offset.z,
+        },
+        HorizontalDirection::West => StructureBoundingBoxModel {
+            min_x: foot.x - depth + 1 + offset.z,
+            min_y: foot.y + offset.y,
+            min_z: foot.z + offset.x,
+            max_x: foot.x + offset.z,
+            max_y: foot.y + height - 1 + offset.y,
+            max_z: foot.z + width - 1 + offset.x,
+        },
+        HorizontalDirection::East => StructureBoundingBoxModel {
+            min_x: foot.x + offset.z,
+            min_y: foot.y + offset.y,
+            min_z: foot.z + offset.x,
+            max_x: foot.x + depth - 1 + offset.z,
+            max_y: foot.y + height - 1 + offset.y,
+            max_z: foot.z + width - 1 + offset.x,
+        },
+    }
+}
+
+pub fn structure_piece_world_pos(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> BlockPos {
+    let Some(orientation) = orientation else {
+        return BlockPos { x, y, z };
+    };
+    let world_x = match orientation {
+        HorizontalDirection::North | HorizontalDirection::South => bounding_box.min_x + x,
+        HorizontalDirection::West => bounding_box.max_x - z,
+        HorizontalDirection::East => bounding_box.min_x + z,
+    };
+    let world_z = match orientation {
+        HorizontalDirection::North => bounding_box.max_z - z,
+        HorizontalDirection::South => bounding_box.min_z + z,
+        HorizontalDirection::West | HorizontalDirection::East => bounding_box.min_z + x,
+    };
+    BlockPos {
+        x: world_x,
+        y: y + bounding_box.min_y,
+        z: world_z,
+    }
+}
+
 impl TerrainAdjustmentModel {
     pub fn id(self) -> &'static str {
         match self {
@@ -17378,6 +17478,143 @@ mod tests {
                 &[invalid, start.clone()]
             ),
             Some(start)
+        );
+    }
+
+    #[test]
+    fn structure_piece_bounding_box_and_world_coordinates_match_vanilla_orientation() {
+        assert_eq!(
+            super::structure_make_bounding_box(
+                10,
+                20,
+                30,
+                super::HorizontalDirection::South,
+                3,
+                4,
+                5
+            ),
+            super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: 20,
+                min_z: 30,
+                max_x: 12,
+                max_y: 23,
+                max_z: 34,
+            }
+        );
+        assert_eq!(
+            super::structure_make_bounding_box(
+                10,
+                20,
+                30,
+                super::HorizontalDirection::East,
+                3,
+                4,
+                5
+            ),
+            super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: 20,
+                min_z: 30,
+                max_x: 14,
+                max_y: 23,
+                max_z: 32,
+            }
+        );
+
+        let foot = BlockPos {
+            x: 100,
+            y: 40,
+            z: 200,
+        };
+        let offset = BlockPos { x: 2, y: 3, z: 4 };
+        assert_eq!(
+            super::structure_orient_box(foot, offset, 5, 6, 7, super::HorizontalDirection::North),
+            super::StructureBoundingBoxModel {
+                min_x: 102,
+                min_y: 43,
+                min_z: 198,
+                max_x: 106,
+                max_y: 48,
+                max_z: 204,
+            }
+        );
+        assert_eq!(
+            super::structure_orient_box(foot, offset, 5, 6, 7, super::HorizontalDirection::West),
+            super::StructureBoundingBoxModel {
+                min_x: 98,
+                min_y: 43,
+                min_z: 202,
+                max_x: 104,
+                max_y: 48,
+                max_z: 206,
+            }
+        );
+        assert_eq!(
+            super::structure_orient_box(foot, offset, 5, 6, 7, super::HorizontalDirection::East),
+            super::StructureBoundingBoxModel {
+                min_x: 104,
+                min_y: 43,
+                min_z: 202,
+                max_x: 110,
+                max_y: 48,
+                max_z: 206,
+            }
+        );
+
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 50,
+            min_y: 60,
+            min_z: 70,
+            max_x: 59,
+            max_y: 69,
+            max_z: 79,
+        };
+        assert_eq!(
+            super::structure_piece_world_pos(bounding_box, None, 1, 2, 3),
+            BlockPos { x: 1, y: 2, z: 3 }
+        );
+        assert_eq!(
+            super::structure_piece_world_pos(
+                bounding_box,
+                Some(super::HorizontalDirection::North),
+                1,
+                2,
+                3
+            ),
+            BlockPos {
+                x: 51,
+                y: 62,
+                z: 76,
+            }
+        );
+        assert_eq!(
+            super::structure_piece_world_pos(
+                bounding_box,
+                Some(super::HorizontalDirection::West),
+                1,
+                2,
+                3
+            ),
+            BlockPos {
+                x: 56,
+                y: 62,
+                z: 71,
+            }
+        );
+        assert_eq!(
+            super::structure_piece_world_pos(
+                bounding_box,
+                Some(super::HorizontalDirection::East),
+                1,
+                2,
+                3
+            ),
+            BlockPos {
+                x: 53,
+                y: 62,
+                z: 71,
+            }
         );
     }
 
