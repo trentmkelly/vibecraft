@@ -5056,48 +5056,158 @@ pub const RIDGE_FOLDED_DENSITY: DensityFunction = DensityFunction::Binary {
     argument1: &RIDGE_FOLDED_SCALE_DENSITY,
     argument2: &RIDGE_OUTER_DENSITY,
 };
+pub const BLEND_ALPHA_CACHE_ONCE_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::CacheOnce,
+    input: &BLEND_ALPHA_DENSITY,
+};
+pub const BLEND_ALPHA_DENSITY: DensityFunction = DensityFunction::BlendAlpha;
+pub const BLEND_OFFSET_DENSITY: DensityFunction = DensityFunction::BlendOffset;
+pub const ONE_DENSITY: DensityFunction = DensityFunction::Constant(1.0);
+pub const BLEND_ALPHA_INVERT_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(-1.0);
+pub const BLEND_ALPHA_NEGATED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &BLEND_ALPHA_INVERT_SCALE_DENSITY,
+    argument2: &BLEND_ALPHA_CACHE_ONCE_DENSITY,
+};
+pub const BLEND_ALPHA_INVERSE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &ONE_DENSITY,
+    argument2: &BLEND_ALPHA_NEGATED_DENSITY,
+};
+pub const OVERWORLD_OFFSET_BLEND_TARGET_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &BLEND_OFFSET_DENSITY,
+    argument2: &BLEND_ALPHA_INVERSE_DENSITY,
+};
+pub const OVERWORLD_OFFSET_SPLINE_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.5037500262260437);
 pub const OVERWORLD_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_OFFSET_SPLINE_WITH_OFFSET_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_OFFSET_SPLINE_OFFSET_DENSITY,
+    argument2: &OVERWORLD_OFFSET_SPLINE_DENSITY,
+};
+pub const OVERWORLD_OFFSET_SPLINE_WEIGHTED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &OVERWORLD_OFFSET_SPLINE_WITH_OFFSET_DENSITY,
+    argument2: &BLEND_ALPHA_CACHE_ONCE_DENSITY,
+};
+pub const OVERWORLD_OFFSET_BLENDED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_OFFSET_BLEND_TARGET_DENSITY,
+    argument2: &OVERWORLD_OFFSET_SPLINE_WEIGHTED_DENSITY,
+};
 pub const OVERWORLD_OFFSET_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
-    input: &OVERWORLD_OFFSET_SPLINE_DENSITY,
+    input: &OVERWORLD_OFFSET_BLENDED_DENSITY,
 };
 pub const OVERWORLD_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_OFFSET_CACHE_2D_DENSITY,
 };
+pub const BLENDING_FACTOR_DENSITY: DensityFunction = DensityFunction::Constant(10.0);
+pub const BLENDING_FACTOR_NEGATED_DENSITY: DensityFunction = DensityFunction::Constant(-10.0);
 pub const OVERWORLD_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_FACTOR_SPLINE_DELTA_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &BLENDING_FACTOR_NEGATED_DENSITY,
+    argument2: &OVERWORLD_FACTOR_SPLINE_DENSITY,
+};
+pub const OVERWORLD_FACTOR_SPLINE_WEIGHTED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &BLEND_ALPHA_DENSITY,
+    argument2: &OVERWORLD_FACTOR_SPLINE_DELTA_DENSITY,
+};
+pub const OVERWORLD_FACTOR_BLENDED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &BLENDING_FACTOR_DENSITY,
+    argument2: &OVERWORLD_FACTOR_SPLINE_WEIGHTED_DENSITY,
+};
 pub const OVERWORLD_FACTOR_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
-    input: &OVERWORLD_FACTOR_SPLINE_DENSITY,
+    input: &OVERWORLD_FACTOR_BLENDED_DENSITY,
 };
 pub const OVERWORLD_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_FACTOR_CACHE_2D_DENSITY,
 };
+pub const BLENDING_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Constant(0.0);
+pub const BLENDING_JAGGEDNESS_NEGATED_DENSITY: DensityFunction = DensityFunction::Constant(-0.0);
 pub const OVERWORLD_JAGGEDNESS_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_JAGGEDNESS_SPLINE_DELTA_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &BLENDING_JAGGEDNESS_NEGATED_DENSITY,
+    argument2: &OVERWORLD_JAGGEDNESS_SPLINE_DENSITY,
+};
+pub const OVERWORLD_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &BLEND_ALPHA_DENSITY,
+    argument2: &OVERWORLD_JAGGEDNESS_SPLINE_DELTA_DENSITY,
+};
+pub const OVERWORLD_JAGGEDNESS_BLENDED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &BLENDING_JAGGEDNESS_DENSITY,
+    argument2: &OVERWORLD_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY,
+};
 pub const OVERWORLD_JAGGEDNESS_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
-    input: &OVERWORLD_JAGGEDNESS_SPLINE_DENSITY,
+    input: &OVERWORLD_JAGGEDNESS_BLENDED_DENSITY,
 };
 pub const OVERWORLD_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_JAGGEDNESS_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_WITH_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &OVERWORLD_OFFSET_SPLINE_OFFSET_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_WEIGHTED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_WITH_OFFSET_DENSITY,
+        argument2: &BLEND_ALPHA_CACHE_ONCE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_BLENDED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &OVERWORLD_OFFSET_BLEND_TARGET_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_WEIGHTED_DENSITY,
+    };
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY: DensityFunction =
     DensityFunction::Marker {
         kind: DensityMarker::Cache2D,
-        input: &OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY,
+        input: &OVERWORLD_LARGE_BIOMES_OFFSET_BLENDED_DENSITY,
     };
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DELTA_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_FACTOR_NEGATED_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_WEIGHTED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &BLEND_ALPHA_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DELTA_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_BLENDED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_FACTOR_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_WEIGHTED_DENSITY,
+    };
 pub const OVERWORLD_LARGE_BIOMES_FACTOR_CACHE_2D_DENSITY: DensityFunction =
     DensityFunction::Marker {
         kind: DensityMarker::Cache2D,
-        input: &OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DENSITY,
+        input: &OVERWORLD_LARGE_BIOMES_FACTOR_BLENDED_DENSITY,
     };
 pub const OVERWORLD_LARGE_BIOMES_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
@@ -5105,38 +5215,108 @@ pub const OVERWORLD_LARGE_BIOMES_FACTOR_DENSITY: DensityFunction = DensityFuncti
 };
 pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DENSITY: DensityFunction =
     DensityFunction::Spline;
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DELTA_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_JAGGEDNESS_NEGATED_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &BLEND_ALPHA_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DELTA_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_BLENDED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_JAGGEDNESS_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY,
+    };
 pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_CACHE_2D_DENSITY: DensityFunction =
     DensityFunction::Marker {
         kind: DensityMarker::Cache2D,
-        input: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DENSITY,
+        input: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_BLENDED_DENSITY,
     };
 pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_WITH_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &OVERWORLD_OFFSET_SPLINE_OFFSET_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_WEIGHTED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &OVERWORLD_AMPLIFIED_OFFSET_SPLINE_WITH_OFFSET_DENSITY,
+        argument2: &BLEND_ALPHA_CACHE_ONCE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_OFFSET_BLENDED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_OFFSET_BLEND_TARGET_DENSITY,
+    argument2: &OVERWORLD_AMPLIFIED_OFFSET_SPLINE_WEIGHTED_DENSITY,
+};
 pub const OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
-    input: &OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY,
+    input: &OVERWORLD_AMPLIFIED_OFFSET_BLENDED_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DELTA_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_FACTOR_NEGATED_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_FACTOR_SPLINE_WEIGHTED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &BLEND_ALPHA_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DELTA_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_FACTOR_BLENDED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &BLENDING_FACTOR_DENSITY,
+    argument2: &OVERWORLD_AMPLIFIED_FACTOR_SPLINE_WEIGHTED_DENSITY,
+};
 pub const OVERWORLD_AMPLIFIED_FACTOR_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
-    input: &OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DENSITY,
+    input: &OVERWORLD_AMPLIFIED_FACTOR_BLENDED_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_AMPLIFIED_FACTOR_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DELTA_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_JAGGEDNESS_NEGATED_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &BLEND_ALPHA_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DELTA_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_BLENDED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &BLENDING_JAGGEDNESS_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY,
+    };
 pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_CACHE_2D_DENSITY: DensityFunction =
     DensityFunction::Marker {
         kind: DensityMarker::Cache2D,
-        input: &OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DENSITY,
+        input: &OVERWORLD_AMPLIFIED_JAGGEDNESS_BLENDED_DENSITY,
     };
 pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
