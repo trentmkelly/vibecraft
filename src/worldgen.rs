@@ -2424,6 +2424,41 @@ pub struct EndCityMarkerActionModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WoodlandMansionMirrorModel {
+    None,
+    LeftRight,
+    FrontBack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WoodlandMansionTemplatePieceModel {
+    pub template_name: &'static str,
+    pub template_id: &'static str,
+    pub position: BlockPos,
+    pub rotation: StructureRotation,
+    pub mirror: WoodlandMansionMirrorModel,
+    pub processor: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WoodlandMansionPlacementDataModel {
+    pub position: BlockPos,
+    pub rotation: StructureRotation,
+    pub wall_type: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WoodlandMansionMarkerActionModel {
+    pub marker_id: &'static str,
+    pub target_pos: BlockPos,
+    pub loot_table: Option<&'static str>,
+    pub chest_facing: Option<HorizontalDirection>,
+    pub spawned_entity: Option<&'static str>,
+    pub spawn_count: i32,
+    pub clears_marker_block: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -12768,6 +12803,295 @@ pub fn end_city_rotated_south(rotation: StructureRotation) -> HorizontalDirectio
         StructureRotation::Clockwise180 => HorizontalDirection::North,
         StructureRotation::Counterclockwise90 => HorizontalDirection::East,
     }
+}
+
+pub fn structure_rotation_rotate_direction(
+    rotation: StructureRotation,
+    direction: HorizontalDirection,
+) -> HorizontalDirection {
+    match rotation {
+        StructureRotation::None => direction,
+        StructureRotation::Clockwise90 => match direction {
+            HorizontalDirection::North => HorizontalDirection::East,
+            HorizontalDirection::East => HorizontalDirection::South,
+            HorizontalDirection::South => HorizontalDirection::West,
+            HorizontalDirection::West => HorizontalDirection::North,
+        },
+        StructureRotation::Clockwise180 => match direction {
+            HorizontalDirection::North => HorizontalDirection::South,
+            HorizontalDirection::South => HorizontalDirection::North,
+            HorizontalDirection::West => HorizontalDirection::East,
+            HorizontalDirection::East => HorizontalDirection::West,
+        },
+        StructureRotation::Counterclockwise90 => match direction {
+            HorizontalDirection::North => HorizontalDirection::West,
+            HorizontalDirection::West => HorizontalDirection::South,
+            HorizontalDirection::South => HorizontalDirection::East,
+            HorizontalDirection::East => HorizontalDirection::North,
+        },
+    }
+}
+
+pub fn structure_rotation_add(
+    rotation: StructureRotation,
+    other: StructureRotation,
+) -> StructureRotation {
+    fossil_rotation(
+        match rotation {
+            StructureRotation::None => 0,
+            StructureRotation::Clockwise90 => 1,
+            StructureRotation::Clockwise180 => 2,
+            StructureRotation::Counterclockwise90 => 3,
+        } + match other {
+            StructureRotation::None => 0,
+            StructureRotation::Clockwise90 => 1,
+            StructureRotation::Clockwise180 => 2,
+            StructureRotation::Counterclockwise90 => 3,
+        },
+    )
+}
+
+pub fn block_pos_relative(
+    pos: BlockPos,
+    direction: HorizontalDirection,
+    distance: i32,
+) -> BlockPos {
+    match direction {
+        HorizontalDirection::North => BlockPos {
+            z: pos.z - distance,
+            ..pos
+        },
+        HorizontalDirection::South => BlockPos {
+            z: pos.z + distance,
+            ..pos
+        },
+        HorizontalDirection::West => BlockPos {
+            x: pos.x - distance,
+            ..pos
+        },
+        HorizontalDirection::East => BlockPos {
+            x: pos.x + distance,
+            ..pos
+        },
+    }
+}
+
+pub fn woodland_mansion_generation_start(start_pos: BlockPos) -> Option<BlockPos> {
+    (start_pos.y >= 60).then_some(start_pos)
+}
+
+pub fn woodland_mansion_template_id(template_name: &'static str) -> String {
+    format!("minecraft:woodland_mansion/{template_name}")
+}
+
+pub fn woodland_mansion_template_piece(
+    template_name: &'static str,
+    position: BlockPos,
+    rotation: StructureRotation,
+    mirror: WoodlandMansionMirrorModel,
+) -> WoodlandMansionTemplatePieceModel {
+    WoodlandMansionTemplatePieceModel {
+        template_name,
+        template_id: match template_name {
+            "entrance" => "minecraft:woodland_mansion/entrance",
+            "wall_flat" => "minecraft:woodland_mansion/wall_flat",
+            "wall_window" => "minecraft:woodland_mansion/wall_window",
+            "wall_corner" => "minecraft:woodland_mansion/wall_corner",
+            "small_wall" => "minecraft:woodland_mansion/small_wall",
+            "small_wall_corner" => "minecraft:woodland_mansion/small_wall_corner",
+            "roof_front" => "minecraft:woodland_mansion/roof_front",
+            "roof_corner" => "minecraft:woodland_mansion/roof_corner",
+            "roof_inner_corner" => "minecraft:woodland_mansion/roof_inner_corner",
+            "1x1_a1" => "minecraft:woodland_mansion/1x1_a1",
+            "1x1_as1" => "minecraft:woodland_mansion/1x1_as1",
+            "1x2_a1" => "minecraft:woodland_mansion/1x2_a1",
+            "1x2_b1" => "minecraft:woodland_mansion/1x2_b1",
+            "1x2_s1" => "minecraft:woodland_mansion/1x2_s1",
+            "2x2_a1" => "minecraft:woodland_mansion/2x2_a1",
+            "2x2_s1" => "minecraft:woodland_mansion/2x2_s1",
+            other => {
+                let _ = other;
+                "minecraft:woodland_mansion/unknown"
+            }
+        },
+        position,
+        rotation,
+        mirror,
+        processor: "STRUCTURE_BLOCK",
+    }
+}
+
+pub fn woodland_mansion_initial_placement(
+    origin: BlockPos,
+    rotation: StructureRotation,
+) -> (
+    WoodlandMansionTemplatePieceModel,
+    WoodlandMansionPlacementDataModel,
+) {
+    let west = structure_rotation_rotate_direction(rotation, HorizontalDirection::West);
+    let entrance_pos = block_pos_relative(origin, west, 9);
+    let next_pos = block_pos_relative(
+        origin,
+        structure_rotation_rotate_direction(rotation, HorizontalDirection::South),
+        16,
+    );
+    (
+        woodland_mansion_template_piece(
+            "entrance",
+            entrance_pos,
+            rotation,
+            WoodlandMansionMirrorModel::None,
+        ),
+        WoodlandMansionPlacementDataModel {
+            position: next_pos,
+            rotation,
+            wall_type: "wall_flat",
+        },
+    )
+}
+
+pub fn woodland_mansion_second_floor_data(
+    data: WoodlandMansionPlacementDataModel,
+) -> WoodlandMansionPlacementDataModel {
+    WoodlandMansionPlacementDataModel {
+        position: BlockPos {
+            y: data.position.y + 8,
+            ..data.position
+        },
+        wall_type: "wall_window",
+        ..data
+    }
+}
+
+pub fn woodland_mansion_traverse_wall_piece(
+    data: WoodlandMansionPlacementDataModel,
+) -> (
+    WoodlandMansionTemplatePieceModel,
+    WoodlandMansionPlacementDataModel,
+) {
+    let east = structure_rotation_rotate_direction(data.rotation, HorizontalDirection::East);
+    let south = structure_rotation_rotate_direction(data.rotation, HorizontalDirection::South);
+    let piece_pos = block_pos_relative(data.position, east, 7);
+    let next_pos = block_pos_relative(data.position, south, 8);
+    (
+        woodland_mansion_template_piece(
+            data.wall_type,
+            piece_pos,
+            data.rotation,
+            WoodlandMansionMirrorModel::None,
+        ),
+        WoodlandMansionPlacementDataModel {
+            position: next_pos,
+            ..data
+        },
+    )
+}
+
+pub fn woodland_mansion_add_room_1x1(
+    room_pos: BlockPos,
+    rotation: StructureRotation,
+    door_dir: Option<HorizontalDirection>,
+    room_type: &'static str,
+) -> WoodlandMansionTemplatePieceModel {
+    let mut piece_rot = StructureRotation::None;
+    let mut selected_room = room_type;
+    match door_dir {
+        Some(HorizontalDirection::East) => {}
+        Some(HorizontalDirection::North) => {
+            piece_rot = structure_rotation_add(piece_rot, StructureRotation::Counterclockwise90);
+        }
+        Some(HorizontalDirection::West) => {
+            piece_rot = structure_rotation_add(piece_rot, StructureRotation::Clockwise180);
+        }
+        Some(HorizontalDirection::South) => {
+            piece_rot = structure_rotation_add(piece_rot, StructureRotation::Clockwise90);
+        }
+        None => selected_room = "1x1_as1",
+    }
+    let piece_rot = structure_rotation_add(piece_rot, rotation);
+    woodland_mansion_template_piece(
+        selected_room,
+        room_pos,
+        piece_rot,
+        WoodlandMansionMirrorModel::None,
+    )
+}
+
+pub fn woodland_mansion_marker_action(
+    marker_id: &'static str,
+    position: BlockPos,
+    rotation: StructureRotation,
+    chunk_bb: StructureBoundingBoxModel,
+    allay_roll: i32,
+) -> Result<Option<WoodlandMansionMarkerActionModel>, String> {
+    if marker_id.starts_with("Chest") {
+        let chest_facing = match marker_id {
+            "ChestWest" => Some(structure_rotation_rotate_direction(
+                rotation,
+                HorizontalDirection::West,
+            )),
+            "ChestEast" => Some(structure_rotation_rotate_direction(
+                rotation,
+                HorizontalDirection::East,
+            )),
+            "ChestSouth" => Some(structure_rotation_rotate_direction(
+                rotation,
+                HorizontalDirection::South,
+            )),
+            "ChestNorth" => Some(structure_rotation_rotate_direction(
+                rotation,
+                HorizontalDirection::North,
+            )),
+            _ => None,
+        };
+        return Ok(chunk_bb
+            .is_inside(position)
+            .then_some(WoodlandMansionMarkerActionModel {
+                marker_id,
+                target_pos: position,
+                loot_table: Some("minecraft:chests/woodland_mansion"),
+                chest_facing,
+                spawned_entity: None,
+                spawn_count: 0,
+                clears_marker_block: false,
+            }));
+    }
+    let (spawned_entity, spawn_count) = match marker_id {
+        "Mage" => (Some("minecraft:evoker"), 1),
+        "Warrior" => (Some("minecraft:vindicator"), 1),
+        "Group of Allays" => {
+            if !(0..3).contains(&allay_roll) {
+                return Err(
+                    "Woodland mansion allay group roll must match RandomSource#nextInt(3)"
+                        .to_string(),
+                );
+            }
+            (Some("minecraft:allay"), allay_roll + 1)
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(WoodlandMansionMarkerActionModel {
+        marker_id,
+        target_pos: position,
+        loot_table: None,
+        chest_facing: None,
+        spawned_entity,
+        spawn_count,
+        clears_marker_block: true,
+    }))
+}
+
+pub fn woodland_mansion_support_column_y_values(
+    y_start: i32,
+    min_y: i32,
+    is_inside_piece: bool,
+    first_solid_or_liquid_y: Option<i32>,
+) -> Vec<i32> {
+    if !is_inside_piece {
+        return Vec::new();
+    }
+    let stop_y = first_solid_or_liquid_y.unwrap_or(min_y);
+    ((stop_y + 1)..y_start).rev().collect()
 }
 
 const fn feature_type(
@@ -27415,6 +27739,206 @@ mod tests {
                 true,
             ),
             None
+        );
+    }
+
+    #[test]
+    fn woodland_mansion_start_templates_markers_and_support_match_vanilla() {
+        assert_eq!(
+            super::woodland_mansion_generation_start(BlockPos { x: 0, y: 59, z: 0 }),
+            None
+        );
+        assert_eq!(
+            super::woodland_mansion_generation_start(BlockPos { x: 0, y: 60, z: 0 }),
+            Some(BlockPos { x: 0, y: 60, z: 0 })
+        );
+        assert_eq!(
+            super::woodland_mansion_template_id("entrance"),
+            "minecraft:woodland_mansion/entrance".to_string()
+        );
+
+        let (entrance, data) = super::woodland_mansion_initial_placement(
+            BlockPos {
+                x: 100,
+                y: 70,
+                z: -40,
+            },
+            super::StructureRotation::Clockwise90,
+        );
+        assert_eq!(
+            entrance,
+            super::WoodlandMansionTemplatePieceModel {
+                template_name: "entrance",
+                template_id: "minecraft:woodland_mansion/entrance",
+                position: BlockPos {
+                    x: 100,
+                    y: 70,
+                    z: -49,
+                },
+                rotation: super::StructureRotation::Clockwise90,
+                mirror: super::WoodlandMansionMirrorModel::None,
+                processor: "STRUCTURE_BLOCK",
+            }
+        );
+        assert_eq!(
+            data,
+            super::WoodlandMansionPlacementDataModel {
+                position: BlockPos {
+                    x: 84,
+                    y: 70,
+                    z: -40,
+                },
+                rotation: super::StructureRotation::Clockwise90,
+                wall_type: "wall_flat",
+            }
+        );
+        let second = super::woodland_mansion_second_floor_data(data);
+        assert_eq!(second.position.y, 78);
+        assert_eq!(second.wall_type, "wall_window");
+        let (wall, next_data) = super::woodland_mansion_traverse_wall_piece(data);
+        assert_eq!(wall.template_name, "wall_flat");
+        assert_eq!(
+            wall.position,
+            BlockPos {
+                x: 84,
+                y: 70,
+                z: -33,
+            }
+        );
+        assert_eq!(
+            next_data.position,
+            BlockPos {
+                x: 76,
+                y: 70,
+                z: -40,
+            }
+        );
+
+        let room = super::woodland_mansion_add_room_1x1(
+            BlockPos { x: 0, y: 80, z: 0 },
+            super::StructureRotation::Clockwise90,
+            Some(super::HorizontalDirection::South),
+            "1x1_a1",
+        );
+        assert_eq!(room.rotation, super::StructureRotation::Clockwise180);
+        assert_eq!(room.template_id, "minecraft:woodland_mansion/1x1_a1");
+        assert_eq!(
+            super::woodland_mansion_add_room_1x1(
+                BlockPos { x: 0, y: 80, z: 0 },
+                super::StructureRotation::None,
+                None,
+                "1x1_a1",
+            )
+            .template_name,
+            "1x1_as1"
+        );
+
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 0,
+            min_z: 0,
+            max_x: 32,
+            max_y: 100,
+            max_z: 32,
+        };
+        assert_eq!(
+            super::woodland_mansion_marker_action(
+                "ChestWest",
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 10
+                },
+                super::StructureRotation::Clockwise90,
+                chunk_bb,
+                0,
+            )
+            .unwrap(),
+            Some(super::WoodlandMansionMarkerActionModel {
+                marker_id: "ChestWest",
+                target_pos: BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 10
+                },
+                loot_table: Some("minecraft:chests/woodland_mansion"),
+                chest_facing: Some(super::HorizontalDirection::North),
+                spawned_entity: None,
+                spawn_count: 0,
+                clears_marker_block: false,
+            })
+        );
+        assert_eq!(
+            super::woodland_mansion_marker_action(
+                "Mage",
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 10
+                },
+                super::StructureRotation::None,
+                chunk_bb,
+                0,
+            )
+            .unwrap()
+            .unwrap()
+            .spawned_entity,
+            Some("minecraft:evoker")
+        );
+        assert_eq!(
+            super::woodland_mansion_marker_action(
+                "Group of Allays",
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 10
+                },
+                super::StructureRotation::None,
+                chunk_bb,
+                2,
+            )
+            .unwrap()
+            .unwrap()
+            .spawn_count,
+            3
+        );
+        assert_eq!(
+            super::woodland_mansion_marker_action(
+                "Group of Allays",
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 10
+                },
+                super::StructureRotation::None,
+                chunk_bb,
+                3,
+            )
+            .unwrap_err(),
+            "Woodland mansion allay group roll must match RandomSource#nextInt(3)".to_string()
+        );
+        assert_eq!(
+            super::woodland_mansion_marker_action(
+                "Unknown",
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 10
+                },
+                super::StructureRotation::None,
+                chunk_bb,
+                0,
+            )
+            .unwrap(),
+            None
+        );
+
+        assert_eq!(
+            super::woodland_mansion_support_column_y_values(70, 60, true, Some(66)),
+            vec![69, 68, 67]
+        );
+        assert!(
+            super::woodland_mansion_support_column_y_values(70, 60, false, Some(66)).is_empty()
         );
     }
 
