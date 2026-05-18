@@ -138,3 +138,32 @@
   - [ ] `CurseOfBindingEnchantment`: cannot be unequipped in survival
   - [ ] `CurseOfVanishingEnchantment`: destroyed on death
   - [ ] `DensityEnchantment` / `BreachEnchantment` / `WindBurstEnchantment`: mace-specific effects
+
+## Migrated From Main Checklist: Damage, Combat, Effects, And Attributes
+
+- [ ] Implement damage sources and datapack-driven damage types.
+- [ ] Implement armor, toughness, enchantment protection, shields, absorption, invulnerability frames, knockback, thorns, blocking, critical hits, sweeping, projectile damage, explosions, fall, drowning, fire, freezing, void, suffocation, cactus, sweet berry, dripstone, world border, magic, starvation, and command damage.
+- [ ] Add Mineflayer combat/damage tests for melee, projectile, fall, fire, drowning, void, shield blocking, armor mitigation, invulnerability frames, and vanilla-compatible damage/death messages.
+- [ ] Implement all status effects, instant effects, ambient/particles/icon behavior, ticking, curative behavior where applicable, and serialization.
+- [ ] Add Mineflayer status-effect tests that apply, tick, stack, expire, clear, save, reconnect, and verify client-visible particles/icons/amplifiers/durations in offline mode.
+- [ ] Implement attributes and modifiers, including operation ordering and sync packets.
+- [ ] Implement enchantments, enchantment providers, costs, compatibility, effects, loot integration, damage hooks, mining hooks, movement hooks, and post-attack hooks.
+- [ ] Implement equipment assets and armor trims.
+
+## Migrated From Main Checklist: Weather, Time, Events, And World State
+
+- [ ] Implement day time, game time, moon phase, sleeping, insomnia, spawn cycles, and scheduled time changes.
+- [ ] Add Mineflayer time/sleep tests for day-night sync, bed enter/leave, sleep skipping, spawnpoint setting, insomnia counters, and reconnect-visible time.
+- [ ] Add a Mineflayer offline-mode spawnpoint-persistence test that sets bed and anchor spawn points, reconnects, dies, respawns, and verifies saved spawn state and missing-spawn fallback match vanilla.
+- [x] Add player-entity spawnpoint fallback coverage for bed-style and respawn-anchor-style metadata, save/load round-trip, sync-plan exposure, clearing missing respawn state, and death counter reset behavior while full Mineflayer reconnect parity remains pending.
+- [ ] Implement weather, thunder, rain, lightning, skylight effects, snow/ice behavior, and weather commands.
+- [ ] Add Mineflayer weather tests for rain/thunder transitions, lightning observation, weather command feedback, and client state after reconnect.
+- [ ] Implement world border.
+- [ ] Add Mineflayer world-border tests for initialize, lerp, warning distance/time, damage buffer/amount, movement clamping, and command-driven updates.
+- [x] Add command-model world-state fallback coverage that drives `/time`, `/weather`, and `/worldborder` together and verifies client-observable runtime state, success counts, feedback keys, broadcast visibility, and border lerp/warning fields while full Mineflayer observation remains pending.
+- [ ] Implement explosions and game events.
+- [ ] Implement vibrations, sculk sensors, calibrated sculk sensors, wardens, allays, and event listeners.
+- [ ] Implement raids, patrols, hero of the village, bad omen/raid omen/trial omen, and village raid state.
+- [ ] Implement maps, banners on maps, markers, frames, and map decorations.
+- [ ] Implement waypoints and timelines introduced in this version.
+- [ ] Implement dialogs, server links, notifications, and code-of-conduct flow.

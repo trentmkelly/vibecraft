@@ -121,3 +121,64 @@
 - [ ] Add Mineflayer presentation tests: action bar, title/subtitle/times, bossbar add/update/remove, tab-list header/footer, death message formatting
 - [ ] Add Mineflayer tab-list mutation tests: change latency, display name, game mode, listed flag, hat visibility, list order while bots online; compare packet/event order against vanilla
 - [ ] Add Mineflayer offline-mode profile-property tab-list test: empty and synthetic profile properties; verify vanilla-compatible tab-list serialization
+
+## Migrated From Main Checklist: Fluids, Physics, Collision, And Movement
+
+- [ ] Implement block and fluid collision shapes.
+- [ ] Implement voxel shape operations and boolean composition.
+- [ ] Implement water, lava, bubble columns, powder snow, honey, slime, webs, ladders, vines, scaffolding, boats, minecarts, elytra, swimming, crawling, sneaking, sprinting, jumping, step height, climbing, riding, and portals.
+- [ ] Implement server authoritative movement validation.
+- [ ] Implement anti-cheat style movement checks used by vanilla: moved too quickly, vehicle movement, illegal stance/position, flying checks, and packet correction.
+- [ ] Add Mineflayer invalid-movement tests that send out-of-bounds, too-fast, illegal stance, no-clip, and flight-like movement and verify correction or kick behavior against vanilla.
+- [ ] Implement entity pushing, cramming, block collision callbacks, fluid pushing, piston movement, explosions, and ray tracing.
+- [ ] Validate movement and collision against vanilla using scripted client traces.
+- [ ] Add Mineflayer movement tests for walking, jumping, sneaking, sprinting, falling, invalid movement correction, and chunk-boundary crossing in offline mode.
+- [x] Add raw 26.1.2 movement-sequence fallback coverage that sends multiple position/rotation and input packets after play entry, verifies the server remains in play, and confirms terrain streaming follows the final chunk center while Mineflayer lacks target-protocol support.
+- [ ] Add Mineflayer teleport/position-confirm tests covering server teleports, relative movement flags, yaw/pitch corrections, cross-chunk teleports, dimension changes, and stale teleport confirmations in offline mode.
+
+## Migrated From Main Checklist: Player Management And Multiplayer Operations
+
+- [ ] Implement player list, login queue, respawn, disconnect, transfer, and reconnection behavior.
+- [ ] Add Mineflayer multiplayer lifecycle tests for join broadcast, tab-list add/remove, quit message, kick reason, respawn, transfer rejection/acceptance, and reconnect persistence.
+- [ ] Add a Mineflayer offline-mode login-queue ordering test that releases several bots from handshake/configuration gates in controlled order and verifies accepted player order, tab-list order, and join messages match vanilla.
+- [ ] Add Mineflayer simultaneous-offline-login tests with multiple generated profiles covering join order, spawn collision handling, chat visibility, player list latency, and disconnect cleanup.
+- [x] Add raw 26.1.2 simultaneous-offline-login fallback coverage that starts multiple generated profiles against the same temp server in one tick window and verifies isolated UUID/profile state, configuration completion, play login, tab-list profile packets, and initial chunk visibility while Mineflayer lacks target-protocol play support.
+- [ ] Add Mineflayer offline-mode login-storm tests that connect many generated profiles across randomized ports and temp worlds, then verify accepted/rejected counts, tick latency, and cleanup match vanilla envelopes.
+- [x] Add raw 26.1.2 login-storm fallback coverage that starts several temp worlds on separate ephemeral ports, joins generated offline profiles concurrently, and verifies accepted counts, isolated UUID/profile state, configuration finish, play login, tab-list identity, and initial chunks while Mineflayer lacks target-protocol play support.
+- [ ] Add Mineflayer offline-mode join/quit broadcast tests that compare first-login, returning-login, duplicate-login, kick, timeout, and crash-disconnect messages against official `server.jar`.
+- [ ] Add Mineflayer offline-mode same-tick login/logout tests that connect and disconnect several generated bots in rapid succession, verifying tab-list, entity IDs, keepalives, and playerdata writes do not leak across sessions.
+- [x] Add raw 26.1.2 same-tick login/logout fallback coverage that aborts generated sessions concurrently during handshake, login start, login success, registry sync, and first chunk delivery, then verifies immediate same-name rejoins reach configuration finish, play login, tab-list identity, and initial chunks while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode duplicate-session cleanup test that reconnects a bot before the previous TCP connection fully closes and verifies entity removal, tab-list replacement, playerdata ownership, and kicked message parity.
+- [x] Add raw 26.1.2 duplicate-session cleanup fallback coverage that holds one generated offline profile in play, connects a second session with the same UUID before the first socket closes, verifies the replacement reaches play, verifies the original socket closes, and verifies another same-name retry succeeds after cleanup while Mineflayer lacks target-protocol play support.
+- [ ] Add Mineflayer offline-mode rapid reconnect tests that repeatedly connect and disconnect the same bot name, verifying stale entities, tab-list rows, keepalive tasks, and player files are cleaned up.
+- [x] Add raw 26.1.2 rapid reconnect fallback coverage that repeatedly connects and disconnects the same generated offline profile against one temp server and verifies each attempt reaches configuration finish, play login, tab-list profile, complete initial chunks, and keepalive without stale session leakage while Mineflayer lacks target-protocol play support.
+- [ ] Add Mineflayer offline-mode mixed-profile multiplayer tests that join op, non-op, whitelisted, banned, and duplicate generated profiles in one run, then verify accepted-player ordering, rejection reasons, broadcasts, and tab-list state match vanilla.
+- [x] Add raw 26.1.2 mixed-profile multiplayer fallback coverage that starts one temp server with whitelist, ops, and ban files, verifies whitelisted/op generated profiles reach configuration finish, play login, tab-list identity, and chunks, verifies a banned profile receives the vanilla ban disconnect key, and verifies a non-op duplicate generated profile replacement/retry path cleans up while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode reconnect-after-kick test that kicks, bans, unbans, and reconnects the same generated bot, verifying stale session cleanup and vanilla-compatible kicked messages.
+- [x] Add raw 26.1.2 reconnect-after-ban/pardon fallback coverage that joins a generated offline profile, hot-edits `banned-players.json`, reloads access files, verifies the same profile receives the vanilla ban disconnect key, removes the ban, reloads again, and verifies reconnect reaches configuration finish, play login, tab-list identity, initial chunks, and keepalive while live `/kick` integration waits on Mineflayer/play command support.
+- [ ] Implement `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, and user cache formats.
+- [ ] Implement permission levels and command availability.
+- [ ] Implement chat broadcasting, system messages, action bar, titles, bossbars, player list header/footer, and death messages.
+- [ ] Add Mineflayer presentation tests for action bar, title/subtitle/times, bossbar add/update/remove, tab-list header/footer, and death message formatting.
+- [ ] Implement tab list ordering, latency, game mode, display names, and profile properties.
+- [ ] Add Mineflayer tab-list mutation tests that change latency, display name, game mode, listed flag, hat visibility, and list order while bots are online and compare packet/event order against vanilla.
+- [ ] Add a Mineflayer offline-mode profile-property tab-list test that joins generated offline profiles with empty and synthetic profile properties and verifies vanilla-compatible tab-list serialization.
+- [x] Add raw 26.1.2 offline profile-property tab-list fallback coverage that joins a generated offline profile, verifies `player_info_update` advertises the expected name/UUID with zero properties, no chat session, listed=true, display-name absent, list-order 0, and hat visible while Mineflayer lacks target-protocol play support.
+- [ ] Implement resource pack prompt, required pack kick, accepted/declined/failed states.
+- [ ] Implement idle timeout.
+- [ ] Implement spawn protection and operator bypass.
+- [ ] Implement RCON.
+- [ ] Implement query protocol.
+- [ ] Implement console input thread.
+- [ ] Implement dedicated server GUI only if the target platform requires parity for GUI mode.
+- [ ] Implement JSON-RPC management server, schemas, outgoing notifications, allowed origins, TLS, authentication, and player DTOs.
+- [ ] Implement status heartbeat interval behavior if externally observable.
+
+## Migrated From Main Checklist: Client-Facing Presentation Data
+
+- [ ] Implement chat components, translatable components, selectors, scores, keybind components, NBT components, styles, colors, click events, hover events, and font descriptions.
+- [ ] Implement sound events, sound sources, particles, painting variants, banner patterns, trim materials/patterns, instruments, jukebox songs, damage type messages, and death message formatting.
+- [ ] Implement localization keys emitted by server messages.
+- [ ] Implement command feedback formatting.
+- [ ] Implement status response: version, protocol, MOTD, player sample, favicon, secure chat flag, and hide-online-players.
+- [ ] Implement server ping latency handling.

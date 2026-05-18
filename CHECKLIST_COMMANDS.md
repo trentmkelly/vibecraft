@@ -70,3 +70,103 @@
 - [ ] Validate command parse tree dump against vanilla `/brigadier dump` or equivalent: all root literals, argument types, redirects, and permission-level gates match
 - [ ] Validate signed argument metadata: which commands require signed arguments in online mode matches vanilla
 - [ ] Validate tab-completion ordering: alphabetical or vanilla-order for all command literals and subcommands
+
+## Migrated From Main Checklist: Commands And Functions
+
+- [ ] Implement Brigadier-compatible command tree, parsing, suggestions, redirects, forks, permissions, and signed arguments.
+- [ ] Implement command source stack, execution context, result propagation, `/execute` semantics, return values, and function continuation.
+- [ ] Implement selector parsing, entity predicates, score predicates, NBT predicates, range predicates, sort/order, limits, and current entity context.
+- [ ] Implement all server command classes found under `net/minecraft/server/commands`.
+- [ ] Implement `/advancement`.
+- [ ] Implement `/attribute`.
+- [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
+- [ ] Implement `/bossbar`.
+- [ ] Implement `/chase`.
+- [ ] Implement `/clear`.
+- [ ] Implement `/clone`.
+- [ ] Implement `/damage`.
+- [ ] Implement `/datapack`.
+- [ ] Implement `/deop` and `/op`.
+- [ ] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.
+- [ ] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
+- [ ] Implement `/dialog`.
+- [ ] Implement `/effect`.
+- [ ] Implement `/emote`.
+- [ ] Implement `/enchant`.
+- [ ] Implement `/execute`.
+- [ ] Implement `/experience`.
+- [ ] Implement `/fetchprofile`.
+- [ ] Implement `/fill` and `/fillbiome`.
+- [ ] Implement `/forceload`.
+- [ ] Implement `/function` and function scheduling.
+- [ ] Implement `/give`.
+- [ ] Implement `/help`.
+- [ ] Implement `/item`.
+- [ ] Implement `/jfr`.
+- [ ] Implement `/kick`, `/kill`, `/list`.
+- [ ] Implement `/locate`.
+- [ ] Implement `/loot`.
+- [ ] Implement `/msg`, `/teammsg`, `/say`, `/tellraw`.
+- [ ] Implement `/particle`.
+- [ ] Implement `/perf`.
+- [ ] Implement `/place`.
+- [ ] Implement `/playsound` and `/stopsound`.
+- [ ] Implement `/publish`.
+- [ ] Implement `/raid`.
+- [ ] Implement `/random`.
+- [ ] Implement `/recipe`.
+- [ ] Implement `/reload`.
+- [ ] Implement `/return`.
+- [ ] Implement `/ride`.
+- [ ] Implement `/rotate`.
+- [ ] Implement `/save-all`, `/save-off`, `/save-on`.
+- [ ] Implement `/schedule`.
+- [ ] Implement `/scoreboard`.
+- [ ] Implement `/seed`.
+- [ ] Implement `/serverpack`.
+- [ ] Implement `/setblock`.
+- [ ] Implement `/setidletimeout`.
+- [ ] Implement `/spawnpoint`, `/setworldspawn`.
+- [ ] Implement `/spawn_armor_trims`.
+- [ ] Implement `/spectate`.
+- [ ] Implement `/spreadplayers`.
+- [ ] Implement `/stop`.
+- [ ] Implement `/stopwatch`.
+- [ ] Implement `/summon`.
+- [ ] Implement `/swing`.
+- [ ] Implement `/tag`.
+- [ ] Implement `/team`.
+- [ ] Implement `/teleport`.
+- [ ] Add Mineflayer command execution tests for teleporting a bot, validating its observed position correction, success feedback, and permission failures.
+- [ ] Add Mineflayer offline-mode `/list` login-state tests that run `/list` from console and bot during login, after join, after duplicate replacement, and after disconnect to verify player counts and names match vanilla.
+- [x] Add command-model `/list` login-state fallback coverage for empty, joined, duplicate-replacement, multi-player, and post-disconnect online counts while raw play command execution is not wired to `/list` yet.
+- [ ] Add Mineflayer offline-mode `/loot` command tests for `give`, `insert`, `spawn`, and `replace` targets using block, entity, chest, fishing, and custom loot tables, verifying inventory/window updates and dropped item entities against vanilla.
+- [x] Add command-model `/loot` fallback coverage for `give`, `insert`, `spawn`, and `replace` targets across custom loot table, block mine, entity kill, and fishing sources, including inventory/container slot updates and dropped-item event records while live Mineflayer inventory/entity visibility remains pending.
+- [ ] Add Mineflayer command-suggestion tests that compare root command tree, argument suggestions, permission filtering, signed-command metadata, and tab-completion ordering against official `server.jar`.
+- [x] Add raw 26.1.2 command-suggestion fallback coverage that sends an immediate play-state `/list` suggestion request, verifies the `list` suggestion response, and keeps the connection alive through the next keepalive while Mineflayer lacks target-protocol play support.
+- [x] Add command-model command-suggestion fallback coverage for permission-filtered root command visibility and stable tab-completion ordering across all/moderator/gamemaster/admin/owner tiers while full Mineflayer-vs-vanilla signed metadata comparison remains pending.
+- [ ] Add Mineflayer offline-mode operator command smoke tests for `/op`, `/deop`, `/whitelist`, `/ban`, `/pardon`, `/gamemode`, `/tp`, `/give`, and `/effect`, verifying feedback, permission gates, and reconnect-visible state.
+- [x] Add command-model operator smoke fallback coverage for `/op`, `/deop`, `/whitelist`, `/ban`, `/pardon`, `/gamemode`, `/tp`, `/give`, and `/effect`, including permission denial, feedback keys, disconnect side effects, and in-memory state changes while live bot command execution remains incomplete.
+- [ ] Add Mineflayer offline-mode login-gated command tests that attempt `/list`, `/tell`, `/gamemode`, and `/tp` immediately after join and verify commands only run after the vanilla play-state readiness boundary.
+- [x] Add play-session command-readiness fallback coverage that rejects chat command, signed chat command, chat, and command-suggestion packets while waiting for `player_loaded`, then accepts command suggestions after the loaded transition while live Mineflayer command execution remains incomplete.
+- [ ] Add Mineflayer offline-mode command permission reload tests that edit `ops.json`, run `/op` and `/deop`, reconnect bots, and verify command tree deltas plus denied feedback match vanilla.
+- [ ] Add player-access reload fallback coverage proving hot-edited `ops.json`, `whitelist.json`, and `banned-players.json` are reflected by the same `PlayerAccess::load_from_dir` path used by console `reload`/`whitelist reload`, while live Mineflayer command-tree delta coverage remains pending.
+- [ ] Add Mineflayer offline-mode command-before-ready tests that attempt chat commands during login/configuration/play transition boundaries and verify vanilla-compatible rejection, queuing, or disconnect behavior.
+- [x] Add raw 26.1.2 command-before-ready fallback coverage that sends command-suggestion and chat-shaped packets during login/configuration before play readiness and verifies vanilla-compatible rejection/close behavior while Mineflayer lacks target-protocol play support.
+- [ ] Add Mineflayer offline-mode command-result consistency tests that run commands from console, op bot, non-op bot, command block, and function context, then compare success count, feedback visibility, and player-observed side effects.
+- [x] Add command-model command-result fallback coverage for non-op denial, op self-target side effects, repeated no-op success counts, console explicit-target execution, feedback keys, and admin broadcast flags while live bot command execution remains incomplete.
+- [ ] Implement `/tick`.
+- [ ] Implement `/time`.
+- [ ] Implement `/title`.
+- [ ] Implement `/transfer`.
+- [ ] Implement `/trigger`.
+- [ ] Implement `/version`.
+- [ ] Implement `/warden_spawn_tracker`.
+- [ ] Implement `/waypoint`.
+- [ ] Implement `/weather`.
+- [ ] Implement `/whitelist`.
+- [ ] Implement `/worldborder`.
+- [ ] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions.
+- [ ] Validate command parse trees and results against vanilla command dumps and scripted execution tests.
+- [ ] Add Mineflayer chat and command tests covering signed/unsigned chat fallback, system messages, command feedback, suggestions, and tab completion in offline mode.
+- [x] Add command-model chat/command fallback coverage for public `/say`, `/me`, private `/tell`, `/teammsg`, `/tellraw`, feedback keys, permission denial, and target routing while full Mineflayer signed/unsigned/system-message coverage remains pending.

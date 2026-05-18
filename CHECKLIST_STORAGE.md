@@ -104,3 +104,68 @@
 
 - [ ] Implement `--report` flag: generate `generated/reports/` containing `registries.json` (all registry IDs), `commands.json` (Brigadier tree), `biomes.json`, `blocks.json`, `items.json`, `tags/` (all tag files)
 - [ ] Add parity test: `--report` output registry IDs and counts match official `server.jar --report` output for vanilla 26.1.2
+
+## Migrated From Main Checklist: World Storage
+
+- [ ] Implement world folder layout.
+- [ ] Implement `level.dat`, `level.dat_old`, and session lock behavior.
+- [ ] Implement NBT binary format, compressed NBT, SNBT where needed, and visitor/traversal utilities.
+- [ ] Implement DataVersion tracking.
+- [ ] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.
+- [ ] Implement region file format `.mca`.
+- [ ] Implement region compression types used by 26.1.2.
+- [ ] Implement chunk serialization for blocks, biomes, heightmaps, block entities, entities, structures, ticks, lights, and post-processing.
+- [ ] Implement player data files.
+- [ ] Add a Mineflayer playerdata round-trip test that changes position, rotation, inventory, selected slot, health, food, XP, game mode, recipe book, and stats, disconnects, then reconnects in offline mode and verifies persistence.
+- [x] Add raw 26.1.2 playerdata fallback coverage that sends movement, disconnects, restarts, and verifies the reconnect spawn position and rotation are loaded from compressed `playerdata/<uuid>.dat` while Mineflayer lacks target-protocol play support.
+- [x] Add raw 26.1.2 selected-hotbar-slot persistence fallback coverage that sends `serverbound/minecraft:set_carried_item`, saves `SelectedItemSlot`, restarts, and verifies reconnect emits the saved `clientbound/minecraft:set_held_slot` while Mineflayer lacks target-protocol play support.
+- [x] Add raw 26.1.2 selected-hotbar-slot bounds coverage that sends an out-of-range `serverbound/minecraft:set_carried_item` slot and verifies reconnect keeps vanilla-compatible slot `0` instead of persisting invalid `SelectedItemSlot`.
+- [x] Add raw 26.1.2 playerdata login-state fallback coverage that seeds gzip playerdata with `Health`, `foodLevel`, `foodSaturationLevel`, `XpP`, `XpLevel`, `XpTotal`, and `SelectedItemSlot`, then verifies reconnect packets emit the saved health, food, XP, and held-slot values while Mineflayer lacks target-protocol play support.
+- [x] Add raw 26.1.2 playerdata bounds fallback coverage that seeds out-of-range `Health`, `foodLevel`, `foodSaturationLevel`, `XpP`, `XpLevel`, `XpTotal`, and `SelectedItemSlot`, then verifies reconnect clamps login health, food, XP, and held-slot packets to vanilla-safe values.
+- [x] Add raw 26.1.2 playerdata game-mode fallback coverage that seeds `playerGameType` and `previousPlayerGameType`, then verifies reconnect emits the saved game mode through play login, tab-list, and ability packets while out-of-range legacy IDs fall back to survival.
+- [x] Add raw 26.1.2 server-properties game-mode fallback coverage that verifies fresh profiles use `gamemode`, saved profiles keep `playerGameType`, and `force-gamemode=true` overrides saved mode while preserving `previousPlayerGameType` in login packets.
+- [x] Add raw 26.1.2 invalid `gamemode` property fallback coverage that verifies unknown game mode names behave like vanilla `GameType.byName(..., SURVIVAL)` and produce survival login, tab-list, and ability packets.
+- [x] Add raw 26.1.2 numeric `gamemode` property coverage that verifies `gamemode=1` is parsed like vanilla `dispatchNumberOrString(GameType::byId, GameType::byName)` and emits creative login, tab-list, and ability packets.
+- [x] Add raw 26.1.2 padded numeric `gamemode` property coverage that verifies `gamemode=01` follows vanilla `Integer.parseInt` handling and emits creative login, tab-list, and ability packets.
+- [x] Add raw 26.1.2 out-of-range numeric `gamemode` property coverage that verifies `gamemode=99` follows vanilla `GameType.byId` out-of-bounds-to-zero behavior and emits survival login, tab-list, and ability packets.
+- [x] Add raw 26.1.2 negative numeric `gamemode` property coverage that verifies `gamemode=-1` follows vanilla `GameType.byId` out-of-bounds-to-zero behavior and emits survival login, tab-list, and ability packets.
+- [x] Add raw 26.1.2 spectator `gamemode` property fallback coverage that verifies fresh profiles emit spectator game mode with vanilla spectator ability flags before Mineflayer target-protocol support exists.
+- [x] Add raw 26.1.2 effective game-mode save coverage that verifies completed logins write the effective `playerGameType` and nullable `previousPlayerGameType` back into gzip playerdata after default and forced game-mode resolution.
+- [ ] Add a Mineflayer offline-mode fresh-profile persistence test that logs in, disconnects without movement, and verifies which profile, stats, advancements, recipe, and playerdata files vanilla creates immediately versus at first save.
+- [x] Add raw 26.1.2 fresh-profile file-creation fallback coverage that aborts after login success, verifies no early playerdata file exists, then completes play entry and disconnects to verify gzip-compressed playerdata is created while advancements/stats remain absent until progress exists.
+- [ ] Add a Mineflayer offline-mode reconnect-after-save test that records bot state before disconnect, waits for server-side save completion, reconnects, and verifies UUID-bound playerdata is loaded before the first visible spawn packet.
+- [x] Add raw 26.1.2 reconnect-after-save fallback coverage that records position and held-slot state, waits for the UUID-named gzip playerdata file after clean disconnect, restarts, and verifies reconnect packets load the saved state before spawn while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode dirty-save test that disconnects immediately after movement, inventory, damage, and stat changes, then restarts and verifies vanilla-compatible flush timing and persisted data.
+- [x] Add raw 26.1.2 dirty-save fallback coverage that sends movement plus selected-hotbar-slot changes, aborts immediately after first-tick actions, restarts, and verifies reconnect loads the saved position and held slot before spawn while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode abrupt-disconnect persistence test that destroys the client socket after inventory, position, and stat changes, then restarts and verifies vanilla-compatible last saved state and cleanup.
+- [x] Add raw 26.1.2 abrupt-disconnect persistence fallback coverage that destroys the socket at the play boundary after dirty state changes, waits for gzip playerdata flush, restarts, and verifies the same offline UUID reloads the last saved state while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode first-login file creation test that verifies playerdata, stats, advancements, recipe book, and last-known-position files appear only at the vanilla-compatible save points for a newly generated profile.
+- [x] Add raw 26.1.2 first-login file-creation fallback coverage that aborts after login success to verify no early playerdata, completes first play save to verify gzip playerdata, verifies recipe book is stored inside playerdata, and verifies no stats, advancements, recipe sidecar, or last-known-position sidecar files are created for a fresh profile while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode playerdata UUID ownership test that logs in two generated profiles, swaps or removes one playerdata file, reconnects both, and verifies vanilla-compatible recovery, reassignment refusal, or regeneration behavior.
+- [x] Add raw 26.1.2 playerdata UUID ownership fallback coverage that logs in two offline profiles, verifies each UUID-named playerdata file reloads only its own position, verifies missing primary `.dat` falls back to `.dat_old`, removes both files, and verifies only that profile regenerates default state while the other UUID keeps its saved state.
+- [ ] Add a Mineflayer offline-mode playerdata-corruption login test that starts with truncated, wrong-compression, wrong-UUID, and wrong-dimension playerdata files, then verifies fallback spawn, warnings, and recovery match vanilla.
+- [x] Add storage-level playerdata corruption coverage for vanilla `PlayerDataStorage` behavior: gzip playerdata saves rotate `<uuid>.dat_old`, corrupt `<uuid>.dat` is copied to `<uuid>_corrupted_<timestamp>.dat`, and load falls back to `.dat_old`.
+- [x] Add raw 26.1.2 playerdata-corruption fallback coverage that creates primary and `.dat_old` playerdata through real joins, corrupts the primary `.dat`, restarts, verifies first spawn position is loaded from `.dat_old`, and confirms a `_corrupted_*.dat` copy is created while Mineflayer lacks target-protocol play support.
+- [ ] Implement advancements files.
+- [ ] Implement stats files.
+- [ ] Implement scoreboard save data.
+- [ ] Implement raids save data.
+- [ ] Implement map item save data.
+- [ ] Implement forced chunks save data.
+- [ ] Implement command storage.
+- [ ] Implement custom bossbar save data.
+- [ ] Implement random sequences save data.
+- [ ] Implement POI storage.
+- [ ] Implement entity region/storage behavior.
+- [ ] Implement durable write, temp-file, backup, and corruption handling semantics.
+- [ ] Implement symlink validation and path allow-list behavior.
+
+## Migrated From Main Checklist: Source-Derived Granularity Appendix - Storage, NBT, And Datafix Coverage
+
+- [ ] Implement every NBT tag type: end, byte, short, int, long, float, double, byte array, string, list, compound, int array, and long array.
+- [ ] Implement NBT IO, size accounting, recursion/depth limits, streaming visitors, field selectors, SNBT parser, SNBT printer, text component visitor, and error reporting.
+- [ ] Implement `LevelStorageSource`, `LevelStorageAccess`, `PrimaryLevelData`, `DerivedLevelData`, `ServerLevelData`, `WorldData`, `LevelSummary`, `LevelVersion`, and session locking.
+- [ ] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths.
+- [ ] Implement loot storage classes: loot tables, pools, parameters, contexts, validation context, built-in table IDs, container component manipulation, and validation reporting.
+- [ ] Implement a datafix strategy covering schemas and fixes for blocks, block entities, entities, items, chunks, POIs, options, advancements, stats, scoreboards, structures, text components, villager data, worldgen settings, and versioned renames.
+- [ ] If a full DataFixerUpper-compatible pipeline is deferred, add explicit blockers preventing unsafe loading of worlds requiring unsupported migrations.

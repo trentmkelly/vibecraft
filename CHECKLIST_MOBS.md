@@ -217,3 +217,44 @@
 - [ ] For every entity family, add portal behavior test: nether portal teleport rules by entity type (mobs cannot teleport through end portal, etc.)
 - [ ] For every entity family, add despawn test: natural despawn radius (32/128 blocks), named/persistent entities, chunk unload/reload
 - [ ] Add Mineflayer multi-bot entity-spawn visibility test: join two bots, verify mob-spawn packets match vanilla entity tracking range
+
+## Migrated From Main Checklist: Entities And AI
+
+- [ ] Implement base entity lifecycle: ID, UUID, type, position, rotation, velocity, bounding box, pose, flags, dimensions, passengers, vehicle, portal state, fire, air, freeze, fall, removal, save/load, and syncing.
+- [ ] Implement all entity categories present under `net/minecraft/world/entity`.
+- [ ] Implement living entity health, damage, armor, absorption, effects, attributes, equipment, hands, use item, death, drops, experience, knockback, and animation.
+- [ ] Implement player entity server logic, abilities, game modes, hunger, saturation, exhaustion, experience, stats, advancements, recipe book, spawn, sleep, permissions, and interaction modes.
+- [ ] Add a Mineflayer player-state test that verifies health, food, saturation-visible effects, XP, game mode, permissions, and recipe book sync after offline-mode join.
+- [x] Add raw 26.1.2 player-state join fallback coverage that verifies survival and creative offline profiles receive vanilla-shaped health, food, XP, game mode, abilities, and spawn position packets while Mineflayer lacks target-protocol play support.
+- [x] Add player-entity recipe-book fallback coverage that persists and sync-plans known recipes plus open/filtering UI flags together with health, food, XP, permissions, and game-mode state while full Mineflayer join observation remains pending.
+- [ ] Add a Mineflayer offline-mode game-mode-persistence test that changes a bot between survival, creative, adventure, and spectator, reconnects each time, and verifies `force-gamemode` and saved game mode behavior match vanilla.
+- [x] Add raw 26.1.2 game-mode persistence fallback coverage that seeds saved `playerGameType`/`previousPlayerGameType`, verifies fresh survival/creative/spectator profiles, numeric and invalid `gamemode` parsing, `force-gamemode=true` overrides, ability flags, and persisted effective game mode while Mineflayer lacks target-protocol play support.
+- [ ] Add a Mineflayer offline-mode respawn-after-relogin test that dies, disconnects on the death screen, reconnects with the same generated profile, and verifies vanilla-compatible death/respawn state recovery.
+- [ ] Add a Mineflayer death/respawn test that kills an offline-mode bot, verifies death message, respawn packet flow, inventory/XP rules, spawn position, and post-respawn abilities.
+- [ ] Add a Mineflayer multi-bot visibility test that joins two offline-mode bots, verifies tab-list entries, spawn/despawn packets, relative movement, sneaking/sprinting flags, held items, and disconnect cleanup.
+- [ ] Add a Mineflayer offline-mode entity-tracking distance test that moves bots across tracking thresholds and verifies spawn, metadata, velocity, equipment, and remove packets match vanilla timing.
+- [ ] Implement item entities, experience orbs, falling blocks, TNT, end crystals, armor stands, paintings, item frames, leash knots, markers, interactions, displays if server-side relevant, and decorations.
+- [ ] Implement projectiles: arrows, spectral arrows, tridents, snowballs, eggs, fireballs, wind charges, potions, ender pearls, fishing hooks, llama spit, shulker bullets, wither skulls, dragon fireballs, and thrown items.
+- [ ] Implement vehicles: boats, chest boats, minecarts, furnace minecarts, chest minecarts, hopper minecarts, TNT minecarts, spawner minecarts, command block minecarts.
+- [ ] Implement monsters, animals, ambient mobs, water mobs, NPCs, bosses, raids, and variants visible in the source tree.
+- [ ] Implement AI goals, behavior trees, sensors, memories, activities, schedules, brain serialization, navigation, pathfinding, target selection, gossip, villager POIs, and village mechanics.
+- [ ] Implement spawning rules, mob caps, despawn rules, natural spawning, patrols, wandering traders, phantoms, raids, trial spawners, monster rooms, chunk generation spawns, and command spawns.
+- [ ] Implement boss fights: ender dragon, wither, bossbars, end crystals, gateways, dragon phases, and end fight state.
+- [ ] Implement tameable, breedable, rideable, shearable, bucketable, variant, ageable, trading, anger, conversion, and transformation mechanics.
+- [ ] Validate entity metadata and behavior with automated spawn/interact/kill/save/load tests.
+
+## Migrated From Main Checklist: Source-Derived Granularity Appendix - Entity Family Coverage
+
+- [ ] Implement shared AI packages: attributes, behavior, control, goal, gossip, memory, navigation, sensing, targeting, util, village, schedules, variants, and brain save/load.
+- [ ] Implement ambient entities.
+- [ ] Implement animal families: allay, armadillo, axolotl, bee, camel, chicken, cow, dolphin, equine, feline, fish, fox, frog, goat, golem, happy ghast, nautilus, panda, parrot, pig, polar bear, rabbit, sheep, sniffer, squid, turtle, and wolf.
+- [ ] Implement boss families: ender dragon and wither, including phase/state machines, bossbars, crystals, summoning, death sequences, drops, and dimension-specific world state.
+- [ ] Implement decoration entities: paintings, item frames, leash knots, armor stands, display-like entities if present, interaction entities, and marker behavior.
+- [ ] Implement item entities and pickup/merge/despawn logic.
+- [ ] Implement monster families: breeze, creaking, hoglin, illager, piglin, skeleton, spider, warden, zombie, and all shared hostile mob behavior.
+- [ ] Implement NPC families: villagers, wandering traders, professions, trades, POIs, gossip, schedules, restocking, raids, and reputation.
+- [ ] Implement player entity server behavior separately from generic living entity behavior.
+- [ ] Implement projectile families: arrows, hurting projectiles, throwable item projectiles, owner tracking, collision, pierce, pickup, potion effects, loyalty, return, and despawn.
+- [ ] Implement raid package behavior: raid lifecycle, waves, leaders, omen integration, hero rewards, persistence, bossbar, and village detection.
+- [ ] Implement vehicles: boats, chest boats, minecarts, chest/hopper/furnace/TNT/spawner/command block minecarts, interpolation, collision, rails, activator/detector/powered rail behavior, and passenger sync.
+- [ ] For every entity family, create parity scenarios for spawn rules, pathfinding, interactions, damage, drops, NBT save/load, metadata sync, riding/passengers, portals, despawn, and chunk unload/reload.

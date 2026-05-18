@@ -134,3 +134,18 @@
 - [ ] Implement trial spawner reward ejection: `TrialSpawnerBlockEntity` WAITING_FOR_REWARD_EJECTION state populates adjacent slots with reward items from configured loot table
 - [ ] Implement vault block: `VaultBlockEntity` per-player unlock tracking (UUID set), key consumption, loot ejection, normal vs. ominous reward tables, cooldown after ejection
 - [ ] Add Mineflayer trial reward tests: enter trial chamber fixture, activate normal/ominous spawners, open vaults with generated profiles, reconnect mid-encounter; compare reward drops, cooldowns, denied-open feedback against vanilla
+
+## Migrated From Main Checklist: Loot, Trading, Economy, And Rewards
+
+- [ ] Implement loot table parsing and evaluation.
+- [ ] Add Mineflayer offline-mode loot-table smoke tests that place deterministic custom datapack loot tables, log in a generated bot, trigger each table through block break, chest open, `/loot`, fishing, entity death, and advancement reward paths, then diff visible results against official `server.jar`.
+- [ ] Implement loot contexts, parameters, predicates, functions, number providers, score providers, NBT providers, and random sequences.
+- [ ] Add Mineflayer offline-mode loot-context tests for luck, tool, killer player, origin, damage source, explosion radius, entity properties, scoreboard values, storage NBT, and random sequence IDs by comparing bot-observed drops across vanilla and RustCraft.
+- [ ] Implement block, entity, chest, fishing, archaeology, advancement, gift, bartering, and command loot behavior.
+- [ ] Add Mineflayer offline-mode reward-surface tests for chest loot refill prevention, suspicious block brushing, piglin bartering, cat/villager gifts, fishing catches, mob equipment drops, and advancement rewards with reconnect persistence checks.
+- [ ] Implement villager professions, trades, gossip, demand, price multipliers, restocking, leveling, POI workstations, and wandering trader trades.
+- [ ] Add Mineflayer villager trading tests that open merchant windows, compare offer lists, buy items, exhaust demand, restock after work time, zombify/cure discounts where available, reconnect, and verify vanilla-compatible prices and XP.
+- [ ] Implement experience rewards and orbs.
+- [ ] Add Mineflayer XP reward tests that collect orbs from mining, smelting, breeding, trading, commands, mob kills, and advancements, then verify level bar updates, orb merge timing, death drops, and reconnect persistence.
+- [ ] Implement trial spawner, vault, ominous trial, and related reward data.
+- [ ] Add Mineflayer trial reward tests that enter a trial chamber fixture, activate normal and ominous spawners, open vaults with generated bot profiles, reconnect mid-encounter, and compare reward drops, cooldowns, and denied-open feedback against vanilla.
