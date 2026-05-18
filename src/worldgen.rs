@@ -1924,6 +1924,7 @@ pub fn materialize_noise_preview_chunk(
                 noise_preview_terrain_height(world_x, world_z, settings).clamp(min_y + 1, max_y);
         }
     }
+    let tree_blocks = noise_preview_tree_blocks(pos, settings, &terrain_heights);
 
     chunk.sections = (0..section_count)
         .map(|section_offset| {
@@ -1935,6 +1936,7 @@ pub fn materialize_noise_preview_chunk(
                     min_y,
                     settings,
                     &terrain_heights,
+                    &tree_blocks,
                 )
                 .to_nbt(),
                 biomes: PalettedContainer::single(
@@ -1948,7 +1950,13 @@ pub fn materialize_noise_preview_chunk(
         })
         .collect();
 
-    let world_surface = terrain_heights.map(|height| height.max(settings.sea_level + 1));
+    let mut world_surface = terrain_heights.map(|height| height.max(settings.sea_level + 1));
+    for block in &tree_blocks {
+        if (0..16).contains(&block.pos.x) && (0..16).contains(&block.pos.z) {
+            let index = block.pos.z as usize * 16 + block.pos.x as usize;
+            world_surface[index] = world_surface[index].max(block.pos.y + 1);
+        }
+    }
     chunk.heightmaps = BTreeMap::from([
         (
             HeightmapKind::WorldSurfaceWg.storage_name().to_string(),
@@ -1967,6 +1975,7 @@ fn noise_preview_section_block_states(
     min_y: i32,
     settings: &NoiseGeneratorSettings,
     surface_heights: &[i32; 16 * 16],
+    tree_blocks: &[TreePlacementBlock],
 ) -> PalettedContainer {
     let mut palette: Vec<&'static str> = Vec::new();
     let mut indices = vec![0_u64; SECTION_VOLUME];
@@ -1975,8 +1984,15 @@ fn noise_preview_section_block_states(
         for z in 0..16 {
             for x in 0..16 {
                 let surface_height = surface_heights[z * 16 + x];
-                let block =
-                    noise_preview_block_at(world_y, min_y, surface_height, settings.sea_level);
+                let block = tree_blocks
+                    .iter()
+                    .find(|block| {
+                        block.pos.x == x as i32 && block.pos.y == world_y && block.pos.z == z as i32
+                    })
+                    .map(|block| block.state)
+                    .unwrap_or_else(|| {
+                        noise_preview_block_at(world_y, min_y, surface_height, settings.sea_level)
+                    });
                 let palette_index = match palette.iter().position(|entry| *entry == block) {
                     Some(index) => index as u64,
                     None => {
@@ -2034,6 +2050,63 @@ fn noise_preview_block_at(
     } else {
         "minecraft:stone"
     }
+}
+
+fn noise_preview_tree_blocks(
+    chunk_pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    terrain_heights: &[i32; 16 * 16],
+) -> Vec<TreePlacementBlock> {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return Vec::new();
+    }
+
+    let local_x = 8;
+    let local_z = 8;
+    let surface_height = terrain_heights[local_z * 16 + local_x];
+    if surface_height <= settings.sea_level + 2 {
+        return Vec::new();
+    }
+    let seed = (chunk_pos.x as i64 * 341_873_128_712 + chunk_pos.z as i64 * 132_897_987_541) as u64;
+    if seed.rotate_left(13) % 5 != 0 {
+        return Vec::new();
+    }
+
+    let plan = simple_tree_placement_plan(
+        BlockPos {
+            x: local_x as i32,
+            y: surface_height,
+            z: local_z as i32,
+        },
+        TrunkPlacerModel {
+            base_height: 4,
+            height_rand_a: 2,
+            height_rand_b: 1,
+            kind: TrunkPlacerKind::Straight,
+        },
+        FoliagePlacerModel {
+            radius_min: 2,
+            radius_max: 2,
+            offset_min: 0,
+            offset_max: 0,
+            kind: FoliagePlacerKind::Blob { height: 3 },
+        },
+        "minecraft:oak_log",
+        "minecraft:oak_leaves",
+        "minecraft:dirt",
+        (seed & 0xffff) as i32,
+        ((seed >> 16) & 0xffff) as i32,
+    )
+    .expect("hard-coded preview tree configuration must validate");
+    plan.blocks
+        .into_iter()
+        .filter(|block| {
+            (0..16).contains(&block.pos.x)
+                && (settings.noise.min_y..settings.noise.min_y + settings.noise.height)
+                    .contains(&block.pos.y)
+                && (0..16).contains(&block.pos.z)
+        })
+        .collect()
 }
 
 fn noise_preview_terrain_height(x: i32, z: i32, settings: &NoiseGeneratorSettings) -> i32 {
@@ -7669,6 +7742,18 @@ mod tests {
         };
         assert!(palette.contains(&super::block_state_tag("minecraft:grass_block")));
         assert!(palette.contains(&super::block_state_tag("minecraft:stone")));
+        assert!(chunk.sections.iter().any(|section| {
+            let Tag::Compound(block_states) = &section.block_states else {
+                return false;
+            };
+            let Some((_, Tag::List(palette))) =
+                block_states.iter().find(|(name, _)| name == "palette")
+            else {
+                return false;
+            };
+            palette.contains(&super::block_state_tag("minecraft:oak_log"))
+                || palette.contains(&super::block_state_tag("minecraft:oak_leaves"))
+        }));
     }
 
     #[test]
