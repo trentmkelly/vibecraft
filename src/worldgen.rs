@@ -1928,6 +1928,47 @@ pub struct BuriedTreasurePlacementModel {
     pub side_fill: [(&'static str, BlockPos); 6],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScatteredFeaturePieceModel {
+    pub bounding_box: StructureBoundingBoxModel,
+    pub orientation: HorizontalDirection,
+    pub width: i32,
+    pub height: i32,
+    pub depth: i32,
+    pub height_position: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwampHutPieceModel {
+    pub scattered: ScatteredFeaturePieceModel,
+    pub spawned_witch: bool,
+    pub spawned_cat: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwampHutSaveTagModel {
+    pub width: i32,
+    pub height: i32,
+    pub depth: i32,
+    pub height_position: i32,
+    pub witch: bool,
+    pub cat: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwampHutEntitySpawnModel {
+    pub entity: &'static str,
+    pub pos: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwampHutPostProcessModel {
+    pub piece: SwampHutPieceModel,
+    pub blocks: Vec<StructurePiecePlacementBlock>,
+    pub fill_columns: Vec<BlockPos>,
+    pub entity_spawns: Vec<SwampHutEntitySpawnModel>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
@@ -9538,6 +9579,308 @@ pub fn buried_treasure_place(
         });
     }
     None
+}
+
+pub fn scattered_feature_piece(
+    west: i32,
+    floor: i32,
+    north: i32,
+    width: i32,
+    height: i32,
+    depth: i32,
+    orientation: HorizontalDirection,
+) -> ScatteredFeaturePieceModel {
+    ScatteredFeaturePieceModel {
+        bounding_box: structure_make_bounding_box(
+            west,
+            floor,
+            north,
+            orientation,
+            width,
+            height,
+            depth,
+        ),
+        orientation,
+        width,
+        height,
+        depth,
+        height_position: -1,
+    }
+}
+
+pub fn scattered_feature_update_average_ground_height(
+    piece: &mut ScatteredFeaturePieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    offset: i32,
+    mut height_at: impl FnMut(i32, i32) -> i32,
+) -> bool {
+    if piece.height_position >= 0 {
+        return true;
+    }
+    let mut total = 0;
+    let mut count = 0;
+    for z in piece.bounding_box.min_z..=piece.bounding_box.max_z {
+        for x in piece.bounding_box.min_x..=piece.bounding_box.max_x {
+            if chunk_bb.is_inside(BlockPos { x, y: 64, z }) {
+                total += height_at(x, z);
+                count += 1;
+            }
+        }
+    }
+    if count == 0 {
+        return false;
+    }
+    piece.height_position = total / count;
+    let dy = piece.height_position - piece.bounding_box.min_y + offset;
+    piece.bounding_box = piece.bounding_box.moved(0, dy, 0);
+    true
+}
+
+pub fn swamp_hut_generation_piece(
+    chunk_pos: ChunkPos,
+    orientation: HorizontalDirection,
+) -> SwampHutPieceModel {
+    SwampHutPieceModel {
+        scattered: scattered_feature_piece(
+            chunk_pos.x * 16,
+            64,
+            chunk_pos.z * 16,
+            7,
+            7,
+            9,
+            orientation,
+        ),
+        spawned_witch: false,
+        spawned_cat: false,
+    }
+}
+
+pub fn swamp_hut_save_tag(piece: &SwampHutPieceModel) -> SwampHutSaveTagModel {
+    SwampHutSaveTagModel {
+        width: piece.scattered.width,
+        height: piece.scattered.height,
+        depth: piece.scattered.depth,
+        height_position: piece.scattered.height_position,
+        witch: piece.spawned_witch,
+        cat: piece.spawned_cat,
+    }
+}
+
+fn swamp_hut_place_block(
+    piece: &SwampHutPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    local_pos: BlockPos,
+    state: &'static str,
+    blocks: &mut Vec<StructurePiecePlacementBlock>,
+) {
+    if let Some(block) = structure_piece_place_block(
+        piece.scattered.bounding_box,
+        Some(piece.scattered.orientation),
+        chunk_bb,
+        local_pos,
+        state,
+        true,
+    ) {
+        blocks.push(block);
+    }
+}
+
+fn swamp_hut_generate_box(
+    piece: &SwampHutPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max: BlockPos,
+    state: &'static str,
+    blocks: &mut Vec<StructurePiecePlacementBlock>,
+) {
+    blocks.extend(structure_piece_generate_box(
+        piece.scattered.bounding_box,
+        Some(piece.scattered.orientation),
+        chunk_bb,
+        min,
+        max,
+        state,
+        state,
+        false,
+        |_| false,
+    ));
+}
+
+pub fn swamp_hut_post_process(
+    mut piece: SwampHutPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    height_at: impl FnMut(i32, i32) -> i32,
+) -> Option<SwampHutPostProcessModel> {
+    if !scattered_feature_update_average_ground_height(&mut piece.scattered, chunk_bb, 0, height_at)
+    {
+        return None;
+    }
+
+    let mut blocks = Vec::new();
+    swamp_hut_generate_box(
+        &piece,
+        chunk_bb,
+        BlockPos { x: 1, y: 1, z: 1 },
+        BlockPos { x: 5, y: 1, z: 7 },
+        "minecraft:spruce_planks",
+        &mut blocks,
+    );
+    swamp_hut_generate_box(
+        &piece,
+        chunk_bb,
+        BlockPos { x: 1, y: 4, z: 2 },
+        BlockPos { x: 5, y: 4, z: 7 },
+        "minecraft:spruce_planks",
+        &mut blocks,
+    );
+    for (min, max, state) in [
+        (
+            BlockPos { x: 2, y: 1, z: 0 },
+            BlockPos { x: 4, y: 1, z: 0 },
+            "minecraft:spruce_planks",
+        ),
+        (
+            BlockPos { x: 2, y: 2, z: 2 },
+            BlockPos { x: 3, y: 3, z: 2 },
+            "minecraft:spruce_planks",
+        ),
+        (
+            BlockPos { x: 1, y: 2, z: 3 },
+            BlockPos { x: 1, y: 3, z: 6 },
+            "minecraft:spruce_planks",
+        ),
+        (
+            BlockPos { x: 5, y: 2, z: 3 },
+            BlockPos { x: 5, y: 3, z: 6 },
+            "minecraft:spruce_planks",
+        ),
+        (
+            BlockPos { x: 2, y: 2, z: 7 },
+            BlockPos { x: 4, y: 3, z: 7 },
+            "minecraft:spruce_planks",
+        ),
+        (
+            BlockPos { x: 1, y: 0, z: 2 },
+            BlockPos { x: 1, y: 3, z: 2 },
+            "minecraft:oak_log",
+        ),
+        (
+            BlockPos { x: 5, y: 0, z: 2 },
+            BlockPos { x: 5, y: 3, z: 2 },
+            "minecraft:oak_log",
+        ),
+        (
+            BlockPos { x: 1, y: 0, z: 7 },
+            BlockPos { x: 1, y: 3, z: 7 },
+            "minecraft:oak_log",
+        ),
+        (
+            BlockPos { x: 5, y: 0, z: 7 },
+            BlockPos { x: 5, y: 3, z: 7 },
+            "minecraft:oak_log",
+        ),
+        (
+            BlockPos { x: 0, y: 4, z: 1 },
+            BlockPos { x: 6, y: 4, z: 1 },
+            "minecraft:spruce_stairs[facing=north]",
+        ),
+        (
+            BlockPos { x: 0, y: 4, z: 2 },
+            BlockPos { x: 0, y: 4, z: 7 },
+            "minecraft:spruce_stairs[facing=east]",
+        ),
+        (
+            BlockPos { x: 6, y: 4, z: 2 },
+            BlockPos { x: 6, y: 4, z: 7 },
+            "minecraft:spruce_stairs[facing=west]",
+        ),
+        (
+            BlockPos { x: 0, y: 4, z: 8 },
+            BlockPos { x: 6, y: 4, z: 8 },
+            "minecraft:spruce_stairs[facing=south]",
+        ),
+    ] {
+        swamp_hut_generate_box(&piece, chunk_bb, min, max, state, &mut blocks);
+    }
+
+    for (local_pos, state) in [
+        (BlockPos { x: 2, y: 3, z: 2 }, "minecraft:oak_fence"),
+        (BlockPos { x: 3, y: 3, z: 7 }, "minecraft:oak_fence"),
+        (BlockPos { x: 1, y: 3, z: 4 }, "minecraft:air"),
+        (BlockPos { x: 5, y: 3, z: 4 }, "minecraft:air"),
+        (BlockPos { x: 5, y: 3, z: 5 }, "minecraft:air"),
+        (
+            BlockPos { x: 1, y: 3, z: 5 },
+            "minecraft:potted_red_mushroom",
+        ),
+        (BlockPos { x: 3, y: 2, z: 6 }, "minecraft:crafting_table"),
+        (BlockPos { x: 4, y: 2, z: 6 }, "minecraft:cauldron"),
+        (BlockPos { x: 1, y: 2, z: 1 }, "minecraft:oak_fence"),
+        (BlockPos { x: 5, y: 2, z: 1 }, "minecraft:oak_fence"),
+        (
+            BlockPos { x: 0, y: 4, z: 1 },
+            "minecraft:spruce_stairs[facing=north,shape=outer_right]",
+        ),
+        (
+            BlockPos { x: 6, y: 4, z: 1 },
+            "minecraft:spruce_stairs[facing=north,shape=outer_left]",
+        ),
+        (
+            BlockPos { x: 0, y: 4, z: 8 },
+            "minecraft:spruce_stairs[facing=south,shape=outer_left]",
+        ),
+        (
+            BlockPos { x: 6, y: 4, z: 8 },
+            "minecraft:spruce_stairs[facing=south,shape=outer_right]",
+        ),
+    ] {
+        swamp_hut_place_block(&piece, chunk_bb, local_pos, state, &mut blocks);
+    }
+
+    let mut fill_columns = Vec::new();
+    for z in [2, 7] {
+        for x in [1, 5] {
+            fill_columns.push(structure_piece_world_pos(
+                piece.scattered.bounding_box,
+                Some(piece.scattered.orientation),
+                x,
+                -1,
+                z,
+            ));
+        }
+    }
+
+    let spawn_pos = structure_piece_world_pos(
+        piece.scattered.bounding_box,
+        Some(piece.scattered.orientation),
+        2,
+        2,
+        5,
+    );
+    let mut entity_spawns = Vec::new();
+    if chunk_bb.is_inside(spawn_pos) {
+        if !piece.spawned_witch {
+            piece.spawned_witch = true;
+            entity_spawns.push(SwampHutEntitySpawnModel {
+                entity: "minecraft:witch",
+                pos: spawn_pos,
+            });
+        }
+        if !piece.spawned_cat {
+            piece.spawned_cat = true;
+            entity_spawns.push(SwampHutEntitySpawnModel {
+                entity: "minecraft:cat",
+                pos: spawn_pos,
+            });
+        }
+    }
+
+    Some(SwampHutPostProcessModel {
+        piece,
+        blocks,
+        fill_columns,
+        entity_spawns,
+    })
 }
 
 const fn feature_type(
@@ -22143,6 +22486,95 @@ mod tests {
         assert_eq!(placement.side_fill[5].0, "minecraft:stone");
 
         assert!(super::buried_treasure_place(piece, 64, 60, |_| "minecraft:sand").is_none());
+    }
+
+    #[test]
+    fn swamp_hut_piece_layout_height_and_entity_flags_match_vanilla() {
+        let piece = super::swamp_hut_generation_piece(
+            ChunkPos { x: 0, z: 0 },
+            super::HorizontalDirection::South,
+        );
+        assert_eq!(piece.scattered.width, 7);
+        assert_eq!(piece.scattered.height, 7);
+        assert_eq!(piece.scattered.depth, 9);
+        assert_eq!(piece.scattered.height_position, -1);
+        assert_eq!(
+            piece.scattered.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 64,
+                min_z: 0,
+                max_x: 6,
+                max_y: 70,
+                max_z: 8,
+            }
+        );
+        assert_eq!(
+            super::swamp_hut_save_tag(&piece),
+            super::SwampHutSaveTagModel {
+                width: 7,
+                height: 7,
+                depth: 9,
+                height_position: -1,
+                witch: false,
+                cat: false,
+            }
+        );
+
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: i32::MIN,
+            min_z: 0,
+            max_x: 15,
+            max_y: i32::MAX,
+            max_z: 15,
+        };
+        let processed = super::swamp_hut_post_process(piece.clone(), chunk_bb, |x, z| {
+            70 + (x == 6 && z == 8) as i32
+        })
+        .unwrap();
+        assert_eq!(processed.piece.scattered.height_position, 70);
+        assert_eq!(processed.piece.scattered.bounding_box.min_y, 70);
+        assert_eq!(processed.fill_columns.len(), 4);
+        assert_eq!(
+            processed.entity_spawns,
+            vec![
+                super::SwampHutEntitySpawnModel {
+                    entity: "minecraft:witch",
+                    pos: BlockPos { x: 2, y: 72, z: 5 },
+                },
+                super::SwampHutEntitySpawnModel {
+                    entity: "minecraft:cat",
+                    pos: BlockPos { x: 2, y: 72, z: 5 },
+                },
+            ]
+        );
+        assert!(processed.piece.spawned_witch);
+        assert!(processed.piece.spawned_cat);
+        assert!(processed.blocks.iter().any(|block| {
+            block.world_pos == BlockPos { x: 4, y: 72, z: 6 } && block.state == "minecraft:cauldron"
+        }));
+        assert!(processed.blocks.iter().any(|block| {
+            block.world_pos == BlockPos { x: 0, y: 74, z: 1 }
+                && block.state == "minecraft:spruce_stairs[facing=north,shape=outer_right]"
+        }));
+
+        let mut already_spawned = piece.clone();
+        already_spawned.spawned_witch = true;
+        already_spawned.spawned_cat = true;
+        let no_spawns =
+            super::swamp_hut_post_process(already_spawned, chunk_bb, |_, _| 70).unwrap();
+        assert!(no_spawns.entity_spawns.is_empty());
+
+        let outside_chunk = super::StructureBoundingBoxModel {
+            min_x: 100,
+            min_y: i32::MIN,
+            min_z: 100,
+            max_x: 115,
+            max_y: i32::MAX,
+            max_z: 115,
+        };
+        assert!(super::swamp_hut_post_process(piece, outside_chunk, |_, _| 70).is_none());
     }
 
     #[test]
