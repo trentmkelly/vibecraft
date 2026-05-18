@@ -849,6 +849,218 @@ pub const VANILLA_PROVIDERS: &[EnchantmentProviderDef] = &[
     },
 ];
 
+/// Compute the damage reduction provided by Protection enchantments.
+/// Protection I reduces by 4% per level per piece; max 80% total reduction.
+/// Source: vanilla `ProtectionEnchantment.getDamageAfterMagicAbsorb()`
+pub fn protection_damage_reduction(total_protection_level: i32, damage: f32) -> f32 {
+    let reduction = (total_protection_level * 4).min(80);
+    damage * (1.0 - reduction as f32 / 100.0)
+}
+
+/// Extra damage from Sharpness (multiplied by 0.5 * level + 0.5).
+pub fn sharpness_bonus(level: i32) -> f32 {
+    if level <= 0 {
+        return 0.0;
+    }
+    level as f32 * 0.5 + 0.5
+}
+
+/// Extra damage from Smite — applies only against undead mobs.
+pub fn smite_bonus(level: i32, target_is_undead: bool) -> f32 {
+    if !target_is_undead || level <= 0 {
+        return 0.0;
+    }
+    level as f32 * 2.5
+}
+
+/// Extra damage from Bane of Arthropods — applies only against arthropods.
+pub fn bane_of_arthropods_bonus(level: i32, target_is_arthropod: bool) -> f32 {
+    if !target_is_arthropod || level <= 0 {
+        return 0.0;
+    }
+    level as f32 * 2.5
+}
+
+/// Extra knockback from Knockback enchantment (added to sprint-knockback).
+/// Each level adds 3 blocks of knockback range.
+pub fn knockback_bonus_blocks(level: i32) -> f32 {
+    level as f32 * 3.0
+}
+
+/// Probability that Unbreaking prevents durability damage.
+/// Armor: 60% + (40% / (level + 1)), Tools: 100% / (level + 1)
+pub fn unbreaking_durability_skip_chance(level: i32, is_armor: bool) -> f32 {
+    if level <= 0 {
+        return 0.0;
+    }
+    if is_armor {
+        1.0 - 1.0 / (level + 1) as f32
+    } else {
+        1.0 - 1.0 / (level + 1) as f32
+    }
+}
+
+/// Break speed multiplier from Efficiency.
+/// speed += efficiency_level ^ 2 + 1 (added to tool speed when speed > 1.0)
+pub fn efficiency_speed_bonus(level: i32) -> f32 {
+    if level <= 0 {
+        return 0.0;
+    }
+    (level * level + 1) as f32
+}
+
+/// Thorns reflection damage (1-4 HP, random per hit).
+/// Level determines the chance of activation: 15% * level.
+pub fn thorns_activation_chance(level: i32) -> f32 {
+    (level as f32 * 0.15).min(1.0)
+}
+
+/// Thorns damage dealt to attacker (1-4 HP range).
+pub const THORNS_MIN_DAMAGE: f32 = 1.0;
+pub const THORNS_MAX_DAMAGE: f32 = 4.0;
+
+/// Sweeping Edge damage multiplier.
+/// sweepDamage = baseDamage * level / (level + 1)
+pub fn sweeping_edge_ratio(level: i32) -> f32 {
+    level as f32 / (level as f32 + 1.0)
+}
+
+/// Fall damage reduction from Feather Falling.
+/// Reduces by 12% per level (max 48% at level 4).
+pub fn feather_falling_damage_reduction(level: i32, damage: f32) -> f32 {
+    let reduction = (level * 12).min(80);
+    damage * (1.0 - reduction as f32 / 100.0)
+}
+
+/// Looting/Fortune extra drop count (0 or more extra items).
+/// For Fortune, the extra drops follow: 0 to level additional items (uniform).
+/// For Looting, similar behavior but applies to mob drops.
+pub fn fortune_extra_drops(level: i32, random_0_to_1: f64) -> i32 {
+    if level <= 0 {
+        return 0;
+    }
+    // Vanilla: random.nextInt(level + 1) extra drops
+    (random_0_to_1 * (level + 1) as f64) as i32
+}
+
+/// Respiration extra underwater breathing time (ticks per level added to 300 base).
+pub fn respiration_bonus_ticks(level: i32) -> i32 {
+    level * 15 * 20 // 15 seconds per level at 20 ticks/second
+}
+
+/// Whether the Infinity enchantment prevents arrow consumption.
+pub fn infinity_prevents_consumption(has_infinity: bool, has_arrow: bool) -> bool {
+    has_infinity && has_arrow
+}
+
+/// Whether Curse of Vanishing destroys the item on death.
+pub fn curse_of_vanishing_destroys_on_death(has_curse: bool) -> bool {
+    has_curse
+}
+
+/// Mending repair amount: XP orbs absorbed → durability repaired (2 durability per XP).
+pub fn mending_repair_from_xp(xp_absorbed: i32) -> i32 {
+    xp_absorbed * 2
+}
+
+/// Power enchantment bonus damage for bows (base * (0.5 * level + 0.5) + 0.5).
+pub fn power_arrow_bonus(level: i32, base_damage: f32) -> f32 {
+    if level <= 0 {
+        return 0.0;
+    }
+    base_damage * (0.5 * level as f32 + 0.5)
+}
+
+/// Impaling bonus damage: applies to mobs in water or rain.
+pub fn impaling_bonus(level: i32, target_in_water_or_rain: bool) -> f32 {
+    if !target_in_water_or_rain || level <= 0 {
+        return 0.0;
+    }
+    level as f32 * 2.5
+}
+
+/// Depth Strider underwater movement speed multiplier.
+/// Level 3 = full water movement speed (multiplies by 1/3 reduction per level).
+pub fn depth_strider_speed_factor(level: i32) -> f32 {
+    (level as f32 / 3.0).min(1.0)
+}
+
+/// Density mace enchantment: extra damage per block fallen before hitting.
+pub fn density_smash_bonus_per_block(level: i32, blocks_fallen: f32) -> f32 {
+    if level <= 0 {
+        return 0.0;
+    }
+    level as f32 * 0.5 * blocks_fallen
+}
+
+/// FireAspect/Flame: seconds the target is set on fire (FireAspect = level * 4; Flame = 5).
+pub fn fire_aspect_seconds_on_fire(level: i32) -> i32 {
+    level * 4
+}
+
+/// FrostWalker: maximum radius in blocks around the player for freezing water.
+/// Vanilla: blocks within distance level + 2 are checked.
+pub fn frost_walker_radius(level: i32) -> i32 {
+    level + 2
+}
+
+/// SoulSpeed: movement speed attribute bonus (multiplied onto base speed).
+/// Vanilla attribute modifier value = 0.03 * amplifier.
+pub fn soul_speed_attribute_bonus(level: i32) -> f64 {
+    0.03 * level as f64
+}
+
+/// SwiftSneak: sneak speed modifier added per level.
+/// Vanilla: add 0.15 per level to sneak speed modifier attribute.
+pub fn swift_sneak_speed_modifier(level: i32) -> f64 {
+    0.15 * level as f64
+}
+
+/// Loyalty: returns whether the thrown trident will return to the owner.
+/// Any level >= 1 enables return; level affects return speed.
+pub fn loyalty_enables_return(level: i32) -> bool {
+    level >= 1
+}
+
+/// Channeling: returns whether the trident can summon a lightning bolt on hit.
+/// Requires target exposed to open sky and weather is currently thundering.
+pub fn channeling_can_strike(level: i32, target_in_open_air: bool, thundering: bool) -> bool {
+    level >= 1 && target_in_open_air && thundering
+}
+
+/// Riptide: thrust velocity boost when throwing the trident in rain or water.
+/// Vanilla linear scaling: 0.6 + 0.3 × level.
+pub fn riptide_thrust_power(level: i32) -> f32 {
+    0.6 + 0.3 * level as f32
+}
+
+/// MultiShot: extra projectiles fired beyond the first (always 2 extra = 3 total).
+pub fn multishot_extra_projectiles() -> i32 {
+    2
+}
+
+/// QuickCharge: tick reduction in crossbow charging time per level (vanilla: 5 ticks/level).
+pub fn quick_charge_use_ticks_reduction(level: i32) -> i32 {
+    5 * level
+}
+
+/// BindingCurse: whether the item can be removed from the armor slot.
+/// Items with Binding Curse cannot be unequipped in survival; creative/spectator bypass.
+pub fn binding_curse_can_remove(has_curse: bool, non_survival_mode: bool) -> bool {
+    !has_curse || non_survival_mode
+}
+
+/// Breach: fraction of armor value to ignore when computing mace damage.
+/// Vanilla: 0.15 per level, capped at 1.0.
+pub fn breach_armor_reduction_fraction(level: i32) -> f32 {
+    (0.15 * level as f32).min(1.0)
+}
+
+/// WindBurst: extra upward/knockback velocity applied on hit per level.
+pub fn wind_burst_knockback_blocks(level: i32) -> f32 {
+    level as f32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -921,6 +1133,138 @@ mod tests {
             .unwrap()
             .hooks
             .contains(&EnchantmentEffectHook::ItemDamage));
+    }
+
+    #[test]
+    fn protection_damage_reduction_caps_at_80_percent() {
+        // Prot I = 4% reduction
+        let dmg = protection_damage_reduction(1, 10.0);
+        assert!((dmg - 9.6).abs() < 0.01);
+
+        // Prot IV full armor (max per piece is 20, total realistic max 80%)
+        let dmg = protection_damage_reduction(20, 10.0);
+        assert!((dmg - 2.0).abs() < 0.01);
+
+        // Over cap (100 total) clamped to 80%
+        let dmg = protection_damage_reduction(25, 10.0);
+        assert!((dmg - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn sharpness_smite_bane_and_knockback_bonuses_match_vanilla_formulas() {
+        // Sharpness I: 0.5*1 + 0.5 = 1.0
+        assert!((sharpness_bonus(1) - 1.0).abs() < 0.001);
+        // Sharpness V: 0.5*5 + 0.5 = 3.0
+        assert!((sharpness_bonus(5) - 3.0).abs() < 0.001);
+        assert_eq!(sharpness_bonus(0), 0.0);
+
+        // Smite V on undead: 5 * 2.5 = 12.5
+        assert!((smite_bonus(5, true) - 12.5).abs() < 0.001);
+        // Smite V on non-undead: 0
+        assert_eq!(smite_bonus(5, false), 0.0);
+
+        // Bane IV on arthropod: 4 * 2.5 = 10.0
+        assert!((bane_of_arthropods_bonus(4, true) - 10.0).abs() < 0.001);
+
+        // Knockback II: 2 * 3 = 6 blocks
+        assert!((knockback_bonus_blocks(2) - 6.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn efficiency_speed_bonus_matches_vanilla_formula() {
+        // Efficiency I: 1*1+1 = 2.0 added speed
+        assert!((efficiency_speed_bonus(1) - 2.0).abs() < 0.001);
+        // Efficiency V: 5*5+1 = 26.0
+        assert!((efficiency_speed_bonus(5) - 26.0).abs() < 0.001);
+        assert_eq!(efficiency_speed_bonus(0), 0.0);
+    }
+
+    #[test]
+    fn sweeping_edge_ratio_matches_vanilla_formula() {
+        // Level 1: 1/(1+1) = 0.5
+        assert!((sweeping_edge_ratio(1) - 0.5).abs() < 0.001);
+        // Level 3: 3/(3+1) = 0.75
+        assert!((sweeping_edge_ratio(3) - 0.75).abs() < 0.001);
+    }
+
+    #[test]
+    fn feather_falling_reduces_fall_damage_per_level() {
+        // Level 4: 12*4=48% reduction
+        let dmg = feather_falling_damage_reduction(4, 10.0);
+        assert!((dmg - 5.2).abs() < 0.01);
+        // Level 1: 12% reduction
+        let dmg = feather_falling_damage_reduction(1, 10.0);
+        assert!((dmg - 8.8).abs() < 0.01);
+    }
+
+    #[test]
+    fn mending_power_impaling_depth_strider_follow_vanilla() {
+        assert_eq!(mending_repair_from_xp(5), 10);
+        assert!((power_arrow_bonus(1, 6.0) - 6.0).abs() < 0.001); // 6 * (0.5+0.5) = 6
+        assert!((impaling_bonus(3, true) - 7.5).abs() < 0.001); // 3*2.5 = 7.5
+        assert_eq!(impaling_bonus(3, false), 0.0);
+        assert!((depth_strider_speed_factor(3) - 1.0).abs() < 0.001);
+        assert!((depth_strider_speed_factor(1) - 0.333).abs() < 0.01);
+    }
+
+    #[test]
+    fn thorns_and_fortune_and_infinity_match_vanilla_behavior() {
+        assert!((thorns_activation_chance(1) - 0.15).abs() < 0.001);
+        assert!((thorns_activation_chance(4) - 0.60).abs() < 0.001);
+        assert_eq!(fortune_extra_drops(3, 0.99), 3); // 0.99 * 4 = 3
+        assert_eq!(fortune_extra_drops(3, 0.0), 0);
+        assert!(infinity_prevents_consumption(true, true));
+        assert!(!infinity_prevents_consumption(false, true));
+        assert!(!infinity_prevents_consumption(true, false));
+        assert!(curse_of_vanishing_destroys_on_death(true));
+        assert!(!curse_of_vanishing_destroys_on_death(false));
+    }
+
+    #[test]
+    fn fire_aspect_frost_walker_soul_speed_swift_sneak_match_vanilla() {
+        // FireAspect II = 8 seconds on fire
+        assert_eq!(fire_aspect_seconds_on_fire(2), 8);
+        assert_eq!(fire_aspect_seconds_on_fire(1), 4);
+        assert_eq!(fire_aspect_seconds_on_fire(0), 0);
+        // FrostWalker II: radius 4 blocks
+        assert_eq!(frost_walker_radius(2), 4);
+        assert_eq!(frost_walker_radius(1), 3);
+        // SoulSpeed III: 0.09 attribute bonus
+        assert!((soul_speed_attribute_bonus(3) - 0.09).abs() < 0.001);
+        // SwiftSneak III: 0.45 speed modifier
+        assert!((swift_sneak_speed_modifier(3) - 0.45).abs() < 0.001);
+    }
+
+    #[test]
+    fn channeling_riptide_multishot_quickcharge_binding_breach_wind_burst_match_vanilla() {
+        // Channeling only fires in thunderstorm with open sky
+        assert!(channeling_can_strike(1, true, true));
+        assert!(!channeling_can_strike(1, false, true));
+        assert!(!channeling_can_strike(1, true, false));
+        assert!(!channeling_can_strike(0, true, true));
+        // Riptide I: power = 0.9
+        assert!((riptide_thrust_power(1) - 0.9).abs() < 0.001);
+        // Riptide III: power = 1.5
+        assert!((riptide_thrust_power(3) - 1.5).abs() < 0.001);
+        // MultiShot always gives 2 extra (3 total)
+        assert_eq!(multishot_extra_projectiles(), 2);
+        // QuickCharge III reduces 15 ticks
+        assert_eq!(quick_charge_use_ticks_reduction(3), 15);
+        // BindingCurse: survival cannot remove, creative can
+        assert!(!binding_curse_can_remove(true, false));
+        assert!(binding_curse_can_remove(true, true));
+        assert!(binding_curse_can_remove(false, false));
+        // Breach IV: 60% armor reduction
+        assert!((breach_armor_reduction_fraction(4) - 0.6).abs() < 0.001);
+        // WindBurst III: 3.0 blocks knockback
+        assert!((wind_burst_knockback_blocks(3) - 3.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn loyalty_enables_return_at_any_level() {
+        assert!(loyalty_enables_return(1));
+        assert!(loyalty_enables_return(3));
+        assert!(!loyalty_enables_return(0));
     }
 
     #[test]

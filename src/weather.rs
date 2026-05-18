@@ -299,6 +299,99 @@ fn lerp(delta: f32, from: f32, to: f32) -> f32 {
     from + delta * (to - from)
 }
 
+/// Return the sky light reduction for the current weather state.
+///
+/// Source: `ServerLevel.getSkyDarken()` — CLEAR=0, RAIN=5, THUNDER=5
+/// Effective sky light = 15 - sky_darken_amount.
+pub fn sky_darken_amount(raining: bool, thundering: bool) -> i32 {
+    if raining || thundering {
+        5
+    } else {
+        0
+    }
+}
+
+/// Full sky light level accounting for weather.
+pub fn effective_sky_light(raining: bool, thundering: bool) -> i32 {
+    15 - sky_darken_amount(raining, thundering)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SunburnableMobKind {
+    Skeleton,
+    Zombie,
+    Phantom,
+    Drowned,
+    ZombieVillager,
+    Husk,
+    Stray,
+    ZombifiedPiglin,
+    Bogged,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MobSunburnContext {
+    pub kind: SunburnableMobKind,
+    pub wearing_helmet: bool,
+    pub in_water: bool,
+    pub in_powder_snow: bool,
+    /// The block sky light level at the mob's position (0-15)
+    pub sky_light_at_pos: i32,
+    pub raining: bool,
+    pub day_cycle_time: i64, // 0-23999 ticks within the day
+    pub can_see_sky: bool,
+}
+
+/// Returns true if the mob should catch fire this tick due to sunlight.
+///
+/// Source: vanilla `Monster.isSunBurnTick()` and mob-specific overrides.
+/// Day time in vanilla is when day_cycle_time is between 0 and 12000 or 23000-24000.
+pub fn mob_should_burn_in_sunlight(ctx: MobSunburnContext) -> bool {
+    if ctx.raining {
+        return false;
+    }
+    if !is_daytime(ctx.day_cycle_time) {
+        return false;
+    }
+    if ctx.wearing_helmet {
+        return false;
+    }
+    if ctx.in_water || ctx.in_powder_snow {
+        return false;
+    }
+    if !ctx.can_see_sky {
+        return false;
+    }
+    // Sky light < 15 means in shade (under blocks, trees, etc.)
+    if ctx.sky_light_at_pos < 15 {
+        return false;
+    }
+    true
+}
+
+/// Returns true when the in-game time corresponds to daytime.
+///
+/// Vanilla daytime: day_cycle_time < 13000 (dawn) or > 23000 (pre-dawn).
+pub fn is_daytime(day_cycle_time: i64) -> bool {
+    // In vanilla: isDay() = dayTime < 13000L
+    day_cycle_time < 13_000
+}
+
+/// Returns true when a mob of the given kind is sun-sensitive.
+pub fn is_sun_sensitive(kind: SunburnableMobKind) -> bool {
+    matches!(
+        kind,
+        SunburnableMobKind::Skeleton
+            | SunburnableMobKind::Zombie
+            | SunburnableMobKind::Phantom
+            | SunburnableMobKind::Drowned
+            | SunburnableMobKind::ZombieVillager
+            | SunburnableMobKind::Husk
+            | SunburnableMobKind::Stray
+            | SunburnableMobKind::Bogged
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -475,5 +568,85 @@ mod tests {
             choose_lightning_target((0, -1, 0), 0, 320, None, &[], 0),
             LightningTarget::Heightmap { x: 0, y: 1, z: 0 }
         );
+    }
+
+    #[test]
+    fn sky_darken_amount_matches_vanilla_clear_rain_thunder() {
+        assert_eq!(sky_darken_amount(false, false), 0);
+        assert_eq!(sky_darken_amount(true, false), 5);
+        assert_eq!(sky_darken_amount(false, true), 5);
+        assert_eq!(sky_darken_amount(true, true), 5);
+        assert_eq!(effective_sky_light(false, false), 15);
+        assert_eq!(effective_sky_light(true, false), 10);
+        assert_eq!(effective_sky_light(false, true), 10);
+    }
+
+    #[test]
+    fn mob_sunburn_conditions_match_vanilla_monster_tick_rules() {
+        let clear_day_exposed = MobSunburnContext {
+            kind: SunburnableMobKind::Skeleton,
+            wearing_helmet: false,
+            in_water: false,
+            in_powder_snow: false,
+            sky_light_at_pos: 15,
+            raining: false,
+            day_cycle_time: 6_000,
+            can_see_sky: true,
+        };
+
+        // Skeleton in daylight, exposed → burns
+        assert!(mob_should_burn_in_sunlight(clear_day_exposed));
+
+        // Wearing helmet → no burn
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            wearing_helmet: true,
+            ..clear_day_exposed
+        }));
+
+        // In water → no burn
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            in_water: true,
+            ..clear_day_exposed
+        }));
+
+        // Raining → no burn
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            raining: true,
+            ..clear_day_exposed
+        }));
+
+        // Nighttime (14000) → no burn
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            day_cycle_time: 14_000,
+            ..clear_day_exposed
+        }));
+
+        // Under shade (sky light < 15) → no burn
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            sky_light_at_pos: 14,
+            ..clear_day_exposed
+        }));
+
+        // Cannot see sky → no burn
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            can_see_sky: false,
+            ..clear_day_exposed
+        }));
+
+        // Daytime check boundaries
+        assert!(is_daytime(0));
+        assert!(is_daytime(12_999));
+        assert!(!is_daytime(13_000));
+        assert!(!is_daytime(18_000));
+    }
+
+    #[test]
+    fn sun_sensitive_mob_kinds_cover_vanilla_mob_list() {
+        assert!(is_sun_sensitive(SunburnableMobKind::Skeleton));
+        assert!(is_sun_sensitive(SunburnableMobKind::Zombie));
+        assert!(is_sun_sensitive(SunburnableMobKind::Phantom));
+        assert!(is_sun_sensitive(SunburnableMobKind::Stray));
+        assert!(is_sun_sensitive(SunburnableMobKind::Drowned));
+        assert!(!is_sun_sensitive(SunburnableMobKind::ZombifiedPiglin));
     }
 }

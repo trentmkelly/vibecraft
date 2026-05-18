@@ -507,6 +507,76 @@ pub fn serialization_flags(ambient: bool, visible: bool, show_icon: bool) -> u8 
     u8::from(ambient) | (u8::from(visible) << 1) | (u8::from(show_icon) << 2)
 }
 
+/// NBT-serializable representation of a status effect instance for playerdata.
+///
+/// Source: `MobEffectInstance.save(DataOutput)` / `MobEffectInstance.load(DataInput)`
+/// from `decompiled-server-26.1.2/net/minecraft/world/effect/MobEffectInstance.java`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatusEffectNbt {
+    pub id: String,
+    pub amplifier: u8,
+    pub duration: i32,
+    pub ambient: bool,
+    pub show_particles: bool,
+    pub show_icon: bool,
+    pub hidden_effect: Option<Box<StatusEffectNbt>>,
+}
+
+impl StatusEffectNbt {
+    /// Serialize a `StatusEffectInstance` into its NBT form.
+    pub fn from_instance(instance: &StatusEffectInstance) -> Self {
+        Self {
+            id: instance.id.to_string(),
+            amplifier: instance.amplifier,
+            duration: instance.duration,
+            ambient: instance.ambient,
+            show_particles: instance.visible,
+            show_icon: instance.show_icon,
+            hidden_effect: instance
+                .hidden
+                .as_ref()
+                .map(|h| Box::new(Self::from_instance(h))),
+        }
+    }
+
+    /// Deserialize back into a `StatusEffectInstance`.
+    ///
+    /// Returns `None` if the effect ID is not recognized in the registry.
+    pub fn to_instance(&self) -> Option<StatusEffectInstance> {
+        // Look up the effect id in the static registry to get the &'static str
+        let def = status_effect(&self.id)?;
+        let mut instance = StatusEffectInstance {
+            id: def.id,
+            duration: self.duration,
+            amplifier: self.amplifier,
+            ambient: self.ambient,
+            visible: self.show_particles,
+            show_icon: self.show_icon,
+            hidden: None,
+        };
+        if let Some(hidden_nbt) = &self.hidden_effect {
+            instance.hidden = hidden_nbt.to_instance().map(Box::new);
+        }
+        Some(instance)
+    }
+}
+
+/// Serialize a list of active effects to their NBT forms.
+pub fn serialize_active_effects(instances: &[StatusEffectInstance]) -> Vec<StatusEffectNbt> {
+    instances
+        .iter()
+        .map(StatusEffectNbt::from_instance)
+        .collect()
+}
+
+/// Deserialize active effects from NBT, skipping unknown effect IDs.
+pub fn deserialize_active_effects(nbt_list: &[StatusEffectNbt]) -> Vec<StatusEffectInstance> {
+    nbt_list
+        .iter()
+        .filter_map(|nbt| nbt.to_instance())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -618,5 +688,109 @@ mod tests {
         assert_eq!(particle_alpha(true), 38);
         assert_eq!(serialization_flags(false, true, true), 0b110);
         assert_eq!(serialization_flags(true, false, true), 0b101);
+    }
+
+    #[test]
+    fn effect_nbt_serialization_round_trips_all_fields_including_hidden() {
+        let mut original = StatusEffectInstance::new("minecraft:speed", 200, 1);
+        original.ambient = true;
+        original.visible = false;
+        original.show_icon = false;
+        original.hidden = Some(Box::new(StatusEffectInstance::new(
+            "minecraft:speed",
+            400,
+            0,
+        )));
+
+        let nbt = StatusEffectNbt::from_instance(&original);
+        assert_eq!(nbt.id, "minecraft:speed");
+        assert_eq!(nbt.amplifier, 1);
+        assert_eq!(nbt.duration, 200);
+        assert!(nbt.ambient);
+        assert!(!nbt.show_particles);
+        assert!(!nbt.show_icon);
+        assert!(nbt.hidden_effect.is_some());
+        let hidden = nbt.hidden_effect.as_ref().unwrap();
+        assert_eq!(hidden.amplifier, 0);
+        assert_eq!(hidden.duration, 400);
+
+        let restored = nbt.to_instance().unwrap();
+        assert_eq!(restored.id, "minecraft:speed");
+        assert_eq!(restored.amplifier, 1);
+        assert_eq!(restored.duration, 200);
+        assert!(restored.ambient);
+        assert!(!restored.visible);
+        assert!(!restored.show_icon);
+        let restored_hidden = restored.hidden.as_ref().unwrap();
+        assert_eq!(restored_hidden.amplifier, 0);
+        assert_eq!(restored_hidden.duration, 400);
+    }
+
+    #[test]
+    fn serialize_and_deserialize_active_effects_list_skips_unknown_ids() {
+        let effects = vec![
+            StatusEffectInstance::new("minecraft:speed", 100, 0),
+            StatusEffectInstance::new("minecraft:poison", 200, 1),
+        ];
+        let nbt_list = serialize_active_effects(&effects);
+        assert_eq!(nbt_list.len(), 2);
+
+        let restored = deserialize_active_effects(&nbt_list);
+        assert_eq!(restored.len(), 2);
+        assert_eq!(restored[0].id, "minecraft:speed");
+        assert_eq!(restored[1].id, "minecraft:poison");
+
+        // Unknown ID is skipped
+        let unknown = StatusEffectNbt {
+            id: "unknown:mystery".to_string(),
+            amplifier: 0,
+            duration: 100,
+            ambient: false,
+            show_particles: true,
+            show_icon: true,
+            hidden_effect: None,
+        };
+        let partial = deserialize_active_effects(&[unknown]);
+        assert!(partial.is_empty());
+    }
+
+    #[test]
+    fn regeneration_tick_interval_per_amplifier_matches_vanilla() {
+        // Regen I (amplifier=0): interval = 50 >> 0 = 50 ticks
+        // tick_action at tick 50 → fires, at tick 49 → doesn't
+        assert_eq!(
+            tick_action("minecraft:regeneration", 50, 0, 10.0, 20.0, false),
+            Some(EffectAction::Heal(1.0))
+        );
+        assert_eq!(
+            tick_action("minecraft:regeneration", 49, 0, 10.0, 20.0, false),
+            None
+        );
+
+        // Regen II (amplifier=1): interval = 50 >> 1 = 25 ticks
+        assert_eq!(
+            tick_action("minecraft:regeneration", 25, 1, 10.0, 20.0, false),
+            Some(EffectAction::Heal(1.0))
+        );
+        assert_eq!(
+            tick_action("minecraft:regeneration", 24, 1, 10.0, 20.0, false),
+            None
+        );
+
+        // Regen V (amplifier=4): interval = 50 >> 4 = 3 ticks
+        assert_eq!(
+            tick_action("minecraft:regeneration", 3, 4, 10.0, 20.0, false),
+            Some(EffectAction::Heal(1.0))
+        );
+        assert_eq!(
+            tick_action("minecraft:regeneration", 2, 4, 10.0, 20.0, false),
+            None
+        );
+
+        // Healing at full health → None
+        assert_eq!(
+            tick_action("minecraft:regeneration", 50, 0, 20.0, 20.0, false),
+            None
+        );
     }
 }

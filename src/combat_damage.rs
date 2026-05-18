@@ -210,6 +210,229 @@ pub fn command_damage(amount: f32) -> Option<f32> {
     (amount >= 0.0).then_some(amount)
 }
 
+// ---------------------------------------------------------------------------
+// CombatTracker
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CombatEntry {
+    pub source: &'static str,
+    pub attacker_type: Option<&'static str>, // entity type id or None
+    pub attacker_name: Option<String>,
+    pub damage: f32,
+    pub fell_from_height: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CombatTracker {
+    pub entries: Vec<CombatEntry>,
+    pub in_combat: bool,
+    pub taking_damage: bool,
+}
+
+impl CombatTracker {
+    pub fn record_damage(
+        &mut self,
+        source: &'static str,
+        attacker_type: Option<&'static str>,
+        attacker_name: Option<String>,
+        damage: f32,
+    ) {
+        self.in_combat = true;
+        self.taking_damage = true;
+        self.entries.push(CombatEntry {
+            source,
+            attacker_type,
+            attacker_name,
+            damage,
+            fell_from_height: 0.0,
+        });
+    }
+
+    pub fn record_fall(&mut self, source: &'static str, fell_from_height: f32) {
+        // Find the last combat entry if recent, else new entry
+        self.entries.push(CombatEntry {
+            source,
+            attacker_type: None,
+            attacker_name: None,
+            damage: 0.0,
+            fell_from_height,
+        });
+    }
+
+    /// Get the death message type key from the last relevant entry.
+    /// This mirrors DamageType.deathMessageType() used in CombatTracker.getDeathMessage().
+    pub fn get_death_message_key(&self) -> &'static str {
+        let last = self.entries.last();
+        let source = last.map(|e| e.source).unwrap_or("minecraft:generic");
+        let has_attacker = last.and_then(|e| e.attacker_type).is_some();
+        death_message_key(
+            source,
+            has_attacker,
+            last.map(|e| e.fell_from_height).unwrap_or(0.0),
+        )
+    }
+
+    pub fn reset(&mut self) {
+        self.entries.clear();
+        self.in_combat = false;
+        self.taking_damage = false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Death message keys
+// ---------------------------------------------------------------------------
+
+pub fn death_message_key(source: &str, has_attacker: bool, fell_from_height: f32) -> &'static str {
+    match source {
+        "minecraft:fall" | "minecraft:fell_out_of_world" => {
+            if fell_from_height > 5.0 {
+                "death.fell.accident.generic"
+            } else {
+                "death.attack.fall"
+            }
+        }
+        "minecraft:in_fire" => "death.attack.inFire",
+        "minecraft:on_fire" => "death.attack.onFire",
+        "minecraft:lava" => "death.attack.lava",
+        "minecraft:in_wall" => "death.attack.inWall",
+        "minecraft:drown" => "death.attack.drown",
+        "minecraft:starve" => "death.attack.starve",
+        "minecraft:cactus" => "death.attack.cactus",
+        "minecraft:lightning_bolt" => "death.attack.lightningBolt",
+        "minecraft:magic" => "death.attack.magic",
+        "minecraft:wither" => "death.attack.wither",
+        "minecraft:anvil" => "death.attack.anvil",
+        "minecraft:falling_block" => "death.attack.fallingBlock",
+        "minecraft:fly_into_wall" => "death.attack.flyIntoWall",
+        "minecraft:out_of_world" => "death.attack.outOfWorld",
+        "minecraft:generic" => "death.attack.generic",
+        "minecraft:mob_attack" | "minecraft:mob_attack_no_aggro" => {
+            if has_attacker {
+                "death.attack.mob"
+            } else {
+                "death.attack.generic"
+            }
+        }
+        "minecraft:player_attack" => {
+            if has_attacker {
+                "death.attack.player"
+            } else {
+                "death.attack.generic"
+            }
+        }
+        "minecraft:arrow" => {
+            if has_attacker {
+                "death.attack.arrow"
+            } else {
+                "death.attack.arrow.item"
+            }
+        }
+        "minecraft:fireball" => {
+            if has_attacker {
+                "death.attack.fireball"
+            } else {
+                "death.attack.fireball.item"
+            }
+        }
+        "minecraft:explosion" | "minecraft:player_explosion" => {
+            if has_attacker {
+                "death.attack.explosion.player"
+            } else {
+                "death.attack.explosion"
+            }
+        }
+        "minecraft:freeze" => "death.attack.freeze",
+        "minecraft:thorns" => "death.attack.thorns",
+        "minecraft:falling_stalactite" => "death.attack.fallingStalactite",
+        "minecraft:stalagmite" => "death.attack.stalagmite",
+        _ => "death.attack.generic",
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shield blocking
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShieldBlockState {
+    pub blocking: bool,
+    pub block_cooldown: i32, // 5-tick cooldown after strong hit (100 HP)
+    pub look_yaw: f32,       // player's horizontal look angle for arc check
+}
+
+impl Default for ShieldBlockState {
+    fn default() -> Self {
+        Self {
+            blocking: false,
+            block_cooldown: 0,
+            look_yaw: 0.0,
+        }
+    }
+}
+
+impl ShieldBlockState {
+    pub fn is_blocking_effectively(&self) -> bool {
+        self.blocking && self.block_cooldown <= 0
+    }
+
+    pub fn tick_cooldown(&mut self) {
+        if self.block_cooldown > 0 {
+            self.block_cooldown -= 1;
+        }
+    }
+}
+
+/// Compute the fraction of damage blocked by a shield.
+/// `attack_yaw` is the direction the attack comes from (degrees).
+/// The shield blocks within a 180-degree arc in front of the player.
+/// For projectiles: 100% blocked if in arc.
+/// For melee: 100% blocked if damage < strong_hit_threshold AND in arc.
+/// After blocking a strong hit (>= strong_hit_threshold), apply 5-tick cooldown.
+pub fn shield_block_result(
+    state: &mut ShieldBlockState,
+    incoming_damage: f32,
+    is_projectile: bool,
+    attack_yaw: f32,
+    strong_hit_threshold: f32,
+) -> f32 {
+    if !state.is_blocking_effectively() {
+        return incoming_damage;
+    }
+
+    // Check arc: attack must be within 180 degrees of shield face (opposite of look)
+    let angle_diff = normalize_angle(attack_yaw - state.look_yaw);
+    if angle_diff.abs() > 90.0 {
+        // Attack from behind — shield does not block
+        return incoming_damage;
+    }
+
+    if is_projectile {
+        // Projectiles blocked completely
+        0.0
+    } else {
+        // Melee: blocked if damage < strong_hit_threshold
+        if incoming_damage >= strong_hit_threshold {
+            // Strong hit disables shield temporarily
+            state.block_cooldown = 5;
+            incoming_damage
+        } else {
+            0.0
+        }
+    }
+}
+
+fn normalize_angle(mut angle: f32) -> f32 {
+    while angle > 180.0 {
+        angle -= 360.0;
+    }
+    while angle < -180.0 {
+        angle += 360.0;
+    }
+    angle
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,5 +591,156 @@ mod tests {
         assert_eq!(environmental_damage(CombatDamageKind::Void), Some(4.0));
         assert_eq!(environmental_damage(CombatDamageKind::WorldBorder), None);
         assert_eq!(environmental_damage(CombatDamageKind::Command), None);
+    }
+
+    #[test]
+    fn death_message_keys_match_vanilla_localization_for_all_sources() {
+        assert_eq!(
+            death_message_key("minecraft:fall", false, 1.0),
+            "death.attack.fall"
+        );
+        assert_eq!(
+            death_message_key("minecraft:fall", false, 6.0),
+            "death.fell.accident.generic"
+        );
+        assert_eq!(
+            death_message_key("minecraft:drown", false, 0.0),
+            "death.attack.drown"
+        );
+        assert_eq!(
+            death_message_key("minecraft:in_fire", false, 0.0),
+            "death.attack.inFire"
+        );
+        assert_eq!(
+            death_message_key("minecraft:on_fire", false, 0.0),
+            "death.attack.onFire"
+        );
+        assert_eq!(
+            death_message_key("minecraft:in_wall", false, 0.0),
+            "death.attack.inWall"
+        );
+        assert_eq!(
+            death_message_key("minecraft:starve", false, 0.0),
+            "death.attack.starve"
+        );
+        assert_eq!(
+            death_message_key("minecraft:wither", false, 0.0),
+            "death.attack.wither"
+        );
+        assert_eq!(
+            death_message_key("minecraft:out_of_world", false, 0.0),
+            "death.attack.outOfWorld"
+        );
+        assert_eq!(
+            death_message_key("minecraft:player_attack", true, 0.0),
+            "death.attack.player"
+        );
+        assert_eq!(
+            death_message_key("minecraft:arrow", true, 0.0),
+            "death.attack.arrow"
+        );
+        assert_eq!(
+            death_message_key("minecraft:arrow", false, 0.0),
+            "death.attack.arrow.item"
+        );
+        assert_eq!(
+            death_message_key("minecraft:explosion", false, 0.0),
+            "death.attack.explosion"
+        );
+        assert_eq!(
+            death_message_key("minecraft:explosion", true, 0.0),
+            "death.attack.explosion.player"
+        );
+        assert_eq!(
+            death_message_key("minecraft:fireball", true, 0.0),
+            "death.attack.fireball"
+        );
+        assert_eq!(
+            death_message_key("minecraft:mob_attack", true, 0.0),
+            "death.attack.mob"
+        );
+    }
+
+    #[test]
+    fn shield_blocks_projectile_in_arc_and_strong_hit_disables_shield() {
+        let mut shield = ShieldBlockState {
+            blocking: true,
+            block_cooldown: 0,
+            look_yaw: 0.0,
+        };
+
+        // Projectile from front (angle 0) → fully blocked
+        let remaining = shield_block_result(&mut shield, 5.0, true, 0.0, 8.0);
+        assert_eq!(remaining, 0.0);
+
+        // Projectile from behind (angle 180) → not blocked
+        let remaining = shield_block_result(&mut shield, 5.0, true, 180.0, 8.0);
+        assert_eq!(remaining, 5.0);
+
+        // Melee weak hit from front → blocked
+        let remaining = shield_block_result(&mut shield, 3.0, false, 0.0, 8.0);
+        assert_eq!(remaining, 0.0);
+        assert_eq!(shield.block_cooldown, 0);
+
+        // Melee strong hit → not blocked, sets cooldown
+        let remaining = shield_block_result(&mut shield, 10.0, false, 0.0, 8.0);
+        assert_eq!(remaining, 10.0);
+        assert_eq!(shield.block_cooldown, 5);
+
+        // During cooldown: shield disabled
+        assert!(!shield.is_blocking_effectively());
+        shield.tick_cooldown();
+        assert_eq!(shield.block_cooldown, 4);
+    }
+
+    #[test]
+    fn combat_tracker_records_damage_and_builds_death_message() {
+        let mut tracker = CombatTracker::default();
+        tracker.record_damage(
+            "minecraft:mob_attack",
+            Some("minecraft:zombie"),
+            Some("Zombie".to_string()),
+            8.0,
+        );
+        assert_eq!(tracker.entries.len(), 1);
+        assert_eq!(tracker.get_death_message_key(), "death.attack.mob");
+
+        tracker.reset();
+        assert!(tracker.entries.is_empty());
+        assert!(!tracker.in_combat);
+
+        tracker.record_damage(
+            "minecraft:player_attack",
+            Some("minecraft:player"),
+            Some("Steve".to_string()),
+            6.0,
+        );
+        assert_eq!(tracker.get_death_message_key(), "death.attack.player");
+    }
+
+    #[test]
+    fn armor_mitigation_parity_iron_chestplate_vs_full_diamond() {
+        // Iron chestplate: 8 armor points, 0 toughness
+        // Full diamond: 20 armor points, 8 toughness
+        // Test with representative damage values: 10, 20 HP
+
+        let iron_10 = damage_after_armor(10.0, 8.0, 0.0);
+        let diamond_10 = damage_after_armor(10.0, 20.0, 8.0);
+
+        // Iron: effective_armor = clamp(8 - 10/2, 8*0.2, 20) = clamp(3, 1.6, 20) = 3
+        // damage = 10 * (1 - 3/25) = 10 * 0.88 = 8.8
+        assert!((iron_10 - 8.8).abs() < 0.01, "iron 10hp: {iron_10}");
+
+        // Diamond: effective_armor = clamp(20 - 10/(2+8/4), 20*0.2, 20) = clamp(20-2.5, 4, 20) = clamp(17.5, 4, 20) = 17.5
+        // damage = 10 * (1 - 17.5/25) = 10 * 0.3 = 3.0
+        assert!(
+            (diamond_10 - 3.0).abs() < 0.01,
+            "diamond 10hp: {diamond_10}"
+        );
+
+        let iron_20 = damage_after_armor(20.0, 8.0, 0.0);
+        // Iron: effective_armor = clamp(8 - 20/2, 1.6, 20) = clamp(-2, 1.6, 20) = 1.6
+        // damage = 20 * (1 - 1.6/25) = 20 * 0.936 = 18.72
+        assert!((iron_20 - 18.72).abs() < 0.01, "iron 20hp: {iron_20}");
     }
 }

@@ -353,6 +353,106 @@ fn lerp(progress: f64, from: f64, to: f64) -> f64 {
     from + progress * (to - from)
 }
 
+/// Returns true if the warning overlay should be shown for a player at the given position.
+///
+/// Source: `WorldBorder.isWithinWarningDistance()` and `WorldBorder.isWithinWarningTime()`.
+/// The warning triggers if:
+/// - The player is closer to the border than `warning_blocks` (distance-based), OR
+/// - The lerp speed is non-zero and time-to-reach-border < `warning_time` seconds
+///   (time-based, for shrinking borders)
+pub fn should_show_warning(border: &WorldBorder, x: f64, z: f64) -> bool {
+    let dist = border.distance_to_border(x, z);
+    if dist < f64::from(border.warning_blocks) {
+        return true;
+    }
+    let speed = border.lerp_speed();
+    if speed > 0.0 {
+        let time_to_reach = dist / (speed * 20.0); // speed is blocks/tick, *20 = blocks/second
+        if time_to_reach < f64::from(border.warning_time) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Packet data for initializing the border on client join.
+/// Maps to `ClientboundInitializeBorderPacket` (0x23 in 1.21.x).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderInitPacket {
+    pub new_absolute_max_size: i32,
+    pub center_x: f64,
+    pub center_z: f64,
+    pub old_size: f64,
+    pub new_size: f64,
+    pub lerp_time: i64,
+    pub warning_blocks: i32,
+    pub warning_time: i32,
+    pub damage_per_block: f64,
+    pub safe_zone: f64,
+}
+
+/// Packet data for updating border size only.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderSizePacket {
+    pub old_size: f64,
+    pub new_size: f64,
+    pub lerp_time: i64,
+}
+
+/// Packet data for updating border center only.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderCenterPacket {
+    pub center_x: f64,
+    pub center_z: f64,
+}
+
+/// Packet data for updating warning distance.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderWarningDistancePacket {
+    pub warning_blocks: i32,
+}
+
+/// Packet data for updating warning time.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderWarningTimePacket {
+    pub warning_time: i32,
+}
+
+impl WorldBorder {
+    /// Build the ClientboundInitializeBorderPacket data for this border state.
+    pub fn to_init_packet(&self) -> BorderInitPacket {
+        BorderInitPacket {
+            new_absolute_max_size: self.absolute_max_size,
+            center_x: self.center_x,
+            center_z: self.center_z,
+            old_size: self.size(),
+            new_size: self.lerp_target(),
+            lerp_time: self.lerp_time(),
+            warning_blocks: self.warning_blocks,
+            warning_time: self.warning_time,
+            damage_per_block: self.damage_per_block,
+            safe_zone: self.safe_zone,
+        }
+    }
+
+    /// Build the size update packet for a lerp size change.
+    pub fn to_size_packet(&self) -> BorderSizePacket {
+        BorderSizePacket {
+            old_size: self.size(),
+            new_size: self.lerp_target(),
+            lerp_time: self.lerp_time(),
+        }
+    }
+
+    /// Build the center update packet.
+    pub fn to_center_packet(&self) -> BorderCenterPacket {
+        BorderCenterPacket {
+            center_x: self.center_x,
+            center_z: self.center_z,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -517,5 +617,87 @@ mod tests {
                 pitch: 10.0
             }
         );
+    }
+
+    #[test]
+    fn should_show_warning_triggers_on_distance_and_lerp_time() {
+        use super::{should_show_warning, WorldBorder};
+
+        let mut border = WorldBorder::default();
+        border.set_size(100.0);
+        border.set_center(0.0, 0.0);
+        border.warning_blocks = 10;
+        border.warning_time = 15;
+
+        // Player at (40, 0) — distance to border edge = 50-40 = 10; exactly at warning_blocks threshold
+        // should_show_warning is true for dist < warning_blocks (strictly less)
+        assert!(!should_show_warning(&border, 40.0, 0.0));
+
+        // Player at (41, 0) — dist = 9 < 10 → warning
+        assert!(should_show_warning(&border, 41.0, 0.0));
+
+        // Player far from border — no warning distance, no lerp → no warning
+        assert!(!should_show_warning(&border, 0.0, 0.0));
+
+        // Lerp: border shrinking at 2 blocks/tick = 40 blocks/sec
+        // Player at (0, 0) — dist = 50; time to reach = 50/40 = 1.25s < 15s → warning
+        border.lerp_size_between(100.0, 0.0, 100);
+        assert!(should_show_warning(&border, 0.0, 0.0));
+    }
+
+    #[test]
+    fn border_init_packet_reflects_all_border_state_fields() {
+        use super::{WorldBorder, WorldBorderSettings};
+
+        let settings = WorldBorderSettings {
+            center_x: 10.0,
+            center_z: -5.0,
+            size: 200.0,
+            damage_per_block: 0.5,
+            safe_zone: 3.0,
+            warning_blocks: 8,
+            warning_time: 20,
+            lerp_time: 0,
+            lerp_target: 0.0,
+        };
+        let border = WorldBorder::from_settings(settings, 0);
+        let packet = border.to_init_packet();
+
+        assert_eq!(packet.center_x, 10.0);
+        assert_eq!(packet.center_z, -5.0);
+        assert_eq!(packet.old_size, 200.0);
+        assert_eq!(packet.new_size, 200.0);
+        assert_eq!(packet.lerp_time, 0);
+        assert_eq!(packet.warning_blocks, 8);
+        assert_eq!(packet.warning_time, 20);
+        assert_eq!(packet.damage_per_block, 0.5);
+        assert_eq!(packet.safe_zone, 3.0);
+    }
+
+    #[test]
+    fn world_border_damage_parity_rate_is_0_2_per_block_outside_buffer() {
+        use super::WorldBorder;
+
+        let mut border = WorldBorder::default();
+        border.set_size(20.0);
+        border.set_center(0.0, 0.0);
+        border.safe_zone = 5.0;
+        border.damage_per_block = 0.2;
+
+        // At border edge (10 blocks from center, safe zone = 5):
+        // distance_to_border = 0, effective = 0 + 5 = 5 > 0 → no damage
+        assert_eq!(border.out_of_border_damage(10.0, 0.0), None);
+
+        // 5 blocks past border edge: distance_to_border = -5, effective = -5 + 5 = 0 → no damage
+        assert_eq!(border.out_of_border_damage(15.0, 0.0), None);
+
+        // 6 blocks past border edge: effective = -6 + 5 = -1 → damage = max(1, floor(1 * 0.2)) = 1
+        assert_eq!(border.out_of_border_damage(16.0, 0.0), Some(1));
+
+        // 10 blocks past border edge: effective = -10 + 5 = -5 → damage = max(1, floor(5 * 0.2)) = 1
+        assert_eq!(border.out_of_border_damage(20.0, 0.0), Some(1));
+
+        // 30 blocks past border edge: effective = -30 + 5 = -25 → damage = max(1, floor(25 * 0.2)) = 5
+        assert_eq!(border.out_of_border_damage(40.0, 0.0), Some(5));
     }
 }

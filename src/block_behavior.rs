@@ -315,13 +315,186 @@ fn state_has_block_entity(registry_id: &str) -> bool {
     BlockStateModel::new(registry_id).has_block_entity()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InteractionResult {
+    /// Interaction was successful; item is consumed (plays animation)
+    Success,
+    /// Interaction succeeded but item is not considered "used" for stats
+    SuccessServer,
+    /// Item was consumed (food, potion)
+    Consume,
+    /// Item was partially consumed
+    ConsumePartial,
+    /// Neither block nor item handled this; try the other
+    Pass,
+    /// The interaction explicitly failed (e.g. locked chest)
+    Fail,
+    /// Re-attempt with empty hand
+    TryWithEmptyHand,
+}
+
+impl InteractionResult {
+    pub fn is_success(self) -> bool {
+        matches!(
+            self,
+            Self::Success | Self::SuccessServer | Self::Consume | Self::ConsumePartial
+        )
+    }
+
+    pub fn should_swing_hand(self) -> bool {
+        matches!(self, Self::Success | Self::SuccessServer)
+    }
+
+    pub fn consumes_action(self) -> bool {
+        matches!(self, Self::Consume | Self::ConsumePartial)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockUseContext {
+    pub pos: crate::block_update::BlockPos,
+    pub face: crate::block_update::Direction,
+    pub hand: BlockUseHand,
+    pub sneaking: bool,
+    pub block_id: &'static str,
+    pub held_item_id: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockUseHand {
+    MainHand,
+    OffHand,
+}
+
+/// Dispatch a right-click use action.
+///
+/// Mirrors ServerPlayerGameMode.useItemOn():
+/// 1. If not sneaking: route to block.useItemOn() first (returns block InteractionResult)
+/// 2. If block returns PASS (or player is sneaking): try item use
+/// 3. Empty hand → PASS
+///
+/// `block_use_fn` models `blockState.useItemOn(stack, level, pos, player, hand, hitResult)`.
+/// `item_use_fn` models `stack.useOn(context)`.
+pub fn dispatch_block_use(
+    ctx: &BlockUseContext,
+    block_use_fn: impl FnOnce(&BlockUseContext) -> InteractionResult,
+    item_use_fn: impl FnOnce(&BlockUseContext) -> InteractionResult,
+) -> InteractionResult {
+    // 1. Try block use (unless sneaking with item — vanilla skips block use only when the item
+    //    overrides it, but we model the sneak-bypass here)
+    if !ctx.sneaking || ctx.held_item_id.is_none() {
+        let result = block_use_fn(ctx);
+        if result != InteractionResult::Pass {
+            return result;
+        }
+    }
+
+    // 2. Try item use
+    if let Some(_item) = ctx.held_item_id {
+        item_use_fn(ctx)
+    } else {
+        InteractionResult::Pass
+    }
+}
+
+/// Dispatch a left-click attack action on a block.
+///
+/// In vanilla this triggers `blockState.attack(level, pos, player)` — used for
+/// decorative/interactive on-attack effects (e.g. note block pitch display on attack).
+/// Returns whether the block handled the attack (true = block consumed it).
+pub fn dispatch_block_attack(_pos: crate::block_update::BlockPos, block_id: &str) -> bool {
+    // In vanilla, only a small set of blocks have non-empty attack() implementations.
+    // Note blocks trigger a sound on attack; no other common blocks do.
+    matches!(block_id, "minecraft:note_block")
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacementValidationContext {
+    pub target_pos: crate::block_update::BlockPos,
+    pub player_pos: (f64, f64, f64),
+    pub player_eye_pos: (f64, f64, f64),
+    pub game_mode: PlacementGameMode,
+    /// Whether the target block can survive at its position (block-specific check)
+    pub can_survive: bool,
+    /// Whether any entity occupies the placement position
+    pub entity_collision: bool,
+    /// Whether spawn protection covers the target position
+    pub spawn_protected: bool,
+    /// Maximum reach distance (survival = 5.0, creative = same server-side)
+    pub reach_distance: f64,
+    /// Existing block at target position (must be replaceable)
+    pub existing_block_id: &'static str,
+    /// Block being placed
+    pub placed_block_id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacementGameMode {
+    Survival,
+    Creative,
+    Adventure,
+    Spectator,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlacementDenyReason {
+    TooFar,
+    SpawnProtected,
+    CannotSurvive,
+    EntityCollision,
+    NotReplaceable,
+    SpectatorMode,
+}
+
+/// Validate a block placement attempt server-side.
+///
+/// Mirrors the checks in ServerPlayerGameMode.useItemOn() and BlockItem.place():
+/// 1. Spectators cannot place
+/// 2. Reach distance (Euclidean to block center)
+/// 3. Spawn protection
+/// 4. canSurvive check
+/// 5. Entity collision check
+/// 6. Replaceability of existing block
+pub fn validate_placement(ctx: &PlacementValidationContext) -> Result<(), PlacementDenyReason> {
+    if ctx.game_mode == PlacementGameMode::Spectator {
+        return Err(PlacementDenyReason::SpectatorMode);
+    }
+
+    let dx = ctx.player_eye_pos.0 - (ctx.target_pos.x as f64 + 0.5);
+    let dy = ctx.player_eye_pos.1 - (ctx.target_pos.y as f64 + 0.5);
+    let dz = ctx.player_eye_pos.2 - (ctx.target_pos.z as f64 + 0.5);
+    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+    if dist > ctx.reach_distance {
+        return Err(PlacementDenyReason::TooFar);
+    }
+
+    if ctx.spawn_protected {
+        return Err(PlacementDenyReason::SpawnProtected);
+    }
+
+    if !ctx.can_survive {
+        return Err(PlacementDenyReason::CannotSurvive);
+    }
+
+    if ctx.entity_collision {
+        return Err(PlacementDenyReason::EntityCollision);
+    }
+
+    let state = BlockStateModel::new(ctx.existing_block_id);
+    if !can_replace(&state, ctx.placed_block_id) {
+        return Err(PlacementDenyReason::NotReplaceable);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         can_replace, mirror_state, place_facing_opposite_player, placement_pos, plan_destroy_block,
         rotate_state, update_shape, update_shape_or_destroy, BlockStateModel, HorizontalFacing,
-        Mirror, PlacementContext, Rotation, ShapeUpdateContext, ShapeUpdateResult,
-        SHAPE_UPDATE_ORDER,
+        InteractionResult, Mirror, PlacementContext, Rotation, ShapeUpdateContext,
+        ShapeUpdateResult, SHAPE_UPDATE_ORDER,
     };
     use crate::block_update::{
         BlockPos, BlockUpdateAction, Direction, UpdateFlags, UPDATE_ORDER as NEIGHBOR_UPDATE_ORDER,
@@ -497,5 +670,156 @@ mod tests {
                 .count(),
             6
         );
+    }
+
+    #[test]
+    fn interaction_result_predicates_match_vanilla_groupings() {
+        assert!(InteractionResult::Success.is_success());
+        assert!(InteractionResult::Consume.is_success());
+        assert!(!InteractionResult::Pass.is_success());
+        assert!(!InteractionResult::Fail.is_success());
+        assert!(InteractionResult::Success.should_swing_hand());
+        assert!(!InteractionResult::Consume.should_swing_hand());
+        assert!(InteractionResult::Consume.consumes_action());
+        assert!(!InteractionResult::Success.consumes_action());
+    }
+
+    #[test]
+    fn block_use_dispatch_routes_block_first_then_item_respecting_pass() {
+        use crate::block_behavior::{
+            dispatch_block_use, BlockUseContext, BlockUseHand, InteractionResult,
+        };
+        use crate::block_update::{BlockPos, Direction};
+
+        let ctx = BlockUseContext {
+            pos: BlockPos { x: 0, y: 64, z: 0 },
+            face: Direction::Up,
+            hand: BlockUseHand::MainHand,
+            sneaking: false,
+            block_id: "minecraft:crafting_table",
+            held_item_id: Some("minecraft:stick"),
+        };
+
+        // Block returns SUCCESS → item handler not called
+        let result = dispatch_block_use(
+            &ctx,
+            |_| InteractionResult::Success,
+            |_| panic!("item handler should not be called"),
+        );
+        assert_eq!(result, InteractionResult::Success);
+
+        // Block returns PASS → item handler called
+        let result = dispatch_block_use(
+            &ctx,
+            |_| InteractionResult::Pass,
+            |_| InteractionResult::Consume,
+        );
+        assert_eq!(result, InteractionResult::Consume);
+
+        // Sneaking with item → skip block handler, go to item
+        let sneak_ctx = BlockUseContext {
+            sneaking: true,
+            ..ctx.clone()
+        };
+        let result = dispatch_block_use(
+            &sneak_ctx,
+            |_| panic!("block handler should not be called"),
+            |_| InteractionResult::Success,
+        );
+        assert_eq!(result, InteractionResult::Success);
+
+        // No held item → PASS
+        let empty_ctx = BlockUseContext {
+            held_item_id: None,
+            sneaking: false,
+            ..ctx.clone()
+        };
+        let result =
+            dispatch_block_use(&empty_ctx, |_| InteractionResult::Pass, |_| unreachable!());
+        assert_eq!(result, InteractionResult::Pass);
+    }
+
+    #[test]
+    fn placement_validation_enforces_all_deny_conditions() {
+        use crate::block_behavior::{
+            validate_placement, PlacementDenyReason, PlacementGameMode, PlacementValidationContext,
+        };
+        use crate::block_update::BlockPos;
+
+        let ok_ctx = PlacementValidationContext {
+            target_pos: BlockPos { x: 0, y: 64, z: 0 },
+            player_pos: (0.5, 63.0, 0.5),
+            player_eye_pos: (0.5, 64.62, 0.5),
+            game_mode: PlacementGameMode::Survival,
+            can_survive: true,
+            entity_collision: false,
+            spawn_protected: false,
+            reach_distance: 5.0,
+            existing_block_id: "minecraft:air",
+            placed_block_id: "minecraft:stone",
+        };
+        assert!(validate_placement(&ok_ctx).is_ok());
+
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                game_mode: PlacementGameMode::Spectator,
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::SpectatorMode)
+        );
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                player_eye_pos: (100.0, 100.0, 100.0),
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::TooFar)
+        );
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                spawn_protected: true,
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::SpawnProtected)
+        );
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                can_survive: false,
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::CannotSurvive)
+        );
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                entity_collision: true,
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::EntityCollision)
+        );
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                existing_block_id: "minecraft:stone",
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::NotReplaceable)
+        );
+    }
+
+    #[test]
+    fn block_attack_dispatch_only_returns_true_for_note_block() {
+        use crate::block_behavior::dispatch_block_attack;
+        use crate::block_update::BlockPos;
+
+        assert!(dispatch_block_attack(
+            BlockPos { x: 0, y: 64, z: 0 },
+            "minecraft:note_block"
+        ));
+        assert!(!dispatch_block_attack(
+            BlockPos { x: 0, y: 64, z: 0 },
+            "minecraft:stone"
+        ));
+        assert!(!dispatch_block_attack(
+            BlockPos { x: 0, y: 64, z: 0 },
+            "minecraft:crafting_table"
+        ));
     }
 }

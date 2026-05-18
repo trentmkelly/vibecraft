@@ -430,4 +430,61 @@ mod tests {
         assert!(queue.executed().is_empty());
         assert_eq!(queue.skipped_first_pos(), Some(source));
     }
+
+    #[test]
+    fn neighbor_cascade_notifies_all_6_adjacent_blocks_when_block_changes() {
+        use super::{
+            plan_chunk_block_updates, BlockChange, BlockPos, BlockUpdateAction, Direction,
+            UpdateFlags,
+        };
+
+        let pos = BlockPos { x: 5, y: 64, z: 5 };
+        let changes = [BlockChange {
+            pos,
+            old_block: "minecraft:stone",
+            new_block: "minecraft:air",
+            flags: UpdateFlags::NOTIFY_NEIGHBORS,
+        }];
+
+        let actions = plan_chunk_block_updates(&changes, |_| false, |_| false);
+
+        // Should have a NotifyNeighbor for all 6 directions
+        let neighbor_notifications: Vec<_> = actions
+            .iter()
+            .filter_map(|a| match a {
+                BlockUpdateAction::NotifyNeighbor {
+                    pos: neighbor_pos,
+                    source,
+                    direction,
+                } => Some((*neighbor_pos, *source, *direction)),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            neighbor_notifications.len(),
+            6,
+            "should notify all 6 adjacent blocks"
+        );
+
+        // Each adjacent block should be notified from the source position
+        let directions = [
+            Direction::West,
+            Direction::East,
+            Direction::Down,
+            Direction::Up,
+            Direction::North,
+            Direction::South,
+        ];
+        for dir in directions {
+            let expected_pos = pos.relative(dir);
+            assert!(
+                neighbor_notifications
+                    .iter()
+                    .any(|(np, src, d)| { *np == expected_pos && *src == pos && *d == dir }),
+                "missing notification for direction {:?}",
+                dir
+            );
+        }
+    }
 }

@@ -78,6 +78,7 @@ mod plant;
 mod player;
 mod player_access;
 mod player_entity;
+mod player_game_mode;
 mod player_inventory;
 mod player_list;
 mod player_online_auth;

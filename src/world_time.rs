@@ -539,4 +539,40 @@ mod tests {
             .iter()
             .all(|timeline| timeline.clock == "minecraft:overworld"));
     }
+
+    #[test]
+    fn sleep_skip_jumps_to_next_day_start_not_just_dawn_zero() {
+        // Vanilla behavior: sleep skip advances to next day boundary (next multiple of 24000),
+        // NOT to time 0 or simple dawn. The wake marker is (days_elapsed+1) * 24000 + 0.
+
+        // Day 0, time 13000 (night) → skip to 24000 (start of day 1)
+        let mut clock = WorldClock {
+            day_time: 13_000,
+            ..WorldClock::default()
+        };
+        let event = clock.move_to_wake_up_marker(true).unwrap();
+        assert_eq!(event, TimeEvent::DayTimeChanged(24_000));
+        assert_eq!(clock.day_time, 24_000);
+
+        // Day 1, time 37000 → skip to 48000 (start of day 2)
+        let mut clock2 = WorldClock {
+            day_time: 37_000,
+            ..WorldClock::default()
+        };
+        let event2 = clock2.move_to_wake_up_marker(true).unwrap();
+        assert_eq!(event2, TimeEvent::DayTimeChanged(48_000));
+        assert_eq!(clock2.day_time, 48_000);
+
+        // Time exactly 0 (already at day start) → skip to 24000
+        let mut clock3 = WorldClock {
+            day_time: 0,
+            ..WorldClock::default()
+        };
+        let event3 = clock3.move_to_wake_up_marker(true).unwrap();
+        assert_eq!(event3, TimeEvent::DayTimeChanged(24_000));
+
+        // Verify day_cycle_time after skip: 24000 mod 24000 = 0 (start of day)
+        assert_eq!(clock.day_cycle_time(), 0);
+        assert_eq!(clock2.day_cycle_time(), 0);
+    }
 }
