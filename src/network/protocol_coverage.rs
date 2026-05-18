@@ -8,6 +8,9 @@ pub struct PacketPackageCoverage {
 }
 
 pub const TOTAL_PACKET_CLASSES_26_1_2: usize = 227;
+pub const PLAY_PACKET_SPEC_COUNT_26_1_2: usize = 210;
+pub const PLAYBOUND_PACKET_SPEC_COUNT_26_1_2: usize = 69;
+pub const CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2: usize = 141;
 
 // Source: net.minecraft protocol packet interfaces under decompiled-server-26.1.2/net/minecraft/network/protocol
 pub const PACKET_PACKAGE_COVERAGE_26_1_2: &[PacketPackageCoverage] = &[
@@ -63,6 +66,1492 @@ pub const PACKET_PACKAGE_COVERAGE_26_1_2: &[PacketPackageCoverage] = &[
     },
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlayPacketSpec {
+    pub id: i32,
+    pub direction: crate::network::dispatch::PacketDirection,
+    pub wire_name: &'static str,
+    pub java_class: &'static str,
+    pub field_order: &'static str,
+}
+
+pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
+    PlayPacketSpec {
+        id: 0,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "accept_teleportation",
+        java_class: "ServerboundAcceptTeleportationPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 1,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "attack",
+        java_class: "ServerboundAttackPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 2,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "block_entity_tag_query",
+        java_class: "ServerboundBlockEntityTagQueryPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 3,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "bundle_item_selected",
+        java_class: "ServerboundSelectBundleItemPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 4,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "change_difficulty",
+        java_class: "ServerboundChangeDifficultyPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 5,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "change_game_mode",
+        java_class: "ServerboundChangeGameModePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 6,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "chat_ack",
+        java_class: "ServerboundChatAckPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 7,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "chat_command",
+        java_class: "ServerboundChatCommandPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 8,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "chat_command_signed",
+        java_class: "ServerboundChatCommandSignedPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 9,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "chat",
+        java_class: "ServerboundChatPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 10,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "chat_session_update",
+        java_class: "ServerboundChatSessionUpdatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 11,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "chunk_batch_received",
+        java_class: "ServerboundChunkBatchReceivedPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 12,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "client_command",
+        java_class: "ServerboundClientCommandPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 13,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "client_tick_end",
+        java_class: "ServerboundClientTickEndPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 14,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "client_information",
+        java_class: "ServerboundClientInformationPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 15,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "command_suggestion",
+        java_class: "ServerboundCommandSuggestionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 16,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "configuration_acknowledged",
+        java_class: "ServerboundConfigurationAcknowledgedPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 17,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "container_button_click",
+        java_class: "ServerboundContainerButtonClickPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 18,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "container_click",
+        java_class: "ServerboundContainerClickPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 19,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "container_close",
+        java_class: "ServerboundContainerClosePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 20,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "container_slot_state_changed",
+        java_class: "ServerboundContainerSlotStateChangedPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 21,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "cookie_response",
+        java_class: "ServerboundCookieResponsePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 22,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "custom_payload",
+        java_class: "ServerboundCustomPayloadPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 23,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "debug_subscription_request",
+        java_class: "ServerboundDebugSubscriptionRequestPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 24,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "edit_book",
+        java_class: "ServerboundEditBookPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 25,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "entity_tag_query",
+        java_class: "ServerboundEntityTagQueryPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 26,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "interact",
+        java_class: "ServerboundInteractPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 27,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "jigsaw_generate",
+        java_class: "ServerboundJigsawGeneratePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 28,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "keep_alive",
+        java_class: "ServerboundKeepAlivePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 29,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "lock_difficulty",
+        java_class: "ServerboundLockDifficultyPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 30,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "move_player_pos",
+        java_class: "ServerboundMovePlayerPacket.Pos",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 31,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "move_player_pos_rot",
+        java_class: "ServerboundMovePlayerPacket.PosRot",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 32,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "move_player_rot",
+        java_class: "ServerboundMovePlayerPacket.Rot",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 33,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "move_player_status_only",
+        java_class: "ServerboundMovePlayerPacket.StatusOnly",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 34,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "move_vehicle",
+        java_class: "ServerboundMoveVehiclePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 35,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "paddle_boat",
+        java_class: "ServerboundPaddleBoatPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 36,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "pick_item_from_block",
+        java_class: "ServerboundPickItemFromBlockPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 37,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "pick_item_from_entity",
+        java_class: "ServerboundPickItemFromEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 38,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "ping_request",
+        java_class: "ServerboundPingRequestPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 39,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "place_recipe",
+        java_class: "ServerboundPlaceRecipePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 40,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "player_abilities",
+        java_class: "ServerboundPlayerAbilitiesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 41,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "player_action",
+        java_class: "ServerboundPlayerActionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 42,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "player_command",
+        java_class: "ServerboundPlayerCommandPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 43,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "player_input",
+        java_class: "ServerboundPlayerInputPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 44,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "player_loaded",
+        java_class: "ServerboundPlayerLoadedPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 45,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "pong",
+        java_class: "ServerboundPongPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 46,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "recipe_book_change_settings",
+        java_class: "ServerboundRecipeBookChangeSettingsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 47,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "recipe_book_seen_recipe",
+        java_class: "ServerboundRecipeBookSeenRecipePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 48,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "rename_item",
+        java_class: "ServerboundRenameItemPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 49,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "resource_pack",
+        java_class: "ServerboundResourcePackPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 50,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "seen_advancements",
+        java_class: "ServerboundSeenAdvancementsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 51,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "select_trade",
+        java_class: "ServerboundSelectTradePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 52,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_beacon",
+        java_class: "ServerboundSetBeaconPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 53,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_carried_item",
+        java_class: "ServerboundSetCarriedItemPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 54,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_command_block",
+        java_class: "ServerboundSetCommandBlockPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 55,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_command_minecart",
+        java_class: "ServerboundSetCommandMinecartPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 56,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_creative_mode_slot",
+        java_class: "ServerboundSetCreativeModeSlotPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 57,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_game_rule",
+        java_class: "ServerboundSetGameRulePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 58,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_jigsaw_block",
+        java_class: "ServerboundSetJigsawBlockPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 59,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_structure_block",
+        java_class: "ServerboundSetStructureBlockPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 60,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "set_test_block",
+        java_class: "ServerboundSetTestBlockPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 61,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "sign_update",
+        java_class: "ServerboundSignUpdatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 62,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "spectate_entity",
+        java_class: "ServerboundSpectateEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 63,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "swing",
+        java_class: "ServerboundSwingPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 64,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "teleport_to_entity",
+        java_class: "ServerboundTeleportToEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 65,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "test_instance_block_action",
+        java_class: "ServerboundTestInstanceBlockActionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 66,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "use_item_on",
+        java_class: "ServerboundUseItemOnPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 67,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "use_item",
+        java_class: "ServerboundUseItemPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 68,
+        direction: crate::network::dispatch::PacketDirection::Serverbound,
+        wire_name: "custom_click_action",
+        java_class: "ServerboundCustomClickActionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 0,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "bundle",
+        java_class: "ClientboundBundlePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 1,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "add_entity",
+        java_class: "ClientboundAddEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 2,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "animate",
+        java_class: "ClientboundAnimatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 3,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "award_stats",
+        java_class: "ClientboundAwardStatsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 4,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "block_changed_ack",
+        java_class: "ClientboundBlockChangedAckPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 5,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "block_destruction",
+        java_class: "ClientboundBlockDestructionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 6,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "block_entity_data",
+        java_class: "ClientboundBlockEntityDataPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 7,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "block_event",
+        java_class: "ClientboundBlockEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 8,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "block_update",
+        java_class: "ClientboundBlockUpdatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 9,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "boss_event",
+        java_class: "ClientboundBossEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 10,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "change_difficulty",
+        java_class: "ClientboundChangeDifficultyPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 11,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "chunk_batch_finished",
+        java_class: "ClientboundChunkBatchFinishedPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 12,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "chunk_batch_start",
+        java_class: "ClientboundChunkBatchStartPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 13,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "chunks_biomes",
+        java_class: "ClientboundChunksBiomesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 14,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "clear_titles",
+        java_class: "ClientboundClearTitlesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 15,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "command_suggestions",
+        java_class: "ClientboundCommandSuggestionsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 16,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "commands",
+        java_class: "ClientboundCommandsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 17,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "container_close",
+        java_class: "ClientboundContainerClosePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 18,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "container_set_content",
+        java_class: "ClientboundContainerSetContentPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 19,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "container_set_data",
+        java_class: "ClientboundContainerSetDataPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 20,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "container_set_slot",
+        java_class: "ClientboundContainerSetSlotPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 21,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "cookie_request",
+        java_class: "ClientboundCookieRequestPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 22,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "cooldown",
+        java_class: "ClientboundCooldownPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 23,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "custom_chat_completions",
+        java_class: "ClientboundCustomChatCompletionsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 24,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "custom_payload",
+        java_class: "ClientboundCustomPayloadPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 25,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "damage_event",
+        java_class: "ClientboundDamageEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 26,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "debug_block_value",
+        java_class: "ClientboundDebugBlockValuePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 27,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "debug_chunk_value",
+        java_class: "ClientboundDebugChunkValuePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 28,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "debug_entity_value",
+        java_class: "ClientboundDebugEntityValuePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 29,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "debug_event",
+        java_class: "ClientboundDebugEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 30,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "debug_sample",
+        java_class: "ClientboundDebugSamplePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 31,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "delete_chat",
+        java_class: "ClientboundDeleteChatPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 32,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "disconnect",
+        java_class: "ClientboundDisconnectPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 33,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "disguised_chat",
+        java_class: "ClientboundDisguisedChatPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 34,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "entity_event",
+        java_class: "ClientboundEntityEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 35,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "entity_position_sync",
+        java_class: "ClientboundEntityPositionSyncPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 36,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "explode",
+        java_class: "ClientboundExplodePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 37,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "forget_level_chunk",
+        java_class: "ClientboundForgetLevelChunkPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 38,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "game_event",
+        java_class: "ClientboundGameEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 39,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "game_rule_values",
+        java_class: "ClientboundGameRuleValuesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 40,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "game_test_highlight_pos",
+        java_class: "ClientboundGameTestHighlightPosPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 41,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "mount_screen_open",
+        java_class: "ClientboundMountScreenOpenPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 42,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "hurt_animation",
+        java_class: "ClientboundHurtAnimationPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 43,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "initialize_border",
+        java_class: "ClientboundInitializeBorderPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 44,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "keep_alive",
+        java_class: "ClientboundKeepAlivePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 45,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "level_chunk_with_light",
+        java_class: "ClientboundLevelChunkWithLightPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 46,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "level_event",
+        java_class: "ClientboundLevelEventPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 47,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "level_particles",
+        java_class: "ClientboundLevelParticlesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 48,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "light_update",
+        java_class: "ClientboundLightUpdatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 49,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "login",
+        java_class: "ClientboundLoginPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 50,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "low_disk_space_warning",
+        java_class: "ClientboundLowDiskSpaceWarningPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 51,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "map_item_data",
+        java_class: "ClientboundMapItemDataPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 52,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "merchant_offers",
+        java_class: "ClientboundMerchantOffersPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 53,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "move_entity_pos",
+        java_class: "ClientboundMoveEntityPacket.Pos",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 54,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "move_entity_pos_rot",
+        java_class: "ClientboundMoveEntityPacket.PosRot",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 55,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "move_minecart_along_track",
+        java_class: "ClientboundMoveMinecartPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 56,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "move_entity_rot",
+        java_class: "ClientboundMoveEntityPacket.Rot",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 57,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "move_vehicle",
+        java_class: "ClientboundMoveVehiclePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 58,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "open_book",
+        java_class: "ClientboundOpenBookPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 59,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "open_screen",
+        java_class: "ClientboundOpenScreenPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 60,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "open_sign_editor",
+        java_class: "ClientboundOpenSignEditorPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 61,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "ping",
+        java_class: "ClientboundPingPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 62,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "pong_response",
+        java_class: "ClientboundPongResponsePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 63,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "place_ghost_recipe",
+        java_class: "ClientboundPlaceGhostRecipePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 64,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_abilities",
+        java_class: "ClientboundPlayerAbilitiesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 65,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_chat",
+        java_class: "ClientboundPlayerChatPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 66,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_combat_end",
+        java_class: "ClientboundPlayerCombatEndPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 67,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_combat_enter",
+        java_class: "ClientboundPlayerCombatEnterPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 68,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_combat_kill",
+        java_class: "ClientboundPlayerCombatKillPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 69,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_info_remove",
+        java_class: "ClientboundPlayerInfoRemovePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 70,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_info_update",
+        java_class: "ClientboundPlayerInfoUpdatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 71,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_look_at",
+        java_class: "ClientboundPlayerLookAtPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 72,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_position",
+        java_class: "ClientboundPlayerPositionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 73,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "player_rotation",
+        java_class: "ClientboundPlayerRotationPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 74,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "recipe_book_add",
+        java_class: "ClientboundRecipeBookAddPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 75,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "recipe_book_remove",
+        java_class: "ClientboundRecipeBookRemovePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 76,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "recipe_book_settings",
+        java_class: "ClientboundRecipeBookSettingsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 77,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "remove_entities",
+        java_class: "ClientboundRemoveEntitiesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 78,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "remove_mob_effect",
+        java_class: "ClientboundRemoveMobEffectPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 79,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "reset_score",
+        java_class: "ClientboundResetScorePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 80,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "resource_pack_pop",
+        java_class: "ClientboundResourcePackPopPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 81,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "resource_pack_push",
+        java_class: "ClientboundResourcePackPushPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 82,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "respawn",
+        java_class: "ClientboundRespawnPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 83,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "rotate_head",
+        java_class: "ClientboundRotateHeadPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 84,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "section_blocks_update",
+        java_class: "ClientboundSectionBlocksUpdatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 85,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "select_advancements_tab",
+        java_class: "ClientboundSelectAdvancementsTabPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 86,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "server_data",
+        java_class: "ClientboundServerDataPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 87,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_action_bar_text",
+        java_class: "ClientboundSetActionBarTextPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 88,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_border_center",
+        java_class: "ClientboundSetBorderCenterPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 89,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_border_lerp_size",
+        java_class: "ClientboundSetBorderLerpSizePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 90,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_border_size",
+        java_class: "ClientboundSetBorderSizePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 91,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_border_warning_delay",
+        java_class: "ClientboundSetBorderWarningDelayPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 92,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_border_warning_distance",
+        java_class: "ClientboundSetBorderWarningDistancePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 93,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_camera",
+        java_class: "ClientboundSetCameraPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 94,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_chunk_cache_center",
+        java_class: "ClientboundSetChunkCacheCenterPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 95,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_chunk_cache_radius",
+        java_class: "ClientboundSetChunkCacheRadiusPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 96,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_cursor_item",
+        java_class: "ClientboundSetCursorItemPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 97,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_default_spawn_position",
+        java_class: "ClientboundSetDefaultSpawnPositionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 98,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_display_objective",
+        java_class: "ClientboundSetDisplayObjectivePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 99,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_entity_data",
+        java_class: "ClientboundSetEntityDataPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 100,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_entity_link",
+        java_class: "ClientboundSetEntityLinkPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 101,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_entity_motion",
+        java_class: "ClientboundSetEntityMotionPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 102,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_equipment",
+        java_class: "ClientboundSetEquipmentPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 103,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_experience",
+        java_class: "ClientboundSetExperiencePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 104,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_health",
+        java_class: "ClientboundSetHealthPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 105,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_held_slot",
+        java_class: "ClientboundSetHeldSlotPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 106,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_objective",
+        java_class: "ClientboundSetObjectivePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 107,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_passengers",
+        java_class: "ClientboundSetPassengersPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 108,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_player_inventory",
+        java_class: "ClientboundSetPlayerInventoryPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 109,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_player_team",
+        java_class: "ClientboundSetPlayerTeamPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 110,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_score",
+        java_class: "ClientboundSetScorePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 111,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_simulation_distance",
+        java_class: "ClientboundSetSimulationDistancePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 112,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_subtitle_text",
+        java_class: "ClientboundSetSubtitleTextPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 113,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_time",
+        java_class: "ClientboundSetTimePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 114,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_title_text",
+        java_class: "ClientboundSetTitleTextPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 115,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "set_titles_animation",
+        java_class: "ClientboundSetTitlesAnimationPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 116,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "sound_entity",
+        java_class: "ClientboundSoundEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 117,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "sound",
+        java_class: "ClientboundSoundPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 118,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "start_configuration",
+        java_class: "ClientboundStartConfigurationPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 119,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "stop_sound",
+        java_class: "ClientboundStopSoundPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 120,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "store_cookie",
+        java_class: "ClientboundStoreCookiePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 121,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "system_chat",
+        java_class: "ClientboundSystemChatPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 122,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "tab_list",
+        java_class: "ClientboundTabListPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 123,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "tag_query",
+        java_class: "ClientboundTagQueryPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 124,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "take_item_entity",
+        java_class: "ClientboundTakeItemEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 125,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "teleport_entity",
+        java_class: "ClientboundTeleportEntityPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 126,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "test_instance_block_status",
+        java_class: "ClientboundTestInstanceBlockStatus",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 127,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "ticking_state",
+        java_class: "ClientboundTickingStatePacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 128,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "ticking_step",
+        java_class: "ClientboundTickingStepPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 129,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "transfer",
+        java_class: "ClientboundTransferPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 130,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "update_advancements",
+        java_class: "ClientboundUpdateAdvancementsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 131,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "update_attributes",
+        java_class: "ClientboundUpdateAttributesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 132,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "update_mob_effect",
+        java_class: "ClientboundUpdateMobEffectPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 133,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "update_recipes",
+        java_class: "ClientboundUpdateRecipesPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 134,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "update_tags",
+        java_class: "ClientboundUpdateTagsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 135,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "projectile_power",
+        java_class: "ClientboundProjectilePowerPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 136,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "custom_report_details",
+        java_class: "ClientboundCustomReportDetailsPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 137,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "server_links",
+        java_class: "ClientboundServerLinksPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 138,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "waypoint",
+        java_class: "ClientboundTrackedWaypointPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 139,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "clear_dialog",
+        java_class: "ClientboundClearDialogPacket",
+        field_order: "unparsed",
+    },
+    PlayPacketSpec {
+        id: 140,
+        direction: crate::network::dispatch::PacketDirection::Clientbound,
+        wire_name: "show_dialog",
+        java_class: "ClientboundShowDialogPacket",
+        field_order: "unparsed",
+    },
+];
+
+pub fn play_packet_specs_26_1_2() -> &'static [PlayPacketSpec] {
+    PLAY_PACKET_SPECS_26_1_2
+}
+
 pub fn covered_packet_class_count() -> usize {
     PACKET_PACKAGE_COVERAGE_26_1_2
         .iter()
@@ -75,7 +1564,9 @@ mod tests {
     use std::collections::HashSet;
 
     use super::{
-        covered_packet_class_count, PACKET_PACKAGE_COVERAGE_26_1_2, TOTAL_PACKET_CLASSES_26_1_2,
+        covered_packet_class_count, play_packet_specs_26_1_2, PACKET_PACKAGE_COVERAGE_26_1_2,
+        PLAYBOUND_PACKET_SPEC_COUNT_26_1_2, CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2,
+        PLAY_PACKET_SPEC_COUNT_26_1_2, TOTAL_PACKET_CLASSES_26_1_2,
     };
     use crate::network::configuration::{
         ClientboundCodeOfConductPacket, ClientboundFinishConfigurationPacket,
@@ -83,12 +1574,14 @@ mod tests {
         ClientboundUpdateEnabledFeaturesPacket, ServerboundAcceptCodeOfConductPacket,
         ServerboundFinishConfigurationPacket,
     };
+    use crate::network::dispatch::PacketDirection;
     use crate::network::login::{
         CLIENTBOUND_COOKIE_REQUEST_PACKET_ID, CLIENTBOUND_LOGIN_FINISHED_PACKET_ID,
         SERVERBOUND_COOKIE_RESPONSE_PACKET_ID, SERVERBOUND_HELLO_PACKET_ID,
     };
     use crate::network::play::{
-        CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2, SERVERBOUND_PLAY_PACKET_COUNT_26_1_2,
+        PlayProtocolRegistry, CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2,
+        SERVERBOUND_PLAY_PACKET_COUNT_26_1_2,
     };
     use crate::registry::Identifier;
 
@@ -127,6 +1620,105 @@ mod tests {
         assert_eq!(SERVERBOUND_COOKIE_RESPONSE_PACKET_ID, 4);
         assert_eq!(CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, 2);
         assert_eq!(CLIENTBOUND_COOKIE_REQUEST_PACKET_ID, 5);
+    }
+
+    #[test]
+    fn play_packet_specification_is_complete_and_contiguous() {
+        let specs = play_packet_specs_26_1_2();
+        assert_eq!(specs.len(), PLAY_PACKET_SPEC_COUNT_26_1_2);
+        assert_eq!(specs.len(), PLAYBOUND_PACKET_SPEC_COUNT_26_1_2 + CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2);
+
+        let serverbound_ids: Vec<_> = specs
+            .iter()
+            .filter(|entry| entry.direction == PacketDirection::Serverbound)
+            .map(|entry| entry.id)
+            .collect();
+        assert_eq!(serverbound_ids.len(), PLAYBOUND_PACKET_SPEC_COUNT_26_1_2);
+        let expected_serverbound = (0..(PLAYBOUND_PACKET_SPEC_COUNT_26_1_2 as i32)).collect::<Vec<_>>();
+        let mut serverbound_ids = serverbound_ids;
+        serverbound_ids.sort_unstable();
+        assert_eq!(serverbound_ids, expected_serverbound);
+
+        let clientbound_ids: Vec<_> = specs
+            .iter()
+            .filter(|entry| entry.direction == PacketDirection::Clientbound)
+            .map(|entry| entry.id)
+            .collect();
+        assert_eq!(clientbound_ids.len(), CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2);
+        let expected_clientbound = (0..(CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2 as i32)).collect::<Vec<_>>();
+        let mut clientbound_ids = clientbound_ids;
+        clientbound_ids.sort_unstable();
+        assert_eq!(clientbound_ids, expected_clientbound);
+    }
+
+    #[test]
+    fn play_packet_specification_has_no_duplicates_per_direction() {
+        let specs = play_packet_specs_26_1_2();
+        let mut seen_serverbound = HashSet::new();
+        let mut seen_clientbound = HashSet::new();
+        for spec in specs {
+            match spec.direction {
+                PacketDirection::Serverbound => {
+                    assert!(seen_serverbound.insert(spec.id), "duplicate serverbound packet id {}", spec.id);
+                }
+                PacketDirection::Clientbound => {
+                    assert!(seen_clientbound.insert(spec.id), "duplicate clientbound packet id {}", spec.id);
+                }
+            }
+        }
+        assert_eq!(seen_serverbound.len(), PLAYBOUND_PACKET_SPEC_COUNT_26_1_2);
+        assert_eq!(seen_clientbound.len(), CLIENTBOUND_PACKET_SPEC_COUNT_26_1_2);
+    }
+
+    #[test]
+    fn play_packet_specification_matches_play_registries() {
+        let specs = play_packet_specs_26_1_2();
+        let registry = PlayProtocolRegistry::new();
+        for spec in specs {
+            match spec.direction {
+                PacketDirection::Serverbound => {
+                    assert_eq!(Some(spec.wire_name), registry.serverbound_name(spec.id));
+                }
+                PacketDirection::Clientbound => {
+                    assert_eq!(Some(spec.wire_name), registry.clientbound_name(spec.id));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn play_packet_specification_keeps_critical_ids_fixed() {
+        let specs = play_packet_specs_26_1_2();
+        let registry = PlayProtocolRegistry::new();
+        let keep_alive = specs
+            .iter()
+            .find(|entry| {
+                entry.direction == PacketDirection::Clientbound && entry.wire_name == "keep_alive"
+            })
+            .unwrap();
+        assert_eq!(keep_alive.id, CLIENTBOUND_KEEP_ALIVE_PACKET_ID);
+
+        let level_chunk = specs
+            .iter()
+            .find(|entry| {
+                entry.direction == PacketDirection::Clientbound
+                    && entry.wire_name == "level_chunk_with_light"
+            })
+            .unwrap();
+        let level_chunk_id = (0..(CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2 as i32))
+            .find(|id| registry.clientbound_name(*id) == Some("level_chunk_with_light"))
+            .expect("clientbound level_chunk_with_light should exist in play registry");
+        assert_eq!(level_chunk.id, level_chunk_id);
+    }
+
+    #[test]
+    fn play_packet_specification_entry_fields_are_present() {
+        let specs = play_packet_specs_26_1_2();
+        for spec in specs {
+            assert!(!spec.wire_name.is_empty(), "missing wire name for {:?}", spec.direction);
+            assert!(!spec.java_class.is_empty(), "missing java class for {spec:?}");
+            assert!(!spec.field_order.is_empty(), "missing field order for {spec:?}");
+        }
     }
 
     #[test]
