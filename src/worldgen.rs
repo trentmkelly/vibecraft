@@ -909,6 +909,33 @@ pub struct GeodePlacementBlock {
     pub potential_crystal_source: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IcebergShapeModel {
+    pub snow_on_top: bool,
+    pub shape_angle: f64,
+    pub shape_ellipse_a: i32,
+    pub shape_ellipse_c: i32,
+    pub is_ellipse: bool,
+    pub over_water_height: i32,
+    pub under_water_height: i32,
+    pub width: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IcebergCutoutModel {
+    pub local_origin: BlockPos,
+    pub angle_is_shape_perpendicular: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IcebergBlockAction {
+    Keep,
+    MainBlock,
+    SnowBlock,
+    Air,
+    Water,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -8395,6 +8422,184 @@ pub fn geode_inner_placement(config: &GeodeConfigurationModel, roll: i32) -> Opt
     }
 }
 
+pub fn iceberg_shape_model(
+    snow_roll: f64,
+    angle_roll: f64,
+    ellipse_a_roll: i32,
+    ellipse_c_roll: i32,
+    ellipse_roll: f64,
+    height_roll: i32,
+    tall_roll: f64,
+    tall_extra_roll: i32,
+    underwater_roll: i32,
+    width_plus_roll: i32,
+    width_minus_roll: i32,
+) -> IcebergShapeModel {
+    let is_ellipse = ellipse_roll > 0.7;
+    let mut over_water_height = if is_ellipse {
+        height_roll.rem_euclid(6) + 6
+    } else {
+        height_roll.rem_euclid(15) + 3
+    };
+    if !is_ellipse && tall_roll > 0.9 {
+        over_water_height += tall_extra_roll.rem_euclid(19) + 7;
+    }
+    IcebergShapeModel {
+        snow_on_top: snow_roll > 0.7,
+        shape_angle: angle_roll * 2.0 * std::f64::consts::PI,
+        shape_ellipse_a: 11 - ellipse_a_roll.rem_euclid(5),
+        shape_ellipse_c: 3 + ellipse_c_roll.rem_euclid(3),
+        is_ellipse,
+        over_water_height,
+        under_water_height: (over_water_height + underwater_roll.rem_euclid(11)).min(18),
+        width: (over_water_height + width_plus_roll.rem_euclid(7) - width_minus_roll.rem_euclid(5))
+            .min(11),
+    }
+}
+
+pub fn iceberg_ellipse_c(y_off: i32, height: i32, shape_ellipse_c: i32) -> i32 {
+    if y_off > 0 && height - y_off <= 3 {
+        shape_ellipse_c - (4 - (height - y_off))
+    } else {
+        shape_ellipse_c
+    }
+}
+
+pub fn iceberg_signed_distance_circle(
+    xo: i32,
+    zo: i32,
+    origin: BlockPos,
+    radius: i32,
+    float_roll: f32,
+) -> f64 {
+    let off = 10.0 * f64::from(float_roll.clamp(0.2, 0.8)) / f64::from(radius.max(1));
+    let dx = f64::from(xo - origin.x);
+    let dz = f64::from(zo - origin.z);
+    off + dx.powi(2) + dz.powi(2) - f64::from(radius).powi(2)
+}
+
+pub fn iceberg_signed_distance_ellipse(
+    xo: i32,
+    zo: i32,
+    origin: BlockPos,
+    a: i32,
+    c: i32,
+    angle: f64,
+) -> f64 {
+    let dx = f64::from(xo - origin.x);
+    let dz = f64::from(zo - origin.z);
+    ((dx * angle.cos() - dz * angle.sin()) / f64::from(a.max(1))).powi(2)
+        + ((dx * angle.sin() + dz * angle.cos()) / f64::from(c.max(1))).powi(2)
+        - 1.0
+}
+
+pub fn iceberg_height_radius_round(
+    y_off: i32,
+    height: i32,
+    width: i32,
+    float_roll: f32,
+    tall_height_roll: i32,
+    tall_y_roll: i32,
+) -> i32 {
+    let k = 3.5 - float_roll;
+    let mut effective_y = y_off;
+    let mut scale = (1.0 - (y_off as f32).powi(2) / (height as f32 * k)) * width as f32;
+    if height > 15 + tall_height_roll.rem_euclid(5) {
+        if y_off < 3 + tall_y_roll.rem_euclid(6) {
+            effective_y = y_off / 2;
+        }
+        scale = (1.0 - effective_y as f32 / (height as f32 * k * 0.4)) * width as f32;
+    }
+    (scale / 2.0).ceil() as i32
+}
+
+pub fn iceberg_height_radius_ellipse(y_off: i32, height: i32, width: i32) -> i32 {
+    let scale = (1.0 - (y_off as f32).powi(2) / height as f32) * width as f32;
+    (scale / 2.0).ceil() as i32
+}
+
+pub fn iceberg_height_radius_steep(y_off: i32, height: i32, width: i32, float_roll: f32) -> i32 {
+    let k = 1.0 + float_roll / 2.0;
+    let scale = (1.0 - y_off as f32 / (height as f32 * k)) * width as f32;
+    (scale / 2.0).ceil() as i32
+}
+
+pub fn iceberg_set_block_action(
+    current_state: &str,
+    h_diff: i32,
+    height: i32,
+    is_ellipse: bool,
+    snow_on_top: bool,
+    snow_height_roll: i32,
+    ellipse_skip_roll: f64,
+) -> IcebergBlockAction {
+    if !matches!(
+        current_state,
+        "minecraft:air" | "minecraft:snow_block" | "minecraft:ice" | "minecraft:water"
+    ) {
+        return IcebergBlockAction::Keep;
+    }
+    let randomness = !is_ellipse || ellipse_skip_roll > 0.05;
+    let divisor = if is_ellipse { 3 } else { 2 };
+    let snow_limit =
+        snow_height_roll.rem_euclid((height / divisor).max(1)) as f64 + f64::from(height) * 0.6;
+    if snow_on_top
+        && current_state != "minecraft:water"
+        && f64::from(h_diff) <= snow_limit
+        && randomness
+    {
+        IcebergBlockAction::SnowBlock
+    } else {
+        IcebergBlockAction::MainBlock
+    }
+}
+
+pub fn iceberg_should_skip_surface_noise(
+    signed_distance: f64,
+    is_ellipse: bool,
+    roll: f64,
+) -> bool {
+    let compare_val = if is_ellipse { -0.5 } else { -6.0 };
+    signed_distance > compare_val && roll > 0.9
+}
+
+pub fn iceberg_carve_action(current_state: &str, under_water: bool) -> IcebergBlockAction {
+    if matches!(
+        current_state,
+        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice"
+    ) {
+        if under_water {
+            IcebergBlockAction::Water
+        } else {
+            IcebergBlockAction::Air
+        }
+    } else {
+        IcebergBlockAction::Keep
+    }
+}
+
+pub fn iceberg_smooth_action(
+    current_state: &str,
+    below_is_air: bool,
+    horizontal_non_iceberg_neighbors: i32,
+) -> IcebergBlockAction {
+    if matches!(
+        current_state,
+        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice" | "minecraft:snow"
+    ) && below_is_air
+    {
+        IcebergBlockAction::Air
+    } else if matches!(
+        current_state,
+        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice"
+    ) && horizontal_non_iceberg_neighbors >= 3
+    {
+        IcebergBlockAction::Air
+    } else {
+        IcebergBlockAction::Keep
+    }
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -12808,6 +13013,50 @@ mod tests {
         assert_eq!(
             super::geode_inner_placement(&geode_config, 3),
             Some("minecraft:amethyst_cluster")
+        );
+        let iceberg_shape = super::iceberg_shape_model(0.8, 0.25, 0, 2, 0.8, 5, 0.0, 0, 10, 6, 0);
+        assert_eq!(iceberg_shape.shape_ellipse_a, 11);
+        assert_eq!(iceberg_shape.shape_ellipse_c, 5);
+        assert!(iceberg_shape.is_ellipse);
+        assert_eq!(iceberg_shape.over_water_height, 11);
+        assert_eq!(iceberg_shape.under_water_height, 18);
+        assert_eq!(iceberg_shape.width, 11);
+        assert_eq!(super::iceberg_ellipse_c(9, 11, 5), 3);
+        assert!(
+            super::iceberg_signed_distance_circle(0, 0, BlockPos { x: 0, y: 0, z: 0 }, 5, 0.5,)
+                < 0.0
+        );
+        assert!(
+            super::iceberg_signed_distance_ellipse(0, 0, BlockPos { x: 0, y: 0, z: 0 }, 11, 5, 0.0,)
+                < 0.0
+        );
+        assert_eq!(super::iceberg_height_radius_ellipse(0, 11, 11), 6);
+        assert_eq!(super::iceberg_height_radius_steep(1, 11, 11, 0.0), 5);
+        assert!(super::iceberg_height_radius_round(0, 11, 11, 0.5, 0, 0) > 0);
+        assert_eq!(
+            super::iceberg_set_block_action("minecraft:air", 1, 11, true, true, 0, 0.1,),
+            super::IcebergBlockAction::SnowBlock
+        );
+        assert_eq!(
+            super::iceberg_set_block_action("minecraft:stone", 1, 11, true, true, 0, 0.1,),
+            super::IcebergBlockAction::Keep
+        );
+        assert!(super::iceberg_should_skip_surface_noise(-0.25, true, 0.95));
+        assert_eq!(
+            super::iceberg_carve_action("minecraft:packed_ice", true),
+            super::IcebergBlockAction::Water
+        );
+        assert_eq!(
+            super::iceberg_carve_action("minecraft:blue_ice", false),
+            super::IcebergBlockAction::Air
+        );
+        assert_eq!(
+            super::iceberg_smooth_action("minecraft:packed_ice", false, 3),
+            super::IcebergBlockAction::Air
+        );
+        assert_eq!(
+            super::iceberg_smooth_action("minecraft:snow", true, 0),
+            super::IcebergBlockAction::Air
         );
 
         let pile_config = super::BlockPileConfigurationModel {
