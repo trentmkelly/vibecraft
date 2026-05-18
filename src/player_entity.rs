@@ -452,6 +452,42 @@ mod tests {
     }
 
     #[test]
+    fn respawn_position_round_trips_bed_anchor_and_missing_fallback_state() {
+        let mut player = PlayerEntityState::new("Steve", PlayerGameMode::Survival, 0);
+        let bed_respawn = RespawnConfig {
+            dimension: "minecraft:overworld",
+            pos: (12, 64, -8),
+            yaw: 180,
+            pitch: 0,
+            forced: false,
+        };
+        assert!(player.set_respawn_position(Some(bed_respawn.clone())));
+        assert_eq!(player.sync_plan().respawn, Some(bed_respawn.clone()));
+
+        let mut loaded = PlayerEntityState::new("Steve", PlayerGameMode::Survival, 0);
+        loaded.load(player.save());
+        assert_eq!(loaded.respawn, Some(bed_respawn));
+
+        let anchor_respawn = RespawnConfig {
+            dimension: "minecraft:the_nether",
+            pos: (-4, 71, 9),
+            yaw: -45,
+            pitch: 0,
+            forced: true,
+        };
+        assert!(loaded.set_respawn_position(Some(anchor_respawn.clone())));
+        assert_eq!(loaded.save().respawn, Some(anchor_respawn.clone()));
+        assert_eq!(loaded.sync_plan().respawn, Some(anchor_respawn));
+
+        assert!(loaded.set_respawn_position(None));
+        loaded.die();
+        assert_eq!(loaded.save().respawn, None);
+        assert_eq!(loaded.sync_plan().respawn, None);
+        assert_eq!(stat_value(&loaded, "minecraft:deaths"), 1);
+        assert_eq!(stat_value(&loaded, "minecraft:time_since_death"), 0);
+    }
+
+    #[test]
     fn all_game_modes_are_represented() {
         let modes = [
             PlayerGameMode::Survival,
