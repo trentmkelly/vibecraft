@@ -8985,6 +8985,80 @@ pub fn trunk_placer_height(placer: TrunkPlacerModel, rand_a: i32, rand_b: i32) -
         + rand_b.rem_euclid(placer.height_rand_b + 1)
 }
 
+pub fn tree_valid_pos(state: &str) -> bool {
+    matches!(
+        state,
+        "minecraft:air"
+            | "minecraft:cave_air"
+            | "minecraft:void_air"
+            | "minecraft:vine"
+            | "minecraft:water"
+            | "minecraft:short_grass"
+            | "minecraft:tall_grass"
+            | "minecraft:fern"
+            | "minecraft:large_fern"
+            | "minecraft:snow"
+            | "minecraft:dandelion"
+            | "minecraft:poppy"
+            | "minecraft:blue_orchid"
+            | "minecraft:allium"
+            | "minecraft:azure_bluet"
+            | "minecraft:orange_tulip"
+            | "minecraft:pink_tulip"
+            | "minecraft:red_tulip"
+            | "minecraft:white_tulip"
+            | "minecraft:oxeye_daisy"
+            | "minecraft:cornflower"
+            | "minecraft:lily_of_the_valley"
+            | "minecraft:wither_rose"
+    ) || state.ends_with("_leaves")
+        || state.ends_with("_sapling")
+        || state.ends_with("_flower")
+}
+
+pub fn tree_max_free_height(
+    tree_height: i32,
+    min_size: FeatureSizeModel,
+    rows: &[&[&str]],
+    ignore_vines: bool,
+) -> i32 {
+    for y in 0..=tree_height + 1 {
+        let radius = feature_size_at_height(min_size, tree_height, y);
+        let radius_width = radius * 2 + 1;
+        let expected_width = (radius_width * radius_width).max(0) as usize;
+        let row = rows.get(y as usize).copied().unwrap_or(&[]);
+        if row.len() < expected_width
+            || row.iter().take(expected_width).any(|state| {
+                !tree_valid_pos(state) || (!ignore_vines && *state == "minecraft:vine")
+            })
+        {
+            return y - 2;
+        }
+    }
+    tree_height
+}
+
+pub fn tree_can_place(
+    origin: BlockPos,
+    trunk_origin: BlockPos,
+    tree_height: i32,
+    min_size: FeatureSizeModel,
+    min_clipped_height: Option<i32>,
+    build_min_y: i32,
+    build_max_y: i32,
+    rows: &[&[&str]],
+    ignore_vines: bool,
+) -> bool {
+    let min_y = origin.y.min(trunk_origin.y);
+    let max_y = origin.y.max(trunk_origin.y) + tree_height + 1;
+    if min_y < build_min_y + 1 || max_y > build_max_y + 1 {
+        return false;
+    }
+    let clipped_tree_height = tree_max_free_height(tree_height, min_size, rows, ignore_vines);
+    clipped_tree_height >= tree_height
+        || min_clipped_height.is_some_and(|min| clipped_tree_height >= min)
+}
+
 pub fn validate_foliage_placer(placer: FoliagePlacerModel) -> Result<FoliagePlacerModel, String> {
     if !(0..=16).contains(&placer.radius_min)
         || !(0..=16).contains(&placer.radius_max)
@@ -13355,6 +13429,54 @@ mod tests {
             Ok(straight_trunk)
         );
         assert_eq!(super::trunk_placer_height(straight_trunk, 1, 1), 7);
+        assert!(super::tree_valid_pos("minecraft:air"));
+        assert!(super::tree_valid_pos("minecraft:oak_leaves"));
+        assert!(super::tree_valid_pos("minecraft:dandelion"));
+        assert!(!super::tree_valid_pos("minecraft:stone"));
+        let min_size = FeatureSizeModel::TwoLayers {
+            limit: 1,
+            lower_size: 0,
+            upper_size: 1,
+            min_clipped_height: Some(3),
+        };
+        let free_row = ["minecraft:air"; 9];
+        let vine_row = ["minecraft:vine"; 9];
+        let stone_row = ["minecraft:stone"; 9];
+        assert_eq!(
+            super::tree_max_free_height(
+                5,
+                min_size,
+                &[&free_row, &free_row, &free_row, &stone_row],
+                true,
+            ),
+            1
+        );
+        assert_eq!(
+            super::tree_max_free_height(5, min_size, &[&vine_row], false),
+            -2
+        );
+        assert!(super::tree_can_place(
+            BlockPos { x: 0, y: 64, z: 0 },
+            BlockPos { x: 0, y: 64, z: 0 },
+            5,
+            min_size,
+            Some(3),
+            -64,
+            320,
+            &[&free_row, &free_row, &free_row, &free_row, &free_row, &free_row, &free_row,],
+            true,
+        ));
+        assert!(!super::tree_can_place(
+            BlockPos { x: 0, y: -64, z: 0 },
+            BlockPos { x: 0, y: -64, z: 0 },
+            5,
+            min_size,
+            Some(3),
+            -64,
+            320,
+            &[&free_row],
+            true,
+        ));
         assert_eq!(
             super::validate_trunk_placer(TrunkPlacerModel {
                 base_height: 33,
