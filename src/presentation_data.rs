@@ -630,25 +630,69 @@ pub struct BannerPatternDef {
 // and decompiled-server-26.1.2/data/minecraft/banner_pattern/*.json
 pub const BANNER_PATTERNS: &[BannerPatternDef] = &[
     banner("minecraft:base", "block.minecraft.banner.base"),
+    banner("minecraft:border", "block.minecraft.banner.border"),
+    banner("minecraft:bricks", "block.minecraft.banner.bricks"),
+    banner("minecraft:circle", "block.minecraft.banner.circle"),
+    banner("minecraft:creeper", "block.minecraft.banner.creeper"),
+    banner("minecraft:cross", "block.minecraft.banner.cross"),
+    banner("minecraft:curly_border", "block.minecraft.banner.curly_border"),
+    banner("minecraft:diagonal_left", "block.minecraft.banner.diagonal_left"),
+    banner("minecraft:diagonal_right", "block.minecraft.banner.diagonal_right"),
+    banner("minecraft:diagonal_up_left", "block.minecraft.banner.diagonal_up_left"),
+    banner("minecraft:diagonal_up_right", "block.minecraft.banner.diagonal_up_right"),
+    banner("minecraft:flow", "block.minecraft.banner.flow"),
+    banner("minecraft:flower", "block.minecraft.banner.flower"),
+    banner("minecraft:globe", "block.minecraft.banner.globe"),
+    banner("minecraft:gradient", "block.minecraft.banner.gradient"),
+    banner("minecraft:gradient_up", "block.minecraft.banner.gradient_up"),
+    banner("minecraft:guster", "block.minecraft.banner.guster"),
+    banner("minecraft:half_horizontal", "block.minecraft.banner.half_horizontal"),
+    banner(
+        "minecraft:half_horizontal_bottom",
+        "block.minecraft.banner.half_horizontal_bottom",
+    ),
+    banner("minecraft:half_vertical", "block.minecraft.banner.half_vertical"),
+    banner(
+        "minecraft:half_vertical_right",
+        "block.minecraft.banner.half_vertical_right",
+    ),
+    banner("minecraft:mojang", "block.minecraft.banner.mojang"),
+    banner("minecraft:piglin", "block.minecraft.banner.piglin"),
+    banner("minecraft:rhombus", "block.minecraft.banner.rhombus"),
+    banner("minecraft:skull", "block.minecraft.banner.skull"),
+    banner("minecraft:small_stripes", "block.minecraft.banner.small_stripes"),
     banner(
         "minecraft:square_bottom_left",
         "block.minecraft.banner.square_bottom_left",
     ),
     banner(
-        "minecraft:stripe_center",
-        "block.minecraft.banner.stripe_center",
+        "minecraft:square_bottom_right",
+        "block.minecraft.banner.square_bottom_right",
     ),
-    banner("minecraft:cross", "block.minecraft.banner.cross"),
+    banner("minecraft:square_top_left", "block.minecraft.banner.square_top_left"),
+    banner("minecraft:square_top_right", "block.minecraft.banner.square_top_right"),
     banner(
         "minecraft:straight_cross",
         "block.minecraft.banner.straight_cross",
     ),
-    banner("minecraft:gradient", "block.minecraft.banner.gradient"),
-    banner("minecraft:globe", "block.minecraft.banner.globe"),
-    banner("minecraft:creeper", "block.minecraft.banner.creeper"),
-    banner("minecraft:piglin", "block.minecraft.banner.piglin"),
-    banner("minecraft:flow", "block.minecraft.banner.flow"),
-    banner("minecraft:guster", "block.minecraft.banner.guster"),
+    banner("minecraft:stripe_bottom", "block.minecraft.banner.stripe_bottom"),
+    banner("minecraft:stripe_center", "block.minecraft.banner.stripe_center"),
+    banner("minecraft:stripe_downleft", "block.minecraft.banner.stripe_downleft"),
+    banner(
+        "minecraft:stripe_downright",
+        "block.minecraft.banner.stripe_downright",
+    ),
+    banner("minecraft:stripe_left", "block.minecraft.banner.stripe_left"),
+    banner("minecraft:stripe_middle", "block.minecraft.banner.stripe_middle"),
+    banner("minecraft:stripe_right", "block.minecraft.banner.stripe_right"),
+    banner("minecraft:stripe_top", "block.minecraft.banner.stripe_top"),
+    banner("minecraft:triangle_bottom", "block.minecraft.banner.triangle_bottom"),
+    banner("minecraft:triangle_top", "block.minecraft.banner.triangle_top"),
+    banner(
+        "minecraft:triangles_bottom",
+        "block.minecraft.banner.triangles_bottom",
+    ),
+    banner("minecraft:triangles_top", "block.minecraft.banner.triangles_top"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1257,16 +1301,73 @@ mod tests {
 
     #[test]
     fn banner_patterns_include_vanilla_translation_keys_and_new_patterns() {
-        assert!(BANNER_PATTERNS.iter().any(|pattern| {
-            pattern.id == "minecraft:base"
-                && pattern.translation_key == "block.minecraft.banner.base"
-        }));
-        assert!(BANNER_PATTERNS
+        assert_eq!(BANNER_PATTERNS.len(), 43);
+        assert_eq!(BANNER_PATTERNS.first().unwrap().id, "minecraft:base");
+        assert_eq!(BANNER_PATTERNS.last().unwrap().id, "minecraft:triangles_top");
+        let expected_ids: [&str; 43] = [
+            "minecraft:base",
+            "minecraft:border",
+            "minecraft:bricks",
+            "minecraft:circle",
+            "minecraft:creeper",
+            "minecraft:cross",
+            "minecraft:curly_border",
+            "minecraft:diagonal_left",
+            "minecraft:diagonal_right",
+            "minecraft:diagonal_up_left",
+            "minecraft:diagonal_up_right",
+            "minecraft:flow",
+            "minecraft:flower",
+            "minecraft:globe",
+            "minecraft:gradient",
+            "minecraft:gradient_up",
+            "minecraft:guster",
+            "minecraft:half_horizontal",
+            "minecraft:half_horizontal_bottom",
+            "minecraft:half_vertical",
+            "minecraft:half_vertical_right",
+            "minecraft:mojang",
+            "minecraft:piglin",
+            "minecraft:rhombus",
+            "minecraft:skull",
+            "minecraft:small_stripes",
+            "minecraft:square_bottom_left",
+            "minecraft:square_bottom_right",
+            "minecraft:square_top_left",
+            "minecraft:square_top_right",
+            "minecraft:straight_cross",
+            "minecraft:stripe_bottom",
+            "minecraft:stripe_center",
+            "minecraft:stripe_downleft",
+            "minecraft:stripe_downright",
+            "minecraft:stripe_left",
+            "minecraft:stripe_middle",
+            "minecraft:stripe_right",
+            "minecraft:stripe_top",
+            "minecraft:triangle_bottom",
+            "minecraft:triangle_top",
+            "minecraft:triangles_bottom",
+            "minecraft:triangles_top",
+        ];
+        let actual_ids: [&str; 43] = BANNER_PATTERNS
             .iter()
-            .any(|pattern| pattern.id == "minecraft:flow"));
-        assert!(BANNER_PATTERNS
-            .iter()
-            .any(|pattern| pattern.id == "minecraft:guster"));
+            .map(|pattern| pattern.id)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        assert_eq!(actual_ids, expected_ids);
+        assert_eq!(
+            BANNER_PATTERNS.iter().find(|pattern| pattern.id == "minecraft:flow").unwrap().translation_key,
+            "block.minecraft.banner.flow"
+        );
+        assert_eq!(
+            BANNER_PATTERNS.iter().find(|pattern| pattern.id == "minecraft:triangles_top").unwrap().translation_key,
+            "block.minecraft.banner.triangles_top"
+        );
+        assert_eq!(
+            BANNER_PATTERNS.iter().find(|pattern| pattern.id == "minecraft:diagonal_up_left").unwrap().translation_key,
+            "block.minecraft.banner.diagonal_up_left"
+        );
     }
 
     #[test]
