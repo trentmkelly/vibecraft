@@ -972,6 +972,14 @@ pub struct EndIslandPlacementBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReplaceSphereConfigurationModel {
+    pub target_state: &'static str,
+    pub replace_state: &'static str,
+    pub radius_min: i32,
+    pub radius_max: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
     South,
@@ -8761,6 +8769,72 @@ pub fn end_island_placement_plan(
     blocks
 }
 
+pub fn validate_replace_sphere_config(
+    config: ReplaceSphereConfigurationModel,
+) -> Result<ReplaceSphereConfigurationModel, &'static str> {
+    if config.target_state.is_empty() || config.replace_state.is_empty() {
+        Err("replace sphere target and replacement states must not be empty")
+    } else if !(0..=12).contains(&config.radius_min)
+        || !(0..=12).contains(&config.radius_max)
+        || config.radius_min > config.radius_max
+    {
+        Err("replace sphere radius bounds must be ordered in 0..=12")
+    } else {
+        Ok(config)
+    }
+}
+
+pub fn replace_sphere_radius(config: ReplaceSphereConfigurationModel, roll: i32) -> i32 {
+    let span = (config.radius_max - config.radius_min + 1).max(1);
+    config.radius_min + roll.rem_euclid(span)
+}
+
+pub fn replace_sphere_find_target(
+    origin: BlockPos,
+    min_y: i32,
+    max_y: i32,
+    column_states: &[&str],
+    target_state: &str,
+) -> Option<BlockPos> {
+    let mut y = origin.y.clamp(min_y + 1, max_y);
+    while y > min_y + 1 {
+        let offset = origin.y.clamp(min_y + 1, max_y) - y;
+        if column_states.get(offset as usize).copied() == Some(target_state) {
+            return Some(BlockPos {
+                x: origin.x,
+                y,
+                z: origin.z,
+            });
+        }
+        y -= 1;
+    }
+    None
+}
+
+pub fn replace_sphere_positions(
+    center: BlockPos,
+    radius_x: i32,
+    radius_y: i32,
+    radius_z: i32,
+) -> Vec<BlockPos> {
+    let maximum_radius = radius_x.max(radius_y).max(radius_z);
+    let mut positions = Vec::new();
+    for dy in -radius_y..=radius_y {
+        for dz in -radius_z..=radius_z {
+            for dx in -radius_x..=radius_x {
+                if dx.abs() + dy.abs() + dz.abs() <= maximum_radius {
+                    positions.push(BlockPos {
+                        x: center.x + dx,
+                        y: center.y + dy,
+                        z: center.z + dz,
+                    });
+                }
+            }
+        }
+    }
+    positions
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -13412,6 +13486,41 @@ mod tests {
             pos: BlockPos { x: 5, y: 80, z: 5 },
             state: "minecraft:end_stone",
         }));
+        let replace_sphere = super::ReplaceSphereConfigurationModel {
+            target_state: "minecraft:netherrack",
+            replace_state: "minecraft:basalt",
+            radius_min: 3,
+            radius_max: 7,
+        };
+        assert_eq!(
+            super::validate_replace_sphere_config(replace_sphere),
+            Ok(replace_sphere)
+        );
+        assert_eq!(super::replace_sphere_radius(replace_sphere, 5), 3);
+        assert_eq!(
+            super::validate_replace_sphere_config(super::ReplaceSphereConfigurationModel {
+                target_state: "minecraft:netherrack",
+                replace_state: "minecraft:basalt",
+                radius_min: 8,
+                radius_max: 7,
+            }),
+            Err("replace sphere radius bounds must be ordered in 0..=12")
+        );
+        assert_eq!(
+            super::replace_sphere_find_target(
+                BlockPos { x: 4, y: 70, z: 8 },
+                -64,
+                320,
+                &["minecraft:air", "minecraft:netherrack"],
+                "minecraft:netherrack",
+            ),
+            Some(BlockPos { x: 4, y: 69, z: 8 })
+        );
+        let sphere_positions =
+            super::replace_sphere_positions(BlockPos { x: 0, y: 0, z: 0 }, 1, 2, 3);
+        assert!(sphere_positions.contains(&BlockPos { x: 0, y: 0, z: 0 }));
+        assert!(sphere_positions.contains(&BlockPos { x: 0, y: -2, z: 0 }));
+        assert!(!sphere_positions.contains(&BlockPos { x: 1, y: 2, z: 3 }));
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
