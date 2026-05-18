@@ -6560,6 +6560,31 @@ pub const DESERT_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const SAVANNA_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass",
+        "minecraft:trees_savanna",
+        "minecraft:flower_warm",
+        "minecraft:patch_grass_savanna",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6625,6 +6650,51 @@ pub const DESERT_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 1,
         min_count: 1,
         max_count: 1,
+    },
+];
+
+pub const SAVANNA_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:horse",
+        weight: 1,
+        min_count: 2,
+        max_count: 6,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:donkey",
+        weight: 1,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:armadillo",
+        weight: 10,
+        min_count: 2,
+        max_count: 3,
     },
 ];
 
@@ -7016,6 +7086,41 @@ pub const DESERT_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const SAVANNA_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: SAVANNA_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: PLAINS_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -7140,6 +7245,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: DESERT_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:savanna",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SAVANNA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SAVANNA_SPAWNER_GROUPS,
     },
 ];
 
@@ -21018,6 +21131,38 @@ mod tests {
                 min_count: 4,
                 max_count: 4,
             })
+        );
+
+        let savanna = super::biome_generation_settings("savanna").unwrap();
+        assert_eq!(savanna.biome, "minecraft:savanna");
+        assert!(super::biome_has_placed_feature(
+            savanna,
+            "minecraft:trees_savanna"
+        ));
+        assert!(super::biome_has_placed_feature(
+            savanna,
+            "minecraft:flower_warm"
+        ));
+        assert!(super::biome_has_placed_feature(
+            savanna,
+            "minecraft:patch_grass_savanna"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            savanna,
+            "minecraft:trees_plains"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(savanna, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:armadillo",
+                weight: 10,
+                min_count: 2,
+                max_count: 3,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(savanna, "monster"),
+            super::PLAINS_MONSTER_SPAWNS
         );
     }
 
