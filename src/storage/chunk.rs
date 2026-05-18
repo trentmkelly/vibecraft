@@ -52,6 +52,24 @@ pub struct ChunkStatusEntry {
     pub index: usize,
     pub chunk_type: ChunkType,
     pub heightmaps_after: &'static [HeightmapKind],
+    pub task: ChunkStatusTaskKind,
+    pub region_dependencies: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkStatusTaskKind {
+    PassThrough,
+    GenerateStructureStarts,
+    GenerateStructureReferences,
+    GenerateBiomes,
+    GenerateNoise,
+    GenerateSurface,
+    GenerateCarvers,
+    GenerateFeatures,
+    InitializeLight,
+    Light,
+    GenerateSpawn,
+    Full,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -80,6 +98,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         0,
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind::PassThrough,
+        0,
     ),
     status_entry(
         "minecraft:structure_starts",
@@ -87,6 +107,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         1,
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateStructureStarts,
+        0,
     ),
     status_entry(
         "minecraft:structure_references",
@@ -94,6 +116,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         2,
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateStructureReferences,
+        8,
     ),
     status_entry(
         "minecraft:biomes",
@@ -101,6 +125,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         3,
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateBiomes,
+        1,
     ),
     status_entry(
         "minecraft:noise",
@@ -108,6 +134,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         4,
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateNoise,
+        1,
     ),
     status_entry(
         "minecraft:surface",
@@ -115,6 +143,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         5,
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateSurface,
+        1,
     ),
     status_entry(
         "minecraft:carvers",
@@ -122,6 +152,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         6,
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateCarvers,
+        1,
     ),
     status_entry(
         "minecraft:features",
@@ -129,6 +161,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         7,
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateFeatures,
+        1,
     ),
     status_entry(
         "minecraft:initialize_light",
@@ -136,6 +170,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         8,
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
+        ChunkStatusTaskKind::InitializeLight,
+        1,
     ),
     status_entry(
         "minecraft:light",
@@ -143,6 +179,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         9,
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
+        ChunkStatusTaskKind::Light,
+        1,
     ),
     status_entry(
         "minecraft:spawn",
@@ -150,6 +188,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         10,
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
+        ChunkStatusTaskKind::GenerateSpawn,
+        1,
     ),
     status_entry(
         "minecraft:full",
@@ -157,6 +197,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         11,
         ChunkType::LevelChunk,
         FINAL_HEIGHTMAPS,
+        ChunkStatusTaskKind::Full,
+        0,
     ),
 ];
 
@@ -166,6 +208,8 @@ const fn status_entry(
     index: usize,
     chunk_type: ChunkType,
     heightmaps_after: &'static [HeightmapKind],
+    task: ChunkStatusTaskKind,
+    region_dependencies: i32,
 ) -> ChunkStatusEntry {
     ChunkStatusEntry {
         id,
@@ -173,6 +217,8 @@ const fn status_entry(
         index,
         chunk_type,
         heightmaps_after,
+        task,
+        region_dependencies,
     }
 }
 
@@ -487,9 +533,10 @@ fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_status, chunk_status_is_or_after, BlockStateEntry, ChunkSection, ChunkType,
-        HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos, BIOME_SECTION_VOLUME,
-        CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        chunk_status, chunk_status_is_or_after, BlockStateEntry, ChunkSection, ChunkStatusTaskKind,
+        ChunkType, HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos,
+        BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, SECTION_VOLUME,
+        WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -615,6 +662,33 @@ mod tests {
             chunk_status("features").unwrap().heightmaps_after,
             FINAL_HEIGHTMAPS
         );
+        assert_eq!(
+            chunk_status("structure_starts").unwrap().task,
+            ChunkStatusTaskKind::GenerateStructureStarts
+        );
+        assert_eq!(
+            chunk_status("structure_references").unwrap().task,
+            ChunkStatusTaskKind::GenerateStructureReferences
+        );
+        assert_eq!(
+            chunk_status("structure_references")
+                .unwrap()
+                .region_dependencies,
+            8
+        );
+        assert_eq!(
+            chunk_status("biomes").unwrap().task,
+            ChunkStatusTaskKind::GenerateBiomes
+        );
+        assert_eq!(
+            chunk_status("features").unwrap().task,
+            ChunkStatusTaskKind::GenerateFeatures
+        );
+        assert_eq!(
+            chunk_status("full").unwrap().task,
+            ChunkStatusTaskKind::Full
+        );
+        assert_eq!(chunk_status("full").unwrap().region_dependencies, 0);
         assert_eq!(
             chunk_status("biomes").unwrap().heightmaps_after,
             WORLDGEN_HEIGHTMAPS
