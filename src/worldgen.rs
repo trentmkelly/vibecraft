@@ -242,6 +242,16 @@ pub enum WorldCarverType {
     Canyon,
 }
 
+impl WorldCarverType {
+    pub const fn id(self) -> &'static str {
+        match self {
+            WorldCarverType::Cave => "minecraft:cave",
+            WorldCarverType::NetherCave => "minecraft:nether_cave",
+            WorldCarverType::Canyon => "minecraft:canyon",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CarverShape {
     Cave {
@@ -4703,6 +4713,18 @@ pub fn configured_carver(id: &str) -> Option<&'static ConfiguredCarver> {
     })
 }
 
+pub fn world_carver_type(id: &str) -> Option<WorldCarverType> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLD_CARVER_TYPES
+        .iter()
+        .copied()
+        .find(|carver| carver.id().strip_prefix("minecraft:") == Some(name))
+}
+
+pub fn carver_is_start_chunk(carver: &ConfiguredCarver, random_next_float: f32) -> bool {
+    random_next_float <= carver.probability
+}
+
 pub fn feature_type_by_id(id: &str) -> Option<&'static FeatureType> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     FEATURE_TYPES.iter().find(|entry| {
@@ -4970,8 +4992,8 @@ mod tests {
         STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
         STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
         STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_PRESETS,
-        Y_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
+        WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -6233,6 +6255,26 @@ mod tests {
     #[test]
     fn configured_carvers_match_vanilla_bootstrap_entries() {
         assert_eq!(
+            WORLD_CARVER_TYPES
+                .iter()
+                .map(|carver| carver.id())
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:cave",
+                "minecraft:nether_cave",
+                "minecraft:canyon"
+            ]
+        );
+        assert_eq!(
+            super::world_carver_type("cave"),
+            Some(WorldCarverType::Cave)
+        );
+        assert_eq!(
+            super::world_carver_type("minecraft:nether_cave"),
+            Some(WorldCarverType::NetherCave)
+        );
+
+        assert_eq!(
             CONFIGURED_CARVERS
                 .iter()
                 .map(|carver| carver.id)
@@ -6248,6 +6290,8 @@ mod tests {
         let cave = super::configured_carver("cave").unwrap();
         assert_eq!(cave.carver_type, WorldCarverType::Cave);
         assert_eq!(cave.probability, 0.15);
+        assert!(super::carver_is_start_chunk(cave, 0.15));
+        assert!(!super::carver_is_start_chunk(cave, 0.150_001));
         assert_eq!(
             cave.y,
             HeightRange {
