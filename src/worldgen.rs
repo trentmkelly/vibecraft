@@ -6612,6 +6612,59 @@ pub const RIVER_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const OCEAN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:seagrass_normal",
+        "minecraft:kelp_cold",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const WARM_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:warm_ocean_vegetation",
+        "minecraft:seagrass_warm",
+        "minecraft:sea_pickle",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const BEACH_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7597,6 +7650,120 @@ pub const RIVER_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const OCEAN_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:drowned",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
+pub const WARM_OCEAN_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:drowned",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
 pub const SNOWY_PLAINS_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:spider",
@@ -7795,6 +7962,28 @@ pub const RIVER_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataM
     max_count: 5,
 }];
 
+pub const OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:cod",
+    weight: 10,
+    min_count: 3,
+    max_count: 6,
+}];
+
+pub const WARM_OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pufferfish",
+        weight: 15,
+        min_count: 1,
+        max_count: 3,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:tropical_fish",
+        weight: 25,
+        min_count: 8,
+        max_count: 8,
+    },
+];
+
 pub const MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:tropical_fish",
     weight: 25,
@@ -7808,6 +7997,48 @@ pub const RIVER_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerData
     min_count: 1,
     max_count: 4,
 }];
+
+pub const OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:squid",
+        weight: 1,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:dolphin",
+        weight: 1,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:nautilus",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
+pub const WARM_OCEAN_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:nautilus",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:squid",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:dolphin",
+        weight: 2,
+        min_count: 1,
+        max_count: 2,
+    },
+];
 
 pub const PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
@@ -8334,6 +8565,76 @@ pub const RIVER_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: OCEAN_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: OCEAN_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: OCEAN_WATER_CREATURE_SPAWNS,
+    },
+];
+
+pub const WARM_OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: WARM_OCEAN_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: WARM_OCEAN_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: WARM_OCEAN_WATER_CREATURE_SPAWNS,
+    },
+];
+
 const OVERWORLD_COMMON_CARVERS: &[&str] = &[
     "minecraft:cave",
     "minecraft:cave_extra_underground",
@@ -8404,6 +8705,22 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: RIVER_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: OCEAN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:warm_ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: WARM_OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: WARM_OCEAN_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:beach",
@@ -22383,6 +22700,74 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(river, "water_creature"),
             super::RIVER_WATER_CREATURE_SPAWNS
+        );
+
+        let ocean = super::biome_generation_settings("ocean").unwrap();
+        assert_eq!(ocean.biome, "minecraft:ocean");
+        assert!(super::biome_has_placed_feature(
+            ocean,
+            "minecraft:seagrass_normal"
+        ));
+        assert!(super::biome_has_placed_feature(
+            ocean,
+            "minecraft:kelp_cold"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            ocean,
+            "minecraft:warm_ocean_vegetation"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(ocean, "monster").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:drowned",
+                weight: 5,
+                min_count: 1,
+                max_count: 1,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(ocean, "water_ambient"),
+            super::OCEAN_WATER_AMBIENT_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(ocean, "water_creature"),
+            super::OCEAN_WATER_CREATURE_SPAWNS
+        );
+
+        let warm_ocean = super::biome_generation_settings("warm_ocean").unwrap();
+        assert_eq!(warm_ocean.biome, "minecraft:warm_ocean");
+        assert!(super::biome_has_placed_feature(
+            warm_ocean,
+            "minecraft:warm_ocean_vegetation"
+        ));
+        assert!(super::biome_has_placed_feature(
+            warm_ocean,
+            "minecraft:seagrass_warm"
+        ));
+        assert!(super::biome_has_placed_feature(
+            warm_ocean,
+            "minecraft:sea_pickle"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            warm_ocean,
+            "minecraft:kelp_cold"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(warm_ocean, "monster").first(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:drowned",
+                weight: 5,
+                min_count: 1,
+                max_count: 1,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(warm_ocean, "water_ambient"),
+            super::WARM_OCEAN_WATER_AMBIENT_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(warm_ocean, "water_creature"),
+            super::WARM_OCEAN_WATER_CREATURE_SPAWNS
         );
 
         let beach = super::biome_generation_settings("minecraft:beach").unwrap();
