@@ -6559,6 +6559,29 @@ pub fn structure_frequency_reducer_should_generate(
     })
 }
 
+pub fn validate_structure_locate_offset(offset: BlockPos) -> Result<(), String> {
+    if (-16..=16).contains(&offset.x)
+        && (-16..=16).contains(&offset.y)
+        && (-16..=16).contains(&offset.z)
+    {
+        Ok(())
+    } else {
+        Err("Structure locate offset components must be in -16..=16".to_string())
+    }
+}
+
+pub fn structure_locate_pos(
+    chunk_pos: ChunkPos,
+    locate_offset: BlockPos,
+) -> Result<BlockPos, String> {
+    validate_structure_locate_offset(locate_offset)?;
+    Ok(BlockPos {
+        x: chunk_pos.x * 16 + locate_offset.x,
+        y: locate_offset.y,
+        z: chunk_pos.z * 16 + locate_offset.z,
+    })
+}
+
 const fn feature_type(
     id: &'static str,
     configuration: FeatureConfigurationKind,
@@ -16601,6 +16624,40 @@ mod tests {
             0.5,
         )
         .unwrap());
+    }
+
+    #[test]
+    fn structure_locate_pos_uses_chunk_min_block_and_validated_offset() {
+        assert_eq!(
+            super::structure_locate_pos(ChunkPos { x: 21, z: -5 }, BlockPos { x: 8, y: 0, z: 8 })
+                .unwrap(),
+            BlockPos {
+                x: 344,
+                y: 0,
+                z: -72
+            }
+        );
+        assert_eq!(
+            super::structure_locate_pos(
+                ChunkPos { x: -2, z: 3 },
+                BlockPos {
+                    x: -16,
+                    y: 16,
+                    z: 16
+                }
+            )
+            .unwrap(),
+            BlockPos {
+                x: -48,
+                y: 16,
+                z: 64
+            }
+        );
+        assert_eq!(
+            super::structure_locate_pos(ChunkPos { x: 0, z: 0 }, BlockPos { x: 17, y: 0, z: 0 })
+                .unwrap_err(),
+            "Structure locate offset components must be in -16..=16".to_string()
+        );
     }
 
     #[test]
