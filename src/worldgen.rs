@@ -1083,6 +1083,60 @@ pub struct EndPodiumPlacementBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EndSpikeModel {
+    pub center_x: i32,
+    pub center_z: i32,
+    pub radius: i32,
+    pub height: i32,
+    pub guarded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndSpikeConfigurationModel {
+    pub crystal_invulnerable: bool,
+    pub spikes: Vec<EndSpikeModel>,
+    pub crystal_beam_target: Option<BlockPos>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IronBarsConnectionDirection {
+    North,
+    South,
+    West,
+    East,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EndSpikeBlockKind {
+    Obsidian,
+    Air,
+    Bedrock,
+    Fire,
+    IronBars {
+        north: bool,
+        south: bool,
+        west: bool,
+        east: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndSpikePlacementBlock {
+    pub pos: BlockPos,
+    pub kind: EndSpikeBlockKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EndCrystalPlacement {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub yaw: f32,
+    pub beam_target: Option<BlockPos>,
+    pub invulnerable: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
     South,
@@ -9678,6 +9732,140 @@ pub fn end_podium_blocks(origin: BlockPos, active: bool) -> Vec<EndPodiumPlaceme
     blocks
 }
 
+pub fn end_spike_from_size(index: i32, size: i32) -> EndSpikeModel {
+    let angle = 2.0 * (-std::f64::consts::PI + (std::f64::consts::PI / 10.0) * index as f64);
+    EndSpikeModel {
+        center_x: (42.0 * angle.cos()).floor() as i32,
+        center_z: (42.0 * angle.sin()).floor() as i32,
+        radius: 2 + size / 3,
+        height: 76 + size * 3,
+        guarded: size == 1 || size == 2,
+    }
+}
+
+pub fn end_spike_is_center_within_chunk(spike: EndSpikeModel, chunk_origin: BlockPos) -> bool {
+    chunk_origin.x.div_euclid(16) == spike.center_x.div_euclid(16)
+        && chunk_origin.z.div_euclid(16) == spike.center_z.div_euclid(16)
+}
+
+pub fn end_spike_top_bounding_box(
+    spike: EndSpikeModel,
+    min_y: i32,
+    max_y: i32,
+) -> (BlockPos, BlockPos) {
+    (
+        BlockPos {
+            x: spike.center_x - spike.radius,
+            y: min_y,
+            z: spike.center_z - spike.radius,
+        },
+        BlockPos {
+            x: spike.center_x + spike.radius,
+            y: max_y,
+            z: spike.center_z + spike.radius,
+        },
+    )
+}
+
+pub fn end_spike_cylinder_and_air_blocks(
+    spike: EndSpikeModel,
+    min_y: i32,
+) -> Vec<EndSpikePlacementBlock> {
+    let mut blocks = Vec::new();
+    for y in min_y..=(spike.height + 10) {
+        for z in (spike.center_z - spike.radius)..=(spike.center_z + spike.radius) {
+            for x in (spike.center_x - spike.radius)..=(spike.center_x + spike.radius) {
+                let dx = x - spike.center_x;
+                let dz = z - spike.center_z;
+                if dx * dx + dz * dz <= spike.radius * spike.radius + 1 && y < spike.height {
+                    blocks.push(EndSpikePlacementBlock {
+                        pos: BlockPos { x, y, z },
+                        kind: EndSpikeBlockKind::Obsidian,
+                    });
+                } else if y > 65 {
+                    blocks.push(EndSpikePlacementBlock {
+                        pos: BlockPos { x, y, z },
+                        kind: EndSpikeBlockKind::Air,
+                    });
+                }
+            }
+        }
+    }
+    blocks
+}
+
+pub fn end_spike_guard_cage_blocks(spike: EndSpikeModel) -> Vec<EndSpikePlacementBlock> {
+    if !spike.guarded {
+        return Vec::new();
+    }
+    let mut blocks = Vec::new();
+    for dx in -2i32..=2 {
+        for dz in -2i32..=2 {
+            for dy in 0i32..=3 {
+                let x_side = dx.abs() == 2;
+                let z_side = dz.abs() == 2;
+                let top = dy == 3;
+                if !x_side && !z_side && !top {
+                    continue;
+                }
+                let x_edge = dx == -2 || dx == 2 || top;
+                let z_edge = dz == -2 || dz == 2 || top;
+                blocks.push(EndSpikePlacementBlock {
+                    pos: BlockPos {
+                        x: spike.center_x + dx,
+                        y: spike.height + dy,
+                        z: spike.center_z + dz,
+                    },
+                    kind: EndSpikeBlockKind::IronBars {
+                        north: x_edge && dz != -2,
+                        south: x_edge && dz != 2,
+                        west: z_edge && dx != -2,
+                        east: z_edge && dx != 2,
+                    },
+                });
+            }
+        }
+    }
+    blocks
+}
+
+pub fn end_crystal_for_spike(
+    spike: EndSpikeModel,
+    config: &EndSpikeConfigurationModel,
+    yaw_roll: f32,
+) -> EndCrystalPlacement {
+    EndCrystalPlacement {
+        x: spike.center_x as f64 + 0.5,
+        y: spike.height as f64 + 1.0,
+        z: spike.center_z as f64 + 0.5,
+        yaw: yaw_roll * 360.0,
+        beam_target: config.crystal_beam_target,
+        invulnerable: config.crystal_invulnerable,
+    }
+}
+
+pub fn end_spike_crystal_support_blocks(spike: EndSpikeModel) -> Vec<EndSpikePlacementBlock> {
+    let crystal_block_pos = BlockPos {
+        x: spike.center_x,
+        y: spike.height + 1,
+        z: spike.center_z,
+    };
+    vec![
+        EndSpikePlacementBlock {
+            pos: BlockPos {
+                x: crystal_block_pos.x,
+                y: crystal_block_pos.y - 1,
+                z: crystal_block_pos.z,
+            },
+            kind: EndSpikeBlockKind::Bedrock,
+        },
+        EndSpikePlacementBlock {
+            pos: crystal_block_pos,
+            kind: EndSpikeBlockKind::Fire,
+        },
+    ]
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -14777,6 +14965,108 @@ mod tests {
                     == super::EndPodiumBlockKind::WallTorch(super::HorizontalDirection::East))
                 .count(),
             1
+        );
+        let spike = super::end_spike_from_size(0, 2);
+        assert_eq!(
+            spike,
+            super::EndSpikeModel {
+                center_x: 42,
+                center_z: 0,
+                radius: 2,
+                height: 82,
+                guarded: true,
+            }
+        );
+        assert!(super::end_spike_is_center_within_chunk(
+            spike,
+            BlockPos { x: 32, y: 0, z: 0 },
+        ));
+        assert!(!super::end_spike_is_center_within_chunk(
+            spike,
+            BlockPos { x: 16, y: 0, z: 0 },
+        ));
+        assert_eq!(
+            super::end_spike_top_bounding_box(spike, -64, 320),
+            (
+                BlockPos {
+                    x: 40,
+                    y: -64,
+                    z: -2
+                },
+                BlockPos {
+                    x: 44,
+                    y: 320,
+                    z: 2
+                },
+            )
+        );
+        let spike_blocks = super::end_spike_cylinder_and_air_blocks(spike, 64);
+        assert!(spike_blocks.contains(&super::EndSpikePlacementBlock {
+            pos: BlockPos { x: 42, y: 64, z: 0 },
+            kind: super::EndSpikeBlockKind::Obsidian,
+        }));
+        assert!(spike_blocks.contains(&super::EndSpikePlacementBlock {
+            pos: BlockPos {
+                x: 40,
+                y: 82,
+                z: -2
+            },
+            kind: super::EndSpikeBlockKind::Air,
+        }));
+        let cage_blocks = super::end_spike_guard_cage_blocks(spike);
+        assert!(cage_blocks.contains(&super::EndSpikePlacementBlock {
+            pos: BlockPos { x: 40, y: 82, z: 0 },
+            kind: super::EndSpikeBlockKind::IronBars {
+                north: true,
+                south: true,
+                west: false,
+                east: false,
+            },
+        }));
+        assert!(cage_blocks.contains(&super::EndSpikePlacementBlock {
+            pos: BlockPos { x: 42, y: 85, z: 0 },
+            kind: super::EndSpikeBlockKind::IronBars {
+                north: true,
+                south: true,
+                west: true,
+                east: true,
+            },
+        }));
+        assert_eq!(
+            super::end_spike_guard_cage_blocks(super::EndSpikeModel {
+                guarded: false,
+                ..spike
+            }),
+            Vec::new()
+        );
+        let spike_config = super::EndSpikeConfigurationModel {
+            crystal_invulnerable: true,
+            spikes: vec![spike],
+            crystal_beam_target: Some(BlockPos { x: 0, y: 80, z: 0 }),
+        };
+        assert_eq!(
+            super::end_crystal_for_spike(spike, &spike_config, 0.25),
+            super::EndCrystalPlacement {
+                x: 42.5,
+                y: 83.0,
+                z: 0.5,
+                yaw: 90.0,
+                beam_target: Some(BlockPos { x: 0, y: 80, z: 0 }),
+                invulnerable: true,
+            }
+        );
+        assert_eq!(
+            super::end_spike_crystal_support_blocks(spike),
+            vec![
+                super::EndSpikePlacementBlock {
+                    pos: BlockPos { x: 42, y: 82, z: 0 },
+                    kind: super::EndSpikeBlockKind::Bedrock,
+                },
+                super::EndSpikePlacementBlock {
+                    pos: BlockPos { x: 42, y: 83, z: 0 },
+                    kind: super::EndSpikeBlockKind::Fire,
+                },
+            ]
         );
 
         let pile_config = super::BlockPileConfigurationModel {
