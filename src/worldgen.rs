@@ -789,6 +789,32 @@ pub struct VegetationPatchPlan {
     pub vegetation_origins: Vec<BlockPos>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LakeConfigurationModel {
+    pub fluid: BlockStateProviderModel,
+    pub barrier: BlockStateProviderModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LakeBoundaryBlock {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub state: &'static str,
+    pub solid: bool,
+    pub liquid: bool,
+    pub cannot_replace: bool,
+    pub should_freeze: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LakePlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub schedule_tick: bool,
+    pub mark_above_for_post_processing: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -7884,6 +7910,122 @@ pub fn vegetation_patch_plan(
     }
 }
 
+pub fn lake_grid_index(x: i32, y: i32, z: i32) -> usize {
+    ((x * 16 + z) * 8 + y) as usize
+}
+
+pub fn lake_is_boundary(grid: &[bool], x: i32, y: i32, z: i32) -> bool {
+    if *grid.get(lake_grid_index(x, y, z)).unwrap_or(&false) {
+        return false;
+    }
+    (x < 15 && *grid.get(lake_grid_index(x + 1, y, z)).unwrap_or(&false))
+        || (x > 0 && *grid.get(lake_grid_index(x - 1, y, z)).unwrap_or(&false))
+        || (z < 15 && *grid.get(lake_grid_index(x, y, z + 1)).unwrap_or(&false))
+        || (z > 0 && *grid.get(lake_grid_index(x, y, z - 1)).unwrap_or(&false))
+        || (y < 7 && *grid.get(lake_grid_index(x, y + 1, z)).unwrap_or(&false))
+        || (y > 0 && *grid.get(lake_grid_index(x, y - 1, z)).unwrap_or(&false))
+}
+
+pub fn lake_can_place(
+    min_y: i32,
+    origin_y: i32,
+    grid: &[bool],
+    boundary: &[LakeBoundaryBlock],
+    fluid: &'static str,
+) -> bool {
+    if origin_y <= min_y + 4 {
+        return false;
+    }
+    boundary.iter().all(|block| {
+        !lake_is_boundary(grid, block.x, block.y, block.z)
+            || if block.y >= 4 {
+                !block.liquid
+            } else {
+                block.solid || block.state == fluid
+            }
+    })
+}
+
+pub fn lake_placement_plan(
+    origin: BlockPos,
+    config: &LakeConfigurationModel,
+    grid: &[bool],
+    boundary: &[LakeBoundaryBlock],
+    barrier_rolls: &[i32],
+    freeze_water: bool,
+) -> Option<Vec<LakePlacementBlock>> {
+    let fluid = block_state_provider_sample(&config.fluid, 0)?;
+    let barrier = block_state_provider_sample(&config.barrier, 0)?;
+    let mut blocks = Vec::new();
+    for x in 0..16 {
+        for z in 0..16 {
+            for y in 0..8 {
+                if *grid.get(lake_grid_index(x, y, z)).unwrap_or(&false) {
+                    let place_air = y >= 4;
+                    blocks.push(LakePlacementBlock {
+                        pos: BlockPos {
+                            x: origin.x + x,
+                            y: origin.y + y,
+                            z: origin.z + z,
+                        },
+                        state: if place_air {
+                            "minecraft:cave_air"
+                        } else {
+                            fluid
+                        },
+                        schedule_tick: place_air,
+                        mark_above_for_post_processing: place_air,
+                    });
+                }
+            }
+        }
+    }
+    if barrier != "minecraft:air" {
+        for block in boundary {
+            if lake_is_boundary(grid, block.x, block.y, block.z)
+                && (block.y < 4
+                    || barrier_rolls
+                        .get(lake_grid_index(block.x, block.y, block.z))
+                        .copied()
+                        .unwrap_or(1)
+                        .rem_euclid(2)
+                        != 0)
+                && block.solid
+                && !block.cannot_replace
+            {
+                blocks.push(LakePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + block.x,
+                        y: origin.y + block.y,
+                        z: origin.z + block.z,
+                    },
+                    state: barrier,
+                    schedule_tick: false,
+                    mark_above_for_post_processing: true,
+                });
+            }
+        }
+    }
+    if freeze_water && fluid == "minecraft:water" {
+        for block in boundary
+            .iter()
+            .filter(|block| block.y == 4 && block.should_freeze)
+        {
+            blocks.push(LakePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x + block.x,
+                    y: origin.y + 4,
+                    z: origin.z + block.z,
+                },
+                state: "minecraft:ice",
+                schedule_tick: false,
+                mark_above_for_post_processing: false,
+            });
+        }
+    }
+    Some(blocks)
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -11993,6 +12135,90 @@ mod tests {
             vegetation_plan.vegetation_origins,
             vec![BlockPos { x: 5, y: 65, z: 5 }]
         );
+        let lake_config = super::LakeConfigurationModel {
+            fluid: BlockStateProviderModel::Simple("minecraft:water"),
+            barrier: BlockStateProviderModel::Simple("minecraft:stone"),
+        };
+        let mut lake_grid = vec![false; 2048];
+        lake_grid[super::lake_grid_index(8, 3, 8)] = true;
+        assert!(super::lake_is_boundary(&lake_grid, 8, 4, 8));
+        assert_eq!(
+            super::lake_grid_index(8, 3, 8),
+            ((8 * 16 + 8) * 8 + 3) as usize
+        );
+        let lake_boundary = [
+            super::LakeBoundaryBlock {
+                x: 8,
+                y: 4,
+                z: 8,
+                state: "minecraft:stone",
+                solid: true,
+                liquid: false,
+                cannot_replace: false,
+                should_freeze: true,
+            },
+            super::LakeBoundaryBlock {
+                x: 8,
+                y: 2,
+                z: 8,
+                state: "minecraft:stone",
+                solid: true,
+                liquid: false,
+                cannot_replace: false,
+                should_freeze: false,
+            },
+        ];
+        assert!(super::lake_can_place(
+            -64,
+            70,
+            &lake_grid,
+            &lake_boundary,
+            "minecraft:water"
+        ));
+        let invalid_lake_boundary = [super::LakeBoundaryBlock {
+            x: 8,
+            y: 4,
+            z: 8,
+            state: "minecraft:water",
+            solid: false,
+            liquid: true,
+            cannot_replace: false,
+            should_freeze: false,
+        }];
+        assert!(!super::lake_can_place(
+            -64,
+            70,
+            &lake_grid,
+            &invalid_lake_boundary,
+            "minecraft:water"
+        ));
+        let lake_plan = super::lake_placement_plan(
+            BlockPos { x: 0, y: 60, z: 0 },
+            &lake_config,
+            &lake_grid,
+            &lake_boundary,
+            &[1; 2048],
+            true,
+        )
+        .unwrap();
+        assert!(lake_plan.contains(&super::LakePlacementBlock {
+            pos: BlockPos { x: 8, y: 63, z: 8 },
+            state: "minecraft:water",
+            schedule_tick: false,
+            mark_above_for_post_processing: false,
+        }));
+        assert!(lake_plan.contains(&super::LakePlacementBlock {
+            pos: BlockPos { x: 8, y: 64, z: 8 },
+            state: "minecraft:stone",
+            schedule_tick: false,
+            mark_above_for_post_processing: true,
+        }));
+        assert!(lake_plan.contains(&super::LakePlacementBlock {
+            pos: BlockPos { x: 8, y: 64, z: 8 },
+            state: "minecraft:ice",
+            schedule_tick: false,
+            mark_above_for_post_processing: false,
+        }));
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
