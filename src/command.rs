@@ -17696,6 +17696,44 @@ mod tests {
     }
 
     #[test]
+    fn loot_command_uses_fishing_source_with_optional_tool() {
+        let mut state = ServerCommandState {
+            command_loot_tables: vec![CommandLootTable {
+                id: "minecraft:gameplay/fishing".to_string(),
+                drops: vec![CommandItemStack {
+                    item: "minecraft:cod".to_string(),
+                    count: 1,
+                }],
+            }],
+            ..ServerCommandState::default()
+        };
+
+        let result = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "loot give Steve fish gameplay/fishing 1 62 3 fishing_rod",
+        )
+        .unwrap();
+        assert_eq!(result.success_count, 1);
+        assert_eq!(result.feedback_key, "commands.drop.success.single");
+        assert_eq!(
+            state.player_inventories[0].items,
+            vec![CommandItemStack {
+                item: "minecraft:cod".to_string(),
+                count: 1,
+            }]
+        );
+        assert_eq!(
+            state.loot_events.last().unwrap().source,
+            CommandLootSource::Fish {
+                table: "minecraft:gameplay/fishing".to_string(),
+                pos: BlockPos { x: 1, y: 62, z: 3 },
+                tool: Some("minecraft:fishing_rod".to_string()),
+            }
+        );
+    }
+
+    #[test]
     fn place_command_records_feature_jigsaw_structure_and_template_placements() {
         let mut state = ServerCommandState {
             command_source_position: Vec3 {
