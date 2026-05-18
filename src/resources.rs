@@ -74,20 +74,31 @@ pub enum DataResourceKind {
     Advancement,
     BannerPattern,
     ChatType,
+    CatSoundVariant,
+    CatVariant,
     DamageType,
     Dialog,
     DimensionType,
     Enchantment,
     EnchantmentProvider,
+    FrogVariant,
+    ChickenSoundVariant,
+    ChickenVariant,
+    CowSoundVariant,
+    CowVariant,
     Instrument,
     JukeboxSong,
     LootTable,
     PaintingVariant,
+    PigSoundVariant,
+    PigVariant,
     Recipe,
     Structure,
     Tags,
     TestEnvironment,
     TestInstance,
+    WolfSoundVariant,
+    WolfVariant,
     Timeline,
     TradeSet,
     TrialSpawner,
@@ -96,6 +107,7 @@ pub enum DataResourceKind {
     VillagerTrade,
     WorldClock,
     Worldgen,
+    ZombieNautilusVariant,
 }
 
 impl DataResourceKind {
@@ -103,20 +115,31 @@ impl DataResourceKind {
         Self::Advancement,
         Self::BannerPattern,
         Self::ChatType,
+        Self::CatSoundVariant,
+        Self::CatVariant,
         Self::DamageType,
         Self::Dialog,
         Self::DimensionType,
         Self::Enchantment,
         Self::EnchantmentProvider,
+        Self::FrogVariant,
+        Self::ChickenSoundVariant,
+        Self::ChickenVariant,
+        Self::CowSoundVariant,
+        Self::CowVariant,
         Self::Instrument,
         Self::JukeboxSong,
         Self::LootTable,
         Self::PaintingVariant,
+        Self::PigSoundVariant,
+        Self::PigVariant,
         Self::Recipe,
         Self::Structure,
         Self::Tags,
         Self::TestEnvironment,
         Self::TestInstance,
+        Self::WolfSoundVariant,
+        Self::WolfVariant,
         Self::Timeline,
         Self::TradeSet,
         Self::TrialSpawner,
@@ -125,6 +148,7 @@ impl DataResourceKind {
         Self::VillagerTrade,
         Self::WorldClock,
         Self::Worldgen,
+        Self::ZombieNautilusVariant,
     ];
 
     pub fn path_component(self) -> &'static str {
@@ -132,20 +156,31 @@ impl DataResourceKind {
             Self::Advancement => "advancement",
             Self::BannerPattern => "banner_pattern",
             Self::ChatType => "chat_type",
+            Self::CatSoundVariant => "cat_sound_variant",
+            Self::CatVariant => "cat_variant",
             Self::DamageType => "damage_type",
             Self::Dialog => "dialog",
             Self::DimensionType => "dimension_type",
             Self::Enchantment => "enchantment",
             Self::EnchantmentProvider => "enchantment_provider",
+            Self::FrogVariant => "frog_variant",
+            Self::ChickenSoundVariant => "chicken_sound_variant",
+            Self::ChickenVariant => "chicken_variant",
+            Self::CowSoundVariant => "cow_sound_variant",
+            Self::CowVariant => "cow_variant",
             Self::Instrument => "instrument",
             Self::JukeboxSong => "jukebox_song",
             Self::LootTable => "loot_table",
             Self::PaintingVariant => "painting_variant",
+            Self::PigSoundVariant => "pig_sound_variant",
+            Self::PigVariant => "pig_variant",
             Self::Recipe => "recipe",
             Self::Structure => "structure",
             Self::Tags => "tags",
             Self::TestEnvironment => "test_environment",
             Self::TestInstance => "test_instance",
+            Self::WolfSoundVariant => "wolf_sound_variant",
+            Self::WolfVariant => "wolf_variant",
             Self::Timeline => "timeline",
             Self::TradeSet => "trade_set",
             Self::TrialSpawner => "trial_spawner",
@@ -154,6 +189,7 @@ impl DataResourceKind {
             Self::VillagerTrade => "villager_trade",
             Self::WorldClock => "world_clock",
             Self::Worldgen => "worldgen",
+            Self::ZombieNautilusVariant => "zombie_nautilus_variant",
         }
     }
 
@@ -167,15 +203,26 @@ impl DataResourceKind {
             "dimension_type" => Self::DimensionType,
             "enchantment" => Self::Enchantment,
             "enchantment_provider" => Self::EnchantmentProvider,
+            "cat_sound_variant" => Self::CatSoundVariant,
+            "cat_variant" => Self::CatVariant,
+            "frog_variant" => Self::FrogVariant,
+            "chicken_sound_variant" => Self::ChickenSoundVariant,
+            "chicken_variant" => Self::ChickenVariant,
+            "cow_sound_variant" => Self::CowSoundVariant,
+            "cow_variant" => Self::CowVariant,
             "instrument" => Self::Instrument,
             "jukebox_song" => Self::JukeboxSong,
             "loot_table" => Self::LootTable,
             "painting_variant" => Self::PaintingVariant,
+            "pig_sound_variant" => Self::PigSoundVariant,
+            "pig_variant" => Self::PigVariant,
             "recipe" => Self::Recipe,
             "structure" => Self::Structure,
             "tags" => Self::Tags,
             "test_environment" => Self::TestEnvironment,
             "test_instance" => Self::TestInstance,
+            "wolf_sound_variant" => Self::WolfSoundVariant,
+            "wolf_variant" => Self::WolfVariant,
             "timeline" => Self::Timeline,
             "trade_set" => Self::TradeSet,
             "trial_spawner" => Self::TrialSpawner,
@@ -184,6 +231,7 @@ impl DataResourceKind {
             "villager_trade" => Self::VillagerTrade,
             "world_clock" => Self::WorldClock,
             "worldgen" => Self::Worldgen,
+            "zombie_nautilus_variant" => Self::ZombieNautilusVariant,
             _ => return None,
         })
     }
@@ -1170,7 +1218,117 @@ mod tests {
     use super::*;
     use crate::registry::feature_flags;
     use std::fs;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn decompiled_minecraft_data_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("decompiled-server-26.1.2")
+            .join("data")
+            .join("minecraft")
+    }
+
+    fn collect_decompiled_minecraft_json_paths() -> Vec<String> {
+        let root = decompiled_minecraft_data_root();
+        let mut paths = Vec::new();
+        let mut dirs = vec![root.clone()];
+
+        while let Some(current) = dirs.pop() {
+            let read_dir = fs::read_dir(&current).expect("failed to read decompiled data dir");
+            for entry in read_dir {
+                let entry = entry.expect("failed to read decompiled data entry");
+                let path = entry.path();
+
+                if path.is_dir() {
+                    if current == root && path.file_name().and_then(|name| name.to_str()) == Some("datapacks")
+                    {
+                        continue;
+                    }
+                    dirs.push(path);
+                    continue;
+                }
+
+                if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                    continue;
+                }
+
+                let relative = path
+                    .strip_prefix(&root)
+                    .expect("decompiled data path should be under data/minecraft");
+                let relative_path = relative
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy().to_string())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                paths.push(format!("data/minecraft/{relative_path}"));
+            }
+        }
+
+        paths
+    }
+
+    #[test]
+    fn decompiled_minecraft_data_resource_kinds_match_data_folders() {
+        let root = decompiled_minecraft_data_root();
+        let mut observed_top_levels = root
+            .read_dir()
+            .expect("failed to read decompiled data root")
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().is_dir())
+            .filter_map(|entry| entry.file_name().to_str().map(ToString::to_string))
+            .filter(|name| name != "datapacks")
+            .collect::<Vec<_>>();
+        observed_top_levels.sort();
+
+        let known_top_levels = DataResourceKind::ALL
+            .iter()
+            .map(|kind| kind.path_component().to_string())
+            .collect::<std::collections::BTreeSet<_>>();
+
+        for observed in observed_top_levels {
+            assert!(
+                known_top_levels.contains(&observed),
+                "unknown top-level minecraft data folder in decompiled tree: {observed}"
+            );
+        }
+    }
+
+    #[test]
+    fn decompiled_minecraft_data_kind_counts_match_index() {
+        let resource_paths = collect_decompiled_minecraft_json_paths();
+        let mut expected_counts = std::collections::BTreeMap::<DataResourceKind, usize>::new();
+        for kind in DataResourceKind::ALL {
+            expected_counts.insert(*kind, 0);
+        }
+
+        for path in &resource_paths {
+            let top_level = path
+                .split('/')
+                .nth(2)
+                .expect("data path should include top-level resource folder");
+            if let Some(kind) = DataResourceKind::from_path_component(top_level) {
+                *expected_counts.entry(kind).or_insert(0) += 1;
+            }
+        }
+
+        let resources = resource_paths
+            .iter()
+            .map(|path| (path.as_str(), "{}"))
+            .collect::<Vec<_>>();
+        let index = DataResourceIndex::from_resources(resources).unwrap();
+
+        for kind in DataResourceKind::ALL {
+            let expected = expected_counts.get(kind).copied().unwrap_or(0);
+            let observed = index.list("minecraft", *kind).len();
+            assert_eq!(
+                expected,
+                observed,
+                "resource kind {} expected count mismatch",
+                kind.path_component()
+            );
+        }
+    }
 
     #[test]
     fn safe_mode_selects_only_vanilla_and_does_not_disable_world_packs() {
@@ -1608,4 +1766,5 @@ mod tests {
 
         fs::remove_dir_all(temp_dir).unwrap();
     }
+
 }
