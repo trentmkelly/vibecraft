@@ -6585,6 +6585,32 @@ pub const SAVANNA_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const TAIGA_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_large_fern",
+        "minecraft:trees_taiga",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_taiga_2",
+        "minecraft:brown_mushroom_taiga",
+        "minecraft:red_mushroom_taiga",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:patch_berry_common",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6695,6 +6721,51 @@ pub const SAVANNA_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 10,
         min_count: 2,
         max_count: 3,
+    },
+];
+
+pub const TAIGA_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:wolf",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:rabbit",
+        weight: 4,
+        min_count: 2,
+        max_count: 3,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:fox",
+        weight: 8,
+        min_count: 2,
+        max_count: 4,
     },
 ];
 
@@ -7121,6 +7192,41 @@ pub const SAVANNA_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const TAIGA_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: TAIGA_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -7253,6 +7359,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: SAVANNA_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:taiga",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: TAIGA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: TAIGA_SPAWNER_GROUPS,
     },
 ];
 
@@ -21163,6 +21277,42 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(savanna, "monster"),
             super::PLAINS_MONSTER_SPAWNS
+        );
+
+        let taiga = super::biome_generation_settings("taiga").unwrap();
+        assert_eq!(taiga.biome, "minecraft:taiga");
+        assert!(super::biome_has_placed_feature(
+            taiga,
+            "minecraft:patch_large_fern"
+        ));
+        assert!(super::biome_has_placed_feature(
+            taiga,
+            "minecraft:trees_taiga"
+        ));
+        assert!(super::biome_has_placed_feature(
+            taiga,
+            "minecraft:patch_berry_common"
+        ));
+        assert!(super::biome_has_placed_feature(
+            taiga,
+            "minecraft:brown_mushroom_taiga"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            taiga,
+            "minecraft:trees_savanna"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(taiga, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:fox",
+                weight: 8,
+                min_count: 2,
+                max_count: 4,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(taiga, "monster"),
+            super::FOREST_MONSTER_SPAWNS
         );
     }
 
