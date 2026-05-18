@@ -403,7 +403,7 @@ mod tests {
                 ("block_predicate", 13, 13, 0xc3ee_462f_0289_7bb6),
                 ("carver", 4, 3, 0x4250_358c_87d5_b357),
                 ("feature", 221, 9, 0x4406_a49b_7ed4_41f7),
-                ("flat_generator", 9, 9, 0x1197_361f_4b66_211f),
+                ("flat_generator", 9, 9, 0xd90a_d773_babb_cb17),
                 ("height_provider", 6, 6, 0x7703_bfeb_40d0_6186),
                 ("material_rule", 4, 11, 0x7094_bb91_9777_7c3a),
                 ("placement_modifier", 9, 9, 0xb7be_3703_8b30_0f4f),

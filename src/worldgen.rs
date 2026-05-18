@@ -1,6 +1,14 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
+
 use crate::biome::{span, ClimateParameterPoint};
+use crate::storage::chunk::{
+    BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
+    BIOME_SECTION_VOLUME, SECTION_VOLUME,
+};
+use crate::storage::nbt::Tag;
+use crate::storage::region::ChunkPos;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NoiseSettings {
@@ -427,6 +435,24 @@ pub struct FlatGeneratorPreset {
     pub add_lakes: bool,
     pub decoration: bool,
     pub layers: &'static [FlatLayerInfo],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlatGeneratorSettingsModel {
+    pub biome: &'static str,
+    pub structure_overrides: Vec<&'static str>,
+    pub add_lakes: bool,
+    pub decoration: bool,
+    pub layers: Vec<FlatLayerInfo>,
+    pub expanded_layers: Vec<Option<&'static str>>,
+    pub top_layer_modifications: Vec<(usize, &'static str)>,
+    pub void_generation: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlatNoiseColumn {
+    pub min_y: i32,
+    pub states: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1281,7 +1307,7 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         layers: &[
             FlatLayerInfo {
                 height: 1,
-                block: "minecraft:grass_block",
+                block: "minecraft:bedrock",
             },
             FlatLayerInfo {
                 height: 2,
@@ -1289,7 +1315,7 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
             },
             FlatLayerInfo {
                 height: 1,
-                block: "minecraft:bedrock",
+                block: "minecraft:grass_block",
             },
         ],
     },
@@ -1303,19 +1329,19 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         layers: &[
             FlatLayerInfo {
                 height: 1,
-                block: "minecraft:grass_block",
-            },
-            FlatLayerInfo {
-                height: 5,
-                block: "minecraft:dirt",
+                block: "minecraft:bedrock",
             },
             FlatLayerInfo {
                 height: 230,
                 block: "minecraft:stone",
             },
             FlatLayerInfo {
+                height: 5,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
                 height: 1,
-                block: "minecraft:bedrock",
+                block: "minecraft:grass_block",
             },
         ],
     },
@@ -1332,12 +1358,16 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         decoration: false,
         layers: &[
             FlatLayerInfo {
-                height: 90,
-                block: "minecraft:water",
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 64,
+                block: "minecraft:deepslate",
             },
             FlatLayerInfo {
                 height: 5,
-                block: "minecraft:gravel",
+                block: "minecraft:stone",
             },
             FlatLayerInfo {
                 height: 5,
@@ -1345,15 +1375,11 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
             },
             FlatLayerInfo {
                 height: 5,
-                block: "minecraft:stone",
+                block: "minecraft:gravel",
             },
             FlatLayerInfo {
-                height: 64,
-                block: "minecraft:deepslate",
-            },
-            FlatLayerInfo {
-                height: 1,
-                block: "minecraft:bedrock",
+                height: 90,
+                block: "minecraft:water",
             },
         ],
     },
@@ -1373,19 +1399,19 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         layers: &[
             FlatLayerInfo {
                 height: 1,
-                block: "minecraft:grass_block",
-            },
-            FlatLayerInfo {
-                height: 3,
-                block: "minecraft:dirt",
+                block: "minecraft:bedrock",
             },
             FlatLayerInfo {
                 height: 59,
                 block: "minecraft:stone",
             },
             FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
                 height: 1,
-                block: "minecraft:bedrock",
+                block: "minecraft:grass_block",
             },
         ],
     },
@@ -1399,23 +1425,23 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         layers: &[
             FlatLayerInfo {
                 height: 1,
-                block: "minecraft:snow",
-            },
-            FlatLayerInfo {
-                height: 1,
-                block: "minecraft:grass_block",
-            },
-            FlatLayerInfo {
-                height: 3,
-                block: "minecraft:dirt",
+                block: "minecraft:bedrock",
             },
             FlatLayerInfo {
                 height: 59,
                 block: "minecraft:stone",
             },
             FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
                 height: 1,
-                block: "minecraft:bedrock",
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:snow",
             },
         ],
     },
@@ -1428,16 +1454,16 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         decoration: false,
         layers: &[
             FlatLayerInfo {
-                height: 1,
-                block: "minecraft:grass_block",
+                height: 2,
+                block: "minecraft:cobblestone",
             },
             FlatLayerInfo {
                 height: 3,
                 block: "minecraft:dirt",
             },
             FlatLayerInfo {
-                height: 2,
-                block: "minecraft:cobblestone",
+                height: 1,
+                block: "minecraft:grass_block",
             },
         ],
     },
@@ -1455,20 +1481,20 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         decoration: false,
         layers: &[
             FlatLayerInfo {
-                height: 8,
-                block: "minecraft:sand",
-            },
-            FlatLayerInfo {
-                height: 52,
-                block: "minecraft:sandstone",
+                height: 1,
+                block: "minecraft:bedrock",
             },
             FlatLayerInfo {
                 height: 3,
                 block: "minecraft:stone",
             },
             FlatLayerInfo {
-                height: 1,
-                block: "minecraft:bedrock",
+                height: 52,
+                block: "minecraft:sandstone",
+            },
+            FlatLayerInfo {
+                height: 8,
+                block: "minecraft:sand",
             },
         ],
     },
@@ -1481,16 +1507,16 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         decoration: false,
         layers: &[
             FlatLayerInfo {
-                height: 116,
-                block: "minecraft:sandstone",
+                height: 1,
+                block: "minecraft:bedrock",
             },
             FlatLayerInfo {
                 height: 3,
                 block: "minecraft:stone",
             },
             FlatLayerInfo {
-                height: 1,
-                block: "minecraft:bedrock",
+                height: 116,
+                block: "minecraft:sandstone",
             },
         ],
     },
@@ -1507,6 +1533,269 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
         }],
     },
 ];
+
+pub const VANILLA_DIMENSION_Y_SIZE: i32 = 384;
+pub const FLAT_GENERATOR_MIN_Y: i32 = 0;
+pub const FLAT_GENERATOR_GEN_DEPTH: i32 = 384;
+pub const FLAT_GENERATOR_SEA_LEVEL: i32 = -63;
+
+pub fn flat_generator_settings(
+    preset: &FlatGeneratorPreset,
+) -> Result<FlatGeneratorSettingsModel, String> {
+    let expanded_raw = expand_flat_layers(preset.layers)?;
+    let mut expanded_layers = expanded_raw.clone();
+    let mut top_layer_modifications = Vec::new();
+    let void_generation = expanded_layers
+        .iter()
+        .all(|state| state.map(|block| block == "minecraft:air").unwrap_or(true));
+
+    for (y, state) in expanded_layers.iter_mut().enumerate() {
+        let Some(block) = *state else {
+            continue;
+        };
+        if !motion_blocking_block(block) {
+            *state = None;
+            top_layer_modifications.push((y, block));
+        }
+    }
+
+    Ok(FlatGeneratorSettingsModel {
+        biome: preset.biome,
+        structure_overrides: preset.structures.to_vec(),
+        add_lakes: preset.add_lakes,
+        decoration: preset.decoration,
+        layers: preset.layers.to_vec(),
+        expanded_layers,
+        top_layer_modifications,
+        void_generation,
+    })
+}
+
+pub fn default_flat_generator_settings() -> Result<FlatGeneratorSettingsModel, String> {
+    let expanded_layers = expand_flat_layers(FLAT_DEFAULT_LAYERS)?;
+    Ok(FlatGeneratorSettingsModel {
+        biome: "minecraft:plains",
+        structure_overrides: vec!["minecraft:strongholds", "minecraft:villages"],
+        add_lakes: false,
+        decoration: false,
+        layers: FLAT_DEFAULT_LAYERS.to_vec(),
+        expanded_layers,
+        top_layer_modifications: Vec::new(),
+        void_generation: false,
+    })
+}
+
+pub fn expand_flat_layers(layers: &[FlatLayerInfo]) -> Result<Vec<Option<&'static str>>, String> {
+    let total_height = layers.iter().try_fold(0_i32, |sum, layer| {
+        if layer.height < 0 {
+            Err(format!(
+                "flat layer {} has negative height {}",
+                layer.block, layer.height
+            ))
+        } else {
+            Ok(sum + layer.height)
+        }
+    })?;
+    if total_height > VANILLA_DIMENSION_Y_SIZE {
+        return Err(format!(
+            "Sum of layer heights is > {}",
+            VANILLA_DIMENSION_Y_SIZE
+        ));
+    }
+
+    let mut expanded = Vec::with_capacity(total_height as usize);
+    for layer in layers {
+        for _ in 0..layer.height {
+            expanded.push(Some(layer.block));
+        }
+    }
+    Ok(expanded)
+}
+
+pub fn flat_base_height(
+    layers: &[Option<&'static str>],
+    min_y: i32,
+    height: i32,
+    heightmap: HeightmapKind,
+) -> i32 {
+    let max_layer = layers.len().min(height.max(0) as usize);
+    for layer_index in (0..max_layer).rev() {
+        if layers[layer_index].is_some_and(|block| heightmap_opaque(heightmap, block)) {
+            return min_y + layer_index as i32 + 1;
+        }
+    }
+    min_y
+}
+
+pub fn flat_base_column(
+    layers: &[Option<&'static str>],
+    min_y: i32,
+    height: i32,
+) -> FlatNoiseColumn {
+    let states = (0..height.max(0) as usize)
+        .map(|index| {
+            layers
+                .get(index)
+                .and_then(|state| *state)
+                .unwrap_or("minecraft:air")
+        })
+        .collect();
+    FlatNoiseColumn { min_y, states }
+}
+
+pub fn materialize_flat_chunk(pos: ChunkPos, settings: &FlatGeneratorSettingsModel) -> LevelChunk {
+    let mut chunk = LevelChunk::empty(pos);
+    chunk.status = "minecraft:full".to_string();
+
+    let layers = &settings.expanded_layers;
+    let max_layer = layers
+        .iter()
+        .rposition(Option::is_some)
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let section_count = max_layer.div_ceil(16);
+    chunk.sections = (0..section_count)
+        .map(|section_index| {
+            let section_min_y = FLAT_GENERATOR_MIN_Y + section_index as i32 * 16;
+            let block_states = flat_section_block_states(layers, section_index);
+            ChunkSection {
+                y: (section_min_y / 16) as i8,
+                block_states: block_states.to_nbt(),
+                biomes: PalettedContainer::single(
+                    Tag::String(settings.biome.to_string()),
+                    BIOME_SECTION_VOLUME,
+                )
+                .to_nbt(),
+                block_light: None,
+                sky_light: Some(vec![-1; 2048]),
+            }
+        })
+        .collect();
+
+    let world_surface = flat_base_height(
+        layers,
+        FLAT_GENERATOR_MIN_Y,
+        FLAT_GENERATOR_GEN_DEPTH,
+        HeightmapKind::WorldSurfaceWg,
+    );
+    let ocean_floor = flat_base_height(
+        layers,
+        FLAT_GENERATOR_MIN_Y,
+        FLAT_GENERATOR_GEN_DEPTH,
+        HeightmapKind::OceanFloorWg,
+    );
+    chunk.heightmaps = BTreeMap::from([
+        (
+            HeightmapKind::WorldSurfaceWg.storage_name().to_string(),
+            Tag::LongArray(pack_heightmap([world_surface; 16 * 16])),
+        ),
+        (
+            HeightmapKind::OceanFloorWg.storage_name().to_string(),
+            Tag::LongArray(pack_heightmap([ocean_floor; 16 * 16])),
+        ),
+    ]);
+    chunk
+}
+
+fn flat_section_block_states(
+    layers: &[Option<&'static str>],
+    section_index: usize,
+) -> PalettedContainer {
+    let section_start = section_index * 16;
+    let mut palette: Vec<&'static str> = Vec::new();
+    let mut indices = vec![0_u64; SECTION_VOLUME];
+
+    for local_y in 0..16 {
+        let block = layers
+            .get(section_start + local_y)
+            .and_then(|state| *state)
+            .unwrap_or("minecraft:air");
+        let palette_index = match palette.iter().position(|entry| *entry == block) {
+            Some(index) => index as u64,
+            None => {
+                palette.push(block);
+                (palette.len() - 1) as u64
+            }
+        };
+        for z in 0..16 {
+            for x in 0..16 {
+                indices[(local_y << 8) | (z << 4) | x] = palette_index;
+            }
+        }
+    }
+
+    if palette.len() == 1 {
+        return PalettedContainer::single(block_state_tag(palette[0]), SECTION_VOLUME);
+    }
+
+    PalettedContainer {
+        palette: palette.into_iter().map(block_state_tag).collect(),
+        data: Some(pack_palette_indices(
+            &indices,
+            bits_for_palette(indices.iter().copied().max().unwrap_or(0) + 1),
+        )),
+        expected_entries: SECTION_VOLUME,
+    }
+}
+
+fn block_state_tag(block: &'static str) -> Tag {
+    BlockStateEntry::new(block).to_nbt()
+}
+
+fn pack_palette_indices(indices: &[u64], bits_per_entry: usize) -> Vec<i64> {
+    let values_per_long = 64 / bits_per_entry;
+    let mut packed = vec![0_u64; indices.len().div_ceil(values_per_long)];
+    for (index, value) in indices.iter().copied().enumerate() {
+        let word_index = index / values_per_long;
+        let bit_index = (index - word_index * values_per_long) * bits_per_entry;
+        packed[word_index] |= value << bit_index;
+    }
+    packed.into_iter().map(|word| word as i64).collect()
+}
+
+fn pack_heightmap(values: [i32; 16 * 16]) -> Vec<i64> {
+    const BITS_PER_ENTRY: usize = 9;
+    let mut packed = vec![0_u64; (values.len() * BITS_PER_ENTRY).div_ceil(64)];
+    for (index, value) in values.into_iter().enumerate() {
+        let bit_offset = index * BITS_PER_ENTRY;
+        let word_index = bit_offset / 64;
+        let bit_index = bit_offset % 64;
+        let value = value.max(0) as u64 & ((1 << BITS_PER_ENTRY) - 1);
+        packed[word_index] |= value << bit_index;
+        let spill = bit_index + BITS_PER_ENTRY;
+        if spill > 64 {
+            packed[word_index + 1] |= value >> (64 - bit_index);
+        }
+    }
+    packed.into_iter().map(|word| word as i64).collect()
+}
+
+fn bits_for_palette(palette_len: u64) -> usize {
+    let needed = 64 - (palette_len.saturating_sub(1)).leading_zeros() as usize;
+    needed.max(4)
+}
+
+fn heightmap_opaque(heightmap: HeightmapKind, block: &'static str) -> bool {
+    match heightmap {
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => block != "minecraft:air",
+        HeightmapKind::OceanFloor
+        | HeightmapKind::OceanFloorWg
+        | HeightmapKind::MotionBlocking
+        | HeightmapKind::MotionBlockingNoLeaves => motion_blocking_block(block),
+    }
+}
+
+fn motion_blocking_block(block: &'static str) -> bool {
+    !matches!(
+        block,
+        "minecraft:air"
+            | "minecraft:cave_air"
+            | "minecraft:void_air"
+            | "minecraft:water"
+            | "minecraft:lava"
+            | "minecraft:snow"
+    )
+}
 
 pub const NETHER_LEVEL_STEM: LevelStemPreset = LevelStemPreset {
     dimension: "minecraft:the_nether",
@@ -5501,6 +5790,9 @@ mod tests {
         WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
+    use crate::storage::chunk::HeightmapKind;
+    use crate::storage::nbt::Tag;
+    use crate::storage::region::ChunkPos;
 
     #[test]
     fn noise_settings_presets_match_26_1_2_constants() {
@@ -6032,14 +6324,26 @@ mod tests {
         assert!(overworld.add_lakes);
         assert!(overworld.decoration);
         assert_eq!(super::flat_layers_total_height(overworld.layers), 64);
+        assert_eq!(
+            super::flat_block_at_y(overworld.layers, 0),
+            Some("minecraft:bedrock")
+        );
+        assert_eq!(
+            super::flat_block_at_y(overworld.layers, 63),
+            Some("minecraft:grass_block")
+        );
         assert!(overworld
             .structures
             .contains(&"minecraft:pillager_outposts"));
 
         let water = super::flat_generator_preset("minecraft:water_world").unwrap();
-        assert_eq!(water.layers[0].height, 90);
-        assert_eq!(water.layers[0].block, "minecraft:water");
+        assert_eq!(water.layers[0].height, 1);
+        assert_eq!(water.layers[0].block, "minecraft:bedrock");
         assert_eq!(super::flat_layers_total_height(water.layers), 170);
+        assert_eq!(
+            super::flat_block_at_y(water.layers, 169),
+            Some("minecraft:water")
+        );
 
         let void = super::flat_generator_preset("the_void").unwrap();
         assert!(super::flat_layers_are_void(void.layers));
@@ -7627,5 +7931,105 @@ mod tests {
             super::fixup_spawn_height(80, -64, 320, air_above_ground),
             65
         );
+    }
+
+    #[test]
+    fn flat_generator_expands_layers_bottom_up_like_vanilla() {
+        let settings = super::default_flat_generator_settings().unwrap();
+        assert_eq!(settings.biome, "minecraft:plains");
+        assert_eq!(
+            settings.structure_overrides,
+            vec!["minecraft:strongholds", "minecraft:villages"]
+        );
+        assert_eq!(
+            settings.expanded_layers,
+            vec![
+                Some("minecraft:bedrock"),
+                Some("minecraft:dirt"),
+                Some("minecraft:dirt"),
+                Some("minecraft:grass_block")
+            ]
+        );
+        assert!(!settings.void_generation);
+        assert_eq!(
+            super::flat_base_height(
+                &settings.expanded_layers,
+                super::FLAT_GENERATOR_MIN_Y,
+                super::FLAT_GENERATOR_GEN_DEPTH,
+                HeightmapKind::MotionBlocking
+            ),
+            4
+        );
+        assert_eq!(
+            super::flat_base_column(&settings.expanded_layers, 0, 6).states,
+            vec![
+                "minecraft:bedrock",
+                "minecraft:dirt",
+                "minecraft:dirt",
+                "minecraft:grass_block",
+                "minecraft:air",
+                "minecraft:air"
+            ]
+        );
+    }
+
+    #[test]
+    fn flat_generator_handles_void_and_non_motion_blocking_layers() {
+        let void_settings = super::flat_generator_settings(
+            super::flat_generator_preset("minecraft:the_void").unwrap(),
+        )
+        .unwrap();
+        assert!(void_settings.void_generation);
+        assert_eq!(void_settings.expanded_layers, vec![None]);
+        assert_eq!(
+            void_settings.top_layer_modifications,
+            vec![(0, "minecraft:air")]
+        );
+
+        let snowy = super::flat_generator_settings(
+            super::flat_generator_preset("minecraft:snowy_kingdom").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(snowy.expanded_layers[0], Some("minecraft:bedrock"));
+        assert_eq!(snowy.expanded_layers[63], Some("minecraft:grass_block"));
+        assert_eq!(snowy.expanded_layers[64], None);
+        assert_eq!(snowy.top_layer_modifications, vec![(64, "minecraft:snow")]);
+        assert_eq!(
+            super::flat_base_height(
+                &snowy.expanded_layers,
+                super::FLAT_GENERATOR_MIN_Y,
+                super::FLAT_GENERATOR_GEN_DEPTH,
+                HeightmapKind::MotionBlocking
+            ),
+            64
+        );
+    }
+
+    #[test]
+    fn flat_generator_materializes_chunk_sections_and_heightmaps() {
+        let settings = super::default_flat_generator_settings().unwrap();
+        let chunk = super::materialize_flat_chunk(ChunkPos { x: 2, z: -1 }, &settings);
+        assert_eq!(chunk.status, "minecraft:full");
+        assert_eq!(chunk.sections.len(), 1);
+        assert_eq!(chunk.sections[0].y, 0);
+        assert!(chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
+        assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
+
+        let Tag::Compound(section) = &chunk.sections[0].block_states else {
+            panic!("block states should be stored as a compound");
+        };
+        let Some((_, Tag::List(palette))) = section.iter().find(|(name, _)| name == "palette")
+        else {
+            panic!("block states should include a palette");
+        };
+        assert_eq!(palette.len(), 4);
+        assert!(matches!(
+            &chunk.sections[0].biomes,
+            Tag::Compound(fields)
+                if matches!(
+                    fields.iter().find(|(name, _)| name == "palette"),
+                    Some((_, Tag::List(values))) if values == &vec![Tag::String("minecraft:plains".to_string())]
+                )
+        ));
     }
 }
