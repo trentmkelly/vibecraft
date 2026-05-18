@@ -216,6 +216,8 @@ impl Drop for ActiveLoginGuard {
     }
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/damagesource/DamageType.java
+// and decompiled-server-26.1.2/data/minecraft/damage_type/*.json
 const DAMAGE_TYPES: &[&str] = &[
     "arrow",
     "bad_respawn_point",
@@ -413,6 +415,8 @@ const CHAT_TYPES: &[ChatTypeEntry] = &[
     },
 ];
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/biome/Biome.java
+// and data/minecraft/worldgen/biome/*.json
 const BIOMES: &[&str] = &[
     "badlands",
     "bamboo_jungle",
@@ -483,6 +487,8 @@ const BIOMES: &[&str] = &[
 
 const DIMENSION_TYPES: &[&str] = &["overworld", "overworld_caves", "the_end", "the_nether"];
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/equipment/trim/TrimPatterns.java
+// and data/minecraft/trim_pattern/*.json
 const TRIM_PATTERNS: &[&str] = &[
     "bolt",
     "coast",
@@ -504,6 +510,8 @@ const TRIM_PATTERNS: &[&str] = &[
     "wild",
 ];
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/InstrumentItem.java
+// and data/minecraft/instrument/*.json
 const INSTRUMENTS: &[InstrumentEntry] = &[
     InstrumentEntry {
         id: "admire_goat_horn",
@@ -539,6 +547,8 @@ const INSTRUMENTS: &[InstrumentEntry] = &[
     },
 ];
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BannerPatterns.java
+// and data/minecraft/banner_pattern/*.json
 const BANNER_PATTERNS: &[&str] = &[
     "base",
     "border",
@@ -638,6 +648,8 @@ const BANNER_PATTERN_TAGS: &[(&str, &[&str])] = &[
     ("minecraft:pattern_item/bordure_indented", &["curly_border"]),
 ];
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/JukeboxSongs.java
+// and data/minecraft/jukebox_song/*.json
 const JUKEBOX_SONGS: &[JukeboxSongEntry] = &[
     JukeboxSongEntry {
         id: "11",
@@ -1318,7 +1330,8 @@ fn handle_login_connection(
                                 stale_chunk.1,
                             )?;
                         }
-                        let chunks_to_send = newly_visible_chunks(&loaded_chunks, &next_loaded_chunks);
+                        let chunks_to_send =
+                            newly_visible_chunks(&loaded_chunks, &next_loaded_chunks);
                         current_chunk_x = next_chunk_x;
                         current_chunk_z = next_chunk_z;
                         loaded_chunks = next_loaded_chunks;
@@ -3835,10 +3848,10 @@ mod tests {
     use super::{
         banner_pattern_nbt, cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt,
         chunk_batch_size, chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
-        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt, newly_visible_chunks,
+        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
-        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
-        vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
+        newly_visible_chunks, pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt,
+        trim_pattern_nbt, vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
         visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
         visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
         write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
@@ -3859,13 +3872,13 @@ mod tests {
         write_vanilla_zombie_nautilus_variant_registry_packet,
         write_visible_spawn_terrain_block_state_container, CompressionState,
         ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
-        BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS, DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID,
-        DIRT_BLOCK_STATE_ID, GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS,
-        JUKEBOX_SONGS, POPPY_BLOCK_STATE_ID,
+        BIOMES, CHAT_TYPES, DAMAGE_TYPES, DAMAGE_TYPE_TAGS, DANDELION_BLOCK_STATE_ID,
+        DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID, GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID,
+        INSTRUMENTS, JUKEBOX_SONGS, POPPY_BLOCK_STATE_ID,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
-        STONE_BLOCK_STATE_ID, TRIM_MATERIALS, VERSION_NAME,
+        STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
     use crate::network::ping::ServerboundPingRequestPacket;
@@ -3873,6 +3886,8 @@ mod tests {
     use crate::registry::Identifier;
     use crate::server_properties::ServerProperties;
     use crate::storage::nbt::Tag;
+    use crate::{biome, damage_type, equipment_trim, presentation_data};
+    use std::collections::BTreeSet;
     use std::io::{self, Cursor, Read, Write};
     use std::path::Path;
 
@@ -4176,6 +4191,106 @@ mod tests {
             field_value(&instrument_tag, "range"),
             Some(Tag::Float(value)) if (*value - 256.0).abs() < f32::EPSILON
         ));
+    }
+
+    #[test]
+    fn duplicated_registry_manifest_ids_remain_in_sync_across_tables() {
+        let status_trim_materials: BTreeSet<String> = TRIM_MATERIALS
+            .iter()
+            .map(|entry| format!("minecraft:{}", entry.id))
+            .collect();
+        let presentation_trim_materials: BTreeSet<String> = presentation_data::TRIM_MATERIALS
+            .iter()
+            .map(|material| material.id.to_string())
+            .collect();
+        let model_trim_materials: BTreeSet<String> = equipment_trim::TRIM_MATERIALS
+            .iter()
+            .map(|material| material.id.to_string())
+            .collect();
+
+        assert_eq!(status_trim_materials, presentation_trim_materials);
+        assert_eq!(status_trim_materials, model_trim_materials);
+
+        let status_trim_patterns: BTreeSet<String> = TRIM_PATTERNS
+            .iter()
+            .map(|id| format!("minecraft:{id}"))
+            .collect();
+        let presentation_trim_patterns: BTreeSet<String> = presentation_data::TRIM_PATTERNS
+            .iter()
+            .map(|pattern| pattern.id.to_string())
+            .collect();
+        let model_trim_patterns: BTreeSet<String> = equipment_trim::TRIM_PATTERNS
+            .iter()
+            .map(|pattern| format!("minecraft:{}", pattern.id))
+            .collect();
+
+        assert_eq!(status_trim_patterns, presentation_trim_patterns);
+        assert_eq!(status_trim_patterns, model_trim_patterns);
+
+        let status_instruments: BTreeSet<String> = INSTRUMENTS
+            .iter()
+            .map(|instrument| format!("minecraft:{}", instrument.id))
+            .collect();
+        let presentation_instruments: BTreeSet<String> = presentation_data::INSTRUMENTS
+            .iter()
+            .map(|instrument| instrument.id.to_string())
+            .collect();
+
+        assert_eq!(status_instruments, presentation_instruments);
+
+        let status_damage_types: BTreeSet<String> = DAMAGE_TYPES
+            .iter()
+            .map(|id| format!("minecraft:{id}"))
+            .collect();
+        let presentation_damage_types: BTreeSet<String> = presentation_data::DAMAGE_TYPES
+            .iter()
+            .map(|entry| entry.id.to_string())
+            .collect();
+        let model_damage_types: BTreeSet<String> = damage_type::BUILTIN_DAMAGE_TYPES
+            .iter()
+            .map(|entry| entry.id.to_string())
+            .collect();
+
+        assert!(status_damage_types.is_superset(&presentation_damage_types));
+        assert!(status_damage_types.is_superset(&model_damage_types));
+
+        let status_biomes: BTreeSet<String> = BIOMES
+            .iter()
+            .map(|id| format!("minecraft:{}", id))
+            .collect();
+        let model_biomes: BTreeSet<String> = biome::BUILTIN_BIOMES
+            .iter()
+            .map(|biome| biome.id.to_string())
+            .collect();
+        assert_eq!(status_biomes, model_biomes);
+
+        let status_paintings =
+            status_registry_entry_ids_ordered(write_vanilla_painting_variant_registry_packet);
+        let presentation_paintings: Vec<String> = presentation_data::PAINTING_VARIANTS
+            .iter()
+            .map(|painting| painting.id.to_string())
+            .collect();
+        assert_eq!(status_paintings, presentation_paintings);
+
+        let status_jukebox_songs: BTreeSet<String> = JUKEBOX_SONGS
+            .iter()
+            .map(|song| format!("minecraft:{}", song.id))
+            .collect();
+        let presentation_jukebox_songs: BTreeSet<String> = presentation_data::JUKEBOX_SONGS
+            .iter()
+            .map(|song| song.id.to_string())
+            .collect();
+        assert!(presentation_jukebox_songs.is_subset(&status_jukebox_songs));
+
+        let status_banner_patterns: BTreeSet<String> = BANNER_PATTERNS
+            .iter()
+            .map(|id| format!("minecraft:{}", id))
+            .collect();
+        let presentation_banner_patterns: BTreeSet<String> = presentation_data::BANNER_PATTERNS
+            .iter()
+            .map(|pattern| pattern.id.to_string())
+            .collect();
+        assert!(presentation_banner_patterns.is_subset(&status_banner_patterns));
     }
 
     #[test]
@@ -4626,6 +4741,28 @@ mod tests {
         read_var_i32(&mut cursor).unwrap()
     }
 
+    fn status_registry_entry_ids_ordered(
+        write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>,
+    ) -> Vec<String> {
+        let mut payload = Vec::new();
+        write_packet(&mut payload).unwrap();
+        let mut cursor = Cursor::new(payload);
+        let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
+        let entry_count = read_var_i32(&mut cursor).unwrap();
+        let mut entry_ids = Vec::with_capacity(entry_count as usize);
+        for _ in 0..entry_count {
+            let id = crate::network::codec::read_identifier(&mut cursor).unwrap();
+            entry_ids.push(id.to_string());
+
+            let mut _present = [0u8; 1];
+            cursor.read_exact(&mut _present).unwrap();
+            let mut tag_id = [0u8; 1];
+            cursor.read_exact(&mut tag_id).unwrap();
+            let _ = Tag::read_payload(tag_id[0], &mut cursor).unwrap();
+        }
+        entry_ids
+    }
+
     #[test]
     fn level_chunk_packet_data_uses_vanilla_heightmap_stream_codec_not_nbt() {
         let mut heightmaps = std::collections::BTreeMap::new();
@@ -4639,7 +4776,10 @@ mod tests {
         let mut payload = Vec::new();
         super::write_level_chunk_packet_data(&mut payload, &data).unwrap();
 
-        assert_eq!(payload[0], 3, "heightmap map count is a VarInt, not NBT TAG_Compound");
+        assert_eq!(
+            payload[0], 3,
+            "heightmap map count is a VarInt, not NBT TAG_Compound"
+        );
         let mut cursor = Cursor::new(payload);
         assert_eq!(read_var_i32(&mut cursor).unwrap(), 3);
         for expected_id in [1, 4, 5] {

@@ -258,11 +258,7 @@ pub fn precipitation_tick_actions(context: PrecipitationTickContext) -> Vec<Weat
     actions
 }
 
-pub fn lightning_tick_roll(
-    raining: bool,
-    thundering: bool,
-    random_next_100000: i32,
-) -> bool {
+pub fn lightning_tick_roll(raining: bool, thundering: bool, random_next_100000: i32) -> bool {
     raining && thundering && random_next_100000 == 0
 }
 
@@ -272,9 +268,7 @@ pub fn skeleton_horse_trap_roll(
     random_next_double: f64,
     block_below_is_lightning_rod: bool,
 ) -> bool {
-    spawn_mobs
-        && random_next_double < effective_difficulty * 0.01
-        && !block_below_is_lightning_rod
+    spawn_mobs && random_next_double < effective_difficulty * 0.01 && !block_below_is_lightning_rod
 }
 
 pub fn choose_lightning_target(

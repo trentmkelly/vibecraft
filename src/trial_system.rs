@@ -40,10 +40,21 @@ pub struct TrialPlayer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrialSpawnerEvent {
     Idle,
-    DetectPlayer { mode: TrialMode, player_count: usize },
-    SpawnMob { mode: TrialMode, entity: String },
-    EjectReward { item: String, loot_table: String },
-    Cooldown { until_tick: i64 },
+    DetectPlayer {
+        mode: TrialMode,
+        player_count: usize,
+    },
+    SpawnMob {
+        mode: TrialMode,
+        entity: String,
+    },
+    EjectReward {
+        item: String,
+        loot_table: String,
+    },
+    Cooldown {
+        until_tick: i64,
+    },
     Rejected(TrialSpawnerRejection),
 }
 
@@ -85,7 +96,9 @@ impl TrialSpawnerState {
 
         let eligible: Vec<&TrialPlayer> = players
             .iter()
-            .filter(|player| !player.spectator && player.distance <= self.config.required_player_range)
+            .filter(|player| {
+                !player.spectator && player.distance <= self.config.required_player_range
+            })
             .collect();
         if eligible.is_empty() {
             return TrialSpawnerEvent::Idle;
@@ -274,7 +287,10 @@ mod tests {
                 loot_table: "minecraft:trial_chambers/reward".to_string()
             }
         );
-        assert_eq!(state.cooldown_until, 20 + i64::from(default_target_cooldown()));
+        assert_eq!(
+            state.cooldown_until,
+            20 + i64::from(default_target_cooldown())
+        );
         assert!(matches!(
             state.tick(21, &players, valid_context()),
             TrialSpawnerEvent::Cooldown { .. }
@@ -297,7 +313,10 @@ mod tests {
                 loot_table: "minecraft:trial_chambers/reward".to_string()
             }
         );
-        assert_eq!(normal.try_unlock("player-a", "minecraft:trial_key"), VaultUnlockResult::AlreadyRewarded);
+        assert_eq!(
+            normal.try_unlock("player-a", "minecraft:trial_key"),
+            VaultUnlockResult::AlreadyRewarded
+        );
 
         let mut ominous = VaultState::new(TrialMode::Ominous);
         assert!(matches!(

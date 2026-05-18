@@ -30027,7 +30027,10 @@ mod tests {
             }
         );
         assert_eq!(the_void.feature_steps.len(), 11);
-        assert_eq!(the_void.feature_steps[10], &["minecraft:void_start_platform"]);
+        assert_eq!(
+            the_void.feature_steps[10],
+            &["minecraft:void_start_platform"]
+        );
         assert_eq!(super::biome_spawns_for_category(the_void, "monster"), &[]);
     }
 

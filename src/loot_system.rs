@@ -191,7 +191,10 @@ pub enum LootDelivery {
     DropAt((f64, f64, f64), Vec<LootStack>),
     GiveToEntity(String, Vec<LootStack>),
     FillContainer(Vec<Option<LootStack>>),
-    ReplaceSlots { target: String, stacks: Vec<LootStack> },
+    ReplaceSlots {
+        target: String,
+        stacks: Vec<LootStack>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -210,7 +213,9 @@ pub struct LootBehaviorEngine {
 
 impl LootBehaviorEngine {
     pub fn new() -> Self {
-        Self { tables: HashMap::new() }
+        Self {
+            tables: HashMap::new(),
+        }
     }
 
     pub fn insert_table(&mut self, id: impl Into<String>, table: LootTable) {
@@ -226,10 +231,15 @@ impl LootBehaviorEngine {
             .unwrap_or_else(LootTable::empty);
         context.tables = self.tables.clone();
         let delivery = match request.surface {
-            LootSurface::ChestOpen => LootDelivery::FillContainer(table.fill_container(&mut context, 27)),
+            LootSurface::ChestOpen => {
+                LootDelivery::FillContainer(table.fill_container(&mut context, 27))
+            }
             LootSurface::AdvancementReward | LootSurface::Gift | LootSurface::PiglinBarter => {
                 LootDelivery::GiveToEntity(
-                    request.actor.clone().unwrap_or_else(|| "unknown".to_string()),
+                    request
+                        .actor
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                     table.evaluate(&mut context),
                 )
             }
@@ -237,7 +247,9 @@ impl LootBehaviorEngine {
                 request.actor.clone().unwrap(),
                 table.evaluate(&mut context),
             ),
-            LootSurface::Command => LootDelivery::DropAt(request.origin, table.evaluate(&mut context)),
+            LootSurface::Command => {
+                LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
+            }
             LootSurface::BlockBreak
             | LootSurface::EntityDeath
             | LootSurface::FishingRetrieve
@@ -264,7 +276,9 @@ impl LootBehaviorEngine {
         context.block = request.block.clone();
         context.tool = request.tool.clone();
         if let Some(actor) = &request.actor {
-            context.entity_properties.insert("actor".to_string(), actor.clone());
+            context
+                .entity_properties
+                .insert("actor".to_string(), actor.clone());
         }
         if let Some(target) = &request.target_entity {
             context
@@ -1235,13 +1249,22 @@ mod tests {
         for (id, item) in [
             ("minecraft:entities/zombie", "minecraft:rotten_flesh"),
             ("minecraft:gameplay/fishing", "minecraft:cod"),
-            ("minecraft:archaeology/desert_pyramid", "minecraft:pottery_sherd"),
-            ("minecraft:advancements/story/mine_stone", "minecraft:emerald"),
+            (
+                "minecraft:archaeology/desert_pyramid",
+                "minecraft:pottery_sherd",
+            ),
+            (
+                "minecraft:advancements/story/mine_stone",
+                "minecraft:emerald",
+            ),
             ("minecraft:gameplay/cat_morning_gift", "minecraft:string"),
             ("minecraft:gameplay/piglin_bartering", "minecraft:quartz"),
             ("minecraft:commands/debug", "minecraft:stick"),
         ] {
-            engine.insert_table(id, table_with_pool(LootPool::single(LootEntry::item(item, 1))));
+            engine.insert_table(
+                id,
+                table_with_pool(LootPool::single(LootEntry::item(item, 1))),
+            );
         }
 
         let mut entity = LootRequest::new(LootSurface::EntityDeath, "minecraft:entities/zombie");
@@ -1250,28 +1273,42 @@ mod tests {
         entity.killed_by_player = true;
         assert_eq!(engine.resolve(entity, 1).param_set, LootParamSet::Entity);
 
-        let mut fishing = LootRequest::new(LootSurface::FishingRetrieve, "minecraft:gameplay/fishing");
+        let mut fishing =
+            LootRequest::new(LootSurface::FishingRetrieve, "minecraft:gameplay/fishing");
         fishing.tool = Some("minecraft:fishing_rod".to_string());
         assert_eq!(engine.resolve(fishing, 1).param_set, LootParamSet::Fishing);
 
-        let mut archaeology =
-            LootRequest::new(LootSurface::ArchaeologyBrush, "minecraft:archaeology/desert_pyramid");
+        let mut archaeology = LootRequest::new(
+            LootSurface::ArchaeologyBrush,
+            "minecraft:archaeology/desert_pyramid",
+        );
         archaeology.tool = Some("minecraft:brush".to_string());
-        assert_eq!(engine.resolve(archaeology, 1).param_set, LootParamSet::Archaeology);
+        assert_eq!(
+            engine.resolve(archaeology, 1).param_set,
+            LootParamSet::Archaeology
+        );
 
-        let mut advancement =
-            LootRequest::new(LootSurface::AdvancementReward, "minecraft:advancements/story/mine_stone");
+        let mut advancement = LootRequest::new(
+            LootSurface::AdvancementReward,
+            "minecraft:advancements/story/mine_stone",
+        );
         advancement.actor = Some("Steve".to_string());
         assert_eq!(
             engine.resolve(advancement, 1).delivery,
-            LootDelivery::GiveToEntity("Steve".to_string(), vec![LootStack::new("minecraft:emerald", 1)])
+            LootDelivery::GiveToEntity(
+                "Steve".to_string(),
+                vec![LootStack::new("minecraft:emerald", 1)]
+            )
         );
 
         let mut gift = LootRequest::new(LootSurface::Gift, "minecraft:gameplay/cat_morning_gift");
         gift.actor = Some("Steve".to_string());
         assert_eq!(engine.resolve(gift, 1).param_set, LootParamSet::Gift);
 
-        let mut barter = LootRequest::new(LootSurface::PiglinBarter, "minecraft:gameplay/piglin_bartering");
+        let mut barter = LootRequest::new(
+            LootSurface::PiglinBarter,
+            "minecraft:gameplay/piglin_bartering",
+        );
         barter.actor = Some("Piglin".to_string());
         assert_eq!(engine.resolve(barter, 1).param_set, LootParamSet::Barter);
 
@@ -1279,7 +1316,10 @@ mod tests {
         command.actor = Some("Steve".to_string());
         assert_eq!(
             engine.resolve(command, 1).delivery,
-            LootDelivery::GiveToEntity("Steve".to_string(), vec![LootStack::new("minecraft:stick", 1)])
+            LootDelivery::GiveToEntity(
+                "Steve".to_string(),
+                vec![LootStack::new("minecraft:stick", 1)]
+            )
         );
     }
 
@@ -1291,7 +1331,10 @@ mod tests {
             weight: 1,
             quality: 0,
             conditions: Vec::new(),
-            functions: vec![LootFunction::SetCount(NumberProvider::Uniform { min: 1.0, max: 4.0 })],
+            functions: vec![LootFunction::SetCount(NumberProvider::Uniform {
+                min: 1.0,
+                max: 4.0,
+            })],
         });
         pool.rolls = NumberProvider::Constant(3.0);
         engine.insert_table("minecraft:chests/simple_dungeon", table_with_pool(pool));

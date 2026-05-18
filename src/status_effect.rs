@@ -95,6 +95,7 @@ const fn sound(mut base: StatusEffectDef, event: &'static str) -> StatusEffectDe
     base
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/effect/MobEffects.java
 pub const STATUS_EFFECTS: &[StatusEffectDef] = &[
     attr(
         effect("minecraft:speed", EffectCategory::Beneficial, 3402751),

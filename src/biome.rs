@@ -94,6 +94,7 @@ pub enum BiomeSourceModel {
 
 pub const QUANTIZATION_FACTOR: f32 = 10_000.0;
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/biome/Biome.java
 pub const BUILTIN_BIOMES: &[BiomeKey] = &[
     BiomeKey {
         id: "minecraft:the_void",

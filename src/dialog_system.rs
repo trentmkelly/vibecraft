@@ -233,11 +233,7 @@ impl ServerActivityMonitor {
         }
     }
 
-    pub fn report_login_activity(
-        &mut self,
-        now_millis: u64,
-        manager: &mut NotificationManager,
-    ) {
+    pub fn report_login_activity(&mut self, now_millis: u64, manager: &mut NotificationManager) {
         self.pending_activity = true;
         self.process_with_rate_limit(now_millis, manager);
     }

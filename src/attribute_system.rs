@@ -41,6 +41,7 @@ const fn sentiment(mut base: AttributeDef, sentiment: AttributeSentiment) -> Att
     base
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/entity/ai/attributes/Attributes.java
 pub const ATTRIBUTES: &[AttributeDef] = &[
     attr("minecraft:armor", 0.0, 0.0, 30.0, true),
     attr("minecraft:armor_toughness", 0.0, 0.0, 20.0, true),

@@ -1241,7 +1241,8 @@ mod tests {
                 let path = entry.path();
 
                 if path.is_dir() {
-                    if current == root && path.file_name().and_then(|name| name.to_str()) == Some("datapacks")
+                    if current == root
+                        && path.file_name().and_then(|name| name.to_str()) == Some("datapacks")
                     {
                         continue;
                     }
@@ -1766,5 +1767,4 @@ mod tests {
 
         fs::remove_dir_all(temp_dir).unwrap();
     }
-
 }

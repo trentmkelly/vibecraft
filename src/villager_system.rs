@@ -109,7 +109,11 @@ impl VillagerTradeState {
     pub fn generate_level_offers(&mut self) {
         let templates = profession_offers(self.profession, self.level);
         for template in templates {
-            if !self.offers.iter().any(|offer| offer.result.item_id() == template.result.item_id()) {
+            if !self
+                .offers
+                .iter()
+                .any(|offer| offer.result.item_id() == template.result.item_id())
+            {
                 self.offers.push(template);
             }
         }
@@ -335,7 +339,9 @@ mod tests {
         villager.xp = 10;
         villager.level = VillagerLevel::from_xp(villager.xp);
         villager.generate_level_offers();
-        villager.gossip.add("player-a", GossipType::MajorPositive, 20);
+        villager
+            .gossip
+            .add("player-a", GossipType::MajorPositive, 20);
 
         villager.apply_reputation_prices("player-a");
 

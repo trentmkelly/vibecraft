@@ -2591,16 +2591,40 @@ mod tests {
     fn generated_terrain_block_state_names_use_current_protocol_state_ids() {
         assert_eq!(block_state_name_network_id("minecraft:water"), Some(86));
         assert_eq!(block_state_name_network_id("minecraft:sand"), Some(118));
-        assert_eq!(block_state_name_network_id("minecraft:sandstone"), Some(578));
-        assert_eq!(block_state_name_network_id("minecraft:short_grass"), Some(2248));
-        assert_eq!(block_state_name_network_id("minecraft:dandelion"), Some(2321));
+        assert_eq!(
+            block_state_name_network_id("minecraft:sandstone"),
+            Some(578)
+        );
+        assert_eq!(
+            block_state_name_network_id("minecraft:short_grass"),
+            Some(2248)
+        );
+        assert_eq!(
+            block_state_name_network_id("minecraft:dandelion"),
+            Some(2321)
+        );
         assert_eq!(block_state_name_network_id("minecraft:poppy"), Some(2324));
         assert_eq!(block_state_name_network_id("minecraft:oak_log"), Some(137));
-        assert_eq!(block_state_name_network_id("minecraft:birch_log"), Some(143));
-        assert_eq!(block_state_name_network_id("minecraft:oak_leaves"), Some(279));
-        assert_eq!(block_state_name_network_id("minecraft:birch_leaves"), Some(335));
-        assert_eq!(block_state_name_network_id("minecraft:sunflower"), Some(12916));
-        assert_eq!(block_state_name_network_id("minecraft:deepslate"), Some(27924));
+        assert_eq!(
+            block_state_name_network_id("minecraft:birch_log"),
+            Some(143)
+        );
+        assert_eq!(
+            block_state_name_network_id("minecraft:oak_leaves"),
+            Some(279)
+        );
+        assert_eq!(
+            block_state_name_network_id("minecraft:birch_leaves"),
+            Some(335)
+        );
+        assert_eq!(
+            block_state_name_network_id("minecraft:sunflower"),
+            Some(12916)
+        );
+        assert_eq!(
+            block_state_name_network_id("minecraft:deepslate"),
+            Some(27924)
+        );
     }
 
     #[test]

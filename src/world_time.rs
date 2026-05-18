@@ -158,8 +158,7 @@ impl MoonPhase {
 
 impl SleepStatus {
     pub fn sleepers_needed(self, sleep_percentage_needed: i32) -> i32 {
-        ((self.active_players as f32 * sleep_percentage_needed as f32 / 100.0).ceil() as i32)
-            .max(1)
+        ((self.active_players as f32 * sleep_percentage_needed as f32 / 100.0).ceil() as i32).max(1)
     }
 
     pub fn are_enough_sleeping(self, sleep_percentage_needed: i32) -> bool {
@@ -254,10 +253,7 @@ pub fn should_skip_night(
         && status.are_enough_deep_sleeping(sleep_percentage_needed, players)
 }
 
-pub fn sleep_status_overlay_key(
-    status: SleepStatus,
-    sleep_percentage_needed: i32,
-) -> &'static str {
+pub fn sleep_status_overlay_key(status: SleepStatus, sleep_percentage_needed: i32) -> &'static str {
     if status.are_enough_sleeping(sleep_percentage_needed) {
         "sleep.skipping_night"
     } else {
@@ -369,7 +365,9 @@ mod tests {
 
         assert_eq!(
             clock.tick_time(&mut scheduled),
-            vec![TimeEvent::ScheduledFunction("minecraft:tick_one".to_string())]
+            vec![TimeEvent::ScheduledFunction(
+                "minecraft:tick_one".to_string()
+            )]
         );
         assert_eq!(clock.game_time, 1);
         assert!(clock.tick_time(&mut scheduled).is_empty());
@@ -441,7 +439,10 @@ mod tests {
         assert!(status.are_enough_sleeping(50));
         assert!(status.are_enough_deep_sleeping(50, &players));
         assert_eq!(sleep_status_overlay_key(status, 50), "sleep.skipping_night");
-        assert_eq!(sleep_status_overlay_key(status, 100), "sleep.players_sleeping");
+        assert_eq!(
+            sleep_status_overlay_key(status, 100),
+            "sleep.players_sleeping"
+        );
     }
 
     #[test]
@@ -518,7 +519,10 @@ mod tests {
     fn builtin_timeline_surface_matches_new_registry_entries() {
         let timelines = builtin_timelines();
         assert_eq!(
-            timelines.iter().map(|timeline| timeline.id).collect::<Vec<_>>(),
+            timelines
+                .iter()
+                .map(|timeline| timeline.id)
+                .collect::<Vec<_>>(),
             vec![
                 "minecraft:day",
                 "minecraft:moon",
@@ -531,6 +535,8 @@ mod tests {
             .markers
             .contains(&("minecraft:wake_up_from_sleep", 0)));
         assert_eq!(timelines[1].period_ticks, MOON_CYCLE_TICKS);
-        assert!(timelines.iter().all(|timeline| timeline.clock == "minecraft:overworld"));
+        assert!(timelines
+            .iter()
+            .all(|timeline| timeline.clock == "minecraft:overworld"));
     }
 }

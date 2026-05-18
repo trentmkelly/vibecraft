@@ -105,6 +105,7 @@ pub enum BlockEntityError {
     },
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BlockEntityType.java
 pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
     info(
         BlockEntityTypeId::Furnace,

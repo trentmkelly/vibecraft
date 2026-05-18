@@ -191,11 +191,15 @@ impl PresentationDispatcher {
         after: Option<&CustomBossBar>,
     ) -> Vec<PresentationPacket> {
         match (before, after) {
-            (None, Some(after)) => self.bossbar_to_players(after, PresentationPacketKind::BossEventAdd),
+            (None, Some(after)) => {
+                self.bossbar_to_players(after, PresentationPacketKind::BossEventAdd)
+            }
             (Some(before), Some(after)) if before != after => {
                 self.bossbar_to_players(after, PresentationPacketKind::BossEventUpdate)
             }
-            (Some(before), None) => self.bossbar_to_players(before, PresentationPacketKind::BossEventRemove),
+            (Some(before), None) => {
+                self.bossbar_to_players(before, PresentationPacketKind::BossEventRemove)
+            }
             _ => Vec::new(),
         }
     }
@@ -236,15 +240,16 @@ impl PresentationDispatcher {
             .unwrap_or("always");
         self.players
             .iter()
-            .filter(|target| {
-                death_message_visible(victim, &target.player, visibility, memberships)
-            })
+            .filter(|target| death_message_visible(victim, &target.player, visibility, memberships))
             .map(|target| PresentationPacket {
                 target: target.player.clone(),
                 kind: PresentationPacketKind::PlayerCombatKill,
                 payload: PresentationPayload::Death {
                     victim_id: victim.uuid.clone(),
-                    message: format!("{{\"translate\":\"{source_key}\",\"with\":[\"{}\"]}}", victim.name),
+                    message: format!(
+                        "{{\"translate\":\"{source_key}\",\"with\":[\"{}\"]}}",
+                        victim.name
+                    ),
                 },
             })
             .collect()
@@ -256,13 +261,20 @@ impl PresentationDispatcher {
         } else {
             self.players
                 .iter()
-                .filter(|player| event.targets.iter().any(|target| target.uuid == player.player.uuid))
+                .filter(|player| {
+                    event
+                        .targets
+                        .iter()
+                        .any(|target| target.uuid == player.player.uuid)
+                })
                 .collect()
         }
     }
 
     fn player(&self, target: &NameAndId) -> Option<&PlayerPresentationState> {
-        self.players.iter().find(|player| player.player.uuid == target.uuid)
+        self.players
+            .iter()
+            .find(|player| player.player.uuid == target.uuid)
     }
 
     fn bossbar_to_players(
@@ -271,7 +283,10 @@ impl PresentationDispatcher {
         kind: PresentationPacketKind,
     ) -> Vec<PresentationPacket> {
         let targets: Vec<NameAndId> = if bar.players.is_empty() {
-            self.players.iter().map(|player| player.player.clone()).collect()
+            self.players
+                .iter()
+                .map(|player| player.player.clone())
+                .collect()
         } else {
             bar.players.clone()
         };
@@ -376,7 +391,11 @@ mod tests {
         assert_eq!(packets[0].kind, PresentationPacketKind::PlayerChat);
         assert!(matches!(
             &packets[1].payload,
-            PresentationPayload::Chat { filtered: true, chat_type: ChatRoute::Chat, .. }
+            PresentationPayload::Chat {
+                filtered: true,
+                chat_type: ChatRoute::Chat,
+                ..
+            }
         ));
 
         let tellraw = ChatCommandEvent {
@@ -508,7 +527,13 @@ mod tests {
         assert_eq!(packets.len(), 1);
         assert_eq!(packets[0].target.name, "Steve");
         assert_eq!(
-            dispatcher.death_message(&player("Steve"), "death.attack.generic", &teams, &memberships, false),
+            dispatcher.death_message(
+                &player("Steve"),
+                "death.attack.generic",
+                &teams,
+                &memberships,
+                false
+            ),
             Vec::new()
         );
     }

@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+use std::collections::HashSet;
+use std::sync::LazyLock;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SoundEventDef {
     pub id: &'static str,
@@ -39,6 +42,7 @@ impl SoundSource {
     }
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/sounds/SoundSource.java
 pub const SOUND_SOURCES: &[SoundSource] = &[
     SoundSource::Master,
     SoundSource::Music,
@@ -53,18 +57,162 @@ pub const SOUND_SOURCES: &[SoundSource] = &[
     SoundSource::Ui,
 ];
 
-pub const SOUND_EVENTS: &[SoundEventDef] = &[
-    sound("minecraft:entity.player.levelup"),
-    sound("minecraft:entity.player.death"),
-    sound("minecraft:entity.item.pickup"),
-    sound("minecraft:block.note_block.harp"),
-    sound("minecraft:block.vault.activate"),
-    sound("minecraft:item.bundle.insert"),
-    sound("minecraft:item.brush.brushing.generic"),
-    sound("minecraft:entity.fishing_bobber.retrieve"),
-    sound("minecraft:music_disc.pigstep"),
-    sound("minecraft:ui.button.click"),
-];
+// Source: decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java
+const SOUND_EVENTS_SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java"
+));
+
+pub const SOUND_EVENTS_COUNT_26_1_2: usize = 1902;
+
+pub static SOUND_EVENTS: LazyLock<&'static [SoundEventDef]> = LazyLock::new(|| {
+    Box::leak(load_sound_events().into_boxed_slice())
+});
+
+fn load_sound_events() -> Vec<SoundEventDef> {
+    let mut events = Vec::with_capacity(SOUND_EVENTS_COUNT_26_1_2);
+    let mut seen = HashSet::new();
+
+    for line in SOUND_EVENTS_SOURCE.lines() {
+        let line = line.trim_start();
+        if line.contains("CAT_SOUNDS = registerCatSoundVariants()") {
+            add_cat_sounds(&mut events, &mut seen);
+            continue;
+        }
+
+        if line.contains("CHICKEN_SOUNDS = registerChickenSoundVariants()") {
+            add_chicken_sounds(&mut events, &mut seen);
+            continue;
+        }
+
+        if line.contains("COW_SOUNDS = registerCowSoundVariants()") {
+            add_cow_sounds(&mut events, &mut seen);
+            continue;
+        }
+
+        if line.contains("GOAT_HORN_SOUND_VARIANTS = registerGoatHornSoundVariants()") {
+            add_goat_horn_variants(&mut events, &mut seen);
+            continue;
+        }
+
+        if line.contains("PIG_SOUNDS = registerPigSoundVariants()") {
+            add_pig_sounds(&mut events, &mut seen);
+            continue;
+        }
+
+        if line.contains("WOLF_SOUNDS = registerWolfSoundVariants()") {
+            add_wolf_sounds(&mut events, &mut seen);
+            continue;
+        }
+
+        if !line.starts_with("public static final ") {
+            continue;
+        }
+
+        if let Some(id) = parse_registered_sound_id(line) {
+            add_sound_event(&mut events, &mut seen, id, None);
+        }
+    }
+
+    events
+}
+
+fn parse_registered_sound_id(line: &str) -> Option<&str> {
+    const FOR_HOLDER: &str = "registerForHolder(\"";
+    const REGISTER: &str = "register(\"";
+
+    if let Some(start) = line.find(FOR_HOLDER) {
+        let remainder = &line[start + FOR_HOLDER.len()..];
+        let end = remainder.find('\"')?;
+        return Some(&remainder[..end]);
+    }
+
+    let Some(start) = line.find(REGISTER) else {
+        return None;
+    };
+    let remainder = &line[start + REGISTER.len()..];
+    let end = remainder.find('\"')?;
+    Some(&remainder[..end])
+}
+
+fn add_sound_event(
+    events: &mut Vec<SoundEventDef>,
+    seen: &mut HashSet<&'static str>,
+    id: &str,
+    fixed_range: Option<u8>,
+) {
+    let full_id = Box::leak(format!("minecraft:{id}").into_boxed_str());
+    if seen.insert(full_id) {
+        events.push(SoundEventDef {
+            id: full_id,
+            fixed_range,
+        });
+    }
+}
+
+fn add_cat_sounds(events: &mut Vec<SoundEventDef>, seen: &mut HashSet<&'static str>) {
+    for base in ["cat", "cat_royal"] {
+        for event in [
+            "ambient",
+            "stray_ambient",
+            "hiss",
+            "hurt",
+            "death",
+            "eat",
+            "beg_for_food",
+            "purr",
+            "purreow",
+        ] {
+            add_sound_event(events, seen, &format!("entity.{base}.{event}"), None);
+        }
+    }
+}
+
+fn add_chicken_sounds(events: &mut Vec<SoundEventDef>, seen: &mut HashSet<&'static str>) {
+    for base in ["chicken", "chicken_picky"] {
+        for event in ["ambient", "hurt", "death"] {
+            add_sound_event(events, seen, &format!("entity.{base}.{event}"), None);
+        }
+    }
+}
+
+fn add_cow_sounds(events: &mut Vec<SoundEventDef>, seen: &mut HashSet<&'static str>) {
+    for base in ["cow", "cow_moody"] {
+        for event in ["ambient", "hurt", "death", "step"] {
+            add_sound_event(events, seen, &format!("entity.{base}.{event}"), None);
+        }
+    }
+}
+
+fn add_pig_sounds(events: &mut Vec<SoundEventDef>, seen: &mut HashSet<&'static str>) {
+    for base in ["pig", "pig_big", "pig_mini"] {
+        for event in ["ambient", "hurt", "death", "eat"] {
+            add_sound_event(events, seen, &format!("entity.{base}.{event}"), None);
+        }
+    }
+}
+
+fn add_goat_horn_variants(events: &mut Vec<SoundEventDef>, seen: &mut HashSet<&'static str>) {
+    for index in 0..8 {
+        add_sound_event(events, seen, &format!("item.goat_horn.sound.{index}"), None);
+    }
+}
+
+fn add_wolf_sounds(events: &mut Vec<SoundEventDef>, seen: &mut HashSet<&'static str>) {
+    for base in [
+        "wolf",
+        "wolf_puglin",
+        "wolf_sad",
+        "wolf_angry",
+        "wolf_grumpy",
+        "wolf_big",
+        "wolf_cute",
+    ] {
+        for event in ["ambient", "death", "growl", "hurt", "pant", "whine"] {
+            add_sound_event(events, seen, &format!("entity.{base}.{event}"), None);
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParticleDef {
@@ -89,6 +237,7 @@ pub enum ParticleOptionShape {
     Spell,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/core/particles/ParticleTypes.java
 pub const PARTICLES: &[ParticleDef] = &[
     particle(
         "minecraft:angry_villager",
@@ -405,17 +554,59 @@ pub struct PaintingVariantDef {
     pub has_author: bool,
 }
 
+// Source: decompiled-server-26.1.2/data/minecraft/painting_variant/*.json
 pub const PAINTING_VARIANTS: &[PaintingVariantDef] = &[
-    painting("minecraft:kebab", 1, 1, true),
-    painting("minecraft:wanderer", 1, 2, true),
-    painting("minecraft:pool", 2, 1, true),
-    painting("minecraft:wither", 2, 2, false),
-    painting("minecraft:earth", 2, 2, false),
-    painting("minecraft:fighters", 4, 2, true),
-    painting("minecraft:skeleton", 4, 3, true),
-    painting("minecraft:burning_skull", 4, 4, true),
+    painting("minecraft:alban", 1, 1, true),
+    painting("minecraft:aztec", 1, 1, true),
+    painting("minecraft:aztec2", 1, 1, true),
     painting("minecraft:backyard", 3, 4, true),
+    painting("minecraft:baroque", 2, 2, true),
+    painting("minecraft:bomb", 1, 1, true),
+    painting("minecraft:bouquet", 3, 3, true),
+    painting("minecraft:burning_skull", 4, 4, true),
+    painting("minecraft:bust", 2, 2, true),
+    painting("minecraft:cavebird", 3, 3, true),
+    painting("minecraft:changing", 4, 2, true),
+    painting("minecraft:cotan", 3, 3, true),
+    painting("minecraft:courbet", 2, 1, true),
+    painting("minecraft:creebet", 2, 1, true),
     painting("minecraft:dennis", 3, 3, true),
+    painting("minecraft:donkey_kong", 4, 3, true),
+    painting("minecraft:earth", 2, 2, false),
+    painting("minecraft:endboss", 3, 3, true),
+    painting("minecraft:fern", 3, 3, true),
+    painting("minecraft:fighters", 4, 2, true),
+    painting("minecraft:finding", 4, 2, true),
+    painting("minecraft:fire", 2, 2, false),
+    painting("minecraft:graham", 1, 2, true),
+    painting("minecraft:humble", 2, 2, true),
+    painting("minecraft:kebab", 1, 1, true),
+    painting("minecraft:lowmist", 4, 2, true),
+    painting("minecraft:match", 2, 2, true),
+    painting("minecraft:meditative", 1, 1, true),
+    painting("minecraft:orb", 4, 4, true),
+    painting("minecraft:owlemons", 3, 3, true),
+    painting("minecraft:passage", 4, 2, true),
+    painting("minecraft:pigscene", 4, 4, true),
+    painting("minecraft:plant", 1, 1, true),
+    painting("minecraft:pointer", 4, 4, true),
+    painting("minecraft:pond", 3, 4, true),
+    painting("minecraft:pool", 2, 1, true),
+    painting("minecraft:prairie_ride", 1, 2, true),
+    painting("minecraft:sea", 2, 1, true),
+    painting("minecraft:skeleton", 4, 3, true),
+    painting("minecraft:skull_and_roses", 2, 2, true),
+    painting("minecraft:stage", 2, 2, true),
+    painting("minecraft:sunflowers", 3, 3, true),
+    painting("minecraft:sunset", 2, 1, true),
+    painting("minecraft:tides", 3, 3, true),
+    painting("minecraft:unpacked", 4, 4, true),
+    painting("minecraft:void", 2, 2, true),
+    painting("minecraft:wanderer", 1, 2, true),
+    painting("minecraft:wasteland", 1, 1, true),
+    painting("minecraft:water", 2, 2, false),
+    painting("minecraft:wind", 2, 2, false),
+    painting("minecraft:wither", 2, 2, false),
 ];
 
 impl PaintingVariantDef {
@@ -435,6 +626,8 @@ pub struct BannerPatternDef {
     pub translation_key: &'static str,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BannerPatterns.java
+// and decompiled-server-26.1.2/data/minecraft/banner_pattern/*.json
 pub const BANNER_PATTERNS: &[BannerPatternDef] = &[
     banner("minecraft:base", "block.minecraft.banner.base"),
     banner(
@@ -465,6 +658,8 @@ pub struct TrimMaterialDef {
     pub asset_group: &'static str,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/equipment/trim/TrimMaterials.java
+// and decompiled-server-26.1.2/data/minecraft/trim_material/*.json
 pub const TRIM_MATERIALS: &[TrimMaterialDef] = &[
     trim_material("minecraft:quartz", 14931140, "quartz"),
     trim_material("minecraft:iron", 15527148, "iron"),
@@ -485,6 +680,8 @@ pub struct TrimPatternDef {
     pub decal: bool,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/equipment/trim/TrimPatterns.java
+// and decompiled-server-26.1.2/data/minecraft/trim_pattern/*.json
 pub const TRIM_PATTERNS: &[TrimPatternDef] = &[
     trim_pattern("minecraft:sentry"),
     trim_pattern("minecraft:dune"),
@@ -514,6 +711,9 @@ pub struct InstrumentDef {
     pub range: f32,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/JukeboxSongs.java
+// decompiled-server-26.1.2/net/minecraft/world/item/InstrumentItem.java
+// and data under decompiled-server-26.1.2/data/minecraft/{instrument,jukebox_song}
 pub const INSTRUMENTS: &[InstrumentDef] = &[
     instrument(
         "minecraft:ponder_goat_horn",
@@ -557,6 +757,9 @@ pub struct JukeboxSongDef {
     pub length_seconds: f32,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/JukeboxSongs.java
+// and decompiled-server-26.1.2/net/minecraft/world/item/InstrumentItem.java
+// plus decompiled-server-26.1.2/data/minecraft/{instrument,jukebox_song}/*.json
 pub const JUKEBOX_SONGS: &[JukeboxSongDef] = &[
     jukebox_song("minecraft:13", "minecraft:music_disc.13", 1, 178.0),
     jukebox_song("minecraft:cat", "minecraft:music_disc.cat", 2, 185.0),
@@ -638,6 +841,8 @@ pub enum DeathMessageType {
     IntentionalGameDesign,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/damagesource/DamageType.java
+// and data/minecraft/damage_type/*.json
 pub const DAMAGE_TYPES: &[DamageTypeDef] = &[
     damage(
         "minecraft:in_fire",
@@ -912,6 +1117,7 @@ const fn damage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn sound_sources_match_vanilla_serialized_names_and_sound_events_are_lookupable() {
@@ -930,6 +1136,39 @@ mod tests {
             "minecraft:music_disc.pigstep"
         );
         assert!(find_sound_event("minecraft:missing").is_none());
+    }
+
+    #[test]
+    fn sound_events_cover_referenced_vanilla_ids_without_duplicates() {
+        assert_eq!(SOUND_EVENTS.len(), SOUND_EVENTS_COUNT_26_1_2);
+        assert_eq!(
+            SOUND_EVENTS.first().unwrap().id,
+            "minecraft:entity.allay.ambient_with_item"
+        );
+        assert_eq!(
+            SOUND_EVENTS.last().unwrap().id,
+            "minecraft:item.nautilus_saddle_equip"
+        );
+
+        let ids = SOUND_EVENTS
+            .iter()
+            .map(|sound| sound.id)
+            .collect::<Vec<_>>();
+        assert!(ids.contains(&"minecraft:entity.player.levelup"));
+        assert!(ids.contains(&"minecraft:block.vault.activate"));
+        assert!(ids.contains(&"minecraft:item.bundle.insert"));
+        assert!(ids.contains(&"minecraft:entity.cat_royal.purr"));
+        assert!(ids.contains(&"minecraft:entity.chicken_picky.hurt"));
+        assert!(ids.contains(&"minecraft:entity.cow_moody.step"));
+        assert!(ids.contains(&"minecraft:entity.pig_mini.eat"));
+        assert!(ids.contains(&"minecraft:item.goat_horn.sound.7"));
+        assert!(ids.contains(&"minecraft:entity.wolf_puglin.growl"));
+        assert!(ids.iter().all(|id| id.starts_with("minecraft:")));
+        assert!(SOUND_EVENTS.iter().all(|sound| sound.fixed_range.is_none()));
+
+        let unique_count = ids.iter().copied().collect::<HashSet<_>>().len();
+        assert_eq!(unique_count, ids.len());
+        assert!(!SOUND_EVENTS.is_empty());
     }
 
     #[test]
@@ -987,6 +1226,10 @@ mod tests {
 
     #[test]
     fn painting_variants_keep_sizes_and_title_author_keys() {
+        assert_eq!(PAINTING_VARIANTS.len(), 51);
+        assert_eq!(PAINTING_VARIANTS.first().unwrap().id, "minecraft:alban");
+        assert_eq!(PAINTING_VARIANTS.last().unwrap().id, "minecraft:wither");
+
         let wither = PAINTING_VARIANTS
             .iter()
             .find(|variant| variant.id == "minecraft:wither")
@@ -1004,6 +1247,12 @@ mod tests {
             backyard.author_key().as_deref(),
             Some("painting.minecraft.backyard.author")
         );
+
+        let no_author = ["minecraft:earth", "minecraft:fire", "minecraft:water", "minecraft:wind", "minecraft:wither"];
+        for id in no_author {
+            let entry = PAINTING_VARIANTS.iter().find(|variant| variant.id == id).unwrap();
+            assert!(!entry.has_author);
+        }
     }
 
     #[test]

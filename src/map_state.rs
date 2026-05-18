@@ -182,7 +182,8 @@ impl MapState {
         let scale = 1_i32 << self.scale;
         let x_delta = ((x_pos - f64::from(self.center_x)) / f64::from(scale)) as f32;
         let y_delta = ((z_pos - f64::from(self.center_z)) / f64::from(scale)) as f32;
-        let Some((kind, rot)) = self.decoration_location(kind, x_delta, y_delta, y_rot, game_time) else {
+        let Some((kind, rot)) = self.decoration_location(kind, x_delta, y_delta, y_rot, game_time)
+        else {
             return self.remove_decoration(&key);
         };
         let decoration = MapDecoration {
@@ -248,7 +249,12 @@ impl MapState {
         true
     }
 
-    pub fn check_banner_column(&mut self, x: i32, z: i32, current: impl Fn(BlockPos) -> Option<MapBanner>) {
+    pub fn check_banner_column(
+        &mut self,
+        x: i32,
+        z: i32,
+        current: impl Fn(BlockPos) -> Option<MapBanner>,
+    ) {
         let ids = self
             .banner_markers
             .values()
@@ -366,7 +372,11 @@ impl MapState {
             let s = (game_time / 10) as i32;
             ((s * s * 34_187_121 + s * 121) >> 15 & 15) as i8
         } else {
-            let adjusted = if y_rot < 0.0 { y_rot - 8.0 } else { y_rot + 8.0 };
+            let adjusted = if y_rot < 0.0 {
+                y_rot - 8.0
+            } else {
+                y_rot + 8.0
+            };
             (adjusted * 16.0 / 360.0) as i8
         }
     }
@@ -419,7 +429,11 @@ pub fn frame_key(entity_id: i32) -> String {
     format!("frame-{entity_id}")
 }
 
-pub fn item_frame_y_rotation(direction_2d: i32, item_rotation: i32, vertical_axis_step: Option<i32>) -> i32 {
+pub fn item_frame_y_rotation(
+    direction_2d: i32,
+    item_rotation: i32,
+    vertical_axis_step: Option<i32>,
+) -> i32 {
     let rotation_correction = vertical_axis_step.map(|step| 90 * step).unwrap_or(0);
     wrap_degrees(180 + direction_2d * 90 + item_rotation * 45 + rotation_correction)
 }
@@ -456,7 +470,15 @@ mod tests {
     #[test]
     fn decorations_use_vanilla_coordinate_clamp_rotation_and_off_map_rules() {
         let mut map = MapState::new(0, 0, 0, "minecraft:overworld", true, false, false);
-        assert!(map.add_decoration(MapDecorationKind::Player, "Steve", 10.0, -63.0, 90.0, None, 0));
+        assert!(map.add_decoration(
+            MapDecorationKind::Player,
+            "Steve",
+            10.0,
+            -63.0,
+            90.0,
+            None,
+            0
+        ));
         assert_eq!(
             map.decorations["Steve"],
             MapDecoration {
@@ -469,13 +491,27 @@ mod tests {
         );
 
         assert!(map.add_decoration(MapDecorationKind::Player, "Alex", 100.0, 0.0, 0.0, None, 0));
-        assert_eq!(map.decorations["Alex"].kind, MapDecorationKind::PlayerOffMap);
+        assert_eq!(
+            map.decorations["Alex"].kind,
+            MapDecorationKind::PlayerOffMap
+        );
         assert!(!map.add_decoration(MapDecorationKind::Player, "Far", 400.0, 0.0, 0.0, None, 0));
         assert!(!map.decorations.contains_key("Far"));
 
         let mut unlimited = MapState::new(0, 0, 0, "minecraft:overworld", true, true, false);
-        assert!(unlimited.add_decoration(MapDecorationKind::Player, "Far", 400.0, 0.0, 0.0, None, 0));
-        assert_eq!(unlimited.decorations["Far"].kind, MapDecorationKind::PlayerOffLimits);
+        assert!(unlimited.add_decoration(
+            MapDecorationKind::Player,
+            "Far",
+            400.0,
+            0.0,
+            0.0,
+            None,
+            0
+        ));
+        assert_eq!(
+            unlimited.decorations["Far"].kind,
+            MapDecorationKind::PlayerOffLimits
+        );
     }
 
     #[test]
@@ -559,7 +595,11 @@ mod tests {
         assert!(map.next_update_packet().is_none());
         assert!(map.next_update_packet().is_none());
         let decoration_update = map.next_update_packet().unwrap();
-        assert!(decoration_update.decorations.unwrap().iter().any(|(key, _)| key == "target"));
+        assert!(decoration_update
+            .decorations
+            .unwrap()
+            .iter()
+            .any(|(key, _)| key == "target"));
     }
 
     #[test]

@@ -3,6 +3,7 @@ pub struct RegistryEntry {
     pub id: &'static str,
 }
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeType.java
 pub const RECIPE_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "crafting" },
     RegistryEntry { id: "smelting" },
@@ -15,6 +16,7 @@ pub const RECIPE_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "smithing" },
 ];
 
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeSerializers.java
 pub const RECIPE_SERIALIZERS: &[RegistryEntry] = &[
     RegistryEntry {
         id: "crafting_shaped",

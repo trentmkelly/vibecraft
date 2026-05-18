@@ -93,7 +93,9 @@ impl WaypointIcon {
     pub fn clone_and_assign_style(&self, team_color: Option<i32>) -> Self {
         Self {
             style: self.style.clone(),
-            color: self.color.or(team_color.map(|color| if color == 0 { -13_619_152 } else { color })),
+            color: self
+                .color
+                .or(team_color.map(|color| if color == 0 { -13_619_152 } else { color })),
         }
     }
 }
@@ -256,7 +258,10 @@ pub fn does_source_ignore_receiver(source: &WaypointEntity, receiver: &WaypointE
     if receiver.spectator {
         false
     } else if !source.spectator && !source.has_indirect_passenger(receiver) {
-        let range = source.transmit_range.min(receiver.receive_range).min(MAX_WAYPOINT_RANGE);
+        let range = source
+            .transmit_range
+            .min(receiver.receive_range)
+            .min(MAX_WAYPOINT_RANGE);
         source.distance_to(receiver) >= range
     } else {
         true
@@ -267,8 +272,14 @@ pub fn is_really_far(source: &WaypointEntity, receiver: &WaypointEntity) -> bool
     source.distance_to(receiver) > REALLY_FAR_DISTANCE
 }
 
-pub fn is_chunk_visible(source: &WaypointEntity, receiver: &WaypointEntity, view_distance: i32) -> bool {
-    (source.chunk_x - receiver.chunk_x).abs().max((source.chunk_z - receiver.chunk_z).abs())
+pub fn is_chunk_visible(
+    source: &WaypointEntity,
+    receiver: &WaypointEntity,
+    view_distance: i32,
+) -> bool {
+    (source.chunk_x - receiver.chunk_x)
+        .abs()
+        .max((source.chunk_z - receiver.chunk_z).abs())
         <= view_distance
 }
 
@@ -277,7 +288,9 @@ pub fn make_connection_kind(
     source: &WaypointEntity,
     source_chunk_visible: bool,
 ) -> Option<WaypointConnectionKind> {
-    if source.first_tick || receiver.id == source.id || does_source_ignore_receiver(source, receiver)
+    if source.first_tick
+        || receiver.id == source.id
+        || does_source_ignore_receiver(source, receiver)
     {
         None
     } else if is_really_far(source, receiver) {
@@ -317,7 +330,10 @@ fn connection_is_broken(
     }
     match connection.kind {
         WaypointConnectionKind::Block => {
-            manhattan((connection.last_x, connection.last_y, connection.last_z), (source.x, source.y, source.z)) > 1.0
+            manhattan(
+                (connection.last_x, connection.last_y, connection.last_z),
+                (source.x, source.y, source.z),
+            ) > 1.0
         }
         WaypointConnectionKind::Chunk => {
             chessboard(
@@ -336,7 +352,10 @@ fn connection_changed(
 ) -> bool {
     match connection.kind {
         WaypointConnectionKind::Block => {
-            manhattan((connection.last_x, connection.last_y, connection.last_z), (source.x, source.y, source.z)) > 0.0
+            manhattan(
+                (connection.last_x, connection.last_y, connection.last_z),
+                (source.x, source.y, source.z),
+            ) > 0.0
         }
         WaypointConnectionKind::Chunk => {
             chessboard(
@@ -471,7 +490,12 @@ mod tests {
         assert!(!icon.has_data());
         icon.color = Some(0x123456);
         assert!(icon.has_data());
-        assert_eq!(WaypointIcon::default().clone_and_assign_style(Some(0)).color, Some(-13_619_152));
+        assert_eq!(
+            WaypointIcon::default()
+                .clone_and_assign_style(Some(0))
+                .color,
+            Some(-13_619_152)
+        );
 
         let receiver = entity("receiver", 0.0, 0.0);
         let source = entity("source", 48.0, 48.0);

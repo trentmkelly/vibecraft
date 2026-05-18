@@ -9,6 +9,7 @@ pub struct PacketPackageCoverage {
 
 pub const TOTAL_PACKET_CLASSES_26_1_2: usize = 227;
 
+// Source: net.minecraft protocol packet interfaces under decompiled-server-26.1.2/net/minecraft/network/protocol
 pub const PACKET_PACKAGE_COVERAGE_26_1_2: &[PacketPackageCoverage] = &[
     PacketPackageCoverage {
         java_package: "net/minecraft/network/protocol",
@@ -71,6 +72,8 @@ pub fn covered_packet_class_count() -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::{
         covered_packet_class_count, PACKET_PACKAGE_COVERAGE_26_1_2, TOTAL_PACKET_CLASSES_26_1_2,
     };
@@ -124,5 +127,37 @@ mod tests {
         assert_eq!(SERVERBOUND_COOKIE_RESPONSE_PACKET_ID, 4);
         assert_eq!(CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, 2);
         assert_eq!(CLIENTBOUND_COOKIE_REQUEST_PACKET_ID, 5);
+    }
+
+    #[test]
+    fn protocol_package_manifest_is_stable_and_non_empty() {
+        assert_eq!(
+            PACKET_PACKAGE_COVERAGE_26_1_2.first().unwrap().java_package,
+            "net/minecraft/network/protocol",
+        );
+        assert_eq!(
+            PACKET_PACKAGE_COVERAGE_26_1_2.last().unwrap().java_package,
+            "net/minecraft/network/protocol/status",
+        );
+
+        let mut package_names = HashSet::new();
+        for entry in PACKET_PACKAGE_COVERAGE_26_1_2 {
+            assert!(
+                package_names.insert(entry.java_package),
+                "duplicated package in PACKET_PACKAGE_COVERAGE_26_1_2: {}",
+                entry.java_package
+            );
+            assert_eq!(entry.java_package, entry.java_package.trim());
+            assert!(
+                entry.packet_class_count > 0,
+                "zero packet count for {}",
+                entry.java_package
+            );
+            assert!(
+                !entry.rust_modules.is_empty(),
+                "no rust modules for {}",
+                entry.java_package
+            );
+        }
     }
 }

@@ -176,7 +176,10 @@ pub fn award_orbs(total: i32, first_id: i32) -> Vec<ExperienceOrb> {
 }
 
 pub fn merge_awarded_orb(existing: &mut [ExperienceOrb], id_roll: i32, value: i32) -> bool {
-    if let Some(orb) = existing.iter_mut().find(|orb| orb.can_merge(id_roll, value)) {
+    if let Some(orb) = existing
+        .iter_mut()
+        .find(|orb| orb.can_merge(id_roll, value))
+    {
         orb.count += 1;
         orb.age = 0;
         true
@@ -285,7 +288,10 @@ mod tests {
         assert_eq!(experience_icon(1), 0);
 
         let orbs = award_orbs(40, 100);
-        assert_eq!(orbs.iter().map(|orb| orb.value).collect::<Vec<_>>(), vec![37, 3]);
+        assert_eq!(
+            orbs.iter().map(|orb| orb.value).collect::<Vec<_>>(),
+            vec![37, 3]
+        );
         assert_eq!(orbs[0].id, 100);
         assert_eq!(orbs[1].id, 101);
     }
@@ -350,8 +356,14 @@ mod tests {
 
     #[test]
     fn reward_sources_clamp_bottles_and_preserve_normal_positive_rewards() {
-        assert_eq!(reward_amount(ExperienceRewardSource::ExperienceBottle, 1), 3);
-        assert_eq!(reward_amount(ExperienceRewardSource::ExperienceBottle, 20), 11);
+        assert_eq!(
+            reward_amount(ExperienceRewardSource::ExperienceBottle, 1),
+            3
+        );
+        assert_eq!(
+            reward_amount(ExperienceRewardSource::ExperienceBottle, 20),
+            11
+        );
         assert_eq!(reward_amount(ExperienceRewardSource::Mining, -5), 0);
         assert_eq!(reward_amount(ExperienceRewardSource::Command, -5), -5);
     }
