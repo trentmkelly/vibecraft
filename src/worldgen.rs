@@ -2030,6 +2030,33 @@ pub struct JungleTemplePostProcessModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IglooTemplateKind {
+    Top,
+    Middle,
+    Bottom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IglooPieceModel {
+    pub template: IglooTemplateKind,
+    pub template_name: &'static str,
+    pub template_position: BlockPos,
+    pub rotation: StructureRotation,
+    pub pivot: BlockPos,
+    pub offset: BlockPos,
+    pub depth: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IglooPostProcessModel {
+    pub piece: IglooPieceModel,
+    pub entrance_pos: BlockPos,
+    pub adjusted_template_position: BlockPos,
+    pub trapdoor_pos: Option<BlockPos>,
+    pub should_cover_trapdoor: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -10234,6 +10261,175 @@ pub fn jungle_temple_post_process(
     }
 
     Some(JungleTemplePostProcessModel { piece, containers })
+}
+
+pub fn igloo_template_name(kind: IglooTemplateKind) -> &'static str {
+    match kind {
+        IglooTemplateKind::Top => "minecraft:igloo/top",
+        IglooTemplateKind::Middle => "minecraft:igloo/middle",
+        IglooTemplateKind::Bottom => "minecraft:igloo/bottom",
+    }
+}
+
+pub fn igloo_template_pivot(kind: IglooTemplateKind) -> BlockPos {
+    match kind {
+        IglooTemplateKind::Top => BlockPos { x: 3, y: 5, z: 5 },
+        IglooTemplateKind::Middle => BlockPos { x: 1, y: 3, z: 1 },
+        IglooTemplateKind::Bottom => BlockPos { x: 3, y: 6, z: 7 },
+    }
+}
+
+pub fn igloo_template_offset(kind: IglooTemplateKind) -> BlockPos {
+    match kind {
+        IglooTemplateKind::Top => BlockPos { x: 0, y: 0, z: 0 },
+        IglooTemplateKind::Middle => BlockPos { x: 2, y: -3, z: 4 },
+        IglooTemplateKind::Bottom => BlockPos { x: 0, y: -3, z: -2 },
+    }
+}
+
+pub fn structure_template_relative_position(
+    pos: BlockPos,
+    rotation: StructureRotation,
+    pivot: BlockPos,
+) -> BlockPos {
+    match rotation {
+        StructureRotation::Counterclockwise90 => BlockPos {
+            x: pivot.x - pivot.z + pos.z,
+            y: pos.y,
+            z: pivot.x + pivot.z - pos.x,
+        },
+        StructureRotation::Clockwise90 => BlockPos {
+            x: pivot.x + pivot.z - pos.z,
+            y: pos.y,
+            z: pivot.z - pivot.x + pos.x,
+        },
+        StructureRotation::Clockwise180 => BlockPos {
+            x: pivot.x + pivot.x - pos.x,
+            y: pos.y,
+            z: pivot.z + pivot.z - pos.z,
+        },
+        StructureRotation::None => pos,
+    }
+}
+
+pub fn igloo_make_piece(
+    kind: IglooTemplateKind,
+    position: BlockPos,
+    rotation: StructureRotation,
+    depth: i32,
+) -> IglooPieceModel {
+    let offset = igloo_template_offset(kind);
+    IglooPieceModel {
+        template: kind,
+        template_name: igloo_template_name(kind),
+        template_position: BlockPos {
+            x: position.x + offset.x,
+            y: position.y + offset.y - depth,
+            z: position.z + offset.z,
+        },
+        rotation,
+        pivot: igloo_template_pivot(kind),
+        offset,
+        depth,
+    }
+}
+
+pub fn igloo_generation_pieces(
+    chunk_pos: ChunkPos,
+    rotation: StructureRotation,
+    basement_roll: f64,
+    depth_roll: i32,
+) -> Result<Vec<IglooPieceModel>, String> {
+    if !(0.0..1.0).contains(&basement_roll) {
+        return Err("Igloo basement roll must be in [0.0, 1.0)".to_string());
+    }
+    if !(0..8).contains(&depth_roll) {
+        return Err("Igloo depth roll must match RandomSource#nextInt(8)".to_string());
+    }
+    let start_pos = BlockPos {
+        x: chunk_pos.x * 16,
+        y: 90,
+        z: chunk_pos.z * 16,
+    };
+    let mut pieces = Vec::new();
+    if basement_roll < 0.5 {
+        let depth = depth_roll + 4;
+        pieces.push(igloo_make_piece(
+            IglooTemplateKind::Bottom,
+            start_pos,
+            rotation,
+            depth * 3,
+        ));
+        for i in 0..(depth - 1) {
+            pieces.push(igloo_make_piece(
+                IglooTemplateKind::Middle,
+                start_pos,
+                rotation,
+                i * 3,
+            ));
+        }
+    }
+    pieces.push(igloo_make_piece(
+        IglooTemplateKind::Top,
+        start_pos,
+        rotation,
+        0,
+    ));
+    Ok(pieces)
+}
+
+pub fn igloo_post_process(
+    piece: IglooPieceModel,
+    mut surface_height_at: impl FnMut(i32, i32) -> i32,
+    mut block_below_trapdoor_at: impl FnMut(BlockPos) -> &'static str,
+) -> IglooPostProcessModel {
+    let entrance_local = BlockPos {
+        x: 3 - piece.offset.x,
+        y: 0,
+        z: -piece.offset.z,
+    };
+    let relative_entrance =
+        structure_template_relative_position(entrance_local, piece.rotation, piece.pivot);
+    let entrance_pos = BlockPos {
+        x: piece.template_position.x + relative_entrance.x,
+        y: piece.template_position.y + relative_entrance.y,
+        z: piece.template_position.z + relative_entrance.z,
+    };
+    let height = surface_height_at(entrance_pos.x, entrance_pos.z);
+    let adjusted_template_position = BlockPos {
+        x: piece.template_position.x,
+        y: piece.template_position.y + height - 90 - 1,
+        z: piece.template_position.z,
+    };
+    let trapdoor_pos = (piece.template == IglooTemplateKind::Top).then(|| {
+        let relative_trapdoor = structure_template_relative_position(
+            BlockPos { x: 3, y: 0, z: 5 },
+            piece.rotation,
+            piece.pivot,
+        );
+        BlockPos {
+            x: adjusted_template_position.x + relative_trapdoor.x,
+            y: adjusted_template_position.y + relative_trapdoor.y,
+            z: adjusted_template_position.z + relative_trapdoor.z,
+        }
+    });
+    let should_cover_trapdoor = trapdoor_pos
+        .map(|pos| {
+            let below = block_below_trapdoor_at(BlockPos {
+                x: pos.x,
+                y: pos.y - 1,
+                z: pos.z,
+            });
+            below != "minecraft:air" && below != "minecraft:ladder"
+        })
+        .unwrap_or(false);
+    IglooPostProcessModel {
+        piece,
+        entrance_pos,
+        adjusted_template_position,
+        trapdoor_pos,
+        should_cover_trapdoor,
+    }
 }
 
 const fn feature_type(
@@ -23192,6 +23388,118 @@ mod tests {
             max_z: 115,
         };
         assert!(super::jungle_temple_post_process(piece, outside_chunk, |_, _| 70).is_none());
+    }
+
+    #[test]
+    fn igloo_template_piece_generation_and_surface_shift_match_vanilla() {
+        let pieces = super::igloo_generation_pieces(
+            ChunkPos { x: 2, z: -3 },
+            super::StructureRotation::Clockwise90,
+            0.25,
+            2,
+        )
+        .unwrap();
+        assert_eq!(pieces.len(), 7);
+        assert_eq!(pieces[0].template, super::IglooTemplateKind::Bottom);
+        assert_eq!(pieces[0].template_name, "minecraft:igloo/bottom");
+        assert_eq!(pieces[0].depth, 18);
+        assert_eq!(pieces[0].offset, BlockPos { x: 0, y: -3, z: -2 });
+        assert_eq!(pieces[0].pivot, BlockPos { x: 3, y: 6, z: 7 });
+        assert_eq!(
+            pieces[0].template_position,
+            BlockPos {
+                x: 32,
+                y: 69,
+                z: -50
+            }
+        );
+        assert_eq!(pieces[1].template, super::IglooTemplateKind::Middle);
+        assert_eq!(pieces[1].depth, 0);
+        assert_eq!(
+            pieces[1].template_position,
+            BlockPos {
+                x: 34,
+                y: 87,
+                z: -44
+            }
+        );
+        assert_eq!(pieces[5].template, super::IglooTemplateKind::Middle);
+        assert_eq!(pieces[5].depth, 12);
+        assert_eq!(pieces[6].template, super::IglooTemplateKind::Top);
+        assert_eq!(
+            pieces[6].template_position,
+            BlockPos {
+                x: 32,
+                y: 90,
+                z: -48
+            }
+        );
+
+        let top = pieces[6];
+        let processed = super::igloo_post_process(
+            top,
+            |x, z| 75 + (x == 40 && z == -43) as i32,
+            |_| "minecraft:snow_block",
+        );
+        assert_eq!(
+            processed.entrance_pos,
+            BlockPos {
+                x: 40,
+                y: 90,
+                z: -43
+            }
+        );
+        assert_eq!(
+            processed.adjusted_template_position,
+            BlockPos {
+                x: 32,
+                y: 75,
+                z: -48
+            }
+        );
+        assert_eq!(
+            processed.trapdoor_pos,
+            Some(BlockPos {
+                x: 35,
+                y: 75,
+                z: -43
+            })
+        );
+        assert!(processed.should_cover_trapdoor);
+
+        let ladder_below = super::igloo_post_process(top, |_, _| 76, |_| "minecraft:ladder");
+        assert!(!ladder_below.should_cover_trapdoor);
+
+        let no_basement = super::igloo_generation_pieces(
+            ChunkPos { x: 2, z: -3 },
+            super::StructureRotation::None,
+            0.5,
+            7,
+        )
+        .unwrap();
+        assert_eq!(no_basement.len(), 1);
+        assert_eq!(no_basement[0].template, super::IglooTemplateKind::Top);
+
+        assert_eq!(
+            super::igloo_generation_pieces(
+                ChunkPos { x: 0, z: 0 },
+                super::StructureRotation::None,
+                1.0,
+                0,
+            )
+            .unwrap_err(),
+            "Igloo basement roll must be in [0.0, 1.0)".to_string()
+        );
+        assert_eq!(
+            super::igloo_generation_pieces(
+                ChunkPos { x: 0, z: 0 },
+                super::StructureRotation::None,
+                0.0,
+                8,
+            )
+            .unwrap_err(),
+            "Igloo depth roll must match RandomSource#nextInt(8)".to_string()
+        );
     }
 
     #[test]
