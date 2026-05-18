@@ -107,6 +107,12 @@ impl LegacyRandom {
             seed: self.next_i64(),
         }
     }
+
+    pub fn consume_count(&mut self, rounds: i32) {
+        for _ in 0..rounds {
+            self.next_i32();
+        }
+    }
 }
 
 impl Xoroshiro128PlusPlus {
@@ -165,6 +171,12 @@ impl Xoroshiro128PlusPlus {
         PositionalRandomFactory::Xoroshiro {
             seed_lo: self.next_i64(),
             seed_hi: self.next_i64(),
+        }
+    }
+
+    pub fn consume_count(&mut self, rounds: i32) {
+        for _ in 0..rounds {
+            self.next_i64();
         }
     }
 }
@@ -244,6 +256,13 @@ impl RandomSourceKind {
         match self {
             Self::Legacy(random) => random.fork_positional(),
             Self::Xoroshiro(random) => random.fork_positional(),
+        }
+    }
+
+    pub fn consume_count(&mut self, rounds: i32) {
+        match self {
+            Self::Legacy(random) => random.consume_count(rounds),
+            Self::Xoroshiro(random) => random.consume_count(rounds),
         }
     }
 }
@@ -581,6 +600,34 @@ mod tests {
         assert_eq!(slime_chunk_seed(4, -7, 12345, 987_234_911), 672_110_732);
         let mut slime = LegacyRandom::new(slime_chunk_seed(4, -7, 12345, 987_234_911));
         assert_ne!(slime.next_i32_bound(10), 0);
+    }
+
+    #[test]
+    fn random_source_consume_count_matches_vanilla_skip_widths() {
+        let mut legacy_manual = LegacyRandom::new(12345);
+        legacy_manual.next_i32();
+        legacy_manual.next_i32();
+        let expected_legacy = legacy_manual.next_i32();
+        let mut legacy_consumed = LegacyRandom::new(12345);
+        legacy_consumed.consume_count(2);
+        assert_eq!(legacy_consumed.next_i32(), expected_legacy);
+
+        let mut xoroshiro_manual = Xoroshiro128PlusPlus::from_i64_seed(12345);
+        xoroshiro_manual.next_i64();
+        xoroshiro_manual.next_i64();
+        let expected_xoroshiro = xoroshiro_manual.next_i64();
+        let mut xoroshiro_consumed = Xoroshiro128PlusPlus::from_i64_seed(12345);
+        xoroshiro_consumed.consume_count(2);
+        assert_eq!(xoroshiro_consumed.next_i64(), expected_xoroshiro);
+
+        let mut source = RandomSourceKind::new(12345, RandomAlgorithm::Xoroshiro);
+        source.consume_count(1);
+        match source {
+            RandomSourceKind::Xoroshiro(mut random) => {
+                assert_eq!(random.next_i64(), 8_241_557_746_459_281_790);
+            }
+            RandomSourceKind::Legacy(_) => panic!("expected xoroshiro source"),
+        }
     }
 
     #[test]
