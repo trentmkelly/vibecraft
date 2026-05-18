@@ -4957,6 +4957,13 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         id: "minecraft:overworld/caves/noodle",
         function: NOODLE_DENSITY,
     },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/caves/entrances",
+        function: DensityFunction::Marker {
+            kind: DensityMarker::CacheOnce,
+            input: &ENTRANCES_DENSITY,
+        },
+    },
 ];
 
 pub const RIDGE_REFERENCE_DENSITY: DensityFunction =
@@ -5293,6 +5300,92 @@ pub const NOODLE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
     max_exclusive: 0.0,
     when_in_range: &NOODLE_BLOCKING_DENSITY,
     when_out_of_range: &NOODLE_OPEN_DENSITY,
+};
+pub const ENTRANCES_CAVE_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:cave_entrance",
+    xz_scale: 0.75,
+    y_scale: 0.5,
+};
+pub const ENTRANCES_CAVE_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(0.37);
+pub const ENTRANCES_CAVE_OFFSET_NOISE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &ENTRANCES_CAVE_OFFSET_DENSITY,
+    argument2: &ENTRANCES_CAVE_NOISE_DENSITY,
+};
+pub const ENTRANCES_CAVE_GRADIENT_DENSITY: DensityFunction = DensityFunction::YClampedGradient {
+    from_y: -10,
+    to_y: 30,
+    from_value: 0.3,
+    to_value: 0.0,
+};
+pub const ENTRANCES_CAVE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &ENTRANCES_CAVE_OFFSET_NOISE_DENSITY,
+    argument2: &ENTRANCES_CAVE_GRADIENT_DENSITY,
+};
+pub const ENTRANCES_ROUGHNESS_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/caves/spaghetti_roughness_function");
+pub const ENTRANCES_RARITY_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_3d_rarity",
+    xz_scale: 2.0,
+    y_scale: 1.0,
+};
+pub const ENTRANCES_RARITY_CACHE_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::CacheOnce,
+    input: &ENTRANCES_RARITY_NOISE_DENSITY,
+};
+pub const ENTRANCES_SPAGHETTI_3D_1_DENSITY: DensityFunction = DensityFunction::WeirdScaledSampler {
+    input: &ENTRANCES_RARITY_CACHE_DENSITY,
+    noise: "minecraft:spaghetti_3d_1",
+    rarity_mapper: RarityValueMapper::Type1,
+};
+pub const ENTRANCES_SPAGHETTI_3D_2_DENSITY: DensityFunction = DensityFunction::WeirdScaledSampler {
+    input: &ENTRANCES_RARITY_CACHE_DENSITY,
+    noise: "minecraft:spaghetti_3d_2",
+    rarity_mapper: RarityValueMapper::Type1,
+};
+pub const ENTRANCES_SPAGHETTI_MAX_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Max,
+    argument1: &ENTRANCES_SPAGHETTI_3D_1_DENSITY,
+    argument2: &ENTRANCES_SPAGHETTI_3D_2_DENSITY,
+};
+pub const ENTRANCES_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_3d_thickness",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const ENTRANCES_THICKNESS_SCALE_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.011499999999999996);
+pub const ENTRANCES_THICKNESS_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &ENTRANCES_THICKNESS_SCALE_DENSITY,
+    argument2: &ENTRANCES_THICKNESS_NOISE_DENSITY,
+};
+pub const ENTRANCES_THICKNESS_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(-0.0765);
+pub const ENTRANCES_THICKNESS_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &ENTRANCES_THICKNESS_OFFSET_DENSITY,
+    argument2: &ENTRANCES_THICKNESS_SCALED_DENSITY,
+};
+pub const ENTRANCES_SPAGHETTI_WITH_THICKNESS_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &ENTRANCES_SPAGHETTI_MAX_DENSITY,
+    argument2: &ENTRANCES_THICKNESS_DENSITY,
+};
+pub const ENTRANCES_SPAGHETTI_CLAMPED_DENSITY: DensityFunction = DensityFunction::Clamp {
+    input: &ENTRANCES_SPAGHETTI_WITH_THICKNESS_DENSITY,
+    min: -1.0,
+    max: 1.0,
+};
+pub const ENTRANCES_SPAGHETTI_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &ENTRANCES_ROUGHNESS_REFERENCE_DENSITY,
+    argument2: &ENTRANCES_SPAGHETTI_CLAMPED_DENSITY,
+};
+pub const ENTRANCES_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Min,
+    argument1: &ENTRANCES_CAVE_DENSITY,
+    argument2: &ENTRANCES_SPAGHETTI_DENSITY,
 };
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
@@ -27469,6 +27562,7 @@ mod tests {
                 "minecraft:overworld/caves/pillars",
                 "minecraft:overworld/caves/spaghetti_2d",
                 "minecraft:overworld/caves/noodle",
+                "minecraft:overworld/caves/entrances",
             ]
         );
         assert_eq!(
@@ -27523,6 +27617,14 @@ mod tests {
             .function;
         assert_eq!(noodle.type_name(), "range_choice");
         assert_eq!(noodle.value_bounds(), (-0.15833333333333333, 64.0));
+        let entrances = builtin_density_function("overworld/caves/entrances")
+            .unwrap()
+            .function;
+        assert_eq!(entrances.type_name(), "cache_once");
+        assert_eq!(
+            entrances.value_bounds(),
+            (-2.201428571428571, 1.3422222222222222)
+        );
     }
 
     #[test]
