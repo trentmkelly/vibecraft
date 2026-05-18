@@ -6776,6 +6776,15 @@ impl StructureBoundingBoxModel {
             && self.min_y <= other.max_y
     }
 
+    pub fn is_inside(self, pos: BlockPos) -> bool {
+        pos.x >= self.min_x
+            && pos.x <= self.max_x
+            && pos.z >= self.min_z
+            && pos.z <= self.max_z
+            && pos.y >= self.min_y
+            && pos.y <= self.max_y
+    }
+
     pub fn center(self) -> BlockPos {
         BlockPos {
             x: (self.min_x + self.max_x) / 2,
@@ -6962,6 +6971,39 @@ pub fn structure_pieces_intersecting_chunk(
         .copied()
         .filter(|piece| piece.bounding_box.intersects(chunk_bb))
         .collect()
+}
+
+pub fn structure_has_piece_at(pos: BlockPos, start: &StructureStartModel) -> bool {
+    start
+        .pieces
+        .iter()
+        .any(|piece| piece.bounding_box.is_inside(pos))
+}
+
+pub fn structure_start_contains_pos(pos: BlockPos, start: &StructureStartModel) -> bool {
+    start
+        .bounding_box()
+        .is_some_and(|bounding_box| bounding_box.is_inside(pos))
+}
+
+pub fn first_structure_start_containing_pos(
+    pos: BlockPos,
+    starts: &[StructureStartModel],
+) -> Option<StructureStartModel> {
+    starts
+        .iter()
+        .find(|start| structure_start_contains_pos(pos, start))
+        .cloned()
+}
+
+pub fn first_structure_start_with_piece_at(
+    pos: BlockPos,
+    starts: &[StructureStartModel],
+) -> Option<StructureStartModel> {
+    starts
+        .iter()
+        .find(|start| structure_has_piece_at(pos, start))
+        .cloned()
 }
 
 pub fn structure_check_result_from_cached_references(
@@ -17264,6 +17306,78 @@ mod tests {
                 }
             ),
             vec![second_piece]
+        );
+    }
+
+    #[test]
+    fn structure_manager_position_queries_use_union_and_piece_boxes() {
+        let first_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 10,
+                min_z: 0,
+                max_x: 4,
+                max_y: 20,
+                max_z: 4,
+            },
+        };
+        let second_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: 10,
+                min_z: 10,
+                max_x: 14,
+                max_y: 20,
+                max_z: 14,
+            },
+        };
+        let start = super::StructureStartModel {
+            structure: Some("minecraft:stronghold"),
+            chunk_pos: ChunkPos { x: 0, z: 0 },
+            references: 0,
+            pieces: vec![first_piece, second_piece],
+        };
+        let inside_first_edge = BlockPos { x: 4, y: 20, z: 4 };
+        let inside_union_gap = BlockPos { x: 7, y: 15, z: 7 };
+        let outside = BlockPos {
+            x: 15,
+            y: 15,
+            z: 15,
+        };
+
+        assert!(first_piece.bounding_box.is_inside(inside_first_edge));
+        assert!(super::structure_start_contains_pos(
+            inside_first_edge,
+            &start
+        ));
+        assert!(super::structure_has_piece_at(inside_first_edge, &start));
+
+        assert!(super::structure_start_contains_pos(
+            inside_union_gap,
+            &start
+        ));
+        assert!(!super::structure_has_piece_at(inside_union_gap, &start));
+        assert!(!super::structure_start_contains_pos(outside, &start));
+        assert!(!super::structure_has_piece_at(outside, &start));
+
+        let invalid = super::StructureStartModel::invalid();
+        assert_eq!(
+            super::first_structure_start_containing_pos(
+                inside_union_gap,
+                &[invalid.clone(), start.clone()]
+            ),
+            Some(start.clone())
+        );
+        assert_eq!(
+            super::first_structure_start_with_piece_at(inside_union_gap, &[start.clone()]),
+            None
+        );
+        assert_eq!(
+            super::first_structure_start_with_piece_at(
+                inside_first_edge,
+                &[invalid, start.clone()]
+            ),
+            Some(start)
         );
     }
 
