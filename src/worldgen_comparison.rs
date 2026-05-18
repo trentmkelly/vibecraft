@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use crate::seed_validation::{build_seed_parity_sample, ChunkCoord, SeedParitySample};
+use crate::storage::chunk::{LevelChunk, ChunkSection};
+use crate::storage::nbt::Tag;
 use crate::worldgen::{
     blending_output_for_old_height, block_predicate_test, carver_is_start_chunk, configured_carver,
     density_function_type, height_provider_sample_with_rolls, normal_noise_value_factor,
@@ -13,6 +15,7 @@ use crate::worldgen::{
     PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
     SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, WORLD_PRESETS,
 };
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldgenChunkComparison {
@@ -37,6 +40,44 @@ pub struct WorldgenSourceFamilyGolden {
     pub registry_items: usize,
     pub codec_items: usize,
     pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldgenChunkSignature {
+    pub chunk: ChunkCoord,
+    pub status: String,
+    pub section_count: usize,
+    pub non_empty_section_count: usize,
+    pub heightmaps: Vec<WorldgenNamedArraySignature>,
+    pub block_palette: Vec<String>,
+    pub biome_palette: Vec<String>,
+    pub sections: Vec<WorldgenSectionSignature>,
+    pub structures: WorldgenStructureSignature,
+    pub payload_fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldgenSectionSignature {
+    pub y: i8,
+    pub block_palette: Vec<String>,
+    pub block_data_entries: usize,
+    pub block_data_fingerprint: u64,
+    pub biome_palette: Vec<String>,
+    pub biome_data_entries: usize,
+    pub biome_data_fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldgenNamedArraySignature {
+    pub name: String,
+    pub entries: usize,
+    pub fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldgenStructureSignature {
+    pub start_keys: Vec<String>,
+    pub reference_keys: Vec<String>,
 }
 
 pub fn build_worldgen_chunk_comparisons(
@@ -319,6 +360,208 @@ pub fn diff_worldgen_comparisons(
         .collect()
 }
 
+pub fn build_chunk_signature(chunk: &LevelChunk) -> WorldgenChunkSignature {
+    let sections = chunk
+        .sections
+        .iter()
+        .map(section_signature)
+        .collect::<Vec<_>>();
+    let mut block_palette = sections
+        .iter()
+        .flat_map(|section| section.block_palette.clone())
+        .collect::<Vec<_>>();
+    block_palette.sort();
+    block_palette.dedup();
+    let mut biome_palette = sections
+        .iter()
+        .flat_map(|section| section.biome_palette.clone())
+        .collect::<Vec<_>>();
+    biome_palette.sort();
+    biome_palette.dedup();
+    let mut heightmaps = chunk
+        .heightmaps
+        .iter()
+        .map(|(name, tag)| named_array_signature(name, tag))
+        .collect::<Vec<_>>();
+    heightmaps.sort_by(|left, right| left.name.cmp(&right.name));
+
+    WorldgenChunkSignature {
+        chunk: ChunkCoord {
+            x: chunk.pos.x,
+            z: chunk.pos.z,
+        },
+        status: chunk.status.clone(),
+        section_count: chunk.sections.len(),
+        non_empty_section_count: sections
+            .iter()
+            .filter(|section| !section.block_palette.is_empty())
+            .count(),
+        heightmaps,
+        block_palette,
+        biome_palette,
+        structures: structure_signature(&chunk.structures),
+        payload_fingerprint: tag_fingerprint(
+            &chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION),
+        ),
+        sections,
+    }
+}
+
+fn section_signature(section: &ChunkSection) -> WorldgenSectionSignature {
+    let block_palette = palette_names(&section.block_states, true);
+    let biome_palette = palette_names(&section.biomes, false);
+    let block_data = container_data(&section.block_states);
+    let biome_data = container_data(&section.biomes);
+    WorldgenSectionSignature {
+        y: section.y,
+        block_palette,
+        block_data_entries: block_data.len(),
+        block_data_fingerprint: fingerprint_i64s(block_data),
+        biome_palette,
+        biome_data_entries: biome_data.len(),
+        biome_data_fingerprint: fingerprint_i64s(biome_data),
+    }
+}
+
+fn named_array_signature(name: &str, tag: &Tag) -> WorldgenNamedArraySignature {
+    let values = match tag {
+        Tag::LongArray(values) => values.as_slice(),
+        _ => &[],
+    };
+    WorldgenNamedArraySignature {
+        name: name.to_string(),
+        entries: values.len(),
+        fingerprint: fingerprint_i64s(values),
+    }
+}
+
+fn structure_signature(tag: &Tag) -> WorldgenStructureSignature {
+    let starts = compound_field(tag, "starts")
+        .map(compound_keys)
+        .unwrap_or_default();
+    let references = compound_field(tag, "References")
+        .or_else(|| compound_field(tag, "references"))
+        .map(compound_keys)
+        .unwrap_or_default();
+    WorldgenStructureSignature {
+        start_keys: starts,
+        reference_keys: references,
+    }
+}
+
+fn palette_names(container: &Tag, block_states: bool) -> Vec<String> {
+    let mut names = compound_field(container, "palette")
+        .and_then(|tag| match tag {
+            Tag::List(values) => Some(values.as_slice()),
+            _ => None,
+        })
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|tag| {
+            if block_states {
+                string_field(tag, "Name")
+            } else if let Tag::String(value) = tag {
+                Some(value.as_str())
+            } else {
+                None
+            }
+        })
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
+fn container_data(container: &Tag) -> &[i64] {
+    match compound_field(container, "data") {
+        Some(Tag::LongArray(values)) => values.as_slice(),
+        _ => &[],
+    }
+}
+
+fn compound_field<'a>(tag: &'a Tag, name: &str) -> Option<&'a Tag> {
+    match tag {
+        Tag::Compound(fields) => fields
+            .iter()
+            .find(|(field_name, _)| field_name == name)
+            .map(|(_, value)| value),
+        _ => None,
+    }
+}
+
+fn string_field<'a>(tag: &'a Tag, name: &str) -> Option<&'a str> {
+    match compound_field(tag, name) {
+        Some(Tag::String(value)) => Some(value.as_str()),
+        _ => None,
+    }
+}
+
+fn compound_keys(tag: &Tag) -> Vec<String> {
+    let mut keys = match tag {
+        Tag::Compound(fields) => fields.iter().map(|(name, _)| name.clone()).collect(),
+        _ => Vec::new(),
+    };
+    keys.sort();
+    keys
+}
+
+fn tag_fingerprint(tag: &Tag) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    mix_tag(&mut hash, tag);
+    hash
+}
+
+fn fingerprint_i64s(values: &[i64]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    for value in values {
+        mix_i64(&mut hash, *value);
+    }
+    hash
+}
+
+fn mix_tag(hash: &mut u64, tag: &Tag) {
+    match tag {
+        Tag::End => mix_bytes(hash, &[0]),
+        Tag::Byte(value) => mix_bytes(hash, &[*value as u8]),
+        Tag::Short(value) => mix_bytes(hash, &value.to_le_bytes()),
+        Tag::Int(value) => mix_bytes(hash, &value.to_le_bytes()),
+        Tag::Long(value) => mix_i64(hash, *value),
+        Tag::Float(value) => mix_bytes(hash, &value.to_le_bytes()),
+        Tag::Double(value) => mix_bytes(hash, &value.to_le_bytes()),
+        Tag::ByteArray(values) => {
+            for value in values {
+                mix_bytes(hash, &[*value as u8]);
+            }
+        }
+        Tag::String(value) => mix_bytes(hash, value.as_bytes()),
+        Tag::List(values) => {
+            for value in values {
+                mix_tag(hash, value);
+            }
+        }
+        Tag::Compound(fields) => {
+            let sorted = fields
+                .iter()
+                .map(|(name, tag)| (name.as_str(), tag))
+                .collect::<BTreeMap<_, _>>();
+            for (name, tag) in sorted {
+                mix_bytes(hash, name.as_bytes());
+                mix_tag(hash, tag);
+            }
+        }
+        Tag::IntArray(values) => {
+            for value in values {
+                mix_i32(hash, *value);
+            }
+        }
+        Tag::LongArray(values) => {
+            for value in values {
+                mix_i64(hash, *value);
+            }
+        }
+    }
+}
+
 fn fingerprint_sample(sample: &SeedParitySample) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325;
     mix_i64(&mut hash, sample.seed);
@@ -452,5 +695,75 @@ mod tests {
         let right = build_worldgen_chunk_comparisons(&[12_345], &[ChunkCoord { x: 1, z: 0 }]);
 
         assert!(diff_worldgen_comparisons(&left, &right).is_empty());
+    }
+
+    #[test]
+    fn chunk_signature_normalizes_generated_chunk_shape_for_vanilla_fixture_diffs() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let signature = build_chunk_signature(&chunk);
+
+        assert_eq!(signature.chunk, ChunkCoord { x: 0, z: 0 });
+        assert_eq!(signature.status, "minecraft:full");
+        assert_eq!(signature.section_count, 1);
+        assert_eq!(signature.non_empty_section_count, 1);
+        assert!(
+            signature.heightmaps.iter().any(|heightmap| {
+                (heightmap.name == "WORLD_SURFACE_WG" || heightmap.name == "WORLD_SURFACE")
+                    && heightmap.entries > 0
+            })
+        );
+        assert!(
+            signature.heightmaps.iter().any(|heightmap| {
+                (heightmap.name == "OCEAN_FLOOR_WG" || heightmap.name == "OCEAN_FLOOR")
+                    && heightmap.entries > 0
+            })
+        );
+        assert!(signature
+            .block_palette
+            .contains(&"minecraft:grass_block".to_string()));
+        assert_eq!(signature.biome_palette, vec!["minecraft:plains".to_string()]);
+        assert_ne!(signature.payload_fingerprint, 0);
+    }
+
+    #[test]
+    fn chunk_signature_captures_structure_keys_and_section_data_fingerprints() {
+        let mut chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 2, z: -3 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        chunk.structures = Tag::Compound(vec![
+            (
+                "starts".to_string(),
+                Tag::Compound(vec![("minecraft:village".to_string(), Tag::Compound(vec![]))]),
+            ),
+            (
+                "References".to_string(),
+                Tag::Compound(vec![(
+                    "minecraft:mineshaft".to_string(),
+                    Tag::LongArray(vec![1, 2, 3]),
+                )]),
+            ),
+        ]);
+        let first = build_chunk_signature(&chunk);
+        let second = build_chunk_signature(&chunk);
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first.structures.start_keys,
+            vec!["minecraft:village".to_string()]
+        );
+        assert_eq!(
+            first.structures.reference_keys,
+            vec!["minecraft:mineshaft".to_string()]
+        );
+        assert!(first
+            .sections
+            .iter()
+            .all(|section| section.block_data_fingerprint != 0));
     }
 }

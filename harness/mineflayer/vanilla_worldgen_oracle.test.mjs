@@ -5,6 +5,7 @@ import {
   buildVanillaWorldgenOraclePlan,
   chunkToBlockCoord,
   chunkToRegionCoord,
+  dimensionForceLoadCommandForChunk,
   forceLoadCommandForChunk,
   regionFileForChunk
 } from './vanilla_worldgen_oracle.mjs'
@@ -47,6 +48,14 @@ test('vanilla worldgen oracle plan force-loads requested chunks and saves region
   assert.equal(plan.port, 25599)
   assert.equal(chunkToBlockCoord(-2), -32)
   assert.equal(forceLoadCommandForChunk({ x: -2, z: 3 }), 'forceload add -32 48')
+  assert.equal(
+    dimensionForceLoadCommandForChunk({ x: -2, z: 3, dimension: 'the_nether' }),
+    'execute in minecraft:the_nether run forceload add -32 48'
+  )
+  assert.equal(
+    dimensionForceLoadCommandForChunk({ x: -2, z: 3, dimension: 'end' }),
+    'execute in minecraft:the_end run forceload add -32 48'
+  )
   assert.deepEqual(plan.commands, [
     'forceload add 0 0',
     'forceload add 16 0',
@@ -65,6 +74,10 @@ test('vanilla worldgen oracle plan force-loads requested chunks and saves region
 test('vanilla worldgen oracle rejects unsupported dimension artifact paths', () => {
   assert.throws(
     () => regionFileForChunk({ x: 0, z: 0, dimension: 'moon' }),
+    /unsupported dimension/
+  )
+  assert.throws(
+    () => dimensionForceLoadCommandForChunk({ x: 0, z: 0, dimension: 'moon' }),
     /unsupported dimension/
   )
 })

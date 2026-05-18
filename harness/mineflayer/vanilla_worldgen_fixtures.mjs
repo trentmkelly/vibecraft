@@ -36,15 +36,15 @@ export const DIMENSION_FIXTURE_CASES = [
     id: 'nether_origin_smoke',
     category: 'nether_origin',
     seed: 8675309n,
-    chunks: [{ x: 0, z: 0, dimension: 'the_nether' }],
-    notes: 'Fixture definition only for now; the current oracle command path force-loads overworld chunks and still needs dimension-aware execution.'
+    chunks: [{ x: 0, z: 0, dimension: 'the_nether' }, { x: 1, z: 0, dimension: 'the_nether' }],
+    notes: 'Nether origin chunks for biome source selection, density, lava/air distribution, features, and structure reference smoke coverage.'
   },
   {
     id: 'end_origin_smoke',
     category: 'end_origin',
     seed: 8675309n,
-    chunks: [{ x: 0, z: 0, dimension: 'the_end' }],
-    notes: 'Fixture definition only for now; the current oracle command path force-loads overworld chunks and still needs dimension-aware execution.'
+    chunks: [{ x: 0, z: 0, dimension: 'the_end' }, { x: 1, z: 0, dimension: 'the_end' }],
+    notes: 'End origin chunks for biome source selection, island density, features, structures, and spawn-platform-adjacent smoke coverage.'
   }
 ]
 
@@ -90,6 +90,41 @@ export async function runOverworldFixtureSuite ({
   return report
 }
 
+export async function runDimensionFixtureSuite ({
+  root = path.join(repoRoot, 'target', 'vanilla-worldgen-dimension-fixtures'),
+  output = path.join(repoRoot, 'target', 'vanilla-worldgen-dimension-fixtures.json'),
+  cases = DIMENSION_FIXTURE_CASES,
+  timeoutMs = 120_000,
+  runOracle = options => runVanillaWorldgenOracle(options)
+} = {}) {
+  const results = []
+  for (const fixture of cases) {
+    const result = await runOracle({
+      fixture,
+      root: path.join(root, fixture.id),
+      seed: fixture.seed,
+      chunks: fixture.chunks,
+      timeoutMs
+    })
+    results.push({
+      fixture: serializeFixtureCase(fixture),
+      ok: result.ok,
+      plan: result.plan,
+      artifacts: result.artifacts,
+      logTail: result.logTail
+    })
+  }
+  const report = {
+    format: 'rustcraft-vanilla-worldgen-dimension-fixtures-v1',
+    generatedBy: 'harness/mineflayer/vanilla_worldgen_fixtures.mjs',
+    cases: cases.map(serializeFixtureCase),
+    results
+  }
+  await mkdir(path.dirname(output), { recursive: true })
+  await writeFile(output, `${JSON.stringify(report, null, 2)}\n`)
+  return report
+}
+
 function serializeFixtureCase (fixture) {
   return {
     ...fixture,
@@ -106,8 +141,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const root = process.env.RUSTCRAFT_VANILLA_FIXTURE_ROOT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures')
   const output = process.env.RUSTCRAFT_VANILLA_FIXTURE_OUTPUT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures.json')
   const onlyManifest = process.env.RUSTCRAFT_VANILLA_FIXTURE_MANIFEST_ONLY === '1'
+  const dimensionsOnly = process.env.RUSTCRAFT_VANILLA_FIXTURE_DIMENSIONS === '1'
   const report = onlyManifest
     ? fixtureManifest()
+    : dimensionsOnly
+      ? await runDimensionFixtureSuite({ root, output })
     : await runOverworldFixtureSuite({ root, output })
   if (onlyManifest) {
     console.log(JSON.stringify(report, null, 2))

@@ -15,6 +15,7 @@
     "smoke:gameplay": "node gameplay_smoke.mjs",
     "regress:offline": "node offline_mode_regression.mjs",
     "gate:release": "node release_gate.mjs",
+    "gate:worldgen": "node worldgen_acceptance_gates.mjs",
     "lifecycle": "node lifecycle_scenarios.mjs",
     "matrix:properties": "node property_matrix.mjs",
     "rules:server": "node server_rules_scenarios.mjs",

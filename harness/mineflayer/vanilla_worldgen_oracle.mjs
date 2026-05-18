@@ -38,6 +38,22 @@ export function forceLoadCommandForChunk ({ x, z }) {
   return `forceload add ${chunkToBlockCoord(x)} ${chunkToBlockCoord(z)}`
 }
 
+export function dimensionForceLoadCommandForChunk ({ x, z, dimension = 'overworld' }) {
+  const command = forceLoadCommandForChunk({ x, z })
+  switch (dimension) {
+    case 'overworld':
+      return command
+    case 'the_nether':
+    case 'nether':
+      return `execute in minecraft:the_nether run ${command}`
+    case 'the_end':
+    case 'end':
+      return `execute in minecraft:the_end run ${command}`
+    default:
+      throw new Error(`unsupported dimension for force-load command: ${dimension}`)
+  }
+}
+
 export function buildVanillaWorldgenOraclePlan ({
   chunks,
   seed = 8675309n,
@@ -51,8 +67,7 @@ export function buildVanillaWorldgenOraclePlan ({
   }))
   const commands = [
     ...normalizedChunks
-      .filter(chunk => chunk.dimension === 'overworld')
-      .map(forceLoadCommandForChunk),
+      .map(dimensionForceLoadCommandForChunk),
     'save-all flush',
     'stop'
   ]

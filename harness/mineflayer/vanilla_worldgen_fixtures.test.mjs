@@ -4,7 +4,8 @@ import test from 'node:test'
 import {
   DIMENSION_FIXTURE_CASES,
   OVERWORLD_FIXTURE_CASES,
-  fixtureManifest
+  fixtureManifest,
+  runDimensionFixtureSuite
 } from './vanilla_worldgen_fixtures.mjs'
 
 test('overworld fixture manifest covers normal terrain parity categories', () => {
@@ -35,4 +36,24 @@ test('manifest serializes bigint seeds and marks pending non-overworld coverage'
   const runnable = fixtureManifest({ includePendingDimensions: false })
   assert.equal(runnable.cases.length, OVERWORLD_FIXTURE_CASES.length)
   assert(runnable.cases.every(fixture => fixture.chunks.every(chunk => chunk.dimension === 'overworld')))
+})
+
+test('dimension fixture suite can be dependency-injected for deterministic report shape', async () => {
+  const report = await runDimensionFixtureSuite({
+    cases: [DIMENSION_FIXTURE_CASES[0]],
+    root: '/tmp/not-used',
+    output: '/tmp/rustcraft-dimension-fixture-test/report.json',
+    timeoutMs: 1,
+    runOracle: async fixture => ({
+      ok: true,
+      plan: { chunks: fixture.chunks },
+      artifacts: [],
+      logTail: ''
+    })
+  })
+
+  assert.equal(report.format, 'rustcraft-vanilla-worldgen-dimension-fixtures-v1')
+  assert.equal(report.results.length, 1)
+  assert.equal(report.results[0].ok, true)
+  assert.equal(report.results[0].fixture.chunks[0].dimension, 'the_nether')
 })
