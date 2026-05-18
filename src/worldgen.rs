@@ -1532,6 +1532,25 @@ pub struct StructurePieceNeighborState {
     pub solid_render: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructurePieceMirror {
+    None,
+    LeftRight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructurePieceRotation {
+    None,
+    Clockwise90,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructurePieceOrientationState {
+    pub orientation: Option<HorizontalDirection>,
+    pub mirror: StructurePieceMirror,
+    pub rotation: StructurePieceRotation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -7294,6 +7313,33 @@ pub fn structure_piece_find_collision_piece(
         .iter()
         .copied()
         .find(|piece| piece.bounding_box.intersects(bounding_box))
+}
+
+pub fn structure_piece_orientation_state(
+    orientation: Option<HorizontalDirection>,
+) -> StructurePieceOrientationState {
+    let (mirror, rotation) = match orientation {
+        None | Some(HorizontalDirection::North) => {
+            (StructurePieceMirror::None, StructurePieceRotation::None)
+        }
+        Some(HorizontalDirection::South) => (
+            StructurePieceMirror::LeftRight,
+            StructurePieceRotation::None,
+        ),
+        Some(HorizontalDirection::West) => (
+            StructurePieceMirror::LeftRight,
+            StructurePieceRotation::Clockwise90,
+        ),
+        Some(HorizontalDirection::East) => (
+            StructurePieceMirror::None,
+            StructurePieceRotation::Clockwise90,
+        ),
+    };
+    StructurePieceOrientationState {
+        orientation,
+        mirror,
+        rotation,
+    }
 }
 
 impl TerrainAdjustmentModel {
@@ -18570,6 +18616,52 @@ mod tests {
                 },
             ),
             None
+        );
+    }
+
+    #[test]
+    fn structure_piece_orientation_sets_mirror_and_rotation_like_vanilla() {
+        use super::HorizontalDirection::{East, North, South, West};
+
+        assert_eq!(
+            super::structure_piece_orientation_state(None),
+            super::StructurePieceOrientationState {
+                orientation: None,
+                mirror: super::StructurePieceMirror::None,
+                rotation: super::StructurePieceRotation::None,
+            }
+        );
+        assert_eq!(
+            super::structure_piece_orientation_state(Some(North)),
+            super::StructurePieceOrientationState {
+                orientation: Some(North),
+                mirror: super::StructurePieceMirror::None,
+                rotation: super::StructurePieceRotation::None,
+            }
+        );
+        assert_eq!(
+            super::structure_piece_orientation_state(Some(South)),
+            super::StructurePieceOrientationState {
+                orientation: Some(South),
+                mirror: super::StructurePieceMirror::LeftRight,
+                rotation: super::StructurePieceRotation::None,
+            }
+        );
+        assert_eq!(
+            super::structure_piece_orientation_state(Some(West)),
+            super::StructurePieceOrientationState {
+                orientation: Some(West),
+                mirror: super::StructurePieceMirror::LeftRight,
+                rotation: super::StructurePieceRotation::Clockwise90,
+            }
+        );
+        assert_eq!(
+            super::structure_piece_orientation_state(Some(East)),
+            super::StructurePieceOrientationState {
+                orientation: Some(East),
+                mirror: super::StructurePieceMirror::None,
+                rotation: super::StructurePieceRotation::Clockwise90,
+            }
         );
     }
 
