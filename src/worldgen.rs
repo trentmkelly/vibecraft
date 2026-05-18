@@ -1706,6 +1706,33 @@ pub struct JigsawChildPlacementYModel {
     pub case: JigsawJunctionYOffsetCase,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawStructureModel {
+    pub start_pool: &'static str,
+    pub start_jigsaw_name: Option<&'static str>,
+    pub max_depth: i32,
+    pub start_height: HeightProvider,
+    pub use_expansion_hack: bool,
+    pub project_start_to_heightmap: Option<&'static str>,
+    pub max_distance_from_center: JigsawMaxDistanceModel,
+    pub pool_aliases: Vec<JigsawPoolAliasBindingModel>,
+    pub dimension_padding: DimensionPaddingModel,
+    pub liquid_settings: LiquidSettingsModel,
+    pub terrain_adjustment: TerrainAdjustmentModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawGenerationPointModel {
+    pub start_pos: (i32, i32, i32),
+    pub pool_alias_lookup: JigsawPoolAliasLookupModel,
+    pub max_depth: i32,
+    pub use_expansion_hack: bool,
+    pub project_start_to_heightmap: Option<&'static str>,
+    pub max_distance_from_center: JigsawMaxDistanceModel,
+    pub dimension_padding: DimensionPaddingModel,
+    pub liquid_settings: LiquidSettingsModel,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructureProcessorTypeModel {
     BlockIgnore,
@@ -8223,6 +8250,114 @@ pub fn jigsaw_target_junction(
         source_z: source_jigsaw_pos.2,
         delta_y: -delta_y,
         dest_projection: source_projection,
+    }
+}
+
+impl JigsawStructureModel {
+    pub const MAX_TOTAL_STRUCTURE_RANGE: i32 = 128;
+    pub const MIN_DEPTH: i32 = 0;
+    pub const MAX_DEPTH: i32 = 20;
+
+    pub fn new(
+        start_pool: &'static str,
+        max_depth: i32,
+        start_height: HeightProvider,
+        use_expansion_hack: bool,
+        terrain_adjustment: TerrainAdjustmentModel,
+    ) -> Result<Self, String> {
+        Self::new_full(
+            start_pool,
+            None,
+            max_depth,
+            start_height,
+            use_expansion_hack,
+            None,
+            JigsawMaxDistanceModel::DEFAULT,
+            Vec::new(),
+            DimensionPaddingModel::ZERO,
+            LiquidSettingsModel::ApplyWaterlogging,
+            terrain_adjustment,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_full(
+        start_pool: &'static str,
+        start_jigsaw_name: Option<&'static str>,
+        max_depth: i32,
+        start_height: HeightProvider,
+        use_expansion_hack: bool,
+        project_start_to_heightmap: Option<&'static str>,
+        max_distance_from_center: JigsawMaxDistanceModel,
+        pool_aliases: Vec<JigsawPoolAliasBindingModel>,
+        dimension_padding: DimensionPaddingModel,
+        liquid_settings: LiquidSettingsModel,
+        terrain_adjustment: TerrainAdjustmentModel,
+    ) -> Result<Self, String> {
+        if !(Self::MIN_DEPTH..=Self::MAX_DEPTH).contains(&max_depth) {
+            return Err("jigsaw structure size must be in 0..=20".to_string());
+        }
+        let structure = Self {
+            start_pool,
+            start_jigsaw_name,
+            max_depth,
+            start_height,
+            use_expansion_hack,
+            project_start_to_heightmap,
+            max_distance_from_center,
+            pool_aliases,
+            dimension_padding,
+            liquid_settings,
+            terrain_adjustment,
+        };
+        structure.verify_range()?;
+        Ok(structure)
+    }
+
+    pub fn verify_range(&self) -> Result<(), String> {
+        if self.max_distance_from_center.horizontal + self.terrain_adjustment.jigsaw_edge_needed()
+            > Self::MAX_TOTAL_STRUCTURE_RANGE
+        {
+            Err(
+                "Horizontal structure size including terrain adaptation must not exceed 128"
+                    .to_string(),
+            )
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn find_generation_point(
+        &self,
+        chunk_pos: ChunkPos,
+        height_context: WorldGenerationHeightContext,
+        world_seed: i64,
+        first_height_roll: i32,
+        second_height_roll: i32,
+        third_height_roll: i32,
+    ) -> JigsawGenerationPointModel {
+        let height = height_provider_sample_with_rolls(
+            self.start_height,
+            height_context,
+            first_height_roll,
+            second_height_roll,
+            third_height_roll,
+        );
+        let start_pos = (chunk_pos.x * 16, height, chunk_pos.z * 16);
+        JigsawGenerationPointModel {
+            start_pos,
+            pool_alias_lookup: JigsawPoolAliasLookupModel::create(
+                &self.pool_aliases,
+                start_pos,
+                world_seed,
+            ),
+            max_depth: self.max_depth,
+            use_expansion_hack: self.use_expansion_hack,
+            project_start_to_heightmap: self.project_start_to_heightmap,
+            max_distance_from_center: self.max_distance_from_center,
+            dimension_padding: self.dimension_padding,
+            liquid_settings: self.liquid_settings,
+        }
     }
 }
 
@@ -20920,6 +21055,120 @@ mod tests {
             ]
         );
         assert!(tests.load_as_text);
+    }
+
+    #[test]
+    fn jigsaw_structure_config_validation_and_generation_point_match_vanilla() {
+        let start_height = super::HeightProvider::Constant {
+            value: super::VerticalAnchor::Absolute(72),
+        };
+        let structure = super::JigsawStructureModel::new_full(
+            "minecraft:village/plains/town_centers",
+            Some("minecraft:town_centers"),
+            7,
+            start_height,
+            true,
+            Some("WORLD_SURFACE_WG"),
+            super::JigsawMaxDistanceModel::new(80, 128).expect("valid max distance"),
+            vec![super::JigsawPoolAliasBindingModel::Direct {
+                alias: "minecraft:village/common/houses",
+                target: "minecraft:village/plains/houses",
+            }],
+            super::DimensionPaddingModel { bottom: 4, top: 8 },
+            super::LiquidSettingsModel::IgnoreWaterlogging,
+            super::TerrainAdjustmentModel::BeardThin,
+        )
+        .expect("valid jigsaw structure config");
+        assert_eq!(structure.verify_range(), Ok(()));
+
+        let point = structure.find_generation_point(
+            ChunkPos { x: -2, z: 3 },
+            super::WorldGenerationHeightContext {
+                min_y: -64,
+                height: 384,
+            },
+            12345,
+            0,
+            0,
+            0,
+        );
+        assert_eq!(point.start_pos, (-32, 72, 48));
+        assert_eq!(point.max_depth, 7);
+        assert!(point.use_expansion_hack);
+        assert_eq!(point.project_start_to_heightmap, Some("WORLD_SURFACE_WG"));
+        assert_eq!(
+            point
+                .pool_alias_lookup
+                .lookup("minecraft:village/common/houses"),
+            "minecraft:village/plains/houses"
+        );
+        assert_eq!(
+            point.max_distance_from_center,
+            super::JigsawMaxDistanceModel {
+                horizontal: 80,
+                vertical: 128,
+            }
+        );
+        assert_eq!(
+            point.dimension_padding,
+            super::DimensionPaddingModel { bottom: 4, top: 8 }
+        );
+        assert_eq!(
+            point.liquid_settings,
+            super::LiquidSettingsModel::IgnoreWaterlogging
+        );
+
+        assert_eq!(
+            super::JigsawStructureModel::new(
+                "minecraft:empty",
+                -1,
+                start_height,
+                false,
+                super::TerrainAdjustmentModel::None,
+            ),
+            Err("jigsaw structure size must be in 0..=20".to_string())
+        );
+        assert_eq!(
+            super::JigsawStructureModel::new_full(
+                "minecraft:empty",
+                None,
+                0,
+                start_height,
+                false,
+                None,
+                super::JigsawMaxDistanceModel::new(128, 80).expect("valid max distance"),
+                Vec::new(),
+                super::DimensionPaddingModel::ZERO,
+                super::LiquidSettingsModel::ApplyWaterlogging,
+                super::TerrainAdjustmentModel::Bury,
+            ),
+            Err(
+                "Horizontal structure size including terrain adaptation must not exceed 128"
+                    .to_string()
+            )
+        );
+
+        let compact = super::JigsawStructureModel::new(
+            "minecraft:bastion/starts",
+            3,
+            start_height,
+            false,
+            super::TerrainAdjustmentModel::None,
+        )
+        .expect("compact constructor fills vanilla defaults");
+        assert_eq!(compact.start_jigsaw_name, None);
+        assert_eq!(
+            compact.max_distance_from_center,
+            super::JigsawMaxDistanceModel::DEFAULT
+        );
+        assert_eq!(
+            compact.dimension_padding,
+            super::DimensionPaddingModel::ZERO
+        );
+        assert_eq!(
+            compact.liquid_settings,
+            super::LiquidSettingsModel::ApplyWaterlogging
+        );
     }
 
     #[test]
