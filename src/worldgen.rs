@@ -607,6 +607,108 @@ pub enum FeatureSizeModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TrunkPlacerKind {
+    Straight,
+    Forking,
+    Giant,
+    MegaJungle,
+    DarkOak,
+    Fancy,
+    Bending {
+        min_height_for_leaves: i32,
+        bend_length_min: i32,
+        bend_length_max: i32,
+    },
+    UpwardsBranching {
+        place_branch_per_log_probability: f32,
+        extra_branch_steps_min: i32,
+        extra_branch_length_min: i32,
+    },
+    Cherry {
+        branch_count_min: i32,
+        branch_count_max: i32,
+        branch_horizontal_length_min: i32,
+        branch_horizontal_length_max: i32,
+        branch_start_offset_from_top_min: i32,
+        branch_start_offset_from_top_max: i32,
+        branch_end_offset_from_top_min: i32,
+        branch_end_offset_from_top_max: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrunkPlacerModel {
+    pub base_height: i32,
+    pub height_rand_a: i32,
+    pub height_rand_b: i32,
+    pub kind: TrunkPlacerKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FoliagePlacerKind {
+    Blob {
+        height: i32,
+    },
+    Spruce {
+        height_min: i32,
+        height_max: i32,
+    },
+    Pine {
+        height_min: i32,
+        height_max: i32,
+    },
+    Acacia,
+    Bush {
+        height: i32,
+    },
+    Fancy {
+        height: i32,
+    },
+    Jungle {
+        height: i32,
+    },
+    MegaPine {
+        height_min: i32,
+        height_max: i32,
+    },
+    DarkOak,
+    RandomSpread {
+        foliage_height_min: i32,
+        foliage_height_max: i32,
+        leaf_placement_attempts: i32,
+    },
+    Cherry {
+        height: i32,
+        wide_bottom_layer_hole_chance: f32,
+        corner_hole_chance: f32,
+        hanging_leaves_chance: f32,
+        hanging_leaves_extension_chance: f32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FoliagePlacerModel {
+    pub radius_min: i32,
+    pub radius_max: i32,
+    pub offset_min: i32,
+    pub offset_max: i32,
+    pub kind: FoliagePlacerKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MangroveRootPlacementModel {
+    pub max_root_width: i32,
+    pub max_root_length: i32,
+    pub random_skew_chance: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RootPlacerModel {
+    pub above_root_placement_chance: Option<f32>,
+    pub mangrove_root_placement: MangroveRootPlacementModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeDecoratorModel {
     TrunkVine,
     LeaveVine,
@@ -5997,6 +6099,186 @@ pub fn feature_size_type(id: &str) -> Option<&'static str> {
         .find(|entry| entry.strip_prefix("minecraft:") == Some(name))
 }
 
+pub fn trunk_placer_type(id: &str) -> Option<&'static str> {
+    worldgen_type_registry_entry("minecraft:trunk_placer_type", id)
+}
+
+pub fn foliage_placer_type(id: &str) -> Option<&'static str> {
+    worldgen_type_registry_entry("minecraft:foliage_placer_type", id)
+}
+
+pub fn root_placer_type(id: &str) -> Option<&'static str> {
+    worldgen_type_registry_entry("minecraft:root_placer_type", id)
+}
+
+fn worldgen_type_registry_entry(registry_id: &str, id: &str) -> Option<&'static str> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLDGEN_TYPE_REGISTRIES
+        .iter()
+        .find(|registry| registry.id == registry_id)?
+        .entries
+        .iter()
+        .copied()
+        .find(|entry| entry.strip_prefix("minecraft:") == Some(name))
+}
+
+pub fn validate_trunk_placer(placer: TrunkPlacerModel) -> Result<TrunkPlacerModel, String> {
+    if !(0..=32).contains(&placer.base_height)
+        || !(0..=24).contains(&placer.height_rand_a)
+        || !(0..=24).contains(&placer.height_rand_b)
+    {
+        return Err("trunk placer base fields are outside vanilla codec ranges".to_string());
+    }
+
+    let valid = match placer.kind {
+        TrunkPlacerKind::Straight
+        | TrunkPlacerKind::Forking
+        | TrunkPlacerKind::Giant
+        | TrunkPlacerKind::MegaJungle
+        | TrunkPlacerKind::DarkOak
+        | TrunkPlacerKind::Fancy => true,
+        TrunkPlacerKind::Bending {
+            min_height_for_leaves,
+            bend_length_min,
+            bend_length_max,
+        } => {
+            min_height_for_leaves > 0
+                && (1..=64).contains(&bend_length_min)
+                && (1..=64).contains(&bend_length_max)
+                && bend_length_min <= bend_length_max
+        }
+        TrunkPlacerKind::UpwardsBranching {
+            place_branch_per_log_probability,
+            extra_branch_steps_min,
+            extra_branch_length_min,
+        } => {
+            (0.0..=1.0).contains(&place_branch_per_log_probability)
+                && extra_branch_steps_min > 0
+                && extra_branch_length_min >= 0
+        }
+        TrunkPlacerKind::Cherry {
+            branch_count_min,
+            branch_count_max,
+            branch_horizontal_length_min,
+            branch_horizontal_length_max,
+            branch_start_offset_from_top_min,
+            branch_start_offset_from_top_max,
+            branch_end_offset_from_top_min,
+            branch_end_offset_from_top_max,
+        } => {
+            (1..=3).contains(&branch_count_min)
+                && (1..=3).contains(&branch_count_max)
+                && branch_count_min <= branch_count_max
+                && (2..=16).contains(&branch_horizontal_length_min)
+                && (2..=16).contains(&branch_horizontal_length_max)
+                && branch_horizontal_length_min <= branch_horizontal_length_max
+                && (-16..=0).contains(&branch_start_offset_from_top_min)
+                && (-16..=0).contains(&branch_start_offset_from_top_max)
+                && branch_start_offset_from_top_min <= branch_start_offset_from_top_max
+                && branch_start_offset_from_top_max - branch_start_offset_from_top_min >= 1
+                && (-16..=16).contains(&branch_end_offset_from_top_min)
+                && (-16..=16).contains(&branch_end_offset_from_top_max)
+                && branch_end_offset_from_top_min <= branch_end_offset_from_top_max
+        }
+    };
+    if valid {
+        Ok(placer)
+    } else {
+        Err("trunk placer variant fields are outside vanilla codec ranges".to_string())
+    }
+}
+
+pub fn trunk_placer_height(placer: TrunkPlacerModel, rand_a: i32, rand_b: i32) -> i32 {
+    placer.base_height
+        + rand_a.rem_euclid(placer.height_rand_a + 1)
+        + rand_b.rem_euclid(placer.height_rand_b + 1)
+}
+
+pub fn validate_foliage_placer(placer: FoliagePlacerModel) -> Result<FoliagePlacerModel, String> {
+    if !(0..=16).contains(&placer.radius_min)
+        || !(0..=16).contains(&placer.radius_max)
+        || placer.radius_min > placer.radius_max
+        || !(0..=16).contains(&placer.offset_min)
+        || !(0..=16).contains(&placer.offset_max)
+        || placer.offset_min > placer.offset_max
+    {
+        return Err("foliage placer base providers are outside vanilla codec ranges".to_string());
+    }
+
+    let valid = match placer.kind {
+        FoliagePlacerKind::Blob { height }
+        | FoliagePlacerKind::Bush { height }
+        | FoliagePlacerKind::Fancy { height }
+        | FoliagePlacerKind::Jungle { height }
+        | FoliagePlacerKind::Cherry { height, .. } => (0..=16).contains(&height),
+        FoliagePlacerKind::Spruce {
+            height_min,
+            height_max,
+        }
+        | FoliagePlacerKind::Pine {
+            height_min,
+            height_max,
+        }
+        | FoliagePlacerKind::MegaPine {
+            height_min,
+            height_max,
+        } => {
+            (0..=16).contains(&height_min)
+                && (0..=16).contains(&height_max)
+                && height_min <= height_max
+        }
+        FoliagePlacerKind::Acacia | FoliagePlacerKind::DarkOak => true,
+        FoliagePlacerKind::RandomSpread {
+            foliage_height_min,
+            foliage_height_max,
+            leaf_placement_attempts,
+        } => {
+            (1..=512).contains(&foliage_height_min)
+                && (1..=512).contains(&foliage_height_max)
+                && foliage_height_min <= foliage_height_max
+                && (0..=256).contains(&leaf_placement_attempts)
+        }
+    };
+
+    let chance_valid = match placer.kind {
+        FoliagePlacerKind::Cherry {
+            wide_bottom_layer_hole_chance,
+            corner_hole_chance,
+            hanging_leaves_chance,
+            hanging_leaves_extension_chance,
+            ..
+        } => [
+            wide_bottom_layer_hole_chance,
+            corner_hole_chance,
+            hanging_leaves_chance,
+            hanging_leaves_extension_chance,
+        ]
+        .into_iter()
+        .all(|chance| (0.0..=1.0).contains(&chance)),
+        _ => true,
+    };
+
+    if valid && chance_valid {
+        Ok(placer)
+    } else {
+        Err("foliage placer variant fields are outside vanilla codec ranges".to_string())
+    }
+}
+
+pub fn validate_root_placer(placer: RootPlacerModel) -> Result<RootPlacerModel, String> {
+    if placer
+        .above_root_placement_chance
+        .is_some_and(|chance| !(0.0..=1.0).contains(&chance))
+        || !(1..=12).contains(&placer.mangrove_root_placement.max_root_width)
+        || !(1..=64).contains(&placer.mangrove_root_placement.max_root_length)
+        || !(0.0..=1.0).contains(&placer.mangrove_root_placement.random_skew_chance)
+    {
+        Err("root placer fields are outside vanilla codec ranges".to_string())
+    } else {
+        Ok(placer)
+    }
+}
+
 pub fn validate_feature_size(size: FeatureSizeModel) -> Result<FeatureSizeModel, String> {
     let min_clipped_height = match size {
         FeatureSizeModel::TwoLayers {
@@ -6357,12 +6639,13 @@ mod tests {
         BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel,
         CarverShape, CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction,
         DensityMarker, FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo,
-        FloatProvider, FluidStatus, HeightProvider, HeightRange, MappedDensityFunction,
-        NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants,
-        PlacedFeatureSource, PlacementModifier, RandomSpreadType, SpawnBlockKind,
-        SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceConditionSource,
-        SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource,
-        TreeDecoratorModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
+        FloatProvider, FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider,
+        HeightRange, MangroveRootPlacementModel, MappedDensityFunction, NoiseRouterPreset,
+        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
+        PlacementModifier, RandomSpreadType, RootPlacerModel, SpawnBlockKind, SpawnColumnHeights,
+        StructureFamily, StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext,
+        SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel, TrunkPlacerKind,
+        TrunkPlacerModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
         WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
         AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
         BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
@@ -8476,6 +8759,108 @@ mod tests {
             Some("minecraft:attached_to_logs")
         );
         assert_eq!(super::tree_decorator_type("missing"), None);
+        assert_eq!(
+            super::trunk_placer_type("straight_trunk_placer"),
+            Some("minecraft:straight_trunk_placer")
+        );
+        assert_eq!(
+            super::foliage_placer_type("minecraft:cherry_foliage_placer"),
+            Some("minecraft:cherry_foliage_placer")
+        );
+        assert_eq!(
+            super::root_placer_type("mangrove_root_placer"),
+            Some("minecraft:mangrove_root_placer")
+        );
+        let straight_trunk = TrunkPlacerModel {
+            base_height: 5,
+            height_rand_a: 2,
+            height_rand_b: 1,
+            kind: TrunkPlacerKind::Straight,
+        };
+        assert_eq!(
+            super::validate_trunk_placer(straight_trunk),
+            Ok(straight_trunk)
+        );
+        assert_eq!(super::trunk_placer_height(straight_trunk, 1, 1), 7);
+        assert_eq!(
+            super::validate_trunk_placer(TrunkPlacerModel {
+                base_height: 33,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            })
+            .unwrap_err(),
+            "trunk placer base fields are outside vanilla codec ranges".to_string()
+        );
+        assert_eq!(
+            super::validate_trunk_placer(TrunkPlacerModel {
+                base_height: 5,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Cherry {
+                    branch_count_min: 1,
+                    branch_count_max: 3,
+                    branch_horizontal_length_min: 2,
+                    branch_horizontal_length_max: 16,
+                    branch_start_offset_from_top_min: -1,
+                    branch_start_offset_from_top_max: -1,
+                    branch_end_offset_from_top_min: -16,
+                    branch_end_offset_from_top_max: 16,
+                },
+            })
+            .unwrap_err(),
+            "trunk placer variant fields are outside vanilla codec ranges".to_string()
+        );
+        let blob_foliage = FoliagePlacerModel {
+            radius_min: 1,
+            radius_max: 2,
+            offset_min: 0,
+            offset_max: 1,
+            kind: FoliagePlacerKind::Blob { height: 3 },
+        };
+        assert_eq!(
+            super::validate_foliage_placer(blob_foliage),
+            Ok(blob_foliage)
+        );
+        assert_eq!(
+            super::validate_foliage_placer(FoliagePlacerModel {
+                radius_min: 0,
+                radius_max: 16,
+                offset_min: 0,
+                offset_max: 16,
+                kind: FoliagePlacerKind::RandomSpread {
+                    foliage_height_min: 0,
+                    foliage_height_max: 1,
+                    leaf_placement_attempts: 1,
+                },
+            })
+            .unwrap_err(),
+            "foliage placer variant fields are outside vanilla codec ranges".to_string()
+        );
+        let mangrove_root = RootPlacerModel {
+            above_root_placement_chance: Some(0.5),
+            mangrove_root_placement: MangroveRootPlacementModel {
+                max_root_width: 8,
+                max_root_length: 15,
+                random_skew_chance: 0.2,
+            },
+        };
+        assert_eq!(
+            super::validate_root_placer(mangrove_root),
+            Ok(mangrove_root)
+        );
+        assert_eq!(
+            super::validate_root_placer(RootPlacerModel {
+                above_root_placement_chance: Some(1.25),
+                mangrove_root_placement: MangroveRootPlacementModel {
+                    max_root_width: 8,
+                    max_root_length: 15,
+                    random_skew_chance: 0.2,
+                },
+            })
+            .unwrap_err(),
+            "root placer fields are outside vanilla codec ranges".to_string()
+        );
         assert_eq!(
             super::validate_tree_decorator(TreeDecoratorModel::Cocoa { probability: 0.25 }),
             Ok(TreeDecoratorModel::Cocoa { probability: 0.25 })
