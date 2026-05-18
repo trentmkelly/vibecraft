@@ -79,7 +79,7 @@ const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
 const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
 const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
-const SPAWN_CHUNK_BATCH_RADIUS: i32 = 1;
+const SPAWN_CHUNK_BATCH_RADIUS: i32 = 2;
 const SPAWN_CHUNK_BATCH_SIZE: i32 =
     (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1) * (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1);
 const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
@@ -3645,14 +3645,14 @@ fn escape_json_string(value: &str) -> String {
 mod tests {
     use super::{
         banner_pattern_nbt, cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt,
-        cow_sound_variant_nbt, encode_base64, escape_json_string, handle_legacy_status_connection,
-        instrument_nbt, jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
-        legacy_version1_response, pig_sound_variant_nbt, read_packet, status_json,
-        trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
-        visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
-        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
-        wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
-        write_legacy_string, write_minimal_biome_registry_packet,
+        chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
+        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
+        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
+        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
+        vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
+        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
+        visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
+        write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
         write_vanilla_banner_pattern_registry_packet,
@@ -3675,7 +3675,8 @@ mod tests {
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
-        STONE_BLOCK_STATE_ID, TERRAIN_BASE_LOCAL_Y, TRIM_MATERIALS, VERSION_NAME,
+        SPAWN_CHUNK_BATCH_RADIUS, SPAWN_CHUNK_BATCH_SIZE, STONE_BLOCK_STATE_ID,
+        TERRAIN_BASE_LOCAL_Y, TRIM_MATERIALS, VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
     use crate::network::ping::ServerboundPingRequestPacket;
@@ -4186,6 +4187,20 @@ mod tests {
             palette_index_at(&words, featured_column.0, feature_y, featured_column.1),
             expected_feature_palette
         );
+    }
+
+    #[test]
+    fn spawn_chunk_window_sends_visible_five_by_five_terrain_patch() {
+        assert_eq!(SPAWN_CHUNK_BATCH_RADIUS, 2);
+        assert_eq!(SPAWN_CHUNK_BATCH_SIZE, 25);
+
+        let chunks = chunk_window(4, -3);
+        assert_eq!(chunks.len(), 25);
+        assert!(chunks.contains(&(4, -3)));
+        assert!(chunks.contains(&(2, -5)));
+        assert!(chunks.contains(&(6, -1)));
+        assert!(!chunks.contains(&(1, -3)));
+        assert!(!chunks.contains(&(4, 0)));
     }
 
     fn palette_index_at(words: &[u64], x: usize, y: usize, z: usize) -> u64 {
