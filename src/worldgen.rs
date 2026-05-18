@@ -1509,6 +1509,16 @@ pub struct StructureExclusionZoneModel {
     pub chunk_count: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkGeneratorStructureStateModel {
+    pub level_seed: i64,
+    pub concentric_rings_seed: i64,
+    pub possible_structure_sets: Vec<StructureSetEntry>,
+    placements_for_structure: BTreeMap<&'static str, Vec<StructurePlacementKind>>,
+    ring_positions: BTreeMap<&'static str, Vec<ChunkPos>>,
+    has_generated_positions: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructureBoundingBoxModel {
     pub min_x: i32,
@@ -7108,6 +7118,176 @@ pub fn concentric_ring_adjusted_positions(
             )
         })
         .collect()
+}
+
+impl ChunkGeneratorStructureStateModel {
+    pub fn create_for_normal(
+        level_seed: i64,
+        structure_sets: &[StructureSetEntry],
+        placeable_structures: &[&'static str],
+    ) -> Self {
+        Self::new(level_seed, level_seed, structure_sets, placeable_structures)
+    }
+
+    pub fn create_for_flat(
+        level_seed: i64,
+        structure_sets: &[StructureSetEntry],
+        placeable_structures: &[&'static str],
+    ) -> Self {
+        Self::new(level_seed, 0, structure_sets, placeable_structures)
+    }
+
+    fn new(
+        level_seed: i64,
+        concentric_rings_seed: i64,
+        structure_sets: &[StructureSetEntry],
+        placeable_structures: &[&'static str],
+    ) -> Self {
+        let possible_structure_sets = structure_sets
+            .iter()
+            .copied()
+            .filter(|set| Self::has_placeable_structure(set, placeable_structures))
+            .collect();
+        Self {
+            level_seed,
+            concentric_rings_seed,
+            possible_structure_sets,
+            placements_for_structure: BTreeMap::new(),
+            ring_positions: BTreeMap::new(),
+            has_generated_positions: false,
+        }
+    }
+
+    pub fn ensure_structures_generated(&mut self, placeable_structures: &[&'static str]) {
+        if self.has_generated_positions {
+            return;
+        }
+        self.generate_positions(placeable_structures);
+        self.has_generated_positions = true;
+    }
+
+    pub fn get_placements_for_structure(
+        &mut self,
+        structure: &'static str,
+        placeable_structures: &[&'static str],
+    ) -> Vec<StructurePlacementKind> {
+        self.ensure_structures_generated(placeable_structures);
+        self.placements_for_structure
+            .get(structure)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn get_ring_positions_for(
+        &mut self,
+        structure_set_id: &'static str,
+        placeable_structures: &[&'static str],
+    ) -> Option<Vec<ChunkPos>> {
+        self.ensure_structures_generated(placeable_structures);
+        self.ring_positions.get(structure_set_id).cloned()
+    }
+
+    pub fn has_structure_chunk_in_range(
+        &mut self,
+        structure_set_id: &'static str,
+        source_x: i32,
+        source_z: i32,
+        range: i32,
+        placeable_structures: &[&'static str],
+    ) -> Result<bool, String> {
+        self.ensure_structures_generated(placeable_structures);
+        let Some(set) = self
+            .possible_structure_sets
+            .iter()
+            .find(|set| set.id == structure_set_id)
+        else {
+            return Ok(false);
+        };
+        for test_x in source_x - range..=source_x + range {
+            for test_z in source_z - range..=source_z + range {
+                if self.is_structure_chunk(set, test_x, test_z)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn generate_positions(&mut self, placeable_structures: &[&'static str]) {
+        for set in &self.possible_structure_sets {
+            let mut has_any_placeable_structures = false;
+            for structure in set.structures {
+                if placeable_structures.contains(structure) {
+                    self.placements_for_structure
+                        .entry(*structure)
+                        .or_default()
+                        .push(set.placement);
+                    has_any_placeable_structures = true;
+                }
+            }
+            if has_any_placeable_structures {
+                if let StructurePlacementKind::ConcentricRings {
+                    distance,
+                    spread,
+                    count,
+                } = set.placement
+                {
+                    let candidates = concentric_ring_initial_candidates(
+                        self.concentric_rings_seed,
+                        distance,
+                        spread,
+                        count,
+                    )
+                    .unwrap_or_default();
+                    self.ring_positions.insert(
+                        set.id,
+                        candidates
+                            .iter()
+                            .map(|candidate| candidate.chunk_pos)
+                            .collect(),
+                    );
+                }
+            }
+        }
+    }
+
+    fn is_structure_chunk(
+        &self,
+        set: &StructureSetEntry,
+        source_x: i32,
+        source_z: i32,
+    ) -> Result<bool, String> {
+        match set.placement {
+            StructurePlacementKind::RandomSpread {
+                spacing,
+                separation,
+                salt,
+                spread_type,
+            } => random_spread_is_placement_chunk(
+                self.level_seed,
+                source_x,
+                source_z,
+                spacing,
+                separation,
+                salt,
+                spread_type,
+            ),
+            StructurePlacementKind::ConcentricRings { .. } => {
+                Ok(self.ring_positions.get(set.id).is_some_and(|positions| {
+                    concentric_rings_is_placement_chunk(positions, source_x, source_z)
+                }))
+            }
+        }
+    }
+
+    fn has_placeable_structure(
+        set: &StructureSetEntry,
+        placeable_structures: &[&'static str],
+    ) -> bool {
+        set.structures
+            .iter()
+            .any(|structure| placeable_structures.contains(structure))
+    }
 }
 
 pub fn validate_structure_exclusion_zone(
@@ -19379,6 +19559,86 @@ mod tests {
         ));
         assert!(super::structure_exclusion_zone_forbids(zone, &other_chunks, 7, -1).unwrap());
         assert!(!super::structure_exclusion_zone_forbids(zone, &other_chunks, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn chunk_generator_structure_state_caches_placeable_sets_and_ring_positions() {
+        let placeable = ["minecraft:stronghold", "minecraft:village_plains"];
+        let mut normal = super::ChunkGeneratorStructureStateModel::create_for_normal(
+            12345,
+            super::BUILTIN_STRUCTURE_SETS,
+            &placeable,
+        );
+        assert_eq!(normal.level_seed, 12345);
+        assert_eq!(normal.concentric_rings_seed, 12345);
+        assert!(normal
+            .possible_structure_sets
+            .iter()
+            .any(|set| set.id == "minecraft:villages"));
+        assert!(normal
+            .possible_structure_sets
+            .iter()
+            .any(|set| set.id == "minecraft:strongholds"));
+        assert!(!normal
+            .possible_structure_sets
+            .iter()
+            .any(|set| set.id == "minecraft:desert_pyramids"));
+
+        assert_eq!(
+            normal.get_placements_for_structure("minecraft:village_plains", &placeable),
+            vec![super::StructurePlacementKind::RandomSpread {
+                spacing: 34,
+                separation: 8,
+                salt: 10387312,
+                spread_type: super::RandomSpreadType::Linear,
+            }]
+        );
+        assert!(normal
+            .get_placements_for_structure("minecraft:desert_pyramid", &placeable)
+            .is_empty());
+        let rings = normal
+            .get_ring_positions_for("minecraft:strongholds", &placeable)
+            .unwrap();
+        assert_eq!(rings.len(), 128);
+        assert_eq!(rings[0], ChunkPos { x: -105, z: 124 });
+        assert!(normal
+            .has_structure_chunk_in_range("minecraft:strongholds", -105, 124, 0, &placeable)
+            .unwrap());
+
+        let village_chunk = super::random_spread_potential_structure_chunk(
+            normal.level_seed,
+            0,
+            0,
+            34,
+            8,
+            10387312,
+            super::RandomSpreadType::Linear,
+        )
+        .unwrap();
+        assert!(normal
+            .has_structure_chunk_in_range(
+                "minecraft:villages",
+                village_chunk.x - 1,
+                village_chunk.z,
+                1,
+                &placeable,
+            )
+            .unwrap());
+        assert!(!normal
+            .has_structure_chunk_in_range("minecraft:desert_pyramids", 0, 0, 10, &placeable)
+            .unwrap());
+
+        let mut flat = super::ChunkGeneratorStructureStateModel::create_for_flat(
+            12345,
+            super::BUILTIN_STRUCTURE_SETS,
+            &["minecraft:stronghold"],
+        );
+        assert_eq!(flat.concentric_rings_seed, 0);
+        assert_ne!(
+            flat.get_ring_positions_for("minecraft:strongholds", &["minecraft:stronghold"])
+                .unwrap()[0],
+            rings[0]
+        );
     }
 
     #[test]
