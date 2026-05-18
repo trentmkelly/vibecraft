@@ -6973,6 +6973,134 @@ pub const BADLANDS_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const MOUNTAIN_ORE_FEATURE_STEP: &[&str] = &[
+    "minecraft:ore_dirt",
+    "minecraft:ore_gravel",
+    "minecraft:ore_granite_upper",
+    "minecraft:ore_granite_lower",
+    "minecraft:ore_diorite_upper",
+    "minecraft:ore_diorite_lower",
+    "minecraft:ore_andesite_upper",
+    "minecraft:ore_andesite_lower",
+    "minecraft:ore_tuff",
+    "minecraft:ore_coal_upper",
+    "minecraft:ore_coal_lower",
+    "minecraft:ore_iron_upper",
+    "minecraft:ore_iron_middle",
+    "minecraft:ore_iron_small",
+    "minecraft:ore_gold",
+    "minecraft:ore_gold_lower",
+    "minecraft:ore_redstone",
+    "minecraft:ore_redstone_lower",
+    "minecraft:ore_diamond",
+    "minecraft:ore_diamond_medium",
+    "minecraft:ore_diamond_large",
+    "minecraft:ore_diamond_buried",
+    "minecraft:ore_lapis",
+    "minecraft:ore_lapis_buried",
+    "minecraft:ore_copper",
+    "minecraft:underwater_magma",
+    "minecraft:disk_sand",
+    "minecraft:disk_clay",
+    "minecraft:disk_gravel",
+    "minecraft:ore_emerald",
+];
+
+pub const MOUNTAIN_UNDERGROUND_DECORATION_STEP: &[&str] = &["minecraft:ore_infested"];
+
+pub const MEADOW_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    MOUNTAIN_ORE_FEATURE_STEP,
+    MOUNTAIN_UNDERGROUND_DECORATION_STEP,
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass_2",
+        "minecraft:patch_grass_meadow",
+        "minecraft:flower_meadow",
+        "minecraft:trees_meadow",
+        "minecraft:wildflowers_meadow",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const GROVE_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    MOUNTAIN_ORE_FEATURE_STEP,
+    MOUNTAIN_UNDERGROUND_DECORATION_STEP,
+    &[
+        "minecraft:spring_water",
+        "minecraft:spring_lava",
+        "minecraft:spring_lava_frozen",
+    ],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_grove",
+        "minecraft:patch_pumpkin",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const WINDSWEPT_HILLS_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    MOUNTAIN_ORE_FEATURE_STEP,
+    MOUNTAIN_UNDERGROUND_DECORATION_STEP,
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_windswept_hills",
+        "minecraft:patch_bush",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const WINDSWEPT_FOREST_FEATURE_STEPS: &[&[&str]] = &[
+    WINDSWEPT_HILLS_FEATURE_STEPS[0],
+    WINDSWEPT_HILLS_FEATURE_STEPS[1],
+    WINDSWEPT_HILLS_FEATURE_STEPS[2],
+    WINDSWEPT_HILLS_FEATURE_STEPS[3],
+    WINDSWEPT_HILLS_FEATURE_STEPS[4],
+    WINDSWEPT_HILLS_FEATURE_STEPS[5],
+    WINDSWEPT_HILLS_FEATURE_STEPS[6],
+    WINDSWEPT_HILLS_FEATURE_STEPS[7],
+    WINDSWEPT_HILLS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_windswept_forest",
+        "minecraft:patch_bush",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    WINDSWEPT_HILLS_FEATURE_STEPS[10],
+];
+
 pub const DESERT_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7369,6 +7497,81 @@ pub const BADLANDS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 6,
         min_count: 1,
         max_count: 2,
+    },
+];
+
+pub const MEADOW_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:donkey",
+        weight: 1,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:rabbit",
+        weight: 2,
+        min_count: 2,
+        max_count: 6,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 2,
+        min_count: 2,
+        max_count: 4,
+    },
+];
+
+pub const GROVE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:wolf",
+        weight: 1,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:rabbit",
+        weight: 8,
+        min_count: 2,
+        max_count: 3,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:fox",
+        weight: 4,
+        min_count: 2,
+        max_count: 4,
+    },
+];
+
+pub const WINDSWEPT_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:llama",
+        weight: 5,
+        min_count: 4,
+        max_count: 6,
     },
 ];
 
@@ -8789,6 +8992,111 @@ pub const BADLANDS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const MEADOW_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: MEADOW_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const GROVE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: GROVE_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const WINDSWEPT_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: WINDSWEPT_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const DESERT_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -9644,6 +9952,38 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.03,
         spawn_costs: &[],
         spawners: BADLANDS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:meadow",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: MEADOW_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: MEADOW_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:grove",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: GROVE_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: GROVE_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:windswept_hills",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: WINDSWEPT_HILLS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: WINDSWEPT_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:windswept_forest",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: WINDSWEPT_FOREST_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: WINDSWEPT_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:desert",
@@ -23954,6 +24294,87 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(badlands, "monster"),
             super::FOREST_MONSTER_SPAWNS
+        );
+
+        let meadow = super::biome_generation_settings("meadow").unwrap();
+        assert_eq!(meadow.biome, "minecraft:meadow");
+        assert!(super::biome_has_placed_feature(
+            meadow,
+            "minecraft:ore_emerald"
+        ));
+        assert!(super::biome_has_placed_feature(
+            meadow,
+            "minecraft:ore_infested"
+        ));
+        assert!(super::biome_has_placed_feature(
+            meadow,
+            "minecraft:wildflowers_meadow"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            meadow,
+            "minecraft:flower_default"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(meadow, "creature"),
+            super::MEADOW_CREATURE_SPAWNS
+        );
+
+        let grove = super::biome_generation_settings("grove").unwrap();
+        assert_eq!(grove.biome, "minecraft:grove");
+        assert!(super::biome_has_placed_feature(
+            grove,
+            "minecraft:spring_lava_frozen"
+        ));
+        assert!(super::biome_has_placed_feature(
+            grove,
+            "minecraft:trees_grove"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            grove,
+            "minecraft:patch_grass_meadow"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(grove, "creature"),
+            super::GROVE_CREATURE_SPAWNS
+        );
+
+        let windswept_hills = super::biome_generation_settings("windswept_hills").unwrap();
+        assert_eq!(windswept_hills.biome, "minecraft:windswept_hills");
+        assert!(super::biome_has_placed_feature(
+            windswept_hills,
+            "minecraft:trees_windswept_hills"
+        ));
+        assert!(super::biome_has_placed_feature(
+            windswept_hills,
+            "minecraft:ore_emerald"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            windswept_hills,
+            "minecraft:trees_windswept_forest"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(windswept_hills, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:llama",
+                weight: 5,
+                min_count: 4,
+                max_count: 6,
+            })
+        );
+
+        let windswept_forest = super::biome_generation_settings("windswept_forest").unwrap();
+        assert_eq!(windswept_forest.biome, "minecraft:windswept_forest");
+        assert!(super::biome_has_placed_feature(
+            windswept_forest,
+            "minecraft:trees_windswept_forest"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            windswept_forest,
+            "minecraft:trees_windswept_hills"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(windswept_forest, "creature"),
+            super::WINDSWEPT_CREATURE_SPAWNS
         );
 
         let desert = super::biome_generation_settings("desert").unwrap();
