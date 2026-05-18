@@ -721,6 +721,21 @@ pub struct SnowAndFreezePlacement {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UnderwaterMagmaConfigurationModel {
+    pub floor_search_range: i32,
+    pub placement_radius_around_floor: i32,
+    pub placement_probability_per_valid_position: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnderwaterMagmaCandidate {
+    pub pos: BlockPos,
+    pub block: &'static str,
+    pub below_visible_from_above: bool,
+    pub horizontal_visible_from_outside: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureSizeModel {
     TwoLayers {
@@ -7235,6 +7250,55 @@ pub fn snow_and_freeze_placement_plan(
     placements
 }
 
+pub fn underwater_magma_placement_plan(
+    origin: BlockPos,
+    floor_y: Option<i32>,
+    config: UnderwaterMagmaConfigurationModel,
+    candidates: &[UnderwaterMagmaCandidate],
+    probability_rolls: &[f32],
+) -> Vec<BlockPos> {
+    let Some(floor_y) = floor_y else {
+        return Vec::new();
+    };
+    let radius = config.placement_radius_around_floor.clamp(0, 64);
+    let probability = config
+        .placement_probability_per_valid_position
+        .clamp(0.0, 1.0);
+    let floor_pos = BlockPos {
+        x: origin.x,
+        y: floor_y,
+        z: origin.z,
+    };
+    let mut placements = Vec::new();
+    let mut roll_index = 0;
+    for y in floor_pos.y - radius..=floor_pos.y + radius {
+        for z in floor_pos.z - radius..=floor_pos.z + radius {
+            for x in floor_pos.x - radius..=floor_pos.x + radius {
+                let roll = probability_rolls.get(roll_index).copied().unwrap_or(0.0);
+                roll_index += 1;
+                if roll >= probability {
+                    continue;
+                }
+                let pos = BlockPos { x, y, z };
+                if candidates
+                    .iter()
+                    .find(|candidate| candidate.pos == pos)
+                    .is_some_and(underwater_magma_is_valid_placement)
+                {
+                    placements.push(pos);
+                }
+            }
+        }
+    }
+    placements
+}
+
+pub fn underwater_magma_is_valid_placement(candidate: &UnderwaterMagmaCandidate) -> bool {
+    !matches!(candidate.block, "minecraft:water" | "minecraft:air")
+        && !candidate.below_visible_from_above
+        && !candidate.horizontal_visible_from_outside
+}
+
 pub fn feature_size_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -10631,6 +10695,55 @@ mod tests {
                 },
             ]
         );
+
+        let magma_config = super::UnderwaterMagmaConfigurationModel {
+            floor_search_range: 12,
+            placement_radius_around_floor: 1,
+            placement_probability_per_valid_position: 0.5,
+        };
+        let valid_magma = super::UnderwaterMagmaCandidate {
+            pos: BlockPos { x: 0, y: 62, z: 0 },
+            block: "minecraft:stone",
+            below_visible_from_above: false,
+            horizontal_visible_from_outside: false,
+        };
+        assert!(super::underwater_magma_is_valid_placement(&valid_magma));
+        assert!(!super::underwater_magma_is_valid_placement(
+            &super::UnderwaterMagmaCandidate {
+                block: "minecraft:water",
+                ..valid_magma
+            }
+        ));
+        assert!(!super::underwater_magma_is_valid_placement(
+            &super::UnderwaterMagmaCandidate {
+                below_visible_from_above: true,
+                ..valid_magma
+            }
+        ));
+        assert!(!super::underwater_magma_is_valid_placement(
+            &super::UnderwaterMagmaCandidate {
+                horizontal_visible_from_outside: true,
+                ..valid_magma
+            }
+        ));
+        assert_eq!(
+            super::underwater_magma_placement_plan(
+                BlockPos { x: 0, y: 70, z: 0 },
+                Some(62),
+                magma_config,
+                &[valid_magma],
+                &[0.0; 27],
+            ),
+            vec![BlockPos { x: 0, y: 62, z: 0 }]
+        );
+        assert!(super::underwater_magma_placement_plan(
+            BlockPos { x: 0, y: 70, z: 0 },
+            None,
+            magma_config,
+            &[valid_magma],
+            &[0.0; 27],
+        )
+        .is_empty());
         assert_eq!(
             super::feature_size_type("two_layers_feature_size"),
             Some("minecraft:two_layers_feature_size")
