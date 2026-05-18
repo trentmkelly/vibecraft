@@ -264,6 +264,48 @@ pub enum HeightProvider {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockPredicateType {
+    pub id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockPredicateContext {
+    pub min_y: i32,
+    pub height: i32,
+    pub block: &'static str,
+    pub fluid: &'static str,
+    pub solid: bool,
+    pub replaceable: bool,
+    pub unobstructed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockPredicate {
+    MatchingBlocks {
+        blocks: &'static [&'static str],
+    },
+    MatchingFluids {
+        fluids: &'static [&'static str],
+    },
+    Solid,
+    Replaceable,
+    InsideWorldBounds {
+        offset_y: i32,
+    },
+    AnyOf {
+        predicates: &'static [BlockPredicate],
+    },
+    AllOf {
+        predicates: &'static [BlockPredicate],
+    },
+    Not {
+        predicate: &'static BlockPredicate,
+    },
+    True,
+    Unobstructed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
     pub barrier_state: &'static str,
@@ -670,6 +712,48 @@ pub const HEIGHT_PROVIDER_TYPES: &[HeightProviderType] = &[
     },
     HeightProviderType {
         id: "minecraft:weighted_list",
+    },
+];
+
+pub const BLOCK_PREDICATE_TYPES: &[BlockPredicateType] = &[
+    BlockPredicateType {
+        id: "minecraft:matching_blocks",
+    },
+    BlockPredicateType {
+        id: "minecraft:matching_block_tag",
+    },
+    BlockPredicateType {
+        id: "minecraft:matching_fluids",
+    },
+    BlockPredicateType {
+        id: "minecraft:has_sturdy_face",
+    },
+    BlockPredicateType {
+        id: "minecraft:solid",
+    },
+    BlockPredicateType {
+        id: "minecraft:replaceable",
+    },
+    BlockPredicateType {
+        id: "minecraft:would_survive",
+    },
+    BlockPredicateType {
+        id: "minecraft:inside_world_bounds",
+    },
+    BlockPredicateType {
+        id: "minecraft:any_of",
+    },
+    BlockPredicateType {
+        id: "minecraft:all_of",
+    },
+    BlockPredicateType {
+        id: "minecraft:not",
+    },
+    BlockPredicateType {
+        id: "minecraft:true",
+    },
+    BlockPredicateType {
+        id: "minecraft:unobstructed",
     },
 ];
 
@@ -2722,6 +2806,24 @@ pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
         ],
     },
     WorldgenTypeRegistry {
+        id: "minecraft:block_predicate_type",
+        entries: &[
+            "minecraft:matching_blocks",
+            "minecraft:matching_block_tag",
+            "minecraft:matching_fluids",
+            "minecraft:has_sturdy_face",
+            "minecraft:solid",
+            "minecraft:replaceable",
+            "minecraft:would_survive",
+            "minecraft:inside_world_bounds",
+            "minecraft:any_of",
+            "minecraft:all_of",
+            "minecraft:not",
+            "minecraft:true",
+            "minecraft:unobstructed",
+        ],
+    },
+    WorldgenTypeRegistry {
         id: "minecraft:placement_modifier_type",
         entries: &[
             "minecraft:block_predicate_filter",
@@ -3530,6 +3632,43 @@ pub fn height_provider_sample_with_rolls(
     }
 }
 
+pub fn block_predicate_type(id: &str) -> Option<&'static BlockPredicateType> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    BLOCK_PREDICATE_TYPES.iter().find(|predicate_type| {
+        predicate_type
+            .id
+            .strip_prefix("minecraft:")
+            .unwrap_or(predicate_type.id)
+            == name
+    })
+}
+
+pub fn block_predicate_test(
+    predicate: BlockPredicate,
+    context: BlockPredicateContext,
+    origin_y: i32,
+) -> bool {
+    match predicate {
+        BlockPredicate::MatchingBlocks { blocks } => blocks.contains(&context.block),
+        BlockPredicate::MatchingFluids { fluids } => fluids.contains(&context.fluid),
+        BlockPredicate::Solid => context.solid,
+        BlockPredicate::Replaceable => context.replaceable,
+        BlockPredicate::InsideWorldBounds { offset_y } => {
+            let y = origin_y + offset_y;
+            y >= context.min_y && y < context.min_y + context.height
+        }
+        BlockPredicate::AnyOf { predicates } => predicates
+            .iter()
+            .any(|predicate| block_predicate_test(*predicate, context, origin_y)),
+        BlockPredicate::AllOf { predicates } => predicates
+            .iter()
+            .all(|predicate| block_predicate_test(*predicate, context, origin_y)),
+        BlockPredicate::Not { predicate } => !block_predicate_test(*predicate, context, origin_y),
+        BlockPredicate::True => true,
+        BlockPredicate::Unobstructed => context.unobstructed,
+    }
+}
+
 pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGeneratorSettings> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_NOISE_GENERATOR_SETTINGS.iter().find(|settings| {
@@ -4126,27 +4265,27 @@ pub fn carver_can_reach(
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CarverShape,
-        CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
-        FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightProvider,
-        HeightRange, MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, SpawnBlockKind,
-        SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceRuleKind,
-        SurfaceRulePreset, VerticalAnchor, WeightedHeightProvider, WorldCarverType,
-        WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
-        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
-        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
-        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES,
-        MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
-        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
-        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES,
-        STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
-        STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
-        Y_DENSITY,
+        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlockPredicate,
+        BlockPredicateContext, CarverShape, CaveDensityOutput, ConfiguredFeatureSource,
+        DensityFunction, DensityMarker, FeatureConfigurationKind, FeatureFamily, FloatProvider,
+        FluidStatus, HeightProvider, HeightRange, MappedDensityFunction, NoiseRouterPreset,
+        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
+        RandomSpreadType, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+        StructurePlacementKind, SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor,
+        WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS,
+        BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS,
+        BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS,
+        BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES,
+        CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS,
+        FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLOATING_ISLANDS_NOISE_SETTINGS,
+        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
+        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS,
+        STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
+        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4326,6 +4465,113 @@ mod tests {
             super::height_provider_sample_with_rolls(weighted, context, 4, 5, 0),
             22
         );
+    }
+
+    #[test]
+    fn block_predicate_types_match_vanilla_registry_order() {
+        assert_eq!(
+            BLOCK_PREDICATE_TYPES
+                .iter()
+                .map(|predicate_type| predicate_type.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:matching_blocks",
+                "minecraft:matching_block_tag",
+                "minecraft:matching_fluids",
+                "minecraft:has_sturdy_face",
+                "minecraft:solid",
+                "minecraft:replaceable",
+                "minecraft:would_survive",
+                "minecraft:inside_world_bounds",
+                "minecraft:any_of",
+                "minecraft:all_of",
+                "minecraft:not",
+                "minecraft:true",
+                "minecraft:unobstructed",
+            ]
+        );
+        assert!(super::block_predicate_type("matching_blocks").is_some());
+        assert!(super::block_predicate_type("minecraft:not").is_some());
+        assert!(super::block_predicate_type("height_range").is_none());
+    }
+
+    #[test]
+    fn block_predicate_core_evaluators_follow_vanilla_boolean_rules() {
+        let grass = BlockPredicateContext {
+            min_y: -64,
+            height: 384,
+            block: "minecraft:grass_block",
+            fluid: "minecraft:empty",
+            solid: true,
+            replaceable: false,
+            unobstructed: true,
+        };
+        assert!(super::block_predicate_test(
+            BlockPredicate::True,
+            grass,
+            320
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::MatchingBlocks {
+                blocks: &["minecraft:dirt", "minecraft:grass_block"],
+            },
+            grass,
+            64
+        ));
+        assert!(!super::block_predicate_test(
+            BlockPredicate::MatchingFluids {
+                fluids: &["minecraft:water"],
+            },
+            grass,
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::Solid,
+            grass,
+            64
+        ));
+        assert!(!super::block_predicate_test(
+            BlockPredicate::Replaceable,
+            grass,
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::InsideWorldBounds { offset_y: -1 },
+            grass,
+            320
+        ));
+        assert!(!super::block_predicate_test(
+            BlockPredicate::InsideWorldBounds { offset_y: 0 },
+            grass,
+            320
+        ));
+
+        static SOLID: BlockPredicate = BlockPredicate::Solid;
+        static REPLACEABLE: BlockPredicate = BlockPredicate::Replaceable;
+        static UNOBSTRUCTED: BlockPredicate = BlockPredicate::Unobstructed;
+        static ALL_PREDICATES: &[BlockPredicate] = &[SOLID, UNOBSTRUCTED];
+        static ANY_PREDICATES: &[BlockPredicate] = &[REPLACEABLE, UNOBSTRUCTED];
+        assert!(super::block_predicate_test(
+            BlockPredicate::AllOf {
+                predicates: ALL_PREDICATES,
+            },
+            grass,
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::AnyOf {
+                predicates: ANY_PREDICATES,
+            },
+            grass,
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::Not {
+                predicate: &REPLACEABLE,
+            },
+            grass,
+            64
+        ));
     }
 
     #[test]
@@ -5210,6 +5456,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 ("minecraft:height_provider_type", 6),
+                ("minecraft:block_predicate_type", 13),
                 ("minecraft:placement_modifier_type", 14),
                 ("minecraft:trunk_placer_type", 8),
                 ("minecraft:foliage_placer_type", 10),
