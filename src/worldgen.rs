@@ -1911,6 +1911,12 @@ pub struct StructureAccessModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureReferenceModel {
+    pub structure: &'static str,
+    pub source_chunk_key: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -9349,6 +9355,66 @@ pub fn structure_access_valid_starts_for_references(
         .filter(|start| start.is_valid())
         .cloned()
         .collect()
+}
+
+pub fn chunk_pos_key(chunk_pos: ChunkPos) -> i64 {
+    (chunk_pos.x as u32 as i64) | ((chunk_pos.z as u32 as i64) << 32)
+}
+
+pub fn structure_reference_writable_area(chunk_pos: ChunkPos) -> StructureBoundingBoxModel {
+    StructureBoundingBoxModel {
+        min_x: chunk_pos.x * 16,
+        min_y: i32::MIN,
+        min_z: chunk_pos.z * 16,
+        max_x: chunk_pos.x * 16 + 15,
+        max_y: i32::MAX,
+        max_z: chunk_pos.z * 16 + 15,
+    }
+}
+
+pub fn structure_references_for_chunk(
+    access_by_chunk: &BTreeMap<i64, StructureAccessModel>,
+    target_chunk: ChunkPos,
+) -> Vec<StructureReferenceModel> {
+    let target_area = structure_reference_writable_area(target_chunk);
+    let mut references = Vec::new();
+    for source_x in target_chunk.x - 8..=target_chunk.x + 8 {
+        for source_z in target_chunk.z - 8..=target_chunk.z + 8 {
+            let source_chunk = ChunkPos {
+                x: source_x,
+                z: source_z,
+            };
+            let source_key = chunk_pos_key(source_chunk);
+            let Some(access) = access_by_chunk.get(&source_key) else {
+                continue;
+            };
+            for start in access.starts.values() {
+                if start.is_valid()
+                    && start
+                        .bounding_box()
+                        .is_some_and(|bbox| bbox.intersects(target_area))
+                {
+                    references.push(StructureReferenceModel {
+                        structure: start.structure.unwrap_or("minecraft:unknown"),
+                        source_chunk_key: source_key,
+                    });
+                }
+            }
+        }
+    }
+    references
+}
+
+pub fn create_structure_references_for_chunk(
+    access_by_chunk: &BTreeMap<i64, StructureAccessModel>,
+    target_chunk: ChunkPos,
+    target_access: &mut StructureAccessModel,
+) -> Vec<StructureReferenceModel> {
+    let references = structure_references_for_chunk(access_by_chunk, target_chunk);
+    for reference in &references {
+        target_access.add_reference_for_structure(reference.structure, reference.source_chunk_key);
+    }
+    references
 }
 
 const fn feature_type(
@@ -21742,6 +21808,121 @@ mod tests {
             &[11, 12, 13],
         );
         assert_eq!(starts, vec![valid_start]);
+    }
+
+    #[test]
+    fn chunk_generator_create_references_scans_nearby_valid_intersections() {
+        let shipwreck_start = super::StructureStartModel {
+            structure: Some("minecraft:shipwreck"),
+            chunk_pos: ChunkPos { x: 2, z: -1 },
+            references: 0,
+            pieces: vec![super::StructurePieceModel {
+                bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 31,
+                    min_y: 50,
+                    min_z: -16,
+                    max_x: 48,
+                    max_y: 70,
+                    max_z: -1,
+                },
+            }],
+        };
+        let out_of_range_start = super::StructureStartModel {
+            structure: Some("minecraft:mineshaft"),
+            chunk_pos: ChunkPos { x: 9, z: 0 },
+            references: 0,
+            pieces: vec![super::StructurePieceModel {
+                bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 0,
+                    min_y: 0,
+                    min_z: 0,
+                    max_x: 15,
+                    max_y: 10,
+                    max_z: 15,
+                },
+            }],
+        };
+        let non_intersecting_start = super::StructureStartModel {
+            structure: Some("minecraft:village_plains"),
+            chunk_pos: ChunkPos { x: -1, z: 0 },
+            references: 0,
+            pieces: vec![super::StructurePieceModel {
+                bounding_box: super::StructureBoundingBoxModel {
+                    min_x: -32,
+                    min_y: 60,
+                    min_z: 0,
+                    max_x: -17,
+                    max_y: 80,
+                    max_z: 15,
+                },
+            }],
+        };
+
+        assert_eq!(
+            super::chunk_pos_key(ChunkPos { x: -1, z: 2 }),
+            0x0000_0002_ffff_ffff
+        );
+        assert_eq!(
+            super::structure_reference_writable_area(ChunkPos { x: 2, z: -1 }),
+            super::StructureBoundingBoxModel {
+                min_x: 32,
+                min_y: i32::MIN,
+                min_z: -16,
+                max_x: 47,
+                max_y: i32::MAX,
+                max_z: -1,
+            }
+        );
+
+        let mut source_access = super::StructureAccessModel::default();
+        source_access.set_start_for_structure("minecraft:shipwreck", shipwreck_start);
+        source_access.set_start_for_structure(
+            "minecraft:stronghold",
+            super::StructureStartModel::invalid(),
+        );
+
+        let mut out_of_range_access = super::StructureAccessModel::default();
+        out_of_range_access.set_start_for_structure("minecraft:mineshaft", out_of_range_start);
+
+        let mut non_intersecting_access = super::StructureAccessModel::default();
+        non_intersecting_access
+            .set_start_for_structure("minecraft:village_plains", non_intersecting_start);
+
+        let mut chunks = BTreeMap::new();
+        chunks.insert(
+            super::chunk_pos_key(ChunkPos { x: 2, z: -1 }),
+            source_access,
+        );
+        chunks.insert(
+            super::chunk_pos_key(ChunkPos { x: 9, z: 0 }),
+            out_of_range_access,
+        );
+        chunks.insert(
+            super::chunk_pos_key(ChunkPos { x: -1, z: 0 }),
+            non_intersecting_access,
+        );
+
+        let references = super::structure_references_for_chunk(&chunks, ChunkPos { x: 2, z: -1 });
+        assert_eq!(
+            references,
+            vec![super::StructureReferenceModel {
+                structure: "minecraft:shipwreck",
+                source_chunk_key: super::chunk_pos_key(ChunkPos { x: 2, z: -1 }),
+            }]
+        );
+
+        let mut target_access = super::StructureAccessModel::default();
+        let applied = super::create_structure_references_for_chunk(
+            &chunks,
+            ChunkPos { x: 2, z: -1 },
+            &mut target_access,
+        );
+        assert_eq!(applied, references);
+        assert_eq!(
+            target_access.get_references_for_structure("minecraft:shipwreck"),
+            &[super::chunk_pos_key(ChunkPos { x: 2, z: -1 })]
+        );
+        assert!(target_access.unsaved);
     }
 
     #[test]
