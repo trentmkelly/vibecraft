@@ -20199,6 +20199,81 @@ pub fn simplex_noise_sample_2d(snapshot: &SimplexNoiseSnapshot, xin: f64, yin: f
         + simplex_corner_noise(gi2, x2, y2, 0.0, 0.5))
 }
 
+pub fn simplex_noise_sample_3d(
+    snapshot: &SimplexNoiseSnapshot,
+    xin: f64,
+    yin: f64,
+    zin: f64,
+) -> f64 {
+    let s = (xin + yin + zin) / 3.0;
+    let i = (xin + s).floor() as i32;
+    let j = (yin + s).floor() as i32;
+    let k = (zin + s).floor() as i32;
+    let t = f64::from(i + j + k) / 6.0;
+    let x0 = xin - (f64::from(i) - t);
+    let y0 = yin - (f64::from(j) - t);
+    let z0 = zin - (f64::from(k) - t);
+    let (i1, j1, k1, i2, j2, k2) = if x0 >= y0 {
+        if y0 >= z0 {
+            (1, 0, 0, 1, 1, 0)
+        } else if x0 >= z0 {
+            (1, 0, 0, 1, 0, 1)
+        } else {
+            (0, 0, 1, 1, 0, 1)
+        }
+    } else if y0 < z0 {
+        (0, 0, 1, 0, 1, 1)
+    } else if x0 < z0 {
+        (0, 1, 0, 0, 1, 1)
+    } else {
+        (0, 1, 0, 1, 1, 0)
+    };
+    let x1 = x0 - f64::from(i1) + 1.0 / 6.0;
+    let y1 = y0 - f64::from(j1) + 1.0 / 6.0;
+    let z1 = z0 - f64::from(k1) + 1.0 / 6.0;
+    let x2 = x0 - f64::from(i2) + 1.0 / 3.0;
+    let y2 = y0 - f64::from(j2) + 1.0 / 3.0;
+    let z2 = z0 - f64::from(k2) + 1.0 / 3.0;
+    let x3 = x0 - 0.5;
+    let y3 = y0 - 0.5;
+    let z3 = z0 - 0.5;
+    let ii = i & 0xff;
+    let jj = j & 0xff;
+    let kk = k & 0xff;
+    let gi0 = simplex_noise_permutation(
+        snapshot,
+        ii + simplex_noise_permutation(snapshot, jj + simplex_noise_permutation(snapshot, kk)),
+    ) % 12;
+    let gi1 = simplex_noise_permutation(
+        snapshot,
+        ii + i1
+            + simplex_noise_permutation(
+                snapshot,
+                jj + j1 + simplex_noise_permutation(snapshot, kk + k1),
+            ),
+    ) % 12;
+    let gi2 = simplex_noise_permutation(
+        snapshot,
+        ii + i2
+            + simplex_noise_permutation(
+                snapshot,
+                jj + j2 + simplex_noise_permutation(snapshot, kk + k2),
+            ),
+    ) % 12;
+    let gi3 = simplex_noise_permutation(
+        snapshot,
+        ii + 1
+            + simplex_noise_permutation(
+                snapshot,
+                jj + 1 + simplex_noise_permutation(snapshot, kk + 1),
+            ),
+    ) % 12;
+    32.0 * (simplex_corner_noise(gi0, x0, y0, z0, 0.6)
+        + simplex_corner_noise(gi1, x1, y1, z1, 0.6)
+        + simplex_corner_noise(gi2, x2, y2, z2, 0.6)
+        + simplex_corner_noise(gi3, x3, y3, z3, 0.6))
+}
+
 pub fn end_island_height_value(
     island_noise: &SimplexNoiseSnapshot,
     section_x: i32,
@@ -26518,6 +26593,16 @@ mod tests {
         assert!((height - 64.222916).abs() < 1e-5);
         assert!((density - 0.43924152851104736).abs() < 1e-12);
         assert!((density - density_function_value).abs() < 1e-12);
+    }
+
+    #[test]
+    fn simplex_noise_3d_sampling_matches_vanilla_corner_path() {
+        let mut random = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
+        let simplex = super::simplex_noise_snapshot(&mut random);
+        let first = super::simplex_noise_sample_3d(&simplex, 1.25, -3.5, 8.75);
+        let second = super::simplex_noise_sample_3d(&simplex, -12.125, 0.5, 33.25);
+        assert!((first - 0.124169920267489).abs() < 1e-12);
+        assert!((second - 0.29129930814264227).abs() < 1e-12);
     }
 
     #[test]
