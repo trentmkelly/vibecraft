@@ -456,6 +456,37 @@ pub struct PlacementContextModel {
     pub block_predicate: BlockPredicateContext,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BiomeGenerationSettingsModel {
+    pub biome: &'static str,
+    pub carvers: &'static [&'static str],
+    pub feature_steps: &'static [&'static [&'static str]],
+    pub creature_spawn_probability: f32,
+    pub spawn_costs: &'static [MobSpawnCostModel],
+    pub spawners: &'static [MobSpawnerGroupModel],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MobSpawnCostModel {
+    pub entity_type: &'static str,
+    pub energy_budget: f64,
+    pub charge: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MobSpawnerGroupModel {
+    pub category: &'static str,
+    pub entries: &'static [MobSpawnerDataModel],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MobSpawnerDataModel {
+    pub entity_type: &'static str,
+    pub weight: i32,
+    pub min_count: i32,
+    pub max_count: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlatLayerInfo {
     pub height: i32,
@@ -4432,6 +4463,225 @@ pub const PLACED_FEATURE_BOOTSTRAP_SOURCES: &[PlacedFeatureSourceEntry] = &[
     ),
 ];
 
+pub const PLAINS_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[
+        "minecraft:lake_lava_underground",
+        "minecraft:lake_lava_surface",
+    ],
+    &["minecraft:amethyst_geode"],
+    &["minecraft:monster_room", "minecraft:monster_room_deep"],
+    &[],
+    &[],
+    &[
+        "minecraft:ore_dirt",
+        "minecraft:ore_gravel",
+        "minecraft:ore_granite_upper",
+        "minecraft:ore_granite_lower",
+        "minecraft:ore_diorite_upper",
+        "minecraft:ore_diorite_lower",
+        "minecraft:ore_andesite_upper",
+        "minecraft:ore_andesite_lower",
+        "minecraft:ore_tuff",
+        "minecraft:ore_coal_upper",
+        "minecraft:ore_coal_lower",
+        "minecraft:ore_iron_upper",
+        "minecraft:ore_iron_middle",
+        "minecraft:ore_iron_small",
+        "minecraft:ore_gold",
+        "minecraft:ore_gold_lower",
+        "minecraft:ore_redstone",
+        "minecraft:ore_redstone_lower",
+        "minecraft:ore_diamond",
+        "minecraft:ore_diamond_medium",
+        "minecraft:ore_diamond_large",
+        "minecraft:ore_diamond_buried",
+        "minecraft:ore_lapis",
+        "minecraft:ore_lapis_buried",
+        "minecraft:ore_copper",
+        "minecraft:underwater_magma",
+        "minecraft:disk_sand",
+        "minecraft:disk_clay",
+        "minecraft:disk_gravel",
+    ],
+    &[],
+    &["minecraft:spring_water", "minecraft:spring_lava"],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass_2",
+        "minecraft:patch_bush",
+        "minecraft:trees_plains",
+        "minecraft:flower_plains",
+        "minecraft:patch_grass_plain",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    &["minecraft:freeze_top_layer"],
+];
+
+pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:bat",
+    weight: 10,
+    min_count: 8,
+    max_count: 8,
+}];
+
+pub const PLAINS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:horse",
+        weight: 5,
+        min_count: 2,
+        max_count: 6,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:donkey",
+        weight: 1,
+        min_count: 1,
+        max_count: 3,
+    },
+];
+
+pub const PLAINS_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 90,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_horse",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
+pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
+    &[MobSpawnerDataModel {
+        entity_type: "minecraft:glow_squid",
+        weight: 10,
+        min_count: 4,
+        max_count: 6,
+    }];
+
+pub const PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: PLAINS_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: PLAINS_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] =
+    &[BiomeGenerationSettingsModel {
+        biome: "minecraft:plains",
+        carvers: &[
+            "minecraft:cave",
+            "minecraft:cave_extra_underground",
+            "minecraft:canyon",
+        ],
+        feature_steps: PLAINS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: PLAINS_SPAWNER_GROUPS,
+    }];
+
 pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
     WorldgenTypeRegistry {
         id: "minecraft:height_provider_type",
@@ -6286,6 +6536,39 @@ pub fn placed_feature_source(id: &str) -> Option<PlacedFeatureSource> {
         .map(|entry| entry.source)
 }
 
+pub fn biome_generation_settings(id: &str) -> Option<&'static BiomeGenerationSettingsModel> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    BUILTIN_BIOME_GENERATION_SETTINGS.iter().find(|entry| {
+        entry
+            .biome
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
+pub fn biome_has_placed_feature(biome: &BiomeGenerationSettingsModel, feature: &str) -> bool {
+    let name = feature.strip_prefix("minecraft:").unwrap_or(feature);
+    biome.feature_steps.iter().any(|step| {
+        step.iter().any(|entry| {
+            entry
+                .strip_prefix("minecraft:")
+                .is_some_and(|entry_name| entry_name == name)
+        })
+    })
+}
+
+pub fn biome_spawns_for_category(
+    biome: &BiomeGenerationSettingsModel,
+    category: &str,
+) -> &'static [MobSpawnerDataModel] {
+    biome
+        .spawners
+        .iter()
+        .find(|group| group.category == category)
+        .map(|group| group.entries)
+        .unwrap_or(&[])
+}
+
 pub fn block_state_provider_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -6979,12 +7262,13 @@ pub fn carver_can_reach(
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlendingDataPacked,
-        BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel,
-        CarverShape, CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction,
-        DensityMarker, FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo,
-        FloatProvider, FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider,
-        HeightRange, MangroveRootPlacementModel, MappedDensityFunction, NoiseRouterPreset,
+        density_function_type, AquiferNoiseSettings, BinaryDensityFunction,
+        BiomeGenerationSettingsModel, BlendingDataPacked, BlendingOutput, BlockPos, BlockPredicate,
+        BlockPredicateContext, BlockStateProviderModel, CarverShape, CaveDensityOutput,
+        CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
+        FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo, FloatProvider,
+        FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider, HeightRange,
+        MangroveRootPlacementModel, MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset,
         NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
         PlacementContextModel, PlacementModifier, RandomSpreadType, RootPlacerModel,
         SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
@@ -9079,6 +9363,103 @@ mod tests {
             super::placed_feature_source("trees_mangrove"),
             Some(PlacedFeatureSource::Vegetation)
         );
+    }
+
+    #[test]
+    fn biome_generation_settings_plains_matches_registry_payload() {
+        let plains = super::biome_generation_settings("plains").unwrap();
+        assert_eq!(
+            *plains,
+            BiomeGenerationSettingsModel {
+                biome: "minecraft:plains",
+                carvers: &[
+                    "minecraft:cave",
+                    "minecraft:cave_extra_underground",
+                    "minecraft:canyon",
+                ],
+                feature_steps: super::PLAINS_FEATURE_STEPS,
+                creature_spawn_probability: 0.1,
+                spawn_costs: &[],
+                spawners: super::PLAINS_SPAWNER_GROUPS,
+            }
+        );
+        assert_eq!(plains.feature_steps.len(), 11);
+        assert_eq!(plains.feature_steps[1].len(), 2);
+        assert_eq!(plains.feature_steps[6].len(), 29);
+        assert_eq!(
+            plains.feature_steps[9],
+            &[
+                "minecraft:glow_lichen",
+                "minecraft:patch_tall_grass_2",
+                "minecraft:patch_bush",
+                "minecraft:trees_plains",
+                "minecraft:flower_plains",
+                "minecraft:patch_grass_plain",
+                "minecraft:brown_mushroom_normal",
+                "minecraft:red_mushroom_normal",
+                "minecraft:patch_pumpkin",
+                "minecraft:patch_sugar_cane",
+                "minecraft:patch_firefly_bush_near_water",
+            ]
+        );
+        assert!(super::biome_has_placed_feature(plains, "trees_plains"));
+        assert!(super::biome_has_placed_feature(
+            plains,
+            "minecraft:ore_diamond_buried"
+        ));
+        assert!(!super::biome_has_placed_feature(plains, "trees_jungle"));
+        assert_eq!(
+            super::biome_spawns_for_category(plains, "creature"),
+            &[
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:sheep",
+                    weight: 12,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:pig",
+                    weight: 10,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:chicken",
+                    weight: 10,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:cow",
+                    weight: 8,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:horse",
+                    weight: 5,
+                    min_count: 2,
+                    max_count: 6,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:donkey",
+                    weight: 1,
+                    min_count: 1,
+                    max_count: 3,
+                },
+            ]
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(plains, "underground_water_creature"),
+            &[MobSpawnerDataModel {
+                entity_type: "minecraft:glow_squid",
+                weight: 10,
+                min_count: 4,
+                max_count: 6,
+            }]
+        );
+        assert!(super::biome_spawns_for_category(plains, "water_creature").is_empty());
+        assert!(super::biome_generation_settings("minecraft:badlands").is_none());
     }
 
     #[test]
