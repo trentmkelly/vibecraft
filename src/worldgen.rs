@@ -19798,6 +19798,40 @@ pub fn perlin_noise_sample(
     value
 }
 
+pub fn perlin_noise_sample_with_derivative(
+    snapshot: &PerlinNoiseSnapshot,
+    x: f64,
+    y: f64,
+    z: f64,
+    derivative_out: &mut [f64; 3],
+) -> f64 {
+    let mut value = 0.0;
+    let mut factor = snapshot.lowest_freq_input_factor;
+    let mut value_factor = snapshot.lowest_freq_value_factor;
+
+    for (index, noise) in snapshot.levels.iter().enumerate() {
+        if let Some(noise) = noise {
+            let mut level_derivative = [0.0; 3];
+            let noise_value = improved_noise_sample_with_derivative(
+                noise,
+                perlin_noise_wrap(x * factor),
+                perlin_noise_wrap(y * factor),
+                perlin_noise_wrap(z * factor),
+                &mut level_derivative,
+            );
+            let contribution_scale = snapshot.amplitudes[index] * value_factor;
+            value += noise_value * contribution_scale;
+            derivative_out[0] += level_derivative[0] * contribution_scale * factor;
+            derivative_out[1] += level_derivative[1] * contribution_scale * factor;
+            derivative_out[2] += level_derivative[2] * contribution_scale * factor;
+        }
+        factor *= 2.0;
+        value_factor /= 2.0;
+    }
+
+    value
+}
+
 pub fn perlin_noise_edge_value(snapshot: &PerlinNoiseSnapshot, noise_value: f64) -> f64 {
     let mut value = 0.0;
     let mut value_factor = snapshot.lowest_freq_value_factor;
@@ -19845,6 +19879,33 @@ pub fn normal_noise_sample(snapshot: &NormalNoiseSnapshot, x: f64, y: f64, z: f6
         0.0,
         0.0,
     );
+    (first + second) * snapshot.value_factor
+}
+
+pub fn normal_noise_sample_with_derivative(
+    snapshot: &NormalNoiseSnapshot,
+    x: f64,
+    y: f64,
+    z: f64,
+    derivative_out: &mut [f64; 3],
+) -> f64 {
+    let mut first_derivative = [0.0; 3];
+    let first =
+        perlin_noise_sample_with_derivative(&snapshot.first, x, y, z, &mut first_derivative);
+    let mut second_derivative = [0.0; 3];
+    let second = perlin_noise_sample_with_derivative(
+        &snapshot.second,
+        x * NORMAL_NOISE_INPUT_FACTOR,
+        y * NORMAL_NOISE_INPUT_FACTOR,
+        z * NORMAL_NOISE_INPUT_FACTOR,
+        &mut second_derivative,
+    );
+    derivative_out[0] += (first_derivative[0] + second_derivative[0] * NORMAL_NOISE_INPUT_FACTOR)
+        * snapshot.value_factor;
+    derivative_out[1] += (first_derivative[1] + second_derivative[1] * NORMAL_NOISE_INPUT_FACTOR)
+        * snapshot.value_factor;
+    derivative_out[2] += (first_derivative[2] + second_derivative[2] * NORMAL_NOISE_INPUT_FACTOR)
+        * snapshot.value_factor;
     (first + second) * snapshot.value_factor
 }
 
@@ -24569,6 +24630,78 @@ mod tests {
         assert!((derivative[0] - 0.3917228566454057).abs() < 1e-12);
         assert!((derivative[1] - -0.43405750840785967).abs() < 1e-12);
         assert!((derivative[2] - -0.2458146745685046).abs() < 1e-12);
+    }
+
+    #[test]
+    fn perlin_and_normal_noise_derivatives_propagate_scaled_octave_sums() {
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let temperature_parameters =
+            *super::builtin_normal_noise_parameters("minecraft:temperature").unwrap();
+        let temperature_random =
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "temperature")
+                .unwrap()
+                .random;
+        let temperature =
+            super::normal_noise_snapshot(temperature_random, temperature_parameters, true).unwrap();
+
+        let mut derivative = [0.25, -0.5, 0.75];
+        let sample = super::normal_noise_sample_with_derivative(
+            &temperature,
+            1.25,
+            -3.5,
+            8.75,
+            &mut derivative,
+        );
+        assert!(
+            (sample - super::normal_noise_sample(&temperature, 1.25, -3.5, 8.75)).abs() < 1e-12
+        );
+        assert!((derivative[0] - 0.24869321227275637).abs() < 1e-12);
+        assert!((derivative[1] - -0.4994671369603084).abs() < 1e-12);
+        assert!((derivative[2] - 0.7497785106815639).abs() < 1e-12);
+
+        let finite_step = 1.0e-4;
+        let finite_difference = |dx: f64, dy: f64, dz: f64| {
+            let forward = super::normal_noise_sample(
+                &temperature,
+                1.25 + dx * finite_step,
+                -3.5 + dy * finite_step,
+                8.75 + dz * finite_step,
+            );
+            let backward = super::normal_noise_sample(
+                &temperature,
+                1.25 - dx * finite_step,
+                -3.5 - dy * finite_step,
+                8.75 - dz * finite_step,
+            );
+            (forward - backward) / (2.0 * finite_step)
+        };
+        assert!((derivative[0] - 0.25 - finite_difference(1.0, 0.0, 0.0)).abs() < 1e-8);
+        assert!((derivative[1] + 0.5 - finite_difference(0.0, 1.0, 0.0)).abs() < 1e-8);
+        assert!((derivative[2] - 0.75 - finite_difference(0.0, 0.0, 1.0)).abs() < 1e-8);
+
+        let nether_temperature =
+            *super::builtin_normal_noise_parameters("minecraft:nether/temperature").unwrap();
+        let legacy_nether = super::perlin_noise_snapshot(
+            super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345)),
+            nether_temperature,
+            false,
+        )
+        .unwrap();
+        let mut derivative = [0.25, -0.5, 0.75];
+        let sample = super::perlin_noise_sample_with_derivative(
+            &legacy_nether,
+            1.25,
+            -3.5,
+            8.75,
+            &mut derivative,
+        );
+        assert!(
+            (sample - super::perlin_noise_sample(&legacy_nether, 1.25, -3.5, 8.75, 0.0, 0.0)).abs()
+                < 1e-12
+        );
+        assert!((derivative[0] - 0.24511028873691926).abs() < 1e-12);
+        assert!((derivative[1] - -0.5169489231200556).abs() < 1e-12);
+        assert!((derivative[2] - 0.7581942371593413).abs() < 1e-12);
     }
 
     #[test]
