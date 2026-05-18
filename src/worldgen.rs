@@ -464,6 +464,41 @@ pub struct LevelStemPreset {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkGeneratorKind {
+    Noise,
+    Flat,
+    Debug,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolvedChunkGenerator {
+    Noise {
+        biome_source: &'static str,
+        noise_settings: &'static NoiseGeneratorSettings,
+    },
+    Flat {
+        settings: FlatGeneratorSettingsModel,
+    },
+    Debug {
+        biome: &'static str,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedLevelStem {
+    pub dimension: &'static str,
+    pub generator: ResolvedChunkGenerator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedWorldPreset {
+    pub id: &'static str,
+    pub overworld: ResolvedLevelStem,
+    pub nether: ResolvedLevelStem,
+    pub end: ResolvedLevelStem,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorldPresetEntry {
     pub id: &'static str,
     pub overworld: LevelStemPreset,
@@ -4961,6 +4996,69 @@ pub fn world_preset(id: &str) -> Option<&'static WorldPresetEntry> {
         .find(|preset| preset.id.strip_prefix("minecraft:").unwrap_or(preset.id) == name)
 }
 
+pub fn chunk_generator_kind(id: &str) -> Option<ChunkGeneratorKind> {
+    match id.strip_prefix("minecraft:").unwrap_or(id) {
+        "noise" => Some(ChunkGeneratorKind::Noise),
+        "flat" => Some(ChunkGeneratorKind::Flat),
+        "debug" => Some(ChunkGeneratorKind::Debug),
+        _ => None,
+    }
+}
+
+pub fn resolve_level_stem(stem: &LevelStemPreset) -> Result<ResolvedLevelStem, String> {
+    let generator = match chunk_generator_kind(stem.generator)
+        .ok_or_else(|| format!("Unknown chunk generator {}", stem.generator))?
+    {
+        ChunkGeneratorKind::Noise => {
+            let settings_id = stem
+                .noise_settings
+                .ok_or_else(|| format!("Noise generator {} has no settings", stem.dimension))?;
+            let settings = builtin_noise_generator_settings(settings_id)
+                .ok_or_else(|| format!("Unknown noise settings {settings_id}"))?;
+            ResolvedChunkGenerator::Noise {
+                biome_source: stem.biome_source,
+                noise_settings: settings,
+            }
+        }
+        ChunkGeneratorKind::Flat => {
+            if stem.noise_settings.is_some() {
+                return Err(format!(
+                    "Flat generator {} must not carry noise settings",
+                    stem.dimension
+                ));
+            }
+            ResolvedChunkGenerator::Flat {
+                settings: default_flat_generator_settings()?,
+            }
+        }
+        ChunkGeneratorKind::Debug => {
+            if stem.noise_settings.is_some() {
+                return Err(format!(
+                    "Debug generator {} must not carry noise settings",
+                    stem.dimension
+                ));
+            }
+            ResolvedChunkGenerator::Debug {
+                biome: stem.biome_source,
+            }
+        }
+    };
+    Ok(ResolvedLevelStem {
+        dimension: stem.dimension,
+        generator,
+    })
+}
+
+pub fn resolve_world_preset(id: &str) -> Result<ResolvedWorldPreset, String> {
+    let preset = world_preset(id).ok_or_else(|| format!("Unknown world preset {id}"))?;
+    Ok(ResolvedWorldPreset {
+        id: preset.id,
+        overworld: resolve_level_stem(&preset.overworld)?,
+        nether: resolve_level_stem(&preset.nether)?,
+        end: resolve_level_stem(&preset.end)?,
+    })
+}
+
 pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
     match generator {
         "minecraft:flat" | "flat" => Some("minecraft:flat"),
@@ -6431,6 +6529,151 @@ mod tests {
         assert_eq!(
             super::validate_world_preset_dimensions(&["minecraft:the_nether"]),
             Err("Missing overworld dimension".to_string())
+        );
+    }
+
+    #[test]
+    fn world_preset_resolver_dispatches_vanilla_generator_codecs() {
+        assert_eq!(
+            super::chunk_generator_kind("noise"),
+            Some(super::ChunkGeneratorKind::Noise)
+        );
+        assert_eq!(
+            super::chunk_generator_kind("minecraft:flat"),
+            Some(super::ChunkGeneratorKind::Flat)
+        );
+        assert_eq!(
+            super::chunk_generator_kind("minecraft:debug"),
+            Some(super::ChunkGeneratorKind::Debug)
+        );
+        assert_eq!(super::chunk_generator_kind("minecraft:custom"), None);
+
+        let normal = super::resolve_world_preset("normal").unwrap();
+        assert_eq!(normal.id, "minecraft:normal");
+        assert_eq!(normal.overworld.dimension, "minecraft:overworld");
+        match normal.overworld.generator {
+            super::ResolvedChunkGenerator::Noise {
+                biome_source,
+                noise_settings,
+            } => {
+                assert_eq!(biome_source, "minecraft:multi_noise/overworld");
+                assert_eq!(noise_settings.id, "minecraft:overworld");
+            }
+            _ => panic!("normal overworld should resolve to noise"),
+        }
+        match normal.nether.generator {
+            super::ResolvedChunkGenerator::Noise {
+                biome_source,
+                noise_settings,
+            } => {
+                assert_eq!(biome_source, "minecraft:multi_noise/nether");
+                assert_eq!(noise_settings.id, "minecraft:nether");
+            }
+            _ => panic!("normal nether should resolve to noise"),
+        }
+        match normal.end.generator {
+            super::ResolvedChunkGenerator::Noise {
+                biome_source,
+                noise_settings,
+            } => {
+                assert_eq!(biome_source, "minecraft:the_end");
+                assert_eq!(noise_settings.id, "minecraft:end");
+            }
+            _ => panic!("normal end should resolve to noise"),
+        }
+
+        let large = super::resolve_world_preset("large_biomes").unwrap();
+        match large.overworld.generator {
+            super::ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+                assert_eq!(noise_settings.id, "minecraft:large_biomes");
+            }
+            _ => panic!("large biomes overworld should resolve to noise"),
+        }
+
+        let amplified = super::resolve_world_preset("amplified").unwrap();
+        match amplified.overworld.generator {
+            super::ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+                assert_eq!(noise_settings.id, "minecraft:amplified");
+            }
+            _ => panic!("amplified overworld should resolve to noise"),
+        }
+
+        let single = super::resolve_world_preset("single_biome_surface").unwrap();
+        match single.overworld.generator {
+            super::ResolvedChunkGenerator::Noise {
+                biome_source,
+                noise_settings,
+            } => {
+                assert_eq!(biome_source, "minecraft:fixed/plains");
+                assert_eq!(noise_settings.id, "minecraft:overworld");
+            }
+            _ => panic!("single biome overworld should resolve to noise"),
+        }
+
+        let flat = super::resolve_world_preset("flat").unwrap();
+        match flat.overworld.generator {
+            super::ResolvedChunkGenerator::Flat { settings } => {
+                assert_eq!(settings.biome, "minecraft:plains");
+                assert_eq!(
+                    settings.expanded_layers,
+                    vec![
+                        Some("minecraft:bedrock"),
+                        Some("minecraft:dirt"),
+                        Some("minecraft:dirt"),
+                        Some("minecraft:grass_block")
+                    ]
+                );
+            }
+            _ => panic!("flat overworld should resolve to flat"),
+        }
+
+        let debug = super::resolve_world_preset("debug_all_block_states").unwrap();
+        match debug.overworld.generator {
+            super::ResolvedChunkGenerator::Debug { biome } => {
+                assert_eq!(biome, "minecraft:plains");
+            }
+            _ => panic!("debug overworld should resolve to debug"),
+        }
+    }
+
+    #[test]
+    fn world_preset_resolver_rejects_invalid_generator_wiring() {
+        assert_eq!(
+            super::resolve_world_preset("missing").unwrap_err(),
+            "Unknown world preset missing".to_string()
+        );
+
+        assert_eq!(
+            super::resolve_level_stem(&super::LevelStemPreset {
+                dimension: "minecraft:overworld",
+                generator: "minecraft:custom",
+                biome_source: "minecraft:plains",
+                noise_settings: None,
+            })
+            .unwrap_err(),
+            "Unknown chunk generator minecraft:custom".to_string()
+        );
+
+        assert_eq!(
+            super::resolve_level_stem(&super::LevelStemPreset {
+                dimension: "minecraft:overworld",
+                generator: "minecraft:noise",
+                biome_source: "minecraft:plains",
+                noise_settings: None,
+            })
+            .unwrap_err(),
+            "Noise generator minecraft:overworld has no settings".to_string()
+        );
+
+        assert_eq!(
+            super::resolve_level_stem(&super::LevelStemPreset {
+                dimension: "minecraft:overworld",
+                generator: "minecraft:flat",
+                biome_source: "minecraft:plains",
+                noise_settings: Some("minecraft:overworld"),
+            })
+            .unwrap_err(),
+            "Flat generator minecraft:overworld must not carry noise settings".to_string()
         );
     }
 
