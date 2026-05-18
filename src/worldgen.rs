@@ -726,6 +726,14 @@ pub struct AquaticPlacementBlock {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HorizontalDirection {
+    North,
+    South,
+    West,
+    East,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockPileConfigurationModel {
     pub state_provider: BlockStateProviderModel,
@@ -7476,6 +7484,247 @@ const fn kelp_state_for_age(age: i32) -> &'static str {
     }
 }
 
+pub fn coral_block_can_place(current_block: &'static str, above_block: &'static str) -> bool {
+    (current_block == "minecraft:water" || block_is_coral(current_block))
+        && above_block == "minecraft:water"
+}
+
+pub fn coral_block_placement_plan(
+    pos: BlockPos,
+    current_block: &'static str,
+    above_block: &'static str,
+    coral_state: &'static str,
+    coral_roll: f32,
+    sea_pickle_roll: f32,
+    pickle_count_roll: i32,
+    wall_fan_rolls: &[(HorizontalDirection, f32, bool)],
+) -> Vec<AquaticPlacementBlock> {
+    if !coral_block_can_place(current_block, above_block) {
+        return Vec::new();
+    }
+    let mut blocks = vec![AquaticPlacementBlock {
+        pos,
+        state: coral_state,
+    }];
+    if coral_roll < 0.25 {
+        blocks.push(AquaticPlacementBlock {
+            pos: BlockPos {
+                x: pos.x,
+                y: pos.y + 1,
+                z: pos.z,
+            },
+            state: "minecraft:tube_coral",
+        });
+    } else if sea_pickle_roll < 0.05 {
+        blocks.push(AquaticPlacementBlock {
+            pos: BlockPos {
+                x: pos.x,
+                y: pos.y + 1,
+                z: pos.z,
+            },
+            state: match pickle_count_roll.rem_euclid(4) + 1 {
+                1 => "minecraft:sea_pickle[pickles=1]",
+                2 => "minecraft:sea_pickle[pickles=2]",
+                3 => "minecraft:sea_pickle[pickles=3]",
+                _ => "minecraft:sea_pickle[pickles=4]",
+            },
+        });
+    }
+    for (direction, roll, side_is_water) in wall_fan_rolls {
+        if *roll < 0.2 && *side_is_water {
+            blocks.push(AquaticPlacementBlock {
+                pos: offset_horizontal(pos, *direction, 1),
+                state: coral_wall_fan_state(*direction),
+            });
+        }
+    }
+    blocks
+}
+
+pub fn coral_tree_positions(
+    origin: BlockPos,
+    trunk_height_roll: i32,
+    branch_directions: &[HorizontalDirection],
+    branch_height_rolls: &[i32],
+    branch_step_rolls: &[f32],
+) -> Vec<BlockPos> {
+    let trunk_height = trunk_height_roll.rem_euclid(3) + 1;
+    let mut positions = Vec::new();
+    for y in 0..trunk_height {
+        positions.push(BlockPos {
+            x: origin.x,
+            y: origin.y + y,
+            z: origin.z,
+        });
+    }
+    let trunk_top = BlockPos {
+        x: origin.x,
+        y: origin.y + trunk_height,
+        z: origin.z,
+    };
+    for (branch_index, direction) in branch_directions.iter().take(4).enumerate() {
+        let mut pos = offset_horizontal(trunk_top, *direction, 1);
+        let branch_height = branch_height_rolls
+            .get(branch_index)
+            .copied()
+            .unwrap_or(0)
+            .rem_euclid(5)
+            + 2;
+        let mut segment_length = 0;
+        for j in 0..branch_height {
+            positions.push(pos);
+            segment_length += 1;
+            pos.y += 1;
+            let roll = branch_step_rolls
+                .get(branch_index * 5 + j as usize)
+                .copied()
+                .unwrap_or(1.0);
+            if j == 0 || (segment_length >= 2 && roll < 0.25) {
+                pos = offset_horizontal(pos, *direction, 1);
+                segment_length = 0;
+            }
+        }
+    }
+    positions
+}
+
+pub fn coral_mushroom_positions(
+    origin: BlockPos,
+    height_roll: i32,
+    width_roll: i32,
+    length_roll: i32,
+    sink_roll: i32,
+    skip_rolls: &[f32],
+) -> Vec<BlockPos> {
+    let height = height_roll.rem_euclid(3) + 3;
+    let width = width_roll.rem_euclid(3) + 3;
+    let length = length_roll.rem_euclid(3) + 3;
+    let sink = sink_roll.rem_euclid(3) + 1;
+    let mut positions = Vec::new();
+    let mut roll_index = 0;
+    for x in 0..=width {
+        for y in 0..=height {
+            for z in 0..=length {
+                let not_x_edge_or_y_edge = (x != 0 && x != width) || (y != 0 && y != height);
+                let not_z_edge_or_y_edge = (z != 0 && z != length) || (y != 0 && y != height);
+                let not_x_edge_or_z_edge = (x != 0 && x != width) || (z != 0 && z != length);
+                let on_shell =
+                    x == 0 || x == width || y == 0 || y == height || z == 0 || z == length;
+                if not_x_edge_or_y_edge && not_z_edge_or_y_edge && not_x_edge_or_z_edge && on_shell
+                {
+                    let roll = skip_rolls.get(roll_index).copied().unwrap_or(1.0);
+                    roll_index += 1;
+                    if roll >= 0.1 {
+                        positions.push(BlockPos {
+                            x: origin.x + x,
+                            y: origin.y + y - sink,
+                            z: origin.z + z,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    positions
+}
+
+pub fn coral_claw_positions(
+    origin: BlockPos,
+    claw_direction: HorizontalDirection,
+    branch_directions: &[HorizontalDirection],
+    sideway_rolls: &[i32],
+    inway_rolls: &[i32],
+    up_rolls: &[f32],
+) -> Vec<BlockPos> {
+    let mut positions = vec![origin];
+    for (branch_index, direction) in branch_directions.iter().take(3).enumerate() {
+        let sideway_length = sideway_rolls
+            .get(branch_index)
+            .copied()
+            .unwrap_or(0)
+            .rem_euclid(2)
+            + 1;
+        let inway_length = inway_rolls
+            .get(branch_index)
+            .copied()
+            .unwrap_or(0)
+            .rem_euclid(3)
+            + if *direction == claw_direction { 2 } else { 3 };
+        let mut pos = offset_horizontal(origin, *direction, 1);
+        if *direction != claw_direction {
+            pos.y += 1;
+        }
+        for _ in 0..sideway_length {
+            positions.push(pos);
+            pos = offset_horizontal(pos, *direction, 1);
+        }
+        pos = offset_horizontal(pos, direction.opposite(), 1);
+        pos.y += 1;
+        for i in 0..inway_length {
+            pos = offset_horizontal(pos, claw_direction, 1);
+            positions.push(pos);
+            if up_rolls
+                .get(branch_index * 5 + i as usize)
+                .copied()
+                .unwrap_or(1.0)
+                < 0.25
+            {
+                pos.y += 1;
+            }
+        }
+    }
+    positions
+}
+
+fn block_is_coral(block: &str) -> bool {
+    block.contains("_coral")
+}
+
+fn offset_horizontal(pos: BlockPos, direction: HorizontalDirection, distance: i32) -> BlockPos {
+    match direction {
+        HorizontalDirection::North => BlockPos {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z - distance,
+        },
+        HorizontalDirection::South => BlockPos {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z + distance,
+        },
+        HorizontalDirection::West => BlockPos {
+            x: pos.x - distance,
+            y: pos.y,
+            z: pos.z,
+        },
+        HorizontalDirection::East => BlockPos {
+            x: pos.x + distance,
+            y: pos.y,
+            z: pos.z,
+        },
+    }
+}
+
+impl HorizontalDirection {
+    const fn opposite(self) -> Self {
+        match self {
+            Self::North => Self::South,
+            Self::South => Self::North,
+            Self::West => Self::East,
+            Self::East => Self::West,
+        }
+    }
+}
+
+const fn coral_wall_fan_state(direction: HorizontalDirection) -> &'static str {
+    match direction {
+        HorizontalDirection::North => "minecraft:tube_coral_wall_fan[facing=north]",
+        HorizontalDirection::South => "minecraft:tube_coral_wall_fan[facing=south]",
+        HorizontalDirection::West => "minecraft:tube_coral_wall_fan[facing=west]",
+        HorizontalDirection::East => "minecraft:tube_coral_wall_fan[facing=east]",
+    }
+}
+
 pub fn block_pile_placement_candidates(
     origin: BlockPos,
     min_y: i32,
@@ -11130,6 +11379,80 @@ mod tests {
                 state: "minecraft:kelp[age=20]",
             }]
         );
+        assert_eq!(
+            super::coral_block_placement_plan(
+                BlockPos { x: 4, y: 55, z: 4 },
+                "minecraft:water",
+                "minecraft:water",
+                "minecraft:brain_coral_block",
+                0.9,
+                0.01,
+                1,
+                &[(super::HorizontalDirection::East, 0.1, true)],
+            ),
+            vec![
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 4, y: 55, z: 4 },
+                    state: "minecraft:brain_coral_block",
+                },
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 4, y: 56, z: 4 },
+                    state: "minecraft:sea_pickle[pickles=2]",
+                },
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 5, y: 55, z: 4 },
+                    state: "minecraft:tube_coral_wall_fan[facing=east]",
+                },
+            ]
+        );
+        assert!(super::coral_block_placement_plan(
+            BlockPos { x: 4, y: 55, z: 4 },
+            "minecraft:stone",
+            "minecraft:water",
+            "minecraft:brain_coral_block",
+            0.0,
+            0.0,
+            0,
+            &[],
+        )
+        .is_empty());
+        let coral_tree = super::coral_tree_positions(
+            BlockPos { x: 0, y: 60, z: 0 },
+            1,
+            &[
+                super::HorizontalDirection::North,
+                super::HorizontalDirection::East,
+            ],
+            &[0, 1],
+            &[1.0; 10],
+        );
+        assert!(coral_tree.contains(&BlockPos { x: 0, y: 60, z: 0 }));
+        assert!(coral_tree.contains(&BlockPos { x: 0, y: 62, z: -1 }));
+        assert!(coral_tree.contains(&BlockPos { x: 1, y: 62, z: 0 }));
+        let coral_mushroom = super::coral_mushroom_positions(
+            BlockPos { x: 0, y: 60, z: 0 },
+            0,
+            0,
+            0,
+            0,
+            &[1.0; 128],
+        );
+        assert!(coral_mushroom.contains(&BlockPos { x: 1, y: 59, z: 1 }));
+        assert!(!coral_mushroom.contains(&BlockPos { x: 0, y: 59, z: 0 }));
+        let coral_claw = super::coral_claw_positions(
+            BlockPos { x: 0, y: 60, z: 0 },
+            super::HorizontalDirection::North,
+            &[
+                super::HorizontalDirection::North,
+                super::HorizontalDirection::East,
+            ],
+            &[0, 0],
+            &[0, 0],
+            &[1.0; 10],
+        );
+        assert!(coral_claw.contains(&BlockPos { x: 0, y: 60, z: 0 }));
+        assert!(coral_claw.contains(&BlockPos { x: 0, y: 60, z: -1 }));
+        assert!(coral_claw.contains(&BlockPos { x: 1, y: 61, z: 0 }));
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
