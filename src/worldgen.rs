@@ -4896,10 +4896,7 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
     },
     DensityFunctionEntry {
         id: "minecraft:overworld/ridges_folded",
-        function: DensityFunction::Mapped {
-            kind: MappedDensityFunction::Abs,
-            input: &RIDGE_FOLD_SOURCE_DENSITY,
-        },
+        function: RIDGE_FOLDED_DENSITY,
     },
     DensityFunctionEntry {
         id: "minecraft:overworld_large_biomes/continents",
@@ -4940,13 +4937,36 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
     },
 ];
 
-pub const RIDGE_FOLD_SOURCE_DENSITY: DensityFunction = DensityFunction::Binary {
-    kind: BinaryDensityFunction::Add,
-    argument1: &RIDGE_SCALE_DENSITY,
-    argument2: &RIDGE_OFFSET_DENSITY,
+pub const RIDGE_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/ridges");
+pub const RIDGE_ABS_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Abs,
+    input: &RIDGE_REFERENCE_DENSITY,
 };
-pub const RIDGE_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(-3.0);
-pub const RIDGE_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(2.0);
+pub const RIDGE_INNER_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.6666666666666666);
+pub const RIDGE_INNER_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &RIDGE_INNER_OFFSET_DENSITY,
+    argument2: &RIDGE_ABS_DENSITY,
+};
+pub const RIDGE_INNER_ABS_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Abs,
+    input: &RIDGE_INNER_DENSITY,
+};
+pub const RIDGE_OUTER_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.3333333333333333);
+pub const RIDGE_OUTER_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &RIDGE_OUTER_OFFSET_DENSITY,
+    argument2: &RIDGE_INNER_ABS_DENSITY,
+};
+pub const RIDGE_FOLDED_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(-3.0);
+pub const RIDGE_FOLDED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &RIDGE_FOLDED_SCALE_DENSITY,
+    argument2: &RIDGE_OUTER_DENSITY,
+};
 pub const END_ISLANDS_DENSITY: DensityFunction = DensityFunction::EndIslands { seed: 0 };
 pub const SPAGHETTI_2D_THICKNESS_MODULATOR_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Add,
@@ -27152,6 +27172,11 @@ mod tests {
                 .type_name(),
             DensityMarker::FlatCache.serialized_name()
         );
+        let ridges_folded = builtin_density_function("overworld/ridges_folded")
+            .unwrap()
+            .function;
+        assert_eq!(ridges_folded.type_name(), "mul");
+        assert_eq!(ridges_folded.value_bounds(), (-14.14285714285714, 1.0));
         assert_eq!(
             builtin_density_function("overworld/caves/spaghetti_2d_thickness_modulator")
                 .unwrap()
