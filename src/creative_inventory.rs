@@ -38,6 +38,8 @@ pub const SEARCH_BACKGROUND: &str =
 pub const INVENTORY_BACKGROUND: &str =
     "minecraft:textures/gui/container/creative_inventory/tab_inventory.png";
 
+pub const CREATIVE_MODE_TABS_COUNT_26_1_2: usize = 14;
+
 pub const CREATIVE_MODE_TABS: &[CreativeModeTabDef] = &[
     category("building_blocks", CreativeTabRow::Top, 0),
     category("colored_blocks", CreativeTabRow::Top, 1),
@@ -210,6 +212,7 @@ mod tests {
     #[test]
     fn creative_mode_tab_manifest_matches_vanilla_tab_keys_and_special_types() {
         let keys: Vec<_> = CREATIVE_MODE_TABS.iter().map(|tab| tab.key).collect();
+        assert_eq!(CREATIVE_MODE_TABS.len(), CREATIVE_MODE_TABS_COUNT_26_1_2);
         assert_eq!(
             keys,
             vec![
