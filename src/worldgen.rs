@@ -6767,6 +6767,59 @@ pub const JUNGLE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const SPARSE_JUNGLE_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_sparse_jungle",
+        "minecraft:flower_warm",
+        "minecraft:patch_grass_jungle",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:vines",
+        "minecraft:patch_melon_sparse",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const BAMBOO_JUNGLE_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:bamboo",
+        "minecraft:bamboo_vegetation",
+        "minecraft:flower_warm",
+        "minecraft:patch_grass_jungle",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:vines",
+        "minecraft:patch_melon",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const SWAMP_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7094,6 +7147,90 @@ pub const JUNGLE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:panda",
         weight: 1,
+        min_count: 1,
+        max_count: 2,
+    },
+];
+
+pub const SPARSE_JUNGLE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:wolf",
+        weight: 8,
+        min_count: 2,
+        max_count: 4,
+    },
+];
+
+pub const BAMBOO_JUNGLE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:parrot",
+        weight: 40,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:panda",
+        weight: 80,
         min_count: 1,
         max_count: 2,
     },
@@ -7987,6 +8124,76 @@ pub const JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const SPARSE_JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: SPARSE_JUNGLE_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const BAMBOO_JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: BAMBOO_JUNGLE_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: JUNGLE_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const SWAMP_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -8245,6 +8452,22 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: JUNGLE_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:sparse_jungle",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SPARSE_JUNGLE_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SPARSE_JUNGLE_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:bamboo_jungle",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: BAMBOO_JUNGLE_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: BAMBOO_JUNGLE_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:swamp",
@@ -22380,6 +22603,62 @@ mod tests {
                 min_count: 1,
                 max_count: 3,
             })
+        );
+
+        let sparse_jungle = super::biome_generation_settings("sparse_jungle").unwrap();
+        assert_eq!(sparse_jungle.biome, "minecraft:sparse_jungle");
+        assert!(super::biome_has_placed_feature(
+            sparse_jungle,
+            "minecraft:trees_sparse_jungle"
+        ));
+        assert!(super::biome_has_placed_feature(
+            sparse_jungle,
+            "minecraft:patch_melon_sparse"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            sparse_jungle,
+            "minecraft:trees_jungle"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(sparse_jungle, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:wolf",
+                weight: 8,
+                min_count: 2,
+                max_count: 4,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(sparse_jungle, "monster"),
+            super::FOREST_MONSTER_SPAWNS
+        );
+
+        let bamboo_jungle = super::biome_generation_settings("bamboo_jungle").unwrap();
+        assert_eq!(bamboo_jungle.biome, "minecraft:bamboo_jungle");
+        assert!(super::biome_has_placed_feature(
+            bamboo_jungle,
+            "minecraft:bamboo"
+        ));
+        assert!(super::biome_has_placed_feature(
+            bamboo_jungle,
+            "minecraft:bamboo_vegetation"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            bamboo_jungle,
+            "minecraft:bamboo_light"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(bamboo_jungle, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:panda",
+                weight: 80,
+                min_count: 1,
+                max_count: 2,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(bamboo_jungle, "monster"),
+            super::JUNGLE_MONSTER_SPAWNS
         );
 
         let swamp = super::biome_generation_settings("swamp").unwrap();
