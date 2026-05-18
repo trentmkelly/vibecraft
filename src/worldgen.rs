@@ -7141,6 +7141,57 @@ pub fn structure_piece_generate_upper_half_sphere(
     blocks
 }
 
+pub fn structure_piece_is_replaceable_by_structures(state: &'static str) -> bool {
+    matches!(
+        state,
+        "minecraft:air"
+            | "minecraft:cave_air"
+            | "minecraft:void_air"
+            | "minecraft:water"
+            | "minecraft:lava"
+            | "minecraft:glow_lichen"
+            | "minecraft:seagrass"
+            | "minecraft:tall_seagrass"
+            | "minecraft:tall_seagrass[half=lower]"
+            | "minecraft:tall_seagrass[half=upper]"
+    )
+}
+
+pub fn structure_piece_fill_column_down(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    x: i32,
+    start_y: i32,
+    z: i32,
+    min_y: i32,
+    block_state: &'static str,
+    mut block_at: impl FnMut(BlockPos) -> &'static str,
+) -> Vec<StructurePiecePlacementBlock> {
+    let mut world_pos = structure_piece_world_pos(bounding_box, orientation, x, start_y, z);
+    if !chunk_bb.is_inside(world_pos) {
+        return Vec::new();
+    }
+
+    let mut blocks = Vec::new();
+    while structure_piece_is_replaceable_by_structures(block_at(world_pos))
+        && world_pos.y > min_y + 1
+    {
+        blocks.push(StructurePiecePlacementBlock {
+            local_pos: BlockPos {
+                x,
+                y: world_pos.y - bounding_box.min_y,
+                z,
+            },
+            world_pos,
+            state: block_state,
+            edge: false,
+        });
+        world_pos.y -= 1;
+    }
+    blocks
+}
+
 impl TerrainAdjustmentModel {
     pub fn id(self) -> &'static str {
         match self {
@@ -18141,6 +18192,104 @@ mod tests {
             .iter()
             .all(|block| clipped_chunk.is_inside(block.world_pos)));
         assert!(!clipped.iter().any(|block| block.world_pos == skipped));
+    }
+
+    #[test]
+    fn structure_piece_fill_column_down_matches_vanilla_replaceable_loop() {
+        assert!(super::structure_piece_is_replaceable_by_structures(
+            "minecraft:air"
+        ));
+        assert!(super::structure_piece_is_replaceable_by_structures(
+            "minecraft:water"
+        ));
+        assert!(super::structure_piece_is_replaceable_by_structures(
+            "minecraft:glow_lichen"
+        ));
+        assert!(super::structure_piece_is_replaceable_by_structures(
+            "minecraft:tall_seagrass[half=upper]"
+        ));
+        assert!(!super::structure_piece_is_replaceable_by_structures(
+            "minecraft:stone"
+        ));
+
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 64,
+            min_z: 0,
+            max_x: 15,
+            max_y: 80,
+            max_z: 15,
+        };
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: -64,
+            min_z: 0,
+            max_x: 15,
+            max_y: 320,
+            max_z: 15,
+        };
+        let blocks = super::structure_piece_fill_column_down(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            chunk_bb,
+            3,
+            4,
+            5,
+            64,
+            "minecraft:sandstone",
+            |pos| {
+                if pos.y >= 66 {
+                    "minecraft:air"
+                } else {
+                    "minecraft:stone"
+                }
+            },
+        );
+        assert_eq!(
+            blocks
+                .iter()
+                .map(|block| block.world_pos)
+                .collect::<Vec<_>>(),
+            vec![
+                BlockPos { x: 3, y: 68, z: 5 },
+                BlockPos { x: 3, y: 67, z: 5 },
+                BlockPos { x: 3, y: 66, z: 5 },
+            ]
+        );
+
+        let min_limited = super::structure_piece_fill_column_down(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            chunk_bb,
+            3,
+            2,
+            5,
+            64,
+            "minecraft:sandstone",
+            |_| "minecraft:air",
+        );
+        assert_eq!(min_limited.len(), 1);
+        assert_eq!(min_limited[0].world_pos.y, 66);
+
+        let outside_chunk = super::structure_piece_fill_column_down(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: -64,
+                min_z: 10,
+                max_x: 15,
+                max_y: 320,
+                max_z: 15,
+            },
+            3,
+            4,
+            5,
+            64,
+            "minecraft:sandstone",
+            |_| "minecraft:air",
+        );
+        assert!(outside_chunk.is_empty());
     }
 
     #[test]
