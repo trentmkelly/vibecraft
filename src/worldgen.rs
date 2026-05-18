@@ -953,6 +953,29 @@ pub struct TreePlacementPlan {
     pub blocks: Vec<TreePlacementBlock>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct FallenTreeConfigurationModel {
+    pub trunk_provider: BlockStateProviderModel,
+    pub min_log_length: i32,
+    pub max_log_length: i32,
+    pub stump_decorators: Vec<TreeDecoratorModel>,
+    pub log_decorators: Vec<TreeDecoratorModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FallenTreeBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub mark_above_for_post_processing: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FallenTreePlacementPlan {
+    pub blocks: Vec<FallenTreeBlock>,
+    pub stump_decorators: usize,
+    pub log_decorators: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeDecoratorModel {
     TrunkVine,
@@ -8257,6 +8280,125 @@ pub fn simple_tree_placement_plan(
     Ok(TreePlacementPlan { blocks })
 }
 
+pub fn fallen_tree_log_length(min_length: i32, max_length: i32, sample_roll: i32) -> i32 {
+    let span = (max_length - min_length + 1).max(1);
+    min_length + sample_roll.rem_euclid(span) - 2
+}
+
+pub fn fallen_tree_start_pos(
+    origin: BlockPos,
+    direction: HorizontalDirection,
+    distance_roll: i32,
+    ground_probe: &[bool],
+) -> Option<BlockPos> {
+    let mut pos = offset_horizontal(origin, direction, 2 + distance_roll.rem_euclid(2));
+    pos.y += 1;
+    for can_place in ground_probe.iter().copied().take(6) {
+        if can_place {
+            return Some(pos);
+        }
+        pos.y -= 1;
+    }
+    None
+}
+
+pub fn fallen_tree_can_place_log(
+    valid_tree_positions: &[bool],
+    over_solid_ground: &[bool],
+) -> bool {
+    let mut ground_gap = 0;
+    for (index, valid) in valid_tree_positions.iter().copied().enumerate() {
+        if !valid {
+            return false;
+        }
+        if !over_solid_ground.get(index).copied().unwrap_or(false) {
+            ground_gap += 1;
+            if ground_gap > 2 {
+                return false;
+            }
+        } else {
+            ground_gap = 0;
+        }
+    }
+    true
+}
+
+pub fn fallen_tree_placement_plan(
+    origin: BlockPos,
+    config: &FallenTreeConfigurationModel,
+    direction: HorizontalDirection,
+    log_length_roll: i32,
+    distance_roll: i32,
+    ground_probe: &[bool],
+    valid_tree_positions: &[bool],
+    over_solid_ground: &[bool],
+) -> Option<FallenTreePlacementPlan> {
+    let trunk_state = block_state_provider_sample(&config.trunk_provider, 0)?;
+    let log_length = fallen_tree_log_length(
+        config.min_log_length,
+        config.max_log_length,
+        log_length_roll,
+    );
+    let start = fallen_tree_start_pos(origin, direction, distance_roll, ground_probe)?;
+    let valid_len = log_length.max(0) as usize;
+    if valid_tree_positions.len() < valid_len || over_solid_ground.len() < valid_len {
+        return None;
+    }
+    if !fallen_tree_can_place_log(
+        &valid_tree_positions[..valid_len],
+        &over_solid_ground[..valid_len],
+    ) {
+        return None;
+    }
+    let mut blocks = vec![FallenTreeBlock {
+        pos: origin,
+        state: trunk_state,
+        mark_above_for_post_processing: true,
+    }];
+    for i in 0..log_length.max(0) {
+        blocks.push(FallenTreeBlock {
+            pos: offset_horizontal(start, direction, i),
+            state: rotated_log_state(trunk_state, direction),
+            mark_above_for_post_processing: true,
+        });
+    }
+    Some(FallenTreePlacementPlan {
+        blocks,
+        stump_decorators: config.stump_decorators.len(),
+        log_decorators: config.log_decorators.len(),
+    })
+}
+
+fn rotated_log_state(state: &'static str, direction: HorizontalDirection) -> &'static str {
+    match (state, direction) {
+        ("minecraft:oak_log", HorizontalDirection::East | HorizontalDirection::West) => {
+            "minecraft:oak_log[axis=x]"
+        }
+        ("minecraft:oak_log", HorizontalDirection::North | HorizontalDirection::South) => {
+            "minecraft:oak_log[axis=z]"
+        }
+        ("minecraft:birch_log", HorizontalDirection::East | HorizontalDirection::West) => {
+            "minecraft:birch_log[axis=x]"
+        }
+        ("minecraft:birch_log", HorizontalDirection::North | HorizontalDirection::South) => {
+            "minecraft:birch_log[axis=z]"
+        }
+        ("minecraft:spruce_log", HorizontalDirection::East | HorizontalDirection::West) => {
+            "minecraft:spruce_log[axis=x]"
+        }
+        ("minecraft:spruce_log", HorizontalDirection::North | HorizontalDirection::South) => {
+            "minecraft:spruce_log[axis=z]"
+        }
+        ("minecraft:jungle_log", HorizontalDirection::East | HorizontalDirection::West) => {
+            "minecraft:jungle_log[axis=x]"
+        }
+        ("minecraft:jungle_log", HorizontalDirection::North | HorizontalDirection::South) => {
+            "minecraft:jungle_log[axis=z]"
+        }
+        _ => state,
+    }
+}
+
 fn place_simple_leaves_row(
     blocks: &mut Vec<TreePlacementBlock>,
     origin: BlockPos,
@@ -12057,6 +12199,57 @@ mod tests {
             .unwrap_err(),
             "only straight trunk placement is modeled by simple_tree_placement_plan".to_string()
         );
+        let fallen_config = super::FallenTreeConfigurationModel {
+            trunk_provider: BlockStateProviderModel::Simple("minecraft:oak_log"),
+            min_log_length: 4,
+            max_log_length: 7,
+            stump_decorators: vec![TreeDecoratorModel::TrunkVine],
+            log_decorators: vec![TreeDecoratorModel::AttachedToLogs { probability: 0.1 }],
+        };
+        assert_eq!(super::fallen_tree_log_length(4, 7, 0), 2);
+        assert_eq!(
+            super::fallen_tree_start_pos(
+                BlockPos { x: 0, y: 64, z: 0 },
+                super::HorizontalDirection::East,
+                1,
+                &[false, true],
+            ),
+            Some(BlockPos { x: 3, y: 64, z: 0 })
+        );
+        assert!(super::fallen_tree_can_place_log(
+            &[true, true, true, true],
+            &[true, false, false, true],
+        ));
+        assert!(!super::fallen_tree_can_place_log(
+            &[true, true, true],
+            &[false, false, false],
+        ));
+        let fallen_plan = super::fallen_tree_placement_plan(
+            BlockPos { x: 0, y: 64, z: 0 },
+            &fallen_config,
+            super::HorizontalDirection::East,
+            1,
+            0,
+            &[true],
+            &[true, true, true],
+            &[true, true, true],
+        )
+        .unwrap();
+        assert_eq!(fallen_plan.stump_decorators, 1);
+        assert_eq!(fallen_plan.log_decorators, 1);
+        assert_eq!(
+            fallen_plan.blocks[0],
+            super::FallenTreeBlock {
+                pos: BlockPos { x: 0, y: 64, z: 0 },
+                state: "minecraft:oak_log",
+                mark_above_for_post_processing: true,
+            }
+        );
+        assert!(fallen_plan.blocks.contains(&super::FallenTreeBlock {
+            pos: BlockPos { x: 2, y: 65, z: 0 },
+            state: "minecraft:oak_log[axis=x]",
+            mark_above_for_post_processing: true,
+        }));
         assert_eq!(
             super::validate_tree_decorator(TreeDecoratorModel::Cocoa { probability: 0.25 }),
             Ok(TreeDecoratorModel::Cocoa { probability: 0.25 })
