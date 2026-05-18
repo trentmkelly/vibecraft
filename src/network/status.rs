@@ -1121,132 +1121,176 @@ fn handle_login_connection(
             write_identifier(payload, &Identifier::parse("minecraft:vanilla").unwrap())
         },
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.BIOME uses Biome.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_biome_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.CHAT_TYPE uses ChatType.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chat_type_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.TRIM_PATTERN uses TrimPattern.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_trim_pattern_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.TRIM_MATERIAL uses TrimMaterial.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_trim_material_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.WOLF_VARIANT uses WolfVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_wolf_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.WOLF_SOUND_VARIANT uses WolfSoundVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_wolf_sound_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.PIG_VARIANT uses PigVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_pig_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.PIG_SOUND_VARIANT uses PigSoundVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_pig_sound_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.FROG_VARIANT uses FrogVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_frog_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.CAT_VARIANT uses CatVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cat_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.CAT_SOUND_VARIANT uses CatSoundVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cat_sound_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.COW_SOUND_VARIANT uses CowSoundVariant.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cow_sound_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.COW_VARIANT uses CowVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_cow_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.CHICKEN_SOUND_VARIANT uses ChickenSoundVariant.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chicken_sound_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.CHICKEN_VARIANT uses ChickenVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_chicken_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.ZOMBIE_NAUTILUS_VARIANT uses ZombieNautilusVariant.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_zombie_nautilus_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.PAINTING_VARIANT uses PaintingVariant.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_painting_variant_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.DIMENSION_TYPE uses DimensionType.NETWORK_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_dimension_type_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.DAMAGE_TYPE uses DamageType.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_minimal_damage_type_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.BANNER_PATTERN uses BannerPattern.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_banner_pattern_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.JUKEBOX_SONG uses JukeboxSong.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_jukebox_song_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
+    // Registries.INSTRUMENT uses Instrument.DIRECT_CODEC.
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -3891,6 +3935,148 @@ mod tests {
     use std::io::{self, Cursor, Read, Write};
     use std::path::Path;
 
+    struct SynchronizedRegistryManifestEntry {
+        registry_id: &'static str,
+        expected_entry_count: usize,
+        java_network_shape: &'static str,
+        write_packet: fn(&mut Vec<u8>) -> io::Result<()>,
+    }
+
+    const SYNCHRONIZED_REGISTRY_MANIFEST: &[SynchronizedRegistryManifestEntry] = &[
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:worldgen/biome",
+            expected_entry_count: 65,
+            java_network_shape: "Biome.NETWORK_CODEC",
+            write_packet: write_minimal_biome_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:chat_type",
+            expected_entry_count: 7,
+            java_network_shape: "ChatType.DIRECT_CODEC",
+            write_packet: write_vanilla_chat_type_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:trim_pattern",
+            expected_entry_count: 18,
+            java_network_shape: "TrimPattern.DIRECT_CODEC",
+            write_packet: write_vanilla_trim_pattern_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:trim_material",
+            expected_entry_count: 11,
+            java_network_shape: "TrimMaterial.DIRECT_CODEC",
+            write_packet: write_minimal_trim_material_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:wolf_variant",
+            expected_entry_count: 9,
+            java_network_shape: "WolfVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_wolf_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:wolf_sound_variant",
+            expected_entry_count: 7,
+            java_network_shape: "WolfSoundVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_wolf_sound_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:pig_variant",
+            expected_entry_count: 3,
+            java_network_shape: "PigVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_pig_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:pig_sound_variant",
+            expected_entry_count: 3,
+            java_network_shape: "PigSoundVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_pig_sound_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:frog_variant",
+            expected_entry_count: 3,
+            java_network_shape: "FrogVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_frog_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:cat_variant",
+            expected_entry_count: 11,
+            java_network_shape: "CatVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_cat_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:cat_sound_variant",
+            expected_entry_count: 2,
+            java_network_shape: "CatSoundVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_cat_sound_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:cow_sound_variant",
+            expected_entry_count: 2,
+            java_network_shape: "CowSoundVariant.DIRECT_CODEC",
+            write_packet: write_vanilla_cow_sound_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:cow_variant",
+            expected_entry_count: 3,
+            java_network_shape: "CowVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_cow_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:chicken_sound_variant",
+            expected_entry_count: 2,
+            java_network_shape: "ChickenSoundVariant.DIRECT_CODEC",
+            write_packet: write_vanilla_chicken_sound_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:chicken_variant",
+            expected_entry_count: 3,
+            java_network_shape: "ChickenVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_chicken_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:zombie_nautilus_variant",
+            expected_entry_count: 2,
+            java_network_shape: "ZombieNautilusVariant.NETWORK_CODEC",
+            write_packet: write_vanilla_zombie_nautilus_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:painting_variant",
+            expected_entry_count: 51,
+            java_network_shape: "PaintingVariant.DIRECT_CODEC",
+            write_packet: write_vanilla_painting_variant_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:dimension_type",
+            expected_entry_count: 4,
+            java_network_shape: "DimensionType.NETWORK_CODEC",
+            write_packet: write_minimal_dimension_type_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:damage_type",
+            expected_entry_count: 50,
+            java_network_shape: "DamageType.DIRECT_CODEC",
+            write_packet: write_minimal_damage_type_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:banner_pattern",
+            expected_entry_count: 43,
+            java_network_shape: "BannerPattern.DIRECT_CODEC",
+            write_packet: write_vanilla_banner_pattern_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:jukebox_song",
+            expected_entry_count: 21,
+            java_network_shape: "JukeboxSong.DIRECT_CODEC",
+            write_packet: write_vanilla_jukebox_song_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:instrument",
+            expected_entry_count: 8,
+            java_network_shape: "Instrument.DIRECT_CODEC",
+            write_packet: write_vanilla_instrument_registry_packet,
+        },
+    ];
+
     fn test_properties() -> ServerProperties {
         ServerProperties::load_or_default(Path::new("definitely-missing-test-server.properties"))
             .unwrap()
@@ -4312,6 +4498,19 @@ mod tests {
         .map(String::from)
         .collect();
         assert_eq!(status_tag_names, expected_banner_pattern_tags);
+    }
+
+    #[test]
+    fn synchronized_registry_closure_notes_match_writer_payloads() {
+        for entry in SYNCHRONIZED_REGISTRY_MANIFEST {
+            assert!(!entry.java_network_shape.is_empty());
+
+            let registry_id = status_registry_id(entry.write_packet);
+            assert_eq!(registry_id, entry.registry_id);
+
+            let entries = status_registry_entry_ids_ordered(entry.write_packet);
+            assert_eq!(entries.len(), entry.expected_entry_count);
+        }
     }
 
     #[test]
@@ -4760,6 +4959,15 @@ mod tests {
         let mut cursor = Cursor::new(payload);
         let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
         read_var_i32(&mut cursor).unwrap()
+    }
+
+    fn status_registry_id(write_packet: fn(&mut Vec<u8>) -> io::Result<()>) -> String {
+        let mut payload = Vec::new();
+        write_packet(&mut payload).unwrap();
+        let mut cursor = Cursor::new(payload);
+        crate::network::codec::read_identifier(&mut cursor)
+            .unwrap()
+            .to_string()
     }
 
     fn status_registry_entry_ids_ordered(
