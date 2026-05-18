@@ -8592,6 +8592,20 @@ pub const THE_END_FEATURE_STEPS: &[&[&str]] = &[
     &["minecraft:end_platform"],
 ];
 
+pub const THE_VOID_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &["minecraft:void_start_platform"],
+];
+
 pub const END_HIGHLANDS_FEATURE_STEPS: &[&[&str]] = &[
     &[],
     &[],
@@ -12116,6 +12130,41 @@ pub const END_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const THE_VOID_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const WARPED_FOREST_SPAWN_COSTS: &[MobSpawnCostModel] = &[MobSpawnCostModel {
     entity_type: "minecraft:enderman",
     energy_budget: 0.12,
@@ -12504,6 +12553,14 @@ const OVERWORLD_COMMON_CARVERS: &[&str] = &[
 const NETHER_COMMON_CARVERS: &[&str] = &["minecraft:nether_cave"];
 
 pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &[
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:the_void",
+        carvers: &[],
+        feature_steps: THE_VOID_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: THE_VOID_SPAWNER_GROUPS,
+    },
     BiomeGenerationSettingsModel {
         biome: "minecraft:plains",
         carvers: OVERWORLD_COMMON_CARVERS,
@@ -29938,6 +29995,40 @@ mod tests {
         );
         assert!(super::biome_spawns_for_category(plains, "water_creature").is_empty());
         assert!(super::biome_generation_settings("minecraft:badlands").is_some());
+    }
+
+    #[test]
+    fn builtin_biome_generation_settings_cover_every_builtin_biome() {
+        let mut builtins = crate::biome::BUILTIN_BIOMES
+            .iter()
+            .map(|biome| biome.id)
+            .collect::<Vec<_>>();
+        let mut generation_settings = super::BUILTIN_BIOME_GENERATION_SETTINGS
+            .iter()
+            .map(|entry| entry.biome)
+            .collect::<Vec<_>>();
+        builtins.sort_unstable();
+        generation_settings.sort_unstable();
+        assert_eq!(builtins, generation_settings);
+    }
+
+    #[test]
+    fn the_void_biome_generation_settings_match_json_contract() {
+        let the_void = super::biome_generation_settings("minecraft:the_void").unwrap();
+        assert_eq!(
+            *the_void,
+            BiomeGenerationSettingsModel {
+                biome: "minecraft:the_void",
+                carvers: &[],
+                feature_steps: super::THE_VOID_FEATURE_STEPS,
+                creature_spawn_probability: 0.1,
+                spawn_costs: &[],
+                spawners: super::THE_VOID_SPAWNER_GROUPS,
+            }
+        );
+        assert_eq!(the_void.feature_steps.len(), 11);
+        assert_eq!(the_void.feature_steps[10], &["minecraft:void_start_platform"]);
+        assert_eq!(super::biome_spawns_for_category(the_void, "monster"), &[]);
     }
 
     #[test]
