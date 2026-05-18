@@ -1705,6 +1705,70 @@ pub struct JigsawChildPlacementYModel {
     pub case: JigsawJunctionYOffsetCase,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureProcessorTypeModel {
+    BlockIgnore,
+    BlockRot,
+    Gravity,
+    JigsawReplacement,
+    Rule,
+    Nop,
+    BlockAge,
+    BlackstoneReplace,
+    LavaSubmergedBlock,
+    ProtectedBlocks,
+    Capped,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StructureProcessorModel {
+    BlockIgnore {
+        blocks: Vec<&'static str>,
+    },
+    BlockRot {
+        rottable_blocks: Option<&'static str>,
+        integrity: f32,
+    },
+    Gravity {
+        heightmap: &'static str,
+        offset: i32,
+    },
+    JigsawReplacement,
+    Rule {
+        rules: usize,
+    },
+    Nop,
+    BlockAge {
+        mossiness: f32,
+    },
+    BlackstoneReplace,
+    LavaSubmergedBlock,
+    ProtectedBlocks {
+        cannot_replace: &'static str,
+    },
+    Capped {
+        delegate: Box<StructureProcessorModel>,
+        limit: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureRuleTestTypeModel {
+    AlwaysTrue,
+    BlockMatch,
+    BlockStateMatch,
+    TagMatch,
+    RandomBlockMatch,
+    RandomBlockStateMatch,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructurePosRuleTestTypeModel {
+    AlwaysTrue,
+    LinearPos,
+    AxisAlignedLinearPos,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -8078,6 +8142,222 @@ pub fn jigsaw_target_junction(
         source_z: source_jigsaw_pos.2,
         delta_y: -delta_y,
         dest_projection: source_projection,
+    }
+}
+
+impl StructureProcessorTypeModel {
+    pub const REGISTRY_ORDER: [Self; 11] = [
+        Self::BlockIgnore,
+        Self::BlockRot,
+        Self::Gravity,
+        Self::JigsawReplacement,
+        Self::Rule,
+        Self::Nop,
+        Self::BlockAge,
+        Self::BlackstoneReplace,
+        Self::LavaSubmergedBlock,
+        Self::ProtectedBlocks,
+        Self::Capped,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::BlockIgnore => "minecraft:block_ignore",
+            Self::BlockRot => "minecraft:block_rot",
+            Self::Gravity => "minecraft:gravity",
+            Self::JigsawReplacement => "minecraft:jigsaw_replacement",
+            Self::Rule => "minecraft:rule",
+            Self::Nop => "minecraft:nop",
+            Self::BlockAge => "minecraft:block_age",
+            Self::BlackstoneReplace => "minecraft:blackstone_replace",
+            Self::LavaSubmergedBlock => "minecraft:lava_submerged_block",
+            Self::ProtectedBlocks => "minecraft:protected_blocks",
+            Self::Capped => "minecraft:capped",
+        }
+    }
+}
+
+impl StructureProcessorModel {
+    pub fn processor_type(&self) -> StructureProcessorTypeModel {
+        match self {
+            Self::BlockIgnore { .. } => StructureProcessorTypeModel::BlockIgnore,
+            Self::BlockRot { .. } => StructureProcessorTypeModel::BlockRot,
+            Self::Gravity { .. } => StructureProcessorTypeModel::Gravity,
+            Self::JigsawReplacement => StructureProcessorTypeModel::JigsawReplacement,
+            Self::Rule { .. } => StructureProcessorTypeModel::Rule,
+            Self::Nop => StructureProcessorTypeModel::Nop,
+            Self::BlockAge { .. } => StructureProcessorTypeModel::BlockAge,
+            Self::BlackstoneReplace => StructureProcessorTypeModel::BlackstoneReplace,
+            Self::LavaSubmergedBlock => StructureProcessorTypeModel::LavaSubmergedBlock,
+            Self::ProtectedBlocks { .. } => StructureProcessorTypeModel::ProtectedBlocks,
+            Self::Capped { .. } => StructureProcessorTypeModel::Capped,
+        }
+    }
+
+    pub fn codec_id(&self) -> &'static str {
+        self.processor_type().id()
+    }
+
+    pub fn block_ignore_should_drop(&self, block: &str) -> bool {
+        match self {
+            Self::BlockIgnore { blocks } => blocks.contains(&block),
+            _ => false,
+        }
+    }
+
+    pub fn block_rot_keeps(
+        &self,
+        original_block_in_rottable_set: bool,
+        random_next_float: f32,
+    ) -> bool {
+        match self {
+            Self::BlockRot {
+                rottable_blocks,
+                integrity,
+            } => {
+                let applies = rottable_blocks.is_none() || original_block_in_rottable_set;
+                !applies || random_next_float <= *integrity
+            }
+            _ => true,
+        }
+    }
+
+    pub fn jigsaw_replacement_output(
+        &self,
+        input_block: &'static str,
+        final_state: Option<&'static str>,
+        debug_keep_jigsaws: bool,
+    ) -> Option<&'static str> {
+        if !matches!(self, Self::JigsawReplacement) {
+            return Some(input_block);
+        }
+        if input_block != "minecraft:jigsaw" || debug_keep_jigsaws {
+            return Some(input_block);
+        }
+        match final_state.unwrap_or("minecraft:air") {
+            "minecraft:structure_void" => None,
+            state => Some(state),
+        }
+    }
+
+    pub fn gravity_adjusted_y(
+        &self,
+        level_height: i32,
+        original_template_y: i32,
+        server_level: bool,
+    ) -> Option<(&'static str, i32)> {
+        match self {
+            Self::Gravity { heightmap, offset } => {
+                let heightmap = match (*heightmap, server_level) {
+                    ("WORLD_SURFACE_WG", true) => "WORLD_SURFACE",
+                    ("OCEAN_FLOOR_WG", true) => "OCEAN_FLOOR",
+                    _ => *heightmap,
+                };
+                Some((heightmap, level_height + offset + original_template_y))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn lava_submerged_output(
+        &self,
+        existing_block: &'static str,
+        processed_shape_full_block: bool,
+        processed_block: &'static str,
+    ) -> &'static str {
+        if matches!(self, Self::LavaSubmergedBlock)
+            && existing_block == "minecraft:lava"
+            && !processed_shape_full_block
+        {
+            "minecraft:lava"
+        } else {
+            processed_block
+        }
+    }
+
+    pub fn capped_can_run(
+        &self,
+        original_len: usize,
+        processed_len: usize,
+        sampled_limit: i32,
+    ) -> bool {
+        matches!(self, Self::Capped { .. })
+            && sampled_limit > 0
+            && processed_len > 0
+            && original_len == processed_len
+    }
+}
+
+impl StructureRuleTestTypeModel {
+    pub const REGISTRY_ORDER: [Self; 6] = [
+        Self::AlwaysTrue,
+        Self::BlockMatch,
+        Self::BlockStateMatch,
+        Self::TagMatch,
+        Self::RandomBlockMatch,
+        Self::RandomBlockStateMatch,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::AlwaysTrue => "minecraft:always_true",
+            Self::BlockMatch => "minecraft:block_match",
+            Self::BlockStateMatch => "minecraft:blockstate_match",
+            Self::TagMatch => "minecraft:tag_match",
+            Self::RandomBlockMatch => "minecraft:random_block_match",
+            Self::RandomBlockStateMatch => "minecraft:random_blockstate_match",
+        }
+    }
+}
+
+impl StructurePosRuleTestTypeModel {
+    pub const REGISTRY_ORDER: [Self; 3] = [
+        Self::AlwaysTrue,
+        Self::LinearPos,
+        Self::AxisAlignedLinearPos,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::AlwaysTrue => "minecraft:always_true",
+            Self::LinearPos => "minecraft:linear_pos",
+            Self::AxisAlignedLinearPos => "minecraft:axis_aligned_linear_pos",
+        }
+    }
+}
+
+pub fn structure_random_rule_test_matches(
+    block_matches: bool,
+    probability: f32,
+    random_next_float: f32,
+) -> bool {
+    block_matches && random_next_float < probability
+}
+
+pub fn structure_linear_pos_chance(
+    dist: i32,
+    min_dist: i32,
+    max_dist: i32,
+    min_chance: f32,
+    max_chance: f32,
+) -> Result<f32, String> {
+    if min_dist >= max_dist {
+        return Err(format!("Invalid range: [{min_dist},{max_dist}]"));
+    }
+    let t = ((dist - min_dist) as f32 / (max_dist - min_dist) as f32).clamp(0.0, 1.0);
+    Ok(min_chance + (max_chance - min_chance) * t)
+}
+
+pub fn structure_axis_aligned_distance(
+    world_pos: (i32, i32, i32),
+    reference: (i32, i32, i32),
+    axis: char,
+) -> i32 {
+    match axis {
+        'x' | 'X' => (world_pos.0 - reference.0).abs(),
+        'y' | 'Y' => (world_pos.1 - reference.1).abs(),
+        'z' | 'Z' => (world_pos.2 - reference.2).abs(),
+        _ => 0,
     }
 }
 
@@ -19879,6 +20159,141 @@ mod tests {
                 delta_y: -delta_y,
                 dest_projection: super::JigsawProjectionModel::TerrainMatching,
             }
+        );
+    }
+
+    #[test]
+    fn structure_processor_surfaces_and_core_decisions_match_vanilla_templatesystem() {
+        assert_eq!(
+            super::StructureProcessorTypeModel::REGISTRY_ORDER.map(|processor| processor.id()),
+            [
+                "minecraft:block_ignore",
+                "minecraft:block_rot",
+                "minecraft:gravity",
+                "minecraft:jigsaw_replacement",
+                "minecraft:rule",
+                "minecraft:nop",
+                "minecraft:block_age",
+                "minecraft:blackstone_replace",
+                "minecraft:lava_submerged_block",
+                "minecraft:protected_blocks",
+                "minecraft:capped",
+            ]
+        );
+        assert_eq!(
+            super::StructureRuleTestTypeModel::REGISTRY_ORDER.map(|rule| rule.id()),
+            [
+                "minecraft:always_true",
+                "minecraft:block_match",
+                "minecraft:blockstate_match",
+                "minecraft:tag_match",
+                "minecraft:random_block_match",
+                "minecraft:random_blockstate_match",
+            ]
+        );
+        assert_eq!(
+            super::StructurePosRuleTestTypeModel::REGISTRY_ORDER.map(|rule| rule.id()),
+            [
+                "minecraft:always_true",
+                "minecraft:linear_pos",
+                "minecraft:axis_aligned_linear_pos",
+            ]
+        );
+
+        let ignore = super::StructureProcessorModel::BlockIgnore {
+            blocks: vec!["minecraft:air", "minecraft:structure_block"],
+        };
+        assert_eq!(ignore.codec_id(), "minecraft:block_ignore");
+        assert!(ignore.block_ignore_should_drop("minecraft:air"));
+        assert!(!ignore.block_ignore_should_drop("minecraft:stone"));
+
+        let rot_all = super::StructureProcessorModel::BlockRot {
+            rottable_blocks: None,
+            integrity: 0.35,
+        };
+        assert!(rot_all.block_rot_keeps(false, 0.35));
+        assert!(!rot_all.block_rot_keeps(false, 0.35001));
+        let rot_tagged = super::StructureProcessorModel::BlockRot {
+            rottable_blocks: Some("minecraft:replaceable"),
+            integrity: 0.0,
+        };
+        assert!(rot_tagged.block_rot_keeps(false, 0.99));
+        assert!(!rot_tagged.block_rot_keeps(true, 0.01));
+
+        let jigsaw = super::StructureProcessorModel::JigsawReplacement;
+        assert_eq!(
+            jigsaw.jigsaw_replacement_output(
+                "minecraft:jigsaw",
+                Some("minecraft:oak_planks"),
+                false
+            ),
+            Some("minecraft:oak_planks")
+        );
+        assert_eq!(
+            jigsaw.jigsaw_replacement_output(
+                "minecraft:jigsaw",
+                Some("minecraft:structure_void"),
+                false
+            ),
+            None
+        );
+        assert_eq!(
+            jigsaw.jigsaw_replacement_output(
+                "minecraft:jigsaw",
+                Some("minecraft:oak_planks"),
+                true
+            ),
+            Some("minecraft:jigsaw")
+        );
+
+        let gravity = super::StructureProcessorModel::Gravity {
+            heightmap: "WORLD_SURFACE_WG",
+            offset: -1,
+        };
+        assert_eq!(
+            gravity.gravity_adjusted_y(80, 3, true),
+            Some(("WORLD_SURFACE", 82))
+        );
+        assert_eq!(
+            gravity.gravity_adjusted_y(80, 3, false),
+            Some(("WORLD_SURFACE_WG", 82))
+        );
+
+        let lava = super::StructureProcessorModel::LavaSubmergedBlock;
+        assert_eq!(
+            lava.lava_submerged_output("minecraft:lava", false, "minecraft:chain"),
+            "minecraft:lava"
+        );
+        assert_eq!(
+            lava.lava_submerged_output("minecraft:lava", true, "minecraft:stone"),
+            "minecraft:stone"
+        );
+
+        let capped = super::StructureProcessorModel::Capped {
+            delegate: Box::new(super::StructureProcessorModel::Nop),
+            limit: 2,
+        };
+        assert!(capped.capped_can_run(3, 3, 2));
+        assert!(!capped.capped_can_run(3, 2, 2));
+        assert!(!capped.capped_can_run(3, 3, 0));
+
+        assert!(super::structure_random_rule_test_matches(true, 0.25, 0.249));
+        assert!(!super::structure_random_rule_test_matches(true, 0.25, 0.25));
+        assert_eq!(
+            super::structure_linear_pos_chance(5, 0, 10, 0.2, 0.8),
+            Ok(0.5)
+        );
+        assert_eq!(
+            super::structure_linear_pos_chance(0, 4, 4, 0.0, 1.0),
+            Err("Invalid range: [4,4]".to_string())
+        );
+        assert_eq!(
+            super::structure_axis_aligned_distance((10, 65, -4), (3, 60, 1), 'x'),
+            7
+        );
+        assert_eq!(
+            super::structure_axis_aligned_distance((10, 65, -4), (3, 60, 1), 'z'),
+            5
         );
     }
 
