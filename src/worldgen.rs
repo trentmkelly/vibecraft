@@ -4522,6 +4522,58 @@ pub const PLAINS_FEATURE_STEPS: &[&[&str]] = &[
     &["minecraft:freeze_top_layer"],
 ];
 
+pub const SUNFLOWER_PLAINS_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass_2",
+        "minecraft:patch_sunflower",
+        "minecraft:trees_plains",
+        "minecraft:flower_plains",
+        "minecraft:patch_grass_plain",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const FOREST_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:forest_flowers",
+        "minecraft:trees_birch_and_oak_leaf_litter",
+        "minecraft:patch_bush",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_forest",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -4565,6 +4617,90 @@ pub const PLAINS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 1,
         min_count: 1,
         max_count: 3,
+    },
+];
+
+pub const FOREST_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:wolf",
+        weight: 5,
+        min_count: 4,
+        max_count: 4,
+    },
+];
+
+pub const FOREST_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
     },
 ];
 
@@ -4668,19 +4804,73 @@ pub const PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
-pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] =
-    &[BiomeGenerationSettingsModel {
+pub const FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: FOREST_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+const OVERWORLD_COMMON_CARVERS: &[&str] = &[
+    "minecraft:cave",
+    "minecraft:cave_extra_underground",
+    "minecraft:canyon",
+];
+
+pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &[
+    BiomeGenerationSettingsModel {
         biome: "minecraft:plains",
-        carvers: &[
-            "minecraft:cave",
-            "minecraft:cave_extra_underground",
-            "minecraft:canyon",
-        ],
+        carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: PLAINS_FEATURE_STEPS,
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: PLAINS_SPAWNER_GROUPS,
-    }];
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:sunflower_plains",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SUNFLOWER_PLAINS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: PLAINS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:forest",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: FOREST_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: FOREST_SPAWNER_GROUPS,
+    },
+];
 
 pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
     WorldgenTypeRegistry {
@@ -9460,6 +9650,89 @@ mod tests {
         );
         assert!(super::biome_spawns_for_category(plains, "water_creature").is_empty());
         assert!(super::biome_generation_settings("minecraft:badlands").is_none());
+    }
+
+    #[test]
+    fn biome_generation_settings_cover_neighboring_overworld_payloads() {
+        let sunflower = super::biome_generation_settings("sunflower_plains").unwrap();
+        assert_eq!(sunflower.biome, "minecraft:sunflower_plains");
+        assert_eq!(sunflower.carvers, super::OVERWORLD_COMMON_CARVERS);
+        assert!(super::biome_has_placed_feature(
+            sunflower,
+            "minecraft:patch_sunflower"
+        ));
+        assert!(super::biome_has_placed_feature(
+            sunflower,
+            "minecraft:trees_plains"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            sunflower,
+            "minecraft:trees_birch_and_oak_leaf_litter"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(sunflower, "creature"),
+            super::PLAINS_CREATURE_SPAWNS
+        );
+
+        let forest = super::biome_generation_settings("minecraft:forest").unwrap();
+        assert_eq!(forest.biome, "minecraft:forest");
+        assert_eq!(forest.feature_steps.len(), 11);
+        assert!(super::biome_has_placed_feature(
+            forest,
+            "minecraft:forest_flowers"
+        ));
+        assert!(super::biome_has_placed_feature(
+            forest,
+            "minecraft:trees_birch_and_oak_leaf_litter"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            forest,
+            "minecraft:flower_plains"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(forest, "creature"),
+            &[
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:sheep",
+                    weight: 12,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:pig",
+                    weight: 10,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:chicken",
+                    weight: 10,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:cow",
+                    weight: 8,
+                    min_count: 4,
+                    max_count: 4,
+                },
+                MobSpawnerDataModel {
+                    entity_type: "minecraft:wolf",
+                    weight: 5,
+                    min_count: 4,
+                    max_count: 4,
+                },
+            ]
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(forest, "monster")[1],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:zombie",
+                weight: 95,
+                min_count: 4,
+                max_count: 4,
+            }
+        );
     }
 
     #[test]
