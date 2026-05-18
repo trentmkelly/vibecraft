@@ -6481,6 +6481,32 @@ pub const FOREST_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const RIVER_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:patch_bush",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:seagrass_river",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6668,6 +6694,63 @@ pub const PLAINS_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const RIVER_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:drowned",
+        weight: 100,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
 pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
     &[MobSpawnerDataModel {
         entity_type: "minecraft:glow_squid",
@@ -6675,6 +6758,20 @@ pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
         min_count: 4,
         max_count: 6,
     }];
+
+pub const RIVER_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:salmon",
+    weight: 5,
+    min_count: 1,
+    max_count: 5,
+}];
+
+pub const RIVER_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:squid",
+    weight: 2,
+    min_count: 1,
+    max_count: 4,
+}];
 
 pub const PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
@@ -6746,6 +6843,41 @@ pub const FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const RIVER_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: RIVER_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: RIVER_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: RIVER_WATER_CREATURE_SPAWNS,
+    },
+];
+
 const OVERWORLD_COMMON_CARVERS: &[&str] = &[
     "minecraft:cave",
     "minecraft:cave_extra_underground",
@@ -6776,6 +6908,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: FOREST_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:river",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: RIVER_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: RIVER_SPAWNER_GROUPS,
     },
 ];
 
@@ -20552,6 +20692,41 @@ mod tests {
                 min_count: 4,
                 max_count: 4,
             }
+        );
+
+        let river = super::biome_generation_settings("river").unwrap();
+        assert_eq!(river.biome, "minecraft:river");
+        assert_eq!(river.carvers, super::OVERWORLD_COMMON_CARVERS);
+        assert_eq!(river.feature_steps.len(), 11);
+        assert!(super::biome_has_placed_feature(
+            river,
+            "minecraft:trees_water"
+        ));
+        assert!(super::biome_has_placed_feature(
+            river,
+            "minecraft:seagrass_river"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            river,
+            "minecraft:trees_plains"
+        ));
+        assert!(super::biome_spawns_for_category(river, "creature").is_empty());
+        assert_eq!(
+            super::biome_spawns_for_category(river, "monster").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:drowned",
+                weight: 100,
+                min_count: 1,
+                max_count: 1,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(river, "water_ambient"),
+            super::RIVER_WATER_AMBIENT_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(river, "water_creature"),
+            super::RIVER_WATER_CREATURE_SPAWNS
         );
     }
 
