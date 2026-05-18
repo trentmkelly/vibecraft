@@ -1525,6 +1525,13 @@ pub struct StructurePiecePlacementBlock {
     pub edge: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructurePieceNeighborState {
+    pub direction: HorizontalDirection,
+    pub chest: bool,
+    pub solid_render: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -7192,6 +7199,61 @@ pub fn structure_piece_fill_column_down(
     blocks
 }
 
+pub fn structure_piece_reorient_facing(
+    current_facing: HorizontalDirection,
+    neighbors: &[StructurePieceNeighborState],
+) -> HorizontalDirection {
+    let mut solid_neighbor = None;
+    for direction in [
+        HorizontalDirection::North,
+        HorizontalDirection::South,
+        HorizontalDirection::West,
+        HorizontalDirection::East,
+    ] {
+        if let Some(neighbor) = neighbors
+            .iter()
+            .find(|neighbor| neighbor.direction == direction)
+        {
+            if neighbor.chest {
+                return current_facing;
+            }
+            if neighbor.solid_render {
+                if solid_neighbor.is_some() {
+                    solid_neighbor = None;
+                    break;
+                }
+                solid_neighbor = Some(direction);
+            }
+        }
+    }
+
+    if let Some(direction) = solid_neighbor {
+        return direction.opposite();
+    }
+
+    let mut lock_dir = current_facing;
+    if structure_piece_neighbor_is_solid(neighbors, lock_dir) {
+        lock_dir = lock_dir.opposite();
+    }
+    if structure_piece_neighbor_is_solid(neighbors, lock_dir) {
+        lock_dir = lock_dir.clockwise();
+    }
+    if structure_piece_neighbor_is_solid(neighbors, lock_dir) {
+        lock_dir = lock_dir.opposite();
+    }
+    lock_dir
+}
+
+fn structure_piece_neighbor_is_solid(
+    neighbors: &[StructurePieceNeighborState],
+    direction: HorizontalDirection,
+) -> bool {
+    neighbors
+        .iter()
+        .find(|neighbor| neighbor.direction == direction)
+        .is_some_and(|neighbor| neighbor.solid_render)
+}
+
 impl TerrainAdjustmentModel {
     pub fn id(self) -> &'static str {
         match self {
@@ -11307,6 +11369,15 @@ impl HorizontalDirection {
             Self::South => Self::North,
             Self::West => Self::East,
             Self::East => Self::West,
+        }
+    }
+
+    const fn clockwise(self) -> Self {
+        match self {
+            Self::North => Self::East,
+            Self::East => Self::South,
+            Self::South => Self::West,
+            Self::West => Self::North,
         }
     }
 }
@@ -18290,6 +18361,93 @@ mod tests {
             |_| "minecraft:air",
         );
         assert!(outside_chunk.is_empty());
+    }
+
+    #[test]
+    fn structure_piece_reorient_facing_matches_vanilla_neighbor_rules() {
+        use super::HorizontalDirection::{East, North, South, West};
+
+        assert_eq!(
+            super::structure_piece_reorient_facing(
+                North,
+                &[super::StructurePieceNeighborState {
+                    direction: East,
+                    chest: true,
+                    solid_render: true,
+                }]
+            ),
+            North
+        );
+        assert_eq!(
+            super::structure_piece_reorient_facing(
+                North,
+                &[super::StructurePieceNeighborState {
+                    direction: West,
+                    chest: false,
+                    solid_render: true,
+                }]
+            ),
+            East
+        );
+        assert_eq!(
+            super::structure_piece_reorient_facing(
+                North,
+                &[
+                    super::StructurePieceNeighborState {
+                        direction: West,
+                        chest: false,
+                        solid_render: true,
+                    },
+                    super::StructurePieceNeighborState {
+                        direction: East,
+                        chest: false,
+                        solid_render: true,
+                    },
+                ]
+            ),
+            North
+        );
+        assert_eq!(
+            super::structure_piece_reorient_facing(
+                North,
+                &[
+                    super::StructurePieceNeighborState {
+                        direction: North,
+                        chest: false,
+                        solid_render: true,
+                    },
+                    super::StructurePieceNeighborState {
+                        direction: South,
+                        chest: false,
+                        solid_render: true,
+                    },
+                ]
+            ),
+            West
+        );
+        assert_eq!(
+            super::structure_piece_reorient_facing(
+                North,
+                &[
+                    super::StructurePieceNeighborState {
+                        direction: North,
+                        chest: false,
+                        solid_render: true,
+                    },
+                    super::StructurePieceNeighborState {
+                        direction: South,
+                        chest: false,
+                        solid_render: true,
+                    },
+                    super::StructurePieceNeighborState {
+                        direction: West,
+                        chest: false,
+                        solid_render: true,
+                    },
+                ]
+            ),
+            East
+        );
     }
 
     #[test]
