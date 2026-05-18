@@ -1518,9 +1518,45 @@ fn storage_palette_entry_network_id(tag: &Tag) -> i32 {
                         _ => None,
                     })
             })
+            .or_else(|| {
+                fields.iter().find_map(|(name, value)| {
+                    (name == "Name")
+                        .then_some(value)
+                        .and_then(|value| match value {
+                            Tag::String(block_name) => block_state_name_network_id(block_name),
+                            _ => None,
+                        })
+                })
+            })
             .unwrap_or(0),
         _ => 0,
     }
+}
+
+fn block_state_name_network_id(name: &str) -> Option<i32> {
+    Some(match name {
+        "minecraft:air" => 0,
+        "minecraft:stone" => 1,
+        "minecraft:granite" => 2,
+        "minecraft:diorite" => 4,
+        "minecraft:andesite" => 6,
+        "minecraft:grass_block" => 9,
+        "minecraft:dirt" => 10,
+        "minecraft:sand" => 12,
+        "minecraft:sandstone" => 14,
+        "minecraft:water" => 34,
+        "minecraft:oak_log" => 39,
+        "minecraft:oak_leaves" => 63,
+        "minecraft:bedrock" => 85,
+        "minecraft:deepslate" => 118,
+        "minecraft:short_grass" => 131,
+        "minecraft:dandelion" => 158,
+        "minecraft:poppy" => 161,
+        "minecraft:birch_log" => 227,
+        "minecraft:birch_leaves" => 231,
+        "minecraft:sunflower" => 235,
+        _ => return None,
+    })
 }
 
 impl ServerboundAcceptTeleportationPacket {

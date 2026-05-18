@@ -12,7 +12,9 @@ use std::time::{Duration, Instant};
 
 use crate::console::ConsoleInput;
 use crate::network::codec::ComponentJson;
-use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
+use crate::network::codec::{
+    write_bitset, write_identifier, write_nbt, write_optional, write_uuid, Uuid,
+};
 use crate::network::common::ClientboundDisconnectPacket;
 use crate::network::compression::CompressionState;
 use crate::network::login::{
@@ -24,7 +26,8 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
+    ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
+    ClientboundLightUpdatePacketData, ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
     CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
     CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
@@ -51,7 +54,9 @@ use crate::player_access::{NameAndId, PlayerAccess};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
+use crate::storage::region::ChunkPos;
 use crate::storage::world::WorldLayout;
+use crate::worldgen::generate_overworld_chunk_for_preset;
 
 const VERSION_NAME: &str = "26.1.2";
 const PROTOCOL_VERSION: i32 = 775;
@@ -139,6 +144,7 @@ impl Default for PlaySessionState {
         }
     }
 }
+#[allow(dead_code)]
 const SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const AIR_BLOCK_STATE_ID: i32 = 0;
 const STONE_BLOCK_STATE_ID: i32 = 1;
@@ -151,6 +157,7 @@ const BEDROCK_BLOCK_STATE_ID: i32 = 85;
 const SHORT_GRASS_BLOCK_STATE_ID: i32 = 131;
 const DANDELION_BLOCK_STATE_ID: i32 = 158;
 const POPPY_BLOCK_STATE_ID: i32 = 161;
+#[allow(dead_code)]
 const PLAINS_BIOME_ID: i32 = 1;
 const TERRAIN_BASE_Y: i32 = 64;
 const TERRAIN_MIN_SURFACE_Y: i32 = 70;
@@ -1944,7 +1951,7 @@ fn write_play_chunk_batch(
                 stream,
                 compression,
                 CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-                |payload| write_superflat_spawn_chunk_packet(payload, x, z),
+                |payload| write_generated_spawn_chunk_packet(payload, x, z),
             )?;
         }
     }
@@ -2144,6 +2151,55 @@ fn block_pos_as_long(x: i32, y: i32, z: i32) -> i64 {
         | ((z as i64 & PACKED_Z_MASK) << Z_OFFSET)
 }
 
+fn write_generated_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) -> io::Result<()> {
+    let chunk = generate_overworld_chunk_for_preset(ChunkPos { x, z }, "normal")
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+    let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
+    let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
+    write_level_chunk_with_light_payload(writer, &packet)
+}
+
+fn write_level_chunk_with_light_payload<W: Write>(
+    writer: &mut W,
+    packet: &ClientboundLevelChunkWithLightPacket,
+) -> io::Result<()> {
+    writer.write_all(&packet.pos.x.to_be_bytes())?;
+    writer.write_all(&packet.pos.z.to_be_bytes())?;
+    let chunk_data = packet.chunk_data.as_ref().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "level chunk with light packet requires chunk data",
+        )
+    })?;
+    write_level_chunk_packet_data(writer, chunk_data)?;
+    let light_data = packet.light_data.as_ref().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "level chunk with light packet requires light data",
+        )
+    })?;
+    light_data.write(writer)
+}
+
+fn write_level_chunk_packet_data<W: Write>(
+    writer: &mut W,
+    data: &ClientboundLevelChunkPacketData,
+) -> io::Result<()> {
+    write_nbt(
+        writer,
+        &Tag::Compound(
+            data.heightmaps
+                .iter()
+                .map(|(name, values)| (name.clone(), Tag::LongArray(values.clone())))
+                .collect(),
+        ),
+    )?;
+    write_var_i32(writer, data.buffer.len() as i32)?;
+    writer.write_all(&data.buffer)?;
+    write_var_i32(writer, data.block_entity_count as i32)
+}
+
+#[allow(dead_code)]
 fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) -> io::Result<()> {
     writer.write_all(&x.to_be_bytes())?;
     writer.write_all(&z.to_be_bytes())?;
@@ -2182,6 +2238,7 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
     write_var_i32(writer, 0)
 }
 
+#[allow(dead_code)]
 fn write_single_value_paletted_container<W: Write>(writer: &mut W, id: i32) -> io::Result<()> {
     writer.write_all(&[0])?;
     write_var_i32(writer, id)
@@ -2358,6 +2415,7 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
     Ok(())
 }
 
+#[allow(dead_code)]
 fn write_empty_bitset<W: Write>(writer: &mut W) -> io::Result<()> {
     write_var_i32(writer, 0)
 }
