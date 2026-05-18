@@ -22430,7 +22430,7 @@ pub fn surface_condition_test(
             if *add_stone_depth {
                 threshold += context.stone_depth_above;
             }
-            context.y <= threshold
+            context.water_height == i32::MIN || context.y >= threshold
         }
         SurfaceConditionSource::StoneDepth {
             offset,
@@ -22438,15 +22438,19 @@ pub fn surface_condition_test(
             secondary_depth_range,
             surface,
         } => {
-            let mut threshold = *offset;
+            let mut threshold = 1 + *offset;
             if *add_surface_depth {
                 threshold += context.surface_depth;
+            }
+            if *secondary_depth_range != 0 {
+                threshold +=
+                    (((context.noise + 1.0) * 0.5) * f64::from(*secondary_depth_range)) as i32;
             }
             let depth = match surface {
                 CaveSurface::Floor => context.stone_depth_above,
                 CaveSurface::Ceiling => context.stone_depth_below,
             };
-            depth <= threshold + *secondary_depth_range
+            depth <= threshold
         }
         SurfaceConditionSource::Not(target) => {
             !surface_condition_test(target, context, height_context)
@@ -29207,7 +29211,58 @@ mod tests {
                 surface_depth_multiplier: 0,
                 add_stone_depth: false,
             },
+            &SurfaceMaterialContext {
+                y: 65,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        assert!(!super::surface_condition_test(
+            &SurfaceConditionSource::Water {
+                offset: 2,
+                surface_depth_multiplier: 0,
+                add_stone_depth: false,
+            },
             &quiet_desert_floor,
+            &heights
+        ));
+        assert!(super::surface_condition_test(
+            &SurfaceConditionSource::Water {
+                offset: 0,
+                surface_depth_multiplier: 0,
+                add_stone_depth: false,
+            },
+            &SurfaceMaterialContext {
+                water_height: i32::MIN,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        assert!(super::surface_condition_test(
+            &SurfaceConditionSource::StoneDepth {
+                offset: 0,
+                add_surface_depth: true,
+                secondary_depth_range: 6,
+                surface: CaveSurface::Ceiling,
+            },
+            &SurfaceMaterialContext {
+                stone_depth_below: 7,
+                noise: 0.0,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        assert!(!super::surface_condition_test(
+            &SurfaceConditionSource::StoneDepth {
+                offset: 0,
+                add_surface_depth: false,
+                secondary_depth_range: 0,
+                surface: CaveSurface::Ceiling,
+            },
+            &SurfaceMaterialContext {
+                stone_depth_below: 2,
+                ..quiet_desert_floor
+            },
             &heights
         ));
         assert!(super::surface_condition_test(
