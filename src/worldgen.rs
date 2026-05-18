@@ -1517,6 +1517,14 @@ pub struct StructurePieceModel {
     pub bounding_box: StructureBoundingBoxModel,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructurePiecePlacementBlock {
+    pub local_pos: BlockPos,
+    pub world_pos: BlockPos,
+    pub state: &'static str,
+    pub edge: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -6924,6 +6932,93 @@ pub fn structure_piece_is_close_to_chunk(
 
 pub fn structure_piece_locator_position(piece: StructurePieceModel) -> BlockPos {
     piece.bounding_box.center()
+}
+
+pub fn structure_piece_place_block(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    local_pos: BlockPos,
+    state: &'static str,
+    edge: bool,
+) -> Option<StructurePiecePlacementBlock> {
+    let world_pos = structure_piece_world_pos(
+        bounding_box,
+        orientation,
+        local_pos.x,
+        local_pos.y,
+        local_pos.z,
+    );
+    chunk_bb
+        .is_inside(world_pos)
+        .then_some(StructurePiecePlacementBlock {
+            local_pos,
+            world_pos,
+            state,
+            edge,
+        })
+}
+
+pub fn structure_piece_generate_air_box(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max: BlockPos,
+) -> Vec<StructurePiecePlacementBlock> {
+    structure_piece_generate_box(
+        bounding_box,
+        orientation,
+        chunk_bb,
+        min,
+        max,
+        "minecraft:air",
+        "minecraft:air",
+        false,
+        |_| false,
+    )
+}
+
+pub fn structure_piece_generate_box(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max: BlockPos,
+    edge_block: &'static str,
+    fill_block: &'static str,
+    skip_air: bool,
+    mut is_existing_air: impl FnMut(BlockPos) -> bool,
+) -> Vec<StructurePiecePlacementBlock> {
+    let mut blocks = Vec::new();
+    for y in min.y..=max.y {
+        for x in min.x..=max.x {
+            for z in min.z..=max.z {
+                let local_pos = BlockPos { x, y, z };
+                let world_pos = structure_piece_world_pos(bounding_box, orientation, x, y, z);
+                if skip_air && is_existing_air(world_pos) {
+                    continue;
+                }
+                let edge = y == min.y
+                    || y == max.y
+                    || x == min.x
+                    || x == max.x
+                    || z == min.z
+                    || z == max.z;
+                if let Some(block) = structure_piece_place_block(
+                    bounding_box,
+                    orientation,
+                    chunk_bb,
+                    local_pos,
+                    if edge { edge_block } else { fill_block },
+                    edge,
+                ) {
+                    blocks.push(block);
+                }
+            }
+        }
+    }
+    blocks
 }
 
 impl TerrainAdjustmentModel {
@@ -17685,6 +17780,107 @@ mod tests {
             ChunkPos { x: 2, z: 1 },
             7
         ));
+    }
+
+    #[test]
+    fn structure_piece_box_generation_uses_vanilla_loop_edges_and_chunk_clipping() {
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 10,
+            min_y: 20,
+            min_z: 30,
+            max_x: 20,
+            max_y: 30,
+            max_z: 40,
+        };
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: 11,
+            min_y: 20,
+            min_z: 30,
+            max_x: 12,
+            max_y: 22,
+            max_z: 32,
+        };
+        let blocks = super::structure_piece_generate_box(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            chunk_bb,
+            BlockPos { x: 0, y: 0, z: 0 },
+            BlockPos { x: 2, y: 2, z: 2 },
+            "minecraft:cobblestone",
+            "minecraft:mossy_cobblestone",
+            false,
+            |_| false,
+        );
+
+        assert_eq!(blocks.len(), 18);
+        assert_eq!(
+            blocks.first().copied(),
+            Some(super::StructurePiecePlacementBlock {
+                local_pos: BlockPos { x: 1, y: 0, z: 0 },
+                world_pos: BlockPos {
+                    x: 11,
+                    y: 20,
+                    z: 30,
+                },
+                state: "minecraft:cobblestone",
+                edge: true,
+            })
+        );
+        assert!(blocks.iter().any(|block| {
+            block.local_pos == BlockPos { x: 1, y: 1, z: 1 }
+                && block.world_pos
+                    == BlockPos {
+                        x: 11,
+                        y: 21,
+                        z: 31,
+                    }
+                && block.state == "minecraft:mossy_cobblestone"
+                && !block.edge
+        }));
+        assert!(blocks
+            .iter()
+            .all(|block| chunk_bb.is_inside(block.world_pos)));
+    }
+
+    #[test]
+    fn structure_piece_air_box_and_skip_air_match_vanilla_generation_rules() {
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 64,
+            min_z: 0,
+            max_x: 10,
+            max_y: 74,
+            max_z: 10,
+        };
+        let chunk_bb = bounding_box;
+        let air_blocks = super::structure_piece_generate_air_box(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            chunk_bb,
+            BlockPos { x: 1, y: 2, z: 3 },
+            BlockPos { x: 2, y: 3, z: 4 },
+        );
+        assert_eq!(air_blocks.len(), 8);
+        assert!(air_blocks
+            .iter()
+            .all(|block| block.state == "minecraft:air" && block.edge));
+
+        let skipped_world_pos = BlockPos { x: 1, y: 66, z: 3 };
+        let blocks = super::structure_piece_generate_box(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            chunk_bb,
+            BlockPos { x: 1, y: 2, z: 3 },
+            BlockPos { x: 2, y: 3, z: 4 },
+            "minecraft:stone_bricks",
+            "minecraft:cracked_stone_bricks",
+            true,
+            |world_pos| world_pos == skipped_world_pos,
+        );
+        assert_eq!(blocks.len(), 7);
+        assert!(!blocks
+            .iter()
+            .any(|block| block.world_pos == skipped_world_pos));
     }
 
     #[test]
