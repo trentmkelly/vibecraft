@@ -322,6 +322,23 @@ pub enum PlacementModifier {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlatLayerInfo {
+    pub height: i32,
+    pub block: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlatGeneratorPreset {
+    pub id: &'static str,
+    pub display: &'static str,
+    pub biome: &'static str,
+    pub structures: &'static [&'static str],
+    pub add_lakes: bool,
+    pub decoration: bool,
+    pub layers: &'static [FlatLayerInfo],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
     pub barrier_state: &'static str,
@@ -770,6 +787,259 @@ pub const BLOCK_PREDICATE_TYPES: &[BlockPredicateType] = &[
     },
     BlockPredicateType {
         id: "minecraft:unobstructed",
+    },
+];
+
+pub const FLAT_DEFAULT_LAYERS: &[FlatLayerInfo] = &[
+    FlatLayerInfo {
+        height: 1,
+        block: "minecraft:bedrock",
+    },
+    FlatLayerInfo {
+        height: 2,
+        block: "minecraft:dirt",
+    },
+    FlatLayerInfo {
+        height: 1,
+        block: "minecraft:grass_block",
+    },
+];
+
+pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
+    FlatGeneratorPreset {
+        id: "minecraft:classic_flat",
+        display: "minecraft:grass_block",
+        biome: "minecraft:plains",
+        structures: &["minecraft:villages"],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 2,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:tunnelers_dream",
+        display: "minecraft:stone",
+        biome: "minecraft:windswept_hills",
+        structures: &["minecraft:mineshafts", "minecraft:strongholds"],
+        add_lakes: true,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 230,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:water_world",
+        display: "minecraft:water_bucket",
+        biome: "minecraft:deep_ocean",
+        structures: &[
+            "minecraft:ocean_ruins",
+            "minecraft:shipwrecks",
+            "minecraft:ocean_monuments",
+        ],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 90,
+                block: "minecraft:water",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:gravel",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 64,
+                block: "minecraft:deepslate",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:overworld",
+        display: "minecraft:short_grass",
+        biome: "minecraft:plains",
+        structures: &[
+            "minecraft:villages",
+            "minecraft:mineshafts",
+            "minecraft:pillager_outposts",
+            "minecraft:ruined_portals",
+            "minecraft:strongholds",
+        ],
+        add_lakes: true,
+        decoration: true,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 59,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:snowy_kingdom",
+        display: "minecraft:snow",
+        biome: "minecraft:snowy_plains",
+        structures: &["minecraft:villages", "minecraft:igloos"],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:snow",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 59,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:bottomless_pit",
+        display: "minecraft:feather",
+        biome: "minecraft:plains",
+        structures: &["minecraft:villages"],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 2,
+                block: "minecraft:cobblestone",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:desert",
+        display: "minecraft:sand",
+        biome: "minecraft:desert",
+        structures: &[
+            "minecraft:villages",
+            "minecraft:desert_pyramids",
+            "minecraft:mineshafts",
+            "minecraft:strongholds",
+        ],
+        add_lakes: true,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 8,
+                block: "minecraft:sand",
+            },
+            FlatLayerInfo {
+                height: 52,
+                block: "minecraft:sandstone",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:redstone_ready",
+        display: "minecraft:redstone",
+        biome: "minecraft:desert",
+        structures: &[],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 116,
+                block: "minecraft:sandstone",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:the_void",
+        display: "minecraft:barrier",
+        biome: "minecraft:the_void",
+        structures: &[],
+        add_lakes: true,
+        decoration: false,
+        layers: &[FlatLayerInfo {
+            height: 1,
+            block: "minecraft:air",
+        }],
     },
 ];
 
@@ -3741,6 +4011,45 @@ pub fn placement_modifier_positions(
     }
 }
 
+pub fn flat_generator_preset(id: &str) -> Option<&'static FlatGeneratorPreset> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    FLAT_GENERATOR_PRESETS
+        .iter()
+        .find(|preset| preset.id.strip_prefix("minecraft:").unwrap_or(preset.id) == name)
+}
+
+pub fn flat_layers_total_height(layers: &[FlatLayerInfo]) -> i32 {
+    layers.iter().map(|layer| layer.height).sum()
+}
+
+pub fn validate_flat_layers(layers: &[FlatLayerInfo]) -> Result<(), String> {
+    let total_height = flat_layers_total_height(layers);
+    if total_height > 384 {
+        Err("Sum of layer heights is > 384".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn flat_block_at_y(layers: &[FlatLayerInfo], y: i32) -> Option<&'static str> {
+    if y < 0 {
+        return None;
+    }
+    let mut cursor = 0;
+    for layer in layers {
+        let next = cursor + layer.height;
+        if y < next {
+            return Some(layer.block);
+        }
+        cursor = next;
+    }
+    None
+}
+
+pub fn flat_layers_are_void(layers: &[FlatLayerInfo]) -> bool {
+    layers.iter().all(|layer| layer.block == "minecraft:air")
+}
+
 pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGeneratorSettings> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_NOISE_GENERATOR_SETTINGS.iter().find(|settings| {
@@ -4340,7 +4649,7 @@ mod tests {
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlockPos,
         BlockPredicate, BlockPredicateContext, CarverShape, CaveDensityOutput,
         ConfiguredFeatureSource, DensityFunction, DensityMarker, FeatureConfigurationKind,
-        FeatureFamily, FloatProvider, FluidStatus, HeightProvider, HeightRange,
+        FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus, HeightProvider, HeightRange,
         MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
         OreVeinifierConstants, PlacedFeatureSource, PlacementModifier, RandomSpreadType,
         SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
@@ -4351,14 +4660,14 @@ mod tests {
         BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
         CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
         DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES,
-        MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
-        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
-        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES,
-        STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
-        STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
-        Y_DENSITY,
+        FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS,
+        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
+        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
+        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS,
+        STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
+        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -4751,6 +5060,90 @@ mod tests {
                     z: -1
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn flat_generator_defaults_and_presets_match_vanilla_bootstrap() {
+        assert_eq!(
+            FLAT_DEFAULT_LAYERS,
+            &[
+                FlatLayerInfo {
+                    height: 1,
+                    block: "minecraft:bedrock"
+                },
+                FlatLayerInfo {
+                    height: 2,
+                    block: "minecraft:dirt"
+                },
+                FlatLayerInfo {
+                    height: 1,
+                    block: "minecraft:grass_block"
+                },
+            ]
+        );
+        assert_eq!(super::flat_layers_total_height(FLAT_DEFAULT_LAYERS), 4);
+        assert_eq!(
+            super::flat_block_at_y(FLAT_DEFAULT_LAYERS, 0),
+            Some("minecraft:bedrock")
+        );
+        assert_eq!(
+            super::flat_block_at_y(FLAT_DEFAULT_LAYERS, 2),
+            Some("minecraft:dirt")
+        );
+        assert_eq!(
+            super::flat_block_at_y(FLAT_DEFAULT_LAYERS, 3),
+            Some("minecraft:grass_block")
+        );
+        assert_eq!(super::flat_block_at_y(FLAT_DEFAULT_LAYERS, 4), None);
+
+        assert_eq!(
+            FLAT_GENERATOR_PRESETS
+                .iter()
+                .map(|preset| preset.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:classic_flat",
+                "minecraft:tunnelers_dream",
+                "minecraft:water_world",
+                "minecraft:overworld",
+                "minecraft:snowy_kingdom",
+                "minecraft:bottomless_pit",
+                "minecraft:desert",
+                "minecraft:redstone_ready",
+                "minecraft:the_void",
+            ]
+        );
+        let overworld = super::flat_generator_preset("overworld").unwrap();
+        assert_eq!(overworld.display, "minecraft:short_grass");
+        assert_eq!(overworld.biome, "minecraft:plains");
+        assert!(overworld.add_lakes);
+        assert!(overworld.decoration);
+        assert_eq!(super::flat_layers_total_height(overworld.layers), 64);
+        assert!(overworld
+            .structures
+            .contains(&"minecraft:pillager_outposts"));
+
+        let water = super::flat_generator_preset("minecraft:water_world").unwrap();
+        assert_eq!(water.layers[0].height, 90);
+        assert_eq!(water.layers[0].block, "minecraft:water");
+        assert_eq!(super::flat_layers_total_height(water.layers), 170);
+
+        let void = super::flat_generator_preset("the_void").unwrap();
+        assert!(super::flat_layers_are_void(void.layers));
+        assert_eq!(void.biome, "minecraft:the_void");
+        assert_eq!(
+            super::flat_block_at_y(void.layers, 0),
+            Some("minecraft:air")
+        );
+
+        assert!(super::validate_flat_layers(FLAT_DEFAULT_LAYERS).is_ok());
+        assert_eq!(
+            super::validate_flat_layers(&[FlatLayerInfo {
+                height: 385,
+                block: "minecraft:stone",
+            }]),
+            Err("Sum of layer heights is > 384".to_string())
         );
     }
 
