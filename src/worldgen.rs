@@ -7055,6 +7055,50 @@ pub const MEADOW_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const CHERRY_GROVE_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    MOUNTAIN_ORE_FEATURE_STEP,
+    MOUNTAIN_UNDERGROUND_DECORATION_STEP,
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass_2",
+        "minecraft:patch_grass_plain",
+        "minecraft:flower_cherry",
+        "minecraft:trees_cherry",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const PALE_GARDEN_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:pale_garden_vegetation",
+        "minecraft:pale_moss_patch",
+        "minecraft:pale_garden_flowers",
+        "minecraft:flower_pale_garden",
+        "minecraft:patch_grass_forest",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const GROVE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7380,6 +7424,20 @@ pub const SNOWY_PLAINS_FEATURE_STEPS: &[&[&str]] = &[
         "minecraft:patch_firefly_bush_near_water",
     ],
     PLAINS_FEATURE_STEPS[10],
+];
+
+pub const ICE_SPIKES_FEATURE_STEPS: &[&[&str]] = &[
+    SNOWY_PLAINS_FEATURE_STEPS[0],
+    SNOWY_PLAINS_FEATURE_STEPS[1],
+    SNOWY_PLAINS_FEATURE_STEPS[2],
+    SNOWY_PLAINS_FEATURE_STEPS[3],
+    &["minecraft:ice_spike", "minecraft:ice_patch"],
+    SNOWY_PLAINS_FEATURE_STEPS[5],
+    SNOWY_PLAINS_FEATURE_STEPS[6],
+    SNOWY_PLAINS_FEATURE_STEPS[7],
+    SNOWY_PLAINS_FEATURE_STEPS[8],
+    SNOWY_PLAINS_FEATURE_STEPS[9],
+    SNOWY_PLAINS_FEATURE_STEPS[10],
 ];
 
 pub const JUNGLE_FEATURE_STEPS: &[&[&str]] = &[
@@ -7718,6 +7776,27 @@ pub const WOODED_BADLANDS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
 pub const MEADOW_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:donkey",
+        weight: 1,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:rabbit",
+        weight: 2,
+        min_count: 2,
+        max_count: 6,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 2,
+        min_count: 2,
+        max_count: 4,
+    },
+];
+
+pub const CHERRY_GROVE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
         weight: 1,
         min_count: 1,
         max_count: 2,
@@ -9407,6 +9486,76 @@ pub const MEADOW_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const CHERRY_GROVE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: CHERRY_GROVE_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const PALE_GARDEN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const GROVE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -10533,6 +10682,22 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: MEADOW_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:cherry_grove",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: CHERRY_GROVE_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: CHERRY_GROVE_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:pale_garden",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: PALE_GARDEN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: PALE_GARDEN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:grove",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: GROVE_FEATURE_STEPS,
@@ -10664,6 +10829,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         biome: "minecraft:snowy_plains",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: SNOWY_PLAINS_FEATURE_STEPS,
+        creature_spawn_probability: 0.07,
+        spawn_costs: &[],
+        spawners: SNOWY_PLAINS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:ice_spikes",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: ICE_SPIKES_FEATURE_STEPS,
         creature_spawn_probability: 0.07,
         spawn_costs: &[],
         spawners: SNOWY_PLAINS_SPAWNER_GROUPS,
@@ -24996,6 +25169,41 @@ mod tests {
             super::MEADOW_CREATURE_SPAWNS
         );
 
+        let cherry_grove = super::biome_generation_settings("cherry_grove").unwrap();
+        assert_eq!(cherry_grove.biome, "minecraft:cherry_grove");
+        assert!(super::biome_has_placed_feature(
+            cherry_grove,
+            "minecraft:trees_cherry"
+        ));
+        assert!(super::biome_has_placed_feature(
+            cherry_grove,
+            "minecraft:flower_cherry"
+        ));
+        assert!(super::biome_has_placed_feature(
+            cherry_grove,
+            "minecraft:ore_emerald"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(cherry_grove, "creature"),
+            super::CHERRY_GROVE_CREATURE_SPAWNS
+        );
+
+        let pale_garden = super::biome_generation_settings("pale_garden").unwrap();
+        assert_eq!(pale_garden.biome, "minecraft:pale_garden");
+        assert!(super::biome_has_placed_feature(
+            pale_garden,
+            "minecraft:pale_garden_vegetation"
+        ));
+        assert!(super::biome_has_placed_feature(
+            pale_garden,
+            "minecraft:pale_moss_patch"
+        ));
+        assert!(super::biome_has_placed_feature(
+            pale_garden,
+            "minecraft:flower_pale_garden"
+        ));
+        assert!(super::biome_spawns_for_category(pale_garden, "creature").is_empty());
+
         let grove = super::biome_generation_settings("grove").unwrap();
         assert_eq!(grove.biome, "minecraft:grove");
         assert!(super::biome_has_placed_feature(
@@ -25371,6 +25579,22 @@ mod tests {
                 min_count: 4,
                 max_count: 4,
             })
+        );
+
+        let ice_spikes = super::biome_generation_settings("ice_spikes").unwrap();
+        assert_eq!(ice_spikes.biome, "minecraft:ice_spikes");
+        assert_eq!(ice_spikes.creature_spawn_probability, 0.07);
+        assert!(super::biome_has_placed_feature(
+            ice_spikes,
+            "minecraft:ice_spike"
+        ));
+        assert!(super::biome_has_placed_feature(
+            ice_spikes,
+            "minecraft:ice_patch"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(ice_spikes, "monster"),
+            super::SNOWY_PLAINS_MONSTER_SPAWNS
         );
 
         let jungle = super::biome_generation_settings("jungle").unwrap();
