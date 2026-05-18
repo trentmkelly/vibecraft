@@ -18951,6 +18951,50 @@ mod tests {
     }
 
     #[test]
+    fn command_visibility_surface_filters_by_permission_tier_in_stable_order() {
+        let all = visible_command_usages(LevelBasedPermissionSet::ALL);
+        let moderator = visible_command_usages(LevelBasedPermissionSet::MODERATOR);
+        let gamemaster = visible_command_usages(LevelBasedPermissionSet::GAMEMASTER);
+        let admin = visible_command_usages(LevelBasedPermissionSet::ADMIN);
+        let owner = visible_command_usages(LevelBasedPermissionSet::OWNER);
+
+        assert!(all.starts_with(&[
+            "/chase <follow|lead|stop> [host|bind_address] [port]",
+            "/help [command]",
+            "/list [uuids]",
+        ]));
+        assert!(all.contains(&"/msg <targets> <message>"));
+        assert!(!all.contains(&"/gamemode <gamemode> [target]"));
+        assert!(!all.contains(&"/op <targets>"));
+        assert!(!all.contains(&"/stop"));
+
+        assert_eq!(moderator, all);
+        assert!(gamemaster.starts_with(&[
+            "/advancement <grant|revoke> <targets> <everything|only|from|until|through>",
+            "/attribute <target> <attribute> get|base|get|set|reset|modifier",
+        ]));
+        assert!(gamemaster.contains(&"/gamemode <gamemode> [target]"));
+        assert!(!gamemaster.contains(&"/op <targets>"));
+        assert!(!gamemaster.contains(&"/stop"));
+
+        assert!(admin.contains(&"/op <targets>"));
+        assert!(admin.contains(&"/whitelist <on|off|list|add|remove|reload>"));
+        assert!(!admin.contains(&"/stop"));
+
+        assert!(owner.contains(&"/op <targets>"));
+        assert!(owner.contains(&"/stop"));
+        assert_eq!(owner.last(), Some(&"/deop <targets>"));
+        assert_eq!(
+            command_usage("gamemode", LevelBasedPermissionSet::ALL),
+            None
+        );
+        assert_eq!(
+            command_usage("gamemode", LevelBasedPermissionSet::GAMEMASTER),
+            Some("/gamemode <gamemode> [target]")
+        );
+    }
+
+    #[test]
     fn reload_command_requires_gamemaster_and_returns_zero() {
         let mut state = ServerCommandState::default();
         assert_eq!(
