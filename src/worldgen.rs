@@ -6818,6 +6818,17 @@ impl StructureBoundingBoxModel {
             max_z: self.max_z + amount,
         }
     }
+
+    pub fn moved(self, dx: i32, dy: i32, dz: i32) -> StructureBoundingBoxModel {
+        StructureBoundingBoxModel {
+            min_x: self.min_x + dx,
+            min_y: self.min_y + dy,
+            min_z: self.min_z + dz,
+            max_x: self.max_x + dx,
+            max_y: self.max_y + dy,
+            max_z: self.max_z + dz,
+        }
+    }
 }
 
 pub fn structure_make_bounding_box(
@@ -7252,6 +7263,37 @@ fn structure_piece_neighbor_is_solid(
         .iter()
         .find(|neighbor| neighbor.direction == direction)
         .is_some_and(|neighbor| neighbor.solid_render)
+}
+
+pub fn structure_piece_moved(
+    piece: StructurePieceModel,
+    dx: i32,
+    dy: i32,
+    dz: i32,
+) -> StructurePieceModel {
+    StructurePieceModel {
+        bounding_box: piece.bounding_box.moved(dx, dy, dz),
+    }
+}
+
+pub fn structure_piece_create_bounding_box(
+    pieces: &[StructurePieceModel],
+) -> Result<StructureBoundingBoxModel, String> {
+    pieces
+        .iter()
+        .map(|piece| piece.bounding_box)
+        .reduce(StructureBoundingBoxModel::union)
+        .ok_or_else(|| "Unable to calculate boundingbox without pieces".to_string())
+}
+
+pub fn structure_piece_find_collision_piece(
+    pieces: &[StructurePieceModel],
+    bounding_box: StructureBoundingBoxModel,
+) -> Option<StructurePieceModel> {
+    pieces
+        .iter()
+        .copied()
+        .find(|piece| piece.bounding_box.intersects(bounding_box))
 }
 
 impl TerrainAdjustmentModel {
@@ -18447,6 +18489,87 @@ mod tests {
                 ]
             ),
             East
+        );
+    }
+
+    #[test]
+    fn structure_piece_move_aggregate_box_and_collision_match_vanilla_helpers() {
+        let first = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 10,
+                min_z: 0,
+                max_x: 4,
+                max_y: 14,
+                max_z: 4,
+            },
+        };
+        let second = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: 8,
+                min_z: -2,
+                max_x: 12,
+                max_y: 18,
+                max_z: 2,
+            },
+        };
+
+        assert_eq!(
+            super::structure_piece_moved(first, 3, -2, 5),
+            super::StructurePieceModel {
+                bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 3,
+                    min_y: 8,
+                    min_z: 5,
+                    max_x: 7,
+                    max_y: 12,
+                    max_z: 9,
+                },
+            }
+        );
+        assert_eq!(
+            super::structure_piece_create_bounding_box(&[first, second]),
+            Ok(super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 8,
+                min_z: -2,
+                max_x: 12,
+                max_y: 18,
+                max_z: 4,
+            })
+        );
+        assert_eq!(
+            super::structure_piece_create_bounding_box(&[]),
+            Err("Unable to calculate boundingbox without pieces".to_string())
+        );
+        assert_eq!(
+            super::structure_piece_find_collision_piece(
+                &[first, second],
+                super::StructureBoundingBoxModel {
+                    min_x: 11,
+                    min_y: 0,
+                    min_z: 0,
+                    max_x: 20,
+                    max_y: 20,
+                    max_z: 10,
+                },
+            ),
+            Some(second)
+        );
+        assert_eq!(
+            super::structure_piece_find_collision_piece(
+                &[first, second],
+                super::StructureBoundingBoxModel {
+                    min_x: 5,
+                    min_y: 0,
+                    min_z: 5,
+                    max_x: 9,
+                    max_y: 20,
+                    max_z: 9,
+                },
+            ),
+            None
         );
     }
 
