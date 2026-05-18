@@ -7021,6 +7021,77 @@ pub fn structure_piece_generate_box(
     blocks
 }
 
+pub fn structure_piece_generate_maybe_box(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    random_values: &[f32],
+    probability: f32,
+    min: BlockPos,
+    max: BlockPos,
+    edge_block: &'static str,
+    fill_block: &'static str,
+    skip_air: bool,
+    has_to_be_inside: bool,
+    mut is_existing_air: impl FnMut(BlockPos) -> bool,
+    mut is_interior: impl FnMut(BlockPos) -> bool,
+) -> Vec<StructurePiecePlacementBlock> {
+    let mut blocks = Vec::new();
+    let mut random_index = 0usize;
+    for y in min.y..=max.y {
+        for x in min.x..=max.x {
+            for z in min.z..=max.z {
+                let random_value = random_values.get(random_index).copied().unwrap_or(1.0);
+                random_index += 1;
+                if random_value > probability {
+                    continue;
+                }
+                let local_pos = BlockPos { x, y, z };
+                let world_pos = structure_piece_world_pos(bounding_box, orientation, x, y, z);
+                if skip_air && is_existing_air(world_pos) {
+                    continue;
+                }
+                if has_to_be_inside && !is_interior(world_pos) {
+                    continue;
+                }
+                let edge = y == min.y
+                    || y == max.y
+                    || x == min.x
+                    || x == max.x
+                    || z == min.z
+                    || z == max.z;
+                if let Some(block) = structure_piece_place_block(
+                    bounding_box,
+                    orientation,
+                    chunk_bb,
+                    local_pos,
+                    if edge { edge_block } else { fill_block },
+                    edge,
+                ) {
+                    blocks.push(block);
+                }
+            }
+        }
+    }
+    blocks
+}
+
+pub fn structure_piece_maybe_generate_block(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    random_value: f32,
+    probability: f32,
+    local_pos: BlockPos,
+    state: &'static str,
+) -> Option<StructurePiecePlacementBlock> {
+    (random_value < probability)
+        .then(|| {
+            structure_piece_place_block(bounding_box, orientation, chunk_bb, local_pos, state, true)
+        })
+        .flatten()
+}
+
 impl TerrainAdjustmentModel {
     pub fn id(self) -> &'static str {
         match self {
@@ -17881,6 +17952,70 @@ mod tests {
         assert!(!blocks
             .iter()
             .any(|block| block.world_pos == skipped_world_pos));
+    }
+
+    #[test]
+    fn structure_piece_maybe_box_and_single_block_use_vanilla_probability_edges() {
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 10,
+            min_z: 0,
+            max_x: 10,
+            max_y: 20,
+            max_z: 10,
+        };
+        let chunk_bb = bounding_box;
+        let blocks = super::structure_piece_generate_maybe_box(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            chunk_bb,
+            &[0.75, 0.76, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60],
+            0.75,
+            BlockPos { x: 0, y: 0, z: 0 },
+            BlockPos { x: 1, y: 1, z: 1 },
+            "minecraft:stone_bricks",
+            "minecraft:cracked_stone_bricks",
+            true,
+            true,
+            |world_pos| world_pos == BlockPos { x: 0, y: 10, z: 0 },
+            |world_pos| world_pos.y >= 11,
+        );
+
+        assert_eq!(blocks.len(), 4);
+        assert!(blocks
+            .iter()
+            .all(|block| block.state == "minecraft:stone_bricks" && block.edge));
+        assert!(!blocks.iter().any(|block| {
+            block.local_pos == BlockPos { x: 0, y: 0, z: 0 }
+                || block.local_pos == BlockPos { x: 0, y: 0, z: 1 }
+                || block.local_pos == BlockPos { x: 1, y: 0, z: 0 }
+        }));
+
+        assert_eq!(
+            super::structure_piece_maybe_generate_block(
+                bounding_box,
+                Some(super::HorizontalDirection::South),
+                chunk_bb,
+                0.49,
+                0.5,
+                BlockPos { x: 2, y: 3, z: 4 },
+                "minecraft:lantern"
+            )
+            .map(|block| block.world_pos),
+            Some(BlockPos { x: 2, y: 13, z: 4 })
+        );
+        assert_eq!(
+            super::structure_piece_maybe_generate_block(
+                bounding_box,
+                Some(super::HorizontalDirection::South),
+                chunk_bb,
+                0.5,
+                0.5,
+                BlockPos { x: 2, y: 3, z: 4 },
+                "minecraft:lantern"
+            ),
+            None
+        );
     }
 
     #[test]
