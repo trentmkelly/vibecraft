@@ -571,14 +571,15 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "add_entity",
         java_class: "ClientboundAddEntityPacket",
-        field_order: "unparsed",
+        field_order:
+            "id:var_int, uuid:UUID, type:EntityType.STREAM_CODEC, x:f64, y:f64, z:f64, movement:Vec3.LP_STREAM_CODEC, x_rot:byte, y_rot:byte, y_head_rot:byte, data:var_int",
     },
     PlayPacketSpec {
         id: 2,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "animate",
         java_class: "ClientboundAnimatePacket",
-        field_order: "unparsed",
+        field_order: "id:var_int, action:u8",
     },
     PlayPacketSpec {
         id: 3,
@@ -802,7 +803,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "entity_event",
         java_class: "ClientboundEntityEventPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:int, event_id:byte",
     },
     PlayPacketSpec {
         id: 35,
@@ -858,7 +859,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "hurt_animation",
         java_class: "ClientboundHurtAnimationPacket",
-        field_order: "unparsed",
+        field_order: "id:var_int, yaw:f32",
     },
     PlayPacketSpec {
         id: 43,
@@ -935,14 +936,15 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "move_entity_pos",
         java_class: "ClientboundMoveEntityPacket.Pos",
-        field_order: "unparsed",
+        field_order: "entity_id:var_int, xa:short, ya:short, za:short, on_ground:bool",
     },
     PlayPacketSpec {
         id: 54,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "move_entity_pos_rot",
         java_class: "ClientboundMoveEntityPacket.PosRot",
-        field_order: "unparsed",
+        field_order:
+            "entity_id:var_int, xa:short, ya:short, za:short, y_rot:byte, x_rot:byte, on_ground:bool",
     },
     PlayPacketSpec {
         id: 55,
@@ -956,7 +958,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "move_entity_rot",
         java_class: "ClientboundMoveEntityPacket.Rot",
-        field_order: "unparsed",
+        field_order: "entity_id:var_int, y_rot:byte, x_rot:byte, on_ground:bool",
     },
     PlayPacketSpec {
         id: 57,
@@ -1103,7 +1105,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "remove_entities",
         java_class: "ClientboundRemoveEntitiesPacket",
-        field_order: "unparsed",
+        field_order: "entity_ids:int_id_list",
     },
     PlayPacketSpec {
         id: 78,
@@ -1145,7 +1147,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "rotate_head",
         java_class: "ClientboundRotateHeadPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:var_int, y_head_rot:byte",
     },
     PlayPacketSpec {
         id: 84,
@@ -1257,28 +1259,28 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_entity_data",
         java_class: "ClientboundSetEntityDataPacket",
-        field_order: "unparsed",
+        field_order: "id:var_int, packed_items:data_value_list",
     },
     PlayPacketSpec {
         id: 100,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_entity_link",
         java_class: "ClientboundSetEntityLinkPacket",
-        field_order: "unparsed",
+        field_order: "source_id:int, dest_id:int",
     },
     PlayPacketSpec {
         id: 101,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_entity_motion",
         java_class: "ClientboundSetEntityMotionPacket",
-        field_order: "unparsed",
+        field_order: "id:var_int, movement:Vec3.LP_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 102,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_equipment",
         java_class: "ClientboundSetEquipmentPacket",
-        field_order: "unparsed",
+        field_order: "entity:var_int, slots:EquipmentSlot_ItemStack_pairs",
     },
     PlayPacketSpec {
         id: 103,
@@ -1313,7 +1315,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_passengers",
         java_class: "ClientboundSetPassengersPacket",
-        field_order: "unparsed",
+        field_order: "vehicle:var_int, passengers:var_int_array",
     },
     PlayPacketSpec {
         id: 108,
@@ -1439,7 +1441,8 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "teleport_entity",
         java_class: "ClientboundTeleportEntityPacket",
-        field_order: "unparsed",
+        field_order:
+            "id:var_int, change:PositionMoveRotation.STREAM_CODEC, relatives:Set<Relative>, on_ground:bool",
     },
     PlayPacketSpec {
         id: 126,
