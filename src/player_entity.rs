@@ -282,6 +282,8 @@ impl PlayerEntityState {
             stats: self.stats.clone(),
             advancements_dirty: self.advancements_dirty,
             recipes: self.known_recipes.clone(),
+            recipe_book_open: self.recipe_book_open,
+            recipe_book_filtering: self.recipe_book_filtering,
             respawn: self.respawn.clone(),
             permission_level: self.permission_level,
         }
@@ -294,6 +296,8 @@ impl PlayerEntityState {
             food: self.food,
             experience: self.experience,
             recipes: self.known_recipes.clone(),
+            recipe_book_open: self.recipe_book_open,
+            recipe_book_filtering: self.recipe_book_filtering,
             respawn: self.respawn.clone(),
         }
     }
@@ -306,6 +310,8 @@ impl PlayerEntityState {
         self.food = saved.food;
         self.experience = saved.experience;
         self.known_recipes = saved.recipes;
+        self.recipe_book_open = saved.recipe_book_open;
+        self.recipe_book_filtering = saved.recipe_book_filtering;
         self.respawn = saved.respawn;
     }
 }
@@ -320,6 +326,8 @@ pub struct PlayerSyncPlan {
     pub stats: Vec<(&'static str, i32)>,
     pub advancements_dirty: bool,
     pub recipes: Vec<&'static str>,
+    pub recipe_book_open: bool,
+    pub recipe_book_filtering: bool,
     pub respawn: Option<RespawnConfig>,
     pub permission_level: u8,
 }
@@ -331,6 +339,8 @@ pub struct SavedPlayerEntity {
     pub food: FoodState,
     pub experience: ExperienceState,
     pub recipes: Vec<&'static str>,
+    pub recipe_book_open: bool,
+    pub recipe_book_filtering: bool,
     pub respawn: Option<RespawnConfig>,
 }
 
@@ -430,6 +440,8 @@ mod tests {
             total: 42,
         };
         player.award_recipe("minecraft:stick");
+        player.recipe_book_open = true;
+        player.recipe_book_filtering = true;
         player.advancements_dirty = true;
         player.die();
 
@@ -438,6 +450,8 @@ mod tests {
         assert_eq!(sync.health_food_packet, (17, 0.0));
         assert_eq!(sync.experience_packet.level, 3);
         assert_eq!(sync.recipes, vec!["minecraft:stick"]);
+        assert!(sync.recipe_book_open);
+        assert!(sync.recipe_book_filtering);
         assert!(sync.advancements_dirty);
         assert_eq!(stat_value(&player, "minecraft:deaths"), 1);
         assert_eq!(stat_value(&player, "minecraft:time_since_death"), 0);
@@ -449,6 +463,8 @@ mod tests {
         assert!(loaded.abilities.instabuild);
         assert_eq!(loaded.food.food_level, 17);
         assert_eq!(loaded.known_recipes, vec!["minecraft:stick"]);
+        assert!(loaded.recipe_book_open);
+        assert!(loaded.recipe_book_filtering);
     }
 
     #[test]
