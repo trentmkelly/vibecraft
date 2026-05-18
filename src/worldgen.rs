@@ -4953,6 +4953,10 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         id: "minecraft:overworld/caves/spaghetti_2d",
         function: SPAGHETTI_2D_DENSITY,
     },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/caves/noodle",
+        function: NOODLE_DENSITY,
+    },
 ];
 
 pub const RIDGE_REFERENCE_DENSITY: DensityFunction =
@@ -5176,6 +5180,119 @@ pub const SPAGHETTI_2D_DENSITY: DensityFunction = DensityFunction::Clamp {
     input: &SPAGHETTI_2D_MAX_DENSITY,
     min: -1.0,
     max: 1.0,
+};
+pub const NOODLE_Y_MIN_DENSITY: f64 = -60.0;
+pub const NOODLE_Y_MAX_DENSITY: f64 = 321.0;
+pub const NOODLE_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:noodle",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const NOODLE_OUT_OF_RANGE_DENSITY: DensityFunction = DensityFunction::Constant(-1.0);
+pub const NOODLE_TOGGLE_RANGE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
+    input: &Y_DENSITY,
+    min_inclusive: NOODLE_Y_MIN_DENSITY,
+    max_exclusive: NOODLE_Y_MAX_DENSITY,
+    when_in_range: &NOODLE_NOISE_DENSITY,
+    when_out_of_range: &NOODLE_OUT_OF_RANGE_DENSITY,
+};
+pub const NOODLE_TOGGLE_INTERPOLATED_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Interpolated,
+    input: &NOODLE_TOGGLE_RANGE_DENSITY,
+};
+pub const NOODLE_BLOCKING_DENSITY: DensityFunction = DensityFunction::Constant(64.0);
+pub const NOODLE_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:noodle_thickness",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const NOODLE_THICKNESS_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(-0.025);
+pub const NOODLE_THICKNESS_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &NOODLE_THICKNESS_SCALE_DENSITY,
+    argument2: &NOODLE_THICKNESS_NOISE_DENSITY,
+};
+pub const NOODLE_THICKNESS_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.07500000000000001);
+pub const NOODLE_THICKNESS_IN_RANGE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &NOODLE_THICKNESS_OFFSET_DENSITY,
+    argument2: &NOODLE_THICKNESS_SCALED_DENSITY,
+};
+pub const NOODLE_ZERO_DENSITY: DensityFunction = DensityFunction::Constant(0.0);
+pub const NOODLE_THICKNESS_RANGE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
+    input: &Y_DENSITY,
+    min_inclusive: NOODLE_Y_MIN_DENSITY,
+    max_exclusive: NOODLE_Y_MAX_DENSITY,
+    when_in_range: &NOODLE_THICKNESS_IN_RANGE_DENSITY,
+    when_out_of_range: &NOODLE_ZERO_DENSITY,
+};
+pub const NOODLE_THICKNESS_INTERPOLATED_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Interpolated,
+    input: &NOODLE_THICKNESS_RANGE_DENSITY,
+};
+pub const NOODLE_RIDGE_A_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:noodle_ridge_a",
+    xz_scale: 2.6666666666666665,
+    y_scale: 2.6666666666666665,
+};
+pub const NOODLE_RIDGE_A_RANGE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
+    input: &Y_DENSITY,
+    min_inclusive: NOODLE_Y_MIN_DENSITY,
+    max_exclusive: NOODLE_Y_MAX_DENSITY,
+    when_in_range: &NOODLE_RIDGE_A_NOISE_DENSITY,
+    when_out_of_range: &NOODLE_ZERO_DENSITY,
+};
+pub const NOODLE_RIDGE_A_INTERPOLATED_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Interpolated,
+    input: &NOODLE_RIDGE_A_RANGE_DENSITY,
+};
+pub const NOODLE_RIDGE_A_ABS_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Abs,
+    input: &NOODLE_RIDGE_A_INTERPOLATED_DENSITY,
+};
+pub const NOODLE_RIDGE_B_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:noodle_ridge_b",
+    xz_scale: 2.6666666666666665,
+    y_scale: 2.6666666666666665,
+};
+pub const NOODLE_RIDGE_B_RANGE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
+    input: &Y_DENSITY,
+    min_inclusive: NOODLE_Y_MIN_DENSITY,
+    max_exclusive: NOODLE_Y_MAX_DENSITY,
+    when_in_range: &NOODLE_RIDGE_B_NOISE_DENSITY,
+    when_out_of_range: &NOODLE_ZERO_DENSITY,
+};
+pub const NOODLE_RIDGE_B_INTERPOLATED_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Interpolated,
+    input: &NOODLE_RIDGE_B_RANGE_DENSITY,
+};
+pub const NOODLE_RIDGE_B_ABS_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Abs,
+    input: &NOODLE_RIDGE_B_INTERPOLATED_DENSITY,
+};
+pub const NOODLE_RIDGE_MAX_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Max,
+    argument1: &NOODLE_RIDGE_A_ABS_DENSITY,
+    argument2: &NOODLE_RIDGE_B_ABS_DENSITY,
+};
+pub const NOODLE_RIDGE_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(1.5);
+pub const NOODLE_RIDGE_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &NOODLE_RIDGE_SCALE_DENSITY,
+    argument2: &NOODLE_RIDGE_MAX_DENSITY,
+};
+pub const NOODLE_OPEN_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &NOODLE_THICKNESS_INTERPOLATED_DENSITY,
+    argument2: &NOODLE_RIDGE_SCALED_DENSITY,
+};
+pub const NOODLE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
+    input: &NOODLE_TOGGLE_INTERPOLATED_DENSITY,
+    min_inclusive: -1000000.0,
+    max_exclusive: 0.0,
+    when_in_range: &NOODLE_BLOCKING_DENSITY,
+    when_out_of_range: &NOODLE_OPEN_DENSITY,
 };
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
@@ -27351,6 +27468,7 @@ mod tests {
                 "minecraft:overworld/caves/spaghetti_roughness_function",
                 "minecraft:overworld/caves/pillars",
                 "minecraft:overworld/caves/spaghetti_2d",
+                "minecraft:overworld/caves/noodle",
             ]
         );
         assert_eq!(
@@ -27400,6 +27518,11 @@ mod tests {
             .function;
         assert_eq!(spaghetti_2d.type_name(), "clamp");
         assert_eq!(spaghetti_2d.value_bounds(), (-1.0, 1.0));
+        let noodle = builtin_density_function("overworld/caves/noodle")
+            .unwrap()
+            .function;
+        assert_eq!(noodle.type_name(), "range_choice");
+        assert_eq!(noodle.value_bounds(), (-0.15833333333333333, 64.0));
     }
 
     #[test]
