@@ -74,6 +74,15 @@ pub struct ImprovedNoiseSnapshot {
     pub permutation: [u8; 256],
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PerlinNoiseSnapshot {
+    pub first_octave: i32,
+    pub amplitudes: &'static [f64],
+    pub levels: Vec<Option<ImprovedNoiseSnapshot>>,
+    pub lowest_freq_input_factor: f64,
+    pub lowest_freq_value_factor: f64,
+}
+
 pub const SIMPLEX_GRADIENT: [[i32; 3]; 16] = [
     [1, 1, 0],
     [-1, 1, 0],
@@ -19558,6 +19567,104 @@ pub fn perlin_noise_construction_plan(
     })
 }
 
+pub fn perlin_noise_snapshot(
+    mut random: RandomSourceKind,
+    parameters: NormalNoiseParameters,
+    use_new_initialization: bool,
+) -> Result<PerlinNoiseSnapshot, &'static str> {
+    perlin_noise_construction_plan(parameters, use_new_initialization)?;
+    let octave_count = parameters.amplitudes.len();
+    let zero_octave_index = -parameters.first_octave;
+    let mut levels = vec![None; octave_count];
+
+    if use_new_initialization {
+        let positional = random.fork_positional();
+        for (index, amplitude) in parameters.amplitudes.iter().enumerate() {
+            if *amplitude != 0.0 {
+                let octave = parameters.first_octave + index as i32;
+                let mut octave_random = positional.from_hash_of(&format!("octave_{octave}"));
+                levels[index] = Some(improved_noise_snapshot(&mut octave_random));
+            }
+        }
+    } else {
+        let zero_octave = improved_noise_snapshot(&mut random);
+        if zero_octave_index >= 0 && (zero_octave_index as usize) < octave_count {
+            let zero_index = zero_octave_index as usize;
+            if parameters.amplitudes[zero_index] != 0.0 {
+                levels[zero_index] = Some(zero_octave);
+            }
+        }
+
+        for index in (0..zero_octave_index).rev() {
+            if (index as usize) < octave_count && parameters.amplitudes[index as usize] != 0.0 {
+                levels[index as usize] = Some(improved_noise_snapshot(&mut random));
+            } else {
+                random.consume_count(262);
+            }
+        }
+    }
+
+    Ok(PerlinNoiseSnapshot {
+        first_octave: parameters.first_octave,
+        amplitudes: parameters.amplitudes,
+        levels,
+        lowest_freq_input_factor: 2.0_f64.powi(-zero_octave_index),
+        lowest_freq_value_factor: 2.0_f64.powi(octave_count as i32 - 1)
+            / (2.0_f64.powi(octave_count as i32) - 1.0),
+    })
+}
+
+pub fn perlin_noise_wrap(x: f64) -> f64 {
+    x - (x / 33_554_432.0 + 0.5).floor() * 33_554_432.0
+}
+
+pub fn perlin_noise_sample(
+    snapshot: &PerlinNoiseSnapshot,
+    x: f64,
+    y: f64,
+    z: f64,
+    y_scale: f64,
+    y_fudge: f64,
+) -> f64 {
+    let mut value = 0.0;
+    let mut factor = snapshot.lowest_freq_input_factor;
+    let mut value_factor = snapshot.lowest_freq_value_factor;
+
+    for (index, noise) in snapshot.levels.iter().enumerate() {
+        if let Some(noise) = noise {
+            let noise_value = improved_noise_sample(
+                noise,
+                perlin_noise_wrap(x * factor),
+                perlin_noise_wrap(y * factor),
+                perlin_noise_wrap(z * factor),
+                y_scale * factor,
+                y_fudge * factor,
+            );
+            value += snapshot.amplitudes[index] * noise_value * value_factor;
+        }
+        factor *= 2.0;
+        value_factor /= 2.0;
+    }
+
+    value
+}
+
+pub fn perlin_noise_edge_value(snapshot: &PerlinNoiseSnapshot, noise_value: f64) -> f64 {
+    let mut value = 0.0;
+    let mut value_factor = snapshot.lowest_freq_value_factor;
+    for (index, noise) in snapshot.levels.iter().enumerate() {
+        if noise.is_some() {
+            value += snapshot.amplitudes[index] * noise_value * value_factor;
+        }
+        value_factor /= 2.0;
+    }
+    value
+}
+
+pub fn perlin_noise_max_broken_value(snapshot: &PerlinNoiseSnapshot, y_scale: f64) -> f64 {
+    perlin_noise_edge_value(snapshot, y_scale + 2.0)
+}
+
 pub fn random_state_normal_noise_instantiation_plan(
     seed: i64,
     settings: NoiseGeneratorSettings,
@@ -24139,6 +24246,73 @@ mod tests {
                 .abs()
                 < 1e-12
         );
+    }
+
+    #[test]
+    fn perlin_noise_snapshot_samples_match_vanilla_multi_octave_accumulation() {
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let temperature_parameters =
+            *super::builtin_normal_noise_parameters("minecraft:temperature").unwrap();
+        let temperature_random =
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "temperature")
+                .unwrap()
+                .random;
+        let temperature =
+            super::perlin_noise_snapshot(temperature_random, temperature_parameters, true).unwrap();
+        assert_eq!(temperature.levels.len(), 6);
+        assert_eq!(
+            temperature
+                .levels
+                .iter()
+                .enumerate()
+                .filter_map(|(index, level)| level.as_ref().map(|_| index))
+                .collect::<Vec<_>>(),
+            vec![0, 2]
+        );
+        assert!((temperature.lowest_freq_input_factor - 0.0009765625).abs() < 1e-20);
+        assert!((temperature.lowest_freq_value_factor - 32.0 / 63.0).abs() < 1e-12);
+        assert!(
+            (super::perlin_noise_sample(&temperature, 1.25, -3.5, 8.75, 0.0, 0.0)
+                - -0.22345701304389445)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (super::perlin_noise_sample(&temperature, 1.25, -3.5, 8.75, 0.1, 0.125)
+                - -0.223490286103358)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (super::perlin_noise_edge_value(&temperature, 2.0) - 1.7777777777777777).abs() < 1e-12
+        );
+        assert!((super::perlin_noise_max_broken_value(&temperature, 0.25) - 2.0).abs() < 1e-12);
+
+        let nether_temperature =
+            *super::builtin_normal_noise_parameters("minecraft:nether/temperature").unwrap();
+        let legacy_nether = super::perlin_noise_snapshot(
+            super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345)),
+            nether_temperature,
+            false,
+        )
+        .unwrap();
+        assert_eq!(legacy_nether.levels.len(), 2);
+        assert!(legacy_nether.levels.iter().all(Option::is_some));
+        assert!(
+            (super::perlin_noise_sample(&legacy_nether, 1.25, -3.5, 8.75, 0.0, 0.0)
+                - -0.17877020584284886)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (super::perlin_noise_sample(&legacy_nether, 1.25, -3.5, 8.75, 0.1, 0.125)
+                - -0.17802408020246563)
+                .abs()
+                < 1e-12
+        );
+        assert!((super::perlin_noise_edge_value(&legacy_nether, 2.0) - 2.0).abs() < 1e-12);
+        assert!((super::perlin_noise_max_broken_value(&legacy_nether, 0.25) - 2.25).abs() < 1e-12);
+        assert_eq!(super::perlin_noise_wrap(33_554_432.0 + 2.5), 2.5);
     }
 
     #[test]
