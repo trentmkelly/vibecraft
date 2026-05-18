@@ -1021,6 +1021,27 @@ pub struct DeltaPlacementBlock {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetherForestVegetationConfigModel {
+    pub state_provider: BlockStateProviderModel,
+    pub spread_width: i32,
+    pub spread_height: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VineColumnBlockKind {
+    Plant,
+    Head,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VineColumnBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub kind: VineColumnBlockKind,
+    pub age: Option<i32>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -9184,6 +9205,161 @@ pub fn glowstone_can_grow(candidate_empty: bool, glowstone_neighbors: i32) -> bo
     candidate_empty && glowstone_neighbors == 1
 }
 
+pub fn nether_forest_vegetation_can_start(
+    below_state: &str,
+    y: i32,
+    min_y: i32,
+    max_y: i32,
+) -> bool {
+    matches!(
+        below_state,
+        "minecraft:crimson_nylium" | "minecraft:warped_nylium"
+    ) && y >= min_y + 1
+        && y + 1 <= max_y
+}
+
+pub fn validate_nether_forest_vegetation_config(
+    config: &NetherForestVegetationConfigModel,
+) -> Result<(), &'static str> {
+    if config.spread_width <= 0 || config.spread_height <= 0 {
+        Err("nether forest vegetation spread values must be positive")
+    } else {
+        Ok(())
+    }
+}
+
+pub fn nether_forest_vegetation_offset(
+    spread_width: i32,
+    spread_height: i32,
+    x_a: i32,
+    x_b: i32,
+    y_a: i32,
+    y_b: i32,
+    z_a: i32,
+    z_b: i32,
+) -> BlockPos {
+    BlockPos {
+        x: x_a.rem_euclid(spread_width) - x_b.rem_euclid(spread_width),
+        y: y_a.rem_euclid(spread_height) - y_b.rem_euclid(spread_height),
+        z: z_a.rem_euclid(spread_width) - z_b.rem_euclid(spread_width),
+    }
+}
+
+pub fn nether_forest_vegetation_attempts(spread_width: i32) -> i32 {
+    spread_width * spread_width
+}
+
+pub fn twisting_vines_valid_ground(state: &str) -> bool {
+    matches!(
+        state,
+        "minecraft:netherrack" | "minecraft:warped_nylium" | "minecraft:warped_wart_block"
+    )
+}
+
+pub fn weeping_vines_valid_ceiling(state: &str) -> bool {
+    matches!(
+        state,
+        "minecraft:netherrack" | "minecraft:nether_wart_block"
+    )
+}
+
+pub fn vine_height(base_roll: i32, max_height: i32, double_roll: i32, single_roll: i32) -> i32 {
+    let mut height = 1 + base_roll.rem_euclid(max_height.max(1));
+    if double_roll.rem_euclid(6) == 0 {
+        height *= 2;
+    }
+    if single_roll.rem_euclid(5) == 0 {
+        height = 1;
+    }
+    height
+}
+
+pub fn vine_age(min_age: i32, max_age: i32, roll: i32) -> i32 {
+    let span = (max_age - min_age + 1).max(1);
+    min_age + roll.rem_euclid(span)
+}
+
+pub fn twisting_vines_column(
+    origin: BlockPos,
+    total_height: i32,
+    empty_up: &[bool],
+    blocked_above: &[bool],
+    age_roll: i32,
+) -> Vec<VineColumnBlock> {
+    let mut blocks = Vec::new();
+    for height in 1..=total_height {
+        let step = (height - 1) as usize;
+        if !empty_up.get(step).copied().unwrap_or(false) {
+            continue;
+        }
+        let pos = BlockPos {
+            x: origin.x,
+            y: origin.y + step as i32,
+            z: origin.z,
+        };
+        if height == total_height || blocked_above.get(step).copied().unwrap_or(false) {
+            blocks.push(VineColumnBlock {
+                pos,
+                state: "minecraft:twisting_vines",
+                kind: VineColumnBlockKind::Head,
+                age: Some(vine_age(17, 25, age_roll)),
+            });
+            break;
+        }
+        blocks.push(VineColumnBlock {
+            pos,
+            state: "minecraft:twisting_vines_plant",
+            kind: VineColumnBlockKind::Plant,
+            age: None,
+        });
+    }
+    blocks
+}
+
+pub fn weeping_vines_column(
+    origin: BlockPos,
+    total_height: i32,
+    empty_down: &[bool],
+    blocked_below: &[bool],
+    age_roll: i32,
+) -> Vec<VineColumnBlock> {
+    let mut blocks = Vec::new();
+    for height in 0..=total_height {
+        let step = height as usize;
+        if !empty_down.get(step).copied().unwrap_or(false) {
+            continue;
+        }
+        let pos = BlockPos {
+            x: origin.x,
+            y: origin.y - height,
+            z: origin.z,
+        };
+        if height == total_height || blocked_below.get(step).copied().unwrap_or(false) {
+            blocks.push(VineColumnBlock {
+                pos,
+                state: "minecraft:weeping_vines",
+                kind: VineColumnBlockKind::Head,
+                age: Some(vine_age(17, 25, age_roll)),
+            });
+            break;
+        }
+        blocks.push(VineColumnBlock {
+            pos,
+            state: "minecraft:weeping_vines_plant",
+            kind: VineColumnBlockKind::Plant,
+            age: None,
+        });
+    }
+    blocks
+}
+
+pub fn weeping_vines_wart_can_grow(
+    candidate_empty: bool,
+    wart_or_netherrack_neighbors: i32,
+) -> bool {
+    candidate_empty && wart_or_netherrack_neighbors == 1
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -14034,6 +14210,83 @@ mod tests {
         );
         assert!(super::glowstone_can_grow(true, 1));
         assert!(!super::glowstone_can_grow(true, 2));
+        let nether_vegetation = super::NetherForestVegetationConfigModel {
+            state_provider: BlockStateProviderModel::Simple("minecraft:crimson_roots"),
+            spread_width: 8,
+            spread_height: 4,
+        };
+        assert_eq!(
+            super::validate_nether_forest_vegetation_config(&nether_vegetation),
+            Ok(())
+        );
+        assert!(super::nether_forest_vegetation_can_start(
+            "minecraft:crimson_nylium",
+            64,
+            -64,
+            320,
+        ));
+        assert!(!super::nether_forest_vegetation_can_start(
+            "minecraft:netherrack",
+            64,
+            -64,
+            320,
+        ));
+        assert_eq!(super::nether_forest_vegetation_attempts(8), 64);
+        assert_eq!(
+            super::nether_forest_vegetation_offset(8, 4, 7, 1, 3, 1, 2, 6),
+            BlockPos { x: 6, y: 2, z: -4 }
+        );
+        assert!(super::twisting_vines_valid_ground(
+            "minecraft:warped_nylium"
+        ));
+        assert!(super::weeping_vines_valid_ceiling(
+            "minecraft:nether_wart_block"
+        ));
+        assert_eq!(super::vine_height(2, 8, 6, 1), 6);
+        assert_eq!(super::vine_height(2, 8, 1, 5), 1);
+        assert_eq!(super::vine_age(17, 25, 9), 17);
+        let twisting_column = super::twisting_vines_column(
+            BlockPos { x: 0, y: 64, z: 0 },
+            3,
+            &[true, true, true],
+            &[false, true, false],
+            1,
+        );
+        assert_eq!(
+            twisting_column,
+            vec![
+                super::VineColumnBlock {
+                    pos: BlockPos { x: 0, y: 64, z: 0 },
+                    state: "minecraft:twisting_vines_plant",
+                    kind: super::VineColumnBlockKind::Plant,
+                    age: None,
+                },
+                super::VineColumnBlock {
+                    pos: BlockPos { x: 0, y: 65, z: 0 },
+                    state: "minecraft:twisting_vines",
+                    kind: super::VineColumnBlockKind::Head,
+                    age: Some(18),
+                },
+            ]
+        );
+        let weeping_column = super::weeping_vines_column(
+            BlockPos { x: 0, y: 70, z: 0 },
+            2,
+            &[true, true, true],
+            &[false, false, true],
+            2,
+        );
+        assert_eq!(
+            weeping_column.last(),
+            Some(&super::VineColumnBlock {
+                pos: BlockPos { x: 0, y: 68, z: 0 },
+                state: "minecraft:weeping_vines",
+                kind: super::VineColumnBlockKind::Head,
+                age: Some(19),
+            })
+        );
+        assert!(super::weeping_vines_wart_can_grow(true, 1));
+        assert!(!super::weeping_vines_wart_can_grow(true, 2));
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
