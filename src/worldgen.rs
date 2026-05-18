@@ -7051,6 +7051,48 @@ pub const GROVE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const SNOWY_SLOPES_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    MOUNTAIN_ORE_FEATURE_STEP,
+    MOUNTAIN_UNDERGROUND_DECORATION_STEP,
+    GROVE_FEATURE_STEPS[8],
+    &["minecraft:glow_lichen", "minecraft:patch_pumpkin"],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const FROZEN_PEAKS_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    MOUNTAIN_ORE_FEATURE_STEP,
+    MOUNTAIN_UNDERGROUND_DECORATION_STEP,
+    GROVE_FEATURE_STEPS[8],
+    &["minecraft:glow_lichen"],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const STONY_PEAKS_FEATURE_STEPS: &[&[&str]] = &[
+    FROZEN_PEAKS_FEATURE_STEPS[0],
+    FROZEN_PEAKS_FEATURE_STEPS[1],
+    FROZEN_PEAKS_FEATURE_STEPS[2],
+    FROZEN_PEAKS_FEATURE_STEPS[3],
+    FROZEN_PEAKS_FEATURE_STEPS[4],
+    FROZEN_PEAKS_FEATURE_STEPS[5],
+    FROZEN_PEAKS_FEATURE_STEPS[6],
+    FROZEN_PEAKS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    FROZEN_PEAKS_FEATURE_STEPS[9],
+    FROZEN_PEAKS_FEATURE_STEPS[10],
+];
+
 pub const WINDSWEPT_HILLS_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7541,6 +7583,28 @@ pub const GROVE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         max_count: 4,
     },
 ];
+
+pub const SNOWY_SLOPES_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:rabbit",
+        weight: 4,
+        min_count: 2,
+        max_count: 3,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:goat",
+        weight: 5,
+        min_count: 1,
+        max_count: 3,
+    },
+];
+
+pub const GOAT_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:goat",
+    weight: 5,
+    min_count: 1,
+    max_count: 3,
+}];
 
 pub const WINDSWEPT_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
@@ -9062,6 +9126,111 @@ pub const GROVE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const SNOWY_SLOPES_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: SNOWY_SLOPES_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const FROZEN_PEAKS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: GOAT_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const STONY_PEAKS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const WINDSWEPT_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -9968,6 +10137,38 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: GROVE_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:snowy_slopes",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SNOWY_SLOPES_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SNOWY_SLOPES_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:frozen_peaks",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: FROZEN_PEAKS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: FROZEN_PEAKS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:jagged_peaks",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: FROZEN_PEAKS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: FROZEN_PEAKS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:stony_peaks",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: STONY_PEAKS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: STONY_PEAKS_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:windswept_hills",
@@ -24337,6 +24538,67 @@ mod tests {
             super::biome_spawns_for_category(grove, "creature"),
             super::GROVE_CREATURE_SPAWNS
         );
+
+        let snowy_slopes = super::biome_generation_settings("snowy_slopes").unwrap();
+        assert_eq!(snowy_slopes.biome, "minecraft:snowy_slopes");
+        assert!(super::biome_has_placed_feature(
+            snowy_slopes,
+            "minecraft:spring_lava_frozen"
+        ));
+        assert!(super::biome_has_placed_feature(
+            snowy_slopes,
+            "minecraft:patch_pumpkin"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            snowy_slopes,
+            "minecraft:trees_grove"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(snowy_slopes, "creature"),
+            super::SNOWY_SLOPES_CREATURE_SPAWNS
+        );
+
+        let frozen_peaks = super::biome_generation_settings("frozen_peaks").unwrap();
+        assert_eq!(frozen_peaks.biome, "minecraft:frozen_peaks");
+        assert!(super::biome_has_placed_feature(
+            frozen_peaks,
+            "minecraft:ore_emerald"
+        ));
+        assert!(super::biome_has_placed_feature(
+            frozen_peaks,
+            "minecraft:spring_lava_frozen"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            frozen_peaks,
+            "minecraft:patch_pumpkin"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(frozen_peaks, "creature"),
+            super::GOAT_CREATURE_SPAWNS
+        );
+
+        let jagged_peaks = super::biome_generation_settings("jagged_peaks").unwrap();
+        assert_eq!(jagged_peaks.biome, "minecraft:jagged_peaks");
+        assert_eq!(
+            jagged_peaks.feature_steps,
+            super::FROZEN_PEAKS_FEATURE_STEPS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(jagged_peaks, "creature"),
+            super::GOAT_CREATURE_SPAWNS
+        );
+
+        let stony_peaks = super::biome_generation_settings("stony_peaks").unwrap();
+        assert_eq!(stony_peaks.biome, "minecraft:stony_peaks");
+        assert!(super::biome_has_placed_feature(
+            stony_peaks,
+            "minecraft:ore_infested"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            stony_peaks,
+            "minecraft:spring_lava_frozen"
+        ));
+        assert!(super::biome_spawns_for_category(stony_peaks, "creature").is_empty());
 
         let windswept_hills = super::biome_generation_settings("windswept_hills").unwrap();
         assert_eq!(windswept_hills.biome, "minecraft:windswept_hills");
