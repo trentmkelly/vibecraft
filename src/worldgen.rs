@@ -815,6 +815,33 @@ pub struct LakePlacementBlock {
     pub mark_above_for_post_processing: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FossilFeatureConfigurationModel {
+    pub fossil_structures: Vec<&'static str>,
+    pub overlay_structures: Vec<&'static str>,
+    pub fossil_processors: &'static str,
+    pub overlay_processors: &'static str,
+    pub max_empty_corners_allowed: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureRotation {
+    None,
+    Clockwise90,
+    Clockwise180,
+    Counterclockwise90,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FossilPlacementPlan {
+    pub fossil_structure: &'static str,
+    pub overlay_structure: &'static str,
+    pub rotation: StructureRotation,
+    pub target_pos: BlockPos,
+    pub fossil_processors: &'static str,
+    pub overlay_processors: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -8026,6 +8053,73 @@ pub fn lake_placement_plan(
     Some(blocks)
 }
 
+pub fn validate_fossil_config(
+    config: &FossilFeatureConfigurationModel,
+) -> Result<(), &'static str> {
+    if config.fossil_structures.is_empty() {
+        Err("Fossil structure lists need at least one entry")
+    } else if config.fossil_structures.len() != config.overlay_structures.len() {
+        Err("Fossil structure lists must be equal lengths")
+    } else if !(0..=7).contains(&config.max_empty_corners_allowed) {
+        Err("max_empty_corners_allowed must be in 0..=7")
+    } else {
+        Ok(())
+    }
+}
+
+pub fn fossil_rotation(rotation_roll: i32) -> StructureRotation {
+    match rotation_roll.rem_euclid(4) {
+        0 => StructureRotation::None,
+        1 => StructureRotation::Clockwise90,
+        2 => StructureRotation::Clockwise180,
+        _ => StructureRotation::Counterclockwise90,
+    }
+}
+
+pub fn fossil_target_y(lowest_surface_y: i32, min_y: i32, depth_roll: i32) -> i32 {
+    (lowest_surface_y - 15 - depth_roll.rem_euclid(10)).max(min_y + 10)
+}
+
+pub fn fossil_low_corner(origin: BlockPos, rotated_size_x: i32, rotated_size_z: i32) -> BlockPos {
+    BlockPos {
+        x: origin.x - rotated_size_x / 2,
+        y: origin.y,
+        z: origin.z - rotated_size_z / 2,
+    }
+}
+
+pub fn fossil_placement_plan(
+    config: &FossilFeatureConfigurationModel,
+    origin: BlockPos,
+    rotated_size_x: i32,
+    rotated_size_z: i32,
+    lowest_surface_y: i32,
+    min_y: i32,
+    rotation_roll: i32,
+    fossil_index_roll: i32,
+    depth_roll: i32,
+    empty_corners: i32,
+) -> Option<FossilPlacementPlan> {
+    validate_fossil_config(config).ok()?;
+    if empty_corners > config.max_empty_corners_allowed {
+        return None;
+    }
+    let index = fossil_index_roll.rem_euclid(config.fossil_structures.len() as i32) as usize;
+    let low_corner = fossil_low_corner(origin, rotated_size_x, rotated_size_z);
+    Some(FossilPlacementPlan {
+        fossil_structure: config.fossil_structures[index],
+        overlay_structure: config.overlay_structures[index],
+        rotation: fossil_rotation(rotation_roll),
+        target_pos: BlockPos {
+            x: low_corner.x,
+            y: fossil_target_y(lowest_surface_y, min_y, depth_roll),
+            z: low_corner.z,
+        },
+        fossil_processors: config.fossil_processors,
+        overlay_processors: config.overlay_processors,
+    })
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -12219,6 +12313,97 @@ mod tests {
             schedule_tick: false,
             mark_above_for_post_processing: false,
         }));
+        let fossil_config = super::FossilFeatureConfigurationModel {
+            fossil_structures: vec!["minecraft:fossil/spine_1", "minecraft:fossil/skull_1"],
+            overlay_structures: vec![
+                "minecraft:fossil/spine_1_coal",
+                "minecraft:fossil/skull_1_coal",
+            ],
+            fossil_processors: "minecraft:fossil_rot",
+            overlay_processors: "minecraft:fossil_coal",
+            max_empty_corners_allowed: 4,
+        };
+        assert_eq!(super::validate_fossil_config(&fossil_config), Ok(()));
+        assert_eq!(
+            super::validate_fossil_config(&super::FossilFeatureConfigurationModel {
+                fossil_structures: Vec::new(),
+                overlay_structures: Vec::new(),
+                fossil_processors: "minecraft:fossil_rot",
+                overlay_processors: "minecraft:fossil_coal",
+                max_empty_corners_allowed: 4,
+            }),
+            Err("Fossil structure lists need at least one entry")
+        );
+        assert_eq!(
+            super::fossil_rotation(3),
+            super::StructureRotation::Counterclockwise90
+        );
+        assert_eq!(super::fossil_target_y(50, -64, 9), 26);
+        assert_eq!(
+            super::fossil_low_corner(
+                BlockPos {
+                    x: 100,
+                    y: 40,
+                    z: 200
+                },
+                12,
+                8
+            ),
+            BlockPos {
+                x: 94,
+                y: 40,
+                z: 196
+            }
+        );
+        assert_eq!(
+            super::fossil_placement_plan(
+                &fossil_config,
+                BlockPos {
+                    x: 100,
+                    y: 40,
+                    z: 200
+                },
+                12,
+                8,
+                50,
+                -64,
+                1,
+                1,
+                0,
+                4,
+            ),
+            Some(super::FossilPlacementPlan {
+                fossil_structure: "minecraft:fossil/skull_1",
+                overlay_structure: "minecraft:fossil/skull_1_coal",
+                rotation: super::StructureRotation::Clockwise90,
+                target_pos: BlockPos {
+                    x: 94,
+                    y: 35,
+                    z: 196
+                },
+                fossil_processors: "minecraft:fossil_rot",
+                overlay_processors: "minecraft:fossil_coal",
+            })
+        );
+        assert_eq!(
+            super::fossil_placement_plan(
+                &fossil_config,
+                BlockPos {
+                    x: 100,
+                    y: 40,
+                    z: 200
+                },
+                12,
+                8,
+                50,
+                -64,
+                1,
+                1,
+                0,
+                5,
+            ),
+            None
+        );
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
