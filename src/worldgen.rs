@@ -19426,6 +19426,103 @@ impl DensityFunction {
         }
     }
 
+    pub fn compute_with_noise(
+        self,
+        seed: i64,
+        settings: NoiseGeneratorSettings,
+        block_x: i32,
+        block_y: i32,
+        block_z: i32,
+    ) -> f64 {
+        match self {
+            DensityFunction::Reference(id) => builtin_density_function(id)
+                .map(|entry| {
+                    entry
+                        .function
+                        .compute_with_noise(seed, settings, block_x, block_y, block_z)
+                })
+                .unwrap_or(0.0),
+            DensityFunction::Constant(value) => value,
+            DensityFunction::YClampedGradient { .. } => self.compute(block_y),
+            DensityFunction::Clamp { input, min, max } => input
+                .compute_with_noise(seed, settings, block_x, block_y, block_z)
+                .clamp(min, max),
+            DensityFunction::Mapped { kind, input } => {
+                kind.transform(input.compute_with_noise(seed, settings, block_x, block_y, block_z))
+            }
+            DensityFunction::Binary {
+                kind,
+                argument1,
+                argument2,
+            } => kind.apply(
+                argument1.compute_with_noise(seed, settings, block_x, block_y, block_z),
+                argument2.compute_with_noise(seed, settings, block_x, block_y, block_z),
+            ),
+            DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
+                input.compute_with_noise(seed, settings, block_x, block_y, block_z)
+            }
+            DensityFunction::Noise {
+                noise,
+                xz_scale,
+                y_scale,
+            } => random_state_normal_noise_snapshot(seed, settings, noise)
+                .map(|snapshot| {
+                    normal_noise_sample(
+                        &snapshot,
+                        f64::from(block_x) * xz_scale,
+                        f64::from(block_y) * y_scale,
+                        f64::from(block_z) * xz_scale,
+                    )
+                })
+                .unwrap_or(0.0),
+            DensityFunction::ShiftedNoise {
+                shift_x,
+                shift_y,
+                shift_z,
+                xz_scale,
+                y_scale,
+                noise,
+            } => {
+                let x = f64::from(block_x) * xz_scale
+                    + shift_x.compute_with_noise(seed, settings, block_x, block_y, block_z);
+                let y = f64::from(block_y) * y_scale
+                    + shift_y.compute_with_noise(seed, settings, block_x, block_y, block_z);
+                let z = f64::from(block_z) * xz_scale
+                    + shift_z.compute_with_noise(seed, settings, block_x, block_y, block_z);
+                random_state_normal_noise_snapshot(seed, settings, noise)
+                    .map(|snapshot| normal_noise_sample(&snapshot, x, y, z))
+                    .unwrap_or(0.0)
+            }
+            DensityFunction::WeirdScaledSampler {
+                input,
+                noise,
+                rarity_mapper,
+            } => {
+                let rarity = rarity_mapper
+                    .map_value(input.compute_with_noise(seed, settings, block_x, block_y, block_z));
+                random_state_normal_noise_snapshot(seed, settings, noise)
+                    .map(|snapshot| {
+                        rarity
+                            * normal_noise_sample(
+                                &snapshot,
+                                f64::from(block_x) / rarity,
+                                f64::from(block_y) / rarity,
+                                f64::from(block_z) / rarity,
+                            )
+                            .abs()
+                    })
+                    .unwrap_or(0.0)
+            }
+            DensityFunction::BlendAlpha => 1.0,
+            DensityFunction::BlendOffset => 0.0,
+            DensityFunction::BlendedNoise { .. }
+            | DensityFunction::EndIslands { .. }
+            | DensityFunction::Beardifier
+            | DensityFunction::Spline
+            | DensityFunction::FindTopSurface => 0.0,
+        }
+    }
+
     pub fn type_name(self) -> &'static str {
         match self {
             DensityFunction::Reference(_) => "reference",
@@ -19570,6 +19667,35 @@ impl RarityValueMapper {
         match self {
             RarityValueMapper::Type1 => "type_1",
             RarityValueMapper::Type2 => "type_2",
+        }
+    }
+
+    pub fn map_value(self, rarity_factor: f64) -> f64 {
+        match self {
+            RarityValueMapper::Type1 => {
+                if rarity_factor < -0.5 {
+                    0.75
+                } else if rarity_factor < 0.0 {
+                    1.0
+                } else if rarity_factor < 0.5 {
+                    1.5
+                } else {
+                    2.0
+                }
+            }
+            RarityValueMapper::Type2 => {
+                if rarity_factor < -0.75 {
+                    0.5
+                } else if rarity_factor < -0.5 {
+                    0.75
+                } else if rarity_factor < 0.5 {
+                    1.0
+                } else if rarity_factor < 0.75 {
+                    2.0
+                } else {
+                    3.0
+                }
+            }
         }
     }
 }
@@ -19880,6 +20006,16 @@ pub fn normal_noise_sample(snapshot: &NormalNoiseSnapshot, x: f64, y: f64, z: f6
         0.0,
     );
     (first + second) * snapshot.value_factor
+}
+
+pub fn random_state_normal_noise_snapshot(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    noise_id: &str,
+) -> Option<NormalNoiseSnapshot> {
+    let plan = random_state_normal_noise_instantiation_plan(seed, settings, noise_id)?;
+    let parameters = builtin_normal_noise_parameters(plan.id)?;
+    normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization).ok()
 }
 
 pub fn normal_noise_sample_with_derivative(
@@ -26018,6 +26154,41 @@ mod tests {
         assert_eq!(BinaryDensityFunction::Mul.apply(-2.0, 3.0), -6.0);
         assert_eq!(BinaryDensityFunction::Min.apply(-2.0, 3.0), -2.0);
         assert_eq!(BinaryDensityFunction::Max.apply(-2.0, 3.0), 3.0);
+    }
+
+    #[test]
+    fn density_function_noise_evaluators_resolve_random_state_noise_holders() {
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let noise = DensityFunction::Noise {
+            noise: "minecraft:temperature",
+            xz_scale: 0.25,
+            y_scale: 0.0,
+        };
+        let shifted = DensityFunction::ShiftedNoise {
+            shift_x: &super::SHIFT_X_DENSITY,
+            shift_y: &super::ZERO_DENSITY,
+            shift_z: &super::SHIFT_Z_DENSITY,
+            xz_scale: 0.25,
+            y_scale: 0.0,
+            noise: "minecraft:temperature",
+        };
+        let weird = DensityFunction::WeirdScaledSampler {
+            input: &TEST_POSITIVE_DENSITY,
+            noise: "minecraft:spaghetti_3d_1",
+            rarity_mapper: super::RarityValueMapper::Type1,
+        };
+
+        let noise_value = noise.compute_with_noise(12345, overworld, 16, 64, -32);
+        let shifted_value = shifted.compute_with_noise(12345, overworld, 16, 64, -32);
+        let weird_value = weird.compute_with_noise(12345, overworld, 16, 64, -32);
+        assert!((noise_value - -0.02846337681055331).abs() < 1e-12);
+        assert!((shifted_value - -0.02846337681055331).abs() < 1e-12);
+        assert!((weird_value - 0.5833159524778098).abs() < 1e-12);
+
+        assert_eq!(super::RarityValueMapper::Type1.map_value(-0.75), 0.75);
+        assert_eq!(super::RarityValueMapper::Type1.map_value(0.25), 1.5);
+        assert_eq!(super::RarityValueMapper::Type2.map_value(-0.8), 0.5);
+        assert_eq!(super::RarityValueMapper::Type2.map_value(0.8), 3.0);
     }
 
     #[test]
