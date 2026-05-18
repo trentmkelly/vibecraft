@@ -1668,6 +1668,44 @@ pub struct DefaultFeatureJigsawModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PoolElementStructurePieceModel {
+    pub element: JigsawPoolElementModel,
+    pub position: (i32, i32, i32),
+    pub ground_level_delta: i32,
+    pub rotation: StructurePieceRotation,
+    pub bounding_box: StructureBoundingBoxModel,
+    pub liquid_settings: LiquidSettingsModel,
+    pub junctions: Vec<JigsawJunctionModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PoolElementStructurePieceTagModel {
+    pub pos_x: i32,
+    pub pos_y: i32,
+    pub pos_z: i32,
+    pub ground_level_delta: i32,
+    pub rotation: StructurePieceRotation,
+    pub junctions: Vec<JigsawJunctionTagModel>,
+    pub liquid_settings: Option<LiquidSettingsModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawJunctionYOffsetCase {
+    BothRigid,
+    SourceRigid,
+    TargetRigid,
+    BothTerrainMatching,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawChildPlacementYModel {
+    pub target_box_y: i32,
+    pub target_ground_level_delta: i32,
+    pub junction_y: i32,
+    pub case: JigsawJunctionYOffsetCase,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
     pub chunk_pos: ChunkPos,
@@ -7900,6 +7938,146 @@ impl JigsawTemplatePoolModel {
             expanded_index -= weight;
         }
         None
+    }
+}
+
+impl PoolElementStructurePieceModel {
+    pub const DEFAULT_LIQUID_SETTINGS: LiquidSettingsModel = LiquidSettingsModel::ApplyWaterlogging;
+
+    pub fn new(
+        element: JigsawPoolElementModel,
+        position: (i32, i32, i32),
+        ground_level_delta: i32,
+        rotation: StructurePieceRotation,
+        bounding_box: StructureBoundingBoxModel,
+        liquid_settings: LiquidSettingsModel,
+    ) -> Self {
+        Self {
+            element,
+            position,
+            ground_level_delta,
+            rotation,
+            bounding_box,
+            liquid_settings,
+            junctions: Vec::new(),
+        }
+    }
+
+    pub fn add_junction(&mut self, junction: JigsawJunctionModel) {
+        self.junctions.push(junction);
+    }
+
+    pub fn move_by(&mut self, dx: i32, dy: i32, dz: i32) {
+        self.bounding_box = self.bounding_box.moved(dx, dy, dz);
+        self.position = (
+            self.position.0 + dx,
+            self.position.1 + dy,
+            self.position.2 + dz,
+        );
+    }
+
+    pub fn save_tag(&self) -> PoolElementStructurePieceTagModel {
+        PoolElementStructurePieceTagModel {
+            pos_x: self.position.0,
+            pos_y: self.position.1,
+            pos_z: self.position.2,
+            ground_level_delta: self.ground_level_delta,
+            rotation: self.rotation,
+            junctions: self
+                .junctions
+                .iter()
+                .map(JigsawJunctionModel::serialize)
+                .collect(),
+            liquid_settings: (self.liquid_settings != Self::DEFAULT_LIQUID_SETTINGS)
+                .then_some(self.liquid_settings),
+        }
+    }
+}
+
+pub fn jigsaw_child_placement_y(
+    source_projection: JigsawProjectionModel,
+    target_projection: JigsawProjectionModel,
+    source_box_y: i32,
+    source_jigsaw_local_y: i32,
+    target_jigsaw_local_y: i32,
+    source_direction_step_y: i32,
+    source_ground_level_delta: i32,
+    target_ground_level_delta: i32,
+    source_jigsaw_base_height: i32,
+) -> JigsawChildPlacementYModel {
+    let source_rigid = source_projection == JigsawProjectionModel::Rigid;
+    let target_rigid = target_projection == JigsawProjectionModel::Rigid;
+    let delta_y = source_jigsaw_local_y - target_jigsaw_local_y + source_direction_step_y;
+    let target_box_y = if source_rigid && target_rigid {
+        source_box_y + delta_y
+    } else {
+        source_jigsaw_base_height - target_jigsaw_local_y
+    };
+    let target_ground_level_delta = if target_rigid {
+        source_ground_level_delta - delta_y
+    } else {
+        target_ground_level_delta
+    };
+    let (junction_y, case) = if source_rigid {
+        (
+            source_box_y + source_jigsaw_local_y,
+            if target_rigid {
+                JigsawJunctionYOffsetCase::BothRigid
+            } else {
+                JigsawJunctionYOffsetCase::SourceRigid
+            },
+        )
+    } else if target_rigid {
+        (
+            target_box_y + target_jigsaw_local_y,
+            JigsawJunctionYOffsetCase::TargetRigid,
+        )
+    } else {
+        (
+            source_jigsaw_base_height + delta_y / 2,
+            JigsawJunctionYOffsetCase::BothTerrainMatching,
+        )
+    };
+
+    JigsawChildPlacementYModel {
+        target_box_y,
+        target_ground_level_delta,
+        junction_y,
+        case,
+    }
+}
+
+pub fn jigsaw_source_junction(
+    target_jigsaw_pos: (i32, i32, i32),
+    placement: JigsawChildPlacementYModel,
+    source_jigsaw_local_y: i32,
+    source_ground_level_delta: i32,
+    delta_y: i32,
+    target_projection: JigsawProjectionModel,
+) -> JigsawJunctionModel {
+    JigsawJunctionModel {
+        source_x: target_jigsaw_pos.0,
+        source_ground_y: placement.junction_y - source_jigsaw_local_y + source_ground_level_delta,
+        source_z: target_jigsaw_pos.2,
+        delta_y,
+        dest_projection: target_projection,
+    }
+}
+
+pub fn jigsaw_target_junction(
+    source_jigsaw_pos: (i32, i32, i32),
+    placement: JigsawChildPlacementYModel,
+    target_jigsaw_local_y: i32,
+    target_ground_level_delta: i32,
+    delta_y: i32,
+    source_projection: JigsawProjectionModel,
+) -> JigsawJunctionModel {
+    JigsawJunctionModel {
+        source_x: source_jigsaw_pos.0,
+        source_ground_y: placement.junction_y - target_jigsaw_local_y + target_ground_level_delta,
+        source_z: source_jigsaw_pos.2,
+        delta_y: -delta_y,
+        dest_projection: source_projection,
     }
 }
 
@@ -19545,6 +19723,162 @@ mod tests {
                 }],
             ),
             Err("template pool element weight must be in 1..=150".to_string())
+        );
+    }
+
+    #[test]
+    fn pool_element_structure_piece_state_and_junction_y_math_match_vanilla() {
+        let element = super::JigsawPoolElementModel::single(
+            "minecraft:bastion/starts/start",
+            &[],
+            super::JigsawProjectionModel::Rigid,
+            None,
+        );
+        let mut piece = super::PoolElementStructurePieceModel::new(
+            element,
+            (10, 64, -8),
+            1,
+            super::StructurePieceRotation::Clockwise90,
+            super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: 64,
+                min_z: -8,
+                max_x: 20,
+                max_y: 72,
+                max_z: 2,
+            },
+            super::PoolElementStructurePieceModel::DEFAULT_LIQUID_SETTINGS,
+        );
+        piece.add_junction(super::JigsawJunctionModel {
+            source_x: 21,
+            source_ground_y: 66,
+            source_z: -2,
+            delta_y: 0,
+            dest_projection: super::JigsawProjectionModel::Rigid,
+        });
+        piece.move_by(1, -2, 3);
+        assert_eq!(piece.position, (11, 62, -5));
+        assert_eq!(
+            piece.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: 11,
+                min_y: 62,
+                min_z: -5,
+                max_x: 21,
+                max_y: 70,
+                max_z: 5,
+            }
+        );
+        assert_eq!(
+            piece.save_tag(),
+            super::PoolElementStructurePieceTagModel {
+                pos_x: 11,
+                pos_y: 62,
+                pos_z: -5,
+                ground_level_delta: 1,
+                rotation: super::StructurePieceRotation::Clockwise90,
+                junctions: vec![super::JigsawJunctionTagModel {
+                    source_x: 21,
+                    source_ground_y: 66,
+                    source_z: -2,
+                    delta_y: 0,
+                    dest_proj: "rigid",
+                }],
+                liquid_settings: None,
+            }
+        );
+        piece.liquid_settings = super::LiquidSettingsModel::IgnoreWaterlogging;
+        assert_eq!(
+            piece.save_tag().liquid_settings,
+            Some(super::LiquidSettingsModel::IgnoreWaterlogging)
+        );
+
+        let both_rigid = super::jigsaw_child_placement_y(
+            super::JigsawProjectionModel::Rigid,
+            super::JigsawProjectionModel::Rigid,
+            64,
+            3,
+            1,
+            0,
+            5,
+            1,
+            90,
+        );
+        assert_eq!(
+            both_rigid,
+            super::JigsawChildPlacementYModel {
+                target_box_y: 66,
+                target_ground_level_delta: 3,
+                junction_y: 67,
+                case: super::JigsawJunctionYOffsetCase::BothRigid,
+            }
+        );
+
+        let terrain_target = super::jigsaw_child_placement_y(
+            super::JigsawProjectionModel::Rigid,
+            super::JigsawProjectionModel::TerrainMatching,
+            64,
+            3,
+            1,
+            0,
+            5,
+            1,
+            90,
+        );
+        assert_eq!(terrain_target.target_box_y, 89);
+        assert_eq!(terrain_target.target_ground_level_delta, 1);
+        assert_eq!(
+            terrain_target.case,
+            super::JigsawJunctionYOffsetCase::SourceRigid
+        );
+
+        let both_terrain = super::jigsaw_child_placement_y(
+            super::JigsawProjectionModel::TerrainMatching,
+            super::JigsawProjectionModel::TerrainMatching,
+            64,
+            4,
+            1,
+            -1,
+            2,
+            1,
+            91,
+        );
+        let delta_y = 4 - 1 - 1;
+        assert_eq!(both_terrain.target_box_y, 90);
+        assert_eq!(both_terrain.junction_y, 91 + delta_y / 2);
+        assert_eq!(
+            super::jigsaw_source_junction(
+                (30, 68, -4),
+                both_terrain,
+                4,
+                2,
+                delta_y,
+                super::JigsawProjectionModel::TerrainMatching,
+            ),
+            super::JigsawJunctionModel {
+                source_x: 30,
+                source_ground_y: 90,
+                source_z: -4,
+                delta_y,
+                dest_projection: super::JigsawProjectionModel::TerrainMatching,
+            }
+        );
+        assert_eq!(
+            super::jigsaw_target_junction(
+                (29, 67, -4),
+                both_terrain,
+                1,
+                1,
+                delta_y,
+                super::JigsawProjectionModel::TerrainMatching,
+            ),
+            super::JigsawJunctionModel {
+                source_x: 29,
+                source_ground_y: 92,
+                source_z: -4,
+                delta_y: -delta_y,
+                dest_projection: super::JigsawProjectionModel::TerrainMatching,
+            }
         );
     }
 
