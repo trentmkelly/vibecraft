@@ -2057,6 +2057,27 @@ pub struct IglooPostProcessModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NetherFossilPieceModel {
+    pub template_index: usize,
+    pub template_name: &'static str,
+    pub template_position: BlockPos,
+    pub rotation: StructureRotation,
+    pub processor: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NetherFossilGenerationPointModel {
+    pub position: BlockPos,
+    pub piece: NetherFossilPieceModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DriedGhastPlacementModel {
+    pub pos: BlockPos,
+    pub rotation: StructureRotation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -10429,6 +10450,115 @@ pub fn igloo_post_process(
         adjusted_template_position,
         trapdoor_pos,
         should_cover_trapdoor,
+    }
+}
+
+pub const NETHER_FOSSIL_TEMPLATES: [&str; 14] = [
+    "minecraft:nether_fossils/fossil_1",
+    "minecraft:nether_fossils/fossil_2",
+    "minecraft:nether_fossils/fossil_3",
+    "minecraft:nether_fossils/fossil_4",
+    "minecraft:nether_fossils/fossil_5",
+    "minecraft:nether_fossils/fossil_6",
+    "minecraft:nether_fossils/fossil_7",
+    "minecraft:nether_fossils/fossil_8",
+    "minecraft:nether_fossils/fossil_9",
+    "minecraft:nether_fossils/fossil_10",
+    "minecraft:nether_fossils/fossil_11",
+    "minecraft:nether_fossils/fossil_12",
+    "minecraft:nether_fossils/fossil_13",
+    "minecraft:nether_fossils/fossil_14",
+];
+
+pub fn nether_fossil_make_piece(
+    position: BlockPos,
+    template_index: usize,
+    rotation: StructureRotation,
+) -> Result<NetherFossilPieceModel, String> {
+    let Some(template_name) = NETHER_FOSSIL_TEMPLATES.get(template_index).copied() else {
+        return Err("Nether fossil template index must match Util.getRandom(FOSSILS)".to_string());
+    };
+    Ok(NetherFossilPieceModel {
+        template_index,
+        template_name,
+        template_position: position,
+        rotation,
+        processor: "minecraft:block_ignore_structure_and_air",
+    })
+}
+
+pub fn nether_fossil_find_generation_point(
+    chunk_pos: ChunkPos,
+    block_x_roll: i32,
+    block_z_roll: i32,
+    sampled_y: i32,
+    sea_level: i32,
+    template_index: usize,
+    rotation: StructureRotation,
+    mut block_at: impl FnMut(i32) -> &'static str,
+    mut is_sturdy_support: impl FnMut(i32) -> bool,
+) -> Result<Option<NetherFossilGenerationPointModel>, String> {
+    if !(0..16).contains(&block_x_roll) || !(0..16).contains(&block_z_roll) {
+        return Err(
+            "Nether fossil horizontal rolls must match RandomSource#nextInt(16)".to_string(),
+        );
+    }
+    let block_x = chunk_pos.x * 16 + block_x_roll;
+    let block_z = chunk_pos.z * 16 + block_z_roll;
+    let mut y = sampled_y;
+    while y > sea_level {
+        let current = block_at(y);
+        y -= 1;
+        let below = block_at(y);
+        if current == "minecraft:air" && (below == "minecraft:soul_sand" || is_sturdy_support(y)) {
+            break;
+        }
+    }
+    if y <= sea_level {
+        return Ok(None);
+    }
+    let position = BlockPos {
+        x: block_x,
+        y,
+        z: block_z,
+    };
+    Ok(Some(NetherFossilGenerationPointModel {
+        position,
+        piece: nether_fossil_make_piece(position, template_index, rotation)?,
+    }))
+}
+
+pub fn nether_fossil_dried_ghast_placement(
+    fossil_bb: StructureBoundingBoxModel,
+    chunk_bb: StructureBoundingBoxModel,
+    placement_roll: f32,
+    x_roll: i32,
+    z_roll: i32,
+    rotation: StructureRotation,
+    block_at_random_pos: &'static str,
+) -> Result<Option<DriedGhastPlacementModel>, String> {
+    if !(0.0..1.0).contains(&placement_roll) {
+        return Err("Dried ghast placement roll must be in [0.0, 1.0)".to_string());
+    }
+    let x_span = fossil_bb.max_x - fossil_bb.min_x + 1;
+    let z_span = fossil_bb.max_z - fossil_bb.min_z + 1;
+    if !(0..x_span).contains(&x_roll) || !(0..z_span).contains(&z_roll) {
+        return Err(
+            "Dried ghast coordinate rolls must be inside the fossil bounding-box spans".to_string(),
+        );
+    }
+    if placement_roll >= 0.5 {
+        return Ok(None);
+    }
+    let pos = BlockPos {
+        x: fossil_bb.min_x + x_roll,
+        y: fossil_bb.min_y,
+        z: fossil_bb.min_z + z_roll,
+    };
+    if block_at_random_pos == "minecraft:air" && chunk_bb.is_inside(pos) {
+        Ok(Some(DriedGhastPlacementModel { pos, rotation }))
+    } else {
+        Ok(None)
     }
 }
 
@@ -23500,6 +23630,167 @@ mod tests {
             .unwrap_err(),
             "Igloo depth roll must match RandomSource#nextInt(8)".to_string()
         );
+    }
+
+    #[test]
+    fn nether_fossil_generation_scan_and_dried_ghast_match_vanilla() {
+        assert_eq!(super::NETHER_FOSSIL_TEMPLATES.len(), 14);
+        assert_eq!(
+            super::NETHER_FOSSIL_TEMPLATES[0],
+            "minecraft:nether_fossils/fossil_1"
+        );
+        assert_eq!(
+            super::NETHER_FOSSIL_TEMPLATES[13],
+            "minecraft:nether_fossils/fossil_14"
+        );
+
+        let generation = super::nether_fossil_find_generation_point(
+            ChunkPos { x: -2, z: 3 },
+            5,
+            11,
+            72,
+            31,
+            6,
+            super::StructureRotation::Counterclockwise90,
+            |y| {
+                if y == 70 {
+                    "minecraft:air"
+                } else if y == 69 {
+                    "minecraft:soul_sand"
+                } else {
+                    "minecraft:netherrack"
+                }
+            },
+            |_| false,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            generation.position,
+            BlockPos {
+                x: -27,
+                y: 69,
+                z: 59
+            }
+        );
+        assert_eq!(generation.piece.template_index, 6);
+        assert_eq!(
+            generation.piece.template_name,
+            "minecraft:nether_fossils/fossil_7"
+        );
+        assert_eq!(generation.piece.template_position, generation.position);
+        assert_eq!(
+            generation.piece.rotation,
+            super::StructureRotation::Counterclockwise90
+        );
+        assert_eq!(
+            generation.piece.processor,
+            "minecraft:block_ignore_structure_and_air"
+        );
+
+        let sturdy_generation = super::nether_fossil_find_generation_point(
+            ChunkPos { x: 0, z: 0 },
+            0,
+            0,
+            50,
+            31,
+            0,
+            super::StructureRotation::None,
+            |y| {
+                if y == 45 {
+                    "minecraft:air"
+                } else {
+                    "minecraft:netherrack"
+                }
+            },
+            |y| y == 44,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(sturdy_generation.position, BlockPos { x: 0, y: 44, z: 0 });
+
+        let too_low = super::nether_fossil_find_generation_point(
+            ChunkPos { x: 0, z: 0 },
+            0,
+            0,
+            33,
+            31,
+            0,
+            super::StructureRotation::None,
+            |_| "minecraft:netherrack",
+            |_| false,
+        )
+        .unwrap();
+        assert!(too_low.is_none());
+
+        assert_eq!(
+            super::nether_fossil_make_piece(
+                BlockPos { x: 0, y: 0, z: 0 },
+                14,
+                super::StructureRotation::None,
+            )
+            .unwrap_err(),
+            "Nether fossil template index must match Util.getRandom(FOSSILS)".to_string()
+        );
+
+        let fossil_bb = super::StructureBoundingBoxModel {
+            min_x: -10,
+            min_y: 41,
+            min_z: 20,
+            max_x: -5,
+            max_y: 45,
+            max_z: 27,
+        };
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: -16,
+            min_y: i32::MIN,
+            min_z: 16,
+            max_x: -1,
+            max_y: i32::MAX,
+            max_z: 31,
+        };
+        assert_eq!(
+            super::nether_fossil_dried_ghast_placement(
+                fossil_bb,
+                chunk_bb,
+                0.49,
+                2,
+                3,
+                super::StructureRotation::Clockwise180,
+                "minecraft:air",
+            )
+            .unwrap(),
+            Some(super::DriedGhastPlacementModel {
+                pos: BlockPos {
+                    x: -8,
+                    y: 41,
+                    z: 23
+                },
+                rotation: super::StructureRotation::Clockwise180,
+            })
+        );
+        assert!(super::nether_fossil_dried_ghast_placement(
+            fossil_bb,
+            chunk_bb,
+            0.5,
+            2,
+            3,
+            super::StructureRotation::Clockwise180,
+            "minecraft:air",
+        )
+        .unwrap()
+        .is_none());
+        assert!(super::nether_fossil_dried_ghast_placement(
+            fossil_bb,
+            chunk_bb,
+            0.49,
+            2,
+            3,
+            super::StructureRotation::Clockwise180,
+            "minecraft:netherrack",
+        )
+        .unwrap()
+        .is_none());
     }
 
     #[test]
