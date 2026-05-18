@@ -690,6 +690,21 @@ pub struct BlockPileConfigurationModel {
     pub state_provider: BlockStateProviderModel,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiskConfigurationModel {
+    pub state_provider: BlockStateProviderModel,
+    pub target: BlockPredicate,
+    pub radius: i32,
+    pub half_height: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiskPlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub mark_above_for_post_processing: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureSizeModel {
     TwoLayers {
@@ -7108,6 +7123,57 @@ pub fn block_pile_try_place(
     }
 }
 
+pub fn disk_placement_plan(
+    origin: BlockPos,
+    config: &DiskConfigurationModel,
+    column_contexts: &[(BlockPos, BlockPredicateContext)],
+    provider_rolls: &[i32],
+) -> Vec<DiskPlacementBlock> {
+    let radius = config.radius.clamp(0, 8);
+    let half_height = config.half_height.clamp(0, 4);
+    let top = origin.y + half_height;
+    let bottom_exclusive = origin.y - half_height - 1;
+    let mut placed = Vec::new();
+    let mut provider_index = 0;
+    for z in origin.z - radius..=origin.z + radius {
+        for x in origin.x - radius..=origin.x + radius {
+            let dx = x - origin.x;
+            let dz = z - origin.z;
+            if dx * dx + dz * dz > radius * radius {
+                continue;
+            }
+            let mut placed_above = false;
+            for y in (bottom_exclusive + 1..=top).rev() {
+                let pos = BlockPos { x, y, z };
+                let Some((_, context)) = column_contexts
+                    .iter()
+                    .find(|(context_pos, _)| *context_pos == pos)
+                else {
+                    placed_above = false;
+                    continue;
+                };
+                if block_predicate_test(config.target, *context, y) {
+                    let provider_roll = provider_rolls.get(provider_index).copied().unwrap_or(0);
+                    provider_index += 1;
+                    if let Some(state) =
+                        block_state_provider_sample(&config.state_provider, provider_roll)
+                    {
+                        placed.push(DiskPlacementBlock {
+                            pos,
+                            state,
+                            mark_above_for_post_processing: !placed_above,
+                        });
+                        placed_above = true;
+                    }
+                } else {
+                    placed_above = false;
+                }
+            }
+        }
+    }
+    placed
+}
+
 pub fn feature_size_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -10395,6 +10461,52 @@ mod tests {
             ),
             None
         );
+
+        let disk_config = super::DiskConfigurationModel {
+            state_provider: BlockStateProviderModel::Simple("minecraft:clay"),
+            target: BlockPredicate::MatchingBlocks {
+                blocks: &["minecraft:dirt"],
+            },
+            radius: 1,
+            half_height: 1,
+        };
+        let mut disk_contexts = Vec::new();
+        for y in 63..=65 {
+            disk_contexts.push((
+                BlockPos { x: 0, y, z: 0 },
+                BlockPredicateContext {
+                    min_y: -64,
+                    height: 384,
+                    block: "minecraft:dirt",
+                    fluid: "minecraft:empty",
+                    solid: true,
+                    replaceable: false,
+                    unobstructed: true,
+                },
+            ));
+        }
+        let disk = super::disk_placement_plan(
+            BlockPos { x: 0, y: 64, z: 0 },
+            &disk_config,
+            &disk_contexts,
+            &[],
+        );
+        assert_eq!(disk.len(), 3);
+        assert_eq!(disk[0].pos, BlockPos { x: 0, y: 65, z: 0 });
+        assert!(disk[0].mark_above_for_post_processing);
+        assert!(!disk[1].mark_above_for_post_processing);
+        assert!(disk.iter().all(|block| block.state == "minecraft:clay"));
+
+        disk_contexts[1].1.block = "minecraft:stone";
+        let disk_with_gap = super::disk_placement_plan(
+            BlockPos { x: 0, y: 64, z: 0 },
+            &disk_config,
+            &disk_contexts,
+            &[],
+        );
+        assert_eq!(disk_with_gap.len(), 2);
+        assert!(disk_with_gap[0].mark_above_for_post_processing);
+        assert!(disk_with_gap[1].mark_above_for_post_processing);
         assert_eq!(
             super::feature_size_type("two_layers_feature_size"),
             Some("minecraft:two_layers_feature_size")
