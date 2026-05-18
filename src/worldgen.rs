@@ -7224,6 +7224,90 @@ pub const TAIGA_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const SNOWY_TAIGA_FEATURE_STEPS: &[&[&str]] = &[
+    TAIGA_FEATURE_STEPS[0],
+    TAIGA_FEATURE_STEPS[1],
+    TAIGA_FEATURE_STEPS[2],
+    TAIGA_FEATURE_STEPS[3],
+    TAIGA_FEATURE_STEPS[4],
+    TAIGA_FEATURE_STEPS[5],
+    TAIGA_FEATURE_STEPS[6],
+    TAIGA_FEATURE_STEPS[7],
+    TAIGA_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_large_fern",
+        "minecraft:trees_taiga",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_taiga_2",
+        "minecraft:brown_mushroom_taiga",
+        "minecraft:red_mushroom_taiga",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:patch_berry_rare",
+    ],
+    TAIGA_FEATURE_STEPS[10],
+];
+
+pub const OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS: &[&[&str]] = &[
+    TAIGA_FEATURE_STEPS[0],
+    TAIGA_FEATURE_STEPS[1],
+    &["minecraft:amethyst_geode", "minecraft:forest_rock"],
+    TAIGA_FEATURE_STEPS[3],
+    TAIGA_FEATURE_STEPS[4],
+    TAIGA_FEATURE_STEPS[5],
+    TAIGA_FEATURE_STEPS[6],
+    TAIGA_FEATURE_STEPS[7],
+    TAIGA_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_large_fern",
+        "minecraft:trees_old_growth_pine_taiga",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_taiga",
+        "minecraft:patch_dead_bush",
+        "minecraft:brown_mushroom_old_growth",
+        "minecraft:red_mushroom_old_growth",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:patch_berry_common",
+    ],
+    TAIGA_FEATURE_STEPS[10],
+];
+
+pub const OLD_GROWTH_SPRUCE_TAIGA_FEATURE_STEPS: &[&[&str]] = &[
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[0],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[1],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[2],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[3],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[4],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[5],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[6],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[7],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_large_fern",
+        "minecraft:trees_old_growth_spruce_taiga",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_taiga",
+        "minecraft:patch_dead_bush",
+        "minecraft:brown_mushroom_old_growth",
+        "minecraft:red_mushroom_old_growth",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:patch_berry_common",
+    ],
+    OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS[10],
+];
+
 pub const SNOWY_PLAINS_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -8189,6 +8273,57 @@ pub const DESERT_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 50,
         min_count: 4,
         max_count: 4,
+    },
+];
+
+pub const OLD_GROWTH_PINE_TAIGA_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 25,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
     },
 ];
 
@@ -9371,6 +9506,41 @@ pub const TAIGA_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const OLD_GROWTH_PINE_TAIGA_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: TAIGA_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: OLD_GROWTH_PINE_TAIGA_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const SNOWY_PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -10206,6 +10376,30 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         biome: "minecraft:taiga",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: TAIGA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: TAIGA_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:snowy_taiga",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SNOWY_TAIGA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: TAIGA_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:old_growth_pine_taiga",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: OLD_GROWTH_PINE_TAIGA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: OLD_GROWTH_PINE_TAIGA_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:old_growth_spruce_taiga",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: OLD_GROWTH_SPRUCE_TAIGA_FEATURE_STEPS,
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: TAIGA_SPAWNER_GROUPS,
@@ -24745,6 +24939,74 @@ mod tests {
         );
         assert_eq!(
             super::biome_spawns_for_category(taiga, "monster"),
+            super::FOREST_MONSTER_SPAWNS
+        );
+
+        let snowy_taiga = super::biome_generation_settings("snowy_taiga").unwrap();
+        assert_eq!(snowy_taiga.biome, "minecraft:snowy_taiga");
+        assert!(super::biome_has_placed_feature(
+            snowy_taiga,
+            "minecraft:patch_berry_rare"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            snowy_taiga,
+            "minecraft:patch_berry_common"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(snowy_taiga, "creature"),
+            super::TAIGA_CREATURE_SPAWNS
+        );
+
+        let old_growth_pine = super::biome_generation_settings("old_growth_pine_taiga").unwrap();
+        assert_eq!(old_growth_pine.biome, "minecraft:old_growth_pine_taiga");
+        assert!(super::biome_has_placed_feature(
+            old_growth_pine,
+            "minecraft:forest_rock"
+        ));
+        assert!(super::biome_has_placed_feature(
+            old_growth_pine,
+            "minecraft:trees_old_growth_pine_taiga"
+        ));
+        assert!(super::biome_has_placed_feature(
+            old_growth_pine,
+            "minecraft:brown_mushroom_old_growth"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            old_growth_pine,
+            "minecraft:trees_taiga"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(old_growth_pine, "monster")[1],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:zombie",
+                weight: 100,
+                min_count: 4,
+                max_count: 4,
+            }
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(old_growth_pine, "monster")[2],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:zombie_villager",
+                weight: 25,
+                min_count: 1,
+                max_count: 1,
+            }
+        );
+
+        let old_growth_spruce =
+            super::biome_generation_settings("old_growth_spruce_taiga").unwrap();
+        assert_eq!(old_growth_spruce.biome, "minecraft:old_growth_spruce_taiga");
+        assert!(super::biome_has_placed_feature(
+            old_growth_spruce,
+            "minecraft:trees_old_growth_spruce_taiga"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            old_growth_spruce,
+            "minecraft:trees_old_growth_pine_taiga"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(old_growth_spruce, "monster"),
             super::FOREST_MONSTER_SPAWNS
         );
 
