@@ -6612,6 +6612,31 @@ pub const RIVER_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const FROZEN_RIVER_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_water",
+        "minecraft:patch_bush",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const OCEAN_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -6824,6 +6849,29 @@ pub const DEEP_FROZEN_OCEAN_FEATURE_STEPS: &[&[&str]] = &[
 ];
 
 pub const BEACH_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const SNOWY_BEACH_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
     PLAINS_FEATURE_STEPS[2],
@@ -7815,6 +7863,63 @@ pub const RIVER_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const FROZEN_RIVER_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:drowned",
+        weight: 1,
+        min_count: 1,
+        max_count: 1,
+    },
+];
+
 pub const OCEAN_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:spider",
@@ -8127,6 +8232,13 @@ pub const RIVER_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataM
     max_count: 5,
 }];
 
+pub const FROZEN_RIVER_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:salmon",
+    weight: 5,
+    min_count: 1,
+    max_count: 5,
+}];
+
 pub const OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:cod",
     weight: 10,
@@ -8221,6 +8333,13 @@ pub const DEEP_FROZEN_OCEAN_WATER_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[Mob
 }];
 
 pub const RIVER_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:squid",
+    weight: 2,
+    min_count: 1,
+    max_count: 4,
+}];
+
+pub const FROZEN_RIVER_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:squid",
     weight: 2,
     min_count: 1,
@@ -8866,6 +8985,41 @@ pub const RIVER_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const FROZEN_RIVER_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FROZEN_RIVER_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: FROZEN_RIVER_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: FROZEN_RIVER_WATER_CREATURE_SPAWNS,
+    },
+];
+
 pub const OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -9076,6 +9230,41 @@ pub const WARM_OCEAN_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const SNOWY_BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 const OVERWORLD_COMMON_CARVERS: &[&str] = &[
     "minecraft:cave",
     "minecraft:cave_extra_underground",
@@ -9148,6 +9337,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: RIVER_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:frozen_river",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: FROZEN_RIVER_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: FROZEN_RIVER_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:ocean",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: OCEAN_FEATURE_STEPS,
@@ -9212,12 +9409,28 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: DEEP_FROZEN_OCEAN_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:frozen_ocean",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DEEP_FROZEN_OCEAN_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: DEEP_FROZEN_OCEAN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:beach",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: BEACH_FEATURE_STEPS,
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: BEACH_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:snowy_beach",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SNOWY_BEACH_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SNOWY_BEACH_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:desert",
@@ -23191,6 +23404,34 @@ mod tests {
             super::RIVER_WATER_CREATURE_SPAWNS
         );
 
+        let frozen_river = super::biome_generation_settings("frozen_river").unwrap();
+        assert_eq!(frozen_river.biome, "minecraft:frozen_river");
+        assert!(super::biome_has_placed_feature(
+            frozen_river,
+            "minecraft:patch_bush"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            frozen_river,
+            "minecraft:seagrass_river"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(frozen_river, "monster").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:drowned",
+                weight: 1,
+                min_count: 1,
+                max_count: 1,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(frozen_river, "water_ambient"),
+            super::FROZEN_RIVER_WATER_AMBIENT_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(frozen_river, "water_creature"),
+            super::FROZEN_RIVER_WATER_CREATURE_SPAWNS
+        );
+
         let ocean = super::biome_generation_settings("ocean").unwrap();
         assert_eq!(ocean.biome, "minecraft:ocean");
         assert!(super::biome_has_placed_feature(
@@ -23381,6 +23622,17 @@ mod tests {
             super::DEEP_FROZEN_OCEAN_WATER_AMBIENT_SPAWNS
         );
 
+        let frozen_ocean = super::biome_generation_settings("frozen_ocean").unwrap();
+        assert_eq!(frozen_ocean.biome, "minecraft:frozen_ocean");
+        assert_eq!(
+            frozen_ocean.feature_steps,
+            super::DEEP_FROZEN_OCEAN_FEATURE_STEPS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(frozen_ocean, "creature"),
+            super::DEEP_FROZEN_OCEAN_CREATURE_SPAWNS
+        );
+
         let beach = super::biome_generation_settings("minecraft:beach").unwrap();
         assert_eq!(beach.biome, "minecraft:beach");
         assert_eq!(beach.carvers, super::OVERWORLD_COMMON_CARVERS);
@@ -23406,6 +23658,22 @@ mod tests {
         );
         assert!(super::biome_spawns_for_category(beach, "water_ambient").is_empty());
         assert!(super::biome_spawns_for_category(beach, "water_creature").is_empty());
+
+        let snowy_beach = super::biome_generation_settings("snowy_beach").unwrap();
+        assert_eq!(snowy_beach.biome, "minecraft:snowy_beach");
+        assert!(super::biome_has_placed_feature(
+            snowy_beach,
+            "minecraft:flower_default"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            snowy_beach,
+            "minecraft:trees_water"
+        ));
+        assert!(super::biome_spawns_for_category(snowy_beach, "creature").is_empty());
+        assert_eq!(
+            super::biome_spawns_for_category(snowy_beach, "monster"),
+            super::FOREST_MONSTER_SPAWNS
+        );
 
         let desert = super::biome_generation_settings("desert").unwrap();
         assert_eq!(desert.biome, "minecraft:desert");
