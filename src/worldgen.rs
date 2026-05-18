@@ -1769,6 +1769,33 @@ pub enum StructurePosRuleTestTypeModel {
     AxisAlignedLinearPos,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleBlockEntityModifierTypeModel {
+    Clear,
+    Passthrough,
+    AppendStatic,
+    AppendLoot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TemplateNbtValueModel {
+    String(&'static str),
+    Long(i64),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TemplateCompoundTagModel {
+    pub values: BTreeMap<&'static str, TemplateNbtValueModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleBlockEntityModifierModel {
+    Clear,
+    Passthrough,
+    AppendStatic { data: TemplateCompoundTagModel },
+    AppendLoot { loot_table: &'static str },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -7817,6 +7844,13 @@ fn random_next_i32_bound(random: &mut RandomSourceKind, bound: i32) -> i32 {
     }
 }
 
+fn random_next_i64(random: &mut RandomSourceKind) -> i64 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_i64(),
+        RandomSourceKind::Xoroshiro(random) => random.next_i64(),
+    }
+}
+
 impl JigsawPoolElementTypeModel {
     pub const REGISTRY_ORDER: [Self; 5] = [
         Self::Single,
@@ -8322,6 +8356,85 @@ impl StructurePosRuleTestTypeModel {
             Self::AlwaysTrue => "minecraft:always_true",
             Self::LinearPos => "minecraft:linear_pos",
             Self::AxisAlignedLinearPos => "minecraft:axis_aligned_linear_pos",
+        }
+    }
+}
+
+impl RuleBlockEntityModifierTypeModel {
+    pub const REGISTRY_ORDER: [Self; 4] = [
+        Self::Clear,
+        Self::Passthrough,
+        Self::AppendStatic,
+        Self::AppendLoot,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Clear => "minecraft:clear",
+            Self::Passthrough => "minecraft:passthrough",
+            Self::AppendStatic => "minecraft:append_static",
+            Self::AppendLoot => "minecraft:append_loot",
+        }
+    }
+}
+
+impl TemplateCompoundTagModel {
+    pub fn with_string(mut self, key: &'static str, value: &'static str) -> Self {
+        self.values
+            .insert(key, TemplateNbtValueModel::String(value));
+        self
+    }
+
+    pub fn with_long(mut self, key: &'static str, value: i64) -> Self {
+        self.values.insert(key, TemplateNbtValueModel::Long(value));
+        self
+    }
+
+    pub fn merge(&mut self, other: &Self) {
+        for (key, value) in &other.values {
+            self.values.insert(*key, value.clone());
+        }
+    }
+}
+
+impl RuleBlockEntityModifierModel {
+    pub fn modifier_type(&self) -> RuleBlockEntityModifierTypeModel {
+        match self {
+            Self::Clear => RuleBlockEntityModifierTypeModel::Clear,
+            Self::Passthrough => RuleBlockEntityModifierTypeModel::Passthrough,
+            Self::AppendStatic { .. } => RuleBlockEntityModifierTypeModel::AppendStatic,
+            Self::AppendLoot { .. } => RuleBlockEntityModifierTypeModel::AppendLoot,
+        }
+    }
+
+    pub fn codec_id(&self) -> &'static str {
+        self.modifier_type().id()
+    }
+
+    pub fn apply(
+        &self,
+        random: &mut RandomSourceKind,
+        existing_tag: Option<TemplateCompoundTagModel>,
+    ) -> Option<TemplateCompoundTagModel> {
+        match self {
+            Self::Clear => Some(TemplateCompoundTagModel::default()),
+            Self::Passthrough => existing_tag,
+            Self::AppendStatic { data } => {
+                let mut result = existing_tag.unwrap_or_default();
+                result.merge(data);
+                Some(result)
+            }
+            Self::AppendLoot { loot_table } => {
+                let mut result = existing_tag.unwrap_or_default();
+                result
+                    .values
+                    .insert("LootTable", TemplateNbtValueModel::String(loot_table));
+                result.values.insert(
+                    "LootTableSeed",
+                    TemplateNbtValueModel::Long(random_next_i64(random)),
+                );
+                Some(result)
+            }
         }
     }
 }
@@ -20294,6 +20407,78 @@ mod tests {
         assert_eq!(
             super::structure_axis_aligned_distance((10, 65, -4), (3, 60, 1), 'z'),
             5
+        );
+    }
+
+    #[test]
+    fn rule_block_entity_modifiers_match_vanilla_template_rule_behavior() {
+        assert_eq!(
+            super::RuleBlockEntityModifierTypeModel::REGISTRY_ORDER.map(|modifier| modifier.id()),
+            [
+                "minecraft:clear",
+                "minecraft:passthrough",
+                "minecraft:append_static",
+                "minecraft:append_loot",
+            ]
+        );
+
+        let existing = super::TemplateCompoundTagModel::default()
+            .with_string("id", "minecraft:chest")
+            .with_string("CustomName", "{\"text\":\"Old\"}");
+        let static_data = super::TemplateCompoundTagModel::default()
+            .with_string("CustomName", "{\"text\":\"New\"}")
+            .with_string("Lock", "key");
+
+        let mut random =
+            super::RandomSourceKind::new(12345, crate::random_source::RandomAlgorithm::Legacy);
+        assert_eq!(
+            super::RuleBlockEntityModifierModel::Passthrough
+                .apply(&mut random, Some(existing.clone())),
+            Some(existing.clone())
+        );
+        assert_eq!(
+            super::RuleBlockEntityModifierModel::Passthrough.apply(&mut random, None),
+            None
+        );
+        assert_eq!(
+            super::RuleBlockEntityModifierModel::Clear.apply(&mut random, Some(existing.clone())),
+            Some(super::TemplateCompoundTagModel::default())
+        );
+
+        let appended = super::RuleBlockEntityModifierModel::AppendStatic { data: static_data }
+            .apply(&mut random, Some(existing.clone()))
+            .expect("append static returns tag");
+        assert_eq!(
+            appended.values.get("id"),
+            Some(&super::TemplateNbtValueModel::String("minecraft:chest"))
+        );
+        assert_eq!(
+            appended.values.get("CustomName"),
+            Some(&super::TemplateNbtValueModel::String("{\"text\":\"New\"}"))
+        );
+        assert_eq!(
+            appended.values.get("Lock"),
+            Some(&super::TemplateNbtValueModel::String("key"))
+        );
+
+        let mut loot_random =
+            super::RandomSourceKind::new(12345, crate::random_source::RandomAlgorithm::Legacy);
+        let loot = super::RuleBlockEntityModifierModel::AppendLoot {
+            loot_table: "minecraft:chests/simple_dungeon",
+        };
+        assert_eq!(loot.codec_id(), "minecraft:append_loot");
+        let loot_tag = loot
+            .apply(&mut loot_random, Some(existing))
+            .expect("append loot returns tag");
+        assert_eq!(
+            loot_tag.values.get("LootTable"),
+            Some(&super::TemplateNbtValueModel::String(
+                "minecraft:chests/simple_dungeon"
+            ))
+        );
+        assert_eq!(
+            loot_tag.values.get("LootTableSeed"),
+            Some(&super::TemplateNbtValueModel::Long(6674089274190705457))
         );
     }
 
