@@ -1994,6 +1994,41 @@ pub struct DesertPyramidArchaeologyPlacement {
     pub loot_seed: Option<i64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JungleTemplePieceModel {
+    pub scattered: ScatteredFeaturePieceModel,
+    pub placed_main_chest: bool,
+    pub placed_hidden_chest: bool,
+    pub placed_trap1: bool,
+    pub placed_trap2: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JungleTempleSaveTagModel {
+    pub width: i32,
+    pub height: i32,
+    pub depth: i32,
+    pub height_position: i32,
+    pub placed_main_chest: bool,
+    pub placed_hidden_chest: bool,
+    pub placed_trap1: bool,
+    pub placed_trap2: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JungleTempleContainerPlacement {
+    pub kind: &'static str,
+    pub pos: BlockPos,
+    pub facing: Option<HorizontalDirection>,
+    pub loot_table: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JungleTemplePostProcessModel {
+    pub piece: JungleTemplePieceModel,
+    pub containers: Vec<JungleTempleContainerPlacement>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
@@ -10073,6 +10108,132 @@ pub fn block_pos_as_long(pos: BlockPos) -> i64 {
     (((pos.x as i64) & 0x3ffffff) << 38)
         | (((pos.z as i64) & 0x3ffffff) << 12)
         | ((pos.y as i64) & 0xfff)
+}
+
+pub fn jungle_temple_generation_piece(
+    chunk_pos: ChunkPos,
+    orientation: HorizontalDirection,
+) -> JungleTemplePieceModel {
+    JungleTemplePieceModel {
+        scattered: scattered_feature_piece(
+            chunk_pos.x * 16,
+            64,
+            chunk_pos.z * 16,
+            12,
+            10,
+            15,
+            orientation,
+        ),
+        placed_main_chest: false,
+        placed_hidden_chest: false,
+        placed_trap1: false,
+        placed_trap2: false,
+    }
+}
+
+pub fn jungle_temple_save_tag(piece: &JungleTemplePieceModel) -> JungleTempleSaveTagModel {
+    JungleTempleSaveTagModel {
+        width: piece.scattered.width,
+        height: piece.scattered.height,
+        depth: piece.scattered.depth,
+        height_position: piece.scattered.height_position,
+        placed_main_chest: piece.placed_main_chest,
+        placed_hidden_chest: piece.placed_hidden_chest,
+        placed_trap1: piece.placed_trap1,
+        placed_trap2: piece.placed_trap2,
+    }
+}
+
+fn jungle_temple_try_container(
+    piece: &JungleTemplePieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    local_pos: BlockPos,
+    kind: &'static str,
+    facing: Option<HorizontalDirection>,
+    loot_table: &'static str,
+    already_placed: bool,
+) -> Option<JungleTempleContainerPlacement> {
+    if already_placed {
+        return None;
+    }
+    let pos = structure_piece_world_pos(
+        piece.scattered.bounding_box,
+        Some(piece.scattered.orientation),
+        local_pos.x,
+        local_pos.y,
+        local_pos.z,
+    );
+    chunk_bb
+        .is_inside(pos)
+        .then_some(JungleTempleContainerPlacement {
+            kind,
+            pos,
+            facing,
+            loot_table,
+        })
+}
+
+pub fn jungle_temple_post_process(
+    mut piece: JungleTemplePieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    height_at: impl FnMut(i32, i32) -> i32,
+) -> Option<JungleTemplePostProcessModel> {
+    if !scattered_feature_update_average_ground_height(&mut piece.scattered, chunk_bb, 0, height_at)
+    {
+        return None;
+    }
+
+    let mut containers = Vec::new();
+    if let Some(container) = jungle_temple_try_container(
+        &piece,
+        chunk_bb,
+        BlockPos { x: 3, y: -2, z: 1 },
+        "minecraft:dispenser",
+        Some(HorizontalDirection::North),
+        "minecraft:chests/jungle_temple_dispenser",
+        piece.placed_trap1,
+    ) {
+        piece.placed_trap1 = true;
+        containers.push(container);
+    }
+    if let Some(container) = jungle_temple_try_container(
+        &piece,
+        chunk_bb,
+        BlockPos { x: 9, y: -2, z: 3 },
+        "minecraft:dispenser",
+        Some(HorizontalDirection::West),
+        "minecraft:chests/jungle_temple_dispenser",
+        piece.placed_trap2,
+    ) {
+        piece.placed_trap2 = true;
+        containers.push(container);
+    }
+    if let Some(container) = jungle_temple_try_container(
+        &piece,
+        chunk_bb,
+        BlockPos { x: 8, y: -3, z: 3 },
+        "minecraft:chest",
+        None,
+        "minecraft:chests/jungle_temple",
+        piece.placed_main_chest,
+    ) {
+        piece.placed_main_chest = true;
+        containers.push(container);
+    }
+    if let Some(container) = jungle_temple_try_container(
+        &piece,
+        chunk_bb,
+        BlockPos { x: 9, y: -3, z: 10 },
+        "minecraft:chest",
+        None,
+        "minecraft:chests/jungle_temple",
+        piece.placed_hidden_chest,
+    ) {
+        piece.placed_hidden_chest = true;
+        containers.push(container);
+    }
+
+    Some(JungleTemplePostProcessModel { piece, containers })
 }
 
 const fn feature_type(
@@ -22918,6 +23079,119 @@ mod tests {
         assert_eq!(placements[2].state, "minecraft:suspicious_sand");
         assert_eq!(placements[3].pos, unique[7]);
         assert_eq!(placements[3].state, "minecraft:sand");
+    }
+
+    #[test]
+    fn jungle_temple_piece_container_flags_match_vanilla() {
+        let piece = super::jungle_temple_generation_piece(
+            ChunkPos { x: 0, z: 0 },
+            super::HorizontalDirection::South,
+        );
+        assert_eq!(piece.scattered.width, 12);
+        assert_eq!(piece.scattered.height, 10);
+        assert_eq!(piece.scattered.depth, 15);
+        assert_eq!(
+            piece.scattered.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 64,
+                min_z: 0,
+                max_x: 11,
+                max_y: 73,
+                max_z: 14,
+            }
+        );
+        assert_eq!(
+            super::jungle_temple_save_tag(&piece),
+            super::JungleTempleSaveTagModel {
+                width: 12,
+                height: 10,
+                depth: 15,
+                height_position: -1,
+                placed_main_chest: false,
+                placed_hidden_chest: false,
+                placed_trap1: false,
+                placed_trap2: false,
+            }
+        );
+
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: i32::MIN,
+            min_z: 0,
+            max_x: 15,
+            max_y: i32::MAX,
+            max_z: 15,
+        };
+        let processed =
+            super::jungle_temple_post_process(piece.clone(), chunk_bb, |_, _| 70).unwrap();
+        assert_eq!(processed.piece.scattered.height_position, 70);
+        assert_eq!(processed.piece.scattered.bounding_box.min_y, 70);
+        assert!(processed.piece.placed_trap1);
+        assert!(processed.piece.placed_trap2);
+        assert!(processed.piece.placed_main_chest);
+        assert!(processed.piece.placed_hidden_chest);
+        assert_eq!(
+            processed.containers,
+            vec![
+                super::JungleTempleContainerPlacement {
+                    kind: "minecraft:dispenser",
+                    pos: BlockPos { x: 3, y: 68, z: 1 },
+                    facing: Some(super::HorizontalDirection::North),
+                    loot_table: "minecraft:chests/jungle_temple_dispenser",
+                },
+                super::JungleTempleContainerPlacement {
+                    kind: "minecraft:dispenser",
+                    pos: BlockPos { x: 9, y: 68, z: 3 },
+                    facing: Some(super::HorizontalDirection::West),
+                    loot_table: "minecraft:chests/jungle_temple_dispenser",
+                },
+                super::JungleTempleContainerPlacement {
+                    kind: "minecraft:chest",
+                    pos: BlockPos { x: 8, y: 67, z: 3 },
+                    facing: None,
+                    loot_table: "minecraft:chests/jungle_temple",
+                },
+                super::JungleTempleContainerPlacement {
+                    kind: "minecraft:chest",
+                    pos: BlockPos { x: 9, y: 67, z: 10 },
+                    facing: None,
+                    loot_table: "minecraft:chests/jungle_temple",
+                },
+            ]
+        );
+
+        let no_repeat =
+            super::jungle_temple_post_process(processed.piece.clone(), chunk_bb, |_, _| 70)
+                .unwrap();
+        assert!(no_repeat.containers.is_empty());
+
+        let partial_chunk = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: i32::MIN,
+            min_z: 0,
+            max_x: 5,
+            max_y: i32::MAX,
+            max_z: 5,
+        };
+        let partial =
+            super::jungle_temple_post_process(piece.clone(), partial_chunk, |_, _| 70).unwrap();
+        assert_eq!(partial.containers.len(), 1);
+        assert_eq!(partial.containers[0].pos, BlockPos { x: 3, y: 68, z: 1 });
+        assert!(partial.piece.placed_trap1);
+        assert!(!partial.piece.placed_trap2);
+        assert!(!partial.piece.placed_main_chest);
+        assert!(!partial.piece.placed_hidden_chest);
+
+        let outside_chunk = super::StructureBoundingBoxModel {
+            min_x: 100,
+            min_y: i32::MIN,
+            min_z: 100,
+            max_x: 115,
+            max_y: i32::MAX,
+            max_z: 115,
+        };
+        assert!(super::jungle_temple_post_process(piece, outside_chunk, |_, _| 70).is_none());
     }
 
     #[test]
