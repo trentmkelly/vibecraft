@@ -589,6 +589,24 @@ pub enum BlockStateProviderModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeatureSizeModel {
+    TwoLayers {
+        limit: i32,
+        lower_size: i32,
+        upper_size: i32,
+        min_clipped_height: Option<i32>,
+    },
+    ThreeLayers {
+        limit: i32,
+        upper_limit: i32,
+        lower_size: i32,
+        middle_size: i32,
+        upper_size: i32,
+        min_clipped_height: Option<i32>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MonsterRoomBounds {
     pub min_y: i32,
     pub max_y: i32,
@@ -5954,6 +5972,95 @@ pub fn block_state_provider_sample(
     }
 }
 
+pub fn feature_size_type(id: &str) -> Option<&'static str> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLDGEN_TYPE_REGISTRIES
+        .iter()
+        .find(|registry| registry.id == "minecraft:feature_size_type")?
+        .entries
+        .iter()
+        .copied()
+        .find(|entry| entry.strip_prefix("minecraft:") == Some(name))
+}
+
+pub fn validate_feature_size(size: FeatureSizeModel) -> Result<FeatureSizeModel, String> {
+    let min_clipped_height = match size {
+        FeatureSizeModel::TwoLayers {
+            min_clipped_height, ..
+        }
+        | FeatureSizeModel::ThreeLayers {
+            min_clipped_height, ..
+        } => min_clipped_height,
+    };
+    if min_clipped_height.is_some_and(|height| !(0..=80).contains(&height)) {
+        return Err("min_clipped_height must be in 0..=80".to_string());
+    }
+    let valid = match size {
+        FeatureSizeModel::TwoLayers {
+            limit,
+            lower_size,
+            upper_size,
+            ..
+        } => {
+            (0..=81).contains(&limit)
+                && (0..=16).contains(&lower_size)
+                && (0..=16).contains(&upper_size)
+        }
+        FeatureSizeModel::ThreeLayers {
+            limit,
+            upper_limit,
+            lower_size,
+            middle_size,
+            upper_size,
+            ..
+        } => {
+            (0..=80).contains(&limit)
+                && (0..=80).contains(&upper_limit)
+                && (0..=16).contains(&lower_size)
+                && (0..=16).contains(&middle_size)
+                && (0..=16).contains(&upper_size)
+        }
+    };
+    if valid {
+        Ok(size)
+    } else {
+        Err("feature size fields are outside vanilla codec ranges".to_string())
+    }
+}
+
+pub fn feature_size_at_height(size: FeatureSizeModel, tree_height: i32, yo: i32) -> i32 {
+    match size {
+        FeatureSizeModel::TwoLayers {
+            limit,
+            lower_size,
+            upper_size,
+            ..
+        } => {
+            if yo < limit {
+                lower_size
+            } else {
+                upper_size
+            }
+        }
+        FeatureSizeModel::ThreeLayers {
+            limit,
+            upper_limit,
+            lower_size,
+            middle_size,
+            upper_size,
+            ..
+        } => {
+            if yo < limit {
+                lower_size
+            } else if yo >= tree_height - upper_limit {
+                upper_size
+            } else {
+                middle_size
+            }
+        }
+    }
+}
+
 pub fn spring_feature_can_place(
     valid_above: bool,
     requires_block_below: bool,
@@ -6198,30 +6305,30 @@ mod tests {
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlendingDataPacked,
         BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel,
         CarverShape, CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction,
-        DensityMarker, FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider,
-        FluidStatus, HeightProvider, HeightRange, MappedDensityFunction, NoiseRouterPreset,
-        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
-        PlacementModifier, RandomSpreadType, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
-        StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
-        SurfaceRulePreset, SurfaceRuleSource, VerticalAnchor, WeightedBlockState,
-        WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
-        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
-        BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
-        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS,
-        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
-        NETHER_NOISE_SETTINGS, NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS,
-        NORMAL_NOISE_TARGET_DEVIATION, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
-        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
-        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
-        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
-        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
-        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
-        WORLD_PRESETS, Y_DENSITY,
+        DensityMarker, FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo,
+        FloatProvider, FluidStatus, HeightProvider, HeightRange, MappedDensityFunction,
+        NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants,
+        PlacedFeatureSource, PlacementModifier, RandomSpreadType, SpawnBlockKind,
+        SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceConditionSource,
+        SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource,
+        VerticalAnchor, WeightedBlockState, WeightedHeightProvider, WorldCarverType,
+        WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
+        BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
+        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
+        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
+        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
+        FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
+        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
+        NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION,
+        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
+        STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
+        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::{quantize_coord, BiomeSourceModel};
     use crate::storage::chunk::HeightmapKind;
@@ -8254,6 +8361,60 @@ mod tests {
                 0,
             ),
             None
+        );
+        assert_eq!(
+            super::feature_size_type("two_layers_feature_size"),
+            Some("minecraft:two_layers_feature_size")
+        );
+        assert_eq!(
+            super::feature_size_type("minecraft:three_layers_feature_size"),
+            Some("minecraft:three_layers_feature_size")
+        );
+        assert_eq!(super::feature_size_type("missing"), None);
+
+        let two = FeatureSizeModel::TwoLayers {
+            limit: 2,
+            lower_size: 0,
+            upper_size: 1,
+            min_clipped_height: None,
+        };
+        assert_eq!(super::validate_feature_size(two), Ok(two));
+        assert_eq!(super::feature_size_at_height(two, 7, 1), 0);
+        assert_eq!(super::feature_size_at_height(two, 7, 2), 1);
+
+        let three = FeatureSizeModel::ThreeLayers {
+            limit: 1,
+            upper_limit: 2,
+            lower_size: 0,
+            middle_size: 1,
+            upper_size: 2,
+            min_clipped_height: Some(80),
+        };
+        assert_eq!(super::validate_feature_size(three), Ok(three));
+        assert_eq!(super::feature_size_at_height(three, 8, 0), 0);
+        assert_eq!(super::feature_size_at_height(three, 8, 5), 1);
+        assert_eq!(super::feature_size_at_height(three, 8, 6), 2);
+        assert_eq!(
+            super::validate_feature_size(FeatureSizeModel::TwoLayers {
+                limit: 82,
+                lower_size: 0,
+                upper_size: 1,
+                min_clipped_height: None,
+            })
+            .unwrap_err(),
+            "feature size fields are outside vanilla codec ranges".to_string()
+        );
+        assert_eq!(
+            super::validate_feature_size(FeatureSizeModel::ThreeLayers {
+                limit: 1,
+                upper_limit: 1,
+                lower_size: 0,
+                middle_size: 1,
+                upper_size: 2,
+                min_clipped_height: Some(81),
+            })
+            .unwrap_err(),
+            "min_clipped_height must be in 0..=80".to_string()
         );
     }
 
