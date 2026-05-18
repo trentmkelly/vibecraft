@@ -1534,6 +1534,13 @@ pub struct StructureStartTagModel {
     pub children: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct StructureAccessModel {
+    pub starts: BTreeMap<&'static str, StructureStartModel>,
+    pub references: BTreeMap<&'static str, Vec<i64>>,
+    pub unsaved: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
@@ -6894,6 +6901,48 @@ impl StructureStartModel {
     }
 }
 
+impl StructureAccessModel {
+    pub fn get_start_for_structure(&self, structure: &'static str) -> Option<&StructureStartModel> {
+        self.starts.get(structure)
+    }
+
+    pub fn set_start_for_structure(&mut self, structure: &'static str, start: StructureStartModel) {
+        self.starts.insert(structure, start);
+        self.unsaved = true;
+    }
+
+    pub fn set_all_starts(&mut self, starts: BTreeMap<&'static str, StructureStartModel>) {
+        self.starts = starts;
+        self.unsaved = true;
+    }
+
+    pub fn get_references_for_structure(&self, structure: &'static str) -> &[i64] {
+        self.references
+            .get(structure)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    pub fn add_reference_for_structure(&mut self, structure: &'static str, reference: i64) {
+        let references = self.references.entry(structure).or_default();
+        if !references.contains(&reference) {
+            references.push(reference);
+        }
+        self.unsaved = true;
+    }
+
+    pub fn set_all_references(&mut self, references: BTreeMap<&'static str, Vec<i64>>) {
+        self.references = references;
+        self.unsaved = true;
+    }
+
+    pub fn has_any_structure_references(&self) -> bool {
+        self.references
+            .values()
+            .any(|references| !references.is_empty())
+    }
+}
+
 pub fn structure_start_reference_pos(first_piece: StructurePieceModel) -> BlockPos {
     let center = first_piece.bounding_box.center();
     BlockPos {
@@ -6953,6 +7002,20 @@ pub fn structure_try_add_reference(start: &mut StructureStartModel) -> bool {
     } else {
         false
     }
+}
+
+pub fn structure_access_valid_starts_for_references(
+    access_by_chunk: &BTreeMap<i64, StructureAccessModel>,
+    structure: &'static str,
+    references: &[i64],
+) -> Vec<StructureStartModel> {
+    references
+        .iter()
+        .filter_map(|reference| access_by_chunk.get(reference))
+        .filter_map(|access| access.get_start_for_structure(structure))
+        .filter(|start| start.is_valid())
+        .cloned()
+        .collect()
 }
 
 const fn feature_type(
@@ -12079,6 +12142,7 @@ mod tests {
     use crate::storage::chunk::HeightmapKind;
     use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
+    use std::collections::BTreeMap;
 
     #[test]
     fn noise_settings_presets_match_26_1_2_constants() {
@@ -17324,6 +17388,110 @@ mod tests {
             117,
             super::TerrainAdjustmentModel::BeardBox
         ));
+    }
+
+    #[test]
+    fn structure_access_stores_starts_and_reference_sets_like_chunks() {
+        let piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 32,
+                min_y: 64,
+                min_z: 48,
+                max_x: 47,
+                max_y: 80,
+                max_z: 63,
+            },
+        };
+        let start = super::StructureStartModel {
+            structure: Some("minecraft:shipwreck"),
+            chunk_pos: ChunkPos { x: 2, z: 3 },
+            references: 0,
+            pieces: vec![piece],
+        };
+        let invalid = super::StructureStartModel::invalid();
+        let mut access = super::StructureAccessModel::default();
+
+        assert!(access
+            .get_start_for_structure("minecraft:shipwreck")
+            .is_none());
+        assert_eq!(
+            access.get_references_for_structure("minecraft:shipwreck"),
+            &[]
+        );
+        assert!(!access.has_any_structure_references());
+        assert!(!access.unsaved);
+
+        access.set_start_for_structure("minecraft:shipwreck", start.clone());
+        access.set_start_for_structure("minecraft:mineshaft", invalid.clone());
+        assert_eq!(
+            access.get_start_for_structure("minecraft:shipwreck"),
+            Some(&start)
+        );
+        assert!(access.unsaved);
+
+        access.add_reference_for_structure("minecraft:shipwreck", 0x0000_0002_0000_0003);
+        access.add_reference_for_structure("minecraft:shipwreck", 0x0000_0002_0000_0003);
+        assert_eq!(
+            access.get_references_for_structure("minecraft:shipwreck"),
+            &[0x0000_0002_0000_0003]
+        );
+        assert!(access.has_any_structure_references());
+
+        let mut replacement_starts = BTreeMap::new();
+        replacement_starts.insert("minecraft:mineshaft", invalid.clone());
+        access.set_all_starts(replacement_starts);
+        assert!(access
+            .get_start_for_structure("minecraft:shipwreck")
+            .is_none());
+        assert_eq!(
+            access.get_start_for_structure("minecraft:mineshaft"),
+            Some(&invalid)
+        );
+
+        let mut replacement_references = BTreeMap::new();
+        replacement_references.insert("minecraft:mineshaft", vec![7]);
+        access.set_all_references(replacement_references);
+        assert_eq!(
+            access.get_references_for_structure("minecraft:mineshaft"),
+            &[7]
+        );
+    }
+
+    #[test]
+    fn structure_access_resolves_only_valid_referenced_starts() {
+        let valid_start = super::StructureStartModel {
+            structure: Some("minecraft:buried_treasure"),
+            chunk_pos: ChunkPos { x: 1, z: 1 },
+            references: 0,
+            pieces: vec![super::StructurePieceModel {
+                bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 16,
+                    min_y: 45,
+                    min_z: 16,
+                    max_x: 31,
+                    max_y: 55,
+                    max_z: 31,
+                },
+            }],
+        };
+        let mut valid_access = super::StructureAccessModel::default();
+        valid_access.set_start_for_structure("minecraft:buried_treasure", valid_start.clone());
+
+        let mut invalid_access = super::StructureAccessModel::default();
+        invalid_access.set_start_for_structure(
+            "minecraft:buried_treasure",
+            super::StructureStartModel::invalid(),
+        );
+
+        let mut chunks = BTreeMap::new();
+        chunks.insert(11, valid_access);
+        chunks.insert(12, invalid_access);
+        let starts = super::structure_access_valid_starts_for_references(
+            &chunks,
+            "minecraft:buried_treasure",
+            &[11, 12, 13],
+        );
+        assert_eq!(starts, vec![valid_start]);
     }
 
     #[test]
