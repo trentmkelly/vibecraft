@@ -4903,6 +4903,14 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         function: OVERWORLD_OFFSET_DENSITY,
     },
     DensityFunctionEntry {
+        id: "minecraft:overworld/factor",
+        function: OVERWORLD_FACTOR_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/jaggedness",
+        function: OVERWORLD_JAGGEDNESS_DENSITY,
+    },
+    DensityFunctionEntry {
         id: "minecraft:overworld/depth",
         function: OVERWORLD_DEPTH_DENSITY,
     },
@@ -4933,12 +4941,28 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         function: OVERWORLD_LARGE_BIOMES_OFFSET_DENSITY,
     },
     DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/factor",
+        function: OVERWORLD_LARGE_BIOMES_FACTOR_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/jaggedness",
+        function: OVERWORLD_LARGE_BIOMES_JAGGEDNESS_DENSITY,
+    },
+    DensityFunctionEntry {
         id: "minecraft:overworld_large_biomes/depth",
         function: OVERWORLD_LARGE_BIOMES_DEPTH_DENSITY,
     },
     DensityFunctionEntry {
         id: "minecraft:overworld_amplified/offset",
         function: OVERWORLD_AMPLIFIED_OFFSET_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_amplified/factor",
+        function: OVERWORLD_AMPLIFIED_FACTOR_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_amplified/jaggedness",
+        function: OVERWORLD_AMPLIFIED_JAGGEDNESS_DENSITY,
     },
     DensityFunctionEntry {
         id: "minecraft:overworld_amplified/depth",
@@ -5029,6 +5053,24 @@ pub const OVERWORLD_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_OFFSET_CACHE_2D_DENSITY,
 };
+pub const OVERWORLD_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_FACTOR_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &OVERWORLD_FACTOR_SPLINE_DENSITY,
+};
+pub const OVERWORLD_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_FACTOR_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_JAGGEDNESS_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_JAGGEDNESS_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &OVERWORLD_JAGGEDNESS_SPLINE_DENSITY,
+};
+pub const OVERWORLD_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_JAGGEDNESS_CACHE_2D_DENSITY,
+};
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY: DensityFunction =
     DensityFunction::Marker {
@@ -5039,6 +5081,27 @@ pub const OVERWORLD_LARGE_BIOMES_OFFSET_DENSITY: DensityFunction = DensityFuncti
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY,
 };
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_CACHE_2D_DENSITY: DensityFunction =
+    DensityFunction::Marker {
+        kind: DensityMarker::Cache2D,
+        input: &OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_LARGE_BIOMES_FACTOR_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DENSITY: DensityFunction =
+    DensityFunction::Spline;
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_CACHE_2D_DENSITY: DensityFunction =
+    DensityFunction::Marker {
+        kind: DensityMarker::Cache2D,
+        input: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_CACHE_2D_DENSITY,
+};
 pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
 pub const OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
@@ -5047,6 +5110,25 @@ pub const OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY: DensityFunction = Density
 pub const OVERWORLD_AMPLIFIED_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
     input: &OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_AMPLIFIED_FACTOR_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_AMPLIFIED_FACTOR_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_CACHE_2D_DENSITY: DensityFunction =
+    DensityFunction::Marker {
+        kind: DensityMarker::Cache2D,
+        input: &OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_AMPLIFIED_JAGGEDNESS_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_DEPTH_GRADIENT_DENSITY: DensityFunction = DensityFunction::YClampedGradient {
     from_y: -64,
@@ -27634,12 +27716,18 @@ mod tests {
                 "minecraft:overworld/ridges",
                 "minecraft:overworld/ridges_folded",
                 "minecraft:overworld/offset",
+                "minecraft:overworld/factor",
+                "minecraft:overworld/jaggedness",
                 "minecraft:overworld/depth",
                 "minecraft:overworld_large_biomes/continents",
                 "minecraft:overworld_large_biomes/erosion",
                 "minecraft:overworld_large_biomes/offset",
+                "minecraft:overworld_large_biomes/factor",
+                "minecraft:overworld_large_biomes/jaggedness",
                 "minecraft:overworld_large_biomes/depth",
                 "minecraft:overworld_amplified/offset",
+                "minecraft:overworld_amplified/factor",
+                "minecraft:overworld_amplified/jaggedness",
                 "minecraft:overworld_amplified/depth",
                 "minecraft:end/sloped_cheese",
                 "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
@@ -27677,6 +27765,21 @@ mod tests {
             DensityMarker::FlatCache.serialized_name()
         );
         assert_eq!(offset.value_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+        for id in [
+            "overworld/factor",
+            "overworld/jaggedness",
+            "overworld_large_biomes/factor",
+            "overworld_large_biomes/jaggedness",
+            "overworld_amplified/factor",
+            "overworld_amplified/jaggedness",
+        ] {
+            let entry = builtin_density_function(id).unwrap().function;
+            assert_eq!(
+                entry.type_name(),
+                DensityMarker::FlatCache.serialized_name()
+            );
+            assert_eq!(entry.value_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+        }
         let depth = builtin_density_function("overworld/depth")
             .unwrap()
             .function;
