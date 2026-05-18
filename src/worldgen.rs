@@ -71,6 +71,74 @@ pub enum SurfaceRuleKind {
     State(&'static str),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SurfaceMaterialContext {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub biome: &'static str,
+    pub stone_depth_above: i32,
+    pub stone_depth_below: i32,
+    pub surface_depth: i32,
+    pub preliminary_surface_y: i32,
+    pub water_height: i32,
+    pub temperature: f32,
+    pub noise: f64,
+    pub steep: bool,
+    pub hole: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaveSurface {
+    Floor,
+    Ceiling,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SurfaceConditionSource {
+    Biome(&'static [&'static str]),
+    NoiseThreshold {
+        min: f64,
+        max: f64,
+    },
+    VerticalGradient {
+        true_at_and_below: VerticalAnchor,
+        false_at_and_above: VerticalAnchor,
+    },
+    YAbove {
+        anchor: VerticalAnchor,
+        surface_depth_multiplier: i32,
+        add_stone_depth: bool,
+    },
+    Water {
+        offset: i32,
+        surface_depth_multiplier: i32,
+        add_stone_depth: bool,
+    },
+    StoneDepth {
+        offset: i32,
+        add_surface_depth: bool,
+        secondary_depth_range: i32,
+        surface: CaveSurface,
+    },
+    Not(&'static SurfaceConditionSource),
+    Steep,
+    Hole,
+    AbovePreliminarySurface,
+    Temperature,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SurfaceRuleSource {
+    Bandlands,
+    Block(&'static str),
+    Sequence(&'static [SurfaceRuleSource]),
+    Condition {
+        condition: &'static SurfaceConditionSource,
+        rule: &'static SurfaceRuleSource,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceRuleType {
     pub id: &'static str,
@@ -4444,6 +4512,109 @@ pub fn builtin_surface_rule_preset(id: &str) -> Option<&'static SurfaceRulePrese
     })
 }
 
+pub fn surface_rule_type(id: &str) -> Option<&'static SurfaceRuleType> {
+    SURFACE_RULE_TYPES.iter().find(|entry| entry.id == id)
+}
+
+pub fn surface_condition_type(id: &str) -> Option<&'static SurfaceConditionType> {
+    SURFACE_CONDITION_TYPES.iter().find(|entry| entry.id == id)
+}
+
+pub fn surface_condition_test(
+    condition: &SurfaceConditionSource,
+    context: &SurfaceMaterialContext,
+    height_context: &WorldGenerationHeightContext,
+) -> bool {
+    match condition {
+        SurfaceConditionSource::Biome(targets) => targets.contains(&context.biome),
+        SurfaceConditionSource::NoiseThreshold { min, max } => {
+            context.noise >= *min && context.noise <= *max
+        }
+        SurfaceConditionSource::VerticalGradient {
+            true_at_and_below,
+            false_at_and_above,
+        } => {
+            let true_y = true_at_and_below.resolve_y(*height_context);
+            let false_y = false_at_and_above.resolve_y(*height_context);
+            context.y <= true_y || (context.y < false_y && context.noise < 0.0)
+        }
+        SurfaceConditionSource::YAbove {
+            anchor,
+            surface_depth_multiplier,
+            add_stone_depth,
+        } => {
+            let mut threshold = anchor.resolve_y(*height_context)
+                + context.surface_depth * *surface_depth_multiplier;
+            if *add_stone_depth {
+                threshold += context.stone_depth_above;
+            }
+            context.y >= threshold
+        }
+        SurfaceConditionSource::Water {
+            offset,
+            surface_depth_multiplier,
+            add_stone_depth,
+        } => {
+            let mut threshold =
+                context.water_height + *offset + context.surface_depth * *surface_depth_multiplier;
+            if *add_stone_depth {
+                threshold += context.stone_depth_above;
+            }
+            context.y <= threshold
+        }
+        SurfaceConditionSource::StoneDepth {
+            offset,
+            add_surface_depth,
+            secondary_depth_range,
+            surface,
+        } => {
+            let mut threshold = *offset;
+            if *add_surface_depth {
+                threshold += context.surface_depth;
+            }
+            let depth = match surface {
+                CaveSurface::Floor => context.stone_depth_above,
+                CaveSurface::Ceiling => context.stone_depth_below,
+            };
+            depth <= threshold + *secondary_depth_range
+        }
+        SurfaceConditionSource::Not(target) => {
+            !surface_condition_test(target, context, height_context)
+        }
+        SurfaceConditionSource::Steep => context.steep,
+        SurfaceConditionSource::Hole => context.hole,
+        SurfaceConditionSource::AbovePreliminarySurface => {
+            context.y >= context.preliminary_surface_y
+        }
+        SurfaceConditionSource::Temperature => context.temperature < 0.15,
+    }
+}
+
+pub fn surface_rule_apply(
+    rule: &SurfaceRuleSource,
+    context: &SurfaceMaterialContext,
+    height_context: &WorldGenerationHeightContext,
+) -> Option<&'static str> {
+    match rule {
+        SurfaceRuleSource::Bandlands => Some(match (context.x + context.z).rem_euclid(5) {
+            0 => "minecraft:white_terracotta",
+            1 => "minecraft:orange_terracotta",
+            2 => "minecraft:terracotta",
+            3 => "minecraft:red_sand",
+            _ => "minecraft:red_sandstone",
+        }),
+        SurfaceRuleSource::Block(block) => Some(block),
+        SurfaceRuleSource::Sequence(rules) => rules
+            .iter()
+            .find_map(|rule| surface_rule_apply(rule, context, height_context)),
+        SurfaceRuleSource::Condition { condition, rule } => {
+            surface_condition_test(condition, context, height_context)
+                .then(|| surface_rule_apply(rule, context, height_context))
+                .flatten()
+        }
+    }
+}
+
 pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     CAVE_GENERATION_FAMILIES.iter().find(|entry| {
@@ -4778,14 +4949,15 @@ mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlockPos,
-        BlockPredicate, BlockPredicateContext, CarverShape, CaveDensityOutput,
+        BlockPredicate, BlockPredicateContext, CarverShape, CaveDensityOutput, CaveSurface,
         ConfiguredFeatureSource, DensityFunction, DensityMarker, FeatureConfigurationKind,
         FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus, HeightProvider, HeightRange,
         MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
         OreVeinifierConstants, PlacedFeatureSource, PlacementModifier, RandomSpreadType,
         SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
-        SurfaceRuleKind, SurfaceRulePreset, VerticalAnchor, WeightedHeightProvider,
-        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
+        SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset,
+        SurfaceRuleSource, VerticalAnchor, WeightedHeightProvider, WorldCarverType,
+        WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
         AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS, BLOCK_PREDICATE_TYPES,
         BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
         BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
@@ -5756,6 +5928,127 @@ mod tests {
         assert_eq!(
             super::builtin_surface_rule_preset("air").unwrap().rule,
             SurfaceRuleKind::State("minecraft:air")
+        );
+    }
+
+    #[test]
+    fn material_rule_sources_evaluate_surface_conditions_in_vanilla_order() {
+        assert!(super::surface_rule_type("block").is_some());
+        assert!(super::surface_rule_type("sequence").is_some());
+        assert!(super::surface_rule_type("condition").is_some());
+        assert!(super::surface_condition_type("biome").is_some());
+        assert!(super::surface_condition_type("noise_threshold").is_some());
+        assert!(super::surface_condition_type("stone_depth").is_some());
+
+        static PLAINS_OR_FOREST: SurfaceConditionSource =
+            SurfaceConditionSource::Biome(&["minecraft:plains", "minecraft:forest"]);
+        static DRY_NOISE: SurfaceConditionSource = SurfaceConditionSource::NoiseThreshold {
+            min: -0.25,
+            max: 0.25,
+        };
+        static NOT_DRY_NOISE: SurfaceConditionSource = SurfaceConditionSource::Not(&DRY_NOISE);
+        static FLOOR: SurfaceConditionSource = SurfaceConditionSource::StoneDepth {
+            offset: 0,
+            add_surface_depth: true,
+            secondary_depth_range: 0,
+            surface: CaveSurface::Floor,
+        };
+        static GRASS: SurfaceRuleSource = SurfaceRuleSource::Block("minecraft:grass_block");
+        static DIRT: SurfaceRuleSource = SurfaceRuleSource::Block("minecraft:dirt");
+        static STONE: SurfaceRuleSource = SurfaceRuleSource::Block("minecraft:stone");
+        static PLAINS_GRASS: SurfaceRuleSource = SurfaceRuleSource::Condition {
+            condition: &PLAINS_OR_FOREST,
+            rule: &GRASS,
+        };
+        static DRY_STONE: SurfaceRuleSource = SurfaceRuleSource::Condition {
+            condition: &NOT_DRY_NOISE,
+            rule: &STONE,
+        };
+        static FLOOR_DIRT: SurfaceRuleSource = SurfaceRuleSource::Condition {
+            condition: &FLOOR,
+            rule: &DIRT,
+        };
+        static RULES: &[SurfaceRuleSource] = &[PLAINS_GRASS, DRY_STONE, FLOOR_DIRT];
+        static SEQUENCE: SurfaceRuleSource = SurfaceRuleSource::Sequence(RULES);
+
+        let heights = WorldGenerationHeightContext {
+            min_y: -64,
+            height: 384,
+        };
+        let plains_surface = SurfaceMaterialContext {
+            x: 12,
+            y: 64,
+            z: -4,
+            biome: "minecraft:plains",
+            stone_depth_above: 0,
+            stone_depth_below: 3,
+            surface_depth: 3,
+            preliminary_surface_y: 62,
+            water_height: 63,
+            temperature: 0.8,
+            noise: 0.0,
+            steep: false,
+            hole: false,
+        };
+        assert_eq!(
+            super::surface_rule_apply(&SEQUENCE, &plains_surface, &heights),
+            Some("minecraft:grass_block")
+        );
+
+        let noisy_desert = SurfaceMaterialContext {
+            biome: "minecraft:desert",
+            noise: 0.6,
+            ..plains_surface
+        };
+        assert_eq!(
+            super::surface_rule_apply(&SEQUENCE, &noisy_desert, &heights),
+            Some("minecraft:stone")
+        );
+
+        let quiet_desert_floor = SurfaceMaterialContext {
+            biome: "minecraft:desert",
+            noise: 0.0,
+            stone_depth_above: 2,
+            ..plains_surface
+        };
+        assert_eq!(
+            super::surface_rule_apply(&SEQUENCE, &quiet_desert_floor, &heights),
+            Some("minecraft:dirt")
+        );
+
+        assert!(super::surface_condition_test(
+            &SurfaceConditionSource::YAbove {
+                anchor: VerticalAnchor::Absolute(59),
+                surface_depth_multiplier: 1,
+                add_stone_depth: true,
+            },
+            &quiet_desert_floor,
+            &heights
+        ));
+        assert!(super::surface_condition_test(
+            &SurfaceConditionSource::Water {
+                offset: 2,
+                surface_depth_multiplier: 0,
+                add_stone_depth: false,
+            },
+            &quiet_desert_floor,
+            &heights
+        ));
+        assert!(super::surface_condition_test(
+            &SurfaceConditionSource::VerticalGradient {
+                true_at_and_below: VerticalAnchor::Absolute(60),
+                false_at_and_above: VerticalAnchor::Absolute(70),
+            },
+            &SurfaceMaterialContext {
+                y: 65,
+                noise: -0.5,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        assert_eq!(
+            super::surface_rule_apply(&SurfaceRuleSource::Bandlands, &quiet_desert_floor, &heights),
+            Some("minecraft:red_sand")
         );
     }
 
