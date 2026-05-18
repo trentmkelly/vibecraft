@@ -82,6 +82,8 @@ pub fn build_worldgen_source_family_goldens(
         z: chunk.z * 16,
     };
     let material_context = SurfaceMaterialContext {
+        seed,
+        random_algorithm: crate::worldgen::RandomAlgorithm::Xoroshiro,
         x: chunk.x * 16,
         y: 64,
         z: chunk.z * 16,

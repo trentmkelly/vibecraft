@@ -6,9 +6,11 @@ use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
     ClimateParameterPoint,
 };
+pub use crate::random_source::RandomAlgorithm;
+
 use crate::random_source::{
-    large_feature_seed_with_salt, random_state_seed_factories, LegacyRandom, RandomAlgorithm,
-    RandomSourceKind,
+    large_feature_seed_with_salt, random_state_named_factory, random_state_seed_factories,
+    LegacyRandom, RandomSourceKind,
 };
 use crate::registry::Identifier;
 use crate::storage::chunk::{
@@ -217,6 +219,8 @@ pub enum SurfaceRuleKind {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SurfaceMaterialContext {
+    pub seed: i64,
+    pub random_algorithm: RandomAlgorithm,
     pub x: i32,
     pub y: i32,
     pub z: i32,
@@ -246,6 +250,7 @@ pub enum SurfaceConditionSource {
         max: f64,
     },
     VerticalGradient {
+        random_name: &'static str,
         true_at_and_below: VerticalAnchor,
         false_at_and_above: VerticalAnchor,
     },
@@ -22390,6 +22395,29 @@ pub fn surface_condition_type(id: &str) -> Option<&'static SurfaceConditionType>
     SURFACE_CONDITION_TYPES.iter().find(|entry| entry.id == id)
 }
 
+fn random_source_next_f32(random: &mut RandomSourceKind) -> f32 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_f32(),
+        RandomSourceKind::Xoroshiro(random) => {
+            ((random.next_i64() as u64 >> 40) as f32) / ((1_u32 << 24) as f32)
+        }
+    }
+}
+
+fn surface_positional_random_float(
+    seed: i64,
+    algorithm: RandomAlgorithm,
+    random_name: &str,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> f32 {
+    let base = random_state_seed_factories(seed, algorithm).base;
+    let factory = random_state_named_factory(base, random_name);
+    let mut random = factory.at(x, y, z);
+    random_source_next_f32(&mut random)
+}
+
 pub fn surface_condition_test(
     condition: &SurfaceConditionSource,
     context: &SurfaceMaterialContext,
@@ -22401,12 +22429,27 @@ pub fn surface_condition_test(
             context.noise >= *min && context.noise <= *max
         }
         SurfaceConditionSource::VerticalGradient {
+            random_name,
             true_at_and_below,
             false_at_and_above,
         } => {
             let true_y = true_at_and_below.resolve_y(*height_context);
             let false_y = false_at_and_above.resolve_y(*height_context);
-            context.y <= true_y || (context.y < false_y && context.noise < 0.0)
+            if context.y <= true_y {
+                true
+            } else if context.y >= false_y {
+                false
+            } else {
+                let probability = 1.0 - f64::from(context.y - true_y) / f64::from(false_y - true_y);
+                surface_positional_random_float(
+                    context.seed,
+                    context.random_algorithm,
+                    random_name,
+                    context.x,
+                    context.y,
+                    context.z,
+                ) < probability as f32
+            }
         }
         SurfaceConditionSource::YAbove {
             anchor,
@@ -29156,6 +29199,8 @@ mod tests {
             height: 384,
         };
         let plains_surface = SurfaceMaterialContext {
+            seed: 12345,
+            random_algorithm: super::RandomAlgorithm::Xoroshiro,
             x: 12,
             y: 64,
             z: -4,
@@ -29265,14 +29310,43 @@ mod tests {
             },
             &heights
         ));
+        let vertical_gradient = SurfaceConditionSource::VerticalGradient {
+            random_name: "minecraft:bedrock_floor",
+            true_at_and_below: VerticalAnchor::Absolute(60),
+            false_at_and_above: VerticalAnchor::Absolute(70),
+        };
         assert!(super::surface_condition_test(
-            &SurfaceConditionSource::VerticalGradient {
-                true_at_and_below: VerticalAnchor::Absolute(60),
-                false_at_and_above: VerticalAnchor::Absolute(70),
+            &vertical_gradient,
+            &SurfaceMaterialContext {
+                y: 60,
+                noise: 1.0,
+                ..quiet_desert_floor
             },
+            &heights
+        ));
+        assert!(!super::surface_condition_test(
+            &vertical_gradient,
+            &SurfaceMaterialContext {
+                y: 70,
+                noise: -1.0,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        let random_float = super::surface_positional_random_float(
+            quiet_desert_floor.seed,
+            quiet_desert_floor.random_algorithm,
+            "minecraft:bedrock_floor",
+            quiet_desert_floor.x,
+            65,
+            quiet_desert_floor.z,
+        );
+        assert!((random_float - 0.96467084).abs() < f32::EPSILON);
+        assert!(!super::surface_condition_test(
+            &vertical_gradient,
             &SurfaceMaterialContext {
                 y: 65,
-                noise: -0.5,
+                noise: -1.0,
                 ..quiet_desert_floor
             },
             &heights
