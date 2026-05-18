@@ -652,6 +652,26 @@ pub enum BlockStateProviderModel {
     Weighted(Vec<WeightedBlockState>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleBlockConfigurationModel {
+    pub to_place: BlockStateProviderModel,
+    pub schedule_tick: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SimpleBlockPlacementContext {
+    pub origin_block: &'static str,
+    pub below_block: &'static str,
+    pub above_block: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SimpleBlockPlacementPlan {
+    pub state: &'static str,
+    pub upper_state: Option<&'static str>,
+    pub schedule_tick: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureSizeModel {
     TwoLayers {
@@ -6916,6 +6936,81 @@ pub fn block_state_provider_sample(
     }
 }
 
+pub fn simple_block_placement_plan(
+    config: &SimpleBlockConfigurationModel,
+    context: SimpleBlockPlacementContext,
+    random_roll: i32,
+) -> Option<SimpleBlockPlacementPlan> {
+    let state = block_state_provider_sample(&config.to_place, random_roll)?;
+    if !simple_block_can_survive(state, context) {
+        return None;
+    }
+    if simple_block_is_double_plant(state) {
+        if context.above_block != "minecraft:air" {
+            return None;
+        }
+        return Some(SimpleBlockPlacementPlan {
+            state,
+            upper_state: Some(state),
+            schedule_tick: config.schedule_tick,
+        });
+    }
+    Some(SimpleBlockPlacementPlan {
+        state,
+        upper_state: None,
+        schedule_tick: config.schedule_tick,
+    })
+}
+
+pub fn simple_block_can_survive(state: &str, context: SimpleBlockPlacementContext) -> bool {
+    if context.origin_block != "minecraft:air" {
+        return false;
+    }
+    if simple_block_is_plant(state) {
+        return matches!(
+            context.below_block,
+            "minecraft:grass_block"
+                | "minecraft:dirt"
+                | "minecraft:coarse_dirt"
+                | "minecraft:podzol"
+                | "minecraft:farmland"
+                | "minecraft:moss_block"
+        );
+    }
+    true
+}
+
+fn simple_block_is_plant(state: &str) -> bool {
+    matches!(
+        state,
+        "minecraft:short_grass"
+            | "minecraft:fern"
+            | "minecraft:large_fern"
+            | "minecraft:tall_grass"
+            | "minecraft:dandelion"
+            | "minecraft:poppy"
+            | "minecraft:azure_bluet"
+            | "minecraft:oxeye_daisy"
+            | "minecraft:cornflower"
+            | "minecraft:sunflower"
+            | "minecraft:rose_bush"
+            | "minecraft:peony"
+            | "minecraft:lilac"
+    )
+}
+
+fn simple_block_is_double_plant(state: &str) -> bool {
+    matches!(
+        state,
+        "minecraft:sunflower"
+            | "minecraft:rose_bush"
+            | "minecraft:peony"
+            | "minecraft:lilac"
+            | "minecraft:tall_grass"
+            | "minecraft:large_fern"
+    )
+}
+
 pub fn feature_size_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -10036,6 +10131,85 @@ mod tests {
                     state: "minecraft:air",
                     weight: 0,
                 }]),
+                0,
+            ),
+            None
+        );
+        let flower_provider = BlockStateProviderModel::Simple("minecraft:dandelion");
+        let simple_config = super::SimpleBlockConfigurationModel {
+            to_place: flower_provider,
+            schedule_tick: false,
+        };
+        assert_eq!(
+            super::simple_block_placement_plan(
+                &simple_config,
+                super::SimpleBlockPlacementContext {
+                    origin_block: "minecraft:air",
+                    below_block: "minecraft:grass_block",
+                    above_block: "minecraft:air",
+                },
+                0,
+            ),
+            Some(super::SimpleBlockPlacementPlan {
+                state: "minecraft:dandelion",
+                upper_state: None,
+                schedule_tick: false,
+            })
+        );
+        assert_eq!(
+            super::simple_block_placement_plan(
+                &simple_config,
+                super::SimpleBlockPlacementContext {
+                    origin_block: "minecraft:stone",
+                    below_block: "minecraft:grass_block",
+                    above_block: "minecraft:air",
+                },
+                0,
+            ),
+            None
+        );
+        assert_eq!(
+            super::simple_block_placement_plan(
+                &simple_config,
+                super::SimpleBlockPlacementContext {
+                    origin_block: "minecraft:air",
+                    below_block: "minecraft:stone",
+                    above_block: "minecraft:air",
+                },
+                0,
+            ),
+            None
+        );
+
+        let sunflower_provider = BlockStateProviderModel::Simple("minecraft:sunflower");
+        let sunflower_config = super::SimpleBlockConfigurationModel {
+            to_place: sunflower_provider,
+            schedule_tick: true,
+        };
+        assert_eq!(
+            super::simple_block_placement_plan(
+                &sunflower_config,
+                super::SimpleBlockPlacementContext {
+                    origin_block: "minecraft:air",
+                    below_block: "minecraft:grass_block",
+                    above_block: "minecraft:air",
+                },
+                0,
+            ),
+            Some(super::SimpleBlockPlacementPlan {
+                state: "minecraft:sunflower",
+                upper_state: Some("minecraft:sunflower"),
+                schedule_tick: true,
+            })
+        );
+        assert_eq!(
+            super::simple_block_placement_plan(
+                &sunflower_config,
+                super::SimpleBlockPlacementContext {
+                    origin_block: "minecraft:air",
+                    below_block: "minecraft:grass_block",
+                    above_block: "minecraft:oak_leaves",
+                },
                 0,
             ),
             None
