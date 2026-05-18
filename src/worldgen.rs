@@ -6,7 +6,7 @@ use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
     ClimateParameterPoint,
 };
-use crate::random_source::{large_feature_seed_with_salt, LegacyRandom};
+use crate::random_source::{large_feature_seed_with_salt, LegacyRandom, RandomSourceKind};
 use crate::storage::chunk::{
     BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
     BIOME_SECTION_VOLUME, SECTION_VOLUME,
@@ -1591,6 +1591,38 @@ pub struct JigsawJunctionTagModel {
     pub source_z: i32,
     pub delta_y: i32,
     pub dest_proj: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawPoolAliasWeightedTarget {
+    pub target: &'static str,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawPoolAliasWeightedGroup {
+    pub bindings: Vec<JigsawPoolAliasBindingModel>,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JigsawPoolAliasBindingModel {
+    Direct {
+        alias: &'static str,
+        target: &'static str,
+    },
+    Random {
+        alias: &'static str,
+        targets: Vec<JigsawPoolAliasWeightedTarget>,
+    },
+    RandomGroup {
+        groups: Vec<JigsawPoolAliasWeightedGroup>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct JigsawPoolAliasLookupModel {
+    pub mappings: BTreeMap<&'static str, &'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -7513,6 +7545,131 @@ impl JigsawJunctionModel {
             self.delta_y,
             self.dest_projection,
         )
+    }
+}
+
+impl JigsawPoolAliasBindingModel {
+    pub fn codec_id(&self) -> &'static str {
+        match self {
+            Self::Direct { .. } => "minecraft:direct",
+            Self::Random { .. } => "minecraft:random",
+            Self::RandomGroup { .. } => "minecraft:random_group",
+        }
+    }
+
+    pub fn all_targets(&self) -> Vec<&'static str> {
+        match self {
+            Self::Direct { target, .. } => vec![*target],
+            Self::Random { targets, .. } => targets.iter().map(|target| target.target).collect(),
+            Self::RandomGroup { groups } => groups
+                .iter()
+                .flat_map(|group| group.bindings.iter())
+                .flat_map(Self::all_targets)
+                .collect(),
+        }
+    }
+
+    pub fn for_each_resolved(
+        &self,
+        random: &mut RandomSourceKind,
+        consumer: &mut impl FnMut(&'static str, &'static str),
+    ) {
+        match self {
+            Self::Direct { alias, target } => consumer(alias, target),
+            Self::Random { alias, targets } => {
+                let target = select_weighted_pool_target(targets, random);
+                consumer(alias, target);
+            }
+            Self::RandomGroup { groups } => {
+                let bindings = select_weighted_pool_group(groups, random);
+                for binding in bindings {
+                    binding.for_each_resolved(random, consumer);
+                }
+            }
+        }
+    }
+}
+
+impl JigsawPoolAliasLookupModel {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    pub fn create(
+        bindings: &[JigsawPoolAliasBindingModel],
+        pos: (i32, i32, i32),
+        seed: i64,
+    ) -> Self {
+        if bindings.is_empty() {
+            return Self::empty();
+        }
+
+        let mut base = LegacyRandom::new(seed);
+        let mut random = base.fork_positional().at(pos.0, pos.1, pos.2);
+        let mut mappings = BTreeMap::new();
+        for binding in bindings {
+            binding.for_each_resolved(&mut random, &mut |alias, target| {
+                mappings.insert(alias, target);
+            });
+        }
+        Self { mappings }
+    }
+
+    pub fn lookup(&self, alias: &'static str) -> &'static str {
+        self.mappings.get(alias).copied().unwrap_or(alias)
+    }
+}
+
+fn select_weighted_pool_target(
+    targets: &[JigsawPoolAliasWeightedTarget],
+    random: &mut RandomSourceKind,
+) -> &'static str {
+    let index = select_weighted_index(
+        targets.iter().map(|target| target.weight),
+        targets.len(),
+        random,
+    );
+    targets[index].target
+}
+
+fn select_weighted_pool_group<'a>(
+    groups: &'a [JigsawPoolAliasWeightedGroup],
+    random: &mut RandomSourceKind,
+) -> &'a [JigsawPoolAliasBindingModel] {
+    let index = select_weighted_index(
+        groups.iter().map(|group| group.weight),
+        groups.len(),
+        random,
+    );
+    &groups[index].bindings
+}
+
+fn select_weighted_index(
+    weights: impl Iterator<Item = i32>,
+    len: usize,
+    random: &mut RandomSourceKind,
+) -> usize {
+    assert!(len > 0, "WeightedList must not be empty");
+    let weights = weights.collect::<Vec<_>>();
+    let total_weight: i32 = weights
+        .iter()
+        .copied()
+        .inspect(|weight| assert!(*weight > 0))
+        .sum();
+    let mut value = random_next_i32_bound(random, total_weight);
+    for (index, weight) in weights.into_iter().enumerate() {
+        value -= weight;
+        if value < 0 {
+            return index;
+        }
+    }
+    len - 1
+}
+
+fn random_next_i32_bound(random: &mut RandomSourceKind, bound: i32) -> i32 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_i32_bound(bound),
+        RandomSourceKind::Xoroshiro(random) => random.next_i32_bound(bound),
     }
 }
 
@@ -18983,6 +19140,65 @@ mod tests {
             ..junction.clone()
         };
         assert!(!junction.java_equals(&different_projection));
+    }
+
+    #[test]
+    fn jigsaw_pool_alias_lookup_resolves_direct_random_and_group_bindings_like_vanilla() {
+        let direct = super::JigsawPoolAliasBindingModel::Direct {
+            alias: "minecraft:village/common/well",
+            target: "minecraft:village/plains/well",
+        };
+        assert_eq!(direct.codec_id(), "minecraft:direct");
+        assert_eq!(direct.all_targets(), vec!["minecraft:village/plains/well"]);
+
+        let group = super::JigsawPoolAliasBindingModel::RandomGroup {
+            groups: vec![super::JigsawPoolAliasWeightedGroup {
+                weight: 1,
+                bindings: vec![
+                    super::JigsawPoolAliasBindingModel::Random {
+                        alias: "minecraft:village/common/houses",
+                        targets: vec![super::JigsawPoolAliasWeightedTarget {
+                            target: "minecraft:village/savanna/houses",
+                            weight: 1,
+                        }],
+                    },
+                    super::JigsawPoolAliasBindingModel::Direct {
+                        alias: "minecraft:village/common/terminators",
+                        target: "minecraft:village/savanna/terminators",
+                    },
+                ],
+            }],
+        };
+        assert_eq!(group.codec_id(), "minecraft:random_group");
+        assert_eq!(
+            group.all_targets(),
+            vec![
+                "minecraft:village/savanna/houses",
+                "minecraft:village/savanna/terminators",
+            ]
+        );
+
+        let lookup =
+            super::JigsawPoolAliasLookupModel::create(&[direct, group], (16, 72, -32), 12345);
+        assert_eq!(
+            lookup.lookup("minecraft:village/common/well"),
+            "minecraft:village/plains/well"
+        );
+        assert_eq!(
+            lookup.lookup("minecraft:village/common/houses"),
+            "minecraft:village/savanna/houses"
+        );
+        assert_eq!(
+            lookup.lookup("minecraft:village/common/terminators"),
+            "minecraft:village/savanna/terminators"
+        );
+        assert_eq!(
+            lookup.lookup("minecraft:village/plains/streets"),
+            "minecraft:village/plains/streets"
+        );
+
+        let empty = super::JigsawPoolAliasLookupModel::create(&[], (0, 0, 0), 0);
+        assert_eq!(empty.lookup("minecraft:empty"), "minecraft:empty");
     }
 
     #[test]
