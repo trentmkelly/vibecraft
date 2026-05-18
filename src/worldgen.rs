@@ -78,6 +78,22 @@ pub struct NoiseRouterEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoiseSettingsRegistryExpectation {
+    pub id: &'static str,
+    pub noise: NoiseSettings,
+    pub default_block: &'static str,
+    pub default_fluid: &'static str,
+    pub router_id: &'static str,
+    pub surface_rule: SurfaceRulePreset,
+    pub spawn_target_len: usize,
+    pub sea_level: i32,
+    pub disable_mob_generation: bool,
+    pub aquifers_enabled: bool,
+    pub ore_veins_enabled: bool,
+    pub legacy_random_source: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceRulePresetData {
     pub id: &'static str,
     pub rule: SurfaceRuleKind,
@@ -4473,6 +4489,115 @@ pub const BUILTIN_NOISE_GENERATOR_SETTINGS: &[NoiseGeneratorSettings] = &[
     },
 ];
 
+pub const EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS: &[NoiseSettingsRegistryExpectation] = &[
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:amplified",
+        noise: OVERWORLD_NOISE_SETTINGS,
+        default_block: "minecraft:stone",
+        default_fluid: "minecraft:water",
+        router_id: "minecraft:amplified",
+        surface_rule: SurfaceRulePreset::Overworld,
+        spawn_target_len: 2,
+        sea_level: 63,
+        disable_mob_generation: false,
+        aquifers_enabled: true,
+        ore_veins_enabled: true,
+        legacy_random_source: false,
+    },
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:caves",
+        noise: CAVES_NOISE_SETTINGS,
+        default_block: "minecraft:stone",
+        default_fluid: "minecraft:water",
+        router_id: "minecraft:caves",
+        surface_rule: SurfaceRulePreset::OverworldLike {
+            bedrock_roof: false,
+            bedrock_floor: true,
+            surface: true,
+        },
+        spawn_target_len: 0,
+        sea_level: 32,
+        disable_mob_generation: false,
+        aquifers_enabled: false,
+        ore_veins_enabled: false,
+        legacy_random_source: true,
+    },
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:end",
+        noise: END_NOISE_SETTINGS,
+        default_block: "minecraft:end_stone",
+        default_fluid: "minecraft:air",
+        router_id: "minecraft:end",
+        surface_rule: SurfaceRulePreset::End,
+        spawn_target_len: 0,
+        sea_level: 0,
+        disable_mob_generation: true,
+        aquifers_enabled: false,
+        ore_veins_enabled: false,
+        legacy_random_source: true,
+    },
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:floating_islands",
+        noise: FLOATING_ISLANDS_NOISE_SETTINGS,
+        default_block: "minecraft:stone",
+        default_fluid: "minecraft:water",
+        router_id: "minecraft:floating_islands",
+        surface_rule: SurfaceRulePreset::OverworldLike {
+            bedrock_roof: false,
+            bedrock_floor: false,
+            surface: false,
+        },
+        spawn_target_len: 0,
+        sea_level: -64,
+        disable_mob_generation: false,
+        aquifers_enabled: false,
+        ore_veins_enabled: false,
+        legacy_random_source: true,
+    },
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:large_biomes",
+        noise: OVERWORLD_NOISE_SETTINGS,
+        default_block: "minecraft:stone",
+        default_fluid: "minecraft:water",
+        router_id: "minecraft:large_biomes",
+        surface_rule: SurfaceRulePreset::Overworld,
+        spawn_target_len: 2,
+        sea_level: 63,
+        disable_mob_generation: false,
+        aquifers_enabled: true,
+        ore_veins_enabled: true,
+        legacy_random_source: false,
+    },
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:nether",
+        noise: NETHER_NOISE_SETTINGS,
+        default_block: "minecraft:netherrack",
+        default_fluid: "minecraft:lava",
+        router_id: "minecraft:nether",
+        surface_rule: SurfaceRulePreset::Nether,
+        spawn_target_len: 0,
+        sea_level: 32,
+        disable_mob_generation: false,
+        aquifers_enabled: false,
+        ore_veins_enabled: false,
+        legacy_random_source: true,
+    },
+    NoiseSettingsRegistryExpectation {
+        id: "minecraft:overworld",
+        noise: OVERWORLD_NOISE_SETTINGS,
+        default_block: "minecraft:stone",
+        default_fluid: "minecraft:water",
+        router_id: "minecraft:overworld",
+        surface_rule: SurfaceRulePreset::Overworld,
+        spawn_target_len: 2,
+        sea_level: 63,
+        disable_mob_generation: false,
+        aquifers_enabled: true,
+        ore_veins_enabled: true,
+        legacy_random_source: false,
+    },
+];
+
 pub const ZERO_DENSITY: DensityFunction = DensityFunction::Constant(0.0);
 pub const Y_DENSITY: DensityFunction = DensityFunction::YClampedGradient {
     from_y: -4064,
@@ -4820,7 +4945,7 @@ pub const NETHER_NOISE_ROUTER: NoiseRouter = NoiseRouter {
         shift_z: &ZERO_DENSITY,
         xz_scale: 0.25,
         y_scale: 0.0,
-        noise: "minecraft:temperature_nether",
+        noise: "minecraft:nether/temperature",
     },
     vegetation: DensityFunction::ShiftedNoise {
         shift_x: &ZERO_DENSITY,
@@ -4828,7 +4953,7 @@ pub const NETHER_NOISE_ROUTER: NoiseRouter = NoiseRouter {
         shift_z: &ZERO_DENSITY,
         xz_scale: 0.25,
         y_scale: 0.0,
-        noise: "minecraft:vegetation_nether",
+        noise: "minecraft:nether/vegetation",
     },
     final_density: DensityFunction::Reference("minecraft:nether/final_density"),
     ..NoiseRouter::simple(ZERO_DENSITY)
@@ -19154,6 +19279,28 @@ pub fn builtin_noise_router(id: &str) -> Option<&'static NoiseRouterEntry> {
     })
 }
 
+pub fn noise_router_id_for_settings(settings: NoiseGeneratorSettings) -> &'static str {
+    match settings.noise_router {
+        NoiseRouterPreset::Overworld {
+            large_biomes: false,
+            amplified: false,
+        } => "minecraft:overworld",
+        NoiseRouterPreset::Overworld {
+            large_biomes: true,
+            amplified: false,
+        } => "minecraft:large_biomes",
+        NoiseRouterPreset::Overworld {
+            large_biomes: false,
+            amplified: true,
+        } => "minecraft:amplified",
+        NoiseRouterPreset::Overworld { .. } => "minecraft:overworld",
+        NoiseRouterPreset::Nether => "minecraft:nether",
+        NoiseRouterPreset::End => "minecraft:end",
+        NoiseRouterPreset::Caves => "minecraft:caves",
+        NoiseRouterPreset::FloatingIslands => "minecraft:floating_islands",
+    }
+}
+
 pub fn builtin_surface_rule_preset(id: &str) -> Option<&'static SurfaceRulePresetData> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_SURFACE_RULE_PRESETS.iter().find(|entry| {
@@ -24593,6 +24740,84 @@ mod tests {
     }
 
     #[test]
+    fn noise_generator_settings_cover_extracted_registry_jsons() {
+        assert_eq!(
+            super::EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS
+                .iter()
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:amplified",
+                "minecraft:caves",
+                "minecraft:end",
+                "minecraft:floating_islands",
+                "minecraft:large_biomes",
+                "minecraft:nether",
+                "minecraft:overworld",
+            ]
+        );
+        assert_eq!(
+            super::EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS.len(),
+            BUILTIN_NOISE_GENERATOR_SETTINGS.len()
+        );
+
+        for expected in super::EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS {
+            let settings = builtin_noise_generator_settings(expected.id)
+                .unwrap_or_else(|| panic!("missing {}", expected.id));
+            assert_eq!(settings.noise, expected.noise, "{}", expected.id);
+            assert_eq!(
+                settings.default_block, expected.default_block,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                settings.default_fluid, expected.default_fluid,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                super::noise_router_id_for_settings(*settings),
+                expected.router_id,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                settings.surface_rule, expected.surface_rule,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                settings.spawn_target.len(),
+                expected.spawn_target_len,
+                "{}",
+                expected.id
+            );
+            assert_eq!(settings.sea_level, expected.sea_level, "{}", expected.id);
+            assert_eq!(
+                settings.disable_mob_generation, expected.disable_mob_generation,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                settings.aquifers_enabled, expected.aquifers_enabled,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                settings.ore_veins_enabled, expected.ore_veins_enabled,
+                "{}",
+                expected.id
+            );
+            assert_eq!(
+                settings.legacy_random_source, expected.legacy_random_source,
+                "{}",
+                expected.id
+            );
+            assert!(builtin_noise_router(expected.router_id).is_some());
+        }
+    }
+
+    #[test]
     fn overworld_spawn_target_matches_overworld_biome_builder() {
         assert_eq!(OVERWORLD_SPAWN_TARGET.len(), 2);
         assert_eq!(
@@ -24819,7 +25044,18 @@ mod tests {
                 shift_z: &super::ZERO_DENSITY,
                 xz_scale: 0.25,
                 y_scale: 0.0,
-                noise: "minecraft:temperature_nether",
+                noise: "minecraft:nether/temperature",
+            }
+        );
+        assert_eq!(
+            nether.vegetation,
+            DensityFunction::ShiftedNoise {
+                shift_x: &super::ZERO_DENSITY,
+                shift_y: &super::ZERO_DENSITY,
+                shift_z: &super::ZERO_DENSITY,
+                xz_scale: 0.25,
+                y_scale: 0.0,
+                noise: "minecraft:nether/vegetation",
             }
         );
         assert_eq!(
