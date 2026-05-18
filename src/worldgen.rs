@@ -1625,6 +1625,48 @@ pub struct JigsawPoolAliasLookupModel {
     pub mappings: BTreeMap<&'static str, &'static str>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawPoolElementTypeModel {
+    Single,
+    List,
+    Feature,
+    Empty,
+    LegacySingle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawPoolElementModel {
+    pub element_type: JigsawPoolElementTypeModel,
+    pub projection: JigsawProjectionModel,
+    pub location: Option<&'static str>,
+    pub processors: &'static [&'static str],
+    pub override_liquid_settings: Option<LiquidSettingsModel>,
+    pub children: Vec<JigsawPoolElementModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawTemplatePoolElementEntry {
+    pub element: JigsawPoolElementModel,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawTemplatePoolModel {
+    pub fallback: &'static str,
+    pub raw_templates: Vec<JigsawTemplatePoolElementEntry>,
+    pub expanded_template_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefaultFeatureJigsawModel {
+    pub name: &'static str,
+    pub final_state: &'static str,
+    pub pool: &'static str,
+    pub target: &'static str,
+    pub joint: &'static str,
+    pub orientation: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -7670,6 +7712,194 @@ fn random_next_i32_bound(random: &mut RandomSourceKind, bound: i32) -> i32 {
     match random {
         RandomSourceKind::Legacy(random) => random.next_i32_bound(bound),
         RandomSourceKind::Xoroshiro(random) => random.next_i32_bound(bound),
+    }
+}
+
+impl JigsawPoolElementTypeModel {
+    pub const REGISTRY_ORDER: [Self; 5] = [
+        Self::Single,
+        Self::List,
+        Self::Feature,
+        Self::Empty,
+        Self::LegacySingle,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Single => "minecraft:single_pool_element",
+            Self::List => "minecraft:list_pool_element",
+            Self::Feature => "minecraft:feature_pool_element",
+            Self::Empty => "minecraft:empty_pool_element",
+            Self::LegacySingle => "minecraft:legacy_single_pool_element",
+        }
+    }
+}
+
+impl JigsawPoolElementModel {
+    pub fn empty() -> Self {
+        Self {
+            element_type: JigsawPoolElementTypeModel::Empty,
+            projection: JigsawProjectionModel::TerrainMatching,
+            location: None,
+            processors: &[],
+            override_liquid_settings: None,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn single(
+        location: &'static str,
+        processors: &'static [&'static str],
+        projection: JigsawProjectionModel,
+        override_liquid_settings: Option<LiquidSettingsModel>,
+    ) -> Self {
+        Self {
+            element_type: JigsawPoolElementTypeModel::Single,
+            projection,
+            location: Some(location),
+            processors,
+            override_liquid_settings,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn legacy_single(
+        location: &'static str,
+        processors: &'static [&'static str],
+        projection: JigsawProjectionModel,
+        override_liquid_settings: Option<LiquidSettingsModel>,
+    ) -> Self {
+        Self {
+            element_type: JigsawPoolElementTypeModel::LegacySingle,
+            projection,
+            location: Some(location),
+            processors,
+            override_liquid_settings,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn feature(feature: &'static str, projection: JigsawProjectionModel) -> Self {
+        Self {
+            element_type: JigsawPoolElementTypeModel::Feature,
+            projection,
+            location: Some(feature),
+            processors: &[],
+            override_liquid_settings: None,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn list(
+        mut children: Vec<JigsawPoolElementModel>,
+        projection: JigsawProjectionModel,
+    ) -> Result<Self, String> {
+        if children.is_empty() {
+            return Err("Elements are empty".to_string());
+        }
+        for child in &mut children {
+            child.set_projection(projection);
+        }
+        Ok(Self {
+            element_type: JigsawPoolElementTypeModel::List,
+            projection,
+            location: None,
+            processors: &[],
+            override_liquid_settings: None,
+            children,
+        })
+    }
+
+    pub fn set_projection(&mut self, projection: JigsawProjectionModel) {
+        self.projection = projection;
+        if self.element_type == JigsawPoolElementTypeModel::List {
+            for child in &mut self.children {
+                child.set_projection(projection);
+            }
+        }
+    }
+
+    pub fn ground_level_delta(&self) -> i32 {
+        1
+    }
+
+    pub fn empty_size(&self) -> Option<(i32, i32, i32)> {
+        (self.element_type == JigsawPoolElementTypeModel::Empty).then_some((0, 0, 0))
+    }
+
+    pub fn empty_place_result(&self) -> Option<bool> {
+        (self.element_type == JigsawPoolElementTypeModel::Empty).then_some(true)
+    }
+
+    pub fn default_feature_jigsaw(&self) -> Option<DefaultFeatureJigsawModel> {
+        (self.element_type == JigsawPoolElementTypeModel::Feature).then_some(
+            DefaultFeatureJigsawModel {
+                name: "minecraft:bottom",
+                final_state: "minecraft:air",
+                pool: "minecraft:empty",
+                target: "minecraft:empty",
+                joint: "rollable",
+                orientation: "down_south",
+            },
+        )
+    }
+
+    pub fn placement_processors(&self, keep_jigsaws: bool) -> Vec<&'static str> {
+        match self.element_type {
+            JigsawPoolElementTypeModel::Single | JigsawPoolElementTypeModel::LegacySingle => {
+                let mut processors = Vec::new();
+                if self.element_type == JigsawPoolElementTypeModel::LegacySingle {
+                    processors.push("minecraft:structure_and_air");
+                } else {
+                    processors.push("minecraft:structure_block");
+                }
+                if !keep_jigsaws {
+                    processors.push("minecraft:jigsaw_replacement");
+                }
+                processors.extend(self.processors.iter().copied());
+                processors.extend(self.projection.processor_ids().iter().copied());
+                processors
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
+impl JigsawTemplatePoolModel {
+    pub fn new(
+        fallback: &'static str,
+        raw_templates: Vec<JigsawTemplatePoolElementEntry>,
+    ) -> Result<Self, String> {
+        let mut expanded_template_count = 0_usize;
+        for entry in &raw_templates {
+            if !(1..=150).contains(&entry.weight) {
+                return Err("template pool element weight must be in 1..=150".to_string());
+            }
+            expanded_template_count += entry.weight as usize;
+        }
+        Ok(Self {
+            fallback,
+            raw_templates,
+            expanded_template_count,
+        })
+    }
+
+    pub fn size(&self) -> usize {
+        self.expanded_template_count
+    }
+
+    pub fn get_weighted_template_index(&self, mut expanded_index: usize) -> Option<usize> {
+        if expanded_index >= self.expanded_template_count {
+            return None;
+        }
+        for (index, entry) in self.raw_templates.iter().enumerate() {
+            let weight = entry.weight as usize;
+            if expanded_index < weight {
+                return Some(index);
+            }
+            expanded_index -= weight;
+        }
+        None
     }
 }
 
@@ -19199,6 +19429,123 @@ mod tests {
 
         let empty = super::JigsawPoolAliasLookupModel::create(&[], (0, 0, 0), 0);
         assert_eq!(empty.lookup("minecraft:empty"), "minecraft:empty");
+    }
+
+    #[test]
+    fn jigsaw_pool_element_surfaces_match_vanilla_registry_and_pool_rules() {
+        assert_eq!(
+            super::JigsawPoolElementTypeModel::REGISTRY_ORDER.map(|element_type| element_type.id()),
+            [
+                "minecraft:single_pool_element",
+                "minecraft:list_pool_element",
+                "minecraft:feature_pool_element",
+                "minecraft:empty_pool_element",
+                "minecraft:legacy_single_pool_element",
+            ]
+        );
+
+        let single = super::JigsawPoolElementModel::single(
+            "minecraft:village/plains/houses/plains_small_house_1",
+            &["minecraft:mossify_10_percent"],
+            super::JigsawProjectionModel::TerrainMatching,
+            Some(super::LiquidSettingsModel::IgnoreWaterlogging),
+        );
+        assert_eq!(single.ground_level_delta(), 1);
+        assert_eq!(
+            single.placement_processors(false),
+            vec![
+                "minecraft:structure_block",
+                "minecraft:jigsaw_replacement",
+                "minecraft:mossify_10_percent",
+                "minecraft:gravity",
+            ]
+        );
+        assert_eq!(
+            single.placement_processors(true),
+            vec![
+                "minecraft:structure_block",
+                "minecraft:mossify_10_percent",
+                "minecraft:gravity",
+            ]
+        );
+
+        let legacy = super::JigsawPoolElementModel::legacy_single(
+            "minecraft:village/plains/town_centers/plains_fountain_01",
+            &[],
+            super::JigsawProjectionModel::Rigid,
+            None,
+        );
+        assert_eq!(
+            legacy.placement_processors(false),
+            vec![
+                "minecraft:structure_and_air",
+                "minecraft:jigsaw_replacement"
+            ]
+        );
+
+        let feature = super::JigsawPoolElementModel::feature(
+            "minecraft:patch_grass",
+            super::JigsawProjectionModel::TerrainMatching,
+        );
+        assert_eq!(
+            feature.default_feature_jigsaw(),
+            Some(super::DefaultFeatureJigsawModel {
+                name: "minecraft:bottom",
+                final_state: "minecraft:air",
+                pool: "minecraft:empty",
+                target: "minecraft:empty",
+                joint: "rollable",
+                orientation: "down_south",
+            })
+        );
+
+        let empty = super::JigsawPoolElementModel::empty();
+        assert_eq!(empty.empty_size(), Some((0, 0, 0)));
+        assert_eq!(empty.empty_place_result(), Some(true));
+
+        let list = super::JigsawPoolElementModel::list(
+            vec![single.clone(), feature.clone()],
+            super::JigsawProjectionModel::Rigid,
+        )
+        .expect("non-empty list element");
+        assert!(list
+            .children
+            .iter()
+            .all(|child| child.projection == super::JigsawProjectionModel::Rigid));
+        assert_eq!(
+            super::JigsawPoolElementModel::list(Vec::new(), super::JigsawProjectionModel::Rigid),
+            Err("Elements are empty".to_string())
+        );
+
+        let pool = super::JigsawTemplatePoolModel::new(
+            "minecraft:empty",
+            vec![
+                super::JigsawTemplatePoolElementEntry {
+                    element: legacy,
+                    weight: 2,
+                },
+                super::JigsawTemplatePoolElementEntry {
+                    element: empty,
+                    weight: 1,
+                },
+            ],
+        )
+        .expect("valid pool weights");
+        assert_eq!(pool.size(), 3);
+        assert_eq!(pool.get_weighted_template_index(0), Some(0));
+        assert_eq!(pool.get_weighted_template_index(1), Some(0));
+        assert_eq!(pool.get_weighted_template_index(2), Some(1));
+        assert_eq!(pool.get_weighted_template_index(3), None);
+        assert_eq!(
+            super::JigsawTemplatePoolModel::new(
+                "minecraft:empty",
+                vec![super::JigsawTemplatePoolElementEntry {
+                    element: feature,
+                    weight: 151,
+                }],
+            ),
+            Err("template pool element weight must be in 1..=150".to_string())
+        );
     }
 
     #[test]
