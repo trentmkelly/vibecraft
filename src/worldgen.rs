@@ -5059,6 +5059,31 @@ pub fn resolve_world_preset(id: &str) -> Result<ResolvedWorldPreset, String> {
     })
 }
 
+pub fn generate_chunk_for_stem(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    match &stem.generator {
+        ResolvedChunkGenerator::Flat { settings } => Ok(materialize_flat_chunk(pos, settings)),
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => Err(format!(
+            "Noise chunk generation for {} with {} is not implemented",
+            stem.dimension, noise_settings.id
+        )),
+        ResolvedChunkGenerator::Debug { .. } => Err(format!(
+            "Debug chunk generation for {} is not implemented",
+            stem.dimension
+        )),
+    }
+}
+
+pub fn generate_overworld_chunk_for_preset(
+    pos: ChunkPos,
+    preset_id: &str,
+) -> Result<LevelChunk, String> {
+    let preset = resolve_world_preset(preset_id)?;
+    generate_chunk_for_stem(pos, &preset.overworld)
+}
+
 pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
     match generator {
         "minecraft:flat" | "flat" => Some("minecraft:flat"),
@@ -6674,6 +6699,35 @@ mod tests {
             })
             .unwrap_err(),
             "Flat generator minecraft:overworld must not carry noise settings".to_string()
+        );
+    }
+
+    #[test]
+    fn resolved_flat_generator_materializes_overworld_chunks() {
+        let chunk = super::generate_overworld_chunk_for_preset(ChunkPos { x: -3, z: 5 }, "flat")
+            .expect("flat preset should generate a concrete chunk");
+        assert_eq!(chunk.pos, ChunkPos { x: -3, z: 5 });
+        assert_eq!(chunk.status, "minecraft:full");
+        assert_eq!(chunk.sections.len(), 1);
+        assert!(chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
+        assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
+    }
+
+    #[test]
+    fn unresolved_noise_and_debug_generation_fail_closed() {
+        assert_eq!(
+            super::generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")
+                .unwrap_err(),
+            "Noise chunk generation for minecraft:overworld with minecraft:overworld is not implemented"
+                .to_string()
+        );
+        assert_eq!(
+            super::generate_overworld_chunk_for_preset(
+                ChunkPos { x: 0, z: 0 },
+                "debug_all_block_states"
+            )
+            .unwrap_err(),
+            "Debug chunk generation for minecraft:overworld is not implemented".to_string()
         );
     }
 
