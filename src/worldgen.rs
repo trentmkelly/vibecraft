@@ -4915,6 +4915,10 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         function: OVERWORLD_DEPTH_DENSITY,
     },
     DensityFunctionEntry {
+        id: "minecraft:overworld/sloped_cheese",
+        function: OVERWORLD_SLOPED_CHEESE_DENSITY,
+    },
+    DensityFunctionEntry {
         id: "minecraft:overworld_large_biomes/continents",
         function: DensityFunction::ShiftedNoise {
             shift_x: &SHIFT_X_DENSITY,
@@ -4953,6 +4957,10 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         function: OVERWORLD_LARGE_BIOMES_DEPTH_DENSITY,
     },
     DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/sloped_cheese",
+        function: OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_DENSITY,
+    },
+    DensityFunctionEntry {
         id: "minecraft:overworld_amplified/offset",
         function: OVERWORLD_AMPLIFIED_OFFSET_DENSITY,
     },
@@ -4967,6 +4975,10 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
     DensityFunctionEntry {
         id: "minecraft:overworld_amplified/depth",
         function: OVERWORLD_AMPLIFIED_DEPTH_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_amplified/sloped_cheese",
+        function: OVERWORLD_AMPLIFIED_SLOPED_CHEESE_DENSITY,
     },
     DensityFunctionEntry {
         id: "minecraft:end/sloped_cheese",
@@ -5156,6 +5168,132 @@ pub const OVERWORLD_AMPLIFIED_DEPTH_DENSITY: DensityFunction = DensityFunction::
     kind: BinaryDensityFunction::Add,
     argument1: &OVERWORLD_DEPTH_GRADIENT_DENSITY,
     argument2: &OVERWORLD_AMPLIFIED_OFFSET_REFERENCE_DENSITY,
+};
+pub const JAGGED_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:jagged",
+    xz_scale: 1500.0,
+    y_scale: 0.0,
+};
+pub const JAGGED_HALF_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::HalfNegative,
+    input: &JAGGED_NOISE_DENSITY,
+};
+pub const OVERWORLD_DEPTH_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/depth");
+pub const OVERWORLD_JAGGEDNESS_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/jaggedness");
+pub const OVERWORLD_JAGGEDNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &OVERWORLD_JAGGEDNESS_REFERENCE_DENSITY,
+    argument2: &JAGGED_HALF_NEGATIVE_DENSITY,
+};
+pub const OVERWORLD_DEPTH_WITH_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_DEPTH_REFERENCE_DENSITY,
+    argument2: &OVERWORLD_JAGGEDNESS_NOISE_DENSITY,
+};
+pub const OVERWORLD_FACTOR_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/factor");
+pub const OVERWORLD_SLOPED_CHEESE_INPUT_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &OVERWORLD_DEPTH_WITH_JAGGEDNESS_DENSITY,
+    argument2: &OVERWORLD_FACTOR_REFERENCE_DENSITY,
+};
+pub const OVERWORLD_SLOPED_CHEESE_QUARTER_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::QuarterNegative,
+    input: &OVERWORLD_SLOPED_CHEESE_INPUT_DENSITY,
+};
+pub const SLOPED_CHEESE_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(4.0);
+pub const OVERWORLD_SLOPED_CHEESE_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &SLOPED_CHEESE_SCALE_DENSITY,
+    argument2: &OVERWORLD_SLOPED_CHEESE_QUARTER_DENSITY,
+};
+pub const OVERWORLD_BASE_3D_NOISE_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/base_3d_noise");
+pub const OVERWORLD_SLOPED_CHEESE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_SLOPED_CHEESE_SCALED_DENSITY,
+    argument2: &OVERWORLD_BASE_3D_NOISE_REFERENCE_DENSITY,
+};
+pub const OVERWORLD_LARGE_BIOMES_DEPTH_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_large_biomes/depth");
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_large_biomes/jaggedness");
+pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_NOISE_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_REFERENCE_DENSITY,
+        argument2: &JAGGED_HALF_NEGATIVE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_DEPTH_WITH_JAGGEDNESS_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &OVERWORLD_LARGE_BIOMES_DEPTH_REFERENCE_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_NOISE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_FACTOR_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_large_biomes/factor");
+pub const OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_INPUT_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &OVERWORLD_LARGE_BIOMES_DEPTH_WITH_JAGGEDNESS_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_FACTOR_REFERENCE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_QUARTER_DENSITY: DensityFunction =
+    DensityFunction::Mapped {
+        kind: MappedDensityFunction::QuarterNegative,
+        input: &OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_INPUT_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_SCALED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &SLOPED_CHEESE_SCALE_DENSITY,
+        argument2: &OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_QUARTER_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_LARGE_BIOMES_SLOPED_CHEESE_SCALED_DENSITY,
+    argument2: &OVERWORLD_BASE_3D_NOISE_REFERENCE_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_DEPTH_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_amplified/depth");
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_amplified/jaggedness");
+pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &OVERWORLD_AMPLIFIED_JAGGEDNESS_REFERENCE_DENSITY,
+    argument2: &JAGGED_HALF_NEGATIVE_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_DEPTH_WITH_JAGGEDNESS_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Add,
+        argument1: &OVERWORLD_AMPLIFIED_DEPTH_REFERENCE_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_JAGGEDNESS_NOISE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_FACTOR_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_amplified/factor");
+pub const OVERWORLD_AMPLIFIED_SLOPED_CHEESE_INPUT_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &OVERWORLD_AMPLIFIED_DEPTH_WITH_JAGGEDNESS_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_FACTOR_REFERENCE_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_SLOPED_CHEESE_QUARTER_DENSITY: DensityFunction =
+    DensityFunction::Mapped {
+        kind: MappedDensityFunction::QuarterNegative,
+        input: &OVERWORLD_AMPLIFIED_SLOPED_CHEESE_INPUT_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_SLOPED_CHEESE_SCALED_DENSITY: DensityFunction =
+    DensityFunction::Binary {
+        kind: BinaryDensityFunction::Mul,
+        argument1: &SLOPED_CHEESE_SCALE_DENSITY,
+        argument2: &OVERWORLD_AMPLIFIED_SLOPED_CHEESE_QUARTER_DENSITY,
+    };
+pub const OVERWORLD_AMPLIFIED_SLOPED_CHEESE_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_AMPLIFIED_SLOPED_CHEESE_SCALED_DENSITY,
+    argument2: &OVERWORLD_BASE_3D_NOISE_REFERENCE_DENSITY,
 };
 pub const END_ISLANDS_DENSITY: DensityFunction = DensityFunction::EndIslands { seed: 0 };
 pub const SPAGHETTI_2D_THICKNESS_MODULATOR_DENSITY: DensityFunction = DensityFunction::Binary {
@@ -27719,16 +27857,19 @@ mod tests {
                 "minecraft:overworld/factor",
                 "minecraft:overworld/jaggedness",
                 "minecraft:overworld/depth",
+                "minecraft:overworld/sloped_cheese",
                 "minecraft:overworld_large_biomes/continents",
                 "minecraft:overworld_large_biomes/erosion",
                 "minecraft:overworld_large_biomes/offset",
                 "minecraft:overworld_large_biomes/factor",
                 "minecraft:overworld_large_biomes/jaggedness",
                 "minecraft:overworld_large_biomes/depth",
+                "minecraft:overworld_large_biomes/sloped_cheese",
                 "minecraft:overworld_amplified/offset",
                 "minecraft:overworld_amplified/factor",
                 "minecraft:overworld_amplified/jaggedness",
                 "minecraft:overworld_amplified/depth",
+                "minecraft:overworld_amplified/sloped_cheese",
                 "minecraft:end/sloped_cheese",
                 "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
                 "minecraft:overworld/caves/spaghetti_roughness_function",
@@ -27799,6 +27940,15 @@ mod tests {
                 .type_name(),
             "add"
         );
+        for id in [
+            "overworld/sloped_cheese",
+            "overworld_large_biomes/sloped_cheese",
+            "overworld_amplified/sloped_cheese",
+        ] {
+            let entry = builtin_density_function(id).unwrap().function;
+            assert_eq!(entry.type_name(), "add");
+            assert_eq!(entry.value_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+        }
         assert_eq!(
             builtin_density_function("overworld/caves/spaghetti_2d_thickness_modulator")
                 .unwrap()
