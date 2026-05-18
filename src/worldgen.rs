@@ -83,6 +83,15 @@ pub struct PerlinNoiseSnapshot {
     pub lowest_freq_value_factor: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct NormalNoiseSnapshot {
+    pub parameters: NormalNoiseParameters,
+    pub first: PerlinNoiseSnapshot,
+    pub second: PerlinNoiseSnapshot,
+    pub value_factor: f64,
+    pub max_value: f64,
+}
+
 pub const SIMPLEX_GRADIENT: [[i32; 3]; 16] = [
     [1, 1, 0],
     [-1, 1, 0],
@@ -19572,6 +19581,14 @@ pub fn perlin_noise_snapshot(
     parameters: NormalNoiseParameters,
     use_new_initialization: bool,
 ) -> Result<PerlinNoiseSnapshot, &'static str> {
+    perlin_noise_snapshot_from_random(&mut random, parameters, use_new_initialization)
+}
+
+fn perlin_noise_snapshot_from_random(
+    random: &mut RandomSourceKind,
+    parameters: NormalNoiseParameters,
+    use_new_initialization: bool,
+) -> Result<PerlinNoiseSnapshot, &'static str> {
     perlin_noise_construction_plan(parameters, use_new_initialization)?;
     let octave_count = parameters.amplitudes.len();
     let zero_octave_index = -parameters.first_octave;
@@ -19587,7 +19604,7 @@ pub fn perlin_noise_snapshot(
             }
         }
     } else {
-        let zero_octave = improved_noise_snapshot(&mut random);
+        let zero_octave = improved_noise_snapshot(random);
         if zero_octave_index >= 0 && (zero_octave_index as usize) < octave_count {
             let zero_index = zero_octave_index as usize;
             if parameters.amplitudes[zero_index] != 0.0 {
@@ -19597,7 +19614,7 @@ pub fn perlin_noise_snapshot(
 
         for index in (0..zero_octave_index).rev() {
             if (index as usize) < octave_count && parameters.amplitudes[index as usize] != 0.0 {
-                levels[index as usize] = Some(improved_noise_snapshot(&mut random));
+                levels[index as usize] = Some(improved_noise_snapshot(random));
             } else {
                 random.consume_count(262);
             }
@@ -19663,6 +19680,40 @@ pub fn perlin_noise_edge_value(snapshot: &PerlinNoiseSnapshot, noise_value: f64)
 
 pub fn perlin_noise_max_broken_value(snapshot: &PerlinNoiseSnapshot, y_scale: f64) -> f64 {
     perlin_noise_edge_value(snapshot, y_scale + 2.0)
+}
+
+pub fn normal_noise_snapshot(
+    mut random: RandomSourceKind,
+    parameters: NormalNoiseParameters,
+    use_new_initialization: bool,
+) -> Result<NormalNoiseSnapshot, &'static str> {
+    let first = perlin_noise_snapshot_from_random(&mut random, parameters, use_new_initialization)?;
+    let second =
+        perlin_noise_snapshot_from_random(&mut random, parameters, use_new_initialization)?;
+    let value_factor = normal_noise_value_factor(parameters);
+    let max_value = (perlin_noise_edge_value(&first, 2.0) + perlin_noise_edge_value(&second, 2.0))
+        * value_factor;
+
+    Ok(NormalNoiseSnapshot {
+        parameters,
+        first,
+        second,
+        value_factor,
+        max_value,
+    })
+}
+
+pub fn normal_noise_sample(snapshot: &NormalNoiseSnapshot, x: f64, y: f64, z: f64) -> f64 {
+    let first = perlin_noise_sample(&snapshot.first, x, y, z, 0.0, 0.0);
+    let second = perlin_noise_sample(
+        &snapshot.second,
+        x * NORMAL_NOISE_INPUT_FACTOR,
+        y * NORMAL_NOISE_INPUT_FACTOR,
+        z * NORMAL_NOISE_INPUT_FACTOR,
+        0.0,
+        0.0,
+    );
+    (first + second) * snapshot.value_factor
 }
 
 pub fn random_state_normal_noise_instantiation_plan(
@@ -24313,6 +24364,42 @@ mod tests {
         assert!((super::perlin_noise_edge_value(&legacy_nether, 2.0) - 2.0).abs() < 1e-12);
         assert!((super::perlin_noise_max_broken_value(&legacy_nether, 0.25) - 2.25).abs() < 1e-12);
         assert_eq!(super::perlin_noise_wrap(33_554_432.0 + 2.5), 2.5);
+    }
+
+    #[test]
+    fn normal_noise_snapshot_samples_match_vanilla_dual_perlin_composition() {
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let temperature_parameters =
+            *super::builtin_normal_noise_parameters("minecraft:temperature").unwrap();
+        let temperature_random =
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "temperature")
+                .unwrap()
+                .random;
+        let temperature =
+            super::normal_noise_snapshot(temperature_random, temperature_parameters, true).unwrap();
+        assert!((temperature.value_factor - 1.25).abs() < 1e-12);
+        assert!((temperature.max_value - 4.444444444444445).abs() < 1e-12);
+        assert!(
+            (super::normal_noise_sample(&temperature, 1.25, -3.5, 8.75) - -0.02983876827324091)
+                .abs()
+                < 1e-12
+        );
+
+        let nether_temperature =
+            *super::builtin_normal_noise_parameters("minecraft:nether/temperature").unwrap();
+        let legacy_nether = super::normal_noise_snapshot(
+            super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345)),
+            nether_temperature,
+            false,
+        )
+        .unwrap();
+        assert!((legacy_nether.value_factor - 1.111111111111111).abs() < 1e-12);
+        assert!((legacy_nether.max_value - 4.444444444444444).abs() < 1e-12);
+        assert!(
+            (super::normal_noise_sample(&legacy_nether, 1.25, -3.5, 8.75) - 0.16670465029670953)
+                .abs()
+                < 1e-12
+        );
     }
 
     #[test]
