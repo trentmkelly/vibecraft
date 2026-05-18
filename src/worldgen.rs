@@ -936,6 +936,29 @@ pub enum IcebergBlockAction {
     Water,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WeightedPlacedFeatureModel {
+    pub feature: &'static str,
+    pub chance: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RandomFeatureConfigurationModel {
+    pub features: Vec<WeightedPlacedFeatureModel>,
+    pub default_feature: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleRandomFeatureConfigurationModel {
+    pub features: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RandomBooleanFeatureConfigurationModel {
+    pub feature_true: &'static str,
+    pub feature_false: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -8600,6 +8623,54 @@ pub fn iceberg_smooth_action(
     }
 }
 
+pub fn validate_weighted_placed_feature(
+    feature: WeightedPlacedFeatureModel,
+) -> Result<WeightedPlacedFeatureModel, &'static str> {
+    if feature.feature.is_empty() {
+        Err("weighted placed feature must reference a feature")
+    } else if !(0.0..=1.0).contains(&feature.chance) {
+        Err("weighted placed feature chance must be in 0.0..=1.0")
+    } else {
+        Ok(feature)
+    }
+}
+
+pub fn random_selector_feature<'a>(
+    config: &'a RandomFeatureConfigurationModel,
+    chance_rolls: &[f32],
+) -> Option<&'a str> {
+    for (index, feature) in config.features.iter().enumerate() {
+        validate_weighted_placed_feature(*feature).ok()?;
+        let roll = chance_rolls.get(index).copied().unwrap_or(1.0);
+        if roll < feature.chance {
+            return Some(feature.feature);
+        }
+    }
+    Some(config.default_feature)
+}
+
+pub fn simple_random_selector_feature<'a>(
+    config: &'a SimpleRandomFeatureConfigurationModel,
+    index_roll: i32,
+) -> Option<&'a str> {
+    if config.features.is_empty() {
+        None
+    } else {
+        Some(config.features[index_roll.rem_euclid(config.features.len() as i32) as usize])
+    }
+}
+
+pub fn random_boolean_selector_feature(
+    config: RandomBooleanFeatureConfigurationModel,
+    roll: bool,
+) -> &'static str {
+    if roll {
+        config.feature_true
+    } else {
+        config.feature_false
+    }
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -13131,6 +13202,68 @@ mod tests {
         assert_eq!(
             super::iceberg_smooth_action("minecraft:snow", true, 0),
             super::IcebergBlockAction::Air
+        );
+        let random_feature = super::RandomFeatureConfigurationModel {
+            features: vec![
+                super::WeightedPlacedFeatureModel {
+                    feature: "minecraft:patch_tulip",
+                    chance: 0.2,
+                },
+                super::WeightedPlacedFeatureModel {
+                    feature: "minecraft:patch_grass",
+                    chance: 0.5,
+                },
+            ],
+            default_feature: "minecraft:flower_default",
+        };
+        assert_eq!(
+            super::validate_weighted_placed_feature(random_feature.features[0]),
+            Ok(random_feature.features[0])
+        );
+        assert_eq!(
+            super::validate_weighted_placed_feature(super::WeightedPlacedFeatureModel {
+                feature: "minecraft:bad",
+                chance: 1.1,
+            }),
+            Err("weighted placed feature chance must be in 0.0..=1.0")
+        );
+        assert_eq!(
+            super::random_selector_feature(&random_feature, &[0.3, 0.25]),
+            Some("minecraft:patch_grass")
+        );
+        assert_eq!(
+            super::random_selector_feature(&random_feature, &[0.3, 0.6]),
+            Some("minecraft:flower_default")
+        );
+        let simple_random_feature = super::SimpleRandomFeatureConfigurationModel {
+            features: vec![
+                "minecraft:flower_plain",
+                "minecraft:patch_grass",
+                "minecraft:patch_sunflower",
+            ],
+        };
+        assert_eq!(
+            super::simple_random_selector_feature(&simple_random_feature, 4),
+            Some("minecraft:patch_grass")
+        );
+        assert_eq!(
+            super::simple_random_selector_feature(
+                &super::SimpleRandomFeatureConfigurationModel { features: vec![] },
+                0,
+            ),
+            None
+        );
+        let random_boolean_feature = super::RandomBooleanFeatureConfigurationModel {
+            feature_true: "minecraft:flower_cherry",
+            feature_false: "minecraft:patch_grass",
+        };
+        assert_eq!(
+            super::random_boolean_selector_feature(random_boolean_feature, true),
+            "minecraft:flower_cherry"
+        );
+        assert_eq!(
+            super::random_boolean_selector_feature(random_boolean_feature, false),
+            "minecraft:patch_grass"
         );
 
         let pile_config = super::BlockPileConfigurationModel {
