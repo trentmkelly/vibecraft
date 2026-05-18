@@ -6,6 +6,7 @@ use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
     ClimateParameterPoint,
 };
+use crate::random_source::{large_feature_seed_with_salt, LegacyRandom};
 use crate::storage::chunk::{
     BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
     BIOME_SECTION_VOLUME, SECTION_VOLUME,
@@ -1492,6 +1493,17 @@ pub enum StructurePlacementKind {
 pub enum RandomSpreadType {
     Linear,
     Triangular,
+}
+
+impl RandomSpreadType {
+    pub fn evaluate(self, random: &mut LegacyRandom, limit: i32) -> i32 {
+        match self {
+            RandomSpreadType::Linear => random.next_i32_bound(limit),
+            RandomSpreadType::Triangular => {
+                (random.next_i32_bound(limit) + random.next_i32_bound(limit)) / 2
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6418,6 +6430,64 @@ const fn random_spread(
         salt,
         spread_type,
     }
+}
+
+pub fn validate_random_spread_placement(spacing: i32, separation: i32) -> Result<(), String> {
+    if !(0..=4096).contains(&spacing) || !(0..=4096).contains(&separation) {
+        return Err("Random spread spacing and separation must be in 0..=4096".to_string());
+    }
+    if spacing <= separation {
+        return Err("Spacing has to be larger than separation".to_string());
+    }
+    Ok(())
+}
+
+pub fn random_spread_potential_structure_chunk(
+    seed: i64,
+    source_x: i32,
+    source_z: i32,
+    spacing: i32,
+    separation: i32,
+    salt: i32,
+    spread_type: RandomSpreadType,
+) -> Result<ChunkPos, String> {
+    validate_random_spread_placement(spacing, separation)?;
+    let spaced_grid_x = source_x.div_euclid(spacing);
+    let spaced_grid_z = source_z.div_euclid(spacing);
+    let mut random = LegacyRandom::new(large_feature_seed_with_salt(
+        seed,
+        spaced_grid_x,
+        spaced_grid_z,
+        salt,
+    ));
+    let limit = spacing - separation;
+    let spread_x = spread_type.evaluate(&mut random, limit);
+    let spread_z = spread_type.evaluate(&mut random, limit);
+    Ok(ChunkPos {
+        x: spaced_grid_x * spacing + spread_x,
+        z: spaced_grid_z * spacing + spread_z,
+    })
+}
+
+pub fn random_spread_is_placement_chunk(
+    seed: i64,
+    source_x: i32,
+    source_z: i32,
+    spacing: i32,
+    separation: i32,
+    salt: i32,
+    spread_type: RandomSpreadType,
+) -> Result<bool, String> {
+    let chunk = random_spread_potential_structure_chunk(
+        seed,
+        source_x,
+        source_z,
+        spacing,
+        separation,
+        salt,
+        spread_type,
+    )?;
+    Ok(chunk.x == source_x && chunk.z == source_z)
 }
 
 const fn feature_type(
@@ -16327,6 +16397,64 @@ mod tests {
                 salt: 10387319,
                 spread_type: RandomSpreadType::Triangular,
             }
+        );
+    }
+
+    #[test]
+    fn random_spread_structure_placement_uses_vanilla_grid_and_salt_math() {
+        assert_eq!(
+            super::validate_random_spread_placement(32, 32).unwrap_err(),
+            "Spacing has to be larger than separation".to_string()
+        );
+        assert_eq!(
+            super::validate_random_spread_placement(4097, 0).unwrap_err(),
+            "Random spread spacing and separation must be in 0..=4096".to_string()
+        );
+
+        let village = super::random_spread_potential_structure_chunk(
+            12345,
+            0,
+            0,
+            34,
+            8,
+            10387312,
+            RandomSpreadType::Linear,
+        )
+        .unwrap();
+        assert_eq!(village, ChunkPos { x: 21, z: 5 });
+        assert!(!super::random_spread_is_placement_chunk(
+            12345,
+            0,
+            0,
+            34,
+            8,
+            10387312,
+            RandomSpreadType::Linear,
+        )
+        .unwrap());
+        assert!(super::random_spread_is_placement_chunk(
+            12345,
+            village.x,
+            village.z,
+            34,
+            8,
+            10387312,
+            RandomSpreadType::Linear,
+        )
+        .unwrap());
+
+        assert_eq!(
+            super::random_spread_potential_structure_chunk(
+                12345,
+                -1,
+                -1,
+                80,
+                20,
+                10387319,
+                RandomSpreadType::Triangular,
+            )
+            .unwrap(),
+            ChunkPos { x: -37, z: -54 }
         );
     }
 
