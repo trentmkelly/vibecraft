@@ -416,11 +416,44 @@ pub struct BlockPos {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlacementModifier {
-    RarityFilter { chance: i32 },
-    Count { count: i32 },
+    RarityFilter {
+        chance: i32,
+    },
+    BiomeFilter,
+    BlockPredicateFilter {
+        predicate: BlockPredicate,
+    },
+    SurfaceWaterDepthFilter {
+        max_water_depth: i32,
+    },
+    SurfaceRelativeThresholdFilter {
+        heightmap: HeightmapKind,
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
+    Count {
+        count: i32,
+    },
     InSquare,
-    RandomOffset { xz_spread: i32, y_spread: i32 },
-    Fixed { positions: &'static [BlockPos] },
+    Heightmap {
+        heightmap: HeightmapKind,
+    },
+    RandomOffset {
+        xz_spread: i32,
+        y_spread: i32,
+    },
+    Fixed {
+        positions: &'static [BlockPos],
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlacementContextModel {
+    pub min_y: i32,
+    pub world_surface_height: i32,
+    pub ocean_floor_height: i32,
+    pub biome_allows_feature: bool,
+    pub block_predicate: BlockPredicateContext,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5395,6 +5428,109 @@ pub fn placement_modifier_positions(
                 .filter(|pos| pos.x.div_euclid(16) == chunk_x && pos.z.div_euclid(16) == chunk_z)
                 .collect()
         }
+        PlacementModifier::BiomeFilter
+        | PlacementModifier::BlockPredicateFilter { .. }
+        | PlacementModifier::SurfaceWaterDepthFilter { .. }
+        | PlacementModifier::SurfaceRelativeThresholdFilter { .. }
+        | PlacementModifier::Heightmap { .. } => Vec::new(),
+    }
+}
+
+pub fn placed_feature_positions(
+    modifiers: &[PlacementModifier],
+    origin: BlockPos,
+    context: PlacementContextModel,
+    rolls: &[(i32, i32, i32)],
+) -> Vec<BlockPos> {
+    modifiers
+        .iter()
+        .enumerate()
+        .fold(vec![origin], |positions, (index, modifier)| {
+            let (first_roll, second_roll, third_roll) =
+                rolls.get(index).copied().unwrap_or((0, 0, 0));
+            positions
+                .into_iter()
+                .flat_map(|position| {
+                    placement_modifier_positions_with_context(
+                        *modifier,
+                        position,
+                        context,
+                        first_roll,
+                        second_roll,
+                        third_roll,
+                    )
+                })
+                .collect()
+        })
+}
+
+pub fn placement_modifier_positions_with_context(
+    modifier: PlacementModifier,
+    origin: BlockPos,
+    context: PlacementContextModel,
+    first_roll: i32,
+    second_roll: i32,
+    third_roll: i32,
+) -> Vec<BlockPos> {
+    match modifier {
+        PlacementModifier::BiomeFilter => {
+            if context.biome_allows_feature {
+                vec![origin]
+            } else {
+                Vec::new()
+            }
+        }
+        PlacementModifier::BlockPredicateFilter { predicate } => {
+            if block_predicate_test(predicate, context.block_predicate, origin.y) {
+                vec![origin]
+            } else {
+                Vec::new()
+            }
+        }
+        PlacementModifier::SurfaceWaterDepthFilter { max_water_depth } => {
+            if context.world_surface_height - context.ocean_floor_height <= max_water_depth {
+                vec![origin]
+            } else {
+                Vec::new()
+            }
+        }
+        PlacementModifier::SurfaceRelativeThresholdFilter {
+            heightmap,
+            min_inclusive,
+            max_inclusive,
+        } => {
+            let surface = placement_context_height(context, heightmap);
+            let min_y = surface + min_inclusive;
+            let max_y = surface + max_inclusive;
+            if (min_y..=max_y).contains(&origin.y) {
+                vec![origin]
+            } else {
+                Vec::new()
+            }
+        }
+        PlacementModifier::Heightmap { heightmap } => {
+            let height = placement_context_height(context, heightmap);
+            if height > context.min_y {
+                vec![BlockPos {
+                    x: origin.x,
+                    y: height,
+                    z: origin.z,
+                }]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => placement_modifier_positions(modifier, origin, first_roll, second_roll, third_roll),
+    }
+}
+
+fn placement_context_height(context: PlacementContextModel, heightmap: HeightmapKind) -> i32 {
+    match heightmap {
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => context.world_surface_height,
+        HeightmapKind::OceanFloor
+        | HeightmapKind::OceanFloorWg
+        | HeightmapKind::MotionBlocking
+        | HeightmapKind::MotionBlockingNoLeaves => context.ocean_floor_height,
     }
 }
 
@@ -6850,28 +6986,28 @@ mod tests {
         FloatProvider, FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider,
         HeightRange, MangroveRootPlacementModel, MappedDensityFunction, NoiseRouterPreset,
         NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
-        PlacementModifier, RandomSpreadType, RootPlacerModel, SpawnBlockKind, SpawnColumnHeights,
-        StructureFamily, StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext,
-        SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel,
-        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor,
-        WeightedBlockState, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
-        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
-        BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
-        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS,
-        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
-        NETHER_NOISE_SETTINGS, NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS,
-        NORMAL_NOISE_TARGET_DEVIATION, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
-        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
-        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
-        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
-        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
-        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
-        WORLD_PRESETS, Y_DENSITY,
+        PlacementContextModel, PlacementModifier, RandomSpreadType, RootPlacerModel,
+        SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
+        SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset,
+        SurfaceRuleSource, TreeDecoratorModel, TreePlacementBlockKind, TrunkPlacerKind,
+        TrunkPlacerModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
+        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
+        BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
+        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
+        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
+        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
+        FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
+        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
+        NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION,
+        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
+        STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
+        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::{quantize_coord, BiomeSourceModel};
     use crate::storage::chunk::HeightmapKind;
@@ -7349,6 +7485,121 @@ mod tests {
                 },
             ]
         );
+
+        let placement_context = PlacementContextModel {
+            min_y: -64,
+            world_surface_height: 81,
+            ocean_floor_height: 63,
+            biome_allows_feature: true,
+            block_predicate: BlockPredicateContext {
+                min_y: -64,
+                height: 384,
+                block: "minecraft:grass_block",
+                fluid: "minecraft:empty",
+                solid: true,
+                replaceable: false,
+                unobstructed: true,
+            },
+        };
+        assert_eq!(
+            super::placement_modifier_positions_with_context(
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::WorldSurface,
+                },
+                origin,
+                placement_context,
+                0,
+                0,
+                0,
+            ),
+            vec![BlockPos {
+                x: 32,
+                y: 81,
+                z: -16,
+            }]
+        );
+        assert_eq!(
+            super::placement_modifier_positions_with_context(
+                PlacementModifier::SurfaceRelativeThresholdFilter {
+                    heightmap: HeightmapKind::WorldSurface,
+                    min_inclusive: -16,
+                    max_inclusive: 0,
+                },
+                BlockPos {
+                    x: 32,
+                    y: 70,
+                    z: -16,
+                },
+                placement_context,
+                0,
+                0,
+                0,
+            ),
+            vec![origin]
+        );
+        assert!(super::placement_modifier_positions_with_context(
+            PlacementModifier::SurfaceWaterDepthFilter { max_water_depth: 8 },
+            origin,
+            placement_context,
+            0,
+            0,
+            0,
+        )
+        .is_empty());
+        assert_eq!(
+            super::placement_modifier_positions_with_context(
+                PlacementModifier::BlockPredicateFilter {
+                    predicate: BlockPredicate::Solid,
+                },
+                origin,
+                placement_context,
+                0,
+                0,
+                0,
+            ),
+            vec![origin]
+        );
+        assert_eq!(
+            super::placed_feature_positions(
+                &[
+                    PlacementModifier::BiomeFilter,
+                    PlacementModifier::Count { count: 2 },
+                    PlacementModifier::InSquare,
+                    PlacementModifier::Heightmap {
+                        heightmap: HeightmapKind::WorldSurface,
+                    },
+                ],
+                BlockPos {
+                    x: 32,
+                    y: 0,
+                    z: -16
+                },
+                placement_context,
+                &[(0, 0, 0), (0, 0, 0), (3, 4, 0), (0, 0, 0)],
+            ),
+            vec![
+                BlockPos {
+                    x: 35,
+                    y: 81,
+                    z: -12,
+                },
+                BlockPos {
+                    x: 35,
+                    y: 81,
+                    z: -12,
+                },
+            ]
+        );
+        assert!(super::placed_feature_positions(
+            &[PlacementModifier::BiomeFilter],
+            origin,
+            PlacementContextModel {
+                biome_allows_feature: false,
+                ..placement_context
+            },
+            &[(0, 0, 0)],
+        )
+        .is_empty());
     }
 
     #[test]
