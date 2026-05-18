@@ -19444,7 +19444,12 @@ impl DensityFunction {
                 kind,
                 argument1,
                 argument2,
-            } => kind.apply(argument1.compute(block_y), argument2.compute(block_y)),
+            } => {
+                let first = argument1.compute(block_y);
+                kind.apply_lazy(first, argument2.value_bounds(), || {
+                    argument2.compute(block_y)
+                })
+            }
             DensityFunction::RangeChoice {
                 input,
                 min_inclusive,
@@ -19503,10 +19508,12 @@ impl DensityFunction {
                 kind,
                 argument1,
                 argument2,
-            } => kind.apply(
-                argument1.compute_with_noise(seed, settings, block_x, block_y, block_z),
-                argument2.compute_with_noise(seed, settings, block_x, block_y, block_z),
-            ),
+            } => {
+                let first = argument1.compute_with_noise(seed, settings, block_x, block_y, block_z);
+                kind.apply_lazy(first, argument2.value_bounds(), || {
+                    argument2.compute_with_noise(seed, settings, block_x, block_y, block_z)
+                })
+            }
             DensityFunction::RangeChoice {
                 input,
                 min_inclusive,
@@ -19642,6 +19649,50 @@ impl DensityFunction {
             DensityFunction::FindTopSurface => "find_top_surface",
         }
     }
+
+    pub fn value_bounds(self) -> (f64, f64) {
+        match self {
+            DensityFunction::Reference(id) => builtin_density_function(id)
+                .map(|entry| entry.function.value_bounds())
+                .unwrap_or((f64::NEG_INFINITY, f64::INFINITY)),
+            DensityFunction::Constant(value) => (value, value),
+            DensityFunction::YClampedGradient {
+                from_value,
+                to_value,
+                ..
+            } => (from_value.min(to_value), from_value.max(to_value)),
+            DensityFunction::Clamp { min, max, .. } => (min, max),
+            DensityFunction::Mapped { kind, input } => kind.value_bounds(input.value_bounds()),
+            DensityFunction::Binary {
+                kind,
+                argument1,
+                argument2,
+            } => kind.value_bounds(argument1.value_bounds(), argument2.value_bounds()),
+            DensityFunction::RangeChoice {
+                when_in_range,
+                when_out_of_range,
+                ..
+            } => {
+                let in_range = when_in_range.value_bounds();
+                let out_of_range = when_out_of_range.value_bounds();
+                (
+                    in_range.0.min(out_of_range.0),
+                    in_range.1.max(out_of_range.1),
+                )
+            }
+            DensityFunction::Marker { input, .. } => input.value_bounds(),
+            DensityFunction::BlendDensity { .. } => (f64::NEG_INFINITY, f64::INFINITY),
+            DensityFunction::BlendAlpha => (1.0, 1.0),
+            DensityFunction::BlendOffset | DensityFunction::Beardifier => (0.0, 0.0),
+            DensityFunction::EndIslands { .. } => (-0.84375, 0.5625),
+            DensityFunction::Noise { .. }
+            | DensityFunction::ShiftedNoise { .. }
+            | DensityFunction::BlendedNoise { .. }
+            | DensityFunction::WeirdScaledSampler { .. }
+            | DensityFunction::Spline
+            | DensityFunction::FindTopSurface => (f64::NEG_INFINITY, f64::INFINITY),
+        }
+    }
 }
 
 impl NoiseRouter {
@@ -19725,6 +19776,42 @@ impl MappedDensityFunction {
             }
         }
     }
+
+    pub fn value_bounds(self, input: (f64, f64)) -> (f64, f64) {
+        match self {
+            MappedDensityFunction::Abs => {
+                if input.0 >= 0.0 {
+                    input
+                } else if input.1 <= 0.0 {
+                    (-input.1, -input.0)
+                } else {
+                    (0.0, input.0.abs().max(input.1.abs()))
+                }
+            }
+            MappedDensityFunction::Square => {
+                if input.0 >= 0.0 {
+                    (input.0 * input.0, input.1 * input.1)
+                } else if input.1 <= 0.0 {
+                    (input.1 * input.1, input.0 * input.0)
+                } else {
+                    (0.0, input.0.abs().max(input.1.abs()).powi(2))
+                }
+            }
+            MappedDensityFunction::Cube => (input.0.powi(3), input.1.powi(3)),
+            MappedDensityFunction::HalfNegative => {
+                (self.transform(input.0), self.transform(input.1))
+            }
+            MappedDensityFunction::QuarterNegative => {
+                (self.transform(input.0), self.transform(input.1))
+            }
+            MappedDensityFunction::Invert => (-input.1, -input.0),
+            MappedDensityFunction::Squeeze => {
+                let min = self.transform(input.0);
+                let max = self.transform(input.1);
+                (min.min(max), min.max(max))
+            }
+        }
+    }
 }
 
 impl BinaryDensityFunction {
@@ -19743,6 +19830,59 @@ impl BinaryDensityFunction {
             BinaryDensityFunction::Mul => first * second,
             BinaryDensityFunction::Min => first.min(second),
             BinaryDensityFunction::Max => first.max(second),
+        }
+    }
+
+    pub fn apply_lazy(
+        self,
+        first: f64,
+        second_bounds: (f64, f64),
+        second: impl FnOnce() -> f64,
+    ) -> f64 {
+        match self {
+            BinaryDensityFunction::Add => first + second(),
+            BinaryDensityFunction::Mul => {
+                if first == 0.0 {
+                    0.0
+                } else {
+                    first * second()
+                }
+            }
+            BinaryDensityFunction::Min => {
+                if first < second_bounds.0 {
+                    first
+                } else {
+                    first.min(second())
+                }
+            }
+            BinaryDensityFunction::Max => {
+                if first > second_bounds.1 {
+                    first
+                } else {
+                    first.max(second())
+                }
+            }
+        }
+    }
+
+    pub fn value_bounds(self, first: (f64, f64), second: (f64, f64)) -> (f64, f64) {
+        match self {
+            BinaryDensityFunction::Add => (first.0 + second.0, first.1 + second.1),
+            BinaryDensityFunction::Mul => {
+                let products = [
+                    first.0 * second.0,
+                    first.0 * second.1,
+                    first.1 * second.0,
+                    first.1 * second.1,
+                ];
+                products
+                    .into_iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(min, max), value| {
+                        (min.min(value), max.max(value))
+                    })
+            }
+            BinaryDensityFunction::Min => (first.0.min(second.0), first.1.min(second.1)),
+            BinaryDensityFunction::Max => (first.0.max(second.0), first.1.max(second.1)),
         }
     }
 }
@@ -26546,6 +26686,34 @@ mod tests {
         assert_eq!(BinaryDensityFunction::Mul.apply(-2.0, 3.0), -6.0);
         assert_eq!(BinaryDensityFunction::Min.apply(-2.0, 3.0), -2.0);
         assert_eq!(BinaryDensityFunction::Max.apply(-2.0, 3.0), 3.0);
+        assert_eq!(
+            BinaryDensityFunction::Mul.apply_lazy(0.0, (3.0, 3.0), || panic!(
+                "mul should skip zero second argument"
+            )),
+            0.0
+        );
+        assert_eq!(
+            BinaryDensityFunction::Min.apply_lazy(-5.0, (3.0, 3.0), || panic!(
+                "min should skip higher second argument"
+            )),
+            -5.0
+        );
+        assert_eq!(
+            BinaryDensityFunction::Max.apply_lazy(5.0, (-3.0, -3.0), || panic!(
+                "max should skip lower second argument"
+            )),
+            5.0
+        );
+        assert_eq!(Y_DENSITY.value_bounds(), (-4064.0, 4062.0));
+        assert_eq!(
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Add,
+                argument1: &TEST_NEGATIVE_DENSITY,
+                argument2: &TEST_POSITIVE_DENSITY,
+            }
+            .value_bounds(),
+            (1.0, 1.0)
+        );
 
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.type_name(), "range_choice");
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.compute(0), 3.0);
