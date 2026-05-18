@@ -42,6 +42,30 @@ pub struct NormalNoiseInstantiationPlan {
     pub random: RandomSourceKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PerlinNoiseConstructionPlan {
+    pub first_octave: i32,
+    pub octave_count: usize,
+    pub zero_octave_index: i32,
+    pub levels: Vec<PerlinNoiseLevelPlan>,
+    pub legacy_created_zero_octave_first: bool,
+    pub legacy_skipped_octaves: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PerlinNoiseLevelPlan {
+    pub level_index: usize,
+    pub octave: i32,
+    pub source: PerlinNoiseLevelSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PerlinNoiseLevelSource {
+    HashedOctave,
+    SequentialLegacy,
+    SequentialLegacyZero,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SynthNoiseSource {
     pub id: &'static str,
@@ -19278,6 +19302,67 @@ pub fn normal_noise_non_zero_octaves(parameters: NormalNoiseParameters) -> Vec<i
         .collect()
 }
 
+pub fn perlin_noise_construction_plan(
+    parameters: NormalNoiseParameters,
+    use_new_initialization: bool,
+) -> Result<PerlinNoiseConstructionPlan, &'static str> {
+    let octave_count = parameters.amplitudes.len();
+    let zero_octave_index = -parameters.first_octave;
+    let mut levels = Vec::new();
+    let mut legacy_skipped_octaves = Vec::new();
+    let mut legacy_created_zero_octave_first = false;
+
+    if use_new_initialization {
+        for (index, amplitude) in parameters.amplitudes.iter().enumerate() {
+            if *amplitude != 0.0 {
+                levels.push(PerlinNoiseLevelPlan {
+                    level_index: index,
+                    octave: parameters.first_octave + index as i32,
+                    source: PerlinNoiseLevelSource::HashedOctave,
+                });
+            }
+        }
+    } else {
+        legacy_created_zero_octave_first = true;
+        if zero_octave_index >= 0 && (zero_octave_index as usize) < octave_count {
+            let zero_index = zero_octave_index as usize;
+            if parameters.amplitudes[zero_index] != 0.0 {
+                levels.push(PerlinNoiseLevelPlan {
+                    level_index: zero_index,
+                    octave: 0,
+                    source: PerlinNoiseLevelSource::SequentialLegacyZero,
+                });
+            }
+        }
+
+        for index in (0..zero_octave_index).rev() {
+            let octave = parameters.first_octave + index;
+            if (index as usize) < octave_count && parameters.amplitudes[index as usize] != 0.0 {
+                levels.push(PerlinNoiseLevelPlan {
+                    level_index: index as usize,
+                    octave,
+                    source: PerlinNoiseLevelSource::SequentialLegacy,
+                });
+            } else {
+                legacy_skipped_octaves.push(octave);
+            }
+        }
+
+        if zero_octave_index < octave_count.saturating_sub(1) as i32 {
+            return Err("positive octaves are temporarily disabled");
+        }
+    }
+
+    Ok(PerlinNoiseConstructionPlan {
+        first_octave: parameters.first_octave,
+        octave_count,
+        zero_octave_index,
+        levels,
+        legacy_created_zero_octave_first,
+        legacy_skipped_octaves,
+    })
+}
+
 pub fn random_state_normal_noise_instantiation_plan(
     seed: i64,
     settings: NoiseGeneratorSettings,
@@ -23717,6 +23802,65 @@ mod tests {
         assert!(
             super::random_state_normal_noise_instantiation_plan(12345, overworld, "missing")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn perlin_noise_construction_plan_matches_vanilla_octave_wiring() {
+        let temperature = *super::builtin_normal_noise_parameters("temperature").unwrap();
+        let plan = super::perlin_noise_construction_plan(temperature, true).unwrap();
+        assert_eq!(plan.first_octave, -10);
+        assert_eq!(plan.octave_count, 6);
+        assert_eq!(plan.zero_octave_index, 10);
+        assert!(!plan.legacy_created_zero_octave_first);
+        assert!(plan.legacy_skipped_octaves.is_empty());
+        assert_eq!(
+            plan.levels,
+            vec![
+                super::PerlinNoiseLevelPlan {
+                    level_index: 0,
+                    octave: -10,
+                    source: super::PerlinNoiseLevelSource::HashedOctave,
+                },
+                super::PerlinNoiseLevelPlan {
+                    level_index: 2,
+                    octave: -8,
+                    source: super::PerlinNoiseLevelSource::HashedOctave,
+                },
+            ]
+        );
+
+        let cave_cheese = *super::builtin_normal_noise_parameters("cave_cheese").unwrap();
+        assert_eq!(
+            super::perlin_noise_construction_plan(cave_cheese, true)
+                .unwrap()
+                .levels
+                .iter()
+                .map(|level| level.octave)
+                .collect::<Vec<_>>(),
+            vec![-8, -7, -6, -5, -4, -3, -1]
+        );
+
+        let nether_temperature =
+            *super::builtin_normal_noise_parameters("minecraft:nether/temperature").unwrap();
+        let legacy_plan = super::perlin_noise_construction_plan(nether_temperature, false).unwrap();
+        assert_eq!(legacy_plan.zero_octave_index, 7);
+        assert!(legacy_plan.legacy_created_zero_octave_first);
+        assert_eq!(legacy_plan.legacy_skipped_octaves, vec![-1, -2, -3, -4, -5]);
+        assert_eq!(
+            legacy_plan.levels,
+            vec![
+                super::PerlinNoiseLevelPlan {
+                    level_index: 1,
+                    octave: -6,
+                    source: super::PerlinNoiseLevelSource::SequentialLegacy,
+                },
+                super::PerlinNoiseLevelPlan {
+                    level_index: 0,
+                    octave: -7,
+                    source: super::PerlinNoiseLevelSource::SequentialLegacy,
+                },
+            ]
         );
     }
 
