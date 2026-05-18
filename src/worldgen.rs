@@ -1042,6 +1042,18 @@ pub struct VineColumnBlock {
     pub age: Option<i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndGatewayConfigurationModel {
+    pub exit: Option<BlockPos>,
+    pub exact: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeaturePlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
@@ -9360,6 +9372,125 @@ pub fn weeping_vines_wart_can_grow(
     candidate_empty && wart_or_netherrack_neighbors == 1
 }
 
+pub fn end_platform_blocks(origin: BlockPos) -> Vec<FeaturePlacementBlock> {
+    let mut blocks = Vec::new();
+    for dz in -2..=2 {
+        for dx in -2..=2 {
+            for dy in -1..3 {
+                blocks.push(FeaturePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + dy,
+                        z: origin.z + dz,
+                    },
+                    state: if dy == -1 {
+                        "minecraft:obsidian"
+                    } else {
+                        "minecraft:air"
+                    },
+                });
+            }
+        }
+    }
+    blocks
+}
+
+pub fn void_start_platform_origin(feature_origin_y: i32) -> BlockPos {
+    BlockPos {
+        x: 8,
+        y: feature_origin_y + 3,
+        z: 8,
+    }
+}
+
+pub fn checkerboard_distance(xa: i32, za: i32, xb: i32, zb: i32) -> i32 {
+    (xa - xb).abs().max((za - zb).abs())
+}
+
+pub fn chunk_pos_containing_block(x: i32, z: i32) -> ChunkPos {
+    ChunkPos {
+        x: x.div_euclid(16),
+        z: z.div_euclid(16),
+    }
+}
+
+pub fn void_start_platform_applies_to_chunk(chunk_pos: ChunkPos) -> bool {
+    let platform_chunk = chunk_pos_containing_block(8, 8);
+    checkerboard_distance(chunk_pos.x, chunk_pos.z, platform_chunk.x, platform_chunk.z) <= 1
+}
+
+pub fn void_start_platform_blocks(
+    chunk_pos: ChunkPos,
+    feature_origin_y: i32,
+) -> Vec<FeaturePlacementBlock> {
+    if !void_start_platform_applies_to_chunk(chunk_pos) {
+        return Vec::new();
+    }
+    let origin = void_start_platform_origin(feature_origin_y);
+    let mut blocks = Vec::new();
+    for z in (chunk_pos.z * 16)..=(chunk_pos.z * 16 + 15) {
+        for x in (chunk_pos.x * 16)..=(chunk_pos.x * 16 + 15) {
+            if checkerboard_distance(origin.x, origin.z, x, z) <= 16 {
+                blocks.push(FeaturePlacementBlock {
+                    pos: BlockPos { x, y: origin.y, z },
+                    state: if x == origin.x && z == origin.z {
+                        "minecraft:cobblestone"
+                    } else {
+                        "minecraft:stone"
+                    },
+                });
+            }
+        }
+    }
+    blocks
+}
+
+pub fn end_gateway_known_exit(exit: BlockPos, exact: bool) -> EndGatewayConfigurationModel {
+    EndGatewayConfigurationModel {
+        exit: Some(exit),
+        exact,
+    }
+}
+
+pub fn end_gateway_delayed_exit_search() -> EndGatewayConfigurationModel {
+    EndGatewayConfigurationModel {
+        exit: None,
+        exact: false,
+    }
+}
+
+pub fn end_gateway_blocks(origin: BlockPos) -> Vec<FeaturePlacementBlock> {
+    let mut blocks = Vec::new();
+    for dy in -2i32..=2 {
+        for dz in -1i32..=1 {
+            for dx in -1i32..=1 {
+                let same_x = dx == 0;
+                let same_y = dy == 0;
+                let same_z = dz == 0;
+                let end = dy.abs() == 2;
+                let state = if same_x && same_y && same_z {
+                    "minecraft:end_gateway"
+                } else if same_y {
+                    "minecraft:air"
+                } else if (end && same_x && same_z) || ((same_x || same_z) && !end) {
+                    "minecraft:bedrock"
+                } else {
+                    "minecraft:air"
+                };
+                blocks.push(FeaturePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + dy,
+                        z: origin.z + dz,
+                    },
+                    state,
+                });
+            }
+        }
+    }
+    blocks
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -14287,6 +14418,87 @@ mod tests {
         );
         assert!(super::weeping_vines_wart_can_grow(true, 1));
         assert!(!super::weeping_vines_wart_can_grow(true, 2));
+        let end_platform = super::end_platform_blocks(BlockPos { x: 0, y: 64, z: 0 });
+        assert_eq!(end_platform.len(), 100);
+        assert_eq!(
+            end_platform
+                .iter()
+                .filter(|block| block.state == "minecraft:obsidian")
+                .count(),
+            25
+        );
+        assert!(end_platform.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos {
+                x: -2,
+                y: 63,
+                z: -2
+            },
+            state: "minecraft:obsidian",
+        }));
+        assert!(end_platform.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos { x: 2, y: 66, z: 2 },
+            state: "minecraft:air",
+        }));
+        assert_eq!(
+            super::void_start_platform_origin(64),
+            BlockPos { x: 8, y: 67, z: 8 }
+        );
+        assert!(super::void_start_platform_applies_to_chunk(ChunkPos {
+            x: 1,
+            z: 1
+        }));
+        assert!(!super::void_start_platform_applies_to_chunk(ChunkPos {
+            x: 2,
+            z: 0
+        }));
+        let void_platform = super::void_start_platform_blocks(ChunkPos { x: 0, z: 0 }, 64);
+        assert!(void_platform.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos { x: 8, y: 67, z: 8 },
+            state: "minecraft:cobblestone",
+        }));
+        assert!(void_platform.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos { x: 0, y: 67, z: 0 },
+            state: "minecraft:stone",
+        }));
+        assert_eq!(
+            super::void_start_platform_blocks(ChunkPos { x: 2, z: 0 }, 64),
+            Vec::new()
+        );
+        assert_eq!(
+            super::end_gateway_known_exit(BlockPos { x: 1, y: 2, z: 3 }, true),
+            super::EndGatewayConfigurationModel {
+                exit: Some(BlockPos { x: 1, y: 2, z: 3 }),
+                exact: true,
+            }
+        );
+        assert_eq!(
+            super::end_gateway_delayed_exit_search(),
+            super::EndGatewayConfigurationModel {
+                exit: None,
+                exact: false,
+            }
+        );
+        let gateway = super::end_gateway_blocks(BlockPos { x: 0, y: 64, z: 0 });
+        assert_eq!(gateway.len(), 45);
+        assert!(gateway.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos { x: 0, y: 64, z: 0 },
+            state: "minecraft:end_gateway",
+        }));
+        assert!(gateway.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos { x: 0, y: 66, z: 0 },
+            state: "minecraft:bedrock",
+        }));
+        assert!(gateway.contains(&super::FeaturePlacementBlock {
+            pos: BlockPos { x: 1, y: 64, z: 0 },
+            state: "minecraft:air",
+        }));
+        assert_eq!(
+            gateway
+                .iter()
+                .filter(|block| block.state == "minecraft:bedrock")
+                .count(),
+            12
+        );
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
