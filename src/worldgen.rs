@@ -19717,10 +19717,21 @@ impl DensityFunction {
                 let upper = upper_bound.value_bounds();
                 (f64::from(lower_bound), f64::from(lower_bound).max(upper.1))
             }
+            DensityFunction::WeirdScaledSampler {
+                noise,
+                rarity_mapper,
+                ..
+            } => builtin_normal_noise_parameters(noise)
+                .map(|parameters| {
+                    (
+                        0.0,
+                        rarity_mapper.max_rarity() * normal_noise_max_value(*parameters),
+                    )
+                })
+                .unwrap_or((0.0, f64::INFINITY)),
             DensityFunction::Noise { .. }
             | DensityFunction::ShiftedNoise { .. }
             | DensityFunction::BlendedNoise { .. }
-            | DensityFunction::WeirdScaledSampler { .. }
             | DensityFunction::Spline => (f64::NEG_INFINITY, f64::INFINITY),
         }
     }
@@ -19989,6 +20000,13 @@ impl RarityValueMapper {
             }
         }
     }
+
+    pub fn max_rarity(self) -> f64 {
+        match self {
+            RarityValueMapper::Type1 => 2.0,
+            RarityValueMapper::Type2 => 3.0,
+        }
+    }
 }
 
 impl FluidStatus {
@@ -20051,6 +20069,29 @@ pub fn normal_noise_value_factor(parameters: NormalNoiseParameters) -> f64 {
         }
     }
     NORMAL_NOISE_TARGET_DEVIATION / 2.0 / normal_noise_expected_deviation(max_octave - min_octave)
+}
+
+pub fn perlin_noise_edge_value_from_parameters(
+    parameters: NormalNoiseParameters,
+    noise_value: f64,
+) -> f64 {
+    let octave_count = parameters.amplitudes.len();
+    let mut value = 0.0;
+    let mut value_factor =
+        2.0_f64.powi(octave_count as i32 - 1) / (2.0_f64.powi(octave_count as i32) - 1.0);
+    for amplitude in parameters.amplitudes {
+        if *amplitude != 0.0 {
+            value += amplitude * noise_value * value_factor;
+        }
+        value_factor /= 2.0;
+    }
+    value
+}
+
+pub fn normal_noise_max_value(parameters: NormalNoiseParameters) -> f64 {
+    perlin_noise_edge_value_from_parameters(parameters, 2.0)
+        * 2.0
+        * normal_noise_value_factor(parameters)
 }
 
 pub fn normal_noise_non_zero_octaves(parameters: NormalNoiseParameters) -> Vec<i32> {
@@ -25010,6 +25051,13 @@ mod tests {
                 .abs()
                 < 1e-12
         );
+        assert!(
+            (super::normal_noise_max_value(
+                *super::builtin_normal_noise_parameters("temperature").unwrap()
+            ) - 4.444444444444445)
+                .abs()
+                < 1e-12
+        );
         assert!(super::synth_noise_source("blended_noise").is_some());
         assert!(super::synth_noise_source("value_noise").is_none());
     }
@@ -26801,6 +26849,17 @@ mod tests {
             .value_bounds(),
             (-64.0, 3.0)
         );
+        assert_eq!(super::RarityValueMapper::Type1.max_rarity(), 2.0);
+        assert_eq!(super::RarityValueMapper::Type2.max_rarity(), 3.0);
+        let weird_bounds = DensityFunction::WeirdScaledSampler {
+            input: &TEST_POSITIVE_DENSITY,
+            noise: "minecraft:spaghetti_3d_1",
+            rarity_mapper: super::RarityValueMapper::Type1,
+        }
+        .value_bounds();
+        assert_eq!(weird_bounds.0, 0.0);
+        assert!(weird_bounds.1.is_finite());
+        assert!(weird_bounds.1 > 0.0);
 
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.type_name(), "range_choice");
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.compute(0), 3.0);
