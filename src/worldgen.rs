@@ -708,6 +708,25 @@ pub struct RootPlacerModel {
     pub mangrove_root_placement: MangroveRootPlacementModel,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TreePlacementBlockKind {
+    DirtBelowTrunk,
+    Log,
+    Leaves,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreePlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub kind: TreePlacementBlockKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TreePlacementPlan {
+    pub blocks: Vec<TreePlacementBlock>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeDecoratorModel {
     TrunkVine,
@@ -6279,6 +6298,122 @@ pub fn validate_root_placer(placer: RootPlacerModel) -> Result<RootPlacerModel, 
     }
 }
 
+pub fn simple_tree_placement_plan(
+    origin: BlockPos,
+    trunk: TrunkPlacerModel,
+    foliage: FoliagePlacerModel,
+    trunk_state: &'static str,
+    foliage_state: &'static str,
+    below_trunk_state: &'static str,
+    rand_a: i32,
+    rand_b: i32,
+) -> Result<TreePlacementPlan, String> {
+    validate_trunk_placer(trunk)?;
+    validate_foliage_placer(foliage)?;
+    if trunk.kind != TrunkPlacerKind::Straight {
+        return Err(
+            "only straight trunk placement is modeled by simple_tree_placement_plan".to_string(),
+        );
+    }
+
+    let (foliage_height, bush_shape) = match foliage.kind {
+        FoliagePlacerKind::Blob { height } => (height, false),
+        FoliagePlacerKind::Bush { height } => (height, true),
+        _ => {
+            return Err(
+                "only blob and bush foliage placement is modeled by simple_tree_placement_plan"
+                    .to_string(),
+            )
+        }
+    };
+
+    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
+    let leaf_radius = foliage.radius_min;
+    let mut blocks = Vec::new();
+    push_tree_block(
+        &mut blocks,
+        TreePlacementBlock {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y - 1,
+                z: origin.z,
+            },
+            state: below_trunk_state,
+            kind: TreePlacementBlockKind::DirtBelowTrunk,
+        },
+    );
+    for y in 0..tree_height {
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: origin.y + y,
+                    z: origin.z,
+                },
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+    }
+
+    let foliage_origin = BlockPos {
+        x: origin.x,
+        y: origin.y + tree_height,
+        z: origin.z,
+    };
+    for yo in (0..=foliage_height).rev() {
+        let current_radius = if bush_shape {
+            leaf_radius - 1 - yo
+        } else {
+            (leaf_radius - 1 - yo / 2).max(0)
+        };
+        if current_radius < 0 {
+            continue;
+        }
+        place_simple_leaves_row(
+            &mut blocks,
+            foliage_origin,
+            current_radius,
+            -yo,
+            foliage_state,
+        );
+    }
+
+    Ok(TreePlacementPlan { blocks })
+}
+
+fn place_simple_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+) {
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn push_tree_block(blocks: &mut Vec<TreePlacementBlock>, block: TreePlacementBlock) {
+    if !blocks.iter().any(|existing| existing.pos == block.pos) {
+        blocks.push(block);
+    }
+}
+
 pub fn validate_feature_size(size: FeatureSizeModel) -> Result<FeatureSizeModel, String> {
     let min_clipped_height = match size {
         FeatureSizeModel::TwoLayers {
@@ -6644,25 +6779,26 @@ mod tests {
         NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
         PlacementModifier, RandomSpreadType, RootPlacerModel, SpawnBlockKind, SpawnColumnHeights,
         StructureFamily, StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext,
-        SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel, TrunkPlacerKind,
-        TrunkPlacerModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
-        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
-        BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
-        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
-        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
-        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
-        FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
-        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
-        NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION,
-        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
-        STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
-        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
-        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
-        WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
+        SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel,
+        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor,
+        WeightedBlockState, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
+        FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS,
+        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
+        NETHER_NOISE_SETTINGS, NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS,
+        NORMAL_NOISE_TARGET_DEVIATION, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
+        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
+        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
+        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
+        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
+        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
+        WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::{quantize_coord, BiomeSourceModel};
     use crate::storage::chunk::HeightmapKind;
@@ -8860,6 +8996,54 @@ mod tests {
             })
             .unwrap_err(),
             "root placer fields are outside vanilla codec ranges".to_string()
+        );
+        let tree_plan = super::simple_tree_placement_plan(
+            BlockPos { x: 8, y: 64, z: 8 },
+            straight_trunk,
+            blob_foliage,
+            "minecraft:oak_log",
+            "minecraft:oak_leaves",
+            "minecraft:dirt",
+            1,
+            1,
+        )
+        .unwrap();
+        assert!(tree_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::DirtBelowTrunk
+                && block.pos == BlockPos { x: 8, y: 63, z: 8 }
+                && block.state == "minecraft:dirt"
+        }));
+        assert_eq!(
+            tree_plan
+                .blocks
+                .iter()
+                .filter(|block| block.kind == TreePlacementBlockKind::Log)
+                .count(),
+            7
+        );
+        assert!(tree_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos == BlockPos { x: 8, y: 71, z: 8 }
+                && block.state == "minecraft:oak_leaves"
+        }));
+        assert_eq!(
+            super::simple_tree_placement_plan(
+                BlockPos { x: 8, y: 64, z: 8 },
+                TrunkPlacerModel {
+                    base_height: 5,
+                    height_rand_a: 0,
+                    height_rand_b: 0,
+                    kind: TrunkPlacerKind::Forking,
+                },
+                blob_foliage,
+                "minecraft:oak_log",
+                "minecraft:oak_leaves",
+                "minecraft:dirt",
+                0,
+                0,
+            )
+            .unwrap_err(),
+            "only straight trunk placement is modeled by simple_tree_placement_plan".to_string()
         );
         assert_eq!(
             super::validate_tree_decorator(TreeDecoratorModel::Cocoa { probability: 0.25 }),
