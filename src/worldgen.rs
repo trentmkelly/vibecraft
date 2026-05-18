@@ -720,6 +720,12 @@ pub struct OrePlacementBlock {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AquaticPlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockPileConfigurationModel {
     pub state_provider: BlockStateProviderModel,
@@ -7336,6 +7342,140 @@ pub fn ore_placement_plan(
         .collect()
 }
 
+pub fn aquatic_feature_offset(
+    origin: BlockPos,
+    x_rolls: (i32, i32),
+    z_rolls: (i32, i32),
+) -> (i32, i32) {
+    (
+        origin.x + x_rolls.0 - x_rolls.1,
+        origin.z + z_rolls.0 - z_rolls.1,
+    )
+}
+
+pub fn seagrass_placement_plan(
+    pos: BlockPos,
+    current_block: &'static str,
+    above_block: &'static str,
+    can_survive: bool,
+    tall_probability: f64,
+    tall_roll: f64,
+) -> Vec<AquaticPlacementBlock> {
+    if current_block != "minecraft:water" || !can_survive {
+        return Vec::new();
+    }
+    if tall_roll < tall_probability {
+        if above_block == "minecraft:water" {
+            vec![
+                AquaticPlacementBlock {
+                    pos,
+                    state: "minecraft:tall_seagrass",
+                },
+                AquaticPlacementBlock {
+                    pos: BlockPos {
+                        x: pos.x,
+                        y: pos.y + 1,
+                        z: pos.z,
+                    },
+                    state: "minecraft:tall_seagrass[half=upper]",
+                },
+            ]
+        } else {
+            Vec::new()
+        }
+    } else {
+        vec![AquaticPlacementBlock {
+            pos,
+            state: "minecraft:seagrass",
+        }]
+    }
+}
+
+pub fn sea_pickle_placement_plan(
+    pos: BlockPos,
+    current_block: &'static str,
+    can_survive: bool,
+    pickle_roll: i32,
+) -> Option<AquaticPlacementBlock> {
+    if current_block == "minecraft:water" && can_survive {
+        Some(AquaticPlacementBlock {
+            pos,
+            state: match pickle_roll.rem_euclid(4) + 1 {
+                1 => "minecraft:sea_pickle[pickles=1]",
+                2 => "minecraft:sea_pickle[pickles=2]",
+                3 => "minecraft:sea_pickle[pickles=3]",
+                _ => "minecraft:sea_pickle[pickles=4]",
+            },
+        })
+    } else {
+        None
+    }
+}
+
+pub fn kelp_placement_plan(
+    origin: BlockPos,
+    water_column: &[bool],
+    survival_column: &[bool],
+    height_roll: i32,
+    age_rolls: &[i32],
+    below_is_kelp: bool,
+) -> Vec<AquaticPlacementBlock> {
+    if !water_column.first().copied().unwrap_or(false) {
+        return Vec::new();
+    }
+    let height = 1 + height_roll.rem_euclid(10);
+    let mut blocks = Vec::new();
+    for h in 0..=height {
+        let current_water = water_column.get(h as usize).copied().unwrap_or(false);
+        let above_water = water_column.get(h as usize + 1).copied().unwrap_or(false);
+        let can_survive = survival_column.get(h as usize).copied().unwrap_or(false);
+        let pos = BlockPos {
+            x: origin.x,
+            y: origin.y + h,
+            z: origin.z,
+        };
+        if current_water && above_water && can_survive {
+            if h == height {
+                let age = 20 + age_rolls.first().copied().unwrap_or(0).rem_euclid(4);
+                blocks.push(AquaticPlacementBlock {
+                    pos,
+                    state: kelp_state_for_age(age),
+                });
+            } else {
+                blocks.push(AquaticPlacementBlock {
+                    pos,
+                    state: "minecraft:kelp_plant",
+                });
+            }
+        } else if h > 0 {
+            let below_index = h as usize - 1;
+            if survival_column.get(below_index).copied().unwrap_or(false) && !below_is_kelp {
+                let age = 20 + age_rolls.first().copied().unwrap_or(0).rem_euclid(4);
+                blocks.pop();
+                blocks.push(AquaticPlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x,
+                        y: origin.y + h - 1,
+                        z: origin.z,
+                    },
+                    state: kelp_state_for_age(age),
+                });
+            }
+            break;
+        }
+    }
+    blocks
+}
+
+const fn kelp_state_for_age(age: i32) -> &'static str {
+    match age {
+        20 => "minecraft:kelp[age=20]",
+        21 => "minecraft:kelp[age=21]",
+        22 => "minecraft:kelp[age=22]",
+        _ => "minecraft:kelp[age=23]",
+    }
+}
+
 pub fn block_pile_placement_candidates(
     origin: BlockPos,
     min_y: i32,
@@ -10895,6 +11035,99 @@ mod tests {
             vec![super::OrePlacementBlock {
                 pos: BlockPos { x: 8, y: 32, z: 8 },
                 state: "minecraft:iron_ore",
+            }]
+        );
+        assert_eq!(
+            super::aquatic_feature_offset(
+                BlockPos {
+                    x: 20,
+                    y: 60,
+                    z: 30
+                },
+                (7, 3),
+                (1, 6)
+            ),
+            (24, 25)
+        );
+        assert_eq!(
+            super::seagrass_placement_plan(
+                BlockPos { x: 1, y: 62, z: 1 },
+                "minecraft:water",
+                "minecraft:water",
+                true,
+                0.7,
+                0.1,
+            ),
+            vec![
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 1, y: 62, z: 1 },
+                    state: "minecraft:tall_seagrass",
+                },
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 1, y: 63, z: 1 },
+                    state: "minecraft:tall_seagrass[half=upper]",
+                },
+            ]
+        );
+        assert_eq!(
+            super::seagrass_placement_plan(
+                BlockPos { x: 1, y: 62, z: 1 },
+                "minecraft:water",
+                "minecraft:air",
+                true,
+                0.7,
+                0.1,
+            ),
+            Vec::new()
+        );
+        assert_eq!(
+            super::sea_pickle_placement_plan(
+                BlockPos { x: 2, y: 61, z: 2 },
+                "minecraft:water",
+                true,
+                2,
+            ),
+            Some(super::AquaticPlacementBlock {
+                pos: BlockPos { x: 2, y: 61, z: 2 },
+                state: "minecraft:sea_pickle[pickles=3]",
+            })
+        );
+        assert_eq!(
+            super::kelp_placement_plan(
+                BlockPos { x: 3, y: 50, z: 3 },
+                &[true, true, true, true],
+                &[true, true, true],
+                1,
+                &[2],
+                false,
+            ),
+            vec![
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 3, y: 50, z: 3 },
+                    state: "minecraft:kelp_plant",
+                },
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 3, y: 51, z: 3 },
+                    state: "minecraft:kelp_plant",
+                },
+                super::AquaticPlacementBlock {
+                    pos: BlockPos { x: 3, y: 52, z: 3 },
+                    state: "minecraft:kelp[age=22]",
+                },
+            ]
+        );
+        assert_eq!(
+            super::kelp_placement_plan(
+                BlockPos { x: 3, y: 50, z: 3 },
+                &[true, true, false],
+                &[true, true],
+                5,
+                &[0],
+                false,
+            ),
+            vec![super::AquaticPlacementBlock {
+                pos: BlockPos { x: 3, y: 50, z: 3 },
+                state: "minecraft:kelp[age=20]",
             }]
         );
 
