@@ -6635,6 +6635,33 @@ pub const SNOWY_PLAINS_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const JUNGLE_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:bamboo_light",
+        "minecraft:trees_jungle",
+        "minecraft:flower_warm",
+        "minecraft:patch_grass_jungle",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+        "minecraft:vines",
+        "minecraft:patch_melon",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6802,6 +6829,51 @@ pub const SNOWY_PLAINS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     },
     MobSpawnerDataModel {
         entity_type: "minecraft:polar_bear",
+        weight: 1,
+        min_count: 1,
+        max_count: 2,
+    },
+];
+
+pub const JUNGLE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:parrot",
+        weight: 40,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:panda",
         weight: 1,
         min_count: 1,
         max_count: 2,
@@ -7132,6 +7204,63 @@ pub const SNOWY_PLAINS_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const JUNGLE_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:ocelot",
+        weight: 2,
+        min_count: 1,
+        max_count: 3,
+    },
+];
+
 pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
     &[MobSpawnerDataModel {
         entity_type: "minecraft:glow_squid",
@@ -7364,6 +7493,41 @@ pub const SNOWY_PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: JUNGLE_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: JUNGLE_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -7512,6 +7676,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.07,
         spawn_costs: &[],
         spawners: SNOWY_PLAINS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:jungle",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: JUNGLE_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: JUNGLE_SPAWNER_GROUPS,
     },
 ];
 
@@ -21495,6 +21667,53 @@ mod tests {
                 weight: 80,
                 min_count: 4,
                 max_count: 4,
+            })
+        );
+
+        let jungle = super::biome_generation_settings("jungle").unwrap();
+        assert_eq!(jungle.biome, "minecraft:jungle");
+        assert!(super::biome_has_placed_feature(
+            jungle,
+            "minecraft:bamboo_light"
+        ));
+        assert!(super::biome_has_placed_feature(
+            jungle,
+            "minecraft:trees_jungle"
+        ));
+        assert!(super::biome_has_placed_feature(jungle, "minecraft:vines"));
+        assert!(super::biome_has_placed_feature(
+            jungle,
+            "minecraft:patch_melon"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            jungle,
+            "minecraft:trees_taiga"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(jungle, "creature")[4],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:chicken",
+                weight: 10,
+                min_count: 4,
+                max_count: 4,
+            }
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(jungle, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:panda",
+                weight: 1,
+                min_count: 1,
+                max_count: 2,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(jungle, "monster").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:ocelot",
+                weight: 2,
+                min_count: 1,
+                max_count: 3,
             })
         );
     }
