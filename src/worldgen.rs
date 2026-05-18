@@ -1498,6 +1498,12 @@ pub struct ConcentricRingPlacementCandidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConcentricRingBiomeSearchResult {
+    pub block_x: i32,
+    pub block_z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructureExclusionZoneModel {
     pub other_set: &'static str,
     pub chunk_count: i32,
@@ -7066,6 +7072,42 @@ pub fn concentric_rings_is_placement_chunk(
     ring_positions
         .iter()
         .any(|position| position.x == source_x && position.z == source_z)
+}
+
+pub fn concentric_ring_candidate_search_center(
+    candidate: ConcentricRingPlacementCandidate,
+) -> BlockPos {
+    BlockPos {
+        x: candidate.chunk_pos.x * 16 + 8,
+        y: 0,
+        z: candidate.chunk_pos.z * 16 + 8,
+    }
+}
+
+pub fn concentric_ring_adjusted_position(
+    candidate: ConcentricRingPlacementCandidate,
+    closest_preferred_biome: Option<ConcentricRingBiomeSearchResult>,
+) -> ChunkPos {
+    closest_preferred_biome.map_or(candidate.chunk_pos, |position| ChunkPos {
+        x: position.block_x.div_euclid(16),
+        z: position.block_z.div_euclid(16),
+    })
+}
+
+pub fn concentric_ring_adjusted_positions(
+    candidates: &[ConcentricRingPlacementCandidate],
+    preferred_biome_results: &[Option<ConcentricRingBiomeSearchResult>],
+) -> Vec<ChunkPos> {
+    candidates
+        .iter()
+        .enumerate()
+        .map(|(index, candidate)| {
+            concentric_ring_adjusted_position(
+                *candidate,
+                preferred_biome_results.get(index).copied().flatten(),
+            )
+        })
+        .collect()
 }
 
 pub fn validate_structure_exclusion_zone(
@@ -19261,6 +19303,50 @@ mod tests {
             0,
             0
         ));
+
+        assert_eq!(
+            super::concentric_ring_candidate_search_center(candidates[0]),
+            BlockPos {
+                x: -1672,
+                y: 0,
+                z: 1992,
+            }
+        );
+        assert_eq!(
+            super::concentric_ring_adjusted_position(
+                candidates[0],
+                Some(super::ConcentricRingBiomeSearchResult {
+                    block_x: -1601,
+                    block_z: 2047,
+                }),
+            ),
+            ChunkPos { x: -101, z: 127 }
+        );
+        assert_eq!(
+            super::concentric_ring_adjusted_position(candidates[1], None),
+            candidates[1].chunk_pos
+        );
+        assert_eq!(
+            super::concentric_ring_adjusted_positions(
+                &candidates[0..3],
+                &[
+                    Some(super::ConcentricRingBiomeSearchResult {
+                        block_x: -1601,
+                        block_z: 2047,
+                    }),
+                    None,
+                    Some(super::ConcentricRingBiomeSearchResult {
+                        block_x: 0,
+                        block_z: -1,
+                    }),
+                ],
+            ),
+            vec![
+                ChunkPos { x: -101, z: 127 },
+                candidates[1].chunk_pos,
+                ChunkPos { x: 0, z: -1 },
+            ]
+        );
     }
 
     #[test]
