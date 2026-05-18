@@ -28016,6 +28016,49 @@ mod tests {
 
     #[test]
     fn noise_router_density_function_bootstrap_keys_match_vanilla_prefix() {
+        let extracted_density_function_ids = vec![
+            "minecraft:end/base_3d_noise",
+            "minecraft:end/sloped_cheese",
+            "minecraft:nether/base_3d_noise",
+            "minecraft:overworld/base_3d_noise",
+            "minecraft:overworld/caves/entrances",
+            "minecraft:overworld/caves/noodle",
+            "minecraft:overworld/caves/pillars",
+            "minecraft:overworld/caves/spaghetti_2d",
+            "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
+            "minecraft:overworld/caves/spaghetti_roughness_function",
+            "minecraft:overworld/continents",
+            "minecraft:overworld/depth",
+            "minecraft:overworld/erosion",
+            "minecraft:overworld/factor",
+            "minecraft:overworld/jaggedness",
+            "minecraft:overworld/offset",
+            "minecraft:overworld/ridges",
+            "minecraft:overworld/ridges_folded",
+            "minecraft:overworld/sloped_cheese",
+            "minecraft:overworld_amplified/depth",
+            "minecraft:overworld_amplified/factor",
+            "minecraft:overworld_amplified/jaggedness",
+            "minecraft:overworld_amplified/offset",
+            "minecraft:overworld_amplified/sloped_cheese",
+            "minecraft:overworld_large_biomes/continents",
+            "minecraft:overworld_large_biomes/depth",
+            "minecraft:overworld_large_biomes/erosion",
+            "minecraft:overworld_large_biomes/factor",
+            "minecraft:overworld_large_biomes/jaggedness",
+            "minecraft:overworld_large_biomes/offset",
+            "minecraft:overworld_large_biomes/sloped_cheese",
+            "minecraft:shift_x",
+            "minecraft:shift_z",
+            "minecraft:y",
+            "minecraft:zero",
+        ];
+        let mut actual_density_function_ids = BUILTIN_DENSITY_FUNCTIONS
+            .iter()
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>();
+        actual_density_function_ids.sort_unstable();
+        assert_eq!(actual_density_function_ids, extracted_density_function_ids);
         assert_eq!(
             BUILTIN_DENSITY_FUNCTIONS
                 .iter()
