@@ -2078,6 +2078,58 @@ pub struct DriedGhastPlacementModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuinedPortalVerticalPlacement {
+    OnLandSurface,
+    PartlyBuried,
+    OnOceanFloor,
+    InMountain,
+    Underground,
+    InNether,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RuinedPortalSetupModel {
+    pub placement: RuinedPortalVerticalPlacement,
+    pub air_pocket_probability: f32,
+    pub mossiness: f32,
+    pub overgrown: bool,
+    pub vines: bool,
+    pub can_be_cold: bool,
+    pub replace_with_blackstone: bool,
+    pub weight: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RuinedPortalPropertiesModel {
+    pub cold: bool,
+    pub mossiness: f32,
+    pub air_pocket: bool,
+    pub overgrown: bool,
+    pub vines: bool,
+    pub replace_with_blackstone: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuinedPortalMirrorModel {
+    None,
+    FrontBack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RuinedPortalPieceModel {
+    pub template_name: &'static str,
+    pub template_position: BlockPos,
+    pub vertical_placement: RuinedPortalVerticalPlacement,
+    pub properties: RuinedPortalPropertiesModel,
+    pub rotation: StructureRotation,
+    pub mirror: RuinedPortalMirrorModel,
+    pub pivot: BlockPos,
+    pub ignore_processor: &'static str,
+    pub lava_replacement: &'static str,
+    pub include_blackstone_replace_processor: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -10559,6 +10611,245 @@ pub fn nether_fossil_dried_ghast_placement(
         Ok(Some(DriedGhastPlacementModel { pos, rotation }))
     } else {
         Ok(None)
+    }
+}
+
+pub const RUINED_PORTAL_TEMPLATES: [&str; 10] = [
+    "minecraft:ruined_portal/portal_1",
+    "minecraft:ruined_portal/portal_2",
+    "minecraft:ruined_portal/portal_3",
+    "minecraft:ruined_portal/portal_4",
+    "minecraft:ruined_portal/portal_5",
+    "minecraft:ruined_portal/portal_6",
+    "minecraft:ruined_portal/portal_7",
+    "minecraft:ruined_portal/portal_8",
+    "minecraft:ruined_portal/portal_9",
+    "minecraft:ruined_portal/portal_10",
+];
+
+pub const RUINED_PORTAL_GIANT_TEMPLATES: [&str; 3] = [
+    "minecraft:ruined_portal/giant_portal_1",
+    "minecraft:ruined_portal/giant_portal_2",
+    "minecraft:ruined_portal/giant_portal_3",
+];
+
+pub fn ruined_portal_vertical_placement_id(
+    placement: RuinedPortalVerticalPlacement,
+) -> &'static str {
+    match placement {
+        RuinedPortalVerticalPlacement::OnLandSurface => "on_land_surface",
+        RuinedPortalVerticalPlacement::PartlyBuried => "partly_buried",
+        RuinedPortalVerticalPlacement::OnOceanFloor => "on_ocean_floor",
+        RuinedPortalVerticalPlacement::InMountain => "in_mountain",
+        RuinedPortalVerticalPlacement::Underground => "underground",
+        RuinedPortalVerticalPlacement::InNether => "in_nether",
+    }
+}
+
+pub fn ruined_portal_choose_setup(
+    setups: &[RuinedPortalSetupModel],
+    pick_roll: f32,
+) -> Result<RuinedPortalSetupModel, String> {
+    if setups.is_empty() {
+        return Err("Ruined portal setup list must be non-empty".to_string());
+    }
+    if !(0.0..1.0).contains(&pick_roll) {
+        return Err("Ruined portal setup pick roll must be in [0.0, 1.0)".to_string());
+    }
+    if setups.len() == 1 {
+        return Ok(setups[0]);
+    }
+    let total = setups.iter().map(|setup| setup.weight).sum::<f32>();
+    if total <= 0.0 {
+        return Err("Ruined portal setup weights must sum to a positive value".to_string());
+    }
+    let mut pick = pick_roll;
+    for setup in setups {
+        if setup.weight <= 0.0 {
+            return Err("Ruined portal setup weights must be positive".to_string());
+        }
+        pick -= setup.weight / total;
+        if pick < 0.0 {
+            return Ok(*setup);
+        }
+    }
+    Err("Ruined portal setup pick did not resolve".to_string())
+}
+
+pub fn ruined_portal_sample_probability(limit: f32, roll: f32) -> Result<bool, String> {
+    if !(0.0..=1.0).contains(&limit) {
+        return Err("Ruined portal probability limit must be in [0.0, 1.0]".to_string());
+    }
+    if !(0.0..1.0).contains(&roll) {
+        return Err("Ruined portal probability roll must be in [0.0, 1.0)".to_string());
+    }
+    Ok(if limit == 0.0 {
+        false
+    } else if limit == 1.0 {
+        true
+    } else {
+        roll < limit
+    })
+}
+
+pub fn ruined_portal_template_name(
+    giant_roll: f32,
+    template_index: usize,
+) -> Result<&'static str, String> {
+    if !(0.0..1.0).contains(&giant_roll) {
+        return Err("Ruined portal giant-template roll must be in [0.0, 1.0)".to_string());
+    }
+    if giant_roll < 0.05 {
+        RUINED_PORTAL_GIANT_TEMPLATES
+            .get(template_index)
+            .copied()
+            .ok_or_else(|| "Ruined portal giant template index is out of range".to_string())
+    } else {
+        RUINED_PORTAL_TEMPLATES
+            .get(template_index)
+            .copied()
+            .ok_or_else(|| "Ruined portal template index is out of range".to_string())
+    }
+}
+
+pub fn ruined_portal_mirror(mirror_roll: f32) -> Result<RuinedPortalMirrorModel, String> {
+    if !(0.0..1.0).contains(&mirror_roll) {
+        return Err("Ruined portal mirror roll must be in [0.0, 1.0)".to_string());
+    }
+    Ok(if mirror_roll < 0.5 {
+        RuinedPortalMirrorModel::None
+    } else {
+        RuinedPortalMirrorModel::FrontBack
+    })
+}
+
+pub fn ruined_portal_get_random_within_interval(
+    min_preferred: i32,
+    max: i32,
+    inclusive_roll: i32,
+) -> Result<i32, String> {
+    if min_preferred < max {
+        let span = max - min_preferred + 1;
+        if !(0..span).contains(&inclusive_roll) {
+            return Err("Ruined portal interval roll is outside the inclusive range".to_string());
+        }
+        Ok(min_preferred + inclusive_roll)
+    } else {
+        Ok(max)
+    }
+}
+
+pub fn ruined_portal_initial_y(
+    placement: RuinedPortalVerticalPlacement,
+    air_pocket: bool,
+    surface_y_at_center: i32,
+    y_span: i32,
+    min_y: i32,
+    branch_roll: f32,
+    inclusive_roll: i32,
+) -> Result<i32, String> {
+    if !(0.0..1.0).contains(&branch_roll) {
+        return Err("Ruined portal vertical branch roll must be in [0.0, 1.0)".to_string());
+    }
+    match placement {
+        RuinedPortalVerticalPlacement::InNether => {
+            if air_pocket {
+                ruined_portal_get_random_within_interval(32, 100, inclusive_roll)
+            } else if branch_roll < 0.5 {
+                ruined_portal_get_random_within_interval(27, 29, inclusive_roll)
+            } else {
+                ruined_portal_get_random_within_interval(29, 100, inclusive_roll)
+            }
+        }
+        RuinedPortalVerticalPlacement::InMountain => ruined_portal_get_random_within_interval(
+            70,
+            surface_y_at_center - y_span,
+            inclusive_roll,
+        ),
+        RuinedPortalVerticalPlacement::Underground => ruined_portal_get_random_within_interval(
+            min_y + 15,
+            surface_y_at_center - y_span,
+            inclusive_roll,
+        ),
+        RuinedPortalVerticalPlacement::PartlyBuried => {
+            ruined_portal_get_random_within_interval(2, 8, inclusive_roll)
+                .map(|offset| surface_y_at_center - y_span + offset)
+        }
+        RuinedPortalVerticalPlacement::OnLandSurface
+        | RuinedPortalVerticalPlacement::OnOceanFloor => Ok(surface_y_at_center),
+    }
+}
+
+pub fn ruined_portal_find_suitable_y(
+    placement: RuinedPortalVerticalPlacement,
+    min_y: i32,
+    initial_y: i32,
+    mut opaque_corners_at_y: impl FnMut(i32) -> usize,
+) -> i32 {
+    let min_scan_y = min_y + 15;
+    for projected_y in (min_scan_y + 1..=initial_y).rev() {
+        if opaque_corners_at_y(projected_y) >= 3 {
+            return projected_y;
+        }
+    }
+    let _heightmap = if placement == RuinedPortalVerticalPlacement::OnOceanFloor {
+        "minecraft:ocean_floor_wg"
+    } else {
+        "minecraft:world_surface_wg"
+    };
+    min_scan_y
+}
+
+pub fn ruined_portal_make_properties(
+    setup: RuinedPortalSetupModel,
+    air_pocket_roll: f32,
+    cold: bool,
+) -> Result<RuinedPortalPropertiesModel, String> {
+    Ok(RuinedPortalPropertiesModel {
+        cold: setup.can_be_cold && cold,
+        mossiness: setup.mossiness,
+        air_pocket: ruined_portal_sample_probability(
+            setup.air_pocket_probability,
+            air_pocket_roll,
+        )?,
+        overgrown: setup.overgrown,
+        vines: setup.vines,
+        replace_with_blackstone: setup.replace_with_blackstone,
+    })
+}
+
+pub fn ruined_portal_make_piece(
+    template_name: &'static str,
+    template_position: BlockPos,
+    vertical_placement: RuinedPortalVerticalPlacement,
+    properties: RuinedPortalPropertiesModel,
+    rotation: StructureRotation,
+    mirror: RuinedPortalMirrorModel,
+    pivot: BlockPos,
+) -> RuinedPortalPieceModel {
+    let ignore_processor = if properties.air_pocket {
+        "minecraft:block_ignore_structure_block"
+    } else {
+        "minecraft:block_ignore_structure_and_air"
+    };
+    let lava_replacement = if vertical_placement == RuinedPortalVerticalPlacement::OnOceanFloor {
+        "minecraft:magma_block"
+    } else if properties.cold {
+        "minecraft:netherrack"
+    } else {
+        "minecraft:magma_block@0.2"
+    };
+    RuinedPortalPieceModel {
+        template_name,
+        template_position,
+        vertical_placement,
+        properties,
+        rotation,
+        mirror,
+        pivot,
+        ignore_processor,
+        lava_replacement,
+        include_blackstone_replace_processor: properties.replace_with_blackstone,
     }
 }
 
@@ -23791,6 +24082,222 @@ mod tests {
         )
         .unwrap()
         .is_none());
+    }
+
+    #[test]
+    fn ruined_portal_setup_template_and_vertical_rules_match_vanilla() {
+        let land_setup = super::RuinedPortalSetupModel {
+            placement: super::RuinedPortalVerticalPlacement::OnLandSurface,
+            air_pocket_probability: 0.0,
+            mossiness: 0.2,
+            overgrown: false,
+            vines: true,
+            can_be_cold: true,
+            replace_with_blackstone: false,
+            weight: 1.0,
+        };
+        let nether_setup = super::RuinedPortalSetupModel {
+            placement: super::RuinedPortalVerticalPlacement::InNether,
+            air_pocket_probability: 1.0,
+            mossiness: 0.8,
+            overgrown: false,
+            vines: false,
+            can_be_cold: false,
+            replace_with_blackstone: true,
+            weight: 3.0,
+        };
+        assert_eq!(
+            super::ruined_portal_choose_setup(&[land_setup, nether_setup], 0.24).unwrap(),
+            land_setup
+        );
+        assert_eq!(
+            super::ruined_portal_choose_setup(&[land_setup, nether_setup], 0.25).unwrap(),
+            nether_setup
+        );
+        assert_eq!(
+            super::ruined_portal_vertical_placement_id(
+                super::RuinedPortalVerticalPlacement::PartlyBuried
+            ),
+            "partly_buried"
+        );
+        assert!(!super::ruined_portal_sample_probability(0.0, 0.0).unwrap());
+        assert!(super::ruined_portal_sample_probability(1.0, 0.99).unwrap());
+        assert!(super::ruined_portal_sample_probability(0.3, 0.29).unwrap());
+        assert!(!super::ruined_portal_sample_probability(0.3, 0.3).unwrap());
+
+        assert_eq!(
+            super::ruined_portal_template_name(0.049, 2).unwrap(),
+            "minecraft:ruined_portal/giant_portal_3"
+        );
+        assert_eq!(
+            super::ruined_portal_template_name(0.05, 9).unwrap(),
+            "minecraft:ruined_portal/portal_10"
+        );
+        assert_eq!(
+            super::ruined_portal_mirror(0.49).unwrap(),
+            super::RuinedPortalMirrorModel::None
+        );
+        assert_eq!(
+            super::ruined_portal_mirror(0.5).unwrap(),
+            super::RuinedPortalMirrorModel::FrontBack
+        );
+
+        assert_eq!(
+            super::ruined_portal_initial_y(
+                super::RuinedPortalVerticalPlacement::InNether,
+                true,
+                80,
+                12,
+                -64,
+                0.75,
+                5,
+            )
+            .unwrap(),
+            37
+        );
+        assert_eq!(
+            super::ruined_portal_initial_y(
+                super::RuinedPortalVerticalPlacement::InNether,
+                false,
+                80,
+                12,
+                -64,
+                0.49,
+                2,
+            )
+            .unwrap(),
+            29
+        );
+        assert_eq!(
+            super::ruined_portal_initial_y(
+                super::RuinedPortalVerticalPlacement::InNether,
+                false,
+                80,
+                12,
+                -64,
+                0.5,
+                0,
+            )
+            .unwrap(),
+            29
+        );
+        assert_eq!(
+            super::ruined_portal_initial_y(
+                super::RuinedPortalVerticalPlacement::InMountain,
+                false,
+                96,
+                20,
+                -64,
+                0.0,
+                3,
+            )
+            .unwrap(),
+            73
+        );
+        assert_eq!(
+            super::ruined_portal_initial_y(
+                super::RuinedPortalVerticalPlacement::Underground,
+                false,
+                50,
+                20,
+                -64,
+                0.0,
+                79,
+            )
+            .unwrap(),
+            30
+        );
+        assert_eq!(
+            super::ruined_portal_initial_y(
+                super::RuinedPortalVerticalPlacement::PartlyBuried,
+                false,
+                90,
+                16,
+                -64,
+                0.0,
+                4,
+            )
+            .unwrap(),
+            80
+        );
+
+        let suitable = super::ruined_portal_find_suitable_y(
+            super::RuinedPortalVerticalPlacement::OnOceanFloor,
+            -64,
+            80,
+            |y| {
+                if y == 72 {
+                    3
+                } else {
+                    2
+                }
+            },
+        );
+        assert_eq!(suitable, 72);
+        assert_eq!(
+            super::ruined_portal_find_suitable_y(
+                super::RuinedPortalVerticalPlacement::Underground,
+                -64,
+                -40,
+                |_| 0,
+            ),
+            -49
+        );
+
+        let properties = super::ruined_portal_make_properties(nether_setup, 0.0, true).unwrap();
+        assert_eq!(
+            properties,
+            super::RuinedPortalPropertiesModel {
+                cold: false,
+                mossiness: 0.8,
+                air_pocket: true,
+                overgrown: false,
+                vines: false,
+                replace_with_blackstone: true,
+            }
+        );
+        let piece = super::ruined_portal_make_piece(
+            "minecraft:ruined_portal/portal_1",
+            BlockPos {
+                x: 16,
+                y: 37,
+                z: -16,
+            },
+            super::RuinedPortalVerticalPlacement::InNether,
+            properties,
+            super::StructureRotation::Clockwise90,
+            super::RuinedPortalMirrorModel::FrontBack,
+            BlockPos { x: 4, y: 0, z: 5 },
+        );
+        assert_eq!(
+            piece.ignore_processor,
+            "minecraft:block_ignore_structure_block"
+        );
+        assert_eq!(piece.lava_replacement, "minecraft:magma_block@0.2");
+        assert!(piece.include_blackstone_replace_processor);
+        assert_eq!(piece.pivot, BlockPos { x: 4, y: 0, z: 5 });
+
+        let ocean_piece = super::ruined_portal_make_piece(
+            "minecraft:ruined_portal/portal_2",
+            BlockPos { x: 0, y: 0, z: 0 },
+            super::RuinedPortalVerticalPlacement::OnOceanFloor,
+            super::RuinedPortalPropertiesModel {
+                cold: true,
+                mossiness: 0.0,
+                air_pocket: false,
+                overgrown: false,
+                vines: false,
+                replace_with_blackstone: false,
+            },
+            super::StructureRotation::None,
+            super::RuinedPortalMirrorModel::None,
+            BlockPos { x: 0, y: 0, z: 0 },
+        );
+        assert_eq!(
+            ocean_piece.ignore_processor,
+            "minecraft:block_ignore_structure_and_air"
+        );
+        assert_eq!(ocean_piece.lava_replacement, "minecraft:magma_block");
     }
 
     #[test]
