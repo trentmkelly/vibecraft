@@ -1969,6 +1969,31 @@ pub struct SwampHutPostProcessModel {
     pub entity_spawns: Vec<SwampHutEntitySpawnModel>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DesertPyramidPieceModel {
+    pub scattered: ScatteredFeaturePieceModel,
+    pub has_placed_chest: [bool; 4],
+    pub potential_suspicious_sand_world_positions: Vec<BlockPos>,
+    pub random_collapsed_roof_pos: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DesertPyramidSaveTagModel {
+    pub width: i32,
+    pub height: i32,
+    pub depth: i32,
+    pub height_position: i32,
+    pub has_placed_chest: [bool; 4],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DesertPyramidArchaeologyPlacement {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub loot_table: Option<&'static str>,
+    pub loot_seed: Option<i64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
@@ -9881,6 +9906,173 @@ pub fn swamp_hut_post_process(
         fill_columns,
         entity_spawns,
     })
+}
+
+pub fn desert_pyramid_generation_piece(
+    chunk_pos: ChunkPos,
+    orientation: HorizontalDirection,
+) -> DesertPyramidPieceModel {
+    DesertPyramidPieceModel {
+        scattered: scattered_feature_piece(
+            chunk_pos.x * 16,
+            64,
+            chunk_pos.z * 16,
+            21,
+            15,
+            21,
+            orientation,
+        ),
+        has_placed_chest: [false; 4],
+        potential_suspicious_sand_world_positions: Vec::new(),
+        random_collapsed_roof_pos: BlockPos { x: 0, y: 0, z: 0 },
+    }
+}
+
+pub fn desert_pyramid_save_tag(piece: &DesertPyramidPieceModel) -> DesertPyramidSaveTagModel {
+    DesertPyramidSaveTagModel {
+        width: piece.scattered.width,
+        height: piece.scattered.height,
+        depth: piece.scattered.depth,
+        height_position: piece.scattered.height_position,
+        has_placed_chest: piece.has_placed_chest,
+    }
+}
+
+pub fn desert_pyramid_place_sand(
+    piece: &mut DesertPyramidPieceModel,
+    local_x: i32,
+    local_y: i32,
+    local_z: i32,
+) -> BlockPos {
+    let pos = structure_piece_world_pos(
+        piece.scattered.bounding_box,
+        Some(piece.scattered.orientation),
+        local_x,
+        local_y,
+        local_z,
+    );
+    piece.potential_suspicious_sand_world_positions.push(pos);
+    pos
+}
+
+pub fn desert_pyramid_place_sand_box(
+    piece: &mut DesertPyramidPieceModel,
+    min: BlockPos,
+    max: BlockPos,
+) {
+    for y in min.y..=max.y {
+        for x in min.x..=max.x {
+            for z in min.z..=max.z {
+                desert_pyramid_place_sand(piece, x, y, z);
+            }
+        }
+    }
+}
+
+pub fn desert_pyramid_record_collapsed_roof(
+    piece: &mut DesertPyramidPieceModel,
+    local_min: BlockPos,
+    local_max_x: i32,
+    local_max_z: i32,
+    chosen_local_x: i32,
+    chosen_local_z: i32,
+) -> Result<BlockPos, String> {
+    if !(local_min.x..=local_max_x).contains(&chosen_local_x)
+        || !(local_min.z..=local_max_z).contains(&chosen_local_z)
+    {
+        return Err(
+            "Collapsed roof random position must be inside the requested local range".to_string(),
+        );
+    }
+    let pos = structure_piece_world_pos(
+        piece.scattered.bounding_box,
+        Some(piece.scattered.orientation),
+        chosen_local_x,
+        local_min.y,
+        chosen_local_z,
+    );
+    piece.random_collapsed_roof_pos = pos;
+    Ok(pos)
+}
+
+fn block_pos_java_cmp_key(pos: BlockPos) -> (i32, i32, i32) {
+    (pos.y, pos.z, pos.x)
+}
+
+pub fn desert_pyramid_unique_suspicious_sand_positions(
+    pieces: &[DesertPyramidPieceModel],
+) -> Vec<BlockPos> {
+    let mut positions = pieces
+        .iter()
+        .flat_map(|piece| {
+            piece
+                .potential_suspicious_sand_world_positions
+                .iter()
+                .copied()
+        })
+        .collect::<Vec<_>>();
+    positions.sort_by_key(|pos| block_pos_java_cmp_key(*pos));
+    positions.dedup();
+    positions
+}
+
+pub fn desert_pyramid_after_place_archaeology(
+    pieces: &[DesertPyramidPieceModel],
+    chunk_bb: StructureBoundingBoxModel,
+    shuffled_unique_positions: &[BlockPos],
+    suspicious_sand_to_place: usize,
+) -> Vec<DesertPyramidArchaeologyPlacement> {
+    let unique_positions = desert_pyramid_unique_suspicious_sand_positions(pieces);
+    let mut ordered_positions = shuffled_unique_positions
+        .iter()
+        .copied()
+        .filter(|pos| unique_positions.contains(pos))
+        .collect::<Vec<_>>();
+    for pos in unique_positions {
+        if !ordered_positions.contains(&pos) {
+            ordered_positions.push(pos);
+        }
+    }
+
+    let mut placements = Vec::new();
+    for piece in pieces {
+        if chunk_bb.is_inside(piece.random_collapsed_roof_pos) {
+            placements.push(DesertPyramidArchaeologyPlacement {
+                pos: piece.random_collapsed_roof_pos,
+                state: "minecraft:suspicious_sand",
+                loot_table: Some("minecraft:archaeology/desert_pyramid"),
+                loot_seed: Some(block_pos_as_long(piece.random_collapsed_roof_pos)),
+            });
+        }
+    }
+
+    for (index, pos) in ordered_positions.into_iter().enumerate() {
+        if !chunk_bb.is_inside(pos) {
+            continue;
+        }
+        if index < suspicious_sand_to_place {
+            placements.push(DesertPyramidArchaeologyPlacement {
+                pos,
+                state: "minecraft:suspicious_sand",
+                loot_table: Some("minecraft:archaeology/desert_pyramid"),
+                loot_seed: Some(block_pos_as_long(pos)),
+            });
+        } else {
+            placements.push(DesertPyramidArchaeologyPlacement {
+                pos,
+                state: "minecraft:sand",
+                loot_table: None,
+                loot_seed: None,
+            });
+        }
+    }
+    placements
+}
+
+pub fn block_pos_as_long(pos: BlockPos) -> i64 {
+    (((pos.x as i64) & 0x3ffffff) << 38)
+        | (((pos.z as i64) & 0x3ffffff) << 12)
+        | ((pos.y as i64) & 0xfff)
 }
 
 const fn feature_type(
@@ -22575,6 +22767,157 @@ mod tests {
             max_z: 115,
         };
         assert!(super::swamp_hut_post_process(piece, outside_chunk, |_, _| 70).is_none());
+    }
+
+    #[test]
+    fn desert_pyramid_archaeology_state_matches_after_place_rules() {
+        let mut piece = super::desert_pyramid_generation_piece(
+            ChunkPos { x: 1, z: -1 },
+            super::HorizontalDirection::South,
+        );
+        assert_eq!(piece.scattered.width, 21);
+        assert_eq!(piece.scattered.height, 15);
+        assert_eq!(piece.scattered.depth, 21);
+        assert_eq!(
+            piece.scattered.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: 16,
+                min_y: 64,
+                min_z: -16,
+                max_x: 36,
+                max_y: 78,
+                max_z: 4,
+            }
+        );
+        piece.has_placed_chest[2] = true;
+        assert_eq!(
+            super::desert_pyramid_save_tag(&piece),
+            super::DesertPyramidSaveTagModel {
+                width: 21,
+                height: 15,
+                depth: 21,
+                height_position: -1,
+                has_placed_chest: [false, false, true, false],
+            }
+        );
+
+        super::desert_pyramid_place_sand_box(
+            &mut piece,
+            BlockPos {
+                x: 14,
+                y: -3,
+                z: 11,
+            },
+            BlockPos {
+                x: 15,
+                y: -2,
+                z: 12,
+            },
+        );
+        let duplicate = super::desert_pyramid_place_sand(&mut piece, 14, -3, 11);
+        assert_eq!(
+            duplicate,
+            BlockPos {
+                x: 30,
+                y: 61,
+                z: -5
+            }
+        );
+        assert_eq!(piece.potential_suspicious_sand_world_positions.len(), 9);
+        assert_eq!(
+            super::desert_pyramid_record_collapsed_roof(
+                &mut piece,
+                BlockPos { x: 14, y: 0, z: 11 },
+                18,
+                15,
+                16,
+                13,
+            )
+            .unwrap(),
+            BlockPos {
+                x: 32,
+                y: 64,
+                z: -3
+            }
+        );
+        assert_eq!(
+            super::desert_pyramid_record_collapsed_roof(
+                &mut piece.clone(),
+                BlockPos { x: 14, y: 0, z: 11 },
+                18,
+                15,
+                19,
+                13,
+            )
+            .unwrap_err(),
+            "Collapsed roof random position must be inside the requested local range".to_string()
+        );
+
+        let unique = super::desert_pyramid_unique_suspicious_sand_positions(&[piece.clone()]);
+        assert_eq!(unique.len(), 8);
+        assert_eq!(
+            unique[0],
+            BlockPos {
+                x: 30,
+                y: 61,
+                z: -5
+            }
+        );
+        assert_eq!(
+            unique[1],
+            BlockPos {
+                x: 31,
+                y: 61,
+                z: -5
+            }
+        );
+        assert_eq!(
+            unique[2],
+            BlockPos {
+                x: 30,
+                y: 61,
+                z: -4
+            }
+        );
+
+        let chunk_bb = super::StructureBoundingBoxModel {
+            min_x: 16,
+            min_y: i32::MIN,
+            min_z: -16,
+            max_x: 36,
+            max_y: i32::MAX,
+            max_z: 4,
+        };
+        let shuffled = vec![unique[3], unique[0], unique[7]];
+        let placements =
+            super::desert_pyramid_after_place_archaeology(&[piece], chunk_bb, &shuffled, 2);
+        assert_eq!(
+            placements[0].pos,
+            BlockPos {
+                x: 32,
+                y: 64,
+                z: -3
+            }
+        );
+        assert_eq!(placements[0].state, "minecraft:suspicious_sand");
+        assert_eq!(
+            placements[0].loot_table,
+            Some("minecraft:archaeology/desert_pyramid")
+        );
+        assert_eq!(
+            placements[0].loot_seed,
+            Some(super::block_pos_as_long(BlockPos {
+                x: 32,
+                y: 64,
+                z: -3
+            }))
+        );
+        assert_eq!(placements[1].pos, unique[3]);
+        assert_eq!(placements[1].state, "minecraft:suspicious_sand");
+        assert_eq!(placements[2].pos, unique[0]);
+        assert_eq!(placements[2].state, "minecraft:suspicious_sand");
+        assert_eq!(placements[3].pos, unique[7]);
+        assert_eq!(placements[3].state, "minecraft:sand");
     }
 
     #[test]
