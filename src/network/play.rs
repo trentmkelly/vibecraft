@@ -17,6 +17,7 @@ pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
 pub const CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 141;
 
 pub const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
+pub const SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID: i32 = 4;
 pub const SERVERBOUND_CHAT_ACK_PACKET_ID: i32 = 6;
 pub const SERVERBOUND_CHAT_COMMAND_PACKET_ID: i32 = 7;
 pub const SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID: i32 = 8;
@@ -28,6 +29,7 @@ pub const SERVERBOUND_CLIENT_INFORMATION_PACKET_ID: i32 = 14;
 pub const SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID: i32 = 15;
 pub const SERVERBOUND_CONTAINER_CLICK_PACKET_ID: i32 = 18;
 pub const SERVERBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 19;
+pub const SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID: i32 = 29;
 pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
 pub const SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID: i32 = 31;
 pub const SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID: i32 = 32;
@@ -35,6 +37,7 @@ pub const SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID: i32 = 33;
 pub const SERVERBOUND_KEEP_ALIVE_PACKET_ID: i32 = 28;
 pub const SERVERBOUND_PLAYER_ACTION_PACKET_ID: i32 = 41;
 pub const SERVERBOUND_PLAYER_COMMAND_PACKET_ID: i32 = 42;
+pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
@@ -183,6 +186,69 @@ pub struct ServerboundAcceptTeleportationPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundSetCarriedItemPacket {
     pub slot: i16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundChangeDifficultyPacket {
+    pub difficulty: GameDifficulty,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundClientTickEndPacket;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundLockDifficultyPacket {
+    pub locked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPaddleBoatPacket {
+    pub left: bool,
+    pub right: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlayerInput {
+    pub forward: bool,
+    pub backward: bool,
+    pub left: bool,
+    pub right: bool,
+    pub jump: bool,
+    pub shift: bool,
+    pub sprint: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlayerInputPacket {
+    pub input: ServerboundPlayerInput,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlayerLoadedPacket;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerboundClientCommandAction {
+    PerformRespawn,
+    RequestStats,
+    RequestGameruleValues,
+    Unknown(u8),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundClientCommandPacket {
+    pub action: ServerboundClientCommandAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerboundSwingHand {
+    MainHand,
+    OffHand,
+    Unknown(u8),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundSwingPacket {
+    pub hand: ServerboundSwingHand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1020,11 +1086,6 @@ impl PlaySession {
         }
 
         match packet.id {
-            SERVERBOUND_PLAYER_LOADED_PACKET_ID => {
-                self.loaded = true;
-                self.state = PlayState::Playing;
-                DispatchOutcome::Handled
-            }
             SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundAcceptTeleportationPacket::read(&mut input) {
@@ -1035,14 +1096,37 @@ impl PlaySession {
                     Err(err) => DispatchOutcome::Disconnect(format!("bad teleport ack: {err}")),
                 }
             }
+            SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChangeDifficultyPacket::read(&mut input) {
+                    Ok(_) => DispatchOutcome::Handled,
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad change difficulty packet: {err}"))
+                    }
+                }
+            }
             SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
                 let mut input = &packet.payload[..];
-                match read_var_i32(&mut input) {
-                    Ok(0..=2) => DispatchOutcome::Handled,
-                    Ok(action) => DispatchOutcome::Disconnect(format!(
-                        "invalid client command action {action}"
-                    )),
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad client command: {err}")),
+                match ServerboundClientCommandPacket::read(&mut input) {
+                    Ok(cmd) => {
+                        if matches!(cmd.action, ServerboundClientCommandAction::Unknown(_)) {
+                            DispatchOutcome::Disconnect("unknown client command action".to_string())
+                        } else {
+                            DispatchOutcome::Handled
+                        }
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad client command packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_CLIENT_TICK_END_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundClientTickEndPacket::read(&mut input) {
+                    Ok(_) => DispatchOutcome::Handled,
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad client tick end packet: {err}"))
+                    }
                 }
             }
             SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID => {
@@ -1051,6 +1135,15 @@ impl PlaySession {
                     Ok(_) => DispatchOutcome::Handled,
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad chunk batch received: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundLockDifficultyPacket::read(&mut input) {
+                    Ok(_) => DispatchOutcome::Handled,
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad lock difficulty packet: {err}"))
                     }
                 }
             }
@@ -1066,6 +1159,37 @@ impl PlaySession {
             SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
                 self.handle_move_payload(packet.payload, MoveShape::StatusOnly)
             }
+            SERVERBOUND_PADDLE_BOAT_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPaddleBoatPacket::read(&mut input) {
+                    Ok(_) => DispatchOutcome::Handled,
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad paddle boat packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPlayerInputPacket::read(&mut input) {
+                    Ok(_) => DispatchOutcome::Handled,
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad player input packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_PLAYER_LOADED_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPlayerLoadedPacket::read(&mut input) {
+                    Ok(_) => {
+                        self.loaded = true;
+                        self.state = PlayState::Playing;
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad player loaded packet: {err}"))
+                    }
+                }
+            }
             SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundSetCarriedItemPacket::read(&mut input) {
@@ -1080,6 +1204,19 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad carried item packet: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_SWING_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSwingPacket::read(&mut input) {
+                    Ok(swing) => {
+                        if matches!(swing.hand, ServerboundSwingHand::Unknown(_)) {
+                            DispatchOutcome::Disconnect("unknown swing hand".to_string())
+                        } else {
+                            DispatchOutcome::Handled
+                        }
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad swing packet: {err}")),
                 }
             }
             _ => {
@@ -1802,6 +1939,169 @@ impl ServerboundAcceptTeleportationPacket {
     }
 }
 
+impl ServerboundChangeDifficultyPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            difficulty: GameDifficulty::from_wire_index(read_var_i32(reader)?)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.difficulty.to_wire_index())
+    }
+}
+
+impl ServerboundClientCommandAction {
+    fn from_id(id: u8) -> Self {
+        match id {
+            0 => Self::PerformRespawn,
+            1 => Self::RequestStats,
+            2 => Self::RequestGameruleValues,
+            _ => Self::Unknown(id),
+        }
+    }
+
+    fn to_id(self) -> u8 {
+        match self {
+            Self::PerformRespawn => 0,
+            Self::RequestStats => 1,
+            Self::RequestGameruleValues => 2,
+            Self::Unknown(value) => value,
+        }
+    }
+}
+
+impl ServerboundClientCommandPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = [0u8; 1];
+        reader.read_exact(&mut bytes)?;
+        Ok(Self {
+            action: ServerboundClientCommandAction::from_id(bytes[0]),
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.action.to_id()])
+    }
+}
+
+impl ServerboundClientTickEndPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        expect_empty_payload(reader)?;
+        Ok(Self)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ServerboundLockDifficultyPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            locked: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.locked)
+    }
+}
+
+impl ServerboundPaddleBoatPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            left: read_bool(reader)?,
+            right: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.left)?;
+        write_bool(writer, self.right)
+    }
+}
+
+impl ServerboundPlayerInput {
+    fn from_flags(flags: u8) -> Self {
+        Self {
+            forward: flags & 1 != 0,
+            backward: flags & 2 != 0,
+            left: flags & 4 != 0,
+            right: flags & 8 != 0,
+            jump: flags & 16 != 0,
+            shift: flags & 32 != 0,
+            sprint: flags & 64 != 0,
+        }
+    }
+
+    fn to_flags(self) -> u8 {
+        (if self.forward { 1 } else { 0 })
+            | (if self.backward { 2 } else { 0 })
+            | (if self.left { 4 } else { 0 })
+            | (if self.right { 8 } else { 0 })
+            | (if self.jump { 16 } else { 0 })
+            | (if self.shift { 32 } else { 0 })
+            | (if self.sprint { 64 } else { 0 })
+    }
+}
+
+impl ServerboundPlayerInputPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let flags = read_u8(reader)?;
+        Ok(Self {
+            input: ServerboundPlayerInput::from_flags(flags),
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.input.to_flags()])
+    }
+}
+
+impl ServerboundPlayerLoadedPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        expect_empty_payload(reader)?;
+        Ok(Self)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ServerboundSwingHand {
+    fn from_id(id: u8) -> Self {
+        match id {
+            0 => Self::MainHand,
+            1 => Self::OffHand,
+            _ => Self::Unknown(id),
+        }
+    }
+
+    fn to_id(self) -> u8 {
+        match self {
+            Self::MainHand => 0,
+            Self::OffHand => 1,
+            Self::Unknown(value) => value,
+        }
+    }
+}
+
+impl ServerboundSwingPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = [0u8; 1];
+        reader.read_exact(&mut bytes)?;
+        Ok(Self {
+            hand: ServerboundSwingHand::from_id(bytes[0]),
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.hand.to_id()])
+    }
+}
+
 impl ServerboundChunkBatchReceivedPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
@@ -2194,6 +2494,17 @@ fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
     let mut byte = [0u8; 1];
     reader.read_exact(&mut byte)?;
     Ok(byte[0])
+}
+
+fn expect_empty_payload<R: Read>(reader: &mut R) -> io::Result<()> {
+    let mut byte = [0u8; 1];
+    match reader.read(&mut byte)? {
+        0 => Ok(()),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected empty payload",
+        )),
+    }
 }
 
 fn read_f32<R: Read>(reader: &mut R) -> io::Result<f32> {
@@ -3282,6 +3593,55 @@ mod tests {
         );
         assert_eq!(session.state, PlayState::Playing);
         assert!(session.loaded);
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_PLAYER_LOADED_PACKET_ID, vec![0])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert_eq!(session.state, PlayState::Playing);
+        assert!(session.loaded);
+    }
+
+    #[test]
+    fn malformed_serverbound_scalar_packets_disconnect_session() {
+        let mut session = PlaySession::new(1, 0);
+        session.state = PlayState::Playing;
+
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CLIENT_COMMAND_PACKET_ID, Vec::new())),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CLIENT_COMMAND_PACKET_ID, vec![3])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CLIENT_TICK_END_PACKET_ID, vec![0])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, Vec::new())),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_PADDLE_BOAT_PACKET_ID, vec![1])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_PLAYER_INPUT_PACKET_ID, Vec::new())),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_PLAYER_LOADED_PACKET_ID, vec![0])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_SWING_PACKET_ID, vec![3])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, Vec::new())),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -3423,6 +3783,116 @@ mod tests {
         assert_eq!(
             ServerboundSetCarriedItemPacket::read(&mut cursor(carried)).unwrap(),
             ServerboundSetCarriedItemPacket { slot: 5 }
+        );
+
+        let mut server_command = Vec::new();
+        ServerboundChangeDifficultyPacket {
+            difficulty: GameDifficulty::Easy,
+        }
+        .write(&mut server_command)
+        .unwrap();
+        assert_eq!(
+            ServerboundChangeDifficultyPacket::read(&mut cursor(server_command)).unwrap(),
+            ServerboundChangeDifficultyPacket {
+                difficulty: GameDifficulty::Easy,
+            }
+        );
+
+        let mut client_command = Vec::new();
+        ServerboundClientCommandPacket {
+            action: ServerboundClientCommandAction::RequestStats,
+        }
+        .write(&mut client_command)
+        .unwrap();
+        let parsed_client_command =
+            ServerboundClientCommandPacket::read(&mut cursor(client_command)).unwrap();
+        assert!(matches!(
+            parsed_client_command.action,
+            ServerboundClientCommandAction::RequestStats
+        ));
+
+        let mut client_tick_end = Vec::new();
+        ServerboundClientTickEndPacket
+            .write(&mut client_tick_end)
+            .unwrap();
+        assert_eq!(
+            ServerboundClientTickEndPacket::read(&mut cursor(client_tick_end)).unwrap(),
+            ServerboundClientTickEndPacket
+        );
+
+        let mut lock_difficulty = Vec::new();
+        ServerboundLockDifficultyPacket { locked: true }
+            .write(&mut lock_difficulty)
+            .unwrap();
+        assert_eq!(
+            ServerboundLockDifficultyPacket::read(&mut cursor(lock_difficulty)).unwrap(),
+            ServerboundLockDifficultyPacket { locked: true }
+        );
+
+        let mut paddle_boat = Vec::new();
+        ServerboundPaddleBoatPacket {
+            left: true,
+            right: false,
+        }
+        .write(&mut paddle_boat)
+        .unwrap();
+        assert_eq!(
+            ServerboundPaddleBoatPacket::read(&mut cursor(paddle_boat)).unwrap(),
+            ServerboundPaddleBoatPacket {
+                left: true,
+                right: false,
+            }
+        );
+
+        let mut player_input = Vec::new();
+        ServerboundPlayerInputPacket {
+            input: ServerboundPlayerInput {
+                forward: true,
+                backward: false,
+                left: true,
+                right: false,
+                jump: true,
+                shift: false,
+                sprint: true,
+            },
+        }
+        .write(&mut player_input)
+        .unwrap();
+        assert_eq!(
+            ServerboundPlayerInputPacket::read(&mut cursor(player_input)).unwrap(),
+            ServerboundPlayerInputPacket {
+                input: ServerboundPlayerInput {
+                    forward: true,
+                    backward: false,
+                    left: true,
+                    right: false,
+                    jump: true,
+                    shift: false,
+                    sprint: true,
+                },
+            }
+        );
+
+        let mut player_loaded = Vec::new();
+        ServerboundPlayerLoadedPacket
+            .write(&mut player_loaded)
+            .unwrap();
+        assert_eq!(
+            ServerboundPlayerLoadedPacket::read(&mut cursor(player_loaded)).unwrap(),
+            ServerboundPlayerLoadedPacket
+        );
+
+        let mut swing = Vec::new();
+        ServerboundSwingPacket {
+            hand: ServerboundSwingHand::OffHand,
+        }
+        .write(&mut swing)
+        .unwrap();
+        assert_eq!(
+            ServerboundSwingPacket::read(&mut cursor(swing)).unwrap(),
+            ServerboundSwingPacket {
+                hand: ServerboundSwingHand::OffHand,
+            }
         );
 
         let mut change_difficulty = Vec::new();
@@ -3601,5 +4071,19 @@ mod tests {
             ClientboundTickingStepPacket::read(&mut cursor(ticking_step)).unwrap(),
             ClientboundTickingStepPacket { tick_steps: 7 }
         );
+    }
+
+    #[test]
+    fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
+        assert!(ServerboundClientCommandPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+        assert!(
+            ServerboundChunkBatchReceivedPacket::read(&mut cursor(vec![0x7f, 0x7f, 0x7f])).is_err()
+        );
+        assert!(ServerboundLockDifficultyPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+        assert!(ServerboundPaddleBoatPacket::read(&mut cursor(vec![1])).is_err());
+        assert!(ServerboundPlayerInputPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+        assert!(ServerboundClientTickEndPacket::read(&mut cursor(vec![1])).is_err());
+        assert!(ServerboundPlayerLoadedPacket::read(&mut cursor(vec![2])).is_err());
+        assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x10])).is_err());
     }
 }
