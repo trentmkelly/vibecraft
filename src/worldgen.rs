@@ -698,6 +698,28 @@ pub struct ScatteredOreAttempt {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OreVeinSphere {
+    pub center_x: f64,
+    pub center_y: f64,
+    pub center_z: f64,
+    pub radius: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OrePlacementContext {
+    pub pos: BlockPos,
+    pub current_block: &'static str,
+    pub adjacent_to_air: bool,
+    pub air_check_roll: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrePlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockPileConfigurationModel {
     pub state_provider: BlockStateProviderModel,
@@ -7168,6 +7190,152 @@ pub fn scattered_ore_attempt(
     })
 }
 
+pub fn ore_vein_spheres(
+    origin: BlockPos,
+    size: i32,
+    direction_roll: f32,
+    y_rolls: &[(i32, i32)],
+    radius_rolls: &[f64],
+) -> Vec<OreVeinSphere> {
+    let direction = direction_roll * std::f32::consts::PI;
+    let spread_xy = size as f32 / 8.0;
+    let x0 = f64::from(origin.x) + f64::from(direction.sin() * spread_xy);
+    let x1 = f64::from(origin.x) - f64::from(direction.sin() * spread_xy);
+    let z0 = f64::from(origin.z) + f64::from(direction.cos() * spread_xy);
+    let z1 = f64::from(origin.z) - f64::from(direction.cos() * spread_xy);
+    let default_y = (0, 0);
+    let (y_roll_0, y_roll_1) = y_rolls.first().copied().unwrap_or(default_y);
+    let y0 = f64::from(origin.y + y_roll_0 - 2);
+    let y1 = f64::from(origin.y + y_roll_1 - 2);
+
+    let mut spheres = Vec::new();
+    for i in 0..size.max(0) {
+        let step = i as f64 / size as f64;
+        let radius_roll = radius_rolls.get(i as usize).copied().unwrap_or(0.0);
+        let center_x = x0 + (x1 - x0) * step;
+        let center_y = y0 + (y1 - y0) * step;
+        let center_z = z0 + (z1 - z0) * step;
+        let size_scale = radius_roll * f64::from(size) / 16.0;
+        let radius = (((std::f64::consts::PI * step).sin() + 1.0) * size_scale + 1.0) / 2.0;
+        spheres.push(OreVeinSphere {
+            center_x,
+            center_y,
+            center_z,
+            radius,
+        });
+    }
+
+    for i in 0..spheres.len().saturating_sub(1) {
+        if spheres[i].radius <= 0.0 {
+            continue;
+        }
+        for j in i + 1..spheres.len() {
+            if spheres[j].radius <= 0.0 {
+                continue;
+            }
+            let dx = spheres[i].center_x - spheres[j].center_x;
+            let dy = spheres[i].center_y - spheres[j].center_y;
+            let dz = spheres[i].center_z - spheres[j].center_z;
+            let dr = spheres[i].radius - spheres[j].radius;
+            if ore_vein_sphere_is_shadowed(dr, dx, dy, dz) {
+                if dr > 0.0 {
+                    spheres[j].radius = -1.0;
+                } else {
+                    spheres[i].radius = -1.0;
+                }
+            }
+        }
+    }
+
+    spheres
+        .into_iter()
+        .filter(|sphere| sphere.radius >= 0.0)
+        .collect()
+}
+
+pub fn ore_vein_position_candidates(
+    spheres: &[OreVeinSphere],
+    x_start: i32,
+    y_start: i32,
+    z_start: i32,
+    size_xz: i32,
+    size_y: i32,
+    build_height: std::ops::Range<i32>,
+) -> Vec<BlockPos> {
+    let mut positions = Vec::new();
+    for sphere in spheres {
+        let x_min = (sphere.center_x - sphere.radius)
+            .floor()
+            .max(f64::from(x_start)) as i32;
+        let y_min = (sphere.center_y - sphere.radius)
+            .floor()
+            .max(f64::from(y_start)) as i32;
+        let z_min = (sphere.center_z - sphere.radius)
+            .floor()
+            .max(f64::from(z_start)) as i32;
+        let x_max = (sphere.center_x + sphere.radius)
+            .floor()
+            .max(f64::from(x_min)) as i32;
+        let y_max = (sphere.center_y + sphere.radius)
+            .floor()
+            .max(f64::from(y_min)) as i32;
+        let z_max = (sphere.center_z + sphere.radius)
+            .floor()
+            .max(f64::from(z_min)) as i32;
+        for x in x_min..=x_max {
+            let xd = (f64::from(x) + 0.5 - sphere.center_x) / sphere.radius;
+            if xd * xd >= 1.0 {
+                continue;
+            }
+            for y in y_min..=y_max {
+                let yd = (f64::from(y) + 0.5 - sphere.center_y) / sphere.radius;
+                if xd * xd + yd * yd >= 1.0 {
+                    continue;
+                }
+                for z in z_min..=z_max {
+                    let zd = (f64::from(z) + 0.5 - sphere.center_z) / sphere.radius;
+                    if xd * xd + yd * yd + zd * zd >= 1.0 || !build_height.contains(&y) {
+                        continue;
+                    }
+                    let bitset_index =
+                        x - x_start + (y - y_start) * size_xz + (z - z_start) * size_xz * size_y;
+                    if bitset_index >= 0 {
+                        let pos = BlockPos { x, y, z };
+                        if !positions.contains(&pos) {
+                            positions.push(pos);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    positions
+}
+
+pub fn ore_placement_plan(
+    config: &OreConfigurationModel,
+    candidates: &[OrePlacementContext],
+) -> Vec<OrePlacementBlock> {
+    candidates
+        .iter()
+        .filter_map(|candidate| {
+            config.target_states.iter().copied().find_map(|target| {
+                ore_can_place(
+                    candidate.current_block,
+                    candidate.adjacent_to_air,
+                    config,
+                    target,
+                    candidate.air_check_roll,
+                )
+                .then_some(OrePlacementBlock {
+                    pos: candidate.pos,
+                    state: target.state,
+                })
+            })
+        })
+        .collect()
+}
+
 pub fn block_pile_placement_candidates(
     origin: BlockPos,
     min_y: i32,
@@ -10681,6 +10849,53 @@ mod tests {
                 },
                 state: "minecraft:iron_ore",
             })
+        );
+        let ore_spheres =
+            super::ore_vein_spheres(BlockPos { x: 8, y: 32, z: 8 }, 8, 0.0, &[(2, 2)], &[1.0; 8]);
+        assert!(!ore_spheres.is_empty());
+        assert!(ore_spheres
+            .iter()
+            .any(|sphere| (sphere.center_z - 8.5).abs() < f64::EPSILON));
+        let ore_candidates =
+            super::ore_vein_position_candidates(&ore_spheres, 6, 28, 6, 6, 6, 0..384);
+        assert!(!ore_candidates.is_empty());
+        let sampled_candidate = ore_candidates[0];
+        assert_eq!(
+            ore_candidates
+                .iter()
+                .filter(|pos| **pos == sampled_candidate)
+                .count(),
+            1
+        );
+        let ore_plan = super::ore_placement_plan(
+            &ore_config,
+            &[
+                super::OrePlacementContext {
+                    pos: BlockPos { x: 8, y: 32, z: 8 },
+                    current_block: "minecraft:stone",
+                    adjacent_to_air: false,
+                    air_check_roll: 0.0,
+                },
+                super::OrePlacementContext {
+                    pos: BlockPos { x: 8, y: 33, z: 8 },
+                    current_block: "minecraft:stone",
+                    adjacent_to_air: true,
+                    air_check_roll: 0.0,
+                },
+                super::OrePlacementContext {
+                    pos: BlockPos { x: 8, y: 34, z: 8 },
+                    current_block: "minecraft:dirt",
+                    adjacent_to_air: false,
+                    air_check_roll: 1.0,
+                },
+            ],
+        );
+        assert_eq!(
+            ore_plan,
+            vec![super::OrePlacementBlock {
+                pos: BlockPos { x: 8, y: 32, z: 8 },
+                state: "minecraft:iron_ore",
+            }]
         );
 
         let pile_config = super::BlockPileConfigurationModel {
