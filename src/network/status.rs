@@ -153,7 +153,7 @@ const SHORT_GRASS_BLOCK_STATE_ID: i32 = 131;
 const DANDELION_BLOCK_STATE_ID: i32 = 158;
 const POPPY_BLOCK_STATE_ID: i32 = 161;
 const PLAINS_BIOME_ID: i32 = 1;
-const TERRAIN_BASE_LOCAL_Y: usize = 12;
+const TERRAIN_BASE_LOCAL_Y: usize = 9;
 
 #[derive(Clone, Default)]
 struct ActiveLoginRegistry {
@@ -2193,14 +2193,14 @@ fn visible_spawn_terrain_height(
 ) -> usize {
     let world_x = chunk_x * 16 + local_x as i32;
     let world_z = chunk_z * 16 + local_z as i32;
-    let broad_slope = (world_x.div_euclid(5) + world_z.div_euclid(7)).rem_euclid(2);
+    let broad = (world_x.div_euclid(9) + world_z.div_euclid(11)).rem_euclid(4);
+    let terrace = (world_x.div_euclid(4) - world_z.div_euclid(6)).rem_euclid(3);
     let wrinkle = ((world_x.wrapping_mul(31) ^ world_z.wrapping_mul(17)) & 1) as i32;
-    let ridge = if (world_x.wrapping_mul(11) + world_z.wrapping_mul(13)).rem_euclid(23) == 0 {
-        1
-    } else {
-        0
-    };
-    TERRAIN_BASE_LOCAL_Y + (broad_slope + wrinkle + ridge).min(3) as usize
+    let ridge =
+        i32::from((world_x.wrapping_mul(11) + world_z.wrapping_mul(13)).rem_euclid(19) == 0);
+    let valley = i32::from((world_x.wrapping_mul(5) - world_z.wrapping_mul(7)).rem_euclid(31) == 0);
+    let local_height = (broad + terrace + wrinkle + ridge - valley).clamp(0, 6);
+    TERRAIN_BASE_LOCAL_Y + local_height as usize
 }
 
 fn visible_spawn_surface_feature_id(
@@ -2212,10 +2212,10 @@ fn visible_spawn_surface_feature_id(
     let world_x = chunk_x * 16 + local_x as i32;
     let world_z = chunk_z * 16 + local_z as i32;
     let hash = world_x.wrapping_mul(734_287) ^ world_z.wrapping_mul(912_931);
-    match hash.rem_euclid(29) {
+    match hash.rem_euclid(23) {
         0 => Some(DANDELION_BLOCK_STATE_ID),
-        7 => Some(POPPY_BLOCK_STATE_ID),
-        13 | 19 => Some(SHORT_GRASS_BLOCK_STATE_ID),
+        7 | 17 => Some(POPPY_BLOCK_STATE_ID),
+        5 | 13 | 19 => Some(SHORT_GRASS_BLOCK_STATE_ID),
         _ => None,
     }
 }
@@ -2229,12 +2229,12 @@ fn visible_spawn_surface_top_block_id(
     let world_x = chunk_x * 16 + local_x as i32;
     let world_z = chunk_z * 16 + local_z as i32;
     let hash = world_x.wrapping_mul(193_496_63) ^ world_z.wrapping_mul(83_492_791);
-    match hash.rem_euclid(47) {
+    match hash.rem_euclid(43) {
         0 => STONE_BLOCK_STATE_ID,
-        11 => GRANITE_BLOCK_STATE_ID,
-        23 => DIORITE_BLOCK_STATE_ID,
-        35 => ANDESITE_BLOCK_STATE_ID,
-        41 => DIRT_BLOCK_STATE_ID,
+        9 => GRANITE_BLOCK_STATE_ID,
+        18 => DIORITE_BLOCK_STATE_ID,
+        27 => ANDESITE_BLOCK_STATE_ID,
+        34 | 41 => DIRT_BLOCK_STATE_ID,
         _ => GRASS_BLOCK_STATE_ID,
     }
 }
@@ -4162,13 +4162,25 @@ mod tests {
                     && visible_spawn_terrain_height(0, 0, *x, *z) > TERRAIN_BASE_LOCAL_Y
             })
             .expect("spawn chunk should contain a visible non-grass outcrop");
+        let max_height = (0..16)
+            .flat_map(|z| (0..16).map(move |x| visible_spawn_terrain_height(0, 0, x, z)))
+            .max()
+            .expect("spawn chunk should contain terrain columns");
         let ridge_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
-            .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == 15)
+            .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == max_height)
             .expect("spawn chunk should contain a visible ridge");
         assert!(visible_spawn_terrain_block_count(0, 0) > 512);
-        assert_eq!(words[191], 0);
-        assert_ne!(words[192], 0);
+        assert_eq!(
+            palette_index_at(
+                &words,
+                bare_low_column.0,
+                TERRAIN_BASE_LOCAL_Y - 1,
+                bare_low_column.1
+            ),
+            0
+        );
+        assert_ne!(words.iter().filter(|word| **word != 0).count(), 0);
         assert_eq!(
             palette_index_at(
                 &words,
@@ -4214,7 +4226,7 @@ mod tests {
             expected_outcrop_palette
         );
         assert_ne!(
-            palette_index_at(&words, ridge_column.0, 15, ridge_column.1),
+            palette_index_at(&words, ridge_column.0, max_height, ridge_column.1),
             0
         );
         let feature_y =
