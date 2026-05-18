@@ -1497,6 +1497,12 @@ pub struct ConcentricRingPlacementCandidate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureExclusionZoneModel {
+    pub other_set: &'static str,
+    pub chunk_count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RandomSpreadType {
     Linear,
     Triangular,
@@ -6652,6 +6658,46 @@ pub fn concentric_rings_is_placement_chunk(
     ring_positions
         .iter()
         .any(|position| position.x == source_x && position.z == source_z)
+}
+
+pub fn validate_structure_exclusion_zone(
+    zone: StructureExclusionZoneModel,
+) -> Result<StructureExclusionZoneModel, String> {
+    if (1..=16).contains(&zone.chunk_count) {
+        Ok(zone)
+    } else {
+        Err("Structure exclusion zone chunk_count must be in 1..=16".to_string())
+    }
+}
+
+pub fn structure_has_chunk_in_range(
+    structure_chunks: &[ChunkPos],
+    source_x: i32,
+    source_z: i32,
+    range: i32,
+) -> bool {
+    (source_x - range..=source_x + range).any(|test_x| {
+        (source_z - range..=source_z + range).any(|test_z| {
+            structure_chunks
+                .iter()
+                .any(|chunk| chunk.x == test_x && chunk.z == test_z)
+        })
+    })
+}
+
+pub fn structure_exclusion_zone_forbids(
+    zone: StructureExclusionZoneModel,
+    other_structure_chunks: &[ChunkPos],
+    source_x: i32,
+    source_z: i32,
+) -> Result<bool, String> {
+    validate_structure_exclusion_zone(zone)?;
+    Ok(structure_has_chunk_in_range(
+        other_structure_chunks,
+        source_x,
+        source_z,
+        zone.chunk_count,
+    ))
 }
 
 const fn feature_type(
@@ -16776,6 +16822,38 @@ mod tests {
             0,
             0
         ));
+    }
+
+    #[test]
+    fn structure_exclusion_zone_checks_square_chunk_range() {
+        let zone = super::StructureExclusionZoneModel {
+            other_set: "minecraft:villages",
+            chunk_count: 3,
+        };
+        assert_eq!(super::validate_structure_exclusion_zone(zone), Ok(zone));
+        assert_eq!(
+            super::validate_structure_exclusion_zone(super::StructureExclusionZoneModel {
+                other_set: "minecraft:villages",
+                chunk_count: 17,
+            })
+            .unwrap_err(),
+            "Structure exclusion zone chunk_count must be in 1..=16".to_string()
+        );
+
+        let other_chunks = [
+            ChunkPos { x: 10, z: -4 },
+            ChunkPos { x: -12, z: 8 },
+            ChunkPos { x: 40, z: 40 },
+        ];
+        assert!(super::structure_has_chunk_in_range(&other_chunks, 7, -1, 3));
+        assert!(!super::structure_has_chunk_in_range(
+            &other_chunks,
+            6,
+            -1,
+            3
+        ));
+        assert!(super::structure_exclusion_zone_forbids(zone, &other_chunks, 7, -1).unwrap());
+        assert!(!super::structure_exclusion_zone_forbids(zone, &other_chunks, 0, 0).unwrap());
     }
 
     #[test]
