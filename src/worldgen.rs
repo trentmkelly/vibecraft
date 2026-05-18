@@ -218,6 +218,52 @@ pub enum VerticalAnchor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldGenerationHeightContext {
+    pub min_y: i32,
+    pub height: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeightProviderType {
+    pub id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WeightedHeightProvider {
+    pub weight: i32,
+    pub provider: HeightProvider,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeightProvider {
+    Constant {
+        value: VerticalAnchor,
+    },
+    Uniform {
+        min_inclusive: VerticalAnchor,
+        max_inclusive: VerticalAnchor,
+    },
+    BiasedToBottom {
+        min_inclusive: VerticalAnchor,
+        max_inclusive: VerticalAnchor,
+        inner: i32,
+    },
+    VeryBiasedToBottom {
+        min_inclusive: VerticalAnchor,
+        max_inclusive: VerticalAnchor,
+        inner: i32,
+    },
+    Trapezoid {
+        min_inclusive: VerticalAnchor,
+        max_inclusive: VerticalAnchor,
+        plateau: i32,
+    },
+    WeightedList {
+        distribution: &'static [WeightedHeightProvider],
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
     pub barrier_state: &'static str,
@@ -605,6 +651,27 @@ pub const NETHER_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 128, 1, 2
 pub const END_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 128, 2, 1);
 pub const CAVES_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(-64, 192, 1, 2);
 pub const FLOATING_ISLANDS_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 256, 2, 1);
+
+pub const HEIGHT_PROVIDER_TYPES: &[HeightProviderType] = &[
+    HeightProviderType {
+        id: "minecraft:constant",
+    },
+    HeightProviderType {
+        id: "minecraft:uniform",
+    },
+    HeightProviderType {
+        id: "minecraft:biased_to_bottom",
+    },
+    HeightProviderType {
+        id: "minecraft:very_biased_to_bottom",
+    },
+    HeightProviderType {
+        id: "minecraft:trapezoid",
+    },
+    HeightProviderType {
+        id: "minecraft:weighted_list",
+    },
+];
 
 pub const OVERWORLD_SPAWN_TARGET: &[ClimateParameterPoint] = &[
     ClimateParameterPoint {
@@ -2644,6 +2711,17 @@ pub const PLACED_FEATURE_BOOTSTRAP_SOURCES: &[PlacedFeatureSourceEntry] = &[
 
 pub const WORLDGEN_TYPE_REGISTRIES: &[WorldgenTypeRegistry] = &[
     WorldgenTypeRegistry {
+        id: "minecraft:height_provider_type",
+        entries: &[
+            "minecraft:constant",
+            "minecraft:uniform",
+            "minecraft:biased_to_bottom",
+            "minecraft:very_biased_to_bottom",
+            "minecraft:trapezoid",
+            "minecraft:weighted_list",
+        ],
+    },
+    WorldgenTypeRegistry {
         id: "minecraft:placement_modifier_type",
         entries: &[
             "minecraft:block_predicate_filter",
@@ -3275,6 +3353,183 @@ impl NoiseSettings {
     }
 }
 
+impl VerticalAnchor {
+    pub fn resolve_y(self, context: WorldGenerationHeightContext) -> i32 {
+        match self {
+            VerticalAnchor::Absolute(y) => y,
+            VerticalAnchor::AboveBottom(offset) => context.min_y + offset,
+            VerticalAnchor::BelowTop(offset) => context.min_y + context.height - 1 - offset,
+        }
+    }
+}
+
+pub fn height_provider_type(id: &str) -> Option<&'static HeightProviderType> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    HEIGHT_PROVIDER_TYPES.iter().find(|provider_type| {
+        provider_type
+            .id
+            .strip_prefix("minecraft:")
+            .unwrap_or(provider_type.id)
+            == name
+    })
+}
+
+pub fn height_provider_sample_bounds(
+    provider: HeightProvider,
+    context: WorldGenerationHeightContext,
+) -> (i32, i32) {
+    match provider {
+        HeightProvider::Constant { value } => {
+            let y = value.resolve_y(context);
+            (y, y)
+        }
+        HeightProvider::Uniform {
+            min_inclusive,
+            max_inclusive,
+        }
+        | HeightProvider::Trapezoid {
+            min_inclusive,
+            max_inclusive,
+            ..
+        } => {
+            let min = min_inclusive.resolve_y(context);
+            let max = max_inclusive.resolve_y(context);
+            if min > max {
+                (min, min)
+            } else {
+                (min, max)
+            }
+        }
+        HeightProvider::BiasedToBottom {
+            min_inclusive,
+            max_inclusive,
+            inner,
+        }
+        | HeightProvider::VeryBiasedToBottom {
+            min_inclusive,
+            max_inclusive,
+            inner,
+        } => {
+            let min = min_inclusive.resolve_y(context);
+            let max = max_inclusive.resolve_y(context);
+            if max - min - inner + 1 <= 0 {
+                (min, min)
+            } else {
+                (min, max - 1)
+            }
+        }
+        HeightProvider::WeightedList { distribution } => distribution
+            .iter()
+            .map(|entry| height_provider_sample_bounds(entry.provider, context))
+            .reduce(|(min_a, max_a), (min_b, max_b)| (min_a.min(min_b), max_a.max(max_b)))
+            .unwrap_or((context.min_y, context.min_y)),
+    }
+}
+
+pub fn height_provider_sample_with_rolls(
+    provider: HeightProvider,
+    context: WorldGenerationHeightContext,
+    first_roll: i32,
+    second_roll: i32,
+    third_roll: i32,
+) -> i32 {
+    match provider {
+        HeightProvider::Constant { value } => value.resolve_y(context),
+        HeightProvider::Uniform {
+            min_inclusive,
+            max_inclusive,
+        } => {
+            let min = min_inclusive.resolve_y(context);
+            let max = max_inclusive.resolve_y(context);
+            if min > max {
+                min
+            } else {
+                min + first_roll.rem_euclid(max - min + 1)
+            }
+        }
+        HeightProvider::BiasedToBottom {
+            min_inclusive,
+            max_inclusive,
+            inner,
+        } => {
+            let min = min_inclusive.resolve_y(context);
+            let max = max_inclusive.resolve_y(context);
+            let outer_bound = max - min - inner + 1;
+            if outer_bound <= 0 {
+                min
+            } else {
+                let limit = first_roll.rem_euclid(outer_bound);
+                min + second_roll.rem_euclid(limit + inner)
+            }
+        }
+        HeightProvider::VeryBiasedToBottom {
+            min_inclusive,
+            max_inclusive,
+            inner,
+        } => {
+            let min = min_inclusive.resolve_y(context);
+            let max = max_inclusive.resolve_y(context);
+            if max - min - inner + 1 <= 0 {
+                min
+            } else {
+                let upper = min + inner + first_roll.rem_euclid(max - (min + inner) + 1);
+                let biased_upper = min + second_roll.rem_euclid(upper - min);
+                min + third_roll.rem_euclid(biased_upper - min + inner)
+            }
+        }
+        HeightProvider::Trapezoid {
+            min_inclusive,
+            max_inclusive,
+            plateau,
+        } => {
+            let min = min_inclusive.resolve_y(context);
+            let max = max_inclusive.resolve_y(context);
+            if min > max {
+                return min;
+            }
+
+            let range = max - min;
+            if plateau >= range {
+                return min + first_roll.rem_euclid(range + 1);
+            }
+
+            let plateau_start = (range - plateau) / 2;
+            let plateau_end = range - plateau_start;
+            min + first_roll.rem_euclid(plateau_end + 1) + second_roll.rem_euclid(plateau_start + 1)
+        }
+        HeightProvider::WeightedList { distribution } => {
+            let positive_weight_total = distribution
+                .iter()
+                .map(|entry| entry.weight.max(0))
+                .sum::<i32>();
+            if positive_weight_total <= 0 {
+                return context.min_y;
+            }
+
+            let mut choice = first_roll.rem_euclid(positive_weight_total);
+            let selected = distribution
+                .iter()
+                .find(|entry| {
+                    let weight = entry.weight.max(0);
+                    if choice < weight {
+                        true
+                    } else {
+                        choice -= weight;
+                        false
+                    }
+                })
+                .expect("positive total weight must select a provider");
+            height_provider_sample_with_rolls(
+                selected.provider,
+                context,
+                second_roll,
+                third_roll,
+                0,
+            )
+        }
+    }
+}
+
 pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGeneratorSettings> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_NOISE_GENERATOR_SETTINGS.iter().find(|settings| {
@@ -3873,23 +4128,25 @@ mod tests {
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, CarverShape,
         CaveDensityOutput, ConfiguredFeatureSource, DensityFunction, DensityMarker,
-        FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightRange,
-        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
+        FeatureConfigurationKind, FeatureFamily, FloatProvider, FluidStatus, HeightProvider,
+        HeightRange, MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
         OreVeinifierConstants, PlacedFeatureSource, RandomSpreadType, SpawnBlockKind,
         SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceRuleKind,
-        SurfaceRulePreset, VerticalAnchor, WorldCarverType, AQUIFER_NOISE_SETTINGS,
+        SurfaceRulePreset, VerticalAnchor, WeightedHeightProvider, WorldCarverType,
+        WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
         AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS, BUILTIN_DENSITY_FUNCTIONS,
         BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
         BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
         CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
         END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLOATING_ISLANDS_NOISE_SETTINGS, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
-        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS,
-        STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
-        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
-        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
+        FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES,
+        MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
+        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
+        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES,
+        STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
+        STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -3925,6 +4182,149 @@ mod tests {
         assert_eq!(
             NoiseSettings::new(-64, 384, 1, 2).clamp_to_height(0, 255),
             NoiseSettings::new(0, 256, 1, 2)
+        );
+    }
+
+    #[test]
+    fn height_provider_types_match_vanilla_registry_order() {
+        assert_eq!(
+            HEIGHT_PROVIDER_TYPES
+                .iter()
+                .map(|provider_type| provider_type.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:constant",
+                "minecraft:uniform",
+                "minecraft:biased_to_bottom",
+                "minecraft:very_biased_to_bottom",
+                "minecraft:trapezoid",
+                "minecraft:weighted_list",
+            ]
+        );
+        assert!(super::height_provider_type("constant").is_some());
+        assert!(super::height_provider_type("minecraft:weighted_list").is_some());
+        assert!(super::height_provider_type("clamped").is_none());
+    }
+
+    #[test]
+    fn height_provider_sampling_envelopes_follow_vanilla_edge_cases() {
+        let context = WorldGenerationHeightContext {
+            min_y: -64,
+            height: 384,
+        };
+        assert_eq!(VerticalAnchor::Absolute(12).resolve_y(context), 12);
+        assert_eq!(VerticalAnchor::AboveBottom(8).resolve_y(context), -56);
+        assert_eq!(VerticalAnchor::BelowTop(1).resolve_y(context), 318);
+
+        let constant = HeightProvider::Constant {
+            value: VerticalAnchor::AboveBottom(8),
+        };
+        assert_eq!(
+            super::height_provider_sample_bounds(constant, context),
+            (-56, -56)
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(constant, context, 99, 0, 0),
+            -56
+        );
+
+        let uniform = HeightProvider::Uniform {
+            min_inclusive: VerticalAnchor::Absolute(10),
+            max_inclusive: VerticalAnchor::Absolute(14),
+        };
+        assert_eq!(
+            super::height_provider_sample_bounds(uniform, context),
+            (10, 14)
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(uniform, context, 7, 0, 0),
+            12
+        );
+
+        let empty_uniform = HeightProvider::Uniform {
+            min_inclusive: VerticalAnchor::Absolute(20),
+            max_inclusive: VerticalAnchor::Absolute(10),
+        };
+        assert_eq!(
+            super::height_provider_sample_with_rolls(empty_uniform, context, 0, 0, 0),
+            20
+        );
+
+        let biased = HeightProvider::BiasedToBottom {
+            min_inclusive: VerticalAnchor::Absolute(0),
+            max_inclusive: VerticalAnchor::Absolute(10),
+            inner: 2,
+        };
+        assert_eq!(
+            super::height_provider_sample_bounds(biased, context),
+            (0, 9)
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(biased, context, 4, 6, 0),
+            0
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(biased, context, 8, 9, 0),
+            9
+        );
+
+        let very_biased = HeightProvider::VeryBiasedToBottom {
+            min_inclusive: VerticalAnchor::Absolute(0),
+            max_inclusive: VerticalAnchor::Absolute(10),
+            inner: 2,
+        };
+        assert_eq!(
+            super::height_provider_sample_bounds(very_biased, context),
+            (0, 9)
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(very_biased, context, 8, 9, 9),
+            9
+        );
+
+        let trapezoid = HeightProvider::Trapezoid {
+            min_inclusive: VerticalAnchor::Absolute(0),
+            max_inclusive: VerticalAnchor::Absolute(10),
+            plateau: 2,
+        };
+        assert_eq!(
+            super::height_provider_sample_bounds(trapezoid, context),
+            (0, 10)
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(trapezoid, context, 6, 4, 0),
+            10
+        );
+
+        static DISTRIBUTION: &[WeightedHeightProvider] = &[
+            WeightedHeightProvider {
+                weight: 2,
+                provider: HeightProvider::Constant {
+                    value: VerticalAnchor::Absolute(4),
+                },
+            },
+            WeightedHeightProvider {
+                weight: 3,
+                provider: HeightProvider::Uniform {
+                    min_inclusive: VerticalAnchor::Absolute(20),
+                    max_inclusive: VerticalAnchor::Absolute(22),
+                },
+            },
+        ];
+        let weighted = HeightProvider::WeightedList {
+            distribution: DISTRIBUTION,
+        };
+        assert_eq!(
+            super::height_provider_sample_bounds(weighted, context),
+            (4, 22)
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(weighted, context, 1, 99, 0),
+            4
+        );
+        assert_eq!(
+            super::height_provider_sample_with_rolls(weighted, context, 4, 5, 0),
+            22
         );
     }
 
@@ -4809,6 +5209,7 @@ mod tests {
                 .map(|registry| (registry.id, registry.entries.len()))
                 .collect::<Vec<_>>(),
             vec![
+                ("minecraft:height_provider_type", 6),
                 ("minecraft:placement_modifier_type", 14),
                 ("minecraft:trunk_placer_type", 8),
                 ("minecraft:foliage_placer_type", 10),
