@@ -706,6 +706,22 @@ pub struct DiskPlacementBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnowAndFreezeColumn {
+    pub x: i32,
+    pub z: i32,
+    pub motion_blocking_height: i32,
+    pub should_freeze: bool,
+    pub should_snow: bool,
+    pub below_has_snowy_property: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnowAndFreezePlacement {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureSizeModel {
     TwoLayers {
         limit: i32,
@@ -7174,6 +7190,51 @@ pub fn disk_placement_plan(
     placed
 }
 
+pub fn snow_and_freeze_placement_plan(
+    origin: BlockPos,
+    columns: &[SnowAndFreezeColumn],
+) -> Vec<SnowAndFreezePlacement> {
+    let mut placements = Vec::new();
+    for dx in 0..16 {
+        for dz in 0..16 {
+            let x = origin.x + dx;
+            let z = origin.z + dz;
+            let Some(column) = columns.iter().find(|column| column.x == x && column.z == z) else {
+                continue;
+            };
+            let top = BlockPos {
+                x,
+                y: column.motion_blocking_height,
+                z,
+            };
+            let below = BlockPos {
+                x,
+                y: column.motion_blocking_height - 1,
+                z,
+            };
+            if column.should_freeze {
+                placements.push(SnowAndFreezePlacement {
+                    pos: below,
+                    state: "minecraft:ice",
+                });
+            }
+            if column.should_snow {
+                placements.push(SnowAndFreezePlacement {
+                    pos: top,
+                    state: "minecraft:snow",
+                });
+                if column.below_has_snowy_property {
+                    placements.push(SnowAndFreezePlacement {
+                        pos: below,
+                        state: "minecraft:snowy=true",
+                    });
+                }
+            }
+        }
+    }
+    placements
+}
+
 pub fn feature_size_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -10507,6 +10568,69 @@ mod tests {
         assert_eq!(disk_with_gap.len(), 2);
         assert!(disk_with_gap[0].mark_above_for_post_processing);
         assert!(disk_with_gap[1].mark_above_for_post_processing);
+
+        let snow_plan = super::snow_and_freeze_placement_plan(
+            BlockPos {
+                x: 32,
+                y: 0,
+                z: -16,
+            },
+            &[
+                super::SnowAndFreezeColumn {
+                    x: 32,
+                    z: -16,
+                    motion_blocking_height: 70,
+                    should_freeze: true,
+                    should_snow: true,
+                    below_has_snowy_property: true,
+                },
+                super::SnowAndFreezeColumn {
+                    x: 33,
+                    z: -16,
+                    motion_blocking_height: 65,
+                    should_freeze: false,
+                    should_snow: true,
+                    below_has_snowy_property: false,
+                },
+            ],
+        );
+        assert_eq!(
+            snow_plan,
+            vec![
+                super::SnowAndFreezePlacement {
+                    pos: BlockPos {
+                        x: 32,
+                        y: 69,
+                        z: -16
+                    },
+                    state: "minecraft:ice",
+                },
+                super::SnowAndFreezePlacement {
+                    pos: BlockPos {
+                        x: 32,
+                        y: 70,
+                        z: -16
+                    },
+                    state: "minecraft:snow",
+                },
+                super::SnowAndFreezePlacement {
+                    pos: BlockPos {
+                        x: 32,
+                        y: 69,
+                        z: -16
+                    },
+                    state: "minecraft:snowy=true",
+                },
+                super::SnowAndFreezePlacement {
+                    pos: BlockPos {
+                        x: 33,
+                        y: 65,
+                        z: -16
+                    },
+                    state: "minecraft:snow",
+                },
+            ]
+        );
         assert_eq!(
             super::feature_size_type("two_layers_feature_size"),
             Some("minecraft:two_layers_feature_size")
