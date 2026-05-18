@@ -6973,6 +6973,32 @@ pub const BADLANDS_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const WOODED_BADLANDS_FEATURE_STEPS: &[&[&str]] = &[
+    BADLANDS_FEATURE_STEPS[0],
+    BADLANDS_FEATURE_STEPS[1],
+    BADLANDS_FEATURE_STEPS[2],
+    BADLANDS_FEATURE_STEPS[3],
+    BADLANDS_FEATURE_STEPS[4],
+    BADLANDS_FEATURE_STEPS[5],
+    BADLANDS_FEATURE_STEPS[6],
+    BADLANDS_FEATURE_STEPS[7],
+    BADLANDS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_badlands",
+        "minecraft:patch_grass_badlands",
+        "minecraft:patch_dry_grass_badlands",
+        "minecraft:patch_dead_bush_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_sugar_cane_badlands",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_cactus_decorated",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    BADLANDS_FEATURE_STEPS[10],
+];
+
 pub const MOUNTAIN_ORE_FEATURE_STEP: &[&str] = &[
     "minecraft:ore_dirt",
     "minecraft:ore_gravel",
@@ -7196,6 +7222,30 @@ pub const SAVANNA_FEATURE_STEPS: &[&[&str]] = &[
         "minecraft:patch_firefly_bush_near_water",
     ],
     PLAINS_FEATURE_STEPS[10],
+];
+
+pub const WINDSWEPT_SAVANNA_FEATURE_STEPS: &[&[&str]] = &[
+    SAVANNA_FEATURE_STEPS[0],
+    SAVANNA_FEATURE_STEPS[1],
+    SAVANNA_FEATURE_STEPS[2],
+    SAVANNA_FEATURE_STEPS[3],
+    SAVANNA_FEATURE_STEPS[4],
+    SAVANNA_FEATURE_STEPS[5],
+    SAVANNA_FEATURE_STEPS[6],
+    SAVANNA_FEATURE_STEPS[7],
+    SAVANNA_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_windswept_savanna",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_normal",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    SAVANNA_FEATURE_STEPS[10],
 ];
 
 pub const TAIGA_FEATURE_STEPS: &[&[&str]] = &[
@@ -7626,6 +7676,45 @@ pub const BADLANDS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const WOODED_BADLANDS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:armadillo",
+        weight: 6,
+        min_count: 1,
+        max_count: 2,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:wolf",
+        weight: 2,
+        min_count: 4,
+        max_count: 8,
+    },
+];
+
 pub const MEADOW_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
         entity_type: "minecraft:donkey",
@@ -7780,6 +7869,63 @@ pub const SAVANNA_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 10,
         min_count: 2,
         max_count: 3,
+    },
+];
+
+pub const SAVANNA_PLATEAU_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:horse",
+        weight: 1,
+        min_count: 2,
+        max_count: 6,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:donkey",
+        weight: 1,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:armadillo",
+        weight: 10,
+        min_count: 2,
+        max_count: 3,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:llama",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:wolf",
+        weight: 8,
+        min_count: 4,
+        max_count: 8,
     },
 ];
 
@@ -9191,6 +9337,41 @@ pub const BADLANDS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const WOODED_BADLANDS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: WOODED_BADLANDS_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const MEADOW_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -9448,6 +9629,41 @@ pub const SAVANNA_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "creature",
         entries: SAVANNA_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: PLAINS_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const SAVANNA_PLATEAU_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: SAVANNA_PLATEAU_CREATURE_SPAWNS,
     },
     MobSpawnerGroupModel {
         category: "misc",
@@ -10293,6 +10509,22 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: BADLANDS_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:eroded_badlands",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: BADLANDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.03,
+        spawn_costs: &[],
+        spawners: BADLANDS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:wooded_badlands",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: WOODED_BADLANDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.04,
+        spawn_costs: &[],
+        spawners: WOODED_BADLANDS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:meadow",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: MEADOW_FEATURE_STEPS,
@@ -10349,6 +10581,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: WINDSWEPT_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
+        biome: "minecraft:windswept_gravelly_hills",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: WINDSWEPT_HILLS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: WINDSWEPT_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
         biome: "minecraft:windswept_forest",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: WINDSWEPT_FOREST_FEATURE_STEPS,
@@ -10368,6 +10608,22 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         biome: "minecraft:savanna",
         carvers: OVERWORLD_COMMON_CARVERS,
         feature_steps: SAVANNA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SAVANNA_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:savanna_plateau",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SAVANNA_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SAVANNA_PLATEAU_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:windswept_savanna",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: WINDSWEPT_SAVANNA_FEATURE_STEPS,
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: SAVANNA_SPAWNER_GROUPS,
@@ -24691,6 +24947,32 @@ mod tests {
             super::FOREST_MONSTER_SPAWNS
         );
 
+        let eroded_badlands = super::biome_generation_settings("eroded_badlands").unwrap();
+        assert_eq!(eroded_badlands.biome, "minecraft:eroded_badlands");
+        assert_eq!(eroded_badlands.feature_steps, super::BADLANDS_FEATURE_STEPS);
+        assert_eq!(eroded_badlands.creature_spawn_probability, 0.03);
+        assert_eq!(
+            super::biome_spawns_for_category(eroded_badlands, "creature"),
+            super::BADLANDS_CREATURE_SPAWNS
+        );
+
+        let wooded_badlands = super::biome_generation_settings("wooded_badlands").unwrap();
+        assert_eq!(wooded_badlands.biome, "minecraft:wooded_badlands");
+        assert_eq!(wooded_badlands.creature_spawn_probability, 0.04);
+        assert!(super::biome_has_placed_feature(
+            wooded_badlands,
+            "minecraft:trees_badlands"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(wooded_badlands, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:wolf",
+                weight: 2,
+                min_count: 4,
+                max_count: 8,
+            })
+        );
+
         let meadow = super::biome_generation_settings("meadow").unwrap();
         assert_eq!(meadow.biome, "minecraft:meadow");
         assert!(super::biome_has_placed_feature(
@@ -24818,6 +25100,17 @@ mod tests {
             })
         );
 
+        let windswept_gravelly =
+            super::biome_generation_settings("windswept_gravelly_hills").unwrap();
+        assert_eq!(
+            windswept_gravelly.biome,
+            "minecraft:windswept_gravelly_hills"
+        );
+        assert_eq!(
+            windswept_gravelly.feature_steps,
+            super::WINDSWEPT_HILLS_FEATURE_STEPS
+        );
+
         let windswept_forest = super::biome_generation_settings("windswept_forest").unwrap();
         assert_eq!(windswept_forest.biome, "minecraft:windswept_forest");
         assert!(super::biome_has_placed_feature(
@@ -24904,6 +25197,38 @@ mod tests {
         assert_eq!(
             super::biome_spawns_for_category(savanna, "monster"),
             super::PLAINS_MONSTER_SPAWNS
+        );
+
+        let savanna_plateau = super::biome_generation_settings("savanna_plateau").unwrap();
+        assert_eq!(savanna_plateau.biome, "minecraft:savanna_plateau");
+        assert_eq!(savanna_plateau.feature_steps, super::SAVANNA_FEATURE_STEPS);
+        assert_eq!(
+            super::biome_spawns_for_category(savanna_plateau, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:wolf",
+                weight: 8,
+                min_count: 4,
+                max_count: 8,
+            })
+        );
+
+        let windswept_savanna = super::biome_generation_settings("windswept_savanna").unwrap();
+        assert_eq!(windswept_savanna.biome, "minecraft:windswept_savanna");
+        assert!(super::biome_has_placed_feature(
+            windswept_savanna,
+            "minecraft:trees_windswept_savanna"
+        ));
+        assert!(super::biome_has_placed_feature(
+            windswept_savanna,
+            "minecraft:patch_grass_normal"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            windswept_savanna,
+            "minecraft:flower_warm"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(windswept_savanna, "creature"),
+            super::SAVANNA_CREATURE_SPAWNS
         );
 
         let taiga = super::biome_generation_settings("taiga").unwrap();
