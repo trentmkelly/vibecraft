@@ -38,6 +38,25 @@ pub struct ClimateBiomeEntry {
     pub biome: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClimateSamplerSample {
+    pub quart_x: i32,
+    pub quart_y: i32,
+    pub quart_z: i32,
+    pub target: ClimateTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClimateParameterList {
+    pub values: Vec<ClimateBiomeEntry>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClimateRTreeNode {
+    pub parameter_space: [ClimateParameter; 7],
+    pub value_index: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BiomeSourceModel {
     Fixed {
@@ -343,6 +362,23 @@ impl ClimateParameter {
             below.max(0)
         }
     }
+
+    pub fn distance_parameter(self, target: ClimateParameter) -> i64 {
+        let above = target.min - self.max;
+        let below = self.min - target.max;
+        if above > 0 {
+            above
+        } else {
+            below.max(0)
+        }
+    }
+
+    pub fn span_parameter(self, other: Option<ClimateParameter>) -> ClimateParameter {
+        other.map_or(self, |other| ClimateParameter {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+        })
+    }
 }
 
 impl ClimateParameterPoint {
@@ -355,6 +391,21 @@ impl ClimateParameterPoint {
             + square(self.weirdness.distance(target.weirdness))
             + square(self.offset)
     }
+
+    pub fn parameter_space(self) -> [ClimateParameter; 7] {
+        [
+            self.temperature,
+            self.humidity,
+            self.continentalness,
+            self.erosion,
+            self.depth,
+            self.weirdness,
+            ClimateParameter {
+                min: self.offset,
+                max: self.offset,
+            },
+        ]
+    }
 }
 
 pub fn select_climate_biome(
@@ -365,6 +416,75 @@ pub fn select_climate_biome(
         .iter()
         .min_by_key(|entry| entry.parameters.fitness(target))
         .map(|entry| entry.biome)
+}
+
+impl ClimateTarget {
+    pub fn parameter_array(self) -> [i64; 7] {
+        [
+            self.temperature,
+            self.humidity,
+            self.continentalness,
+            self.erosion,
+            self.depth,
+            self.weirdness,
+            0,
+        ]
+    }
+}
+
+impl ClimateParameterList {
+    pub fn new(values: Vec<ClimateBiomeEntry>) -> Result<Self, String> {
+        if values.is_empty() {
+            return Err("Need at least one value to build the search tree.".to_string());
+        }
+        Ok(Self { values })
+    }
+
+    pub fn find_value_bruteforce(&self, target: ClimateTarget) -> &'static str {
+        self.values
+            .iter()
+            .min_by_key(|entry| entry.parameters.fitness(target))
+            .expect("parameter list is non-empty")
+            .biome
+    }
+
+    pub fn find_value_index(&self, target: ClimateTarget) -> &'static str {
+        self.rtree_nodes()
+            .into_iter()
+            .min_by_key(|node| {
+                climate_node_distance(node.parameter_space, target.parameter_array())
+            })
+            .and_then(|node| self.values.get(node.value_index))
+            .expect("parameter list is non-empty")
+            .biome
+    }
+
+    pub fn rtree_nodes(&self) -> Vec<ClimateRTreeNode> {
+        let mut nodes = self
+            .values
+            .iter()
+            .enumerate()
+            .map(|(value_index, entry)| ClimateRTreeNode {
+                parameter_space: entry.parameters.parameter_space(),
+                value_index,
+            })
+            .collect::<Vec<_>>();
+        nodes.sort_by_key(|node| {
+            node.parameter_space
+                .iter()
+                .map(|parameter| ((parameter.min + parameter.max) / 2).abs())
+                .sum::<i64>()
+        });
+        nodes
+    }
+}
+
+pub fn climate_node_distance(parameter_space: [ClimateParameter; 7], target: [i64; 7]) -> i64 {
+    parameter_space
+        .into_iter()
+        .zip(target)
+        .map(|(parameter, target)| square(parameter.distance(target)))
+        .sum()
 }
 
 pub fn biome_source_codec(id: &str) -> Option<&'static str> {
@@ -482,9 +602,10 @@ const fn square(value: i64) -> i64 {
 mod tests {
     use super::{
         biome_source_codec, biome_source_from_stem_id, builtin_biome, checkerboard_biome_source,
-        climate_point, climate_target, quantize_coord, select_biome_from_source,
-        select_climate_biome, select_end_biome, unquantize_coord, BiomeSourceModel,
-        ClimateBiomeEntry, BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
+        climate_node_distance, climate_point, climate_target, quantize_coord,
+        select_biome_from_source, select_climate_biome, select_end_biome, unquantize_coord,
+        BiomeSourceModel, ClimateBiomeEntry, ClimateParameter, ClimateParameterList,
+        BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
     };
 
     #[test]
@@ -552,6 +673,61 @@ mod tests {
         assert_eq!(
             select_climate_biome(&entries, climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),
             Some("minecraft:plains")
+        );
+    }
+
+    #[test]
+    fn climate_parameter_list_index_matches_bruteforce_search_contract() {
+        let list = ClimateParameterList::new(vec![
+            ClimateBiomeEntry {
+                parameters: climate_point(-0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.175),
+                biome: "minecraft:basalt_deltas",
+            },
+            ClimateBiomeEntry {
+                parameters: climate_point(0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                biome: "minecraft:crimson_forest",
+            },
+            ClimateBiomeEntry {
+                parameters: climate_point(0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.375),
+                biome: "minecraft:warped_forest",
+            },
+        ])
+        .unwrap();
+        let target = climate_target(0.35, 0.02, 0.0, 0.0, 0.0, 0.0);
+        assert_eq!(
+            list.find_value_bruteforce(target),
+            "minecraft:crimson_forest"
+        );
+        assert_eq!(list.find_value_index(target), "minecraft:crimson_forest");
+
+        let nodes = list.rtree_nodes();
+        assert_eq!(nodes.len(), 3);
+        assert_eq!(nodes[0].parameter_space.len(), 7);
+        assert_eq!(
+            climate_node_distance(nodes[0].parameter_space, target.parameter_array()),
+            nodes[0]
+                .parameter_space
+                .into_iter()
+                .zip(target.parameter_array())
+                .map(|(parameter, target)| {
+                    let distance = parameter.distance(target);
+                    distance * distance
+                })
+                .sum::<i64>()
+        );
+        assert_eq!(
+            ClimateParameter { min: -10, max: -2 }
+                .distance_parameter(ClimateParameter { min: 3, max: 7 }),
+            5
+        );
+        assert_eq!(
+            ClimateParameter { min: -10, max: -2 }
+                .span_parameter(Some(ClimateParameter { min: 3, max: 7 })),
+            ClimateParameter { min: -10, max: 7 }
+        );
+        assert_eq!(
+            ClimateParameterList::new(Vec::new()).unwrap_err(),
+            "Need at least one value to build the search tree.".to_string()
         );
     }
 
