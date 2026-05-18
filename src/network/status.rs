@@ -122,7 +122,7 @@ impl Default for PlaySessionState {
     fn default() -> Self {
         Self {
             x: 0.5,
-            y: 80.0,
+            y: SPAWN_Y,
             z: 0.5,
             yaw: 0.0,
             pitch: 0.0,
@@ -140,7 +140,6 @@ impl Default for PlaySessionState {
     }
 }
 const SPAWN_CHUNK_SECTION_COUNT: usize = 24;
-const SUPERFLAT_SOLID_SECTION_INDEX: usize = 8;
 const AIR_BLOCK_STATE_ID: i32 = 0;
 const STONE_BLOCK_STATE_ID: i32 = 1;
 const GRANITE_BLOCK_STATE_ID: i32 = 2;
@@ -153,7 +152,9 @@ const SHORT_GRASS_BLOCK_STATE_ID: i32 = 131;
 const DANDELION_BLOCK_STATE_ID: i32 = 158;
 const POPPY_BLOCK_STATE_ID: i32 = 161;
 const PLAINS_BIOME_ID: i32 = 1;
-const TERRAIN_BASE_LOCAL_Y: usize = 9;
+const TERRAIN_BASE_Y: i32 = 64;
+const TERRAIN_MIN_SURFACE_Y: i32 = 70;
+const SPAWN_Y: f64 = 112.0;
 
 #[derive(Clone, Default)]
 struct ActiveLoginRegistry {
@@ -1742,7 +1743,7 @@ fn write_minimal_play_join(
             seed: world_seed,
             game_mode: play_state.game_mode,
             previous_game_mode: play_state.previous_game_mode,
-            is_flat: true,
+            is_flat: false,
             ..CommonPlayerSpawnInfo::default()
         },
         enforces_secure_chat: false,
@@ -1852,7 +1853,7 @@ fn write_minimal_play_join(
         stream,
         compression,
         CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-        |payload| write_default_spawn_position_packet(payload, 0, 80, 0),
+        |payload| write_default_spawn_position_packet(payload, 0, SPAWN_Y as i32, 0),
     )?;
     write_framed_packet_with_compression(
         stream,
@@ -2150,15 +2151,16 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
 
     let mut section_buffer = Vec::with_capacity(SPAWN_CHUNK_SECTION_COUNT * 10);
     for section_index in 0..SPAWN_CHUNK_SECTION_COUNT {
-        let non_empty_block_count = if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
-            visible_spawn_terrain_block_count(x, z)
-        } else {
-            0
-        };
+        let non_empty_block_count = visible_spawn_terrain_block_count(x, z, section_index);
         section_buffer.write_all(&non_empty_block_count.to_be_bytes())?;
         section_buffer.write_all(&0_i16.to_be_bytes())?;
-        if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
-            write_visible_spawn_terrain_block_state_container(&mut section_buffer, x, z)?;
+        if non_empty_block_count > 0 {
+            write_visible_spawn_terrain_block_state_container(
+                &mut section_buffer,
+                x,
+                z,
+                section_index,
+            )?;
         } else {
             write_single_value_paletted_container(&mut section_buffer, AIR_BLOCK_STATE_ID)?;
         }
@@ -2185,22 +2187,28 @@ fn write_single_value_paletted_container<W: Write>(writer: &mut W, id: i32) -> i
     write_var_i32(writer, id)
 }
 
-fn visible_spawn_terrain_height(
-    chunk_x: i32,
-    chunk_z: i32,
-    local_x: usize,
-    local_z: usize,
-) -> usize {
+fn visible_spawn_terrain_height(chunk_x: i32, chunk_z: i32, local_x: usize, local_z: usize) -> i32 {
     let world_x = chunk_x * 16 + local_x as i32;
     let world_z = chunk_z * 16 + local_z as i32;
-    let broad = (world_x.div_euclid(9) + world_z.div_euclid(11)).rem_euclid(4);
-    let terrace = (world_x.div_euclid(4) - world_z.div_euclid(6)).rem_euclid(3);
-    let wrinkle = ((world_x.wrapping_mul(31) ^ world_z.wrapping_mul(17)) & 1) as i32;
-    let ridge =
-        i32::from((world_x.wrapping_mul(11) + world_z.wrapping_mul(13)).rem_euclid(19) == 0);
-    let valley = i32::from((world_x.wrapping_mul(5) - world_z.wrapping_mul(7)).rem_euclid(31) == 0);
-    let local_height = (broad + terrace + wrinkle + ridge - valley).clamp(0, 6);
-    TERRAIN_BASE_LOCAL_Y + local_height as usize
+    let broad = (world_x.div_euclid(12) + world_z.div_euclid(14)).rem_euclid(8);
+    let terrace = (world_x.div_euclid(5) - world_z.div_euclid(7)).rem_euclid(6);
+    let wrinkle = ((world_x.wrapping_mul(31) ^ world_z.wrapping_mul(17)) & 3) as i32;
+    let ridge = if (world_x.wrapping_mul(11) + world_z.wrapping_mul(13)).rem_euclid(29) <= 2 {
+        14
+    } else {
+        0
+    };
+    let plateau = if (world_x.div_euclid(24) - world_z.div_euclid(19)).rem_euclid(5) == 0 {
+        14
+    } else {
+        0
+    };
+    let valley = if (world_x.wrapping_mul(5) - world_z.wrapping_mul(7)).rem_euclid(37) <= 3 {
+        7
+    } else {
+        0
+    };
+    (TERRAIN_MIN_SURFACE_Y + broad + terrace + wrinkle + ridge + plateau - valley).clamp(68, 104)
 }
 
 fn visible_spawn_surface_feature_id(
@@ -2239,16 +2247,27 @@ fn visible_spawn_surface_top_block_id(
     }
 }
 
-fn visible_spawn_terrain_block_count(chunk_x: i32, chunk_z: i32) -> i16 {
+fn section_min_y(section_index: usize) -> i32 {
+    -64 + section_index as i32 * 16
+}
+
+fn visible_spawn_terrain_block_count(chunk_x: i32, chunk_z: i32, section_index: usize) -> i16 {
     let mut count = 0_i16;
+    let section_min_y = section_min_y(section_index);
+    let section_max_y = section_min_y + 15;
     for local_z in 0..16 {
         for local_x in 0..16 {
             let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, local_x, local_z);
-            count += (top_y - TERRAIN_BASE_LOCAL_Y + 1) as i16;
+            let column_min_y = TERRAIN_BASE_Y.max(section_min_y);
+            let column_max_y = top_y.min(section_max_y);
+            if column_max_y >= column_min_y {
+                count += (column_max_y - column_min_y + 1) as i16;
+            }
             if visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z)
                 == GRASS_BLOCK_STATE_ID
                 && visible_spawn_surface_feature_id(chunk_x, chunk_z, local_x, local_z).is_some()
-                && top_y < 15
+                && top_y + 1 >= section_min_y
+                && top_y < section_max_y
             {
                 count += 1;
             }
@@ -2261,6 +2280,7 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
     writer: &mut W,
     chunk_x: i32,
     chunk_z: i32,
+    section_index: usize,
 ) -> io::Result<()> {
     const BITS_PER_ENTRY: u8 = 4;
     const BLOCKS_PER_SECTION: usize = 16 * 16 * 16;
@@ -2281,11 +2301,16 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
     write_var_i32(writer, POPPY_BLOCK_STATE_ID)?;
 
     let mut storage = vec![0_u64; BLOCKS_PER_SECTION / VALUES_PER_LONG];
+    let section_min_y = section_min_y(section_index);
+    let section_max_y = section_min_y + 15;
     for z in 0..16 {
         for x in 0..16 {
             let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, x, z);
-            for y in TERRAIN_BASE_LOCAL_Y..=top_y {
-                let palette_index = if y == top_y {
+            let column_min_y = TERRAIN_BASE_Y.max(section_min_y);
+            let column_max_y = top_y.min(section_max_y);
+            for global_y in column_min_y..=column_max_y {
+                let local_y = (global_y - section_min_y) as usize;
+                let palette_index = if global_y == top_y {
                     match visible_spawn_surface_top_block_id(chunk_x, chunk_z, x, z) {
                         STONE_BLOCK_STATE_ID => 1_u64,
                         GRANITE_BLOCK_STATE_ID => 2_u64,
@@ -2295,20 +2320,20 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
                         GRASS_BLOCK_STATE_ID => 7_u64,
                         _ => unreachable!("surface top palette id is registered above"),
                     }
-                } else if y == TERRAIN_BASE_LOCAL_Y {
+                } else if global_y == TERRAIN_BASE_Y {
                     5_u64
                 } else {
                     6_u64
                 };
-                let block_index = (y << 8) | (z << 4) | x;
+                let block_index = (local_y << 8) | (z << 4) | x;
                 let word_index = block_index / VALUES_PER_LONG;
                 let bit_index =
                     (block_index - word_index * VALUES_PER_LONG) * BITS_PER_ENTRY as usize;
                 storage[word_index] |= palette_index << bit_index;
             }
             if visible_spawn_surface_top_block_id(chunk_x, chunk_z, x, z) == GRASS_BLOCK_STATE_ID {
-                if let Some(feature_id) =
-                    visible_spawn_surface_feature_id(chunk_x, chunk_z, x, z).filter(|_| top_y < 15)
+                if let Some(feature_id) = visible_spawn_surface_feature_id(chunk_x, chunk_z, x, z)
+                    .filter(|_| top_y + 1 >= section_min_y && top_y < section_max_y)
                 {
                     let palette_index = match feature_id {
                         SHORT_GRASS_BLOCK_STATE_ID => 8_u64,
@@ -2316,8 +2341,8 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
                         POPPY_BLOCK_STATE_ID => 10_u64,
                         _ => unreachable!("surface feature palette id is registered above"),
                     };
-                    let y = top_y + 1;
-                    let block_index = (y << 8) | (z << 4) | x;
+                    let local_y = (top_y + 1 - section_min_y) as usize;
+                    let block_index = (local_y << 8) | (z << 4) | x;
                     let word_index = block_index / VALUES_PER_LONG;
                     let bit_index =
                         (block_index - word_index * VALUES_PER_LONG) * BITS_PER_ENTRY as usize;
@@ -3697,8 +3722,8 @@ mod tests {
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
-        SPAWN_CHUNK_BATCH_RADIUS, SPAWN_CHUNK_BATCH_SIZE, STONE_BLOCK_STATE_ID,
-        TERRAIN_BASE_LOCAL_Y, TRIM_MATERIALS, VERSION_NAME,
+        SPAWN_CHUNK_BATCH_RADIUS, SPAWN_CHUNK_BATCH_SIZE, STONE_BLOCK_STATE_ID, TRIM_MATERIALS,
+        VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
     use crate::network::ping::ServerboundPingRequestPacket;
@@ -4097,7 +4122,7 @@ mod tests {
     #[test]
     fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
         let mut payload = Vec::new();
-        write_visible_spawn_terrain_block_state_container(&mut payload, 0, 0).unwrap();
+        write_visible_spawn_terrain_block_state_container(&mut payload, 0, 0, 9).unwrap();
         let mut input = Cursor::new(payload);
 
         let mut bits = [0_u8; 1];
@@ -4134,32 +4159,24 @@ mod tests {
         let high_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
             .find(|(x, z)| {
-                visible_spawn_terrain_height(0, 0, *x, *z) == 14
+                (90..96).contains(&visible_spawn_terrain_height(0, 0, *x, *z))
                     && visible_spawn_surface_top_block_id(0, 0, *x, *z) == GRASS_BLOCK_STATE_ID
             })
-            .expect("spawn chunk should contain a local hill top");
+            .expect("spawn chunk should contain a high visible hill top");
         let featured_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
             .find_map(|(x, z)| {
                 (visible_spawn_surface_top_block_id(0, 0, x, z) == GRASS_BLOCK_STATE_ID
-                    && visible_spawn_terrain_height(0, 0, x, z) < 15)
-                    .then(|| visible_spawn_surface_feature_id(0, 0, x, z).map(|id| (x, z, id)))
-                    .flatten()
+                    && (80..95).contains(&visible_spawn_terrain_height(0, 0, x, z)))
+                .then(|| visible_spawn_surface_feature_id(0, 0, x, z).map(|id| (x, z, id)))
+                .flatten()
             })
             .expect("spawn chunk should contain visible surface vegetation");
-        let bare_low_column = (0..16)
-            .flat_map(|z| (0..16).map(move |x| (x, z)))
-            .find(|(x, z)| {
-                visible_spawn_terrain_height(0, 0, *x, *z) == TERRAIN_BASE_LOCAL_Y
-                    && visible_spawn_surface_feature_id(0, 0, *x, *z).is_none()
-                    && visible_spawn_surface_top_block_id(0, 0, *x, *z) == GRASS_BLOCK_STATE_ID
-            })
-            .expect("spawn chunk should contain a bare low column");
         let outcrop_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
             .find(|(x, z)| {
                 visible_spawn_surface_top_block_id(0, 0, *x, *z) != GRASS_BLOCK_STATE_ID
-                    && visible_spawn_terrain_height(0, 0, *x, *z) > TERRAIN_BASE_LOCAL_Y
+                    && (80..96).contains(&visible_spawn_terrain_height(0, 0, *x, *z))
             })
             .expect("spawn chunk should contain a visible non-grass outcrop");
         let max_height = (0..16)
@@ -4170,41 +4187,19 @@ mod tests {
             .flat_map(|z| (0..16).map(move |x| (x, z)))
             .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == max_height)
             .expect("spawn chunk should contain a visible ridge");
-        assert!(visible_spawn_terrain_block_count(0, 0) > 512);
-        assert_eq!(
-            palette_index_at(
-                &words,
-                bare_low_column.0,
-                TERRAIN_BASE_LOCAL_Y - 1,
-                bare_low_column.1
-            ),
-            0
-        );
+        assert!(max_height > 95, "spawn terrain should be visibly non-flat");
+        assert!(visible_spawn_terrain_block_count(0, 0, 8) > 4000);
+        assert!(visible_spawn_terrain_block_count(0, 0, 9) > 512);
+        assert!(visible_spawn_terrain_block_count(0, 0, 10) > 0);
         assert_ne!(words.iter().filter(|word| **word != 0).count(), 0);
+        let high_local_y =
+            (visible_spawn_terrain_height(0, 0, high_column.0, high_column.1) - 80) as usize;
         assert_eq!(
-            palette_index_at(
-                &words,
-                bare_low_column.0,
-                TERRAIN_BASE_LOCAL_Y,
-                bare_low_column.1
-            ),
-            7
-        );
-        assert_eq!(
-            palette_index_at(
-                &words,
-                bare_low_column.0,
-                TERRAIN_BASE_LOCAL_Y + 1,
-                bare_low_column.1
-            ),
-            0
-        );
-        assert_eq!(
-            palette_index_at(&words, high_column.0, 13, high_column.1),
+            palette_index_at(&words, high_column.0, high_local_y - 1, high_column.1),
             6
         );
         assert_eq!(
-            palette_index_at(&words, high_column.0, 14, high_column.1),
+            palette_index_at(&words, high_column.0, high_local_y, high_column.1),
             7
         );
         let expected_outcrop_palette =
@@ -4220,17 +4215,16 @@ mod tests {
             palette_index_at(
                 &words,
                 outcrop_column.0,
-                visible_spawn_terrain_height(0, 0, outcrop_column.0, outcrop_column.1),
+                (visible_spawn_terrain_height(0, 0, outcrop_column.0, outcrop_column.1) - 80)
+                    as usize,
                 outcrop_column.1
             ),
             expected_outcrop_palette
         );
-        assert_ne!(
-            palette_index_at(&words, ridge_column.0, max_height, ridge_column.1),
-            0
-        );
-        let feature_y =
-            visible_spawn_terrain_height(0, 0, featured_column.0, featured_column.1) + 1;
+        assert!(visible_spawn_terrain_height(0, 0, ridge_column.0, ridge_column.1) >= 96);
+        let feature_y = (visible_spawn_terrain_height(0, 0, featured_column.0, featured_column.1)
+            + 1
+            - 80) as usize;
         let expected_feature_palette = match featured_column.2 {
             SHORT_GRASS_BLOCK_STATE_ID => 8,
             DANDELION_BLOCK_STATE_ID => 9,
