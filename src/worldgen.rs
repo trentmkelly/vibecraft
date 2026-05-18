@@ -3688,6 +3688,65 @@ pub const STRUCTURE_POS_RULE_TEST_TYPES: &[&str] = &[
     "minecraft:axis_aligned_linear_pos",
 ];
 
+pub const STRUCTURE_PIECE_TYPES: &[&str] = &[
+    "mscorridor",
+    "mscrossing",
+    "msroom",
+    "msstairs",
+    "nebcr",
+    "nebef",
+    "nebs",
+    "neccs",
+    "nectb",
+    "nece",
+    "nescsc",
+    "nesclt",
+    "nesc",
+    "nescrt",
+    "necsr",
+    "nemt",
+    "nerc",
+    "nesr",
+    "nestart",
+    "shcc",
+    "shfc",
+    "sh5c",
+    "shlt",
+    "shli",
+    "shpr",
+    "shph",
+    "shrt",
+    "shrc",
+    "shsd",
+    "shstart",
+    "shs",
+    "shssd",
+    "tejp",
+    "orp",
+    "iglu",
+    "rupo",
+    "tesh",
+    "tedp",
+    "omb",
+    "omcr",
+    "omdxr",
+    "omdxyr",
+    "omdyr",
+    "omdyzr",
+    "omdzr",
+    "omentry",
+    "ompenthouse",
+    "omsimple",
+    "omsimplet",
+    "omwr",
+    "ecp",
+    "wmp",
+    "btp",
+    "shipwreck",
+    "nefos",
+    "jigsaw",
+];
+
 pub const STRUCTURE_PROCESSOR_LISTS: &[&str] = &[
     "minecraft:empty",
     "minecraft:zombie_plains",
@@ -5040,10 +5099,11 @@ mod tests {
         JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
         ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
         PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
-        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
-        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
-        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
-        UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
+        STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
+        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
+        WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -6815,6 +6875,7 @@ mod tests {
         assert_eq!(STRUCTURE_PROCESSOR_TYPES.len(), 11);
         assert_eq!(STRUCTURE_RULE_TEST_TYPES.len(), 6);
         assert_eq!(STRUCTURE_POS_RULE_TEST_TYPES.len(), 3);
+        assert_eq!(STRUCTURE_PIECE_TYPES.len(), 56);
         assert_eq!(STRUCTURE_PROCESSOR_LISTS.len(), 40);
         assert_eq!(
             STRUCTURE_PROCESSOR_LISTS.first().copied(),
@@ -6826,6 +6887,10 @@ mod tests {
         );
         assert!(STRUCTURE_PROCESSOR_TYPES.contains(&"minecraft:jigsaw_replacement"));
         assert!(STRUCTURE_POOL_ELEMENT_TYPES.contains(&"minecraft:legacy_single_pool_element"));
+        assert_eq!(STRUCTURE_PIECE_TYPES.first().copied(), Some("mscorridor"));
+        assert_eq!(STRUCTURE_PIECE_TYPES.last().copied(), Some("jigsaw"));
+        assert!(STRUCTURE_PIECE_TYPES.contains(&"shpr"));
+        assert!(STRUCTURE_PIECE_TYPES.contains(&"shipwreck"));
 
         assert_eq!(JIGSAW_POOL_BOOTSTRAP_SOURCES.len(), 17);
         assert_eq!(
