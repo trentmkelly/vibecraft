@@ -1917,6 +1917,18 @@ pub struct StructureReferenceModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuriedTreasurePieceModel {
+    pub bounding_box: StructureBoundingBoxModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuriedTreasurePlacementModel {
+    pub chest_pos: BlockPos,
+    pub bounding_box: StructureBoundingBoxModel,
+    pub side_fill: [(&'static str, BlockPos); 6],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -9415,6 +9427,117 @@ pub fn create_structure_references_for_chunk(
         target_access.add_reference_for_structure(reference.structure, reference.source_chunk_key);
     }
     references
+}
+
+pub fn buried_treasure_generation_piece(chunk_pos: ChunkPos) -> BuriedTreasurePieceModel {
+    let pos = BlockPos {
+        x: chunk_pos.x * 16 + 9,
+        y: 90,
+        z: chunk_pos.z * 16 + 9,
+    };
+    BuriedTreasurePieceModel {
+        bounding_box: StructureBoundingBoxModel {
+            min_x: pos.x,
+            min_y: pos.y,
+            min_z: pos.z,
+            max_x: pos.x,
+            max_y: pos.y,
+            max_z: pos.z,
+        },
+    }
+}
+
+pub fn buried_treasure_is_liquid(state: &'static str) -> bool {
+    matches!(state, "minecraft:water" | "minecraft:lava")
+}
+
+pub fn buried_treasure_is_support(state: &'static str) -> bool {
+    matches!(
+        state,
+        "minecraft:sandstone"
+            | "minecraft:stone"
+            | "minecraft:andesite"
+            | "minecraft:granite"
+            | "minecraft:diorite"
+    )
+}
+
+pub fn buried_treasure_soft_state(current_state: &'static str) -> &'static str {
+    if current_state == "minecraft:air" || buried_treasure_is_liquid(current_state) {
+        "minecraft:sand"
+    } else {
+        current_state
+    }
+}
+
+pub fn buried_treasure_place(
+    piece: BuriedTreasurePieceModel,
+    ocean_floor_y: i32,
+    min_y: i32,
+    mut block_state_at: impl FnMut(BlockPos) -> &'static str,
+) -> Option<BuriedTreasurePlacementModel> {
+    let x = piece.bounding_box.min_x;
+    let z = piece.bounding_box.min_z;
+    for y in (min_y + 1..=ocean_floor_y).rev() {
+        let pos = BlockPos { x, y, z };
+        let below_pos = BlockPos { x, y: y - 1, z };
+        let below_state = block_state_at(below_pos);
+        if !buried_treasure_is_support(below_state) {
+            continue;
+        }
+
+        let soft_state = buried_treasure_soft_state(block_state_at(pos));
+        let directions = [
+            BlockPos { x: 0, y: -1, z: 0 },
+            BlockPos { x: 0, y: 1, z: 0 },
+            BlockPos { x: 0, y: 0, z: -1 },
+            BlockPos { x: 0, y: 0, z: 1 },
+            BlockPos { x: -1, y: 0, z: 0 },
+            BlockPos { x: 1, y: 0, z: 0 },
+        ];
+        let side_fill = directions.map(|delta| {
+            let relative_pos = BlockPos {
+                x: pos.x + delta.x,
+                y: pos.y + delta.y,
+                z: pos.z + delta.z,
+            };
+            let relative_state = block_state_at(relative_pos);
+            let fill_state =
+                if relative_state == "minecraft:air" || buried_treasure_is_liquid(relative_state) {
+                    let below_relative_pos = BlockPos {
+                        x: relative_pos.x,
+                        y: relative_pos.y - 1,
+                        z: relative_pos.z,
+                    };
+                    let below_relative_state = block_state_at(below_relative_pos);
+                    if delta.y != 1
+                        && (below_relative_state == "minecraft:air"
+                            || buried_treasure_is_liquid(below_relative_state))
+                    {
+                        below_state
+                    } else {
+                        soft_state
+                    }
+                } else {
+                    relative_state
+                };
+            (fill_state, relative_pos)
+        });
+
+        return Some(BuriedTreasurePlacementModel {
+            chest_pos: pos,
+            bounding_box: StructureBoundingBoxModel {
+                min_x: pos.x,
+                min_y: pos.y,
+                min_z: pos.z,
+                max_x: pos.x,
+                max_y: pos.y,
+                max_z: pos.z,
+            },
+            side_fill,
+        });
+    }
+    None
 }
 
 const fn feature_type(
@@ -21963,6 +22086,63 @@ mod tests {
             .unwrap()
             .structures
             .contains(&"minecraft:trial_chambers"));
+    }
+
+    #[test]
+    fn buried_treasure_piece_generation_and_support_scan_match_vanilla() {
+        let piece = super::buried_treasure_generation_piece(ChunkPos { x: -2, z: 3 });
+        assert_eq!(
+            piece.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: -23,
+                min_y: 90,
+                min_z: 57,
+                max_x: -23,
+                max_y: 90,
+                max_z: 57,
+            }
+        );
+        assert!(super::buried_treasure_is_support("minecraft:sandstone"));
+        assert!(super::buried_treasure_is_support("minecraft:diorite"));
+        assert!(!super::buried_treasure_is_support("minecraft:sand"));
+        assert_eq!(
+            super::buried_treasure_soft_state("minecraft:water"),
+            "minecraft:sand"
+        );
+        assert_eq!(
+            super::buried_treasure_soft_state("minecraft:gravel"),
+            "minecraft:gravel"
+        );
+
+        let placement = super::buried_treasure_place(piece, 75, 60, |pos| {
+            if pos.y == 69 && pos.x == -23 && pos.z == 57 {
+                "minecraft:stone"
+            } else if pos.y == 70 && pos.x == -23 && pos.z == 57 {
+                "minecraft:water"
+            } else if pos.y == 69 {
+                "minecraft:water"
+            } else {
+                "minecraft:air"
+            }
+        })
+        .unwrap();
+        assert_eq!(
+            placement.chest_pos,
+            BlockPos {
+                x: -23,
+                y: 70,
+                z: 57,
+            }
+        );
+        assert_eq!(placement.bounding_box.min_y, 70);
+        assert_eq!(placement.side_fill[0].0, "minecraft:stone");
+        assert_eq!(placement.side_fill[1].0, "minecraft:sand");
+        assert_eq!(placement.side_fill[2].0, "minecraft:stone");
+        assert_eq!(placement.side_fill[3].0, "minecraft:stone");
+        assert_eq!(placement.side_fill[4].0, "minecraft:stone");
+        assert_eq!(placement.side_fill[5].0, "minecraft:stone");
+
+        assert!(super::buried_treasure_place(piece, 64, 60, |_| "minecraft:sand").is_none());
     }
 
     #[test]
