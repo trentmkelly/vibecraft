@@ -6662,6 +6662,69 @@ pub const JUNGLE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const SWAMP_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    &[
+        "minecraft:fossil_upper",
+        "minecraft:fossil_lower",
+        "minecraft:monster_room",
+        "minecraft:monster_room_deep",
+    ],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    &[
+        "minecraft:ore_dirt",
+        "minecraft:ore_gravel",
+        "minecraft:ore_granite_upper",
+        "minecraft:ore_granite_lower",
+        "minecraft:ore_diorite_upper",
+        "minecraft:ore_diorite_lower",
+        "minecraft:ore_andesite_upper",
+        "minecraft:ore_andesite_lower",
+        "minecraft:ore_tuff",
+        "minecraft:ore_coal_upper",
+        "minecraft:ore_coal_lower",
+        "minecraft:ore_iron_upper",
+        "minecraft:ore_iron_middle",
+        "minecraft:ore_iron_small",
+        "minecraft:ore_gold",
+        "minecraft:ore_gold_lower",
+        "minecraft:ore_redstone",
+        "minecraft:ore_redstone_lower",
+        "minecraft:ore_diamond",
+        "minecraft:ore_diamond_medium",
+        "minecraft:ore_diamond_large",
+        "minecraft:ore_diamond_buried",
+        "minecraft:ore_lapis",
+        "minecraft:ore_lapis_buried",
+        "minecraft:ore_copper",
+        "minecraft:underwater_magma",
+        "minecraft:disk_clay",
+    ],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:trees_swamp",
+        "minecraft:flower_swamp",
+        "minecraft:patch_grass_normal",
+        "minecraft:patch_dead_bush",
+        "minecraft:patch_waterlily",
+        "minecraft:brown_mushroom_swamp",
+        "minecraft:red_mushroom_swamp",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_sugar_cane_swamp",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_firefly_bush_swamp",
+        "minecraft:patch_firefly_bush_near_water_swamp",
+        "minecraft:seagrass_swamp",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6877,6 +6940,39 @@ pub const JUNGLE_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         weight: 1,
         min_count: 1,
         max_count: 2,
+    },
+];
+
+pub const SWAMP_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:frog",
+        weight: 10,
+        min_count: 2,
+        max_count: 5,
     },
 ];
 
@@ -7261,6 +7357,69 @@ pub const JUNGLE_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const SWAMP_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 70,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 1,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:bogged",
+        weight: 30,
+        min_count: 4,
+        max_count: 4,
+    },
+];
+
 pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
     &[MobSpawnerDataModel {
         entity_type: "minecraft:glow_squid",
@@ -7528,6 +7687,41 @@ pub const JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const SWAMP_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: SWAMP_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: SWAMP_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -7684,6 +7878,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: JUNGLE_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:swamp",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: SWAMP_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SWAMP_SPAWNER_GROUPS,
     },
 ];
 
@@ -21714,6 +21916,65 @@ mod tests {
                 weight: 2,
                 min_count: 1,
                 max_count: 3,
+            })
+        );
+
+        let swamp = super::biome_generation_settings("swamp").unwrap();
+        assert_eq!(swamp.biome, "minecraft:swamp");
+        assert!(super::biome_has_placed_feature(
+            swamp,
+            "minecraft:fossil_upper"
+        ));
+        assert!(super::biome_has_placed_feature(
+            swamp,
+            "minecraft:trees_swamp"
+        ));
+        assert!(super::biome_has_placed_feature(
+            swamp,
+            "minecraft:patch_waterlily"
+        ));
+        assert!(super::biome_has_placed_feature(
+            swamp,
+            "minecraft:seagrass_swamp"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            swamp,
+            "minecraft:disk_sand"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(swamp, "creature").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:frog",
+                weight: 10,
+                min_count: 2,
+                max_count: 5,
+            })
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(swamp, "monster")[3],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:skeleton",
+                weight: 70,
+                min_count: 4,
+                max_count: 4,
+            }
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(swamp, "monster")[8],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:slime",
+                weight: 1,
+                min_count: 1,
+                max_count: 1,
+            }
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(swamp, "monster").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:bogged",
+                weight: 30,
+                min_count: 4,
+                max_count: 4,
             })
         );
     }
