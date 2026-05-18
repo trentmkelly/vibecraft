@@ -6507,6 +6507,29 @@ pub const RIVER_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const BEACH_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:flower_default",
+        "minecraft:patch_grass_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const PLAINS_AMBIENT_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:bat",
     weight: 10,
@@ -6552,6 +6575,13 @@ pub const PLAINS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         max_count: 3,
     },
 ];
+
+pub const BEACH_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:turtle",
+    weight: 5,
+    min_count: 2,
+    max_count: 5,
+}];
 
 pub const FOREST_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
@@ -6843,6 +6873,41 @@ pub const FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: BEACH_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const RIVER_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -6916,6 +6981,14 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: RIVER_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:beach",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: BEACH_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: BEACH_SPAWNER_GROUPS,
     },
 ];
 
@@ -20728,6 +20801,32 @@ mod tests {
             super::biome_spawns_for_category(river, "water_creature"),
             super::RIVER_WATER_CREATURE_SPAWNS
         );
+
+        let beach = super::biome_generation_settings("minecraft:beach").unwrap();
+        assert_eq!(beach.biome, "minecraft:beach");
+        assert_eq!(beach.carvers, super::OVERWORLD_COMMON_CARVERS);
+        assert!(super::biome_has_placed_feature(
+            beach,
+            "minecraft:flower_default"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            beach,
+            "minecraft:trees_water"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            beach,
+            "minecraft:seagrass_river"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(beach, "creature"),
+            super::BEACH_CREATURE_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(beach, "monster"),
+            super::FOREST_MONSTER_SPAWNS
+        );
+        assert!(super::biome_spawns_for_category(beach, "water_ambient").is_empty());
+        assert!(super::biome_spawns_for_category(beach, "water_creature").is_empty());
     }
 
     #[test]
