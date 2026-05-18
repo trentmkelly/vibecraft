@@ -36,6 +36,14 @@ pub enum PositionalRandomFactory {
     Xoroshiro { seed_lo: i64, seed_hi: i64 },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RandomStateSeedFactories {
+    pub base: PositionalRandomFactory,
+    pub aquifer: PositionalRandomFactory,
+    pub ore: PositionalRandomFactory,
+    pub terrain: RandomSourceKind,
+}
+
 impl LegacyRandom {
     pub fn new(seed: i64) -> Self {
         let mut random = Self { seed: 0 };
@@ -216,6 +224,44 @@ impl PositionalRandomFactory {
 pub enum RandomSourceKind {
     Legacy(LegacyRandom),
     Xoroshiro(Xoroshiro128PlusPlus),
+}
+
+impl RandomSourceKind {
+    pub fn new(seed: i64, algorithm: RandomAlgorithm) -> Self {
+        match algorithm {
+            RandomAlgorithm::Legacy => Self::Legacy(LegacyRandom::new(seed)),
+            RandomAlgorithm::Xoroshiro => {
+                Self::Xoroshiro(Xoroshiro128PlusPlus::from_i64_seed(seed))
+            }
+        }
+    }
+
+    pub fn fork_positional(&mut self) -> PositionalRandomFactory {
+        match self {
+            Self::Legacy(random) => random.fork_positional(),
+            Self::Xoroshiro(random) => random.fork_positional(),
+        }
+    }
+}
+
+pub fn random_state_seed_factories(
+    seed: i64,
+    algorithm: RandomAlgorithm,
+) -> RandomStateSeedFactories {
+    let mut random = RandomSourceKind::new(seed, algorithm);
+    let base = random.fork_positional();
+    let aquifer = base.from_hash_of("minecraft:aquifer").fork_positional();
+    let ore = base.from_hash_of("minecraft:ore").fork_positional();
+    let terrain = match algorithm {
+        RandomAlgorithm::Legacy => RandomSourceKind::Legacy(LegacyRandom::new(seed)),
+        RandomAlgorithm::Xoroshiro => base.from_hash_of("minecraft:terrain"),
+    };
+    RandomStateSeedFactories {
+        base,
+        aquifer,
+        ore,
+        terrain,
+    }
 }
 
 pub fn mix_stafford_13(mut z: i64) -> i64 {
@@ -420,10 +466,10 @@ fn unsigned_shift_right(value: i64, shift: u32) -> i64 {
 mod tests {
     use super::{
         block_pos_seed, decoration_seed, feature_seed, java_string_hash, large_feature_seed,
-        large_feature_seed_with_salt, linear_congruential_next, mix_stafford_13, slime_chunk_seed,
-        upgrade_seed_to_128bit, upgrade_seed_to_128bit_unmixed, LegacyRandom,
-        PositionalRandomFactory, RandomAlgorithm, RandomSourceKind, Seed128, Xoroshiro128PlusPlus,
-        GOLDEN_RATIO_64, SILVER_RATIO_64,
+        large_feature_seed_with_salt, linear_congruential_next, mix_stafford_13,
+        random_state_seed_factories, slime_chunk_seed, upgrade_seed_to_128bit,
+        upgrade_seed_to_128bit_unmixed, LegacyRandom, PositionalRandomFactory, RandomAlgorithm,
+        RandomSourceKind, Seed128, Xoroshiro128PlusPlus, GOLDEN_RATIO_64, SILVER_RATIO_64,
     };
 
     #[test]
@@ -575,6 +621,64 @@ mod tests {
                 assert_eq!(random.next_i64(), 2_703_920_793_147_051_671);
             }
             _ => panic!("xoroshiro from_hash_of should create xoroshiro randoms"),
+        }
+    }
+
+    #[test]
+    fn random_state_seed_factories_match_vanilla_randomstate_wiring() {
+        let legacy = random_state_seed_factories(12345, RandomAlgorithm::Legacy);
+        assert_eq!(
+            legacy.base,
+            PositionalRandomFactory::Legacy {
+                seed: 6_674_089_274_190_705_457
+            }
+        );
+        assert_eq!(
+            legacy.aquifer,
+            PositionalRandomFactory::Legacy {
+                seed: -2_943_771_310_165_987_104
+            }
+        );
+        assert_eq!(
+            legacy.ore,
+            PositionalRandomFactory::Legacy {
+                seed: 7_663_849_966_042_850_292
+            }
+        );
+        match legacy.terrain {
+            RandomSourceKind::Legacy(mut random) => {
+                assert_eq!(random.next_i64(), 6_674_089_274_190_705_457);
+            }
+            _ => panic!("legacy terrain random should use the raw world seed"),
+        }
+
+        let xoroshiro = random_state_seed_factories(12345, RandomAlgorithm::Xoroshiro);
+        assert_eq!(
+            xoroshiro.base,
+            PositionalRandomFactory::Xoroshiro {
+                seed_lo: -8_118_485_274_630_516_485,
+                seed_hi: 8_241_557_746_459_281_790
+            }
+        );
+        assert_eq!(
+            xoroshiro.aquifer,
+            PositionalRandomFactory::Xoroshiro {
+                seed_lo: 7_280_243_795_428_841_706,
+                seed_hi: -8_497_267_231_399_644_069
+            }
+        );
+        assert_eq!(
+            xoroshiro.ore,
+            PositionalRandomFactory::Xoroshiro {
+                seed_lo: 8_451_019_449_222_520_003,
+                seed_hi: -7_319_213_125_637_571_227
+            }
+        );
+        match xoroshiro.terrain {
+            RandomSourceKind::Xoroshiro(mut random) => {
+                assert_eq!(random.next_i64(), 2_469_905_110_261_187_857);
+            }
+            _ => panic!("xoroshiro terrain random should hash minecraft:terrain"),
         }
     }
 }
