@@ -146,7 +146,7 @@ const GRASS_BLOCK_STATE_ID: i32 = 9;
 const DIRT_BLOCK_STATE_ID: i32 = 10;
 const BEDROCK_BLOCK_STATE_ID: i32 = 85;
 const PLAINS_BIOME_ID: i32 = 1;
-const SUPERFLAT_SOLID_BLOCK_COUNT: i16 = 4 * 16 * 16;
+const TERRAIN_BASE_LOCAL_Y: usize = 12;
 
 #[derive(Clone, Default)]
 struct ActiveLoginRegistry {
@@ -2144,14 +2144,14 @@ fn write_superflat_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) 
     let mut section_buffer = Vec::with_capacity(SPAWN_CHUNK_SECTION_COUNT * 10);
     for section_index in 0..SPAWN_CHUNK_SECTION_COUNT {
         let non_empty_block_count = if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
-            SUPERFLAT_SOLID_BLOCK_COUNT
+            visible_spawn_terrain_block_count(x, z)
         } else {
             0
         };
         section_buffer.write_all(&non_empty_block_count.to_be_bytes())?;
         section_buffer.write_all(&0_i16.to_be_bytes())?;
         if section_index == SUPERFLAT_SOLID_SECTION_INDEX {
-            write_superflat_block_state_container(&mut section_buffer)?;
+            write_visible_spawn_terrain_block_state_container(&mut section_buffer, x, z)?;
         } else {
             write_single_value_paletted_container(&mut section_buffer, AIR_BLOCK_STATE_ID)?;
         }
@@ -2178,7 +2178,35 @@ fn write_single_value_paletted_container<W: Write>(writer: &mut W, id: i32) -> i
     write_var_i32(writer, id)
 }
 
-fn write_superflat_block_state_container<W: Write>(writer: &mut W) -> io::Result<()> {
+fn visible_spawn_terrain_height(
+    chunk_x: i32,
+    chunk_z: i32,
+    local_x: usize,
+    local_z: usize,
+) -> usize {
+    let world_x = chunk_x * 16 + local_x as i32;
+    let world_z = chunk_z * 16 + local_z as i32;
+    let broad_slope = (world_x.div_euclid(5) + world_z.div_euclid(7)).rem_euclid(3);
+    let wrinkle = ((world_x.wrapping_mul(31) ^ world_z.wrapping_mul(17)) & 1) as i32;
+    TERRAIN_BASE_LOCAL_Y + (broad_slope + wrinkle).min(3) as usize
+}
+
+fn visible_spawn_terrain_block_count(chunk_x: i32, chunk_z: i32) -> i16 {
+    let mut count = 0_i16;
+    for local_z in 0..16 {
+        for local_x in 0..16 {
+            let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, local_x, local_z);
+            count += (top_y - TERRAIN_BASE_LOCAL_Y + 1) as i16;
+        }
+    }
+    count
+}
+
+fn write_visible_spawn_terrain_block_state_container<W: Write>(
+    writer: &mut W,
+    chunk_x: i32,
+    chunk_z: i32,
+) -> io::Result<()> {
     const BITS_PER_ENTRY: u8 = 4;
     const BLOCKS_PER_SECTION: usize = 16 * 16 * 16;
     const VALUES_PER_LONG: usize = 64 / BITS_PER_ENTRY as usize;
@@ -2191,18 +2219,17 @@ fn write_superflat_block_state_container<W: Write>(writer: &mut W) -> io::Result
     write_var_i32(writer, GRASS_BLOCK_STATE_ID)?;
 
     let mut storage = vec![0_u64; BLOCKS_PER_SECTION / VALUES_PER_LONG];
-    for y in 0..16 {
-        let palette_index = match y {
-            12 => 1_u64,
-            13 | 14 => 2_u64,
-            15 => 3_u64,
-            _ => 0_u64,
-        };
-        if palette_index == 0 {
-            continue;
-        }
-        for z in 0..16 {
-            for x in 0..16 {
+    for z in 0..16 {
+        for x in 0..16 {
+            let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, x, z);
+            for y in TERRAIN_BASE_LOCAL_Y..=top_y {
+                let palette_index = if y == TERRAIN_BASE_LOCAL_Y {
+                    1_u64
+                } else if y == top_y {
+                    3_u64
+                } else {
+                    2_u64
+                };
                 let block_index = (y << 8) | (z << 4) | x;
                 let word_index = block_index / VALUES_PER_LONG;
                 let bit_index =
@@ -3555,11 +3582,12 @@ mod tests {
         instrument_nbt, jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
         legacy_version1_response, pig_sound_variant_nbt, read_packet, status_json,
         trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
+        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
         wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
         write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
-        write_superflat_block_state_container, write_vanilla_banner_pattern_registry_packet,
+        write_vanilla_banner_pattern_registry_packet,
         write_vanilla_cat_sound_variant_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet,
         write_vanilla_chicken_sound_variant_registry_packet,
@@ -3571,12 +3599,13 @@ mod tests {
         write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
-        write_vanilla_zombie_nautilus_variant_registry_packet, CompressionState, BANNER_PATTERNS,
+        write_vanilla_zombie_nautilus_variant_registry_packet,
+        write_visible_spawn_terrain_block_state_container, CompressionState, BANNER_PATTERNS,
         BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS,
         DIRT_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
-        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SUPERFLAT_SOLID_BLOCK_COUNT,
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, TERRAIN_BASE_LOCAL_Y,
         TRIM_MATERIALS, VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
@@ -3974,9 +4003,9 @@ mod tests {
     }
 
     #[test]
-    fn superflat_spawn_section_uses_sparse_bedrock_dirt_grass_layers() {
+    fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
         let mut payload = Vec::new();
-        write_superflat_block_state_container(&mut payload).unwrap();
+        write_visible_spawn_terrain_block_state_container(&mut payload, 0, 0).unwrap();
         let mut input = Cursor::new(payload);
 
         let mut bits = [0_u8; 1];
@@ -4000,12 +4029,40 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(SUPERFLAT_SOLID_BLOCK_COUNT, 1024);
+        let high_column = (0..16)
+            .flat_map(|z| (0..16).map(move |x| (x, z)))
+            .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == 15)
+            .expect("spawn chunk should contain a local hill top");
+        assert_eq!(
+            visible_spawn_terrain_height(0, 0, 0, 0),
+            TERRAIN_BASE_LOCAL_Y
+        );
+        assert_eq!(visible_spawn_terrain_block_count(0, 0), 635);
         assert_eq!(words[191], 0);
         assert_eq!(words[192], 0x1111_1111_1111_1111);
-        assert_eq!(words[208], 0x2222_2222_2222_2222);
-        assert_eq!(words[224], 0x2222_2222_2222_2222);
-        assert_eq!(words[240], 0x3333_3333_3333_3333);
+        assert_eq!(palette_index_at(&words, 0, TERRAIN_BASE_LOCAL_Y, 0), 1);
+        assert_eq!(palette_index_at(&words, 0, TERRAIN_BASE_LOCAL_Y + 1, 0), 0);
+        assert_eq!(
+            palette_index_at(&words, high_column.0, 13, high_column.1),
+            2
+        );
+        assert_eq!(
+            palette_index_at(&words, high_column.0, 14, high_column.1),
+            2
+        );
+        assert_eq!(
+            palette_index_at(&words, high_column.0, 15, high_column.1),
+            3
+        );
+    }
+
+    fn palette_index_at(words: &[u64], x: usize, y: usize, z: usize) -> u64 {
+        const BITS_PER_ENTRY: usize = 4;
+        const VALUES_PER_LONG: usize = 64 / BITS_PER_ENTRY;
+        let block_index = (y << 8) | (z << 4) | x;
+        let word_index = block_index / VALUES_PER_LONG;
+        let bit_index = (block_index - word_index * VALUES_PER_LONG) * BITS_PER_ENTRY;
+        (words[word_index] >> bit_index) & 0xf
     }
 
     #[test]
