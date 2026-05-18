@@ -606,6 +606,20 @@ pub enum FeatureSizeModel {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TreeDecoratorModel {
+    TrunkVine,
+    LeaveVine,
+    PaleMoss,
+    CreakingHeart,
+    Cocoa { probability: f32 },
+    Beehive { probability: f32 },
+    AlterGround,
+    AttachedToLeaves { probability: f32 },
+    PlaceOnGround,
+    AttachedToLogs { probability: f32 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MonsterRoomBounds {
     pub min_y: i32,
@@ -6061,6 +6075,43 @@ pub fn feature_size_at_height(size: FeatureSizeModel, tree_height: i32, yo: i32)
     }
 }
 
+pub fn tree_decorator_type(id: &str) -> Option<&'static str> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLDGEN_TYPE_REGISTRIES
+        .iter()
+        .find(|registry| registry.id == "minecraft:tree_decorator_type")?
+        .entries
+        .iter()
+        .copied()
+        .find(|entry| entry.strip_prefix("minecraft:") == Some(name))
+}
+
+pub fn validate_tree_decorator(
+    decorator: TreeDecoratorModel,
+) -> Result<TreeDecoratorModel, String> {
+    let probability = match decorator {
+        TreeDecoratorModel::Cocoa { probability }
+        | TreeDecoratorModel::Beehive { probability }
+        | TreeDecoratorModel::AttachedToLeaves { probability }
+        | TreeDecoratorModel::AttachedToLogs { probability } => Some(probability),
+        TreeDecoratorModel::TrunkVine
+        | TreeDecoratorModel::LeaveVine
+        | TreeDecoratorModel::PaleMoss
+        | TreeDecoratorModel::CreakingHeart
+        | TreeDecoratorModel::AlterGround
+        | TreeDecoratorModel::PlaceOnGround => None,
+    };
+    if probability.is_some_and(|probability| !(0.0..=1.0).contains(&probability)) {
+        Err("tree decorator probability must be in 0.0..=1.0".to_string())
+    } else {
+        Ok(decorator)
+    }
+}
+
+pub fn tree_decorator_should_place(probability: f32, random_next_float: f32) -> bool {
+    random_next_float < probability
+}
+
 pub fn spring_feature_can_place(
     valid_above: bool,
     requires_block_below: bool,
@@ -6311,8 +6362,8 @@ mod tests {
         PlacedFeatureSource, PlacementModifier, RandomSpreadType, SpawnBlockKind,
         SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceConditionSource,
         SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource,
-        VerticalAnchor, WeightedBlockState, WeightedHeightProvider, WorldCarverType,
-        WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
+        TreeDecoratorModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
+        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
         AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
         BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
         BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
@@ -8416,6 +8467,26 @@ mod tests {
             .unwrap_err(),
             "min_clipped_height must be in 0..=80".to_string()
         );
+        assert_eq!(
+            super::tree_decorator_type("trunk_vine"),
+            Some("minecraft:trunk_vine")
+        );
+        assert_eq!(
+            super::tree_decorator_type("minecraft:attached_to_logs"),
+            Some("minecraft:attached_to_logs")
+        );
+        assert_eq!(super::tree_decorator_type("missing"), None);
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::Cocoa { probability: 0.25 }),
+            Ok(TreeDecoratorModel::Cocoa { probability: 0.25 })
+        );
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::Beehive { probability: 1.5 })
+                .unwrap_err(),
+            "tree decorator probability must be in 0.0..=1.0".to_string()
+        );
+        assert!(super::tree_decorator_should_place(0.25, 0.249));
+        assert!(!super::tree_decorator_should_place(0.25, 0.25));
     }
 
     #[test]
