@@ -1439,7 +1439,7 @@ const BLOCK_POS_PACKED_Z_MASK: i64 = (1_i64 << BLOCK_POS_PACKED_HORIZONTAL_LENGT
 const BLOCK_POS_X_OFFSET: i64 = BLOCK_POS_PACKED_Y_LENGTH + BLOCK_POS_PACKED_HORIZONTAL_LENGTH;
 const BLOCK_POS_Z_OFFSET: i64 = BLOCK_POS_PACKED_Y_LENGTH;
 
-fn pack_block_position(x: i32, y: i32, z: i32) -> i64 {
+pub fn pack_block_position(x: i32, y: i32, z: i32) -> i64 {
     ((x as i64 & BLOCK_POS_PACKED_X_MASK) << BLOCK_POS_X_OFFSET)
         | ((z as i64 & BLOCK_POS_PACKED_Z_MASK) << BLOCK_POS_Z_OFFSET)
         | (y as i64 & BLOCK_POS_PACKED_Y_MASK)

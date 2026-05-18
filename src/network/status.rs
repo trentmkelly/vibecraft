@@ -24,7 +24,8 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
+    pack_block_position, unpack_block_position, ClientboundLevelChunkPacketData,
+    ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
     CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
@@ -1348,7 +1349,10 @@ fn handle_login_connection(
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
-    let mut entity_id_counter: i32 = 0;
+    let mut entity_id_counter: i32 = 1; // player has entity ID 1; start here so first drop = 2
+    let mut broken_blocks: HashMap<(i32, i32, i32), i32> = load_broken_blocks(world_root);
+    let initial_chunks: Vec<_> = loaded_chunks.iter().copied().collect();
+    send_broken_block_corrections(stream, compression, &initial_chunks, &broken_blocks)?;
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
             keep_alive_id = keep_alive_id.wrapping_add(1);
@@ -1391,6 +1395,12 @@ fn handle_login_connection(
                             &chunks_to_send,
                             true,
                         )?;
+                        send_broken_block_corrections(
+                            stream,
+                            compression,
+                            &chunks_to_send,
+                            &broken_blocks,
+                        )?;
                     }
                     continue;
                 }
@@ -1424,7 +1434,14 @@ fn handle_login_connection(
                             },
                         )?;
                         let (bx, by, bz) = unpack_block_position(packed_pos);
-                        let block_state = get_block_state_at(bx, by, bz);
+                        let block_state = get_block_state_at_with_overrides(
+                            bx,
+                            by,
+                            bz,
+                            &broken_blocks,
+                        );
+                        broken_blocks.insert((bx, by, bz), AIR_BLOCK_STATE_ID);
+                        save_broken_blocks(world_root, &broken_blocks);
                         if let Some(item_id) = block_state_to_item_drop(block_state) {
                             entity_id_counter = entity_id_counter.wrapping_add(1);
                             let eid = entity_id_counter;
@@ -2559,6 +2576,75 @@ fn block_state_to_item_drop(block_state_id: i32) -> Option<i32> {
         POPPY_BLOCK_STATE_ID => Some(233),     // poppy → poppy
         _ => None,
     }
+}
+
+fn get_block_state_at_with_overrides(
+    x: i32,
+    y: i32,
+    z: i32,
+    overrides: &HashMap<(i32, i32, i32), i32>,
+) -> i32 {
+    if let Some(&state) = overrides.get(&(x, y, z)) {
+        return state;
+    }
+    get_block_state_at(x, y, z)
+}
+
+fn load_broken_blocks(world_root: &Path) -> HashMap<(i32, i32, i32), i32> {
+    let path = world_root.join("broken_blocks.dat");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return HashMap::new();
+    };
+    let mut map = HashMap::new();
+    for line in text.lines() {
+        let parts: Vec<_> = line.split(',').collect();
+        if parts.len() == 4 {
+            if let (Ok(x), Ok(y), Ok(z), Ok(s)) = (
+                parts[0].parse::<i32>(),
+                parts[1].parse::<i32>(),
+                parts[2].parse::<i32>(),
+                parts[3].parse::<i32>(),
+            ) {
+                map.insert((x, y, z), s);
+            }
+        }
+    }
+    map
+}
+
+fn save_broken_blocks(world_root: &Path, broken: &HashMap<(i32, i32, i32), i32>) {
+    let path = world_root.join("broken_blocks.dat");
+    let text: String = broken
+        .iter()
+        .map(|(&(x, y, z), &s)| format!("{},{},{},{}\n", x, y, z, s))
+        .collect();
+    let _ = std::fs::write(&path, text);
+}
+
+fn send_broken_block_corrections(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    chunks: &[(i32, i32)],
+    broken: &HashMap<(i32, i32, i32), i32>,
+) -> io::Result<()> {
+    let chunk_set: BTreeSet<(i32, i32)> = chunks.iter().copied().collect();
+    for (&(x, y, z), &state) in broken {
+        let cx = x.div_euclid(16);
+        let cz = z.div_euclid(16);
+        if chunk_set.contains(&(cx, cz)) {
+            let packed = pack_block_position(x, y, z);
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+                |p| {
+                    p.write_all(&packed.to_be_bytes())?;
+                    write_var_i32(p, state)
+                },
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn section_min_y(section_index: usize) -> i32 {
