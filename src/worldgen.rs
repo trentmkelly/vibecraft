@@ -1813,6 +1813,36 @@ pub struct StructureTemplateManagerModel {
     pub cache: BTreeMap<Identifier, Option<&'static str>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemplateSourceKindModel {
+    Directory,
+    ResourceManager,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TemplateSourceModel {
+    pub kind: TemplateSourceKindModel,
+    pub source_dir: Option<&'static str>,
+    pub load_as_text: bool,
+    pub available: BTreeMap<Identifier, &'static str>,
+    pub fail_on_load: Vec<Identifier>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TemplateLoadAttemptModel {
+    pub source_kind: TemplateSourceKindModel,
+    pub id: Identifier,
+    pub result: TemplateLoadAttemptResultModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemplateLoadAttemptResultModel {
+    SourceUnavailable,
+    Missing,
+    ErrorSuppressed,
+    Loaded,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -8552,6 +8582,45 @@ impl StructureTemplateManagerModel {
             StructureTemplateFileKind::Nbt
         }
     }
+
+    pub fn try_load_from_sources(
+        &mut self,
+        id: Identifier,
+        sources: &[TemplateSourceModel],
+    ) -> (Option<&'static str>, Vec<TemplateLoadAttemptModel>) {
+        if let Some(cached) = self.cache.get(&id) {
+            return (*cached, Vec::new());
+        }
+
+        let mut attempts = Vec::new();
+        for source in sources {
+            let (loaded, result) = source.load(&id);
+            attempts.push(TemplateLoadAttemptModel {
+                source_kind: source.kind,
+                id: id.clone(),
+                result,
+            });
+            if loaded.is_some() {
+                self.cache.insert(id, loaded);
+                return (loaded, attempts);
+            }
+        }
+
+        self.cache.insert(id, None);
+        (None, attempts)
+    }
+
+    pub fn list_templates_from_sources(sources: &[TemplateSourceModel]) -> Vec<Identifier> {
+        let mut listed = Vec::new();
+        for source in sources {
+            for id in source.list() {
+                if !listed.contains(&id) {
+                    listed.push(id);
+                }
+            }
+        }
+        listed
+    }
 }
 
 fn is_template_path_part_portable(part: &str) -> bool {
@@ -8559,6 +8628,80 @@ fn is_template_path_part_portable(part: &str) -> bool {
         && part.chars().all(|ch| {
             ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '_' | '-' | '.')
         })
+}
+
+impl TemplateSourceModel {
+    pub fn directory(
+        source_dir: Option<&'static str>,
+        load_as_text: bool,
+        available: &[(&str, &'static str)],
+        fail_on_load: &[&str],
+    ) -> Self {
+        Self::new(
+            TemplateSourceKindModel::Directory,
+            source_dir,
+            load_as_text,
+            available,
+            fail_on_load,
+        )
+    }
+
+    pub fn resource_manager(available: &[(&str, &'static str)], fail_on_load: &[&str]) -> Self {
+        Self::new(
+            TemplateSourceKindModel::ResourceManager,
+            None,
+            false,
+            available,
+            fail_on_load,
+        )
+    }
+
+    fn new(
+        kind: TemplateSourceKindModel,
+        source_dir: Option<&'static str>,
+        load_as_text: bool,
+        available: &[(&str, &'static str)],
+        fail_on_load: &[&str],
+    ) -> Self {
+        Self {
+            kind,
+            source_dir,
+            load_as_text,
+            available: available
+                .iter()
+                .map(|(id, template)| {
+                    (
+                        Identifier::parse(id).expect("valid template id fixture"),
+                        *template,
+                    )
+                })
+                .collect(),
+            fail_on_load: fail_on_load
+                .iter()
+                .map(|id| Identifier::parse(id).expect("valid template id fixture"))
+                .collect(),
+        }
+    }
+
+    pub fn load(&self, id: &Identifier) -> (Option<&'static str>, TemplateLoadAttemptResultModel) {
+        if self.kind == TemplateSourceKindModel::Directory && self.source_dir.is_none() {
+            return (None, TemplateLoadAttemptResultModel::SourceUnavailable);
+        }
+        if self.fail_on_load.contains(id) {
+            return (None, TemplateLoadAttemptResultModel::ErrorSuppressed);
+        }
+        match self.available.get(id).copied() {
+            Some(template) => (Some(template), TemplateLoadAttemptResultModel::Loaded),
+            None => (None, TemplateLoadAttemptResultModel::Missing),
+        }
+    }
+
+    pub fn list(&self) -> Vec<Identifier> {
+        if self.kind == TemplateSourceKindModel::Directory && self.source_dir.is_none() {
+            return Vec::new();
+        }
+        self.available.keys().cloned().collect()
+    }
 }
 
 pub fn structure_random_rule_test_matches(
@@ -20682,6 +20825,101 @@ mod tests {
         manager.on_resource_manager_reload();
         assert!(manager.cache.is_empty());
         assert_eq!(manager.get_or_create(missing), "runtime_template");
+    }
+
+    #[test]
+    fn template_sources_load_in_vanilla_order_and_list_distinct_templates() {
+        let id = crate::registry::Identifier::parse(
+            "minecraft:village/plains/town_centers/plains_fountain_01",
+        )
+        .expect("valid template id");
+        let generated = super::TemplateSourceModel::directory(
+            Some("/world/generated"),
+            false,
+            &[(
+                "minecraft:village/plains/town_centers/plains_fountain_01",
+                "generated_nbt",
+            )],
+            &[],
+        );
+        let tests = super::TemplateSourceModel::directory(
+            Some("/tmp/tests/data"),
+            true,
+            &[("minecraft:test/marker", "test_snbt")],
+            &[],
+        );
+        let resources = super::TemplateSourceModel::resource_manager(
+            &[
+                (
+                    "minecraft:village/plains/town_centers/plains_fountain_01",
+                    "resource_pack_nbt",
+                ),
+                ("minecraft:bastion/starts/start", "bastion_nbt"),
+            ],
+            &[],
+        );
+
+        let mut manager = super::StructureTemplateManagerModel::default();
+        let (loaded, attempts) = manager.try_load_from_sources(
+            id.clone(),
+            &[generated.clone(), tests.clone(), resources.clone()],
+        );
+        assert_eq!(loaded, Some("generated_nbt"));
+        assert_eq!(
+            attempts,
+            vec![super::TemplateLoadAttemptModel {
+                source_kind: super::TemplateSourceKindModel::Directory,
+                id: id.clone(),
+                result: super::TemplateLoadAttemptResultModel::Loaded,
+            }]
+        );
+
+        let (cached, cached_attempts) =
+            manager.try_load_from_sources(id.clone(), &[resources.clone()]);
+        assert_eq!(cached, Some("generated_nbt"));
+        assert!(cached_attempts.is_empty());
+
+        let missing = crate::registry::Identifier::parse("minecraft:missing/template").unwrap();
+        let unavailable = super::TemplateSourceModel::directory(None, false, &[], &[]);
+        let failing_resource = super::TemplateSourceModel::resource_manager(
+            &[("minecraft:missing/template", "would_have_loaded")],
+            &["minecraft:missing/template"],
+        );
+        let (missing_result, missing_attempts) =
+            manager.try_load_from_sources(missing.clone(), &[unavailable, failing_resource]);
+        assert_eq!(missing_result, None);
+        assert_eq!(
+            missing_attempts
+                .iter()
+                .map(|attempt| attempt.result)
+                .collect::<Vec<_>>(),
+            vec![
+                super::TemplateLoadAttemptResultModel::SourceUnavailable,
+                super::TemplateLoadAttemptResultModel::ErrorSuppressed,
+            ]
+        );
+        let (cached_missing, cached_missing_attempts) =
+            manager.try_load_from_sources(missing, &[resources.clone()]);
+        assert_eq!(cached_missing, None);
+        assert!(cached_missing_attempts.is_empty());
+
+        let listed = super::StructureTemplateManagerModel::list_templates_from_sources(&[
+            generated,
+            tests.clone(),
+            resources,
+        ]);
+        assert_eq!(
+            listed,
+            vec![
+                crate::registry::Identifier::parse(
+                    "minecraft:village/plains/town_centers/plains_fountain_01"
+                )
+                .unwrap(),
+                crate::registry::Identifier::parse("minecraft:test/marker").unwrap(),
+                crate::registry::Identifier::parse("minecraft:bastion/starts/start").unwrap(),
+            ]
+        );
+        assert!(tests.load_as_text);
     }
 
     #[test]
