@@ -10,6 +10,19 @@ pub struct NoiseSettings {
     pub size_vertical: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NormalNoiseParameters {
+    pub id: &'static str,
+    pub first_octave: i32,
+    pub amplitudes: &'static [f64],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SynthNoiseSource {
+    pub id: &'static str,
+    pub codec: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NoiseGeneratorSettings {
     pub id: &'static str,
@@ -833,6 +846,351 @@ pub const NETHER_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 128, 1, 2
 pub const END_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 128, 2, 1);
 pub const CAVES_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(-64, 192, 1, 2);
 pub const FLOATING_ISLANDS_NOISE_SETTINGS: NoiseSettings = NoiseSettings::new(0, 256, 2, 1);
+
+pub const NORMAL_NOISE_INPUT_FACTOR: f64 = 1.0181268882175227;
+pub const NORMAL_NOISE_TARGET_DEVIATION: f64 = 1.0 / 3.0;
+
+pub const SYNTH_NOISE_SOURCES: &[SynthNoiseSource] = &[
+    SynthNoiseSource {
+        id: "minecraft:normal_noise",
+        codec: "NormalNoise.NoiseParameters",
+    },
+    SynthNoiseSource {
+        id: "minecraft:perlin_noise",
+        codec: "PerlinNoise",
+    },
+    SynthNoiseSource {
+        id: "minecraft:perlin_simplex_noise",
+        codec: "PerlinSimplexNoise",
+    },
+    SynthNoiseSource {
+        id: "minecraft:simplex_noise",
+        codec: "SimplexNoise",
+    },
+    SynthNoiseSource {
+        id: "minecraft:improved_noise",
+        codec: "ImprovedNoise",
+    },
+    SynthNoiseSource {
+        id: "minecraft:blended_noise",
+        codec: "DensityFunctions.BlendedNoise",
+    },
+];
+
+pub const NORMAL_NOISE_PARAMETERS: &[NormalNoiseParameters] = &[
+    NormalNoiseParameters {
+        id: "minecraft:temperature",
+        first_octave: -10,
+        amplitudes: &[1.5, 0.0, 1.0, 0.0, 0.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:vegetation",
+        first_octave: -8,
+        amplitudes: &[1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:continentalness",
+        first_octave: -9,
+        amplitudes: &[1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:erosion",
+        first_octave: -9,
+        amplitudes: &[1.0, 1.0, 0.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:temperature_large",
+        first_octave: -12,
+        amplitudes: &[1.5, 0.0, 1.0, 0.0, 0.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:vegetation_large",
+        first_octave: -10,
+        amplitudes: &[1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:continentalness_large",
+        first_octave: -11,
+        amplitudes: &[1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:erosion_large",
+        first_octave: -11,
+        amplitudes: &[1.0, 1.0, 0.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:nether/temperature",
+        first_octave: -7,
+        amplitudes: &[1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:nether/vegetation",
+        first_octave: -7,
+        amplitudes: &[1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:ridge",
+        first_octave: -7,
+        amplitudes: &[1.0, 2.0, 1.0, 0.0, 0.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:offset",
+        first_octave: -3,
+        amplitudes: &[1.0, 1.0, 1.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:aquifer_barrier",
+        first_octave: -3,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:aquifer_fluid_level_floodedness",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:aquifer_lava",
+        first_octave: -1,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:aquifer_fluid_level_spread",
+        first_octave: -5,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:pillar",
+        first_octave: -7,
+        amplitudes: &[1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:pillar_rareness",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:pillar_thickness",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_2d",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_2d_elevation",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_2d_modulator",
+        first_octave: -11,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_2d_thickness",
+        first_octave: -11,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_3d_1",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_3d_2",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_3d_rarity",
+        first_octave: -11,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_3d_thickness",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_roughness",
+        first_octave: -5,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:spaghetti_roughness_modulator",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:cave_entrance",
+        first_octave: -7,
+        amplitudes: &[0.4, 0.5, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:cave_layer",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:cave_cheese",
+        first_octave: -8,
+        amplitudes: &[0.5, 1.0, 2.0, 1.0, 2.0, 1.0, 0.0, 2.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:ore_veininess",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:ore_vein_a",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:ore_vein_b",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:ore_gap",
+        first_octave: -5,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:noodle",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:noodle_thickness",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:noodle_ridge_a",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:noodle_ridge_b",
+        first_octave: -7,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:jagged",
+        first_octave: -16,
+        amplitudes: &[
+            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        ],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:surface",
+        first_octave: -6,
+        amplitudes: &[1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:surface_secondary",
+        first_octave: -6,
+        amplitudes: &[1.0, 1.0, 0.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:clay_bands_offset",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:badlands_pillar",
+        first_octave: -2,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:badlands_pillar_roof",
+        first_octave: -8,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:badlands_surface",
+        first_octave: -6,
+        amplitudes: &[1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:iceberg_pillar",
+        first_octave: -6,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:iceberg_pillar_roof",
+        first_octave: -3,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:iceberg_surface",
+        first_octave: -6,
+        amplitudes: &[1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:surface_swamp",
+        first_octave: -2,
+        amplitudes: &[1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:calcite",
+        first_octave: -9,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:gravel",
+        first_octave: -8,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:powder_snow",
+        first_octave: -6,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:packed_ice",
+        first_octave: -7,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:ice",
+        first_octave: -4,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:soul_sand_layer",
+        first_octave: -8,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.013333333333333334],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:gravel_layer",
+        first_octave: -8,
+        amplitudes: &[1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.013333333333333334],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:patch",
+        first_octave: -5,
+        amplitudes: &[1.0, 0.0, 0.0, 0.0, 0.0, 0.013333333333333334],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:netherrack",
+        first_octave: -3,
+        amplitudes: &[1.0, 0.0, 0.0, 0.35],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:nether_wart",
+        first_octave: -3,
+        amplitudes: &[1.0, 0.0, 0.0, 0.9],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:nether_state_selector",
+        first_octave: -4,
+        amplitudes: &[1.0],
+    },
+];
 
 pub const HEIGHT_PROVIDER_TYPES: &[HeightProviderType] = &[
     HeightProviderType {
@@ -4568,6 +4926,42 @@ pub fn aquifer_similarity(distance_sqr_1: i32, distance_sqr_2: i32) -> f64 {
     1.0 - f64::from((distance_sqr_2 - distance_sqr_1).abs()) / 25.0
 }
 
+pub fn builtin_normal_noise_parameters(id: &str) -> Option<&'static NormalNoiseParameters> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    NORMAL_NOISE_PARAMETERS.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
+pub fn synth_noise_source(id: &str) -> Option<&'static SynthNoiseSource> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    SYNTH_NOISE_SOURCES.iter().find(|entry| {
+        entry
+            .id
+            .strip_prefix("minecraft:")
+            .is_some_and(|entry_name| entry_name == name)
+    })
+}
+
+pub fn normal_noise_expected_deviation(octave_span: i32) -> f64 {
+    0.1 * (1.0 + 1.0 / (f64::from(octave_span) + 1.0))
+}
+
+pub fn normal_noise_value_factor(parameters: NormalNoiseParameters) -> f64 {
+    let mut min_octave = i32::MAX;
+    let mut max_octave = i32::MIN;
+    for (index, amplitude) in parameters.amplitudes.iter().enumerate() {
+        if *amplitude != 0.0 {
+            min_octave = min_octave.min(index as i32);
+            max_octave = max_octave.max(index as i32);
+        }
+    }
+    NORMAL_NOISE_TARGET_DEVIATION / 2.0 / normal_noise_expected_deviation(max_octave - min_octave)
+}
+
 pub fn builtin_density_function(id: &str) -> Option<&'static DensityFunctionEntry> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_DENSITY_FUNCTIONS.iter().find(|entry| {
@@ -5097,13 +5491,14 @@ mod tests {
         END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
         FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
         JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
+        NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION,
         ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
         PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
         STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
         STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
-        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
-        WORLD_PRESETS, Y_DENSITY,
+        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -5140,6 +5535,87 @@ mod tests {
             NoiseSettings::new(-64, 384, 1, 2).clamp_to_height(0, 255),
             NoiseSettings::new(0, 256, 1, 2)
         );
+    }
+
+    #[test]
+    fn synth_noise_sources_and_parameters_match_vanilla_bootstrap() {
+        assert_eq!(
+            SYNTH_NOISE_SOURCES
+                .iter()
+                .map(|source| source.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:normal_noise",
+                "minecraft:perlin_noise",
+                "minecraft:perlin_simplex_noise",
+                "minecraft:simplex_noise",
+                "minecraft:improved_noise",
+                "minecraft:blended_noise",
+            ]
+        );
+        assert_eq!(NORMAL_NOISE_PARAMETERS.len(), 62);
+        assert_eq!(NORMAL_NOISE_INPUT_FACTOR, 1.0181268882175227);
+        assert_eq!(NORMAL_NOISE_TARGET_DEVIATION, 1.0 / 3.0);
+
+        let ids = NORMAL_NOISE_PARAMETERS
+            .iter()
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            &ids[..12],
+            &[
+                "minecraft:temperature",
+                "minecraft:vegetation",
+                "minecraft:continentalness",
+                "minecraft:erosion",
+                "minecraft:temperature_large",
+                "minecraft:vegetation_large",
+                "minecraft:continentalness_large",
+                "minecraft:erosion_large",
+                "minecraft:nether/temperature",
+                "minecraft:nether/vegetation",
+                "minecraft:ridge",
+                "minecraft:offset",
+            ]
+        );
+        assert_eq!(
+            &ids[ids.len() - 6..],
+            &[
+                "minecraft:soul_sand_layer",
+                "minecraft:gravel_layer",
+                "minecraft:patch",
+                "minecraft:netherrack",
+                "minecraft:nether_wart",
+                "minecraft:nether_state_selector",
+            ]
+        );
+
+        let temperature = super::builtin_normal_noise_parameters("temperature").unwrap();
+        assert_eq!(temperature.first_octave, -10);
+        assert_eq!(temperature.amplitudes, &[1.5, 0.0, 1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(
+            super::builtin_normal_noise_parameters("minecraft:cave_cheese")
+                .unwrap()
+                .amplitudes,
+            &[0.5, 1.0, 2.0, 1.0, 2.0, 1.0, 0.0, 2.0, 0.0]
+        );
+        assert_eq!(
+            super::builtin_normal_noise_parameters("minecraft:jagged")
+                .unwrap()
+                .amplitudes
+                .len(),
+            16
+        );
+        assert!((super::normal_noise_expected_deviation(2) - 0.13333333333333333).abs() < 1e-12);
+        assert!(
+            (super::normal_noise_value_factor(
+                *super::builtin_normal_noise_parameters("offset").unwrap()
+            ) - 1.25)
+                .abs()
+                < 1e-12
+        );
+        assert!(super::synth_noise_source("blended_noise").is_some());
+        assert!(super::synth_noise_source("value_noise").is_none());
     }
 
     #[test]
