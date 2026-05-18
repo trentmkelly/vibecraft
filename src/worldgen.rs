@@ -7221,6 +7221,167 @@ pub const DEEP_DARK_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const NETHER_WASTES_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[
+        "minecraft:spring_open",
+        "minecraft:patch_fire",
+        "minecraft:patch_soul_fire",
+        "minecraft:glowstone_extra",
+        "minecraft:glowstone",
+        "minecraft:brown_mushroom_nether",
+        "minecraft:red_mushroom_nether",
+        "minecraft:ore_magma",
+        "minecraft:spring_closed",
+        "minecraft:ore_gravel_nether",
+        "minecraft:ore_blackstone",
+        "minecraft:ore_gold_nether",
+        "minecraft:ore_quartz_nether",
+        "minecraft:ore_ancient_debris_large",
+        "minecraft:ore_debris_small",
+    ],
+    &[],
+    &[
+        "minecraft:spring_lava",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+    ],
+];
+
+pub const CRIMSON_FOREST_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[
+        "minecraft:spring_open",
+        "minecraft:patch_fire",
+        "minecraft:glowstone_extra",
+        "minecraft:glowstone",
+        "minecraft:ore_magma",
+        "minecraft:spring_closed",
+        "minecraft:ore_gravel_nether",
+        "minecraft:ore_blackstone",
+        "minecraft:ore_gold_nether",
+        "minecraft:ore_quartz_nether",
+        "minecraft:ore_ancient_debris_large",
+        "minecraft:ore_debris_small",
+    ],
+    &[],
+    &[
+        "minecraft:spring_lava",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:weeping_vines",
+        "minecraft:crimson_fungi",
+        "minecraft:crimson_forest_vegetation",
+    ],
+];
+
+pub const WARPED_FOREST_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[
+        "minecraft:spring_open",
+        "minecraft:patch_fire",
+        "minecraft:patch_soul_fire",
+        "minecraft:glowstone_extra",
+        "minecraft:glowstone",
+        "minecraft:ore_magma",
+        "minecraft:spring_closed",
+        "minecraft:ore_gravel_nether",
+        "minecraft:ore_blackstone",
+        "minecraft:ore_gold_nether",
+        "minecraft:ore_quartz_nether",
+        "minecraft:ore_ancient_debris_large",
+        "minecraft:ore_debris_small",
+    ],
+    &[],
+    &[
+        "minecraft:spring_lava",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:warped_fungi",
+        "minecraft:warped_forest_vegetation",
+        "minecraft:nether_sprouts",
+        "minecraft:twisting_vines",
+    ],
+];
+
+pub const SOUL_SAND_VALLEY_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &["minecraft:basalt_pillar"],
+    &[],
+    &[],
+    &[],
+    &[],
+    &[
+        "minecraft:spring_open",
+        "minecraft:patch_fire",
+        "minecraft:patch_soul_fire",
+        "minecraft:glowstone_extra",
+        "minecraft:glowstone",
+        "minecraft:patch_crimson_roots",
+        "minecraft:ore_magma",
+        "minecraft:spring_closed",
+        "minecraft:ore_soul_sand",
+        "minecraft:ore_gravel_nether",
+        "minecraft:ore_blackstone",
+        "minecraft:ore_gold_nether",
+        "minecraft:ore_quartz_nether",
+        "minecraft:ore_ancient_debris_large",
+        "minecraft:ore_debris_small",
+    ],
+    &[],
+    &["minecraft:spring_lava"],
+];
+
+pub const BASALT_DELTAS_FEATURE_STEPS: &[&[&str]] = &[
+    &[],
+    &[],
+    &[],
+    &[],
+    &[
+        "minecraft:delta",
+        "minecraft:small_basalt_columns",
+        "minecraft:large_basalt_columns",
+    ],
+    &[],
+    &[],
+    &[
+        "minecraft:basalt_blobs",
+        "minecraft:blackstone_blobs",
+        "minecraft:spring_delta",
+        "minecraft:patch_fire",
+        "minecraft:patch_soul_fire",
+        "minecraft:glowstone_extra",
+        "minecraft:glowstone",
+        "minecraft:brown_mushroom_nether",
+        "minecraft:red_mushroom_nether",
+        "minecraft:ore_magma",
+        "minecraft:spring_closed_double",
+        "minecraft:ore_gold_deltas",
+        "minecraft:ore_quartz_deltas",
+        "minecraft:ore_ancient_debris_large",
+        "minecraft:ore_debris_small",
+    ],
+];
+
 pub const GROVE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -9149,6 +9310,110 @@ pub const LUSH_CAVES_AXOLOTL_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataMo
     max_count: 6,
 }];
 
+pub const NETHER_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:strider",
+    weight: 60,
+    min_count: 1,
+    max_count: 2,
+}];
+
+pub const NETHER_WASTES_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:ghast",
+        weight: 50,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombified_piglin",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:magma_cube",
+        weight: 2,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 1,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:piglin",
+        weight: 15,
+        min_count: 4,
+        max_count: 4,
+    },
+];
+
+pub const CRIMSON_FOREST_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombified_piglin",
+        weight: 1,
+        min_count: 2,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:hoglin",
+        weight: 9,
+        min_count: 3,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:piglin",
+        weight: 5,
+        min_count: 3,
+        max_count: 4,
+    },
+];
+
+pub const WARPED_FOREST_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:enderman",
+    weight: 1,
+    min_count: 4,
+    max_count: 4,
+}];
+
+pub const SOUL_SAND_VALLEY_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 20,
+        min_count: 5,
+        max_count: 5,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:ghast",
+        weight: 50,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 1,
+        min_count: 4,
+        max_count: 4,
+    },
+];
+
+pub const BASALT_DELTAS_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:ghast",
+        weight: 40,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:magma_cube",
+        weight: 100,
+        min_count: 2,
+        max_count: 5,
+    },
+];
+
 pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
     &[MobSpawnerDataModel {
         entity_type: "minecraft:glow_squid",
@@ -10407,6 +10672,210 @@ pub const DEEP_DARK_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const NETHER_WASTES_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: NETHER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: NETHER_WASTES_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const CRIMSON_FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: NETHER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: CRIMSON_FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const WARPED_FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: NETHER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: WARPED_FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const SOUL_SAND_VALLEY_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: NETHER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: SOUL_SAND_VALLEY_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const BASALT_DELTAS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: NETHER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: BASALT_DELTAS_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const WARPED_FOREST_SPAWN_COSTS: &[MobSpawnCostModel] = &[MobSpawnCostModel {
+    entity_type: "minecraft:enderman",
+    energy_budget: 0.12,
+    charge: 1.0,
+}];
+
+pub const SOUL_SAND_VALLEY_SPAWN_COSTS: &[MobSpawnCostModel] = &[
+    MobSpawnCostModel {
+        entity_type: "minecraft:enderman",
+        energy_budget: 0.15,
+        charge: 0.7,
+    },
+    MobSpawnCostModel {
+        entity_type: "minecraft:ghast",
+        energy_budget: 0.15,
+        charge: 0.7,
+    },
+    MobSpawnCostModel {
+        entity_type: "minecraft:skeleton",
+        energy_budget: 0.15,
+        charge: 0.7,
+    },
+    MobSpawnCostModel {
+        entity_type: "minecraft:strider",
+        energy_budget: 0.15,
+        charge: 0.7,
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -10763,6 +11232,8 @@ const OVERWORLD_COMMON_CARVERS: &[&str] = &[
     "minecraft:canyon",
 ];
 
+const NETHER_COMMON_CARVERS: &[&str] = &["minecraft:nether_cave"];
+
 pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &[
     BiomeGenerationSettingsModel {
         biome: "minecraft:plains",
@@ -11011,6 +11482,46 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: DEEP_DARK_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:nether_wastes",
+        carvers: NETHER_COMMON_CARVERS,
+        feature_steps: NETHER_WASTES_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: NETHER_WASTES_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:crimson_forest",
+        carvers: NETHER_COMMON_CARVERS,
+        feature_steps: CRIMSON_FOREST_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: CRIMSON_FOREST_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:warped_forest",
+        carvers: NETHER_COMMON_CARVERS,
+        feature_steps: WARPED_FOREST_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: WARPED_FOREST_SPAWN_COSTS,
+        spawners: WARPED_FOREST_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:soul_sand_valley",
+        carvers: NETHER_COMMON_CARVERS,
+        feature_steps: SOUL_SAND_VALLEY_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: SOUL_SAND_VALLEY_SPAWN_COSTS,
+        spawners: SOUL_SAND_VALLEY_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:basalt_deltas",
+        carvers: NETHER_COMMON_CARVERS,
+        feature_steps: BASALT_DELTAS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: BASALT_DELTAS_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:grove",
@@ -25596,6 +26107,106 @@ mod tests {
             .spawners
             .iter()
             .all(|group| group.entries.is_empty()));
+
+        let nether_wastes = super::biome_generation_settings("nether_wastes").unwrap();
+        assert_eq!(nether_wastes.biome, "minecraft:nether_wastes");
+        assert_eq!(nether_wastes.carvers, super::NETHER_COMMON_CARVERS);
+        assert_eq!(nether_wastes.feature_steps.len(), 10);
+        assert!(super::biome_has_placed_feature(
+            nether_wastes,
+            "minecraft:patch_soul_fire"
+        ));
+        assert!(super::biome_has_placed_feature(
+            nether_wastes,
+            "minecraft:brown_mushroom_nether"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(nether_wastes, "creature"),
+            super::NETHER_CREATURE_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(nether_wastes, "monster"),
+            super::NETHER_WASTES_MONSTER_SPAWNS
+        );
+
+        let crimson_forest = super::biome_generation_settings("crimson_forest").unwrap();
+        assert_eq!(crimson_forest.biome, "minecraft:crimson_forest");
+        assert!(super::biome_has_placed_feature(
+            crimson_forest,
+            "minecraft:weeping_vines"
+        ));
+        assert!(super::biome_has_placed_feature(
+            crimson_forest,
+            "minecraft:crimson_fungi"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            crimson_forest,
+            "minecraft:patch_soul_fire"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(crimson_forest, "monster"),
+            super::CRIMSON_FOREST_MONSTER_SPAWNS
+        );
+
+        let warped_forest = super::biome_generation_settings("warped_forest").unwrap();
+        assert_eq!(warped_forest.biome, "minecraft:warped_forest");
+        assert!(super::biome_has_placed_feature(
+            warped_forest,
+            "minecraft:warped_forest_vegetation"
+        ));
+        assert!(super::biome_has_placed_feature(
+            warped_forest,
+            "minecraft:twisting_vines"
+        ));
+        assert_eq!(warped_forest.spawn_costs, super::WARPED_FOREST_SPAWN_COSTS);
+        assert_eq!(
+            super::biome_spawns_for_category(warped_forest, "monster"),
+            super::WARPED_FOREST_MONSTER_SPAWNS
+        );
+
+        let soul_sand_valley = super::biome_generation_settings("soul_sand_valley").unwrap();
+        assert_eq!(soul_sand_valley.biome, "minecraft:soul_sand_valley");
+        assert!(super::biome_has_placed_feature(
+            soul_sand_valley,
+            "minecraft:basalt_pillar"
+        ));
+        assert!(super::biome_has_placed_feature(
+            soul_sand_valley,
+            "minecraft:ore_soul_sand"
+        ));
+        assert_eq!(
+            soul_sand_valley.spawn_costs,
+            super::SOUL_SAND_VALLEY_SPAWN_COSTS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(soul_sand_valley, "monster")[0],
+            MobSpawnerDataModel {
+                entity_type: "minecraft:skeleton",
+                weight: 20,
+                min_count: 5,
+                max_count: 5,
+            }
+        );
+
+        let basalt_deltas = super::biome_generation_settings("basalt_deltas").unwrap();
+        assert_eq!(basalt_deltas.biome, "minecraft:basalt_deltas");
+        assert_eq!(basalt_deltas.feature_steps.len(), 8);
+        assert!(super::biome_has_placed_feature(
+            basalt_deltas,
+            "minecraft:delta"
+        ));
+        assert!(super::biome_has_placed_feature(
+            basalt_deltas,
+            "minecraft:spring_closed_double"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            basalt_deltas,
+            "minecraft:spring_lava"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(basalt_deltas, "monster"),
+            super::BASALT_DELTAS_MONSTER_SPAWNS
+        );
 
         let grove = super::biome_generation_settings("grove").unwrap();
         assert_eq!(grove.biome, "minecraft:grove");
