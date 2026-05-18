@@ -2130,6 +2130,24 @@ pub struct RuinedPortalPieceModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShipwreckPieceModel {
+    pub template_name: &'static str,
+    pub template_position: BlockPos,
+    pub rotation: StructureRotation,
+    pub is_beached: bool,
+    pub height_adjusted: bool,
+    pub pivot: BlockPos,
+    pub processor: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShipwreckSaveTagModel {
+    pub is_beached: bool,
+    pub rotation: StructureRotation,
+    pub height_adjusted: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -10850,6 +10868,127 @@ pub fn ruined_portal_make_piece(
         ignore_processor,
         lava_replacement,
         include_blackstone_replace_processor: properties.replace_with_blackstone,
+    }
+}
+
+pub const SHIPWRECK_BEACHED_TEMPLATES: [&str; 11] = [
+    "minecraft:shipwreck/with_mast",
+    "minecraft:shipwreck/sideways_full",
+    "minecraft:shipwreck/sideways_fronthalf",
+    "minecraft:shipwreck/sideways_backhalf",
+    "minecraft:shipwreck/rightsideup_full",
+    "minecraft:shipwreck/rightsideup_fronthalf",
+    "minecraft:shipwreck/rightsideup_backhalf",
+    "minecraft:shipwreck/with_mast_degraded",
+    "minecraft:shipwreck/rightsideup_full_degraded",
+    "minecraft:shipwreck/rightsideup_fronthalf_degraded",
+    "minecraft:shipwreck/rightsideup_backhalf_degraded",
+];
+
+pub const SHIPWRECK_OCEAN_TEMPLATES: [&str; 20] = [
+    "minecraft:shipwreck/with_mast",
+    "minecraft:shipwreck/upsidedown_full",
+    "minecraft:shipwreck/upsidedown_fronthalf",
+    "minecraft:shipwreck/upsidedown_backhalf",
+    "minecraft:shipwreck/sideways_full",
+    "minecraft:shipwreck/sideways_fronthalf",
+    "minecraft:shipwreck/sideways_backhalf",
+    "minecraft:shipwreck/rightsideup_full",
+    "minecraft:shipwreck/rightsideup_fronthalf",
+    "minecraft:shipwreck/rightsideup_backhalf",
+    "minecraft:shipwreck/with_mast_degraded",
+    "minecraft:shipwreck/upsidedown_full_degraded",
+    "minecraft:shipwreck/upsidedown_fronthalf_degraded",
+    "minecraft:shipwreck/upsidedown_backhalf_degraded",
+    "minecraft:shipwreck/sideways_full_degraded",
+    "minecraft:shipwreck/sideways_fronthalf_degraded",
+    "minecraft:shipwreck/sideways_backhalf_degraded",
+    "minecraft:shipwreck/rightsideup_full_degraded",
+    "minecraft:shipwreck/rightsideup_fronthalf_degraded",
+    "minecraft:shipwreck/rightsideup_backhalf_degraded",
+];
+
+pub fn shipwreck_heightmap_type(is_beached: bool) -> &'static str {
+    if is_beached {
+        "minecraft:world_surface_wg"
+    } else {
+        "minecraft:ocean_floor_wg"
+    }
+}
+
+pub fn shipwreck_template_name(
+    is_beached: bool,
+    template_index: usize,
+) -> Result<&'static str, String> {
+    let templates = if is_beached {
+        &SHIPWRECK_BEACHED_TEMPLATES[..]
+    } else {
+        &SHIPWRECK_OCEAN_TEMPLATES[..]
+    };
+    templates.get(template_index).copied().ok_or_else(|| {
+        "Shipwreck template index must match Util.getRandom template list".to_string()
+    })
+}
+
+pub fn shipwreck_make_piece(
+    chunk_pos: ChunkPos,
+    rotation: StructureRotation,
+    template_index: usize,
+    is_beached: bool,
+) -> Result<ShipwreckPieceModel, String> {
+    Ok(ShipwreckPieceModel {
+        template_name: shipwreck_template_name(is_beached, template_index)?,
+        template_position: BlockPos {
+            x: chunk_pos.x * 16,
+            y: 90,
+            z: chunk_pos.z * 16,
+        },
+        rotation,
+        is_beached,
+        height_adjusted: false,
+        pivot: BlockPos { x: 4, y: 0, z: 15 },
+        processor: "minecraft:block_ignore_structure_and_air",
+    })
+}
+
+pub fn shipwreck_is_too_big_to_fit_in_worldgen_region(template_size: BlockPos) -> bool {
+    template_size.x > 32 || template_size.y > 32
+}
+
+pub fn shipwreck_calculate_beached_position(
+    min_y: i32,
+    template_height: i32,
+    random_roll: i32,
+) -> Result<i32, String> {
+    if !(0..3).contains(&random_roll) {
+        return Err("Shipwreck beached height roll must match RandomSource#nextInt(3)".to_string());
+    }
+    Ok(min_y - template_height / 2 - random_roll)
+}
+
+pub fn shipwreck_adjust_position_height(
+    mut piece: ShipwreckPieceModel,
+    new_height: i32,
+) -> ShipwreckPieceModel {
+    piece.height_adjusted = true;
+    piece.template_position.y = new_height;
+    piece
+}
+
+pub fn shipwreck_save_tag(piece: ShipwreckPieceModel) -> ShipwreckSaveTagModel {
+    ShipwreckSaveTagModel {
+        is_beached: piece.is_beached,
+        rotation: piece.rotation,
+        height_adjusted: piece.height_adjusted,
+    }
+}
+
+pub fn shipwreck_loot_table_for_marker(marker_id: &str) -> Option<&'static str> {
+    match marker_id {
+        "map_chest" => Some("minecraft:chests/shipwreck_map"),
+        "treasure_chest" => Some("minecraft:chests/shipwreck_treasure"),
+        "supply_chest" => Some("minecraft:chests/shipwreck_supply"),
+        _ => None,
     }
 }
 
@@ -24298,6 +24437,124 @@ mod tests {
             "minecraft:block_ignore_structure_and_air"
         );
         assert_eq!(ocean_piece.lava_replacement, "minecraft:magma_block");
+    }
+
+    #[test]
+    fn shipwreck_template_height_and_loot_rules_match_vanilla() {
+        assert_eq!(super::SHIPWRECK_BEACHED_TEMPLATES.len(), 11);
+        assert_eq!(super::SHIPWRECK_OCEAN_TEMPLATES.len(), 20);
+        assert_eq!(
+            super::SHIPWRECK_BEACHED_TEMPLATES[0],
+            "minecraft:shipwreck/with_mast"
+        );
+        assert_eq!(
+            super::SHIPWRECK_OCEAN_TEMPLATES[19],
+            "minecraft:shipwreck/rightsideup_backhalf_degraded"
+        );
+        assert_eq!(
+            super::shipwreck_heightmap_type(true),
+            "minecraft:world_surface_wg"
+        );
+        assert_eq!(
+            super::shipwreck_heightmap_type(false),
+            "minecraft:ocean_floor_wg"
+        );
+        assert_eq!(
+            super::shipwreck_template_name(true, 10).unwrap(),
+            "minecraft:shipwreck/rightsideup_backhalf_degraded"
+        );
+        assert_eq!(
+            super::shipwreck_template_name(false, 11).unwrap(),
+            "minecraft:shipwreck/upsidedown_full_degraded"
+        );
+        assert_eq!(
+            super::shipwreck_template_name(true, 11).unwrap_err(),
+            "Shipwreck template index must match Util.getRandom template list".to_string()
+        );
+
+        let piece = super::shipwreck_make_piece(
+            ChunkPos { x: -1, z: 4 },
+            super::StructureRotation::Clockwise180,
+            7,
+            false,
+        )
+        .unwrap();
+        assert_eq!(piece.template_name, "minecraft:shipwreck/rightsideup_full");
+        assert_eq!(
+            piece.template_position,
+            BlockPos {
+                x: -16,
+                y: 90,
+                z: 64
+            }
+        );
+        assert_eq!(piece.pivot, BlockPos { x: 4, y: 0, z: 15 });
+        assert_eq!(piece.processor, "minecraft:block_ignore_structure_and_air");
+        assert!(!piece.height_adjusted);
+        assert!(!piece.is_beached);
+        assert_eq!(
+            super::shipwreck_save_tag(piece),
+            super::ShipwreckSaveTagModel {
+                is_beached: false,
+                rotation: super::StructureRotation::Clockwise180,
+                height_adjusted: false,
+            }
+        );
+
+        assert!(!super::shipwreck_is_too_big_to_fit_in_worldgen_region(
+            BlockPos {
+                x: 32,
+                y: 32,
+                z: 80
+            }
+        ));
+        assert!(super::shipwreck_is_too_big_to_fit_in_worldgen_region(
+            BlockPos {
+                x: 33,
+                y: 12,
+                z: 12
+            }
+        ));
+        assert!(super::shipwreck_is_too_big_to_fit_in_worldgen_region(
+            BlockPos {
+                x: 12,
+                y: 33,
+                z: 12
+            }
+        ));
+        assert_eq!(
+            super::shipwreck_calculate_beached_position(72, 15, 2).unwrap(),
+            63
+        );
+        assert_eq!(
+            super::shipwreck_calculate_beached_position(72, 15, 3).unwrap_err(),
+            "Shipwreck beached height roll must match RandomSource#nextInt(3)".to_string()
+        );
+        let adjusted = super::shipwreck_adjust_position_height(piece, 48);
+        assert_eq!(adjusted.template_position.y, 48);
+        assert!(adjusted.height_adjusted);
+        assert_eq!(
+            super::shipwreck_save_tag(adjusted),
+            super::ShipwreckSaveTagModel {
+                is_beached: false,
+                rotation: super::StructureRotation::Clockwise180,
+                height_adjusted: true,
+            }
+        );
+
+        assert_eq!(
+            super::shipwreck_loot_table_for_marker("map_chest"),
+            Some("minecraft:chests/shipwreck_map")
+        );
+        assert_eq!(
+            super::shipwreck_loot_table_for_marker("treasure_chest"),
+            Some("minecraft:chests/shipwreck_treasure")
+        );
+        assert_eq!(
+            super::shipwreck_loot_table_for_marker("supply_chest"),
+            Some("minecraft:chests/shipwreck_supply")
+        );
+        assert_eq!(super::shipwreck_loot_table_for_marker("unknown"), None);
     }
 
     #[test]
