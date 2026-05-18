@@ -777,6 +777,7 @@ pub enum TreePlacementBlockKind {
     DirtBelowTrunk,
     Log,
     Leaves,
+    GroundCover,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1989,7 +1990,13 @@ pub fn materialize_noise_preview_chunk(
         }
     }
     let biome = noise_preview_biome(biome_source_model, pos);
-    let tree_blocks = noise_preview_tree_blocks(pos, settings, biome, &terrain_heights);
+    let mut overlay_blocks = noise_preview_tree_blocks(pos, settings, biome, &terrain_heights);
+    overlay_blocks.extend(noise_preview_ground_cover_blocks(
+        pos,
+        settings,
+        biome,
+        &terrain_heights,
+    ));
 
     chunk.sections = (0..section_count)
         .map(|section_offset| {
@@ -2001,7 +2008,7 @@ pub fn materialize_noise_preview_chunk(
                     min_y,
                     settings,
                     &terrain_heights,
-                    &tree_blocks,
+                    &overlay_blocks,
                 )
                 .to_nbt(),
                 biomes: PalettedContainer::single(
@@ -2016,7 +2023,7 @@ pub fn materialize_noise_preview_chunk(
         .collect();
 
     let mut world_surface = terrain_heights.map(|height| height.max(settings.sea_level + 1));
-    for block in &tree_blocks {
+    for block in &overlay_blocks {
         if (0..16).contains(&block.pos.x) && (0..16).contains(&block.pos.z) {
             let index = block.pos.z as usize * 16 + block.pos.x as usize;
             world_surface[index] = world_surface[index].max(block.pos.y + 1);
@@ -2220,6 +2227,77 @@ fn noise_preview_tree_origins(
     } else {
         Vec::new()
     }
+}
+
+fn noise_preview_ground_cover_blocks(
+    chunk_pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    biome: &str,
+    terrain_heights: &[i32; 16 * 16],
+) -> Vec<TreePlacementBlock> {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return Vec::new();
+    }
+
+    let Some(generation) = biome_generation_settings(biome) else {
+        return Vec::new();
+    };
+    let grass = biome_has_placed_feature(generation, "patch_grass_plain")
+        || biome_has_placed_feature(generation, "patch_grass_forest");
+    let flowers = biome_has_placed_feature(generation, "flower_plains")
+        || biome_has_placed_feature(generation, "flower_default")
+        || biome_has_placed_feature(generation, "forest_flowers");
+    let sunflowers = biome_has_placed_feature(generation, "patch_sunflower");
+    if !grass && !flowers && !sunflowers {
+        return Vec::new();
+    }
+
+    let seed = (chunk_pos.x as i64 * 341_873_128_712 + chunk_pos.z as i64 * 132_897_987_541) as u64;
+    let mut blocks = Vec::new();
+    for z in 0..16 {
+        for x in 0..16 {
+            let surface_height = terrain_heights[z * 16 + x];
+            if surface_height <= settings.sea_level + 1 {
+                continue;
+            }
+            let roll = noise_preview_cover_roll(seed, x as u64, z as u64);
+            let state = if sunflowers && roll % 97 == 0 {
+                Some("minecraft:sunflower")
+            } else if flowers && roll % 23 == 0 {
+                Some(if biome == "minecraft:forest" {
+                    "minecraft:poppy"
+                } else {
+                    "minecraft:dandelion"
+                })
+            } else if grass && roll % 7 == 0 {
+                Some("minecraft:short_grass")
+            } else {
+                None
+            };
+            if let Some(state) = state {
+                blocks.push(TreePlacementBlock {
+                    pos: BlockPos {
+                        x: x as i32,
+                        y: surface_height,
+                        z: z as i32,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::GroundCover,
+                });
+            }
+        }
+    }
+    blocks
+}
+
+fn noise_preview_cover_roll(seed: u64, x: u64, z: u64) -> u64 {
+    let mut value =
+        seed ^ x.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ z.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
 }
 
 fn noise_preview_terrain_height(x: i32, z: i32, settings: &NoiseGeneratorSettings) -> i32 {
@@ -8586,6 +8664,39 @@ mod tests {
             palette.contains(&super::block_state_tag("minecraft:birch_log"))
                 || palette.contains(&super::block_state_tag("minecraft:birch_leaves"))
         }));
+    }
+
+    #[test]
+    fn noise_preview_ground_cover_follows_biome_features() {
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let terrain_heights = [settings.sea_level + 8; 16 * 16];
+        let plains = super::noise_preview_ground_cover_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:plains",
+            &terrain_heights,
+        );
+        let sunflower = super::noise_preview_ground_cover_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:sunflower_plains",
+            &terrain_heights,
+        );
+        let unknown = super::noise_preview_ground_cover_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:badlands",
+            &terrain_heights,
+        );
+
+        assert!(plains
+            .iter()
+            .any(|block| matches!(block.state, "minecraft:short_grass" | "minecraft:dandelion")));
+        assert!(sunflower
+            .iter()
+            .any(|block| block.state == "minecraft:sunflower"));
+        assert!(sunflower.len() >= plains.len());
+        assert!(unknown.is_empty());
     }
 
     #[test]
