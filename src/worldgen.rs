@@ -1750,13 +1750,13 @@ pub fn materialize_noise_preview_chunk(
     let max_y = settings.noise.min_y + settings.noise.height;
     let min_section = min_y.div_euclid(16);
     let section_count = (settings.noise.height + 15) / 16;
-    let mut surface_heights = [settings.sea_level + 1; 16 * 16];
+    let mut terrain_heights = [settings.sea_level + 1; 16 * 16];
     for z in 0..16 {
         for x in 0..16 {
             let world_x = pos.x * 16 + x as i32;
             let world_z = pos.z * 16 + z as i32;
-            surface_heights[z * 16 + x] =
-                noise_preview_surface_height(world_x, world_z, settings).clamp(min_y + 1, max_y);
+            terrain_heights[z * 16 + x] =
+                noise_preview_terrain_height(world_x, world_z, settings).clamp(min_y + 1, max_y);
         }
     }
 
@@ -1769,7 +1769,7 @@ pub fn materialize_noise_preview_chunk(
                     section_y,
                     min_y,
                     settings,
-                    &surface_heights,
+                    &terrain_heights,
                 )
                 .to_nbt(),
                 biomes: PalettedContainer::single(
@@ -1783,15 +1783,15 @@ pub fn materialize_noise_preview_chunk(
         })
         .collect();
 
-    let ocean_floor = surface_heights.map(|height| height.min(settings.sea_level + 1));
+    let world_surface = terrain_heights.map(|height| height.max(settings.sea_level + 1));
     chunk.heightmaps = BTreeMap::from([
         (
             HeightmapKind::WorldSurfaceWg.storage_name().to_string(),
-            Tag::LongArray(pack_heightmap(surface_heights)),
+            Tag::LongArray(pack_heightmap(world_surface)),
         ),
         (
             HeightmapKind::OceanFloorWg.storage_name().to_string(),
-            Tag::LongArray(pack_heightmap(ocean_floor)),
+            Tag::LongArray(pack_heightmap(terrain_heights)),
         ),
     ]);
     chunk
@@ -1871,7 +1871,7 @@ fn noise_preview_block_at(
     }
 }
 
-fn noise_preview_surface_height(x: i32, z: i32, settings: &NoiseGeneratorSettings) -> i32 {
+fn noise_preview_terrain_height(x: i32, z: i32, settings: &NoiseGeneratorSettings) -> i32 {
     let (scale, amplitude) = match settings.id {
         "minecraft:large_biomes" => (76.0, 30.0),
         "minecraft:amplified" => (38.0, 70.0),
@@ -1888,6 +1888,44 @@ fn noise_preview_surface_height(x: i32, z: i32, settings: &NoiseGeneratorSetting
         / u64::MAX as f64
         - 0.5;
     settings.sea_level + 8 + (broad + detail + ridge * 12.0).round() as i32
+}
+
+pub fn noise_preview_base_height(
+    x: i32,
+    z: i32,
+    settings: &NoiseGeneratorSettings,
+    heightmap: HeightmapKind,
+) -> i32 {
+    let terrain_height = noise_preview_terrain_height(x, z, settings).clamp(
+        settings.noise.min_y + 1,
+        settings.noise.min_y + settings.noise.height,
+    );
+    match heightmap {
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => {
+            terrain_height.max(settings.sea_level + 1)
+        }
+        HeightmapKind::OceanFloorWg
+        | HeightmapKind::OceanFloor
+        | HeightmapKind::MotionBlocking
+        | HeightmapKind::MotionBlockingNoLeaves => terrain_height,
+    }
+}
+
+pub fn noise_preview_base_column(
+    x: i32,
+    z: i32,
+    settings: &NoiseGeneratorSettings,
+) -> FlatNoiseColumn {
+    let min_y = settings.noise.min_y;
+    let height = settings.noise.height;
+    let terrain_height =
+        noise_preview_terrain_height(x, z, settings).clamp(min_y + 1, min_y + height);
+    let states = (0..height.max(0))
+        .map(|offset| {
+            noise_preview_block_at(min_y + offset, min_y, terrain_height, settings.sea_level)
+        })
+        .collect();
+    FlatNoiseColumn { min_y, states }
 }
 
 fn noise_preview_biome(biome_source_model: &BiomeSourceModel, pos: ChunkPos) -> &'static str {
@@ -5262,6 +5300,50 @@ pub fn generate_chunk_for_stem(
     }
 }
 
+pub fn generator_base_height_for_stem(
+    x: i32,
+    z: i32,
+    heightmap: HeightmapKind,
+    stem: &ResolvedLevelStem,
+) -> Result<i32, String> {
+    match &stem.generator {
+        ResolvedChunkGenerator::Flat { settings, .. } => Ok(flat_base_height(
+            &settings.expanded_layers,
+            FLAT_GENERATOR_MIN_Y,
+            FLAT_GENERATOR_GEN_DEPTH,
+            heightmap,
+        )),
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            Ok(noise_preview_base_height(x, z, noise_settings, heightmap))
+        }
+        ResolvedChunkGenerator::Debug { .. } => Err(format!(
+            "Debug base-height query for {} is not implemented",
+            stem.dimension
+        )),
+    }
+}
+
+pub fn generator_base_column_for_stem(
+    x: i32,
+    z: i32,
+    stem: &ResolvedLevelStem,
+) -> Result<FlatNoiseColumn, String> {
+    match &stem.generator {
+        ResolvedChunkGenerator::Flat { settings, .. } => Ok(flat_base_column(
+            &settings.expanded_layers,
+            FLAT_GENERATOR_MIN_Y,
+            FLAT_GENERATOR_GEN_DEPTH,
+        )),
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            Ok(noise_preview_base_column(x, z, noise_settings))
+        }
+        ResolvedChunkGenerator::Debug { .. } => Err(format!(
+            "Debug base-column query for {} is not implemented",
+            stem.dimension
+        )),
+    }
+}
+
 pub fn generate_overworld_chunk_for_preset(
     pos: ChunkPos,
     preset_id: &str,
@@ -6952,9 +7034,9 @@ mod tests {
         assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
 
         let overworld_settings = super::builtin_noise_generator_settings("overworld").unwrap();
-        let low = super::noise_preview_surface_height(0, 0, overworld_settings);
-        let nearby = super::noise_preview_surface_height(15, 15, overworld_settings);
-        let far = super::noise_preview_surface_height(96, -48, overworld_settings);
+        let low = super::noise_preview_terrain_height(0, 0, overworld_settings);
+        let nearby = super::noise_preview_terrain_height(15, 15, overworld_settings);
+        let far = super::noise_preview_terrain_height(96, -48, overworld_settings);
         assert_ne!(low, far);
         assert!((low - nearby).abs() < 40);
 
@@ -6967,6 +7049,52 @@ mod tests {
         };
         assert!(palette.contains(&super::block_state_tag("minecraft:grass_block")));
         assert!(palette.contains(&super::block_state_tag("minecraft:stone")));
+    }
+
+    #[test]
+    fn resolved_generators_answer_base_height_and_column_queries() {
+        let flat = super::resolve_world_preset("flat").unwrap();
+        assert_eq!(
+            super::generator_base_height_for_stem(
+                0,
+                0,
+                HeightmapKind::WorldSurfaceWg,
+                &flat.overworld
+            )
+            .unwrap(),
+            4
+        );
+        let flat_column = super::generator_base_column_for_stem(0, 0, &flat.overworld).unwrap();
+        assert_eq!(flat_column.min_y, super::FLAT_GENERATOR_MIN_Y);
+        assert_eq!(flat_column.states[0], "minecraft:bedrock");
+        assert_eq!(flat_column.states[3], "minecraft:grass_block");
+
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let world_surface = super::generator_base_height_for_stem(
+            96,
+            -48,
+            HeightmapKind::WorldSurfaceWg,
+            &normal.overworld,
+        )
+        .unwrap();
+        let ocean_floor = super::generator_base_height_for_stem(
+            96,
+            -48,
+            HeightmapKind::OceanFloorWg,
+            &normal.overworld,
+        )
+        .unwrap();
+        assert!(world_surface >= ocean_floor);
+
+        let column = super::generator_base_column_for_stem(96, -48, &normal.overworld).unwrap();
+        assert_eq!(column.min_y, super::OVERWORLD_NOISE_SETTINGS.min_y);
+        assert_eq!(
+            column.states.len(),
+            super::OVERWORLD_NOISE_SETTINGS.height as usize
+        );
+        assert_eq!(column.states[0], "minecraft:bedrock");
+        assert!(column.states.contains(&"minecraft:stone"));
+        assert!(column.states.contains(&"minecraft:air"));
     }
 
     #[test]
