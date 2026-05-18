@@ -30,6 +30,12 @@ pub enum RandomAlgorithm {
     Xoroshiro,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PositionalRandomFactory {
+    Legacy { seed: i64 },
+    Xoroshiro { seed_lo: i64, seed_hi: i64 },
+}
+
 impl LegacyRandom {
     pub fn new(seed: i64) -> Self {
         let mut random = Self { seed: 0 };
@@ -79,6 +85,16 @@ impl LegacyRandom {
         let lower = self.next_bits(27) as i64;
         (((upper << 27) + lower) as f64) * DOUBLE_UNIT
     }
+
+    pub fn fork(&mut self) -> Self {
+        Self::new(self.next_i64())
+    }
+
+    pub fn fork_positional(&mut self) -> PositionalRandomFactory {
+        PositionalRandomFactory::Legacy {
+            seed: self.next_i64(),
+        }
+    }
 }
 
 impl Xoroshiro128PlusPlus {
@@ -125,6 +141,66 @@ impl Xoroshiro128PlusPlus {
         }
         (multiplied >> 32) as i32
     }
+
+    pub fn fork(&mut self) -> Self {
+        Self::from_seed128(Seed128 {
+            lo: self.next_i64(),
+            hi: self.next_i64(),
+        })
+    }
+
+    pub fn fork_positional(&mut self) -> PositionalRandomFactory {
+        PositionalRandomFactory::Xoroshiro {
+            seed_lo: self.next_i64(),
+            seed_hi: self.next_i64(),
+        }
+    }
+}
+
+impl PositionalRandomFactory {
+    pub fn from_seed(self, seed: i64) -> RandomSourceKind {
+        match self {
+            PositionalRandomFactory::Legacy { .. } => {
+                RandomSourceKind::Legacy(LegacyRandom::new(seed))
+            }
+            PositionalRandomFactory::Xoroshiro { seed_lo, seed_hi } => {
+                RandomSourceKind::Xoroshiro(Xoroshiro128PlusPlus::from_seed128(Seed128 {
+                    lo: seed ^ seed_lo,
+                    hi: seed ^ seed_hi,
+                }))
+            }
+        }
+    }
+
+    pub fn at(self, x: i32, y: i32, z: i32) -> RandomSourceKind {
+        let positional_seed = block_pos_seed(x, y, z);
+        match self {
+            PositionalRandomFactory::Legacy { seed } => {
+                RandomSourceKind::Legacy(LegacyRandom::new(positional_seed ^ seed))
+            }
+            PositionalRandomFactory::Xoroshiro { seed_lo, seed_hi } => {
+                RandomSourceKind::Xoroshiro(Xoroshiro128PlusPlus::from_seed128(Seed128 {
+                    lo: positional_seed ^ seed_lo,
+                    hi: seed_hi,
+                }))
+            }
+        }
+    }
+
+    pub fn from_hash_of_legacy(self, name: &str) -> Option<LegacyRandom> {
+        match self {
+            PositionalRandomFactory::Legacy { seed } => {
+                Some(LegacyRandom::new(java_string_hash(name) as i64 ^ seed))
+            }
+            PositionalRandomFactory::Xoroshiro { .. } => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RandomSourceKind {
+    Legacy(LegacyRandom),
+    Xoroshiro(Xoroshiro128PlusPlus),
 }
 
 pub fn mix_stafford_13(mut z: i64) -> i64 {
@@ -152,6 +228,12 @@ pub fn seed128_from_md5_digest(digest: [u8; 16]) -> Seed128 {
         lo: i64::from_be_bytes(digest[0..8].try_into().expect("fixed MD5 low half")),
         hi: i64::from_be_bytes(digest[8..16].try_into().expect("fixed MD5 high half")),
     }
+}
+
+pub fn java_string_hash(value: &str) -> i32 {
+    value.encode_utf16().fold(0_i32, |hash, unit| {
+        hash.wrapping_mul(31).wrapping_add(unit as i32)
+    })
 }
 
 pub fn block_pos_seed(x: i32, y: i32, z: i32) -> i64 {
@@ -236,10 +318,11 @@ fn unsigned_shift_right(value: i64, shift: u32) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        block_pos_seed, decoration_seed, feature_seed, large_feature_seed,
+        block_pos_seed, decoration_seed, feature_seed, java_string_hash, large_feature_seed,
         large_feature_seed_with_salt, linear_congruential_next, mix_stafford_13, slime_chunk_seed,
-        upgrade_seed_to_128bit, upgrade_seed_to_128bit_unmixed, LegacyRandom, RandomAlgorithm,
-        Seed128, Xoroshiro128PlusPlus, GOLDEN_RATIO_64, SILVER_RATIO_64,
+        upgrade_seed_to_128bit, upgrade_seed_to_128bit_unmixed, LegacyRandom,
+        PositionalRandomFactory, RandomAlgorithm, RandomSourceKind, Seed128, Xoroshiro128PlusPlus,
+        GOLDEN_RATIO_64, SILVER_RATIO_64,
     };
 
     #[test]
@@ -297,6 +380,7 @@ mod tests {
     #[test]
     fn worldgen_seed_derivations_match_vanilla_formulas() {
         assert_eq!(block_pos_seed(1, 2, 3), -33_674_130_277_896);
+        assert_eq!(java_string_hash("minecraft:terrain"), 1_657_813_608);
         assert_eq!(
             linear_congruential_next(123, 456),
             2_443_659_180_228_472_098
@@ -317,5 +401,60 @@ mod tests {
         assert_eq!(slime_chunk_seed(4, -7, 12345, 987_234_911), 672_110_732);
         let mut slime = LegacyRandom::new(slime_chunk_seed(4, -7, 12345, 987_234_911));
         assert_ne!(slime.next_i32_bound(10), 0);
+    }
+
+    #[test]
+    fn positional_random_factories_match_vanilla_fork_rules() {
+        let mut legacy = LegacyRandom::new(12345);
+        let mut fork = legacy.fork();
+        assert_eq!(fork.next_i32(), -1_511_962_450);
+        let factory = legacy.fork_positional();
+        assert_eq!(
+            factory,
+            PositionalRandomFactory::Legacy {
+                seed: -1_236_052_134_575_208_584
+            }
+        );
+        match factory.at(1, 2, 3) {
+            RandomSourceKind::Legacy(mut random) => {
+                assert_eq!(random.next_i32(), -879_662_638);
+            }
+            _ => panic!("legacy positional factory should create legacy randoms"),
+        }
+        match factory.from_seed(99) {
+            RandomSourceKind::Legacy(mut random) => {
+                assert_eq!(random.next_i32(), -1_192_035_722);
+            }
+            _ => panic!("legacy from_seed should create legacy randoms"),
+        }
+        let mut hashed = factory
+            .from_hash_of_legacy("minecraft:terrain")
+            .expect("legacy factory supports Java String.hashCode hashing");
+        assert_eq!(hashed.next_i32(), 1_947_910_319);
+
+        let mut xoroshiro = Xoroshiro128PlusPlus::from_i64_seed(12345);
+        let mut fork = xoroshiro.fork();
+        assert_eq!(fork.next_i64(), 782_221_843_147_428_965);
+        let factory = xoroshiro.fork_positional();
+        assert_eq!(
+            factory,
+            PositionalRandomFactory::Xoroshiro {
+                seed_lo: 4_143_755_034_716_878_659,
+                seed_hi: 1_226_499_899_398_695_337
+            }
+        );
+        match factory.at(1, 2, 3) {
+            RandomSourceKind::Xoroshiro(mut random) => {
+                assert_eq!(random.next_i64(), 8_759_782_289_353_588_162);
+            }
+            _ => panic!("xoroshiro positional factory should create xoroshiro randoms"),
+        }
+        match factory.from_seed(99) {
+            RandomSourceKind::Xoroshiro(mut random) => {
+                assert_eq!(random.next_i64(), 3_338_114_822_160_895_021);
+            }
+            _ => panic!("xoroshiro from_seed should create xoroshiro randoms"),
+        }
+        assert_eq!(factory.from_hash_of_legacy("minecraft:terrain"), None);
     }
 }
