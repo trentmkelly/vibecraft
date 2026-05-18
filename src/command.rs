@@ -18989,6 +18989,79 @@ mod tests {
     }
 
     #[test]
+    fn chat_command_model_covers_public_private_team_raw_and_permission_feedback() {
+        let steve = NameAndId::create_offline("Steve");
+        let alex = NameAndId::create_offline("Alex");
+        let mut state = ServerCommandState {
+            command_source_player: Some(steve.clone()),
+            online_players: vec![steve.clone(), alex.clone()],
+            player_teams: vec![
+                TeamMembership {
+                    player: steve.clone(),
+                    team: "red".to_string(),
+                },
+                TeamMembership {
+                    player: alex.clone(),
+                    team: "red".to_string(),
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+
+        let say_denied =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "say hello");
+        assert_eq!(say_denied, Err(CommandError::PermissionDenied));
+        assert!(state.chat_events.is_empty());
+
+        let say = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "say hello everyone",
+        )
+        .unwrap();
+        assert_eq!(say.feedback_key, "commands.say.success");
+        assert_eq!(state.chat_events[0].kind, ChatCommandKind::Say);
+        assert_eq!(
+            state.chat_events[0].targets,
+            vec![steve.clone(), alex.clone()]
+        );
+
+        let emote =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "me waves").unwrap();
+        assert_eq!(emote.feedback_key, "commands.me.success");
+        assert_eq!(state.chat_events[1].kind, ChatCommandKind::Emote);
+
+        let private =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "tell Alex hi")
+                .unwrap();
+        assert_eq!(private.success_count, 1);
+        assert_eq!(private.feedback_key, "commands.message.display");
+        assert_eq!(state.chat_events[2].kind, ChatCommandKind::Private);
+        assert_eq!(state.chat_events[2].targets, vec![alex.clone()]);
+
+        let team =
+            execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "teammsg ready")
+                .unwrap();
+        assert_eq!(team.success_count, 2);
+        assert_eq!(team.feedback_key, "commands.teammsg.success");
+        assert_eq!(state.chat_events[3].kind, ChatCommandKind::Team);
+        assert_eq!(
+            state.chat_events[3].targets,
+            vec![steve.clone(), alex.clone()]
+        );
+
+        let tellraw = execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tellraw Alex -- {\"text\":\"raw\"}",
+        )
+        .unwrap();
+        assert_eq!(tellraw.feedback_key, "commands.tellraw.success");
+        assert_eq!(state.chat_events[4].kind, ChatCommandKind::TellRaw);
+        assert_eq!(state.chat_events[4].message, "{\"text\":\"raw\"}");
+    }
+
+    #[test]
     fn command_visibility_surface_filters_by_permission_tier_in_stable_order() {
         let all = visible_command_usages(LevelBasedPermissionSet::ALL);
         let moderator = visible_command_usages(LevelBasedPermissionSet::MODERATOR);
