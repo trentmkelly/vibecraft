@@ -4935,6 +4935,13 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
             input: &SPAGHETTI_2D_THICKNESS_MODULATOR_DENSITY,
         },
     },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/caves/spaghetti_roughness_function",
+        function: DensityFunction::Marker {
+            kind: DensityMarker::CacheOnce,
+            input: &SPAGHETTI_ROUGHNESS_FUNCTION_DENSITY,
+        },
+    },
 ];
 
 pub const RIDGE_REFERENCE_DENSITY: DensityFunction =
@@ -4984,6 +4991,46 @@ pub const SPAGHETTI_2D_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunctio
     noise: "minecraft:spaghetti_2d_thickness",
     xz_scale: 2.0,
     y_scale: 1.0,
+};
+pub const SPAGHETTI_ROUGHNESS_MODULATOR_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_roughness_modulator",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const SPAGHETTI_ROUGHNESS_MODULATOR_SCALE_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.05);
+pub const SPAGHETTI_ROUGHNESS_MODULATED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &SPAGHETTI_ROUGHNESS_MODULATOR_SCALE_DENSITY,
+    argument2: &SPAGHETTI_ROUGHNESS_MODULATOR_NOISE_DENSITY,
+};
+pub const SPAGHETTI_ROUGHNESS_MODULATOR_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.05);
+pub const SPAGHETTI_ROUGHNESS_FIRST_FACTOR_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_ROUGHNESS_MODULATOR_OFFSET_DENSITY,
+    argument2: &SPAGHETTI_ROUGHNESS_MODULATED_DENSITY,
+};
+pub const SPAGHETTI_ROUGHNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:spaghetti_roughness",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const SPAGHETTI_ROUGHNESS_ABS_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Abs,
+    input: &SPAGHETTI_ROUGHNESS_NOISE_DENSITY,
+};
+pub const SPAGHETTI_ROUGHNESS_SECOND_OFFSET_DENSITY: DensityFunction =
+    DensityFunction::Constant(-0.4);
+pub const SPAGHETTI_ROUGHNESS_SECOND_FACTOR_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &SPAGHETTI_ROUGHNESS_SECOND_OFFSET_DENSITY,
+    argument2: &SPAGHETTI_ROUGHNESS_ABS_DENSITY,
+};
+pub const SPAGHETTI_ROUGHNESS_FUNCTION_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &SPAGHETTI_ROUGHNESS_FIRST_FACTOR_DENSITY,
+    argument2: &SPAGHETTI_ROUGHNESS_SECOND_FACTOR_DENSITY,
 };
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
@@ -27156,6 +27203,7 @@ mod tests {
                 "minecraft:overworld_large_biomes/erosion",
                 "minecraft:end/sloped_cheese",
                 "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
+                "minecraft:overworld/caves/spaghetti_roughness_function",
             ]
         );
         assert_eq!(
@@ -27183,6 +27231,14 @@ mod tests {
                 .function
                 .type_name(),
             "cache_once"
+        );
+        let roughness = builtin_density_function("overworld/caves/spaghetti_roughness_function")
+            .unwrap()
+            .function;
+        assert_eq!(roughness.type_name(), "cache_once");
+        assert_eq!(
+            roughness.value_bounds(),
+            (-0.6355555555555555, 0.34222222222222215)
         );
     }
 
