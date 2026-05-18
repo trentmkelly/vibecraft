@@ -673,6 +673,19 @@ pub struct SimpleBlockPlacementPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuleTestModel {
+    AlwaysTrue,
+    BlockMatch(&'static str),
+    TagMatch(&'static [&'static str]),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetBlockStateModel {
+    pub target: RuleTestModel,
+    pub state: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureSizeModel {
     TwoLayers {
         limit: i32,
@@ -7011,6 +7024,24 @@ fn simple_block_is_double_plant(state: &str) -> bool {
     )
 }
 
+pub fn replace_block_result(
+    current_block: &'static str,
+    targets: &[TargetBlockStateModel],
+) -> Option<&'static str> {
+    targets
+        .iter()
+        .find(|target| rule_test_matches(target.target, current_block))
+        .map(|target| target.state)
+}
+
+pub fn rule_test_matches(test: RuleTestModel, block: &str) -> bool {
+    match test {
+        RuleTestModel::AlwaysTrue => true,
+        RuleTestModel::BlockMatch(expected) => block == expected,
+        RuleTestModel::TagMatch(blocks) => blocks.contains(&block),
+    }
+}
+
 pub fn feature_size_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -10214,6 +10245,37 @@ mod tests {
             ),
             None
         );
+
+        let replace_targets = [
+            super::TargetBlockStateModel {
+                target: super::RuleTestModel::BlockMatch("minecraft:stone"),
+                state: "minecraft:granite",
+            },
+            super::TargetBlockStateModel {
+                target: super::RuleTestModel::TagMatch(&[
+                    "minecraft:dirt",
+                    "minecraft:grass_block",
+                ]),
+                state: "minecraft:coarse_dirt",
+            },
+            super::TargetBlockStateModel {
+                target: super::RuleTestModel::AlwaysTrue,
+                state: "minecraft:air",
+            },
+        ];
+        assert_eq!(
+            super::replace_block_result("minecraft:stone", &replace_targets),
+            Some("minecraft:granite")
+        );
+        assert_eq!(
+            super::replace_block_result("minecraft:grass_block", &replace_targets),
+            Some("minecraft:coarse_dirt")
+        );
+        assert_eq!(
+            super::replace_block_result("minecraft:deepslate", &replace_targets),
+            Some("minecraft:air")
+        );
+        assert_eq!(super::replace_block_result("minecraft:stone", &[]), None);
         assert_eq!(
             super::feature_size_type("two_layers_feature_size"),
             Some("minecraft:two_layers_feature_size")
