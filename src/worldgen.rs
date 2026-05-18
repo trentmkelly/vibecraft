@@ -7092,6 +7092,55 @@ pub fn structure_piece_maybe_generate_block(
         .flatten()
 }
 
+pub fn structure_piece_generate_upper_half_sphere(
+    bounding_box: StructureBoundingBoxModel,
+    orientation: Option<HorizontalDirection>,
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max: BlockPos,
+    fill_block: &'static str,
+    skip_air: bool,
+    mut is_existing_air: impl FnMut(BlockPos) -> bool,
+) -> Vec<StructurePiecePlacementBlock> {
+    let diag_x = (max.x - min.x + 1) as f32;
+    let diag_y = (max.y - min.y + 1) as f32;
+    let diag_z = (max.z - min.z + 1) as f32;
+    let center_x = min.x as f32 + diag_x / 2.0;
+    let center_z = min.z as f32 + diag_z / 2.0;
+    let mut blocks = Vec::new();
+
+    for y in min.y..=max.y {
+        let normalized_y = (y - min.y) as f32 / diag_y;
+        for x in min.x..=max.x {
+            let normalized_x = (x as f32 - center_x) / (diag_x * 0.5);
+            for z in min.z..=max.z {
+                let normalized_z = (z as f32 - center_z) / (diag_z * 0.5);
+                let local_pos = BlockPos { x, y, z };
+                let world_pos = structure_piece_world_pos(bounding_box, orientation, x, y, z);
+                if skip_air && is_existing_air(world_pos) {
+                    continue;
+                }
+                let dist = normalized_x * normalized_x
+                    + normalized_y * normalized_y
+                    + normalized_z * normalized_z;
+                if dist <= 1.05 {
+                    if let Some(block) = structure_piece_place_block(
+                        bounding_box,
+                        orientation,
+                        chunk_bb,
+                        local_pos,
+                        fill_block,
+                        false,
+                    ) {
+                        blocks.push(block);
+                    }
+                }
+            }
+        }
+    }
+    blocks
+}
+
 impl TerrainAdjustmentModel {
     pub fn id(self) -> &'static str {
         match self {
@@ -18016,6 +18065,82 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn structure_piece_upper_half_sphere_matches_vanilla_shape_and_clipping() {
+        let bounding_box = super::StructureBoundingBoxModel {
+            min_x: 10,
+            min_y: 20,
+            min_z: 30,
+            max_x: 20,
+            max_y: 30,
+            max_z: 40,
+        };
+        let full_chunk = super::StructureBoundingBoxModel {
+            min_x: 10,
+            min_y: 20,
+            min_z: 30,
+            max_x: 20,
+            max_y: 30,
+            max_z: 40,
+        };
+        let blocks = super::structure_piece_generate_upper_half_sphere(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            full_chunk,
+            BlockPos { x: 0, y: 0, z: 0 },
+            BlockPos { x: 4, y: 4, z: 4 },
+            "minecraft:smooth_sandstone",
+            false,
+            |_| false,
+        );
+
+        assert_eq!(blocks.len(), 76);
+        assert!(blocks.iter().any(|block| {
+            block.local_pos == BlockPos { x: 2, y: 0, z: 2 }
+                && block.world_pos
+                    == BlockPos {
+                        x: 12,
+                        y: 20,
+                        z: 32,
+                    }
+        }));
+        assert!(!blocks
+            .iter()
+            .any(|block| block.local_pos == BlockPos { x: 0, y: 0, z: 0 }));
+        assert!(blocks
+            .iter()
+            .all(|block| block.state == "minecraft:smooth_sandstone" && !block.edge));
+
+        let clipped_chunk = super::StructureBoundingBoxModel {
+            min_x: 12,
+            min_y: 20,
+            min_z: 32,
+            max_x: 14,
+            max_y: 24,
+            max_z: 34,
+        };
+        let skipped = BlockPos {
+            x: 12,
+            y: 20,
+            z: 32,
+        };
+        let clipped = super::structure_piece_generate_upper_half_sphere(
+            bounding_box,
+            Some(super::HorizontalDirection::South),
+            clipped_chunk,
+            BlockPos { x: 0, y: 0, z: 0 },
+            BlockPos { x: 4, y: 4, z: 4 },
+            "minecraft:smooth_sandstone",
+            true,
+            |world_pos| world_pos == skipped,
+        );
+        assert!(clipped.len() < blocks.len());
+        assert!(clipped
+            .iter()
+            .all(|block| clipped_chunk.is_inside(block.world_pos)));
+        assert!(!clipped.iter().any(|block| block.world_pos == skipped));
     }
 
     #[test]
