@@ -685,6 +685,19 @@ pub struct TargetBlockStateModel {
     pub state: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct OreConfigurationModel {
+    pub target_states: Vec<TargetBlockStateModel>,
+    pub size: i32,
+    pub discard_chance_on_air_exposure: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScatteredOreAttempt {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockPileConfigurationModel {
     pub state_provider: BlockStateProviderModel,
@@ -7093,6 +7106,68 @@ pub fn rule_test_matches(test: RuleTestModel, block: &str) -> bool {
     }
 }
 
+pub fn ore_should_skip_air_check(discard_chance_on_air_exposure: f32, random_roll: f32) -> bool {
+    if discard_chance_on_air_exposure <= 0.0 {
+        true
+    } else if discard_chance_on_air_exposure >= 1.0 {
+        false
+    } else {
+        random_roll >= discard_chance_on_air_exposure
+    }
+}
+
+pub fn ore_can_place(
+    current_block: &'static str,
+    adjacent_to_air: bool,
+    config: &OreConfigurationModel,
+    target: TargetBlockStateModel,
+    random_roll: f32,
+) -> bool {
+    rule_test_matches(target.target, current_block)
+        && (ore_should_skip_air_check(config.discard_chance_on_air_exposure, random_roll)
+            || !adjacent_to_air)
+}
+
+pub fn scattered_ore_offset(
+    origin: BlockPos,
+    try_index: i32,
+    axis_rolls: [(f32, f32); 3],
+) -> BlockPos {
+    let max_distance = try_index.min(7);
+    let axis =
+        |(first, second): (f32, f32)| ((first - second) * max_distance as f32).round() as i32;
+    BlockPos {
+        x: origin.x + axis(axis_rolls[0]),
+        y: origin.y + axis(axis_rolls[1]),
+        z: origin.z + axis(axis_rolls[2]),
+    }
+}
+
+pub fn scattered_ore_attempt(
+    origin: BlockPos,
+    try_index: i32,
+    axis_rolls: [(f32, f32); 3],
+    current_block: &'static str,
+    adjacent_to_air: bool,
+    config: &OreConfigurationModel,
+    air_check_roll: f32,
+) -> Option<ScatteredOreAttempt> {
+    let pos = scattered_ore_offset(origin, try_index, axis_rolls);
+    config.target_states.iter().copied().find_map(|target| {
+        ore_can_place(
+            current_block,
+            adjacent_to_air,
+            config,
+            target,
+            air_check_roll,
+        )
+        .then_some(ScatteredOreAttempt {
+            pos,
+            state: target.state,
+        })
+    })
+}
+
 pub fn block_pile_placement_candidates(
     origin: BlockPos,
     min_y: i32,
@@ -10533,6 +10608,80 @@ mod tests {
             Some("minecraft:air")
         );
         assert_eq!(super::replace_block_result("minecraft:stone", &[]), None);
+
+        let ore_config = super::OreConfigurationModel {
+            target_states: vec![super::TargetBlockStateModel {
+                target: super::RuleTestModel::BlockMatch("minecraft:stone"),
+                state: "minecraft:iron_ore",
+            }],
+            size: 9,
+            discard_chance_on_air_exposure: 0.5,
+        };
+        let ore_target = ore_config.target_states[0];
+        assert!(super::ore_should_skip_air_check(0.0, 0.0));
+        assert!(!super::ore_should_skip_air_check(1.0, 1.0));
+        assert!(!super::ore_should_skip_air_check(0.5, 0.49));
+        assert!(super::ore_should_skip_air_check(0.5, 0.5));
+        assert!(super::ore_can_place(
+            "minecraft:stone",
+            false,
+            &ore_config,
+            ore_target,
+            0.0,
+        ));
+        assert!(!super::ore_can_place(
+            "minecraft:dirt",
+            false,
+            &ore_config,
+            ore_target,
+            1.0,
+        ));
+        assert!(!super::ore_can_place(
+            "minecraft:stone",
+            true,
+            &ore_config,
+            ore_target,
+            0.0,
+        ));
+        assert_eq!(
+            super::scattered_ore_offset(
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 30
+                },
+                9,
+                [(1.0, 0.0), (0.0, 1.0), (0.75, 0.25)],
+            ),
+            BlockPos {
+                x: 17,
+                y: 13,
+                z: 34,
+            }
+        );
+        assert_eq!(
+            super::scattered_ore_attempt(
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 30
+                },
+                2,
+                [(1.0, 0.0), (0.0, 1.0), (0.5, 0.5)],
+                "minecraft:stone",
+                false,
+                &ore_config,
+                0.0,
+            ),
+            Some(super::ScatteredOreAttempt {
+                pos: BlockPos {
+                    x: 12,
+                    y: 18,
+                    z: 30,
+                },
+                state: "minecraft:iron_ore",
+            })
+        );
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
