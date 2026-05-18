@@ -4290,7 +4290,28 @@ mod tests {
             .iter()
             .map(|pattern| pattern.id.to_string())
             .collect();
-        assert!(presentation_banner_patterns.is_subset(&status_banner_patterns));
+        assert_eq!(status_banner_patterns, presentation_banner_patterns);
+        let status_tag_names: BTreeSet<String> = BANNER_PATTERN_TAGS
+            .iter()
+            .map(|(tag, _)| tag.to_string())
+            .collect();
+        let expected_banner_pattern_tags: BTreeSet<String> = [
+            "minecraft:no_item_required",
+            "minecraft:pattern_item/flower",
+            "minecraft:pattern_item/creeper",
+            "minecraft:pattern_item/skull",
+            "minecraft:pattern_item/mojang",
+            "minecraft:pattern_item/globe",
+            "minecraft:pattern_item/piglin",
+            "minecraft:pattern_item/flow",
+            "minecraft:pattern_item/guster",
+            "minecraft:pattern_item/field_masoned",
+            "minecraft:pattern_item/bordure_indented",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert_eq!(status_tag_names, expected_banner_pattern_tags);
     }
 
     #[test]
