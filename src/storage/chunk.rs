@@ -54,6 +54,14 @@ pub struct ChunkStatusEntry {
     pub heightmaps_after: &'static [HeightmapKind],
     pub task: ChunkStatusTaskKind,
     pub region_dependencies: i32,
+    pub requirements: &'static [ChunkStatusRequirement],
+    pub block_state_write_radius: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkStatusRequirement {
+    pub status: &'static str,
+    pub radius: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,6 +99,44 @@ pub const FINAL_HEIGHTMAPS: &[HeightmapKind] = &[
     HeightmapKind::MotionBlockingNoLeaves,
 ];
 
+pub const NO_REQUIREMENTS: &[ChunkStatusRequirement] = &[];
+pub const STRUCTURE_STARTS_DISTANCE_8_REQUIREMENT: &[ChunkStatusRequirement] =
+    &[ChunkStatusRequirement {
+        status: "minecraft:structure_starts",
+        radius: 8,
+    }];
+pub const STRUCTURE_STARTS_DISTANCE_8_AND_BIOMES_DISTANCE_1_REQUIREMENTS:
+    &[ChunkStatusRequirement] = &[
+    ChunkStatusRequirement {
+        status: "minecraft:structure_starts",
+        radius: 8,
+    },
+    ChunkStatusRequirement {
+        status: "minecraft:biomes",
+        radius: 1,
+    },
+];
+pub const STRUCTURE_STARTS_DISTANCE_8_AND_CARVERS_DISTANCE_1_REQUIREMENTS:
+    &[ChunkStatusRequirement] = &[
+    ChunkStatusRequirement {
+        status: "minecraft:structure_starts",
+        radius: 8,
+    },
+    ChunkStatusRequirement {
+        status: "minecraft:carvers",
+        radius: 1,
+    },
+];
+pub const INITIALIZE_LIGHT_DISTANCE_1_REQUIREMENT: &[ChunkStatusRequirement] =
+    &[ChunkStatusRequirement {
+        status: "minecraft:initialize_light",
+        radius: 1,
+    }];
+pub const BIOMES_DISTANCE_1_REQUIREMENT: &[ChunkStatusRequirement] = &[ChunkStatusRequirement {
+    status: "minecraft:biomes",
+    radius: 1,
+}];
+
 pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
     status_entry(
         "minecraft:empty",
@@ -99,6 +145,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
         ChunkStatusTaskKind::PassThrough,
+        0,
+        NO_REQUIREMENTS,
         0,
     ),
     status_entry(
@@ -109,6 +157,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         WORLDGEN_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateStructureStarts,
         0,
+        NO_REQUIREMENTS,
+        0,
     ),
     status_entry(
         "minecraft:structure_references",
@@ -118,6 +168,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         WORLDGEN_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateStructureReferences,
         8,
+        STRUCTURE_STARTS_DISTANCE_8_REQUIREMENT,
+        0,
     ),
     status_entry(
         "minecraft:biomes",
@@ -126,7 +178,9 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateBiomes,
-        1,
+        8,
+        STRUCTURE_STARTS_DISTANCE_8_REQUIREMENT,
+        0,
     ),
     status_entry(
         "minecraft:noise",
@@ -135,7 +189,9 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateNoise,
-        1,
+        8,
+        STRUCTURE_STARTS_DISTANCE_8_AND_BIOMES_DISTANCE_1_REQUIREMENTS,
+        0,
     ),
     status_entry(
         "minecraft:surface",
@@ -144,7 +200,9 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::ProtoChunk,
         WORLDGEN_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateSurface,
-        1,
+        8,
+        STRUCTURE_STARTS_DISTANCE_8_AND_BIOMES_DISTANCE_1_REQUIREMENTS,
+        0,
     ),
     status_entry(
         "minecraft:carvers",
@@ -153,7 +211,9 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateCarvers,
-        1,
+        8,
+        STRUCTURE_STARTS_DISTANCE_8_REQUIREMENT,
+        0,
     ),
     status_entry(
         "minecraft:features",
@@ -162,6 +222,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::ProtoChunk,
         FINAL_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateFeatures,
+        8,
+        STRUCTURE_STARTS_DISTANCE_8_AND_CARVERS_DISTANCE_1_REQUIREMENTS,
         1,
     ),
     status_entry(
@@ -172,6 +234,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         FINAL_HEIGHTMAPS,
         ChunkStatusTaskKind::InitializeLight,
         1,
+        NO_REQUIREMENTS,
+        0,
     ),
     status_entry(
         "minecraft:light",
@@ -181,6 +245,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         FINAL_HEIGHTMAPS,
         ChunkStatusTaskKind::Light,
         1,
+        INITIALIZE_LIGHT_DISTANCE_1_REQUIREMENT,
+        0,
     ),
     status_entry(
         "minecraft:spawn",
@@ -190,6 +256,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         FINAL_HEIGHTMAPS,
         ChunkStatusTaskKind::GenerateSpawn,
         1,
+        BIOMES_DISTANCE_1_REQUIREMENT,
+        0,
     ),
     status_entry(
         "minecraft:full",
@@ -198,6 +266,8 @@ pub const CHUNK_STATUS_PIPELINE: &[ChunkStatusEntry] = &[
         ChunkType::LevelChunk,
         FINAL_HEIGHTMAPS,
         ChunkStatusTaskKind::Full,
+        0,
+        NO_REQUIREMENTS,
         0,
     ),
 ];
@@ -210,6 +280,8 @@ const fn status_entry(
     heightmaps_after: &'static [HeightmapKind],
     task: ChunkStatusTaskKind,
     region_dependencies: i32,
+    requirements: &'static [ChunkStatusRequirement],
+    block_state_write_radius: i32,
 ) -> ChunkStatusEntry {
     ChunkStatusEntry {
         id,
@@ -219,6 +291,8 @@ const fn status_entry(
         heightmaps_after,
         task,
         region_dependencies,
+        requirements,
+        block_state_write_radius,
     }
 }
 
@@ -677,12 +751,42 @@ mod tests {
             8
         );
         assert_eq!(
+            chunk_status("structure_references").unwrap().requirements,
+            super::STRUCTURE_STARTS_DISTANCE_8_REQUIREMENT
+        );
+        assert_eq!(
             chunk_status("biomes").unwrap().task,
             ChunkStatusTaskKind::GenerateBiomes
         );
+        assert_eq!(chunk_status("biomes").unwrap().region_dependencies, 8);
+        assert_eq!(
+            chunk_status("biomes").unwrap().requirements,
+            super::STRUCTURE_STARTS_DISTANCE_8_REQUIREMENT
+        );
+        assert_eq!(
+            chunk_status("noise").unwrap().requirements,
+            super::STRUCTURE_STARTS_DISTANCE_8_AND_BIOMES_DISTANCE_1_REQUIREMENTS
+        );
+        assert_eq!(chunk_status("noise").unwrap().block_state_write_radius, 0);
         assert_eq!(
             chunk_status("features").unwrap().task,
             ChunkStatusTaskKind::GenerateFeatures
+        );
+        assert_eq!(
+            chunk_status("features").unwrap().requirements,
+            super::STRUCTURE_STARTS_DISTANCE_8_AND_CARVERS_DISTANCE_1_REQUIREMENTS
+        );
+        assert_eq!(
+            chunk_status("features").unwrap().block_state_write_radius,
+            1
+        );
+        assert_eq!(
+            chunk_status("light").unwrap().requirements,
+            super::INITIALIZE_LIGHT_DISTANCE_1_REQUIREMENT
+        );
+        assert_eq!(
+            chunk_status("spawn").unwrap().requirements,
+            super::BIOMES_DISTANCE_1_REQUIREMENT
         );
         assert_eq!(
             chunk_status("full").unwrap().task,
