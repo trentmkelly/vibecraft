@@ -407,9 +407,9 @@ mod tests {
                 ("height_provider", 6, 6, 0x7703_bfeb_40d0_6186),
                 ("material_rule", 4, 11, 0x7094_bb91_9777_7c3a),
                 ("placement_modifier", 9, 9, 0xb7be_3703_8b30_0f4f),
-                ("preset", 21, 3, 0x4ae2_8776_d1d0_c81f),
+                ("preset", 21, 3, 0x950d_dea0_8cd8_0621),
                 ("structure", 77, 56, 0x4ce0_499c_e60f_f4bb),
-                ("synth_noise", 62, 40, 0xcb94_13d2_e01a_94cc),
+                ("synth_noise", 63, 40, 0xcb94_13d2_e01a_94cc),
             ]
         );
     }

@@ -2853,6 +2853,15 @@ pub enum DensityFunction {
         xz_scale: f64,
         y_scale: f64,
     },
+    ShiftA {
+        noise: &'static str,
+    },
+    ShiftB {
+        noise: &'static str,
+    },
+    Shift {
+        noise: &'static str,
+    },
     ShiftedNoise {
         shift_x: &'static DensityFunction,
         shift_y: &'static DensityFunction,
@@ -3030,6 +3039,11 @@ pub const NORMAL_NOISE_PARAMETERS: &[NormalNoiseParameters] = &[
     },
     NormalNoiseParameters {
         id: "minecraft:offset",
+        first_octave: -3,
+        amplitudes: &[1.0, 1.0, 1.0, 0.0],
+    },
+    NormalNoiseParameters {
+        id: "minecraft:shift",
         first_octave: -3,
         amplitudes: &[1.0, 1.0, 1.0, 0.0],
     },
@@ -4727,10 +4741,8 @@ pub const SHIFT_X_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
     input: &SHIFT_A_DENSITY,
 };
-pub const SHIFT_A_DENSITY: DensityFunction = DensityFunction::Noise {
+pub const SHIFT_A_DENSITY: DensityFunction = DensityFunction::ShiftA {
     noise: "minecraft:shift",
-    xz_scale: 0.25,
-    y_scale: 0.0,
 };
 pub const SHIFT_Z_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
@@ -4740,10 +4752,8 @@ pub const SHIFT_Z_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::Cache2D,
     input: &SHIFT_B_DENSITY,
 };
-pub const SHIFT_B_DENSITY: DensityFunction = DensityFunction::Noise {
+pub const SHIFT_B_DENSITY: DensityFunction = DensityFunction::ShiftB {
     noise: "minecraft:shift",
-    xz_scale: 0.25,
-    y_scale: 0.0,
 };
 pub const BASE_3D_NOISE_OVERWORLD_DENSITY: DensityFunction = DensityFunction::BlendedNoise {
     xz_scale: 0.25,
@@ -19475,6 +19485,9 @@ impl DensityFunction {
             DensityFunction::BlendAlpha => 1.0,
             DensityFunction::BlendOffset => 0.0,
             DensityFunction::Noise { .. }
+            | DensityFunction::ShiftA { .. }
+            | DensityFunction::ShiftB { .. }
+            | DensityFunction::Shift { .. }
             | DensityFunction::ShiftedNoise { .. }
             | DensityFunction::BlendedNoise { .. }
             | DensityFunction::EndIslands { .. }
@@ -19561,6 +19574,30 @@ impl DensityFunction {
                     )
                 })
                 .unwrap_or(0.0),
+            DensityFunction::ShiftA { noise } => density_shift_noise_sample(
+                seed,
+                settings,
+                noise,
+                f64::from(block_x),
+                0.0,
+                f64::from(block_z),
+            ),
+            DensityFunction::ShiftB { noise } => density_shift_noise_sample(
+                seed,
+                settings,
+                noise,
+                f64::from(block_z),
+                f64::from(block_x),
+                0.0,
+            ),
+            DensityFunction::Shift { noise } => density_shift_noise_sample(
+                seed,
+                settings,
+                noise,
+                f64::from(block_x),
+                f64::from(block_y),
+                f64::from(block_z),
+            ),
             DensityFunction::ShiftedNoise {
                 shift_x,
                 shift_y,
@@ -19661,6 +19698,9 @@ impl DensityFunction {
             DensityFunction::RangeChoice { .. } => "range_choice",
             DensityFunction::Marker { kind, .. } => kind.serialized_name(),
             DensityFunction::Noise { .. } => "noise",
+            DensityFunction::ShiftA { .. } => "shift_a",
+            DensityFunction::ShiftB { .. } => "shift_b",
+            DensityFunction::Shift { .. } => "shift",
             DensityFunction::ShiftedNoise { .. } => "shifted_noise",
             DensityFunction::BlendedNoise { .. } => "old_blended_noise",
             DensityFunction::EndIslands { .. } => "end_islands",
@@ -19732,6 +19772,11 @@ impl DensityFunction {
             DensityFunction::Noise { noise, .. } | DensityFunction::ShiftedNoise { noise, .. } => {
                 normal_noise_value_bounds(noise).unwrap_or((f64::NEG_INFINITY, f64::INFINITY))
             }
+            DensityFunction::ShiftA { noise }
+            | DensityFunction::ShiftB { noise }
+            | DensityFunction::Shift { noise } => normal_noise_value_bounds(noise)
+                .map(|(min, max)| (min * 4.0, max * 4.0))
+                .unwrap_or((f64::NEG_INFINITY, f64::INFINITY)),
             DensityFunction::BlendedNoise { .. } | DensityFunction::Spline => {
                 (f64::NEG_INFINITY, f64::INFINITY)
             }
@@ -20101,6 +20146,21 @@ pub fn normal_noise_value_bounds(id: &str) -> Option<(f64, f64)> {
         let max_value = normal_noise_max_value(*parameters);
         (-max_value, max_value)
     })
+}
+
+pub fn density_shift_noise_sample(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    noise: &str,
+    local_x: f64,
+    local_y: f64,
+    local_z: f64,
+) -> f64 {
+    random_state_normal_noise_snapshot(seed, settings, noise)
+        .map(|snapshot| {
+            normal_noise_sample(&snapshot, local_x * 0.25, local_y * 0.25, local_z * 0.25) * 4.0
+        })
+        .unwrap_or(0.0)
 }
 
 pub fn normal_noise_non_zero_octaves(parameters: NormalNoiseParameters) -> Vec<i32> {
@@ -24999,7 +25059,7 @@ mod tests {
                 "minecraft:blended_noise",
             ]
         );
-        assert_eq!(NORMAL_NOISE_PARAMETERS.len(), 62);
+        assert_eq!(NORMAL_NOISE_PARAMETERS.len(), 63);
         assert_eq!(NORMAL_NOISE_INPUT_FACTOR, 1.0181268882175227);
         assert_eq!(NORMAL_NOISE_TARGET_DEVIATION, 1.0 / 3.0);
 
@@ -25008,7 +25068,7 @@ mod tests {
             .map(|entry| entry.id)
             .collect::<Vec<_>>();
         assert_eq!(
-            &ids[..12],
+            &ids[..13],
             &[
                 "minecraft:temperature",
                 "minecraft:vegetation",
@@ -25022,6 +25082,7 @@ mod tests {
                 "minecraft:nether/vegetation",
                 "minecraft:ridge",
                 "minecraft:offset",
+                "minecraft:shift",
             ]
         );
         assert_eq!(
@@ -26801,6 +26862,14 @@ mod tests {
         assert_eq!(BinaryDensityFunction::Mul.apply(-2.0, 3.0), -6.0);
         assert_eq!(BinaryDensityFunction::Min.apply(-2.0, 3.0), -2.0);
         assert_eq!(BinaryDensityFunction::Max.apply(-2.0, 3.0), 3.0);
+        assert_eq!(super::SHIFT_A_DENSITY.type_name(), "shift_a");
+        assert_eq!(super::SHIFT_B_DENSITY.type_name(), "shift_b");
+        let shift_bounds = super::SHIFT_A_DENSITY.value_bounds();
+        let shift_noise_bounds = super::normal_noise_value_bounds("minecraft:shift").unwrap();
+        assert_eq!(
+            shift_bounds,
+            (shift_noise_bounds.0 * 4.0, shift_noise_bounds.1 * 4.0)
+        );
         assert_eq!(
             BinaryDensityFunction::Mul.apply_lazy(0.0, (3.0, 3.0), || panic!(
                 "mul should skip zero second argument"
@@ -26935,9 +27004,24 @@ mod tests {
         let noise_value = noise.compute_with_noise(12345, overworld, 16, 64, -32);
         let shifted_value = shifted.compute_with_noise(12345, overworld, 16, 64, -32);
         let weird_value = weird.compute_with_noise(12345, overworld, 16, 64, -32);
+        let shift_a_value =
+            super::SHIFT_A_DENSITY.compute_with_noise(12345, overworld, 16, 64, -32);
         assert!((noise_value - -0.02846337681055331).abs() < 1e-12);
-        assert!((shifted_value - -0.02846337681055331).abs() < 1e-12);
+        assert!((shifted_value - -0.025431380181795832).abs() < 1e-12);
         assert!((weird_value - 0.5833159524778098).abs() < 1e-12);
+        assert!(
+            (shift_a_value
+                - super::density_shift_noise_sample(
+                    12345,
+                    overworld,
+                    "minecraft:shift",
+                    16.0,
+                    0.0,
+                    -32.0,
+                ))
+            .abs()
+                < 1e-12
+        );
 
         assert_eq!(super::RarityValueMapper::Type1.map_value(-0.75), 0.75);
         assert_eq!(super::RarityValueMapper::Type1.map_value(0.25), 1.5);
