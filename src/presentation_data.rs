@@ -1409,12 +1409,56 @@ mod tests {
     #[test]
     fn trim_materials_and_patterns_expose_bootstrap_assets() {
         assert_eq!(TRIM_MATERIALS.len(), 11);
+        let trim_materials: Vec<(&str, u32, &str)> = TRIM_MATERIALS
+            .iter()
+            .map(|material| (material.id, material.color, material.asset_group))
+            .collect();
+        assert_eq!(
+            trim_materials,
+            [
+                ("minecraft:quartz", 14931140, "quartz"),
+                ("minecraft:iron", 15527148, "iron"),
+                ("minecraft:netherite", 6445145, "netherite"),
+                ("minecraft:redstone", 9901575, "redstone"),
+                ("minecraft:copper", 11823181, "copper"),
+                ("minecraft:gold", 14594349, "gold"),
+                ("minecraft:emerald", 1155126, "emerald"),
+                ("minecraft:diamond", 7269586, "diamond"),
+                ("minecraft:lapis", 4288151, "lapis"),
+                ("minecraft:amethyst", 10116294, "amethyst"),
+                ("minecraft:resin", 16545810, "resin"),
+            ]
+        );
         assert!(TRIM_MATERIALS.iter().any(|material| {
             material.id == "minecraft:resin"
                 && material.color == 16545810
                 && material.asset_group == "resin"
         }));
         assert_eq!(TRIM_PATTERNS.len(), 18);
+        let trim_patterns: Vec<&str> = TRIM_PATTERNS.iter().map(|pattern| pattern.id).collect();
+        assert_eq!(
+            trim_patterns,
+            [
+                "minecraft:sentry",
+                "minecraft:dune",
+                "minecraft:coast",
+                "minecraft:wild",
+                "minecraft:ward",
+                "minecraft:eye",
+                "minecraft:vex",
+                "minecraft:tide",
+                "minecraft:snout",
+                "minecraft:rib",
+                "minecraft:spire",
+                "minecraft:wayfinder",
+                "minecraft:shaper",
+                "minecraft:silence",
+                "minecraft:raiser",
+                "minecraft:host",
+                "minecraft:flow",
+                "minecraft:bolt",
+            ]
+        );
         assert!(TRIM_PATTERNS.iter().all(|pattern| !pattern.decal));
         assert!(TRIM_PATTERNS
             .iter()
