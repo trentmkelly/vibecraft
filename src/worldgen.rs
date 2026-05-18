@@ -976,6 +976,28 @@ pub struct MonsterRoomBounds {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonsterRoomRadii {
+    pub x_radius: i32,
+    pub z_radius: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonsterRoomProbe {
+    pub dx: i32,
+    pub dy: i32,
+    pub dz: i32,
+    pub solid: bool,
+    pub empty: bool,
+    pub above_empty: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonsterRoomShellBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructureSetEntry {
     pub id: &'static str,
     pub structures: &'static [&'static str],
@@ -8442,6 +8464,96 @@ pub fn monster_room_opening_count_is_valid(openings: i32) -> bool {
     openings >= MONSTER_ROOM_BOUNDS.min_openings && openings <= MONSTER_ROOM_BOUNDS.max_openings
 }
 
+pub fn monster_room_radii(x_roll: i32, z_roll: i32) -> MonsterRoomRadii {
+    MonsterRoomRadii {
+        x_radius: x_roll.rem_euclid(2) + 2,
+        z_radius: z_roll.rem_euclid(2) + 2,
+    }
+}
+
+pub fn monster_room_bounds_for_radius(radius: i32) -> (i32, i32) {
+    (-radius - 1, radius + 1)
+}
+
+pub fn monster_room_opening_count(
+    radii: MonsterRoomRadii,
+    probes: &[MonsterRoomProbe],
+) -> Option<i32> {
+    let (min_x, max_x) = monster_room_bounds_for_radius(radii.x_radius);
+    let (min_z, max_z) = monster_room_bounds_for_radius(radii.z_radius);
+    let mut openings = 0;
+    for probe in probes {
+        if probe.dy == MONSTER_ROOM_BOUNDS.min_y && !probe.solid {
+            return None;
+        }
+        if probe.dy == MONSTER_ROOM_BOUNDS.max_y && !probe.solid {
+            return None;
+        }
+        if (probe.dx == min_x || probe.dx == max_x || probe.dz == min_z || probe.dz == max_z)
+            && probe.dy == 0
+            && probe.empty
+            && probe.above_empty
+        {
+            openings += 1;
+        }
+    }
+    Some(openings)
+}
+
+pub fn monster_room_can_place(radii: MonsterRoomRadii, probes: &[MonsterRoomProbe]) -> bool {
+    monster_room_opening_count(radii, probes).is_some_and(monster_room_opening_count_is_valid)
+}
+
+pub fn monster_room_shell_state(
+    dx: i32,
+    dy: i32,
+    dz: i32,
+    radii: MonsterRoomRadii,
+    y: i32,
+    below_solid: bool,
+    current_solid: bool,
+    current_is_chest: bool,
+    mossy_roll: i32,
+) -> Option<&'static str> {
+    let (min_x, max_x) = monster_room_bounds_for_radius(radii.x_radius);
+    let (min_z, max_z) = monster_room_bounds_for_radius(radii.z_radius);
+    let boundary = dx == min_x
+        || dy == MONSTER_ROOM_BOUNDS.min_y
+        || dz == min_z
+        || dx == max_x
+        || dy == MONSTER_ROOM_BOUNDS.max_y
+        || dz == max_z;
+    if boundary {
+        if y >= 0 && !below_solid {
+            Some("minecraft:cave_air")
+        } else if current_solid && !current_is_chest {
+            if dy == MONSTER_ROOM_BOUNDS.min_y && mossy_roll.rem_euclid(4) != 0 {
+                Some("minecraft:mossy_cobblestone")
+            } else {
+                Some("minecraft:cobblestone")
+            }
+        } else {
+            None
+        }
+    } else if !current_is_chest {
+        Some("minecraft:cave_air")
+    } else {
+        None
+    }
+}
+
+pub fn monster_room_chest_can_place(empty: bool, horizontal_solid_neighbors: i32) -> bool {
+    empty && horizontal_solid_neighbors == 1
+}
+
+pub fn monster_room_spawner_mob(mob_roll: i32) -> &'static str {
+    match mob_roll.rem_euclid(4) {
+        0 => "minecraft:skeleton",
+        1 | 2 => "minecraft:zombie",
+        _ => "minecraft:spider",
+    }
+}
+
 pub fn ore_vein_sphere_is_shadowed(radius_delta: f64, dx: f64, dy: f64, dz: f64) -> bool {
     radius_delta * radius_delta > dx * dx + dy * dy + dz * dz
 }
@@ -12037,6 +12149,79 @@ mod tests {
         assert!(super::monster_room_opening_count_is_valid(1));
         assert!(super::monster_room_opening_count_is_valid(5));
         assert!(!super::monster_room_opening_count_is_valid(6));
+        let room_radii = super::monster_room_radii(0, 1);
+        assert_eq!(
+            room_radii,
+            super::MonsterRoomRadii {
+                x_radius: 2,
+                z_radius: 3,
+            }
+        );
+        assert_eq!(
+            super::monster_room_bounds_for_radius(room_radii.x_radius),
+            (-3, 3)
+        );
+        let probes = [
+            super::MonsterRoomProbe {
+                dx: 0,
+                dy: -1,
+                dz: 0,
+                solid: true,
+                empty: false,
+                above_empty: false,
+            },
+            super::MonsterRoomProbe {
+                dx: 0,
+                dy: 4,
+                dz: 0,
+                solid: true,
+                empty: false,
+                above_empty: false,
+            },
+            super::MonsterRoomProbe {
+                dx: -3,
+                dy: 0,
+                dz: 0,
+                solid: false,
+                empty: true,
+                above_empty: true,
+            },
+        ];
+        assert_eq!(
+            super::monster_room_opening_count(room_radii, &probes),
+            Some(1)
+        );
+        assert!(super::monster_room_can_place(room_radii, &probes));
+        let invalid_floor = [super::MonsterRoomProbe {
+            dx: 0,
+            dy: -1,
+            dz: 0,
+            solid: false,
+            empty: true,
+            above_empty: true,
+        }];
+        assert_eq!(
+            super::monster_room_opening_count(room_radii, &invalid_floor),
+            None
+        );
+        assert_eq!(
+            super::monster_room_shell_state(-3, -1, 0, room_radii, 31, true, true, false, 1),
+            Some("minecraft:mossy_cobblestone")
+        );
+        assert_eq!(
+            super::monster_room_shell_state(-3, 0, 0, room_radii, 32, false, true, false, 0),
+            Some("minecraft:cave_air")
+        );
+        assert_eq!(
+            super::monster_room_shell_state(0, 0, 0, room_radii, 32, true, true, false, 0),
+            Some("minecraft:cave_air")
+        );
+        assert!(super::monster_room_chest_can_place(true, 1));
+        assert!(!super::monster_room_chest_can_place(true, 2));
+        assert_eq!(super::monster_room_spawner_mob(0), "minecraft:skeleton");
+        assert_eq!(super::monster_room_spawner_mob(1), "minecraft:zombie");
+        assert_eq!(super::monster_room_spawner_mob(2), "minecraft:zombie");
+        assert_eq!(super::monster_room_spawner_mob(3), "minecraft:spider");
         assert!(super::ore_vein_sphere_is_shadowed(3.0, 1.0, 1.0, 1.0));
         assert!(!super::ore_vein_sphere_is_shadowed(1.0, 2.0, 0.0, 0.0));
     }
