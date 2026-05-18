@@ -12,9 +12,7 @@ use std::time::{Duration, Instant};
 
 use crate::console::ConsoleInput;
 use crate::network::codec::ComponentJson;
-use crate::network::codec::{
-    write_bitset, write_identifier, write_nbt, write_optional, write_uuid, Uuid,
-};
+use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
 use crate::network::common::ClientboundDisconnectPacket;
 use crate::network::compression::CompressionState;
 use crate::network::login::{
@@ -84,9 +82,8 @@ const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
 const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
 const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
-const SPAWN_CHUNK_BATCH_RADIUS: i32 = 2;
-const SPAWN_CHUNK_BATCH_SIZE: i32 =
-    (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1) * (SPAWN_CHUNK_BATCH_RADIUS * 2 + 1);
+const MIN_CHUNK_BATCH_RADIUS: i32 = 2;
+const MAX_CHUNK_BATCH_RADIUS: i32 = 16;
 const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
     "ban",
     "deop",
@@ -1287,7 +1284,8 @@ fn handle_login_connection(
     )?;
     let mut current_chunk_x = chunk_coordinate(play_state.x);
     let mut current_chunk_z = chunk_coordinate(play_state.z);
-    let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z);
+    let chunk_batch_radius = chunk_batch_radius(properties);
+    let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
@@ -1310,7 +1308,8 @@ fn handle_login_connection(
                     let next_chunk_x = chunk_coordinate(play_state.x);
                     let next_chunk_z = chunk_coordinate(play_state.z);
                     if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
-                        let next_loaded_chunks = chunk_window(next_chunk_x, next_chunk_z);
+                        let next_loaded_chunks =
+                            chunk_window(next_chunk_x, next_chunk_z, chunk_batch_radius);
                         for stale_chunk in loaded_chunks.difference(&next_loaded_chunks) {
                             write_forget_level_chunk_packet(
                                 stream,
@@ -1319,14 +1318,16 @@ fn handle_login_connection(
                                 stale_chunk.1,
                             )?;
                         }
+                        let chunks_to_send = newly_visible_chunks(&loaded_chunks, &next_loaded_chunks);
                         current_chunk_x = next_chunk_x;
                         current_chunk_z = next_chunk_z;
                         loaded_chunks = next_loaded_chunks;
-                        write_play_chunk_batch(
+                        write_play_chunk_delta(
                             stream,
                             compression,
                             current_chunk_x,
                             current_chunk_z,
+                            &chunks_to_send,
                             true,
                         )?;
                     }
@@ -1914,7 +1915,14 @@ fn write_minimal_play_join(
         },
     )?;
     delay_initial_chunk_batch_for_probe(stream, compression)?;
-    write_play_chunk_batch(stream, compression, center_chunk_x, center_chunk_z, false)
+    write_play_chunk_batch(
+        stream,
+        compression,
+        center_chunk_x,
+        center_chunk_z,
+        chunk_batch_radius(properties),
+        false,
+    )
 }
 
 fn write_play_chunk_batch(
@@ -1922,6 +1930,7 @@ fn write_play_chunk_batch(
     compression: CompressionState,
     center_chunk_x: i32,
     center_chunk_z: i32,
+    radius: i32,
     update_cache_center: bool,
 ) -> io::Result<()> {
     if update_cache_center {
@@ -1935,32 +1944,69 @@ fn write_play_chunk_batch(
             },
         )?;
     }
+    let chunks: Vec<_> = ((center_chunk_z - radius)..=(center_chunk_z + radius))
+        .flat_map(|z| ((center_chunk_x - radius)..=(center_chunk_x + radius)).map(move |x| (x, z)))
+        .collect();
+    write_play_chunk_delta(
+        stream,
+        compression,
+        center_chunk_x,
+        center_chunk_z,
+        &chunks,
+        false,
+    )
+}
+
+fn write_play_chunk_delta(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    center_chunk_x: i32,
+    center_chunk_z: i32,
+    chunks: &[(i32, i32)],
+    update_cache_center: bool,
+) -> io::Result<()> {
+    if update_cache_center {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+            |payload| {
+                write_var_i32(payload, center_chunk_x)?;
+                write_var_i32(payload, center_chunk_z)
+            },
+        )?;
+    }
+    if chunks.is_empty() {
+        return Ok(());
+    }
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
         |_payload| Ok(()),
     )?;
-    for z in
-        (center_chunk_z - SPAWN_CHUNK_BATCH_RADIUS)..=(center_chunk_z + SPAWN_CHUNK_BATCH_RADIUS)
-    {
-        for x in (center_chunk_x - SPAWN_CHUNK_BATCH_RADIUS)
-            ..=(center_chunk_x + SPAWN_CHUNK_BATCH_RADIUS)
-        {
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-                |payload| write_generated_spawn_chunk_packet(payload, x, z),
-            )?;
-        }
+    for &(x, z) in chunks {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
+            |payload| write_generated_spawn_chunk_packet(payload, x, z),
+        )?;
     }
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
-        |payload| write_var_i32(payload, SPAWN_CHUNK_BATCH_SIZE),
+        |payload| write_var_i32(payload, chunks.len() as i32),
     )
+}
+
+fn chunk_batch_radius(properties: &ServerProperties) -> i32 {
+    (properties.view_distance as i32).clamp(MIN_CHUNK_BATCH_RADIUS, MAX_CHUNK_BATCH_RADIUS)
+}
+
+fn chunk_batch_size(radius: i32) -> i32 {
+    (radius * 2 + 1) * (radius * 2 + 1)
 }
 
 fn delay_initial_chunk_batch_for_probe(
@@ -1998,18 +2044,21 @@ fn delay_initial_chunk_batch_for_probe(
     Ok(())
 }
 
-fn chunk_window(center_chunk_x: i32, center_chunk_z: i32) -> BTreeSet<(i32, i32)> {
+fn chunk_window(center_chunk_x: i32, center_chunk_z: i32, radius: i32) -> BTreeSet<(i32, i32)> {
     let mut chunks = BTreeSet::new();
-    for z in
-        (center_chunk_z - SPAWN_CHUNK_BATCH_RADIUS)..=(center_chunk_z + SPAWN_CHUNK_BATCH_RADIUS)
-    {
-        for x in (center_chunk_x - SPAWN_CHUNK_BATCH_RADIUS)
-            ..=(center_chunk_x + SPAWN_CHUNK_BATCH_RADIUS)
-        {
+    for z in (center_chunk_z - radius)..=(center_chunk_z + radius) {
+        for x in (center_chunk_x - radius)..=(center_chunk_x + radius) {
             chunks.insert((x, z));
         }
     }
     chunks
+}
+
+fn newly_visible_chunks(
+    previous: &BTreeSet<(i32, i32)>,
+    next: &BTreeSet<(i32, i32)>,
+) -> Vec<(i32, i32)> {
+    next.difference(previous).copied().collect()
 }
 
 fn write_forget_level_chunk_packet(
@@ -2185,18 +2234,54 @@ fn write_level_chunk_packet_data<W: Write>(
     writer: &mut W,
     data: &ClientboundLevelChunkPacketData,
 ) -> io::Result<()> {
-    write_nbt(
-        writer,
-        &Tag::Compound(
-            data.heightmaps
-                .iter()
-                .map(|(name, values)| (name.clone(), Tag::LongArray(values.clone())))
-                .collect(),
-        ),
-    )?;
+    write_level_chunk_heightmaps(writer, &data.heightmaps)?;
     write_var_i32(writer, data.buffer.len() as i32)?;
     writer.write_all(&data.buffer)?;
     write_var_i32(writer, data.block_entity_count as i32)
+}
+
+fn write_level_chunk_heightmaps<W: Write>(
+    writer: &mut W,
+    heightmaps: &std::collections::BTreeMap<String, Vec<i64>>,
+) -> io::Result<()> {
+    let entries = clientbound_heightmap_entries(heightmaps);
+    write_var_i32(writer, entries.len() as i32)?;
+    for (type_id, values) in entries {
+        write_var_i32(writer, type_id)?;
+        write_var_i32(writer, values.len() as i32)?;
+        for value in values {
+            writer.write_all(&value.to_be_bytes())?;
+        }
+    }
+    Ok(())
+}
+
+fn clientbound_heightmap_entries(
+    heightmaps: &std::collections::BTreeMap<String, Vec<i64>>,
+) -> Vec<(i32, Vec<i64>)> {
+    let mut entries = Vec::new();
+    if let Some(values) = heightmaps
+        .get("WORLD_SURFACE")
+        .or_else(|| heightmaps.get("WORLD_SURFACE_WG"))
+    {
+        entries.push((1, values.clone()));
+    }
+    if let Some(values) = heightmaps
+        .get("MOTION_BLOCKING")
+        .or_else(|| heightmaps.get("WORLD_SURFACE"))
+        .or_else(|| heightmaps.get("WORLD_SURFACE_WG"))
+    {
+        entries.push((4, values.clone()));
+    }
+    if let Some(values) = heightmaps
+        .get("MOTION_BLOCKING_NO_LEAVES")
+        .or_else(|| heightmaps.get("MOTION_BLOCKING"))
+        .or_else(|| heightmaps.get("WORLD_SURFACE"))
+        .or_else(|| heightmaps.get("WORLD_SURFACE_WG"))
+    {
+        entries.push((5, values.clone()));
+    }
+    entries
 }
 
 #[allow(dead_code)]
@@ -3749,8 +3834,8 @@ fn escape_json_string(value: &str) -> String {
 mod tests {
     use super::{
         banner_pattern_nbt, cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt,
-        chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
-        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
+        chunk_batch_size, chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
+        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt, newly_visible_chunks,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
         pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
         vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
@@ -3780,8 +3865,7 @@ mod tests {
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
-        SPAWN_CHUNK_BATCH_RADIUS, SPAWN_CHUNK_BATCH_SIZE, STONE_BLOCK_STATE_ID, TRIM_MATERIALS,
-        VERSION_NAME,
+        STONE_BLOCK_STATE_ID, TRIM_MATERIALS, VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
     use crate::network::ping::ServerboundPingRequestPacket;
@@ -4296,17 +4380,43 @@ mod tests {
     }
 
     #[test]
-    fn spawn_chunk_window_sends_visible_five_by_five_terrain_patch() {
-        assert_eq!(SPAWN_CHUNK_BATCH_RADIUS, 2);
-        assert_eq!(SPAWN_CHUNK_BATCH_SIZE, 25);
+    fn spawn_chunk_window_uses_configured_server_view_distance_radius() {
+        assert_eq!(chunk_batch_size(2), 25);
+        assert_eq!(chunk_batch_size(10), 441);
 
-        let chunks = chunk_window(4, -3);
+        let chunks = chunk_window(4, -3, 10);
+        assert_eq!(chunks.len(), 441);
+        assert!(chunks.contains(&(4, -3)));
+        assert!(chunks.contains(&(-6, -13)));
+        assert!(chunks.contains(&(14, 7)));
+        assert!(!chunks.contains(&(-7, -3)));
+        assert!(!chunks.contains(&(4, 8)));
+    }
+
+    #[test]
+    fn spawn_chunk_window_keeps_minimum_five_by_five_terrain_patch() {
+        let chunks = chunk_window(4, -3, 2);
         assert_eq!(chunks.len(), 25);
         assert!(chunks.contains(&(4, -3)));
         assert!(chunks.contains(&(2, -5)));
         assert!(chunks.contains(&(6, -1)));
         assert!(!chunks.contains(&(1, -3)));
         assert!(!chunks.contains(&(4, 0)));
+    }
+
+    #[test]
+    fn movement_chunk_window_sends_only_newly_visible_edge_chunks() {
+        let previous = chunk_window(0, 0, 10);
+        let next = chunk_window(1, 0, 10);
+        let delta = newly_visible_chunks(&previous, &next);
+
+        assert_eq!(previous.len(), 441);
+        assert_eq!(next.len(), 441);
+        assert_eq!(delta.len(), 21);
+        assert!(delta.iter().all(|chunk| chunk.0 == 11));
+        assert!(delta.contains(&(11, -10)));
+        assert!(delta.contains(&(11, 0)));
+        assert!(delta.contains(&(11, 10)));
     }
 
     fn palette_index_at(words: &[u64], x: usize, y: usize, z: usize) -> u64 {
@@ -4514,6 +4624,33 @@ mod tests {
         let mut cursor = Cursor::new(payload);
         let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
         read_var_i32(&mut cursor).unwrap()
+    }
+
+    #[test]
+    fn level_chunk_packet_data_uses_vanilla_heightmap_stream_codec_not_nbt() {
+        let mut heightmaps = std::collections::BTreeMap::new();
+        heightmaps.insert("WORLD_SURFACE_WG".to_string(), vec![0x0102_0304_0506_0708]);
+        let data = super::ClientboundLevelChunkPacketData {
+            heightmaps,
+            buffer: Vec::new(),
+            block_entity_count: 0,
+        };
+
+        let mut payload = Vec::new();
+        super::write_level_chunk_packet_data(&mut payload, &data).unwrap();
+
+        assert_eq!(payload[0], 3, "heightmap map count is a VarInt, not NBT TAG_Compound");
+        let mut cursor = Cursor::new(payload);
+        assert_eq!(read_var_i32(&mut cursor).unwrap(), 3);
+        for expected_id in [1, 4, 5] {
+            assert_eq!(read_var_i32(&mut cursor).unwrap(), expected_id);
+            assert_eq!(read_var_i32(&mut cursor).unwrap(), 1);
+            let mut bytes = [0; 8];
+            cursor.read_exact(&mut bytes).unwrap();
+            assert_eq!(i64::from_be_bytes(bytes), 0x0102_0304_0506_0708);
+        }
+        assert_eq!(read_var_i32(&mut cursor).unwrap(), 0);
+        assert_eq!(read_var_i32(&mut cursor).unwrap(), 0);
     }
 
     #[derive(Debug)]

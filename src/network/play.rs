@@ -1425,7 +1425,7 @@ impl ClientboundLightUpdatePacketData {
 impl NetworkChunkSection {
     pub fn from_storage_section(section: &ChunkSection) -> Self {
         Self {
-            non_empty_block_count: 0,
+            non_empty_block_count: section_non_empty_block_count(&section.block_states),
             fluid_count: 0,
             block_states: NetworkPalettedContainer::from_storage_container(&section.block_states),
             biomes: NetworkPalettedContainer::from_storage_container(&section.biomes),
@@ -1458,14 +1458,19 @@ impl NetworkPalettedContainer {
             .iter()
             .map(storage_palette_entry_network_id)
             .collect::<Vec<_>>();
+        let data = container.data.unwrap_or_default();
         Self {
-            bits_per_entry: if palette_ids.len() <= 1 { 0 } else { 4 },
+            bits_per_entry: if data.is_empty() {
+                0
+            } else {
+                packed_storage_bits_per_entry(container.palette.len()) as u8
+            },
             palette_ids: if palette_ids.is_empty() {
                 vec![0]
             } else {
                 palette_ids
             },
-            data: container.data.unwrap_or_default(),
+            data,
         }
     }
 
@@ -1501,6 +1506,7 @@ fn write_data_layer<W: Write>(writer: &mut W, layer: &Vec<i8>) -> io::Result<()>
             "light update layer must be 2048 bytes",
         ));
     }
+    write_var_i32(writer, layer.len() as i32)?;
     let bytes = layer.iter().map(|byte| *byte as u8).collect::<Vec<_>>();
     writer.write_all(&bytes)
 }
@@ -1533,6 +1539,64 @@ fn storage_palette_entry_network_id(tag: &Tag) -> i32 {
     }
 }
 
+fn section_non_empty_block_count(tag: &Tag) -> i16 {
+    let Ok(container) = PalettedContainer::from_nbt(tag, 4096) else {
+        return 0;
+    };
+    let non_air = container
+        .palette
+        .iter()
+        .map(|entry| !storage_palette_entry_is_air(entry))
+        .collect::<Vec<_>>();
+    if non_air.is_empty() {
+        return 0;
+    }
+    let Some(data) = &container.data else {
+        return if non_air.first().copied().unwrap_or(false) {
+            4096
+        } else {
+            0
+        };
+    };
+
+    let bits_per_entry = packed_storage_bits_per_entry(container.palette.len());
+    let values_per_long = 64 / bits_per_entry;
+    let mut count = 0_i16;
+    for index in 0..container.expected_entries {
+        let word_index = index / values_per_long;
+        let Some(word) = data.get(word_index) else {
+            break;
+        };
+        let bit_index = (index - word_index * values_per_long) * bits_per_entry;
+        let palette_index = ((*word as u64) >> bit_index) & ((1_u64 << bits_per_entry) - 1);
+        if non_air
+            .get(palette_index as usize)
+            .copied()
+            .unwrap_or(false)
+        {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn packed_storage_bits_per_entry(palette_len: usize) -> usize {
+    let palette_len = palette_len.max(1) as u64;
+    let needed = 64 - palette_len.saturating_sub(1).leading_zeros() as usize;
+    needed.max(4)
+}
+
+fn storage_palette_entry_is_air(tag: &Tag) -> bool {
+    match tag {
+        Tag::Int(id) => *id == 0,
+        Tag::Compound(fields) => fields.iter().any(|(name, value)| {
+            (name == "Name" || name == "id")
+                && matches!(value, Tag::String(block_name) if block_name == "minecraft:air")
+        }),
+        _ => true,
+    }
+}
+
 fn block_state_name_network_id(name: &str) -> Option<i32> {
     Some(match name {
         "minecraft:air" => 0,
@@ -1542,19 +1606,19 @@ fn block_state_name_network_id(name: &str) -> Option<i32> {
         "minecraft:andesite" => 6,
         "minecraft:grass_block" => 9,
         "minecraft:dirt" => 10,
-        "minecraft:sand" => 12,
-        "minecraft:sandstone" => 14,
-        "minecraft:water" => 34,
-        "minecraft:oak_log" => 39,
-        "minecraft:oak_leaves" => 63,
+        "minecraft:sand" => 118,
+        "minecraft:sandstone" => 578,
+        "minecraft:water" => 86,
+        "minecraft:oak_log" => 137,
+        "minecraft:oak_leaves" => 279,
         "minecraft:bedrock" => 85,
-        "minecraft:deepslate" => 118,
-        "minecraft:short_grass" => 131,
-        "minecraft:dandelion" => 158,
-        "minecraft:poppy" => 161,
-        "minecraft:birch_log" => 227,
-        "minecraft:birch_leaves" => 231,
-        "minecraft:sunflower" => 235,
+        "minecraft:deepslate" => 27924,
+        "minecraft:short_grass" => 2248,
+        "minecraft:dandelion" => 2321,
+        "minecraft:poppy" => 2324,
+        "minecraft:birch_log" => 143,
+        "minecraft:birch_leaves" => 335,
+        "minecraft:sunflower" => 12916,
         _ => return None,
     })
 }
@@ -2493,6 +2557,14 @@ mod tests {
         let mut payload = Vec::new();
         data.write(&mut payload).unwrap();
         assert!(!payload.is_empty());
+        assert!(
+            payload.windows(3).any(|bytes| bytes == [0x80, 0x10, 0xff]),
+            "sky light data layers use ByteBufCodecs.byteArray(2048): VarInt length then bytes"
+        );
+        assert!(
+            payload.windows(3).any(|bytes| bytes == [0x80, 0x10, 0x01]),
+            "block light data layers use ByteBufCodecs.byteArray(2048): VarInt length then bytes"
+        );
     }
 
     #[test]
@@ -2513,6 +2585,38 @@ mod tests {
         assert_eq!(bytes[6], 0);
         assert_eq!(bytes[7], 7);
         assert_eq!(bytes.len(), 8);
+    }
+
+    #[test]
+    fn generated_terrain_block_state_names_use_current_protocol_state_ids() {
+        assert_eq!(block_state_name_network_id("minecraft:water"), Some(86));
+        assert_eq!(block_state_name_network_id("minecraft:sand"), Some(118));
+        assert_eq!(block_state_name_network_id("minecraft:sandstone"), Some(578));
+        assert_eq!(block_state_name_network_id("minecraft:short_grass"), Some(2248));
+        assert_eq!(block_state_name_network_id("minecraft:dandelion"), Some(2321));
+        assert_eq!(block_state_name_network_id("minecraft:poppy"), Some(2324));
+        assert_eq!(block_state_name_network_id("minecraft:oak_log"), Some(137));
+        assert_eq!(block_state_name_network_id("minecraft:birch_log"), Some(143));
+        assert_eq!(block_state_name_network_id("minecraft:oak_leaves"), Some(279));
+        assert_eq!(block_state_name_network_id("minecraft:birch_leaves"), Some(335));
+        assert_eq!(block_state_name_network_id("minecraft:sunflower"), Some(12916));
+        assert_eq!(block_state_name_network_id("minecraft:deepslate"), Some(27924));
+    }
+
+    #[test]
+    fn storage_palette_network_bits_match_packed_storage_width() {
+        let palette = (0..17).map(Tag::Int).collect::<Vec<_>>();
+        let container = PalettedContainer {
+            palette,
+            data: Some(vec![16]),
+            expected_entries: 4096,
+        };
+
+        let network = NetworkPalettedContainer::from_storage_container(&container.to_nbt());
+
+        assert_eq!(network.bits_per_entry, 5);
+        assert_eq!(network.palette_ids.len(), 17);
+        assert_eq!(network.data, vec![16]);
     }
 
     #[test]
@@ -2545,7 +2649,7 @@ mod tests {
         let chunk_data = packet.chunk_data.as_ref().unwrap();
         assert_eq!(chunk_data.heightmaps["WORLD_SURFACE"], vec![1, 2, 3]);
         assert_eq!(chunk_data.block_entity_count, 1);
-        assert_eq!(chunk_data.buffer, vec![0, 0, 0, 0, 0, 5, 0, 7]);
+        assert_eq!(chunk_data.buffer, vec![0x10, 0, 0, 0, 0, 5, 0, 7]);
         assert_eq!(packet.light_data, Some(light_data));
     }
 
