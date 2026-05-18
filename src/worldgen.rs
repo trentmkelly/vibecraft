@@ -19729,10 +19729,12 @@ impl DensityFunction {
                     )
                 })
                 .unwrap_or((0.0, f64::INFINITY)),
-            DensityFunction::Noise { .. }
-            | DensityFunction::ShiftedNoise { .. }
-            | DensityFunction::BlendedNoise { .. }
-            | DensityFunction::Spline => (f64::NEG_INFINITY, f64::INFINITY),
+            DensityFunction::Noise { noise, .. } | DensityFunction::ShiftedNoise { noise, .. } => {
+                normal_noise_value_bounds(noise).unwrap_or((f64::NEG_INFINITY, f64::INFINITY))
+            }
+            DensityFunction::BlendedNoise { .. } | DensityFunction::Spline => {
+                (f64::NEG_INFINITY, f64::INFINITY)
+            }
         }
     }
 }
@@ -20092,6 +20094,13 @@ pub fn normal_noise_max_value(parameters: NormalNoiseParameters) -> f64 {
     perlin_noise_edge_value_from_parameters(parameters, 2.0)
         * 2.0
         * normal_noise_value_factor(parameters)
+}
+
+pub fn normal_noise_value_bounds(id: &str) -> Option<(f64, f64)> {
+    builtin_normal_noise_parameters(id).map(|parameters| {
+        let max_value = normal_noise_max_value(*parameters);
+        (-max_value, max_value)
+    })
 }
 
 pub fn normal_noise_non_zero_octaves(parameters: NormalNoiseParameters) -> Vec<i32> {
@@ -25058,6 +25067,10 @@ mod tests {
                 .abs()
                 < 1e-12
         );
+        assert_eq!(
+            super::normal_noise_value_bounds("temperature").unwrap(),
+            (-4.444444444444445, 4.444444444444445)
+        );
         assert!(super::synth_noise_source("blended_noise").is_some());
         assert!(super::synth_noise_source("value_noise").is_none());
     }
@@ -26860,6 +26873,27 @@ mod tests {
         assert_eq!(weird_bounds.0, 0.0);
         assert!(weird_bounds.1.is_finite());
         assert!(weird_bounds.1 > 0.0);
+        assert_eq!(
+            DensityFunction::Noise {
+                noise: "minecraft:temperature",
+                xz_scale: 0.25,
+                y_scale: 0.0,
+            }
+            .value_bounds(),
+            (-4.444444444444445, 4.444444444444445)
+        );
+        assert_eq!(
+            DensityFunction::ShiftedNoise {
+                shift_x: &super::SHIFT_X_DENSITY,
+                shift_y: &super::ZERO_DENSITY,
+                shift_z: &super::SHIFT_Z_DENSITY,
+                xz_scale: 0.25,
+                y_scale: 0.0,
+                noise: "minecraft:temperature",
+            }
+            .value_bounds(),
+            (-4.444444444444445, 4.444444444444445)
+        );
 
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.type_name(), "range_choice");
         assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.compute(0), 3.0);
