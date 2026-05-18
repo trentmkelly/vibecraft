@@ -2238,6 +2238,62 @@ pub struct MineshaftCorridorSaveTagModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StrongholdPieceKindModel {
+    Straight,
+    PrisonHall,
+    LeftTurn,
+    RightTurn,
+    RoomCrossing,
+    StraightStairsDown,
+    StairsDown,
+    FiveCrossing,
+    ChestCorridor,
+    Library,
+    PortalRoom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StrongholdSmallDoorTypeModel {
+    Opening,
+    WoodDoor,
+    Grates,
+    IronDoor,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrongholdPieceWeightModel {
+    pub kind: StrongholdPieceKindModel,
+    pub weight: i32,
+    pub max_place_count: i32,
+    pub place_count: i32,
+    pub min_depth: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrongholdStartPieceModel {
+    pub bounding_box: StructureBoundingBoxModel,
+    pub orientation: HorizontalDirection,
+    pub entry_door: StrongholdSmallDoorTypeModel,
+    pub is_source: bool,
+    pub previous_piece: Option<StrongholdPieceKindModel>,
+    pub portal_room_piece: Option<StrongholdPortalRoomModel>,
+    pub pending_children: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrongholdPortalRoomModel {
+    pub bounding_box: StructureBoundingBoxModel,
+    pub orientation: HorizontalDirection,
+    pub gen_depth: i32,
+    pub has_placed_spawner: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrongholdPortalRoomSaveTagModel {
+    pub has_placed_spawner: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerrainAdjustmentModel {
     None,
     Bury,
@@ -11696,6 +11752,205 @@ pub fn mineshaft_corridor_save_tag(
         num_sections: corridor.num_sections,
         mineshaft_type_id: mineshaft_type_id(corridor.mineshaft_type),
     }
+}
+
+pub fn stronghold_horizontal_direction_from_random_roll(
+    roll: i32,
+) -> Result<HorizontalDirection, String> {
+    if !(0..4).contains(&roll) {
+        return Err(
+            "Stronghold horizontal direction roll must match RandomSource#nextInt(4)".to_string(),
+        );
+    }
+    Ok(match roll {
+        0 => HorizontalDirection::North,
+        1 => HorizontalDirection::South,
+        2 => HorizontalDirection::West,
+        _ => HorizontalDirection::East,
+    })
+}
+
+pub fn stronghold_piece_weights() -> Vec<StrongholdPieceWeightModel> {
+    vec![
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::Straight,
+            weight: 40,
+            max_place_count: 0,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::PrisonHall,
+            weight: 5,
+            max_place_count: 5,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::LeftTurn,
+            weight: 20,
+            max_place_count: 0,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::RightTurn,
+            weight: 20,
+            max_place_count: 0,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::RoomCrossing,
+            weight: 10,
+            max_place_count: 6,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::StraightStairsDown,
+            weight: 5,
+            max_place_count: 5,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::StairsDown,
+            weight: 5,
+            max_place_count: 5,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::FiveCrossing,
+            weight: 5,
+            max_place_count: 4,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::ChestCorridor,
+            weight: 5,
+            max_place_count: 4,
+            place_count: 0,
+            min_depth: 0,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::Library,
+            weight: 10,
+            max_place_count: 2,
+            place_count: 0,
+            min_depth: 5,
+        },
+        StrongholdPieceWeightModel {
+            kind: StrongholdPieceKindModel::PortalRoom,
+            weight: 20,
+            max_place_count: 1,
+            place_count: 0,
+            min_depth: 6,
+        },
+    ]
+}
+
+pub fn stronghold_piece_weight_can_place(piece: StrongholdPieceWeightModel, depth: i32) -> bool {
+    (piece.max_place_count == 0 || piece.place_count < piece.max_place_count)
+        && depth >= piece.min_depth
+}
+
+pub fn stronghold_piece_weight_is_valid(piece: StrongholdPieceWeightModel) -> bool {
+    piece.max_place_count == 0 || piece.place_count < piece.max_place_count
+}
+
+pub fn stronghold_total_weight(pieces: &[StrongholdPieceWeightModel]) -> i32 {
+    pieces.iter().map(|piece| piece.weight).sum()
+}
+
+pub fn stronghold_has_limited_piece_available(pieces: &[StrongholdPieceWeightModel]) -> bool {
+    pieces
+        .iter()
+        .any(|piece| piece.max_place_count > 0 && piece.place_count < piece.max_place_count)
+}
+
+pub fn stronghold_random_small_door(
+    selection_roll: i32,
+) -> Result<StrongholdSmallDoorTypeModel, String> {
+    if !(0..5).contains(&selection_roll) {
+        return Err("Stronghold small-door roll must match RandomSource#nextInt(5)".to_string());
+    }
+    Ok(match selection_roll {
+        2 => StrongholdSmallDoorTypeModel::WoodDoor,
+        3 => StrongholdSmallDoorTypeModel::Grates,
+        4 => StrongholdSmallDoorTypeModel::IronDoor,
+        _ => StrongholdSmallDoorTypeModel::Opening,
+    })
+}
+
+pub fn stronghold_start_piece(
+    chunk_pos: ChunkPos,
+    direction_roll: i32,
+) -> Result<StrongholdStartPieceModel, String> {
+    let orientation = stronghold_horizontal_direction_from_random_roll(direction_roll)?;
+    let west = chunk_pos.x * 16 + 2;
+    let north = chunk_pos.z * 16 + 2;
+    Ok(StrongholdStartPieceModel {
+        bounding_box: structure_make_bounding_box(west, 64, north, orientation, 5, 11, 5),
+        orientation,
+        entry_door: StrongholdSmallDoorTypeModel::Opening,
+        is_source: true,
+        previous_piece: None,
+        portal_room_piece: None,
+        pending_children: 0,
+    })
+}
+
+pub fn stronghold_is_ok_box(bounding_box: StructureBoundingBoxModel) -> bool {
+    bounding_box.min_y > 10
+}
+
+pub fn stronghold_portal_room(
+    foot_x: i32,
+    foot_y: i32,
+    foot_z: i32,
+    direction: HorizontalDirection,
+    gen_depth: i32,
+    existing_pieces: &[StructurePieceModel],
+) -> Option<StrongholdPortalRoomModel> {
+    let bounding_box = structure_orient_box(
+        BlockPos {
+            x: foot_x,
+            y: foot_y,
+            z: foot_z,
+        },
+        BlockPos { x: -4, y: -1, z: 0 },
+        11,
+        8,
+        16,
+        direction,
+    );
+    (stronghold_is_ok_box(bounding_box)
+        && structure_piece_find_collision_piece(existing_pieces, bounding_box).is_none())
+    .then_some(StrongholdPortalRoomModel {
+        bounding_box,
+        orientation: direction,
+        gen_depth,
+        has_placed_spawner: false,
+    })
+}
+
+pub fn stronghold_portal_room_save_tag(
+    portal_room: StrongholdPortalRoomModel,
+) -> StrongholdPortalRoomSaveTagModel {
+    StrongholdPortalRoomSaveTagModel {
+        has_placed_spawner: portal_room.has_placed_spawner,
+    }
+}
+
+pub fn stronghold_attach_portal_room(
+    mut start_piece: StrongholdStartPieceModel,
+    portal_room: StrongholdPortalRoomModel,
+) -> StrongholdStartPieceModel {
+    start_piece.portal_room_piece = Some(portal_room);
+    start_piece
 }
 
 const fn feature_type(
@@ -25629,6 +25884,170 @@ mod tests {
             )
             .unwrap()
             .spider_corridor
+        );
+    }
+
+    #[test]
+    fn stronghold_start_weights_and_portal_room_match_vanilla() {
+        let weights = super::stronghold_piece_weights();
+        assert_eq!(weights.len(), 11);
+        assert_eq!(
+            weights[0],
+            super::StrongholdPieceWeightModel {
+                kind: super::StrongholdPieceKindModel::Straight,
+                weight: 40,
+                max_place_count: 0,
+                place_count: 0,
+                min_depth: 0,
+            }
+        );
+        assert_eq!(
+            weights[9],
+            super::StrongholdPieceWeightModel {
+                kind: super::StrongholdPieceKindModel::Library,
+                weight: 10,
+                max_place_count: 2,
+                place_count: 0,
+                min_depth: 5,
+            }
+        );
+        assert_eq!(
+            weights[10],
+            super::StrongholdPieceWeightModel {
+                kind: super::StrongholdPieceKindModel::PortalRoom,
+                weight: 20,
+                max_place_count: 1,
+                place_count: 0,
+                min_depth: 6,
+            }
+        );
+        assert_eq!(super::stronghold_total_weight(&weights), 145);
+        assert!(super::stronghold_has_limited_piece_available(&weights));
+        assert!(!super::stronghold_piece_weight_can_place(weights[9], 4));
+        assert!(super::stronghold_piece_weight_can_place(weights[9], 5));
+        let exhausted_portal = super::StrongholdPieceWeightModel {
+            place_count: 1,
+            ..weights[10]
+        };
+        assert!(!super::stronghold_piece_weight_can_place(
+            exhausted_portal,
+            6
+        ));
+        assert!(!super::stronghold_piece_weight_is_valid(exhausted_portal));
+
+        assert_eq!(
+            super::stronghold_horizontal_direction_from_random_roll(0).unwrap(),
+            super::HorizontalDirection::North
+        );
+        assert_eq!(
+            super::stronghold_horizontal_direction_from_random_roll(1).unwrap(),
+            super::HorizontalDirection::South
+        );
+        assert_eq!(
+            super::stronghold_horizontal_direction_from_random_roll(2).unwrap(),
+            super::HorizontalDirection::West
+        );
+        assert_eq!(
+            super::stronghold_horizontal_direction_from_random_roll(3).unwrap(),
+            super::HorizontalDirection::East
+        );
+        assert_eq!(
+            super::stronghold_random_small_door(0).unwrap(),
+            super::StrongholdSmallDoorTypeModel::Opening
+        );
+        assert_eq!(
+            super::stronghold_random_small_door(2).unwrap(),
+            super::StrongholdSmallDoorTypeModel::WoodDoor
+        );
+        assert_eq!(
+            super::stronghold_random_small_door(3).unwrap(),
+            super::StrongholdSmallDoorTypeModel::Grates
+        );
+        assert_eq!(
+            super::stronghold_random_small_door(4).unwrap(),
+            super::StrongholdSmallDoorTypeModel::IronDoor
+        );
+        assert_eq!(
+            super::stronghold_random_small_door(5).unwrap_err(),
+            "Stronghold small-door roll must match RandomSource#nextInt(5)".to_string()
+        );
+
+        let start = super::stronghold_start_piece(ChunkPos { x: -2, z: 3 }, 1).unwrap();
+        assert_eq!(start.orientation, super::HorizontalDirection::South);
+        assert_eq!(
+            start.entry_door,
+            super::StrongholdSmallDoorTypeModel::Opening
+        );
+        assert!(start.is_source);
+        assert_eq!(
+            start.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: -30,
+                min_y: 64,
+                min_z: 50,
+                max_x: -26,
+                max_y: 74,
+                max_z: 54,
+            }
+        );
+
+        let portal_room =
+            super::stronghold_portal_room(10, 40, -5, super::HorizontalDirection::South, 7, &[])
+                .unwrap();
+        assert_eq!(
+            portal_room.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: 6,
+                min_y: 39,
+                min_z: -5,
+                max_x: 16,
+                max_y: 46,
+                max_z: 10,
+            }
+        );
+        assert_eq!(portal_room.orientation, super::HorizontalDirection::South);
+        assert_eq!(portal_room.gen_depth, 7);
+        assert_eq!(
+            super::stronghold_portal_room_save_tag(portal_room),
+            super::StrongholdPortalRoomSaveTagModel {
+                has_placed_spawner: false,
+            }
+        );
+        assert_eq!(
+            super::stronghold_attach_portal_room(start, portal_room).portal_room_piece,
+            Some(portal_room)
+        );
+
+        let west_portal =
+            super::stronghold_portal_room(10, 40, -5, super::HorizontalDirection::West, 7, &[])
+                .unwrap();
+        assert_eq!(
+            west_portal.bounding_box,
+            super::StructureBoundingBoxModel {
+                min_x: -5,
+                min_y: 39,
+                min_z: -9,
+                max_x: 10,
+                max_y: 46,
+                max_z: 1,
+            }
+        );
+        assert_eq!(
+            super::stronghold_portal_room(10, 10, -5, super::HorizontalDirection::South, 7, &[]),
+            None
+        );
+        assert_eq!(
+            super::stronghold_portal_room(
+                10,
+                40,
+                -5,
+                super::HorizontalDirection::South,
+                7,
+                &[super::StructurePieceModel {
+                    bounding_box: portal_room.bounding_box,
+                }],
+            ),
+            None
         );
     }
 
