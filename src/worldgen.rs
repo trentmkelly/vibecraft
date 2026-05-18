@@ -556,6 +556,19 @@ pub struct BlendingConstants {
     pub cell_ratio: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BlendingDataPacked<'a> {
+    pub min_section: i32,
+    pub max_section: i32,
+    pub heights: Option<&'a [f64]>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BlendingOutput {
+    pub alpha: f64,
+    pub blending_offset: f64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UpgradeDataModel {
     pub tag_indices: &'static str,
@@ -3795,6 +3808,9 @@ pub const BLENDING_CONSTANTS: BlendingConstants = BlendingConstants {
     cell_ratio: 2,
 };
 
+pub const BLENDING_CELL_COLUMN_COUNT: usize = 16;
+pub const BLENDING_NO_VALUE: f64 = f64::MAX;
+
 pub const UPGRADE_DATA_MODEL: UpgradeDataModel = UpgradeDataModel {
     tag_indices: "Indices",
     tag_sides: "Sides",
@@ -4796,6 +4812,35 @@ pub fn blending_smooth_alpha(distance: f64, range_cells: i32) -> f64 {
     3.0 * alpha * alpha - 2.0 * alpha * alpha * alpha
 }
 
+pub fn validate_blending_data_packed(data: BlendingDataPacked<'_>) -> Result<(), String> {
+    match data.heights {
+        Some(heights) if heights.len() != BLENDING_CELL_COLUMN_COUNT => Err(format!(
+            "heights has to be of length {BLENDING_CELL_COLUMN_COUNT}"
+        )),
+        _ => Ok(()),
+    }
+}
+
+pub fn blending_output_for_old_height(
+    height: Option<f64>,
+    distance_cells: Option<f64>,
+) -> BlendingOutput {
+    match (height, distance_cells) {
+        (Some(height), Some(distance)) => BlendingOutput {
+            alpha: blending_smooth_alpha(distance, BLENDING_CONSTANTS.height_blending_range_cells),
+            blending_offset: blending_height_to_offset(height),
+        },
+        (Some(height), None) => BlendingOutput {
+            alpha: 0.0,
+            blending_offset: blending_height_to_offset(height),
+        },
+        (None, _) => BlendingOutput {
+            alpha: 1.0,
+            blending_offset: 0.0,
+        },
+    }
+}
+
 pub fn initial_spawn_position(
     debug_only_half_world: bool,
     debug_world_recreate: bool,
@@ -4970,30 +5015,30 @@ pub fn carver_can_reach(
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlockPos,
-        BlockPredicate, BlockPredicateContext, CarverShape, CaveDensityOutput, CaveSurface,
-        ConfiguredFeatureSource, DensityFunction, DensityMarker, FeatureConfigurationKind,
-        FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus, HeightProvider, HeightRange,
-        MappedDensityFunction, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, PlacedFeatureSource, PlacementModifier, RandomSpreadType,
-        SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
-        SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset,
-        SurfaceRuleSource, VerticalAnchor, WeightedHeightProvider, WorldCarverType,
-        WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CONSTANTS, BLOCK_PREDICATE_TYPES,
-        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
-        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
-        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
-        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
-        FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS,
-        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
-        NETHER_NOISE_SETTINGS, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS,
-        OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS,
-        STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
-        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
-        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
-        WORLD_PRESETS, Y_DENSITY,
+        density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlendingDataPacked,
+        BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, CarverShape,
+        CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
+        FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus,
+        HeightProvider, HeightRange, MappedDensityFunction, NoiseRouterPreset, NoiseSettings,
+        OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource, PlacementModifier,
+        RandomSpreadType, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+        StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
+        SurfaceRulePreset, SurfaceRuleSource, VerticalAnchor, WeightedHeightProvider,
+        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
+        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
+        BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
+        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
+        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
+        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
+        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
+        FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
+        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
+        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
+        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
+        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
+        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
+        UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -6799,6 +6844,8 @@ mod tests {
         assert_eq!(BLENDING_CONSTANTS.cell_width, 4);
         assert_eq!(BLENDING_CONSTANTS.cell_height, 8);
         assert_eq!(BLENDING_CONSTANTS.cell_ratio, 2);
+        assert_eq!(BLENDING_CELL_COLUMN_COUNT, 16);
+        assert_eq!(BLENDING_NO_VALUE, f64::MAX);
 
         assert_eq!(super::blending_smooth_alpha(0.0, 27), 0.0);
         assert_eq!(super::blending_smooth_alpha(28.0, 27), 1.0);
@@ -6806,6 +6853,39 @@ mod tests {
         assert!((super::blending_height_to_offset(127.5)).abs() < f64::EPSILON);
         assert!(super::blending_height_to_offset(63.5) < 0.0);
         assert!(super::blending_height_to_offset(191.5) > 0.0);
+        assert_eq!(
+            super::blending_output_for_old_height(None, None),
+            BlendingOutput {
+                alpha: 1.0,
+                blending_offset: 0.0
+            }
+        );
+        assert_eq!(
+            super::blending_output_for_old_height(Some(127.5), None),
+            BlendingOutput {
+                alpha: 0.0,
+                blending_offset: 0.0
+            }
+        );
+        let blended = super::blending_output_for_old_height(Some(63.5), Some(14.0));
+        assert!((blended.alpha - 0.5).abs() < f64::EPSILON);
+        assert!(blended.blending_offset < 0.0);
+        assert_eq!(
+            super::validate_blending_data_packed(BlendingDataPacked {
+                min_section: -4,
+                max_section: 20,
+                heights: Some(&[0.0; BLENDING_CELL_COLUMN_COUNT])
+            }),
+            Ok(())
+        );
+        assert_eq!(
+            super::validate_blending_data_packed(BlendingDataPacked {
+                min_section: -4,
+                max_section: 20,
+                heights: Some(&[0.0; BLENDING_CELL_COLUMN_COUNT - 1])
+            }),
+            Err("heights has to be of length 16".to_string())
+        );
 
         assert_eq!(UPGRADE_DATA_MODEL.tag_indices, "Indices");
         assert_eq!(UPGRADE_DATA_MODEL.tag_sides, "Sides");
