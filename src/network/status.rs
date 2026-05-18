@@ -2195,7 +2195,12 @@ fn visible_spawn_terrain_height(
     let world_z = chunk_z * 16 + local_z as i32;
     let broad_slope = (world_x.div_euclid(5) + world_z.div_euclid(7)).rem_euclid(2);
     let wrinkle = ((world_x.wrapping_mul(31) ^ world_z.wrapping_mul(17)) & 1) as i32;
-    TERRAIN_BASE_LOCAL_Y + (broad_slope + wrinkle).min(2) as usize
+    let ridge = if (world_x.wrapping_mul(11) + world_z.wrapping_mul(13)).rem_euclid(23) == 0 {
+        1
+    } else {
+        0
+    };
+    TERRAIN_BASE_LOCAL_Y + (broad_slope + wrinkle + ridge).min(3) as usize
 }
 
 fn visible_spawn_surface_feature_id(
@@ -2229,6 +2234,7 @@ fn visible_spawn_surface_top_block_id(
         11 => GRANITE_BLOCK_STATE_ID,
         23 => DIORITE_BLOCK_STATE_ID,
         35 => ANDESITE_BLOCK_STATE_ID,
+        41 => DIRT_BLOCK_STATE_ID,
         _ => GRASS_BLOCK_STATE_ID,
     }
 }
@@ -2242,6 +2248,7 @@ fn visible_spawn_terrain_block_count(chunk_x: i32, chunk_z: i32) -> i16 {
             if visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z)
                 == GRASS_BLOCK_STATE_ID
                 && visible_spawn_surface_feature_id(chunk_x, chunk_z, local_x, local_z).is_some()
+                && top_y < 15
             {
                 count += 1;
             }
@@ -2284,6 +2291,7 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
                         GRANITE_BLOCK_STATE_ID => 2_u64,
                         DIORITE_BLOCK_STATE_ID => 3_u64,
                         ANDESITE_BLOCK_STATE_ID => 4_u64,
+                        DIRT_BLOCK_STATE_ID => 6_u64,
                         GRASS_BLOCK_STATE_ID => 7_u64,
                         _ => unreachable!("surface top palette id is registered above"),
                     }
@@ -2299,7 +2307,9 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
                 storage[word_index] |= palette_index << bit_index;
             }
             if visible_spawn_surface_top_block_id(chunk_x, chunk_z, x, z) == GRASS_BLOCK_STATE_ID {
-                if let Some(feature_id) = visible_spawn_surface_feature_id(chunk_x, chunk_z, x, z) {
+                if let Some(feature_id) =
+                    visible_spawn_surface_feature_id(chunk_x, chunk_z, x, z).filter(|_| top_y < 15)
+                {
                     let palette_index = match feature_id {
                         SHORT_GRASS_BLOCK_STATE_ID => 8_u64,
                         DANDELION_BLOCK_STATE_ID => 9_u64,
@@ -4131,7 +4141,8 @@ mod tests {
         let featured_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
             .find_map(|(x, z)| {
-                (visible_spawn_surface_top_block_id(0, 0, x, z) == GRASS_BLOCK_STATE_ID)
+                (visible_spawn_surface_top_block_id(0, 0, x, z) == GRASS_BLOCK_STATE_ID
+                    && visible_spawn_terrain_height(0, 0, x, z) < 15)
                     .then(|| visible_spawn_surface_feature_id(0, 0, x, z).map(|id| (x, z, id)))
                     .flatten()
             })
@@ -4150,11 +4161,11 @@ mod tests {
                 visible_spawn_surface_top_block_id(0, 0, *x, *z) != GRASS_BLOCK_STATE_ID
                     && visible_spawn_terrain_height(0, 0, *x, *z) > TERRAIN_BASE_LOCAL_Y
             })
-            .expect("spawn chunk should contain a visible stone-family outcrop");
-        assert_eq!(
-            visible_spawn_terrain_height(0, 0, 0, 0),
-            TERRAIN_BASE_LOCAL_Y
-        );
+            .expect("spawn chunk should contain a visible non-grass outcrop");
+        let ridge_column = (0..16)
+            .flat_map(|z| (0..16).map(move |x| (x, z)))
+            .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == 15)
+            .expect("spawn chunk should contain a visible ridge");
         assert!(visible_spawn_terrain_block_count(0, 0) > 512);
         assert_eq!(words[191], 0);
         assert_ne!(words[192], 0);
@@ -4190,7 +4201,8 @@ mod tests {
                 GRANITE_BLOCK_STATE_ID => 2,
                 DIORITE_BLOCK_STATE_ID => 3,
                 ANDESITE_BLOCK_STATE_ID => 4,
-                _ => unreachable!("outcrop column must be stone-family"),
+                DIRT_BLOCK_STATE_ID => 6,
+                _ => unreachable!("outcrop column must be non-grass"),
             };
         assert_eq!(
             palette_index_at(
@@ -4200,6 +4212,10 @@ mod tests {
                 outcrop_column.1
             ),
             expected_outcrop_palette
+        );
+        assert_ne!(
+            palette_index_at(&words, ridge_column.0, 15, ridge_column.1),
+            0
         );
         let feature_y =
             visible_spawn_terrain_height(0, 0, featured_column.0, featured_column.1) + 1;
