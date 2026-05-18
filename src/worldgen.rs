@@ -7,6 +7,7 @@ use crate::biome::{
     ClimateParameterPoint,
 };
 use crate::random_source::{large_feature_seed_with_salt, LegacyRandom, RandomSourceKind};
+use crate::registry::Identifier;
 use crate::storage::chunk::{
     BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
     BIOME_SECTION_VOLUME, SECTION_VOLUME,
@@ -1794,6 +1795,22 @@ pub enum RuleBlockEntityModifierModel {
     Passthrough,
     AppendStatic { data: TemplateCompoundTagModel },
     AppendLoot { loot_table: &'static str },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TemplatePathFactoryModel {
+    pub source_dir: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureTemplateFileKind {
+    Nbt,
+    Snbt,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct StructureTemplateManagerModel {
+    pub cache: BTreeMap<Identifier, Option<&'static str>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8437,6 +8454,111 @@ impl RuleBlockEntityModifierModel {
             }
         }
     }
+}
+
+impl TemplatePathFactoryModel {
+    pub fn new(source_dir: impl Into<String>) -> Self {
+        Self {
+            source_dir: source_dir.into(),
+        }
+    }
+
+    pub fn for_pack_type(source_dir: &str, pack_type_dir: &str) -> Self {
+        Self::new(format!(
+            "{}/{}",
+            source_dir.trim_end_matches('/'),
+            pack_type_dir.trim_matches('/')
+        ))
+    }
+
+    pub fn create_and_validate_path_to_structure(
+        &self,
+        id: &Identifier,
+        kind: StructureTemplateFileKind,
+    ) -> Result<String, String> {
+        let relative_path = match kind {
+            StructureTemplateFileKind::Nbt => format!("structure/{}.nbt", id.path()),
+            StructureTemplateFileKind::Snbt => format!("structure/{}.snbt", id.path()),
+        };
+        let file_id = Identifier::new(id.namespace(), &relative_path)?;
+        self.create_and_validate_path_to_resource(&file_id)
+    }
+
+    pub fn create_and_validate_path_to_resource(
+        &self,
+        resource_location: &Identifier,
+    ) -> Result<String, String> {
+        let mut parts = Vec::new();
+        for part in resource_location.path().split('/') {
+            if part.is_empty() || part == "." || part == ".." {
+                return Err(format!(
+                    "Invalid file path '{}': invalid path segment '{}'",
+                    resource_location, part
+                ));
+            }
+            if !is_template_path_part_portable(part) {
+                return Err(format!(
+                    "Resource path '{}' is not portable",
+                    resource_location
+                ));
+            }
+            parts.push(part);
+        }
+
+        Ok(format!(
+            "{}/{}/{}",
+            self.source_dir.trim_end_matches('/'),
+            resource_location.namespace(),
+            parts.join("/")
+        ))
+    }
+}
+
+impl StructureTemplateManagerModel {
+    pub const STRUCTURE_DIRECTORY_NAME: &'static str = "structure";
+    pub const STRUCTURE_FILE_EXTENSION: &'static str = ".nbt";
+    pub const STRUCTURE_TEXT_FILE_EXTENSION: &'static str = ".snbt";
+
+    pub fn get_or_create(&mut self, id: Identifier) -> &'static str {
+        self.cache.entry(id).or_insert(Some("runtime_template"));
+        "runtime_template"
+    }
+
+    pub fn get_or_try_load(
+        &mut self,
+        id: Identifier,
+        loader: impl FnOnce(&Identifier) -> Option<&'static str>,
+    ) -> Option<&'static str> {
+        if let Some(cached) = self.cache.get(&id) {
+            return *cached;
+        }
+        let loaded = loader(&id);
+        self.cache.insert(id, loaded);
+        loaded
+    }
+
+    pub fn remove(&mut self, id: &Identifier) {
+        self.cache.remove(id);
+    }
+
+    pub fn on_resource_manager_reload(&mut self) {
+        self.cache.clear();
+    }
+
+    pub fn save_kind(debug_save_as_snbt: bool) -> StructureTemplateFileKind {
+        if debug_save_as_snbt {
+            StructureTemplateFileKind::Snbt
+        } else {
+            StructureTemplateFileKind::Nbt
+        }
+    }
+}
+
+fn is_template_path_part_portable(part: &str) -> bool {
+    !part.is_empty()
+        && part.chars().all(|ch| {
+            ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '_' | '-' | '.')
+        })
 }
 
 pub fn structure_random_rule_test_matches(
@@ -20480,6 +20602,86 @@ mod tests {
             loot_tag.values.get("LootTableSeed"),
             Some(&super::TemplateNbtValueModel::Long(6674089274190705457))
         );
+    }
+
+    #[test]
+    fn structure_template_manager_paths_and_cache_follow_vanilla_loader_rules() {
+        let factory = super::TemplatePathFactoryModel::new("/world/generated");
+        let village = crate::registry::Identifier::parse(
+            "minecraft:village/plains/houses/plains_small_house_1",
+        )
+        .expect("valid template id");
+        assert_eq!(
+            factory.create_and_validate_path_to_structure(
+                &village,
+                super::StructureTemplateFileKind::Nbt,
+            ),
+            Ok("/world/generated/minecraft/structure/village/plains/houses/plains_small_house_1.nbt"
+                .to_string())
+        );
+        assert_eq!(
+            factory.create_and_validate_path_to_structure(
+                &village,
+                super::StructureTemplateFileKind::Snbt,
+            ),
+            Ok("/world/generated/minecraft/structure/village/plains/houses/plains_small_house_1.snbt"
+                .to_string())
+        );
+
+        let data_factory = super::TemplatePathFactoryModel::for_pack_type("/tmp/tests", "data");
+        let resource =
+            crate::registry::Identifier::parse("minecraft:structure/trial_chambers/start.nbt")
+                .expect("valid resource path");
+        assert_eq!(
+            data_factory.create_and_validate_path_to_resource(&resource),
+            Ok("/tmp/tests/data/minecraft/structure/trial_chambers/start.nbt".to_string())
+        );
+
+        let traversal = crate::registry::Identifier::parse("minecraft:structure/../bad.nbt")
+            .expect("registry identifier allows dotted path segments");
+        assert_eq!(
+            factory.create_and_validate_path_to_resource(&traversal),
+            Err(
+                "Invalid file path 'minecraft:structure/../bad.nbt': invalid path segment '..'"
+                    .to_string()
+            )
+        );
+        let uppercase = crate::registry::Identifier::new("minecraft", "structure/Bad.nbt");
+        assert!(uppercase.is_err());
+        let dot_segment =
+            crate::registry::Identifier::parse("minecraft:structure/./bad.nbt").unwrap();
+        assert_eq!(
+            factory.create_and_validate_path_to_resource(&dot_segment),
+            Err(
+                "Invalid file path 'minecraft:structure/./bad.nbt': invalid path segment '.'"
+                    .to_string()
+            )
+        );
+
+        assert_eq!(
+            super::StructureTemplateManagerModel::save_kind(false),
+            super::StructureTemplateFileKind::Nbt
+        );
+        assert_eq!(
+            super::StructureTemplateManagerModel::save_kind(true),
+            super::StructureTemplateFileKind::Snbt
+        );
+
+        let mut manager = super::StructureTemplateManagerModel::default();
+        let missing = crate::registry::Identifier::parse("minecraft:missing").unwrap();
+        assert_eq!(manager.get_or_try_load(missing.clone(), |_| None), None);
+        assert_eq!(
+            manager.get_or_try_load(missing.clone(), |_| Some("should_not_reload")),
+            None
+        );
+        manager.remove(&missing);
+        assert_eq!(
+            manager.get_or_try_load(missing.clone(), |_| Some("loaded_after_remove")),
+            Some("loaded_after_remove")
+        );
+        manager.on_resource_manager_reload();
+        assert!(manager.cache.is_empty());
+        assert_eq!(manager.get_or_create(missing), "runtime_template");
     }
 
     #[test]
