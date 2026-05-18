@@ -2837,6 +2837,13 @@ pub enum DensityFunction {
         argument1: &'static DensityFunction,
         argument2: &'static DensityFunction,
     },
+    RangeChoice {
+        input: &'static DensityFunction,
+        min_inclusive: f64,
+        max_exclusive: f64,
+        when_in_range: &'static DensityFunction,
+        when_out_of_range: &'static DensityFunction,
+    },
     Marker {
         kind: DensityMarker,
         input: &'static DensityFunction,
@@ -4945,6 +4952,13 @@ pub const SPAGHETTI_2D_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunctio
 };
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
+pub const TEST_RANGE_CHOICE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
+    input: &Y_DENSITY,
+    min_inclusive: -1.0,
+    max_exclusive: 1.0,
+    when_in_range: &TEST_POSITIVE_DENSITY,
+    when_out_of_range: &TEST_NEGATIVE_DENSITY,
+};
 
 pub const OVERWORLD_NOISE_ROUTER: NoiseRouter = NoiseRouter {
     barrier: DensityFunction::Noise {
@@ -19431,6 +19445,20 @@ impl DensityFunction {
                 argument1,
                 argument2,
             } => kind.apply(argument1.compute(block_y), argument2.compute(block_y)),
+            DensityFunction::RangeChoice {
+                input,
+                min_inclusive,
+                max_exclusive,
+                when_in_range,
+                when_out_of_range,
+            } => {
+                let input_value = input.compute(block_y);
+                if input_value >= min_inclusive && input_value < max_exclusive {
+                    when_in_range.compute(block_y)
+                } else {
+                    when_out_of_range.compute(block_y)
+                }
+            }
             DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
                 input.compute(block_y)
             }
@@ -19479,6 +19507,21 @@ impl DensityFunction {
                 argument1.compute_with_noise(seed, settings, block_x, block_y, block_z),
                 argument2.compute_with_noise(seed, settings, block_x, block_y, block_z),
             ),
+            DensityFunction::RangeChoice {
+                input,
+                min_inclusive,
+                max_exclusive,
+                when_in_range,
+                when_out_of_range,
+            } => {
+                let input_value =
+                    input.compute_with_noise(seed, settings, block_x, block_y, block_z);
+                if input_value >= min_inclusive && input_value < max_exclusive {
+                    when_in_range.compute_with_noise(seed, settings, block_x, block_y, block_z)
+                } else {
+                    when_out_of_range.compute_with_noise(seed, settings, block_x, block_y, block_z)
+                }
+            }
             DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
                 input.compute_with_noise(seed, settings, block_x, block_y, block_z)
             }
@@ -19584,6 +19627,7 @@ impl DensityFunction {
             DensityFunction::Clamp { .. } => "clamp",
             DensityFunction::Mapped { kind, .. } => kind.serialized_name(),
             DensityFunction::Binary { kind, .. } => kind.serialized_name(),
+            DensityFunction::RangeChoice { .. } => "range_choice",
             DensityFunction::Marker { kind, .. } => kind.serialized_name(),
             DensityFunction::Noise { .. } => "noise",
             DensityFunction::ShiftedNoise { .. } => "shifted_noise",
@@ -26502,6 +26546,20 @@ mod tests {
         assert_eq!(BinaryDensityFunction::Mul.apply(-2.0, 3.0), -6.0);
         assert_eq!(BinaryDensityFunction::Min.apply(-2.0, 3.0), -2.0);
         assert_eq!(BinaryDensityFunction::Max.apply(-2.0, 3.0), 3.0);
+
+        assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.type_name(), "range_choice");
+        assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.compute(0), 3.0);
+        assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.compute(-64), -2.0);
+        assert_eq!(super::TEST_RANGE_CHOICE_DENSITY.compute(64), -2.0);
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        assert_eq!(
+            super::TEST_RANGE_CHOICE_DENSITY.compute_with_noise(12345, overworld, 0, 0, 0),
+            3.0
+        );
+        assert_eq!(
+            super::TEST_RANGE_CHOICE_DENSITY.compute_with_noise(12345, overworld, 0, 64, 0),
+            -2.0
+        );
     }
 
     #[test]
