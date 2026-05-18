@@ -1,6 +1,18 @@
 #![allow(dead_code)]
 
 use crate::seed_validation::{build_seed_parity_sample, ChunkCoord, SeedParitySample};
+use crate::worldgen::{
+    blending_output_for_old_height, block_predicate_test, carver_is_start_chunk, configured_carver,
+    density_function_type, height_provider_sample_with_rolls, normal_noise_value_factor,
+    placement_modifier_positions, surface_condition_test, surface_rule_apply, BlockPos,
+    BlockPredicate, BlockPredicateContext, CaveSurface, HeightProvider, PlacementModifier,
+    SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleSource, VerticalAnchor,
+    WorldGenerationHeightContext, BLOCK_PREDICATE_TYPES, BUILTIN_NOISE_GENERATOR_SETTINGS,
+    BUILTIN_NOISE_ROUTERS, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
+    FLAT_GENERATOR_PRESETS, HEIGHT_PROVIDER_TYPES, NORMAL_NOISE_PARAMETERS,
+    PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
+    SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, WORLD_PRESETS,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldgenChunkComparison {
@@ -15,6 +27,16 @@ pub struct WorldgenComparisonDiff {
     pub chunk: ChunkCoord,
     pub left_fingerprint: u64,
     pub right_fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldgenSourceFamilyGolden {
+    pub family: &'static str,
+    pub seed: i64,
+    pub chunk: ChunkCoord,
+    pub registry_items: usize,
+    pub codec_items: usize,
+    pub fingerprint: u64,
 }
 
 pub fn build_worldgen_chunk_comparisons(
@@ -34,6 +56,241 @@ pub fn build_worldgen_chunk_comparisons(
             })
         })
         .collect()
+}
+
+pub fn build_worldgen_source_family_goldens(
+    seed: i64,
+    chunk: ChunkCoord,
+) -> Vec<WorldgenSourceFamilyGolden> {
+    let sample = build_seed_parity_sample(seed, chunk.x, chunk.z);
+    let context = WorldGenerationHeightContext {
+        min_y: -64,
+        height: 384,
+    };
+    let block_context = BlockPredicateContext {
+        min_y: -64,
+        height: 384,
+        block: "minecraft:grass_block",
+        fluid: "minecraft:empty",
+        solid: true,
+        replaceable: false,
+        unobstructed: true,
+    };
+    let placement_origin = BlockPos {
+        x: chunk.x * 16,
+        y: 72,
+        z: chunk.z * 16,
+    };
+    let material_context = SurfaceMaterialContext {
+        x: chunk.x * 16,
+        y: 64,
+        z: chunk.z * 16,
+        biome: "minecraft:plains",
+        stone_depth_above: 0,
+        stone_depth_below: 4,
+        surface_depth: 3,
+        preliminary_surface_y: 68,
+        water_height: 63,
+        temperature: 0.8,
+        noise: 0.25,
+        steep: false,
+        hole: false,
+    };
+
+    vec![
+        source_family_golden(
+            "blending",
+            seed,
+            chunk,
+            1,
+            1,
+            format!(
+                "{:?}",
+                blending_output_for_old_height(Some(72.0), Some(2.0))
+            ),
+        ),
+        source_family_golden(
+            "block_predicate",
+            seed,
+            chunk,
+            BLOCK_PREDICATE_TYPES.len(),
+            BLOCK_PREDICATE_TYPES.len(),
+            format!(
+                "{:?}:{:?}",
+                BLOCK_PREDICATE_TYPES,
+                block_predicate_test(BlockPredicate::Solid, block_context, 64)
+            ),
+        ),
+        source_family_golden(
+            "carver",
+            seed,
+            chunk,
+            CONFIGURED_CARVERS.len(),
+            3,
+            format!(
+                "{:?}:{:?}",
+                CONFIGURED_CARVERS,
+                carver_is_start_chunk(configured_carver("cave").unwrap(), 0.15)
+            ),
+        ),
+        source_family_golden(
+            "feature",
+            seed,
+            chunk,
+            CONFIGURED_FEATURES.len(),
+            PLACED_FEATURE_BOOTSTRAP_SOURCES.len(),
+            format!("{:?}", CONFIGURED_FEATURES),
+        ),
+        source_family_golden(
+            "flat_generator",
+            seed,
+            chunk,
+            FLAT_GENERATOR_PRESETS.len(),
+            FLAT_GENERATOR_PRESETS.len(),
+            format!("{:?}", FLAT_GENERATOR_PRESETS),
+        ),
+        source_family_golden(
+            "height_provider",
+            seed,
+            chunk,
+            HEIGHT_PROVIDER_TYPES.len(),
+            HEIGHT_PROVIDER_TYPES.len(),
+            format!(
+                "{:?}:{:?}",
+                HEIGHT_PROVIDER_TYPES,
+                height_provider_sample_with_rolls(
+                    HeightProvider::Trapezoid {
+                        min_inclusive: VerticalAnchor::Absolute(40),
+                        max_inclusive: VerticalAnchor::Absolute(80),
+                        plateau: 8,
+                    },
+                    context,
+                    4,
+                    9,
+                    0,
+                )
+            ),
+        ),
+        source_family_golden(
+            "material_rule",
+            seed,
+            chunk,
+            SURFACE_RULE_TYPES.len(),
+            SURFACE_CONDITION_TYPES.len(),
+            format!(
+                "{:?}:{:?}",
+                surface_condition_test(
+                    &SurfaceConditionSource::StoneDepth {
+                        offset: 1,
+                        add_surface_depth: true,
+                        secondary_depth_range: 0,
+                        surface: CaveSurface::Floor,
+                    },
+                    &material_context,
+                    &context,
+                ),
+                surface_rule_apply(
+                    &SurfaceRuleSource::Block("minecraft:grass_block"),
+                    &material_context,
+                    &context,
+                )
+            ),
+        ),
+        source_family_golden(
+            "placement_modifier",
+            seed,
+            chunk,
+            PLACED_FEATURE_BOOTSTRAP_SOURCES.len(),
+            9,
+            format!(
+                "{:?}",
+                (
+                    placement_modifier_positions(
+                        PlacementModifier::Count { count: 2 },
+                        placement_origin,
+                        2,
+                        0,
+                        0,
+                    ),
+                    placement_modifier_positions(
+                        PlacementModifier::InSquare,
+                        placement_origin,
+                        3,
+                        5,
+                        0,
+                    ),
+                    placement_modifier_positions(
+                        PlacementModifier::RandomOffset {
+                            xz_spread: 2,
+                            y_spread: 1,
+                        },
+                        placement_origin,
+                        3,
+                        5,
+                        7,
+                    ),
+                )
+            ),
+        ),
+        source_family_golden(
+            "preset",
+            seed,
+            chunk,
+            WORLD_PRESETS.len()
+                + BUILTIN_NOISE_GENERATOR_SETTINGS.len()
+                + BUILTIN_NOISE_ROUTERS.len(),
+            3,
+            format!(
+                "{:?}:{:?}:{:?}",
+                WORLD_PRESETS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS
+            ),
+        ),
+        source_family_golden(
+            "structure",
+            seed,
+            chunk,
+            STRUCTURE_FAMILIES.len() + STRUCTURE_PIECE_TYPES.len(),
+            STRUCTURE_PIECE_TYPES.len(),
+            format!("{:?}:{:?}", STRUCTURE_FAMILIES, sample.structure_chunks),
+        ),
+        source_family_golden(
+            "synth_noise",
+            seed,
+            chunk,
+            NORMAL_NOISE_PARAMETERS.len(),
+            SYNTH_NOISE_SOURCES.len() + DENSITY_FUNCTION_TYPES.len(),
+            format!(
+                "{:?}:{:?}:{:?}",
+                SYNTH_NOISE_SOURCES,
+                normal_noise_value_factor(NORMAL_NOISE_PARAMETERS[11]),
+                density_function_type("old_blended_noise")
+            ),
+        ),
+    ]
+}
+
+fn source_family_golden(
+    family: &'static str,
+    seed: i64,
+    chunk: ChunkCoord,
+    registry_items: usize,
+    codec_items: usize,
+    payload: String,
+) -> WorldgenSourceFamilyGolden {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    mix_bytes(&mut hash, family.as_bytes());
+    mix_i64(&mut hash, seed);
+    mix_i32(&mut hash, chunk.x);
+    mix_i32(&mut hash, chunk.z);
+    mix_bytes(&mut hash, payload.as_bytes());
+    WorldgenSourceFamilyGolden {
+        family,
+        seed,
+        chunk,
+        registry_items,
+        codec_items,
+        fingerprint: hash,
+    }
 }
 
 pub fn diff_worldgen_comparisons(
@@ -122,6 +379,39 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.len(), SEEDS.len() * CHUNKS.len());
         assert!(first.iter().all(|entry| entry.fingerprint != 0));
+    }
+
+    #[test]
+    fn worldgen_source_family_golden_matrix_is_deterministic() {
+        let chunk = ChunkCoord { x: -12, z: 34 };
+        let first = build_worldgen_source_family_goldens(8_675_309, chunk);
+        let second = build_worldgen_source_family_goldens(8_675_309, chunk);
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first
+                .iter()
+                .map(|entry| (
+                    entry.family,
+                    entry.registry_items,
+                    entry.codec_items,
+                    entry.fingerprint
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("blending", 1, 1, 0x73ac_67d6_03ec_92f7),
+                ("block_predicate", 13, 13, 0xc3ee_462f_0289_7bb6),
+                ("carver", 4, 3, 0x4250_358c_87d5_b357),
+                ("feature", 221, 9, 0x4406_a49b_7ed4_41f7),
+                ("flat_generator", 9, 9, 0x1197_361f_4b66_211f),
+                ("height_provider", 6, 6, 0x7703_bfeb_40d0_6186),
+                ("material_rule", 4, 11, 0x7094_bb91_9777_7c3a),
+                ("placement_modifier", 9, 9, 0xb7be_3703_8b30_0f4f),
+                ("preset", 21, 3, 0xb6d4_0108_2511_ad69),
+                ("structure", 77, 56, 0x4ce0_499c_e60f_f4bb),
+                ("synth_noise", 62, 40, 0xcb94_13d2_e01a_94cc),
+            ]
+        );
     }
 
     #[test]
