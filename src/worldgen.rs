@@ -1490,6 +1490,13 @@ pub enum StructurePlacementKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConcentricRingPlacementCandidate {
+    pub index: i32,
+    pub circle: i32,
+    pub chunk_pos: ChunkPos,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RandomSpreadType {
     Linear,
     Triangular,
@@ -6580,6 +6587,71 @@ pub fn structure_locate_pos(
         y: locate_offset.y,
         z: chunk_pos.z * 16 + locate_offset.z,
     })
+}
+
+pub fn validate_concentric_rings_placement(
+    distance: i32,
+    spread: i32,
+    count: i32,
+) -> Result<(), String> {
+    if !(0..=1023).contains(&distance) || !(0..=1023).contains(&spread) {
+        return Err("Concentric rings distance and spread must be in 0..=1023".to_string());
+    }
+    if !(1..=4095).contains(&count) {
+        return Err("Concentric rings count must be in 1..=4095".to_string());
+    }
+    Ok(())
+}
+
+pub fn concentric_ring_initial_candidates(
+    seed: i64,
+    distance: i32,
+    spread: i32,
+    count: i32,
+) -> Result<Vec<ConcentricRingPlacementCandidate>, String> {
+    validate_concentric_rings_placement(distance, spread, count)?;
+    let mut random = LegacyRandom::new(seed);
+    let mut angle = random.next_f64() * std::f64::consts::PI * 2.0;
+    let mut position_in_circle = 0;
+    let mut circle = 0;
+    let mut current_spread = spread;
+    let mut candidates = Vec::with_capacity(count as usize);
+    for index in 0..count {
+        let dist = 4.0 * distance as f64
+            + (distance * circle * 6) as f64
+            + (random.next_f64() - 0.5) * (distance as f64 * 2.5);
+        let initial_x = (angle.cos() * dist).round() as i32;
+        let initial_z = (angle.sin() * dist).round() as i32;
+        let _biome_search_generator = random.fork();
+        candidates.push(ConcentricRingPlacementCandidate {
+            index,
+            circle,
+            chunk_pos: ChunkPos {
+                x: initial_x,
+                z: initial_z,
+            },
+        });
+        angle += (std::f64::consts::PI * 2.0) / current_spread as f64;
+        position_in_circle += 1;
+        if position_in_circle == current_spread {
+            circle += 1;
+            position_in_circle = 0;
+            current_spread += 2 * current_spread / (circle + 1);
+            current_spread = current_spread.min(count - index);
+            angle += random.next_f64() * std::f64::consts::PI * 2.0;
+        }
+    }
+    Ok(candidates)
+}
+
+pub fn concentric_rings_is_placement_chunk(
+    ring_positions: &[ChunkPos],
+    source_x: i32,
+    source_z: i32,
+) -> bool {
+    ring_positions
+        .iter()
+        .any(|position| position.x == source_x && position.z == source_z)
 }
 
 const fn feature_type(
@@ -16658,6 +16730,52 @@ mod tests {
                 .unwrap_err(),
             "Structure locate offset components must be in -16..=16".to_string()
         );
+    }
+
+    #[test]
+    fn concentric_rings_initial_candidates_follow_vanilla_ring_progression() {
+        assert_eq!(
+            super::validate_concentric_rings_placement(1024, 3, 128).unwrap_err(),
+            "Concentric rings distance and spread must be in 0..=1023".to_string()
+        );
+        assert_eq!(
+            super::validate_concentric_rings_placement(32, 3, 0).unwrap_err(),
+            "Concentric rings count must be in 1..=4095".to_string()
+        );
+
+        let candidates = super::concentric_ring_initial_candidates(12345, 32, 3, 8).unwrap();
+        assert_eq!(candidates.len(), 8);
+        assert_eq!(
+            candidates[0],
+            super::ConcentricRingPlacementCandidate {
+                index: 0,
+                circle: 0,
+                chunk_pos: ChunkPos { x: -105, z: 124 },
+            }
+        );
+        assert_eq!(
+            candidates[2],
+            super::ConcentricRingPlacementCandidate {
+                index: 2,
+                circle: 0,
+                chunk_pos: ChunkPos { x: 114, z: 21 },
+            }
+        );
+        assert_eq!(candidates[3].circle, 1);
+        let ring_positions = candidates
+            .iter()
+            .map(|candidate| candidate.chunk_pos)
+            .collect::<Vec<_>>();
+        assert!(super::concentric_rings_is_placement_chunk(
+            &ring_positions,
+            -105,
+            124
+        ));
+        assert!(!super::concentric_rings_is_placement_chunk(
+            &ring_positions,
+            0,
+            0
+        ));
     }
 
     #[test]
