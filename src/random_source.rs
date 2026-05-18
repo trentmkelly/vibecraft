@@ -264,6 +264,13 @@ pub fn random_state_seed_factories(
     }
 }
 
+pub fn random_state_named_factory(
+    base: PositionalRandomFactory,
+    name: &str,
+) -> PositionalRandomFactory {
+    base.from_hash_of(name).fork_positional()
+}
+
 pub fn mix_stafford_13(mut z: i64) -> i64 {
     z = (z ^ unsigned_shift_right(z, 30)).wrapping_mul(-4_658_895_280_553_007_687);
     z = (z ^ unsigned_shift_right(z, 27)).wrapping_mul(-7_723_592_293_110_705_685);
@@ -442,6 +449,19 @@ pub fn large_feature_seed(world_seed: i64, chunk_x: i32, chunk_z: i32) -> i64 {
     (chunk_x as i64).wrapping_mul(x_scale) ^ (chunk_z as i64).wrapping_mul(z_scale) ^ world_seed
 }
 
+pub fn carver_seed(
+    level_seed: i64,
+    carver_index: i32,
+    source_chunk_x: i32,
+    source_chunk_z: i32,
+) -> i64 {
+    large_feature_seed(
+        level_seed.wrapping_add(carver_index as i64),
+        source_chunk_x,
+        source_chunk_z,
+    )
+}
+
 pub fn large_feature_seed_with_salt(seed: i64, x: i32, z: i32, salt: i32) -> i64 {
     (x as i64)
         .wrapping_mul(341_873_128_712)
@@ -465,11 +485,12 @@ fn unsigned_shift_right(value: i64, shift: u32) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        block_pos_seed, decoration_seed, feature_seed, java_string_hash, large_feature_seed,
-        large_feature_seed_with_salt, linear_congruential_next, mix_stafford_13,
-        random_state_seed_factories, slime_chunk_seed, upgrade_seed_to_128bit,
-        upgrade_seed_to_128bit_unmixed, LegacyRandom, PositionalRandomFactory, RandomAlgorithm,
-        RandomSourceKind, Seed128, Xoroshiro128PlusPlus, GOLDEN_RATIO_64, SILVER_RATIO_64,
+        block_pos_seed, carver_seed, decoration_seed, feature_seed, java_string_hash,
+        large_feature_seed, large_feature_seed_with_salt, linear_congruential_next,
+        mix_stafford_13, random_state_named_factory, random_state_seed_factories, slime_chunk_seed,
+        upgrade_seed_to_128bit, upgrade_seed_to_128bit_unmixed, LegacyRandom,
+        PositionalRandomFactory, RandomAlgorithm, RandomSourceKind, Seed128, Xoroshiro128PlusPlus,
+        GOLDEN_RATIO_64, SILVER_RATIO_64,
     };
 
     #[test]
@@ -547,6 +568,7 @@ mod tests {
             -1_544_766_108_629_797_259
         );
         assert_eq!(large_feature_seed(12345, 4, -7), 752_069_546_558_437_189);
+        assert_eq!(carver_seed(12345, 3, 4, -7), -7_301_195_125_342_406_105);
         assert_eq!(
             large_feature_seed_with_salt(12345, 4, -7, 10_387_313),
             437_217_001_719
@@ -680,5 +702,12 @@ mod tests {
             }
             _ => panic!("xoroshiro terrain random should hash minecraft:terrain"),
         }
+        assert_eq!(
+            random_state_named_factory(xoroshiro.base, "minecraft:erosion"),
+            PositionalRandomFactory::Xoroshiro {
+                seed_lo: 6_519_630_900_402_792_865,
+                seed_hi: 6_332_896_244_760_641_902,
+            }
+        );
     }
 }
