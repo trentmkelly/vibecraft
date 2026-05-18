@@ -4942,6 +4942,13 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
             input: &SPAGHETTI_ROUGHNESS_FUNCTION_DENSITY,
         },
     },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/caves/pillars",
+        function: DensityFunction::Marker {
+            kind: DensityMarker::CacheOnce,
+            input: &PILLARS_DENSITY,
+        },
+    },
 ];
 
 pub const RIDGE_REFERENCE_DENSITY: DensityFunction =
@@ -5031,6 +5038,65 @@ pub const SPAGHETTI_ROUGHNESS_FUNCTION_DENSITY: DensityFunction = DensityFunctio
     kind: BinaryDensityFunction::Mul,
     argument1: &SPAGHETTI_ROUGHNESS_FIRST_FACTOR_DENSITY,
     argument2: &SPAGHETTI_ROUGHNESS_SECOND_FACTOR_DENSITY,
+};
+pub const PILLAR_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:pillar",
+    xz_scale: 25.0,
+    y_scale: 0.3,
+};
+pub const PILLAR_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(2.0);
+pub const PILLAR_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &PILLAR_SCALE_DENSITY,
+    argument2: &PILLAR_NOISE_DENSITY,
+};
+pub const PILLAR_RARENESS_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:pillar_rareness",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const PILLAR_RARENESS_INVERT_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(-1.0);
+pub const PILLAR_RARENESS_INVERTED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &PILLAR_RARENESS_INVERT_SCALE_DENSITY,
+    argument2: &PILLAR_RARENESS_NOISE_DENSITY,
+};
+pub const PILLAR_RARENESS_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(-1.0);
+pub const PILLAR_RARENESS_FACTOR_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &PILLAR_RARENESS_OFFSET_DENSITY,
+    argument2: &PILLAR_RARENESS_INVERTED_DENSITY,
+};
+pub const PILLAR_FIRST_FACTOR_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &PILLAR_SCALED_DENSITY,
+    argument2: &PILLAR_RARENESS_FACTOR_DENSITY,
+};
+pub const PILLAR_THICKNESS_NOISE_DENSITY: DensityFunction = DensityFunction::Noise {
+    noise: "minecraft:pillar_thickness",
+    xz_scale: 1.0,
+    y_scale: 1.0,
+};
+pub const PILLAR_THICKNESS_SCALE_DENSITY: DensityFunction = DensityFunction::Constant(0.55);
+pub const PILLAR_THICKNESS_SCALED_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &PILLAR_THICKNESS_SCALE_DENSITY,
+    argument2: &PILLAR_THICKNESS_NOISE_DENSITY,
+};
+pub const PILLAR_THICKNESS_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(0.55);
+pub const PILLAR_THICKNESS_FACTOR_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &PILLAR_THICKNESS_OFFSET_DENSITY,
+    argument2: &PILLAR_THICKNESS_SCALED_DENSITY,
+};
+pub const PILLAR_THICKNESS_CUBED_DENSITY: DensityFunction = DensityFunction::Mapped {
+    kind: MappedDensityFunction::Cube,
+    input: &PILLAR_THICKNESS_FACTOR_DENSITY,
+};
+pub const PILLARS_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Mul,
+    argument1: &PILLAR_FIRST_FACTOR_DENSITY,
+    argument2: &PILLAR_THICKNESS_CUBED_DENSITY,
 };
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
@@ -27204,6 +27270,7 @@ mod tests {
                 "minecraft:end/sloped_cheese",
                 "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
                 "minecraft:overworld/caves/spaghetti_roughness_function",
+                "minecraft:overworld/caves/pillars",
             ]
         );
         assert_eq!(
@@ -27239,6 +27306,14 @@ mod tests {
         assert_eq!(
             roughness.value_bounds(),
             (-0.6355555555555555, 0.34222222222222215)
+        );
+        let pillars = builtin_density_function("overworld/caves/pillars")
+            .unwrap()
+            .function;
+        assert_eq!(pillars.type_name(), "cache_once");
+        assert_eq!(
+            pillars.value_bounds(),
+            (-179.00238323045266, 151.9263924897119)
         );
     }
 
