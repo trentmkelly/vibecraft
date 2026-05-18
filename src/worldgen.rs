@@ -4899,6 +4899,14 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
         function: RIDGE_FOLDED_DENSITY,
     },
     DensityFunctionEntry {
+        id: "minecraft:overworld/offset",
+        function: OVERWORLD_OFFSET_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld/depth",
+        function: OVERWORLD_DEPTH_DENSITY,
+    },
+    DensityFunctionEntry {
         id: "minecraft:overworld_large_biomes/continents",
         function: DensityFunction::ShiftedNoise {
             shift_x: &SHIFT_X_DENSITY,
@@ -4919,6 +4927,22 @@ pub const BUILTIN_DENSITY_FUNCTIONS: &[DensityFunctionEntry] = &[
             y_scale: 0.0,
             noise: "minecraft:erosion_large",
         },
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/offset",
+        function: OVERWORLD_LARGE_BIOMES_OFFSET_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_large_biomes/depth",
+        function: OVERWORLD_LARGE_BIOMES_DEPTH_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_amplified/offset",
+        function: OVERWORLD_AMPLIFIED_OFFSET_DENSITY,
+    },
+    DensityFunctionEntry {
+        id: "minecraft:overworld_amplified/depth",
+        function: OVERWORLD_AMPLIFIED_DEPTH_DENSITY,
     },
     DensityFunctionEntry {
         id: "minecraft:end/sloped_cheese",
@@ -4995,6 +5019,61 @@ pub const RIDGE_FOLDED_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Mul,
     argument1: &RIDGE_FOLDED_SCALE_DENSITY,
     argument2: &RIDGE_OUTER_DENSITY,
+};
+pub const OVERWORLD_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_OFFSET_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &OVERWORLD_OFFSET_SPLINE_DENSITY,
+};
+pub const OVERWORLD_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_OFFSET_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY: DensityFunction =
+    DensityFunction::Marker {
+        kind: DensityMarker::Cache2D,
+        input: &OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY,
+    };
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline;
+pub const OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::Cache2D,
+    input: &OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::FlatCache,
+    input: &OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY,
+};
+pub const OVERWORLD_DEPTH_GRADIENT_DENSITY: DensityFunction = DensityFunction::YClampedGradient {
+    from_y: -64,
+    to_y: 320,
+    from_value: 1.5,
+    to_value: -1.5,
+};
+pub const OVERWORLD_OFFSET_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld/offset");
+pub const OVERWORLD_DEPTH_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_DEPTH_GRADIENT_DENSITY,
+    argument2: &OVERWORLD_OFFSET_REFERENCE_DENSITY,
+};
+pub const OVERWORLD_LARGE_BIOMES_OFFSET_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_large_biomes/offset");
+pub const OVERWORLD_LARGE_BIOMES_DEPTH_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_DEPTH_GRADIENT_DENSITY,
+    argument2: &OVERWORLD_LARGE_BIOMES_OFFSET_REFERENCE_DENSITY,
+};
+pub const OVERWORLD_AMPLIFIED_OFFSET_REFERENCE_DENSITY: DensityFunction =
+    DensityFunction::Reference("minecraft:overworld_amplified/offset");
+pub const OVERWORLD_AMPLIFIED_DEPTH_DENSITY: DensityFunction = DensityFunction::Binary {
+    kind: BinaryDensityFunction::Add,
+    argument1: &OVERWORLD_DEPTH_GRADIENT_DENSITY,
+    argument2: &OVERWORLD_AMPLIFIED_OFFSET_REFERENCE_DENSITY,
 };
 pub const END_ISLANDS_DENSITY: DensityFunction = DensityFunction::EndIslands { seed: 0 };
 pub const SPAGHETTI_2D_THICKNESS_MODULATOR_DENSITY: DensityFunction = DensityFunction::Binary {
@@ -27554,8 +27633,14 @@ mod tests {
                 "minecraft:overworld/erosion",
                 "minecraft:overworld/ridges",
                 "minecraft:overworld/ridges_folded",
+                "minecraft:overworld/offset",
+                "minecraft:overworld/depth",
                 "minecraft:overworld_large_biomes/continents",
                 "minecraft:overworld_large_biomes/erosion",
+                "minecraft:overworld_large_biomes/offset",
+                "minecraft:overworld_large_biomes/depth",
+                "minecraft:overworld_amplified/offset",
+                "minecraft:overworld_amplified/depth",
                 "minecraft:end/sloped_cheese",
                 "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
                 "minecraft:overworld/caves/spaghetti_roughness_function",
@@ -27584,6 +27669,33 @@ mod tests {
             .function;
         assert_eq!(ridges_folded.type_name(), "mul");
         assert_eq!(ridges_folded.value_bounds(), (-14.14285714285714, 1.0));
+        let offset = builtin_density_function("overworld/offset")
+            .unwrap()
+            .function;
+        assert_eq!(
+            offset.type_name(),
+            DensityMarker::FlatCache.serialized_name()
+        );
+        assert_eq!(offset.value_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+        let depth = builtin_density_function("overworld/depth")
+            .unwrap()
+            .function;
+        assert_eq!(depth.type_name(), "add");
+        assert_eq!(depth.value_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+        assert_eq!(
+            builtin_density_function("overworld_large_biomes/depth")
+                .unwrap()
+                .function
+                .type_name(),
+            "add"
+        );
+        assert_eq!(
+            builtin_density_function("overworld_amplified/depth")
+                .unwrap()
+                .function
+                .type_name(),
+            "add"
+        );
         assert_eq!(
             builtin_density_function("overworld/caves/spaghetti_2d_thickness_modulator")
                 .unwrap()
