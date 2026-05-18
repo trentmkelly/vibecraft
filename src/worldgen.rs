@@ -1988,7 +1988,8 @@ pub fn materialize_noise_preview_chunk(
                 noise_preview_terrain_height(world_x, world_z, settings).clamp(min_y + 1, max_y);
         }
     }
-    let tree_blocks = noise_preview_tree_blocks(pos, settings, &terrain_heights);
+    let biome = noise_preview_biome(biome_source_model, pos);
+    let tree_blocks = noise_preview_tree_blocks(pos, settings, biome, &terrain_heights);
 
     chunk.sections = (0..section_count)
         .map(|section_offset| {
@@ -2004,7 +2005,7 @@ pub fn materialize_noise_preview_chunk(
                 )
                 .to_nbt(),
                 biomes: PalettedContainer::single(
-                    Tag::String(noise_preview_biome(biome_source_model, pos).to_string()),
+                    Tag::String(biome.to_string()),
                     BIOME_SECTION_VOLUME,
                 )
                 .to_nbt(),
@@ -2119,50 +2120,72 @@ fn noise_preview_block_at(
 fn noise_preview_tree_blocks(
     chunk_pos: ChunkPos,
     settings: &NoiseGeneratorSettings,
+    biome: &str,
     terrain_heights: &[i32; 16 * 16],
 ) -> Vec<TreePlacementBlock> {
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return Vec::new();
     }
 
-    let local_x = 8;
-    let local_z = 8;
-    let surface_height = terrain_heights[local_z * 16 + local_x];
-    if surface_height <= settings.sea_level + 2 {
+    let Some(generation) = biome_generation_settings(biome) else {
         return Vec::new();
-    }
-    let seed = (chunk_pos.x as i64 * 341_873_128_712 + chunk_pos.z as i64 * 132_897_987_541) as u64;
-    if seed.rotate_left(13) % 5 != 0 {
+    };
+    if !biome_has_placed_feature(generation, "trees_plains")
+        && !biome_has_placed_feature(generation, "trees_birch_and_oak_leaf_litter")
+    {
         return Vec::new();
     }
 
-    let plan = simple_tree_placement_plan(
-        BlockPos {
-            x: local_x as i32,
-            y: surface_height,
-            z: local_z as i32,
-        },
-        TrunkPlacerModel {
-            base_height: 4,
-            height_rand_a: 2,
-            height_rand_b: 1,
-            kind: TrunkPlacerKind::Straight,
-        },
-        FoliagePlacerModel {
-            radius_min: 2,
-            radius_max: 2,
-            offset_min: 0,
-            offset_max: 0,
-            kind: FoliagePlacerKind::Blob { height: 3 },
-        },
-        "minecraft:oak_log",
-        "minecraft:oak_leaves",
-        "minecraft:dirt",
-        (seed & 0xffff) as i32,
-        ((seed >> 16) & 0xffff) as i32,
-    )
-    .expect("hard-coded preview tree configuration must validate");
-    plan.blocks
+    let seed = (chunk_pos.x as i64 * 341_873_128_712 + chunk_pos.z as i64 * 132_897_987_541) as u64;
+    let mut blocks = Vec::new();
+    for (index, (local_x, local_z)) in noise_preview_tree_origins(generation, seed)
+        .into_iter()
+        .enumerate()
+    {
+        let surface_height = terrain_heights[local_z * 16 + local_x];
+        if surface_height <= settings.sea_level + 2 {
+            continue;
+        }
+        let tree_seed = seed.rotate_left((index as u32 + 1) * 7);
+        let forest_tree = biome_has_placed_feature(generation, "trees_birch_and_oak_leaf_litter")
+            && (tree_seed & 1) == 0;
+        let plan = simple_tree_placement_plan(
+            BlockPos {
+                x: local_x as i32,
+                y: surface_height,
+                z: local_z as i32,
+            },
+            TrunkPlacerModel {
+                base_height: if forest_tree { 5 } else { 4 },
+                height_rand_a: 2,
+                height_rand_b: 1,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Blob { height: 3 },
+            },
+            if forest_tree {
+                "minecraft:birch_log"
+            } else {
+                "minecraft:oak_log"
+            },
+            if forest_tree {
+                "minecraft:birch_leaves"
+            } else {
+                "minecraft:oak_leaves"
+            },
+            "minecraft:dirt",
+            (tree_seed & 0xffff) as i32,
+            ((tree_seed >> 16) & 0xffff) as i32,
+        )
+        .expect("hard-coded preview tree configuration must validate");
+        blocks.extend(plan.blocks);
+    }
+    blocks
         .into_iter()
         .filter(|block| {
             (0..16).contains(&block.pos.x)
@@ -2171,6 +2194,32 @@ fn noise_preview_tree_blocks(
                 && (0..16).contains(&block.pos.z)
         })
         .collect()
+}
+
+fn noise_preview_tree_origins(
+    biome: &BiomeGenerationSettingsModel,
+    seed: u64,
+) -> Vec<(usize, usize)> {
+    if biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter") {
+        let candidates = [(4, 4), (11, 5), (6, 12), (13, 13)];
+        return candidates
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, pos)| {
+                if seed.rotate_left(5 + index as u32 * 9) % 3 != 1 {
+                    Some(pos)
+                } else {
+                    None
+                }
+            })
+            .collect();
+    }
+
+    if biome_has_placed_feature(biome, "trees_plains") && seed.rotate_left(13) % 5 == 0 {
+        vec![(8, 8)]
+    } else {
+        Vec::new()
+    }
 }
 
 fn noise_preview_terrain_height(x: i32, z: i32, settings: &NoiseGeneratorSettings) -> i32 {
@@ -8478,6 +8527,64 @@ mod tests {
             };
             palette.contains(&super::block_state_tag("minecraft:oak_log"))
                 || palette.contains(&super::block_state_tag("minecraft:oak_leaves"))
+        }));
+    }
+
+    #[test]
+    fn noise_preview_trees_follow_biome_generation_settings() {
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let terrain_heights = [settings.sea_level + 8; 16 * 16];
+        let plains = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:plains",
+            &terrain_heights,
+        );
+        let forest = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:forest",
+            &terrain_heights,
+        );
+        let unknown = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:badlands",
+            &terrain_heights,
+        );
+
+        assert!(plains
+            .iter()
+            .any(|block| block.state == "minecraft:oak_log"));
+        assert!(forest.len() > plains.len());
+        assert!(forest
+            .iter()
+            .any(|block| block.state == "minecraft:birch_log"));
+        assert!(unknown.is_empty());
+    }
+
+    #[test]
+    fn forest_preview_chunk_uses_forest_decoration_palette() {
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let chunk = super::materialize_noise_preview_chunk(
+            ChunkPos { x: 0, z: 0 },
+            &BiomeSourceModel::Fixed {
+                biome: "minecraft:forest",
+            },
+            settings,
+        );
+
+        assert!(chunk.sections.iter().any(|section| {
+            let Tag::Compound(block_states) = &section.block_states else {
+                return false;
+            };
+            let Some((_, Tag::List(palette))) =
+                block_states.iter().find(|(name, _)| name == "palette")
+            else {
+                return false;
+            };
+            palette.contains(&super::block_state_tag("minecraft:birch_log"))
+                || palette.contains(&super::block_state_tag("minecraft:birch_leaves"))
         }));
     }
 
