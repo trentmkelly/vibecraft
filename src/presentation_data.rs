@@ -849,6 +849,8 @@ pub const JUKEBOX_SONGS: &[JukeboxSongDef] = &[
         11,
         73.0,
     ),
+    jukebox_song("minecraft:tears", "minecraft:music_disc.tears", 10, 175.0),
+    jukebox_song("minecraft:lava_chicken", "minecraft:music_disc.lava_chicken", 9, 134.0),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1425,6 +1427,53 @@ mod tests {
         assert!(INSTRUMENTS.iter().all(|instrument| {
             instrument.use_duration_seconds == 7.0 && instrument.range == 256.0
         }));
+        assert_eq!(JUKEBOX_SONGS.len(), 21);
+        let mut jukebox_song_ids: Vec<&str> = JUKEBOX_SONGS.iter().map(|song| song.id).collect();
+        jukebox_song_ids.sort_unstable();
+        assert_eq!(
+            jukebox_song_ids,
+            [
+                "minecraft:11",
+                "minecraft:13",
+                "minecraft:5",
+                "minecraft:blocks",
+                "minecraft:cat",
+                "minecraft:chirp",
+                "minecraft:creator",
+                "minecraft:creator_music_box",
+                "minecraft:far",
+                "minecraft:lava_chicken",
+                "minecraft:mall",
+                "minecraft:mellohi",
+                "minecraft:otherside",
+                "minecraft:pigstep",
+                "minecraft:precipice",
+                "minecraft:relic",
+                "minecraft:stal",
+                "minecraft:strad",
+                "minecraft:tears",
+                "minecraft:wait",
+                "minecraft:ward",
+            ]
+        );
+        assert_eq!(
+            JUKEBOX_SONGS.iter().find(|song| song.id == "minecraft:tears").unwrap(),
+            &JukeboxSongDef {
+                id: "minecraft:tears",
+                sound_event: "minecraft:music_disc.tears",
+                comparator_output: 10,
+                length_seconds: 175.0,
+            }
+        );
+        assert_eq!(
+            JUKEBOX_SONGS.iter().find(|song| song.id == "minecraft:lava_chicken").unwrap(),
+            &JukeboxSongDef {
+                id: "minecraft:lava_chicken",
+                sound_event: "minecraft:music_disc.lava_chicken",
+                comparator_output: 9,
+                length_seconds: 134.0,
+            }
+        );
         let pigstep = JUKEBOX_SONGS
             .iter()
             .find(|song| song.id == "minecraft:pigstep")
