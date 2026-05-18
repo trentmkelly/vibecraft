@@ -1535,6 +1535,13 @@ pub struct StructureStartTagModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureCheckResultModel {
+    StartPresent,
+    StartNotPresent,
+    ChunkLoadNeeded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RandomSpreadType {
     Linear,
     Triangular,
@@ -6835,6 +6842,46 @@ pub fn structure_pieces_intersecting_chunk(
         .copied()
         .filter(|piece| piece.bounding_box.intersects(chunk_bb))
         .collect()
+}
+
+pub fn structure_check_result_from_cached_references(
+    references: Option<i32>,
+    require_unreferenced: bool,
+) -> StructureCheckResultModel {
+    match references {
+        None => StructureCheckResultModel::StartNotPresent,
+        Some(reference_count) if require_unreferenced && reference_count != 0 => {
+            StructureCheckResultModel::StartNotPresent
+        }
+        Some(_) => StructureCheckResultModel::StartPresent,
+    }
+}
+
+pub fn structure_fast_check_allows_lookup(result: StructureCheckResultModel) -> bool {
+    result != StructureCheckResultModel::StartNotPresent
+}
+
+pub fn structure_locate_can_return_fast(
+    result: StructureCheckResultModel,
+    create_reference: bool,
+) -> bool {
+    !create_reference && result == StructureCheckResultModel::StartPresent
+}
+
+pub fn structure_start_can_satisfy_lookup(
+    start: &StructureStartModel,
+    create_reference: bool,
+) -> bool {
+    start.is_valid() && (!create_reference || start.can_be_referenced())
+}
+
+pub fn structure_try_add_reference(start: &mut StructureStartModel) -> bool {
+    if start.can_be_referenced() {
+        start.add_reference();
+        true
+    } else {
+        false
+    }
 }
 
 const fn feature_type(
@@ -17083,6 +17130,72 @@ mod tests {
             ),
             vec![second_piece]
         );
+    }
+
+    #[test]
+    fn structure_check_presence_and_lookup_branches_match_vanilla() {
+        assert_eq!(
+            super::structure_check_result_from_cached_references(None, false),
+            super::StructureCheckResultModel::StartNotPresent
+        );
+        assert_eq!(
+            super::structure_check_result_from_cached_references(Some(0), true),
+            super::StructureCheckResultModel::StartPresent
+        );
+        assert_eq!(
+            super::structure_check_result_from_cached_references(Some(1), true),
+            super::StructureCheckResultModel::StartNotPresent
+        );
+        assert_eq!(
+            super::structure_check_result_from_cached_references(Some(2), false),
+            super::StructureCheckResultModel::StartPresent
+        );
+
+        assert!(!super::structure_fast_check_allows_lookup(
+            super::StructureCheckResultModel::StartNotPresent
+        ));
+        assert!(super::structure_fast_check_allows_lookup(
+            super::StructureCheckResultModel::ChunkLoadNeeded
+        ));
+        assert!(super::structure_locate_can_return_fast(
+            super::StructureCheckResultModel::StartPresent,
+            false
+        ));
+        assert!(!super::structure_locate_can_return_fast(
+            super::StructureCheckResultModel::StartPresent,
+            true
+        ));
+        assert!(!super::structure_locate_can_return_fast(
+            super::StructureCheckResultModel::ChunkLoadNeeded,
+            false
+        ));
+
+        let piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 20,
+                min_z: 0,
+                max_x: 15,
+                max_y: 30,
+                max_z: 15,
+            },
+        };
+        let mut start = super::StructureStartModel {
+            structure: Some("minecraft:desert_pyramid"),
+            chunk_pos: ChunkPos { x: 0, z: 0 },
+            references: 0,
+            pieces: vec![piece],
+        };
+        assert!(super::structure_start_can_satisfy_lookup(&start, false));
+        assert!(super::structure_start_can_satisfy_lookup(&start, true));
+        assert!(super::structure_try_add_reference(&mut start));
+        assert_eq!(start.references, 1);
+        assert!(super::structure_start_can_satisfy_lookup(&start, false));
+        assert!(!super::structure_start_can_satisfy_lookup(&start, true));
+        assert!(!super::structure_try_add_reference(&mut start));
+
+        let invalid = super::StructureStartModel::invalid();
+        assert!(!super::structure_start_can_satisfy_lookup(&invalid, false));
     }
 
     #[test]
