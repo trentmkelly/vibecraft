@@ -1006,6 +1006,22 @@ pub struct BasaltColumnPlacementBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeltaFeatureConfigurationModel {
+    pub contents: &'static str,
+    pub rim: &'static str,
+    pub size_min: i32,
+    pub size_max: i32,
+    pub rim_size_min: i32,
+    pub rim_size_max: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeltaPlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
     South,
@@ -9072,6 +9088,102 @@ pub fn basalt_column_blocks_from_surface(
     blocks
 }
 
+pub fn validate_delta_config(
+    config: DeltaFeatureConfigurationModel,
+) -> Result<DeltaFeatureConfigurationModel, &'static str> {
+    let valid_size = (0..=16).contains(&config.size_min)
+        && (0..=16).contains(&config.size_max)
+        && config.size_min <= config.size_max;
+    let valid_rim = (0..=16).contains(&config.rim_size_min)
+        && (0..=16).contains(&config.rim_size_max)
+        && config.rim_size_min <= config.rim_size_max;
+    if config.contents.is_empty() || config.rim.is_empty() {
+        Err("delta contents and rim states must not be empty")
+    } else if !valid_size {
+        Err("delta size bounds must be ordered in 0..=16")
+    } else if !valid_rim {
+        Err("delta rim size bounds must be ordered in 0..=16")
+    } else {
+        Ok(config)
+    }
+}
+
+pub fn delta_cannot_replace(state: &str) -> bool {
+    matches!(
+        state,
+        "minecraft:bedrock"
+            | "minecraft:nether_bricks"
+            | "minecraft:nether_brick_fence"
+            | "minecraft:nether_brick_stairs"
+            | "minecraft:nether_wart"
+            | "minecraft:chest"
+            | "minecraft:spawner"
+    )
+}
+
+pub fn delta_is_clear(
+    state: &str,
+    contents: &str,
+    up_air: bool,
+    down_air: bool,
+    north_air: bool,
+    south_air: bool,
+    west_air: bool,
+    east_air: bool,
+) -> bool {
+    state != contents
+        && !delta_cannot_replace(state)
+        && !up_air
+        && !down_air
+        && !north_air
+        && !south_air
+        && !west_air
+        && !east_air
+}
+
+pub fn delta_has_rim(spawn_roll: f64, rim_x: i32, rim_z: i32) -> bool {
+    spawn_roll < 0.9 && rim_x != 0 && rim_z != 0
+}
+
+pub fn delta_candidate_offsets(radius_x: i32, radius_z: i32) -> Vec<(i32, i32)> {
+    let radius_limit = radius_x.max(radius_z);
+    let mut offsets = Vec::new();
+    for dz in -radius_z..=radius_z {
+        for dx in -radius_x..=radius_x {
+            if dx.abs() + dz.abs() <= radius_limit {
+                offsets.push((dx, dz));
+            }
+        }
+    }
+    offsets
+}
+
+pub fn glowstone_can_start(origin_empty: bool, above_state: &str) -> bool {
+    origin_empty
+        && matches!(
+            above_state,
+            "minecraft:netherrack" | "minecraft:basalt" | "minecraft:blackstone"
+        )
+}
+
+pub fn glowstone_candidate_offset(
+    x_roll_a: i32,
+    x_roll_b: i32,
+    y_roll: i32,
+    z_roll_a: i32,
+    z_roll_b: i32,
+) -> BlockPos {
+    BlockPos {
+        x: x_roll_a.rem_euclid(8) - x_roll_b.rem_euclid(8),
+        y: -y_roll.rem_euclid(12),
+        z: z_roll_a.rem_euclid(8) - z_roll_b.rem_euclid(8),
+    }
+}
+
+pub fn glowstone_can_grow(candidate_empty: bool, glowstone_neighbors: i32) -> bool {
+    candidate_empty && glowstone_neighbors == 1
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -13862,6 +13974,66 @@ mod tests {
         assert!(!column_blocks.contains(&super::BasaltColumnPlacementBlock {
             pos: BlockPos { x: 1, y: 67, z: 0 },
         }));
+        let delta_config = super::DeltaFeatureConfigurationModel {
+            contents: "minecraft:lava",
+            rim: "minecraft:magma_block",
+            size_min: 3,
+            size_max: 7,
+            rim_size_min: 0,
+            rim_size_max: 2,
+        };
+        assert_eq!(super::validate_delta_config(delta_config), Ok(delta_config));
+        assert_eq!(
+            super::validate_delta_config(super::DeltaFeatureConfigurationModel {
+                contents: "minecraft:lava",
+                rim: "minecraft:magma_block",
+                size_min: 17,
+                size_max: 17,
+                rim_size_min: 0,
+                rim_size_max: 2,
+            }),
+            Err("delta size bounds must be ordered in 0..=16")
+        );
+        assert!(super::delta_cannot_replace("minecraft:bedrock"));
+        assert!(!super::delta_cannot_replace("minecraft:netherrack"));
+        assert!(super::delta_is_clear(
+            "minecraft:netherrack",
+            "minecraft:lava",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ));
+        assert!(!super::delta_is_clear(
+            "minecraft:netherrack",
+            "minecraft:lava",
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+        ));
+        assert!(super::delta_has_rim(0.5, 1, 2));
+        assert!(!super::delta_has_rim(0.95, 1, 2));
+        let delta_offsets = super::delta_candidate_offsets(2, 1);
+        assert!(delta_offsets.contains(&(0, 0)));
+        assert!(delta_offsets.contains(&(2, 0)));
+        assert!(!delta_offsets.contains(&(2, 1)));
+        assert!(super::glowstone_can_start(true, "minecraft:netherrack"));
+        assert!(!super::glowstone_can_start(true, "minecraft:air"));
+        assert_eq!(
+            super::glowstone_candidate_offset(7, 1, 11, 2, 6),
+            BlockPos {
+                x: 6,
+                y: -11,
+                z: -4
+            }
+        );
+        assert!(super::glowstone_can_grow(true, 1));
+        assert!(!super::glowstone_can_grow(true, 2));
 
         let pile_config = super::BlockPileConfigurationModel {
             state_provider: BlockStateProviderModel::Simple("minecraft:hay_block"),
