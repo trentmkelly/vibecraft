@@ -7099,6 +7099,128 @@ pub const PALE_GARDEN_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const LUSH_CAVES_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    &[
+        "minecraft:ore_dirt",
+        "minecraft:ore_gravel",
+        "minecraft:ore_granite_upper",
+        "minecraft:ore_granite_lower",
+        "minecraft:ore_diorite_upper",
+        "minecraft:ore_diorite_lower",
+        "minecraft:ore_andesite_upper",
+        "minecraft:ore_andesite_lower",
+        "minecraft:ore_tuff",
+        "minecraft:ore_coal_upper",
+        "minecraft:ore_coal_lower",
+        "minecraft:ore_iron_upper",
+        "minecraft:ore_iron_middle",
+        "minecraft:ore_iron_small",
+        "minecraft:ore_gold",
+        "minecraft:ore_gold_lower",
+        "minecraft:ore_redstone",
+        "minecraft:ore_redstone_lower",
+        "minecraft:ore_diamond",
+        "minecraft:ore_diamond_medium",
+        "minecraft:ore_diamond_large",
+        "minecraft:ore_diamond_buried",
+        "minecraft:ore_lapis",
+        "minecraft:ore_lapis_buried",
+        "minecraft:ore_copper",
+        "minecraft:underwater_magma",
+        "minecraft:ore_clay",
+        "minecraft:disk_sand",
+        "minecraft:disk_clay",
+        "minecraft:disk_gravel",
+    ],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass_2",
+        "minecraft:lush_caves_ceiling_vegetation",
+        "minecraft:cave_vines",
+        "minecraft:lush_caves_clay",
+        "minecraft:lush_caves_vegetation",
+        "minecraft:rooted_azalea_tree",
+        "minecraft:spore_blossom",
+        "minecraft:classic_vines_cave_feature",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const DRIPSTONE_CAVES_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    &["minecraft:amethyst_geode", "minecraft:large_dripstone"],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    &[
+        "minecraft:ore_dirt",
+        "minecraft:ore_gravel",
+        "minecraft:ore_granite_upper",
+        "minecraft:ore_granite_lower",
+        "minecraft:ore_diorite_upper",
+        "minecraft:ore_diorite_lower",
+        "minecraft:ore_andesite_upper",
+        "minecraft:ore_andesite_lower",
+        "minecraft:ore_tuff",
+        "minecraft:ore_coal_upper",
+        "minecraft:ore_coal_lower",
+        "minecraft:ore_iron_upper",
+        "minecraft:ore_iron_middle",
+        "minecraft:ore_iron_small",
+        "minecraft:ore_gold",
+        "minecraft:ore_gold_lower",
+        "minecraft:ore_redstone",
+        "minecraft:ore_redstone_lower",
+        "minecraft:ore_diamond",
+        "minecraft:ore_diamond_medium",
+        "minecraft:ore_diamond_large",
+        "minecraft:ore_diamond_buried",
+        "minecraft:ore_lapis",
+        "minecraft:ore_lapis_buried",
+        "minecraft:ore_copper_large",
+        "minecraft:underwater_magma",
+        "minecraft:disk_sand",
+        "minecraft:disk_clay",
+        "minecraft:disk_gravel",
+    ],
+    &["minecraft:dripstone_cluster", "minecraft:pointed_dripstone"],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_tall_grass_2",
+        "minecraft:trees_plains",
+        "minecraft:flower_plains",
+        "minecraft:patch_grass_plain",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_pumpkin",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const DEEP_DARK_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    &[],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    &["minecraft:sculk_vein", "minecraft:sculk_patch_deep_dark"],
+    &[],
+    DRIPSTONE_CAVES_FEATURE_STEPS[9],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const GROVE_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -8963,6 +9085,70 @@ pub const SWAMP_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
     },
 ];
 
+pub const DRIPSTONE_CAVES_MONSTER_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:spider",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:zombie_villager",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:skeleton",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:creeper",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:slime",
+        weight: 100,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:enderman",
+        weight: 10,
+        min_count: 1,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:witch",
+        weight: 5,
+        min_count: 1,
+        max_count: 1,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:drowned",
+        weight: 95,
+        min_count: 4,
+        max_count: 4,
+    },
+];
+
+pub const LUSH_CAVES_AXOLOTL_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:axolotl",
+    weight: 10,
+    min_count: 4,
+    max_count: 6,
+}];
+
 pub const PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS: &[MobSpawnerDataModel] =
     &[MobSpawnerDataModel {
         entity_type: "minecraft:glow_squid",
@@ -10116,6 +10302,111 @@ pub const MANGROVE_SWAMP_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const LUSH_CAVES_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: LUSH_CAVES_AXOLOTL_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const DRIPSTONE_CAVES_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: DRIPSTONE_CAVES_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const DEEP_DARK_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const BEACH_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -10696,6 +10987,30 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: PALE_GARDEN_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:lush_caves",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: LUSH_CAVES_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: LUSH_CAVES_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:dripstone_caves",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DRIPSTONE_CAVES_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: DRIPSTONE_CAVES_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:deep_dark",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: DEEP_DARK_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: DEEP_DARK_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:grove",
@@ -25203,6 +25518,84 @@ mod tests {
             "minecraft:flower_pale_garden"
         ));
         assert!(super::biome_spawns_for_category(pale_garden, "creature").is_empty());
+
+        let lush_caves = super::biome_generation_settings("lush_caves").unwrap();
+        assert_eq!(lush_caves.biome, "minecraft:lush_caves");
+        assert!(super::biome_has_placed_feature(
+            lush_caves,
+            "minecraft:ore_clay"
+        ));
+        assert!(super::biome_has_placed_feature(
+            lush_caves,
+            "minecraft:lush_caves_ceiling_vegetation"
+        ));
+        assert!(super::biome_has_placed_feature(
+            lush_caves,
+            "minecraft:cave_vines"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            lush_caves,
+            "minecraft:trees_plains"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(lush_caves, "axolotls"),
+            super::LUSH_CAVES_AXOLOTL_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(lush_caves, "water_ambient"),
+            super::MANGROVE_SWAMP_WATER_AMBIENT_SPAWNS
+        );
+
+        let dripstone_caves = super::biome_generation_settings("dripstone_caves").unwrap();
+        assert_eq!(dripstone_caves.biome, "minecraft:dripstone_caves");
+        assert!(super::biome_has_placed_feature(
+            dripstone_caves,
+            "minecraft:large_dripstone"
+        ));
+        assert!(super::biome_has_placed_feature(
+            dripstone_caves,
+            "minecraft:ore_copper_large"
+        ));
+        assert!(super::biome_has_placed_feature(
+            dripstone_caves,
+            "minecraft:dripstone_cluster"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            dripstone_caves,
+            "minecraft:ore_copper"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(dripstone_caves, "monster").last(),
+            Some(&MobSpawnerDataModel {
+                entity_type: "minecraft:drowned",
+                weight: 95,
+                min_count: 4,
+                max_count: 4,
+            })
+        );
+
+        let deep_dark = super::biome_generation_settings("deep_dark").unwrap();
+        assert_eq!(deep_dark.biome, "minecraft:deep_dark");
+        assert!(!super::biome_has_placed_feature(
+            deep_dark,
+            "minecraft:lake_lava_surface"
+        ));
+        assert!(super::biome_has_placed_feature(
+            deep_dark,
+            "minecraft:sculk_vein"
+        ));
+        assert!(super::biome_has_placed_feature(
+            deep_dark,
+            "minecraft:sculk_patch_deep_dark"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            deep_dark,
+            "minecraft:spring_lava"
+        ));
+        assert!(deep_dark
+            .spawners
+            .iter()
+            .all(|group| group.entries.is_empty()));
 
         let grove = super::biome_generation_settings("grove").unwrap();
         assert_eq!(grove.biome, "minecraft:grove");
