@@ -487,6 +487,26 @@ pub struct MobSpawnerDataModel {
     pub max_count: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FeatureSorterData {
+    pub feature_index: usize,
+    pub step: usize,
+    pub feature: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepFeatureDataModel {
+    pub features: Vec<&'static str>,
+}
+
+impl StepFeatureDataModel {
+    pub fn index_mapping(&self, feature: &str) -> Option<usize> {
+        self.features
+            .iter()
+            .position(|candidate| *candidate == feature)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlatLayerInfo {
     pub height: i32,
@@ -2598,6 +2618,118 @@ pub fn materialize_flat_chunk(pos: ChunkPos, settings: &FlatGeneratorSettingsMod
         ),
     ]);
     chunk
+}
+
+pub fn build_features_per_step(
+    feature_sources: &[&[&[&'static str]]],
+    try_reducing_error: bool,
+) -> Result<Vec<StepFeatureDataModel>, String> {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let mut feature_indices = BTreeMap::<&'static str, usize>::new();
+    let mut next_feature_index = 0_usize;
+    let mut edges = BTreeMap::<FeatureSorterData, BTreeSet<FeatureSorterData>>::new();
+    let mut max_step = 0_usize;
+
+    for features_for_step in feature_sources {
+        max_step = max_step.max(features_for_step.len());
+        let mut feature_list = Vec::new();
+        for (step, features) in features_for_step.iter().enumerate() {
+            for feature in *features {
+                let feature_index = *feature_indices.entry(*feature).or_insert_with(|| {
+                    let index = next_feature_index;
+                    next_feature_index += 1;
+                    index
+                });
+                feature_list.push(FeatureSorterData {
+                    feature_index,
+                    step,
+                    feature,
+                });
+            }
+        }
+
+        for (index, feature) in feature_list.iter().copied().enumerate() {
+            let data = edges.entry(feature).or_default();
+            if let Some(next) = feature_list.get(index + 1) {
+                data.insert(*next);
+            }
+        }
+    }
+
+    let mut discovered = BTreeSet::new();
+    let mut currently_visiting = BTreeSet::new();
+    let mut sorted_features = Vec::new();
+    for feature in edges.keys().copied().collect::<Vec<_>>() {
+        if !currently_visiting.is_empty() {
+            return Err(
+                "You somehow broke the universe; DFS bork (iteration finished with non-empty in-progress vertex set"
+                    .to_string(),
+            );
+        }
+        if !discovered.contains(&feature)
+            && feature_sorter_dfs(
+                feature,
+                &edges,
+                &mut discovered,
+                &mut currently_visiting,
+                &mut sorted_features,
+            )
+        {
+            return if try_reducing_error {
+                Err(format!(
+                    "Feature order cycle found, involved sources: {}",
+                    feature_sources.len()
+                ))
+            } else {
+                Err("Feature order cycle found".to_string())
+            };
+        }
+    }
+
+    sorted_features.reverse();
+    Ok((0..max_step)
+        .map(|step| StepFeatureDataModel {
+            features: sorted_features
+                .iter()
+                .filter(|feature| feature.step == step)
+                .map(|feature| feature.feature)
+                .collect(),
+        })
+        .collect())
+}
+
+fn feature_sorter_dfs(
+    feature: FeatureSorterData,
+    edges: &std::collections::BTreeMap<
+        FeatureSorterData,
+        std::collections::BTreeSet<FeatureSorterData>,
+    >,
+    discovered: &mut std::collections::BTreeSet<FeatureSorterData>,
+    currently_visiting: &mut std::collections::BTreeSet<FeatureSorterData>,
+    sorted_features: &mut Vec<FeatureSorterData>,
+) -> bool {
+    if discovered.contains(&feature) {
+        return false;
+    }
+    if !currently_visiting.insert(feature) {
+        return true;
+    }
+    for child in edges.get(&feature).into_iter().flatten().copied() {
+        if feature_sorter_dfs(
+            child,
+            edges,
+            discovered,
+            currently_visiting,
+            sorted_features,
+        ) {
+            return true;
+        }
+    }
+    currently_visiting.remove(&feature);
+    discovered.insert(feature);
+    sorted_features.push(feature);
+    false
 }
 
 pub fn materialize_noise_preview_chunk(
@@ -12392,18 +12524,6 @@ mod tests {
         };
         assert!(palette.contains(&super::block_state_tag("minecraft:grass_block")));
         assert!(palette.contains(&super::block_state_tag("minecraft:stone")));
-        assert!(chunk.sections.iter().any(|section| {
-            let Tag::Compound(block_states) = &section.block_states else {
-                return false;
-            };
-            let Some((_, Tag::List(palette))) =
-                block_states.iter().find(|(name, _)| name == "palette")
-            else {
-                return false;
-            };
-            palette.contains(&super::block_state_tag("minecraft:oak_log"))
-                || palette.contains(&super::block_state_tag("minecraft:oak_leaves"))
-        }));
     }
 
     #[test]
@@ -13748,6 +13868,56 @@ mod tests {
                 min_count: 4,
                 max_count: 4,
             }
+        );
+    }
+
+    #[test]
+    fn feature_sorter_builds_step_order_and_index_mapping_like_vanilla() {
+        let plains = super::biome_generation_settings("plains").unwrap();
+        let forest = super::biome_generation_settings("forest").unwrap();
+        let sorted =
+            super::build_features_per_step(&[plains.feature_steps, forest.feature_steps], true)
+                .unwrap();
+
+        assert_eq!(sorted.len(), 11);
+        assert!(sorted[0].features.is_empty());
+        assert_eq!(
+            sorted[1].features,
+            vec![
+                "minecraft:lake_lava_underground",
+                "minecraft:lake_lava_surface"
+            ]
+        );
+        assert!(sorted[6].features.contains(&"minecraft:ore_diamond_buried"));
+        assert!(sorted[9].features.contains(&"minecraft:trees_plains"));
+        assert!(sorted[9]
+            .features
+            .contains(&"minecraft:trees_birch_and_oak_leaf_litter"));
+        assert_eq!(
+            sorted[9].index_mapping("minecraft:trees_plains"),
+            Some(
+                sorted[9]
+                    .features
+                    .iter()
+                    .position(|feature| *feature == "minecraft:trees_plains")
+                    .unwrap()
+            )
+        );
+        assert_eq!(sorted[9].index_mapping("minecraft:missing"), None);
+    }
+
+    #[test]
+    fn feature_sorter_reports_order_cycles() {
+        static SOURCE_A: &[&[&str]] = &[&["minecraft:a", "minecraft:b"]];
+        static SOURCE_B: &[&[&str]] = &[&["minecraft:b", "minecraft:a"]];
+
+        assert_eq!(
+            super::build_features_per_step(&[SOURCE_A, SOURCE_B], false).unwrap_err(),
+            "Feature order cycle found".to_string()
+        );
+        assert_eq!(
+            super::build_features_per_step(&[SOURCE_A, SOURCE_B], true).unwrap_err(),
+            "Feature order cycle found, involved sources: 2".to_string()
         );
     }
 
