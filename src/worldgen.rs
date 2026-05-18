@@ -1551,6 +1551,30 @@ pub struct StructurePieceOrientationState {
     pub rotation: StructurePieceRotation,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawProjectionModel {
+    TerrainMatching,
+    Rigid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LiquidSettingsModel {
+    IgnoreWaterlogging,
+    ApplyWaterlogging,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DimensionPaddingModel {
+    pub bottom: i32,
+    pub top: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawMaxDistanceModel {
+    pub horizontal: i32,
+    pub vertical: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
@@ -7339,6 +7363,99 @@ pub fn structure_piece_orientation_state(
         orientation,
         mirror,
         rotation,
+    }
+}
+
+impl JigsawProjectionModel {
+    pub fn id(self) -> &'static str {
+        match self {
+            JigsawProjectionModel::TerrainMatching => "terrain_matching",
+            JigsawProjectionModel::Rigid => "rigid",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "terrain_matching" => Some(JigsawProjectionModel::TerrainMatching),
+            "rigid" => Some(JigsawProjectionModel::Rigid),
+            _ => None,
+        }
+    }
+
+    pub fn processor_ids(self) -> &'static [&'static str] {
+        match self {
+            JigsawProjectionModel::TerrainMatching => &["minecraft:gravity"],
+            JigsawProjectionModel::Rigid => &[],
+        }
+    }
+}
+
+impl LiquidSettingsModel {
+    pub fn id(self) -> &'static str {
+        match self {
+            LiquidSettingsModel::IgnoreWaterlogging => "ignore_waterlogging",
+            LiquidSettingsModel::ApplyWaterlogging => "apply_waterlogging",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "ignore_waterlogging" => Some(LiquidSettingsModel::IgnoreWaterlogging),
+            "apply_waterlogging" => Some(LiquidSettingsModel::ApplyWaterlogging),
+            _ => None,
+        }
+    }
+
+    pub fn should_apply_waterlogging(self) -> bool {
+        self == LiquidSettingsModel::ApplyWaterlogging
+    }
+}
+
+impl DimensionPaddingModel {
+    pub const ZERO: Self = Self { bottom: 0, top: 0 };
+
+    pub fn uniform(value: i32) -> Result<Self, String> {
+        Self::new(value, value)
+    }
+
+    pub fn new(bottom: i32, top: i32) -> Result<Self, String> {
+        if bottom < 0 || top < 0 {
+            Err("dimension padding values must be non-negative".to_string())
+        } else {
+            Ok(Self { bottom, top })
+        }
+    }
+
+    pub fn has_equal_top_and_bottom(self) -> bool {
+        self.top == self.bottom
+    }
+}
+
+impl JigsawMaxDistanceModel {
+    pub const DEFAULT: Self = Self {
+        horizontal: 80,
+        vertical: 80,
+    };
+
+    pub fn uniform(value: i32) -> Result<Self, String> {
+        Self::new(value, value)
+    }
+
+    pub fn new(horizontal: i32, vertical: i32) -> Result<Self, String> {
+        if !(1..=128).contains(&horizontal) {
+            return Err("jigsaw horizontal max distance must be in 1..=128".to_string());
+        }
+        if !(1..=384).contains(&vertical) {
+            return Err("jigsaw vertical max distance must be in 1..=384".to_string());
+        }
+        Ok(Self {
+            horizontal,
+            vertical,
+        })
+    }
+
+    pub fn can_encode_as_uniform(self) -> bool {
+        self.horizontal == self.vertical
     }
 }
 
@@ -18662,6 +18779,100 @@ mod tests {
                 mirror: super::StructurePieceMirror::None,
                 rotation: super::StructurePieceRotation::Clockwise90,
             }
+        );
+    }
+
+    #[test]
+    fn jigsaw_projection_liquid_padding_and_distance_models_match_vanilla_codecs() {
+        assert_eq!(
+            super::JigsawProjectionModel::TerrainMatching.id(),
+            "terrain_matching"
+        );
+        assert_eq!(super::JigsawProjectionModel::Rigid.id(), "rigid");
+        assert_eq!(
+            super::JigsawProjectionModel::from_id("terrain_matching"),
+            Some(super::JigsawProjectionModel::TerrainMatching)
+        );
+        assert_eq!(super::JigsawProjectionModel::from_id("loose"), None);
+        assert_eq!(
+            super::JigsawProjectionModel::TerrainMatching.processor_ids(),
+            &["minecraft:gravity"]
+        );
+        assert!(super::JigsawProjectionModel::Rigid
+            .processor_ids()
+            .is_empty());
+
+        assert_eq!(
+            super::LiquidSettingsModel::from_id("apply_waterlogging"),
+            Some(super::LiquidSettingsModel::ApplyWaterlogging)
+        );
+        assert_eq!(
+            super::LiquidSettingsModel::IgnoreWaterlogging.id(),
+            "ignore_waterlogging"
+        );
+        assert!(super::LiquidSettingsModel::ApplyWaterlogging.should_apply_waterlogging());
+        assert!(!super::LiquidSettingsModel::IgnoreWaterlogging.should_apply_waterlogging());
+
+        assert_eq!(
+            super::DimensionPaddingModel::ZERO,
+            super::DimensionPaddingModel { bottom: 0, top: 0 }
+        );
+        assert_eq!(
+            super::DimensionPaddingModel::uniform(12),
+            Ok(super::DimensionPaddingModel {
+                bottom: 12,
+                top: 12
+            })
+        );
+        assert_eq!(
+            super::DimensionPaddingModel::new(3, 7),
+            Ok(super::DimensionPaddingModel { bottom: 3, top: 7 })
+        );
+        assert!(super::DimensionPaddingModel::uniform(12)
+            .unwrap()
+            .has_equal_top_and_bottom());
+        assert!(!super::DimensionPaddingModel::new(3, 7)
+            .unwrap()
+            .has_equal_top_and_bottom());
+        assert_eq!(
+            super::DimensionPaddingModel::new(-1, 0),
+            Err("dimension padding values must be non-negative".to_string())
+        );
+
+        assert_eq!(
+            super::JigsawMaxDistanceModel::DEFAULT,
+            super::JigsawMaxDistanceModel {
+                horizontal: 80,
+                vertical: 80,
+            }
+        );
+        assert_eq!(
+            super::JigsawMaxDistanceModel::uniform(80),
+            Ok(super::JigsawMaxDistanceModel {
+                horizontal: 80,
+                vertical: 80,
+            })
+        );
+        assert_eq!(
+            super::JigsawMaxDistanceModel::new(128, 384),
+            Ok(super::JigsawMaxDistanceModel {
+                horizontal: 128,
+                vertical: 384,
+            })
+        );
+        assert!(super::JigsawMaxDistanceModel::uniform(32)
+            .unwrap()
+            .can_encode_as_uniform());
+        assert!(!super::JigsawMaxDistanceModel::new(32, 64)
+            .unwrap()
+            .can_encode_as_uniform());
+        assert_eq!(
+            super::JigsawMaxDistanceModel::new(0, 64),
+            Err("jigsaw horizontal max distance must be in 1..=128".to_string())
+        );
+        assert_eq!(
+            super::JigsawMaxDistanceModel::new(64, 385),
+            Err("jigsaw vertical max distance must be in 1..=384".to_string())
         );
     }
 
