@@ -2,7 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::biome::{biome_source_from_stem_id, span, BiomeSourceModel, ClimateParameterPoint};
+use crate::biome::{
+    biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
+    ClimateParameterPoint,
+};
 use crate::storage::chunk::{
     BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
     BIOME_SECTION_VOLUME, SECTION_VOLUME,
@@ -1733,6 +1736,172 @@ pub fn materialize_flat_chunk(pos: ChunkPos, settings: &FlatGeneratorSettingsMod
         ),
     ]);
     chunk
+}
+
+pub fn materialize_noise_preview_chunk(
+    pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+) -> LevelChunk {
+    let mut chunk = LevelChunk::empty(pos);
+    chunk.status = "minecraft:full".to_string();
+
+    let min_y = settings.noise.min_y;
+    let max_y = settings.noise.min_y + settings.noise.height;
+    let min_section = min_y.div_euclid(16);
+    let section_count = (settings.noise.height + 15) / 16;
+    let mut surface_heights = [settings.sea_level + 1; 16 * 16];
+    for z in 0..16 {
+        for x in 0..16 {
+            let world_x = pos.x * 16 + x as i32;
+            let world_z = pos.z * 16 + z as i32;
+            surface_heights[z * 16 + x] =
+                noise_preview_surface_height(world_x, world_z, settings).clamp(min_y + 1, max_y);
+        }
+    }
+
+    chunk.sections = (0..section_count)
+        .map(|section_offset| {
+            let section_y = min_section + section_offset;
+            ChunkSection {
+                y: section_y as i8,
+                block_states: noise_preview_section_block_states(
+                    section_y,
+                    min_y,
+                    settings,
+                    &surface_heights,
+                )
+                .to_nbt(),
+                biomes: PalettedContainer::single(
+                    Tag::String(noise_preview_biome(biome_source_model, pos).to_string()),
+                    BIOME_SECTION_VOLUME,
+                )
+                .to_nbt(),
+                block_light: None,
+                sky_light: Some(vec![-1; 2048]),
+            }
+        })
+        .collect();
+
+    let ocean_floor = surface_heights.map(|height| height.min(settings.sea_level + 1));
+    chunk.heightmaps = BTreeMap::from([
+        (
+            HeightmapKind::WorldSurfaceWg.storage_name().to_string(),
+            Tag::LongArray(pack_heightmap(surface_heights)),
+        ),
+        (
+            HeightmapKind::OceanFloorWg.storage_name().to_string(),
+            Tag::LongArray(pack_heightmap(ocean_floor)),
+        ),
+    ]);
+    chunk
+}
+
+fn noise_preview_section_block_states(
+    section_y: i32,
+    min_y: i32,
+    settings: &NoiseGeneratorSettings,
+    surface_heights: &[i32; 16 * 16],
+) -> PalettedContainer {
+    let mut palette: Vec<&'static str> = Vec::new();
+    let mut indices = vec![0_u64; SECTION_VOLUME];
+    for local_y in 0..16 {
+        let world_y = section_y * 16 + local_y as i32;
+        for z in 0..16 {
+            for x in 0..16 {
+                let surface_height = surface_heights[z * 16 + x];
+                let block =
+                    noise_preview_block_at(world_y, min_y, surface_height, settings.sea_level);
+                let palette_index = match palette.iter().position(|entry| *entry == block) {
+                    Some(index) => index as u64,
+                    None => {
+                        palette.push(block);
+                        (palette.len() - 1) as u64
+                    }
+                };
+                indices[(local_y << 8) | (z << 4) | x] = palette_index;
+            }
+        }
+    }
+
+    if palette.len() == 1 {
+        return PalettedContainer::single(block_state_tag(palette[0]), SECTION_VOLUME);
+    }
+
+    PalettedContainer {
+        palette: palette.into_iter().map(block_state_tag).collect(),
+        data: Some(pack_palette_indices(
+            &indices,
+            bits_for_palette(indices.iter().copied().max().unwrap_or(0) + 1),
+        )),
+        expected_entries: SECTION_VOLUME,
+    }
+}
+
+fn noise_preview_block_at(
+    world_y: i32,
+    min_y: i32,
+    surface_height: i32,
+    sea_level: i32,
+) -> &'static str {
+    if world_y <= min_y {
+        "minecraft:bedrock"
+    } else if world_y >= surface_height {
+        if world_y <= sea_level {
+            "minecraft:water"
+        } else {
+            "minecraft:air"
+        }
+    } else if world_y == surface_height - 1 {
+        if surface_height <= sea_level + 1 {
+            "minecraft:sand"
+        } else {
+            "minecraft:grass_block"
+        }
+    } else if world_y >= surface_height - 4 {
+        if surface_height <= sea_level + 1 {
+            "minecraft:sandstone"
+        } else {
+            "minecraft:dirt"
+        }
+    } else if world_y < min_y + 5 {
+        "minecraft:deepslate"
+    } else {
+        "minecraft:stone"
+    }
+}
+
+fn noise_preview_surface_height(x: i32, z: i32, settings: &NoiseGeneratorSettings) -> i32 {
+    let (scale, amplitude) = match settings.id {
+        "minecraft:large_biomes" => (76.0, 30.0),
+        "minecraft:amplified" => (38.0, 70.0),
+        "minecraft:nether" => (30.0, 24.0),
+        "minecraft:end" => (52.0, 42.0),
+        _ => (44.0, 34.0),
+    };
+    let xf = x as f64 / scale;
+    let zf = z as f64 / scale;
+    let broad = (xf.sin() * 0.55 + zf.cos() * 0.45) * amplitude;
+    let detail = ((xf * 2.7 + zf * 1.3).sin() * (zf * 2.1 - xf * 0.9).cos()) * amplitude * 0.28;
+    let ridge = ((x as i64 * 341_873_128_712 + z as i64 * 132_897_987_541) as u64).rotate_left(17)
+        as f64
+        / u64::MAX as f64
+        - 0.5;
+    settings.sea_level + 8 + (broad + detail + ridge * 12.0).round() as i32
+}
+
+fn noise_preview_biome(biome_source_model: &BiomeSourceModel, pos: ChunkPos) -> &'static str {
+    let quart_x = pos.x * 4 + 2;
+    let quart_z = pos.z * 4 + 2;
+    select_biome_from_source(
+        biome_source_model,
+        quart_x,
+        16,
+        quart_z,
+        climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        0.0,
+    )
+    .unwrap_or("minecraft:plains")
 }
 
 fn flat_section_block_states(
@@ -5077,9 +5246,14 @@ pub fn generate_chunk_for_stem(
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
         ResolvedChunkGenerator::Flat { settings, .. } => Ok(materialize_flat_chunk(pos, settings)),
-        ResolvedChunkGenerator::Noise { noise_settings, .. } => Err(format!(
-            "Noise chunk generation for {} with {} is not implemented",
-            stem.dimension, noise_settings.id
+        ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } => Ok(materialize_noise_preview_chunk(
+            pos,
+            biome_source_model,
+            noise_settings,
         )),
         ResolvedChunkGenerator::Debug { .. } => Err(format!(
             "Debug chunk generation for {} is not implemented",
@@ -6767,13 +6941,36 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_noise_and_debug_generation_fail_closed() {
-        assert_eq!(
-            super::generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")
-                .unwrap_err(),
-            "Noise chunk generation for minecraft:overworld with minecraft:overworld is not implemented"
-                .to_string()
-        );
+    fn resolved_noise_generator_materializes_preview_terrain_chunks() {
+        let chunk = super::generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")
+            .expect("normal preset should generate preview terrain");
+        assert_eq!(chunk.status, "minecraft:full");
+        assert_eq!(chunk.sections.len(), 24);
+        assert_eq!(chunk.sections[0].y, -4);
+        assert_eq!(chunk.sections.last().unwrap().y, 19);
+        assert!(chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
+        assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
+
+        let overworld_settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let low = super::noise_preview_surface_height(0, 0, overworld_settings);
+        let nearby = super::noise_preview_surface_height(15, 15, overworld_settings);
+        let far = super::noise_preview_surface_height(96, -48, overworld_settings);
+        assert_ne!(low, far);
+        assert!((low - nearby).abs() < 40);
+
+        let Tag::Compound(section) = &chunk.sections[8].block_states else {
+            panic!("block states should be stored as a compound");
+        };
+        let Some((_, Tag::List(palette))) = section.iter().find(|(name, _)| name == "palette")
+        else {
+            panic!("block states should include a palette");
+        };
+        assert!(palette.contains(&super::block_state_tag("minecraft:grass_block")));
+        assert!(palette.contains(&super::block_state_tag("minecraft:stone")));
+    }
+
+    #[test]
+    fn unresolved_debug_generation_fails_closed() {
         assert_eq!(
             super::generate_overworld_chunk_for_preset(
                 ChunkPos { x: 0, z: 0 },
