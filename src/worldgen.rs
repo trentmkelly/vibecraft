@@ -339,6 +339,22 @@ pub struct FlatGeneratorPreset {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LevelStemPreset {
+    pub dimension: &'static str,
+    pub generator: &'static str,
+    pub biome_source: &'static str,
+    pub noise_settings: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldPresetEntry {
+    pub id: &'static str,
+    pub overworld: LevelStemPreset,
+    pub nether: LevelStemPreset,
+    pub end: LevelStemPreset,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
     pub barrier_state: &'static str,
@@ -1040,6 +1056,89 @@ pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
             height: 1,
             block: "minecraft:air",
         }],
+    },
+];
+
+pub const NETHER_LEVEL_STEM: LevelStemPreset = LevelStemPreset {
+    dimension: "minecraft:the_nether",
+    generator: "minecraft:noise",
+    biome_source: "minecraft:multi_noise/nether",
+    noise_settings: Some("minecraft:nether"),
+};
+
+pub const END_LEVEL_STEM: LevelStemPreset = LevelStemPreset {
+    dimension: "minecraft:the_end",
+    generator: "minecraft:noise",
+    biome_source: "minecraft:the_end",
+    noise_settings: Some("minecraft:end"),
+};
+
+pub const WORLD_PRESETS: &[WorldPresetEntry] = &[
+    WorldPresetEntry {
+        id: "minecraft:normal",
+        overworld: LevelStemPreset {
+            dimension: "minecraft:overworld",
+            generator: "minecraft:noise",
+            biome_source: "minecraft:multi_noise/overworld",
+            noise_settings: Some("minecraft:overworld"),
+        },
+        nether: NETHER_LEVEL_STEM,
+        end: END_LEVEL_STEM,
+    },
+    WorldPresetEntry {
+        id: "minecraft:flat",
+        overworld: LevelStemPreset {
+            dimension: "minecraft:overworld",
+            generator: "minecraft:flat",
+            biome_source: "minecraft:plains",
+            noise_settings: None,
+        },
+        nether: NETHER_LEVEL_STEM,
+        end: END_LEVEL_STEM,
+    },
+    WorldPresetEntry {
+        id: "minecraft:large_biomes",
+        overworld: LevelStemPreset {
+            dimension: "minecraft:overworld",
+            generator: "minecraft:noise",
+            biome_source: "minecraft:multi_noise/overworld",
+            noise_settings: Some("minecraft:large_biomes"),
+        },
+        nether: NETHER_LEVEL_STEM,
+        end: END_LEVEL_STEM,
+    },
+    WorldPresetEntry {
+        id: "minecraft:amplified",
+        overworld: LevelStemPreset {
+            dimension: "minecraft:overworld",
+            generator: "minecraft:noise",
+            biome_source: "minecraft:multi_noise/overworld",
+            noise_settings: Some("minecraft:amplified"),
+        },
+        nether: NETHER_LEVEL_STEM,
+        end: END_LEVEL_STEM,
+    },
+    WorldPresetEntry {
+        id: "minecraft:single_biome_surface",
+        overworld: LevelStemPreset {
+            dimension: "minecraft:overworld",
+            generator: "minecraft:noise",
+            biome_source: "minecraft:fixed/plains",
+            noise_settings: Some("minecraft:overworld"),
+        },
+        nether: NETHER_LEVEL_STEM,
+        end: END_LEVEL_STEM,
+    },
+    WorldPresetEntry {
+        id: "minecraft:debug_all_block_states",
+        overworld: LevelStemPreset {
+            dimension: "minecraft:overworld",
+            generator: "minecraft:debug",
+            biome_source: "minecraft:plains",
+            noise_settings: None,
+        },
+        nether: NETHER_LEVEL_STEM,
+        end: END_LEVEL_STEM,
     },
 ];
 
@@ -4050,6 +4149,38 @@ pub fn flat_layers_are_void(layers: &[FlatLayerInfo]) -> bool {
     layers.iter().all(|layer| layer.block == "minecraft:air")
 }
 
+pub fn world_preset(id: &str) -> Option<&'static WorldPresetEntry> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLD_PRESETS
+        .iter()
+        .find(|preset| preset.id.strip_prefix("minecraft:").unwrap_or(preset.id) == name)
+}
+
+pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
+    match generator {
+        "minecraft:flat" | "flat" => Some("minecraft:flat"),
+        "minecraft:debug" | "debug" => Some("minecraft:debug_all_block_states"),
+        "minecraft:noise" | "noise" => Some("minecraft:normal"),
+        _ => None,
+    }
+}
+
+pub fn world_preset_dimensions_in_order(preset: &WorldPresetEntry) -> [&'static str; 3] {
+    [
+        preset.overworld.dimension,
+        preset.nether.dimension,
+        preset.end.dimension,
+    ]
+}
+
+pub fn validate_world_preset_dimensions(dimensions: &[&str]) -> Result<(), String> {
+    if dimensions.contains(&"minecraft:overworld") {
+        Ok(())
+    } else {
+        Err("Missing overworld dimension".to_string())
+    }
+}
+
 pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGeneratorSettings> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_NOISE_GENERATOR_SETTINGS.iter().find(|settings| {
@@ -4667,7 +4798,8 @@ mod tests {
         STRUCTURE_FAMILIES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
         STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
         STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, TEST_NEGATIVE_DENSITY,
-        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, Y_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_PRESETS,
+        Y_DENSITY,
     };
     use crate::biome::quantize_coord;
 
@@ -5144,6 +5276,77 @@ mod tests {
                 block: "minecraft:stone",
             }]),
             Err("Sum of layer heights is > 384".to_string())
+        );
+    }
+
+    #[test]
+    fn world_preset_sources_match_vanilla_bootstrap_dimensions() {
+        assert_eq!(
+            WORLD_PRESETS
+                .iter()
+                .map(|preset| preset.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:normal",
+                "minecraft:flat",
+                "minecraft:large_biomes",
+                "minecraft:amplified",
+                "minecraft:single_biome_surface",
+                "minecraft:debug_all_block_states",
+            ]
+        );
+
+        let normal = super::world_preset("normal").unwrap();
+        assert_eq!(
+            super::world_preset_dimensions_in_order(normal),
+            [
+                "minecraft:overworld",
+                "minecraft:the_nether",
+                "minecraft:the_end"
+            ]
+        );
+        assert_eq!(normal.overworld.generator, "minecraft:noise");
+        assert_eq!(normal.overworld.noise_settings, Some("minecraft:overworld"));
+        assert_eq!(normal.nether.noise_settings, Some("minecraft:nether"));
+        assert_eq!(normal.end.biome_source, "minecraft:the_end");
+
+        let flat = super::world_preset("minecraft:flat").unwrap();
+        assert_eq!(flat.overworld.generator, "minecraft:flat");
+        assert_eq!(flat.overworld.biome_source, "minecraft:plains");
+        assert_eq!(flat.overworld.noise_settings, None);
+
+        let amplified = super::world_preset("amplified").unwrap();
+        assert_eq!(
+            amplified.overworld.noise_settings,
+            Some("minecraft:amplified")
+        );
+        let single = super::world_preset("single_biome_surface").unwrap();
+        assert_eq!(single.overworld.biome_source, "minecraft:fixed/plains");
+        let debug = super::world_preset("debug_all_block_states").unwrap();
+        assert_eq!(debug.overworld.generator, "minecraft:debug");
+
+        assert_eq!(
+            super::world_preset_from_overworld_generator("flat"),
+            Some("minecraft:flat")
+        );
+        assert_eq!(
+            super::world_preset_from_overworld_generator("minecraft:debug"),
+            Some("minecraft:debug_all_block_states")
+        );
+        assert_eq!(
+            super::world_preset_from_overworld_generator("minecraft:noise"),
+            Some("minecraft:normal")
+        );
+        assert_eq!(super::world_preset_from_overworld_generator("custom"), None);
+
+        assert!(super::validate_world_preset_dimensions(&[
+            "minecraft:the_nether",
+            "minecraft:overworld",
+        ])
+        .is_ok());
+        assert_eq!(
+            super::validate_world_preset_dimensions(&["minecraft:the_nether"]),
+            Err("Missing overworld dimension".to_string())
         );
     }
 
