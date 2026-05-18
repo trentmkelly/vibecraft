@@ -577,6 +577,18 @@ pub struct FeatureBehaviorModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WeightedBlockState {
+    pub state: &'static str,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockStateProviderModel {
+    Simple(&'static str),
+    Weighted(Vec<WeightedBlockState>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MonsterRoomBounds {
     pub min_y: i32,
     pub max_y: i32,
@@ -5912,6 +5924,36 @@ pub fn placed_feature_source(id: &str) -> Option<PlacedFeatureSource> {
         .map(|entry| entry.source)
 }
 
+pub fn block_state_provider_type(id: &str) -> Option<&'static str> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    WORLDGEN_TYPE_REGISTRIES
+        .iter()
+        .find(|registry| registry.id == "minecraft:block_state_provider_type")?
+        .entries
+        .iter()
+        .copied()
+        .find(|entry| entry.strip_prefix("minecraft:") == Some(name))
+}
+
+pub fn block_state_provider_sample(
+    provider: &BlockStateProviderModel,
+    random_roll: i32,
+) -> Option<&'static str> {
+    match provider {
+        BlockStateProviderModel::Simple(state) => Some(*state),
+        BlockStateProviderModel::Weighted(entries) => {
+            let total_weight = entries.iter().try_fold(0_i32, |total, entry| {
+                (entry.weight > 0).then_some(total + entry.weight)
+            })?;
+            let mut roll = random_roll.rem_euclid(total_weight);
+            entries.iter().find_map(|entry| {
+                roll -= entry.weight;
+                (roll < 0).then_some(entry.state)
+            })
+        }
+    }
+}
+
 pub fn spring_feature_can_place(
     valid_above: bool,
     requires_block_below: bool,
@@ -6154,31 +6196,32 @@ mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, AquiferNoiseSettings, BinaryDensityFunction, BlendingDataPacked,
-        BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, CarverShape,
-        CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
-        FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus,
-        HeightProvider, HeightRange, MappedDensityFunction, NoiseRouterPreset, NoiseSettings,
-        OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource, PlacementModifier,
-        RandomSpreadType, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+        BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel,
+        CarverShape, CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction,
+        DensityMarker, FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider,
+        FluidStatus, HeightProvider, HeightRange, MappedDensityFunction, NoiseRouterPreset,
+        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
+        PlacementModifier, RandomSpreadType, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
         StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
-        SurfaceRulePreset, SurfaceRuleSource, VerticalAnchor, WeightedHeightProvider,
-        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
-        BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
-        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
-        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
-        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
-        FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
-        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
-        NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION,
-        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
-        PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
-        STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
-        STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
-        STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
-        WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
+        SurfaceRulePreset, SurfaceRuleSource, VerticalAnchor, WeightedBlockState,
+        WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES,
+        FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS,
+        HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS,
+        NETHER_NOISE_SETTINGS, NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS,
+        NORMAL_NOISE_TARGET_DEVIATION, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
+        OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
+        SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
+        STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
+        STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES,
+        SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, TEST_NEGATIVE_DENSITY,
+        TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES, WORLD_CARVER_TYPES,
+        WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::{quantize_coord, BiomeSourceModel};
     use crate::storage::chunk::HeightmapKind;
@@ -8168,6 +8211,50 @@ mod tests {
             .unwrap()
             .entries
             .contains(&"minecraft:rule_based_state_provider"));
+        assert_eq!(
+            super::block_state_provider_type("simple_state_provider"),
+            Some("minecraft:simple_state_provider")
+        );
+        assert_eq!(
+            super::block_state_provider_type("minecraft:weighted_state_provider"),
+            Some("minecraft:weighted_state_provider")
+        );
+        assert_eq!(super::block_state_provider_type("missing"), None);
+        assert_eq!(
+            super::block_state_provider_sample(
+                &BlockStateProviderModel::Simple("minecraft:oak_log"),
+                99
+            ),
+            Some("minecraft:oak_log")
+        );
+        let weighted = BlockStateProviderModel::Weighted(vec![
+            WeightedBlockState {
+                state: "minecraft:stone",
+                weight: 2,
+            },
+            WeightedBlockState {
+                state: "minecraft:andesite",
+                weight: 1,
+            },
+        ]);
+        assert_eq!(
+            super::block_state_provider_sample(&weighted, 0),
+            Some("minecraft:stone")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&weighted, 2),
+            Some("minecraft:andesite")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(
+                &BlockStateProviderModel::Weighted(vec![WeightedBlockState {
+                    state: "minecraft:air",
+                    weight: 0,
+                }]),
+                0,
+            ),
+            None
+        );
     }
 
     #[test]
