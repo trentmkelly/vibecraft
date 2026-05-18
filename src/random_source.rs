@@ -160,6 +160,10 @@ impl Xoroshiro128PlusPlus {
         (multiplied >> 32) as i32
     }
 
+    pub fn next_f64(&mut self) -> f64 {
+        ((self.next_i64() as u64 >> 11) as f64) * DOUBLE_UNIT
+    }
+
     pub fn fork(&mut self) -> Self {
         Self::from_seed128(Seed128 {
             lo: self.next_i64(),

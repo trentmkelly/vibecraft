@@ -66,6 +66,14 @@ pub enum PerlinNoiseLevelSource {
     SequentialLegacyZero,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImprovedNoiseSnapshot {
+    pub xo: f64,
+    pub yo: f64,
+    pub zo: f64,
+    pub permutation: [u8; 256],
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SynthNoiseSource {
     pub id: &'static str,
@@ -13899,6 +13907,34 @@ fn random_next_i64(random: &mut RandomSourceKind) -> i64 {
     }
 }
 
+fn random_next_f64(random: &mut RandomSourceKind) -> f64 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_f64(),
+        RandomSourceKind::Xoroshiro(random) => random.next_f64(),
+    }
+}
+
+pub fn improved_noise_snapshot(random: &mut RandomSourceKind) -> ImprovedNoiseSnapshot {
+    let xo = random_next_f64(random) * 256.0;
+    let yo = random_next_f64(random) * 256.0;
+    let zo = random_next_f64(random) * 256.0;
+    let mut permutation = [0_u8; 256];
+    for (index, value) in permutation.iter_mut().enumerate() {
+        *value = index as u8;
+    }
+    for index in 0..256 {
+        let offset = random_next_i32_bound(random, 256 - index as i32) as usize;
+        permutation.swap(index, index + offset);
+    }
+
+    ImprovedNoiseSnapshot {
+        xo,
+        yo,
+        zo,
+        permutation,
+    }
+}
+
 impl JigsawPoolElementTypeModel {
     pub const REGISTRY_ORDER: [Self; 5] = [
         Self::Single,
@@ -23861,6 +23897,51 @@ mod tests {
                     source: super::PerlinNoiseLevelSource::SequentialLegacy,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn improved_noise_snapshot_matches_vanilla_offsets_and_permutation_shuffle() {
+        let mut legacy = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
+        let legacy_snapshot = super::improved_noise_snapshot(&mut legacy);
+        assert!((legacy_snapshot.xo - 92.62159543308078).abs() < 1e-12);
+        assert!((legacy_snapshot.yo - 238.8463322338665).abs() < 1e-12);
+        assert!((legacy_snapshot.zo - 213.27138533658206).abs() < 1e-12);
+        assert_eq!(
+            &legacy_snapshot.permutation[..16],
+            &[83, 88, 161, 90, 117, 220, 146, 221, 68, 86, 213, 124, 192, 112, 203, 19]
+        );
+        assert_eq!(
+            legacy_snapshot
+                .permutation
+                .iter()
+                .enumerate()
+                .map(|(index, value)| (index as u32 + 1) * u32::from(*value))
+                .sum::<u32>(),
+            4_140_893
+        );
+
+        let overworld = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let mut temperature_random =
+            super::random_state_normal_noise_instantiation_plan(12345, overworld, "temperature")
+                .unwrap()
+                .random;
+        let xoroshiro_snapshot = super::improved_noise_snapshot(&mut temperature_random);
+        assert!((xoroshiro_snapshot.xo - 78.19115741112572).abs() < 1e-12);
+        assert!((xoroshiro_snapshot.yo - 163.6898373304866).abs() < 1e-12);
+        assert!((xoroshiro_snapshot.zo - 240.51119814196335).abs() < 1e-12);
+        assert_eq!(
+            &xoroshiro_snapshot.permutation[..16],
+            &[63, 55, 198, 123, 143, 38, 96, 245, 189, 67, 60, 234, 84, 69, 208, 212]
+        );
+        assert_eq!(
+            xoroshiro_snapshot
+                .permutation
+                .iter()
+                .enumerate()
+                .map(|(index, value)| (index as u32 + 1) * u32::from(*value))
+                .sum::<u32>(),
+            4_254_779
         );
     }
 
