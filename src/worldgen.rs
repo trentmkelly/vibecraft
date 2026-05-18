@@ -6894,6 +6894,85 @@ pub const SNOWY_BEACH_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[10],
 ];
 
+pub const STONY_SHORE_FEATURE_STEPS: &[&[&str]] = BEACH_FEATURE_STEPS;
+
+pub const MUSHROOM_FIELDS_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    PLAINS_FEATURE_STEPS[6],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:mushroom_island_vegetation",
+        "minecraft:brown_mushroom_taiga",
+        "minecraft:red_mushroom_taiga",
+        "minecraft:patch_sugar_cane",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
+pub const BADLANDS_FEATURE_STEPS: &[&[&str]] = &[
+    PLAINS_FEATURE_STEPS[0],
+    PLAINS_FEATURE_STEPS[1],
+    PLAINS_FEATURE_STEPS[2],
+    PLAINS_FEATURE_STEPS[3],
+    PLAINS_FEATURE_STEPS[4],
+    PLAINS_FEATURE_STEPS[5],
+    &[
+        "minecraft:ore_dirt",
+        "minecraft:ore_gravel",
+        "minecraft:ore_granite_upper",
+        "minecraft:ore_granite_lower",
+        "minecraft:ore_diorite_upper",
+        "minecraft:ore_diorite_lower",
+        "minecraft:ore_andesite_upper",
+        "minecraft:ore_andesite_lower",
+        "minecraft:ore_tuff",
+        "minecraft:ore_coal_upper",
+        "minecraft:ore_coal_lower",
+        "minecraft:ore_iron_upper",
+        "minecraft:ore_iron_middle",
+        "minecraft:ore_iron_small",
+        "minecraft:ore_gold",
+        "minecraft:ore_gold_lower",
+        "minecraft:ore_redstone",
+        "minecraft:ore_redstone_lower",
+        "minecraft:ore_diamond",
+        "minecraft:ore_diamond_medium",
+        "minecraft:ore_diamond_large",
+        "minecraft:ore_diamond_buried",
+        "minecraft:ore_lapis",
+        "minecraft:ore_lapis_buried",
+        "minecraft:ore_copper",
+        "minecraft:underwater_magma",
+        "minecraft:ore_gold_extra",
+        "minecraft:disk_sand",
+        "minecraft:disk_clay",
+        "minecraft:disk_gravel",
+    ],
+    PLAINS_FEATURE_STEPS[7],
+    PLAINS_FEATURE_STEPS[8],
+    &[
+        "minecraft:glow_lichen",
+        "minecraft:patch_grass_badlands",
+        "minecraft:patch_dry_grass_badlands",
+        "minecraft:patch_dead_bush_badlands",
+        "minecraft:brown_mushroom_normal",
+        "minecraft:red_mushroom_normal",
+        "minecraft:patch_sugar_cane_badlands",
+        "minecraft:patch_pumpkin",
+        "minecraft:patch_cactus_decorated",
+        "minecraft:patch_firefly_bush_near_water",
+    ],
+    PLAINS_FEATURE_STEPS[10],
+];
+
 pub const DESERT_FEATURE_STEPS: &[&[&str]] = &[
     PLAINS_FEATURE_STEPS[0],
     PLAINS_FEATURE_STEPS[1],
@@ -7246,12 +7325,52 @@ pub const BEACH_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel 
     max_count: 5,
 }];
 
+pub const MUSHROOM_FIELDS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
+    entity_type: "minecraft:mooshroom",
+    weight: 8,
+    min_count: 4,
+    max_count: 8,
+}];
+
 pub const DEEP_FROZEN_OCEAN_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[MobSpawnerDataModel {
     entity_type: "minecraft:polar_bear",
     weight: 1,
     min_count: 1,
     max_count: 2,
 }];
+
+pub const BADLANDS_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
+    MobSpawnerDataModel {
+        entity_type: "minecraft:sheep",
+        weight: 12,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:pig",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:chicken",
+        weight: 10,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:cow",
+        weight: 8,
+        min_count: 4,
+        max_count: 4,
+    },
+    MobSpawnerDataModel {
+        entity_type: "minecraft:armadillo",
+        weight: 6,
+        min_count: 1,
+        max_count: 2,
+    },
+];
 
 pub const DESERT_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
     MobSpawnerDataModel {
@@ -8600,6 +8719,76 @@ pub const FLOWER_FOREST_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const MUSHROOM_FIELDS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: MUSHROOM_FIELDS_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
+pub const BADLANDS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: BADLANDS_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: FOREST_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const DESERT_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -9431,6 +9620,30 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         creature_spawn_probability: 0.1,
         spawn_costs: &[],
         spawners: SNOWY_BEACH_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:stony_shore",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: STONY_SHORE_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: SNOWY_BEACH_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:mushroom_fields",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: MUSHROOM_FIELDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.1,
+        spawn_costs: &[],
+        spawners: MUSHROOM_FIELDS_SPAWNER_GROUPS,
+    },
+    BiomeGenerationSettingsModel {
+        biome: "minecraft:badlands",
+        carvers: OVERWORLD_COMMON_CARVERS,
+        feature_steps: BADLANDS_FEATURE_STEPS,
+        creature_spawn_probability: 0.03,
+        spawn_costs: &[],
+        spawners: BADLANDS_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:desert",
@@ -23196,7 +23409,7 @@ mod tests {
             }]
         );
         assert!(super::biome_spawns_for_category(plains, "water_creature").is_empty());
-        assert!(super::biome_generation_settings("minecraft:badlands").is_none());
+        assert!(super::biome_generation_settings("minecraft:badlands").is_some());
     }
 
     #[test]
@@ -23672,6 +23885,74 @@ mod tests {
         assert!(super::biome_spawns_for_category(snowy_beach, "creature").is_empty());
         assert_eq!(
             super::biome_spawns_for_category(snowy_beach, "monster"),
+            super::FOREST_MONSTER_SPAWNS
+        );
+
+        let stony_shore = super::biome_generation_settings("stony_shore").unwrap();
+        assert_eq!(stony_shore.biome, "minecraft:stony_shore");
+        assert!(super::biome_has_placed_feature(
+            stony_shore,
+            "minecraft:flower_default"
+        ));
+        assert!(super::biome_has_placed_feature(
+            stony_shore,
+            "minecraft:patch_grass_badlands"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            stony_shore,
+            "minecraft:trees_water"
+        ));
+        assert!(super::biome_spawns_for_category(stony_shore, "creature").is_empty());
+        assert_eq!(
+            super::biome_spawns_for_category(stony_shore, "monster"),
+            super::FOREST_MONSTER_SPAWNS
+        );
+
+        let mushroom_fields = super::biome_generation_settings("mushroom_fields").unwrap();
+        assert_eq!(mushroom_fields.biome, "minecraft:mushroom_fields");
+        assert!(super::biome_has_placed_feature(
+            mushroom_fields,
+            "minecraft:mushroom_island_vegetation"
+        ));
+        assert!(super::biome_has_placed_feature(
+            mushroom_fields,
+            "minecraft:brown_mushroom_taiga"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            mushroom_fields,
+            "minecraft:flower_default"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(mushroom_fields, "creature"),
+            super::MUSHROOM_FIELDS_CREATURE_SPAWNS
+        );
+        assert!(super::biome_spawns_for_category(mushroom_fields, "monster").is_empty());
+
+        let badlands = super::biome_generation_settings("badlands").unwrap();
+        assert_eq!(badlands.biome, "minecraft:badlands");
+        assert_eq!(badlands.creature_spawn_probability, 0.03);
+        assert!(super::biome_has_placed_feature(
+            badlands,
+            "minecraft:ore_gold_extra"
+        ));
+        assert!(super::biome_has_placed_feature(
+            badlands,
+            "minecraft:patch_cactus_decorated"
+        ));
+        assert!(super::biome_has_placed_feature(
+            badlands,
+            "minecraft:patch_sugar_cane_badlands"
+        ));
+        assert!(!super::biome_has_placed_feature(
+            badlands,
+            "minecraft:patch_cactus_desert"
+        ));
+        assert_eq!(
+            super::biome_spawns_for_category(badlands, "creature"),
+            super::BADLANDS_CREATURE_SPAWNS
+        );
+        assert_eq!(
+            super::biome_spawns_for_category(badlands, "monster"),
             super::FOREST_MONSTER_SPAWNS
         );
 
