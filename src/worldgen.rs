@@ -1068,6 +1068,21 @@ pub struct ChorusPlantPlacementBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EndPodiumBlockKind {
+    Bedrock,
+    EndStone,
+    Air,
+    EndPortal,
+    WallTorch(HorizontalDirection),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EndPodiumPlacementBlock {
+    pub pos: BlockPos,
+    pub kind: EndPodiumBlockKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalDirection {
     North,
     South,
@@ -9582,6 +9597,87 @@ pub fn chorus_trunk_and_terminal_flower(
     blocks
 }
 
+pub fn end_podium_location(offset: BlockPos) -> BlockPos {
+    offset
+}
+
+pub fn end_podium_inside_rim(pos: BlockPos, origin: BlockPos) -> bool {
+    let dx = pos.x - origin.x;
+    let dy = pos.y - origin.y;
+    let dz = pos.z - origin.z;
+    ((dx * dx + dy * dy + dz * dz) as f64) < 2.5_f64.powi(2)
+}
+
+pub fn end_podium_inside_body(pos: BlockPos, origin: BlockPos) -> bool {
+    let dx = pos.x - origin.x;
+    let dy = pos.y - origin.y;
+    let dz = pos.z - origin.z;
+    ((dx * dx + dy * dy + dz * dz) as f64) < 3.5_f64.powi(2)
+}
+
+pub fn end_podium_blocks(origin: BlockPos, active: bool) -> Vec<EndPodiumPlacementBlock> {
+    let mut blocks = Vec::new();
+    for y in (origin.y - 1)..=(origin.y + 32) {
+        for z in (origin.z - 4)..=(origin.z + 4) {
+            for x in (origin.x - 4)..=(origin.x + 4) {
+                let pos = BlockPos { x, y, z };
+                let inside_rim = end_podium_inside_rim(pos, origin);
+                if !inside_rim && !end_podium_inside_body(pos, origin) {
+                    continue;
+                }
+                let kind = if y < origin.y {
+                    if inside_rim {
+                        EndPodiumBlockKind::Bedrock
+                    } else {
+                        EndPodiumBlockKind::EndStone
+                    }
+                } else if y > origin.y {
+                    EndPodiumBlockKind::Air
+                } else if !inside_rim {
+                    EndPodiumBlockKind::Bedrock
+                } else if active {
+                    EndPodiumBlockKind::EndPortal
+                } else {
+                    EndPodiumBlockKind::Air
+                };
+                blocks.push(EndPodiumPlacementBlock { pos, kind });
+            }
+        }
+    }
+    for y in 0..4 {
+        blocks.push(EndPodiumPlacementBlock {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y + y,
+                z: origin.z,
+            },
+            kind: EndPodiumBlockKind::Bedrock,
+        });
+    }
+    let torch_y = origin.y + 2;
+    for direction in [
+        HorizontalDirection::North,
+        HorizontalDirection::South,
+        HorizontalDirection::West,
+        HorizontalDirection::East,
+    ] {
+        let pos = offset_horizontal(
+            BlockPos {
+                x: origin.x,
+                y: torch_y,
+                z: origin.z,
+            },
+            direction,
+            1,
+        );
+        blocks.push(EndPodiumPlacementBlock {
+            pos,
+            kind: EndPodiumBlockKind::WallTorch(direction),
+        });
+    }
+    blocks
+}
+
 fn block_is_coral(block: &str) -> bool {
     block.contains("_coral")
 }
@@ -14631,6 +14727,56 @@ mod tests {
                 .filter(|block| block.kind == super::ChorusPlantPlacementKind::Plant)
                 .count(),
             3
+        );
+        assert_eq!(
+            super::end_podium_location(BlockPos { x: 1, y: 2, z: 3 }),
+            BlockPos { x: 1, y: 2, z: 3 }
+        );
+        assert!(super::end_podium_inside_rim(
+            BlockPos { x: 2, y: 64, z: 0 },
+            BlockPos { x: 0, y: 64, z: 0 },
+        ));
+        assert!(!super::end_podium_inside_rim(
+            BlockPos { x: 3, y: 64, z: 0 },
+            BlockPos { x: 0, y: 64, z: 0 },
+        ));
+        assert!(super::end_podium_inside_body(
+            BlockPos { x: 3, y: 64, z: 0 },
+            BlockPos { x: 0, y: 64, z: 0 },
+        ));
+        let inactive_podium = super::end_podium_blocks(BlockPos { x: 0, y: 64, z: 0 }, false);
+        let active_podium = super::end_podium_blocks(BlockPos { x: 0, y: 64, z: 0 }, true);
+        assert!(inactive_podium.contains(&super::EndPodiumPlacementBlock {
+            pos: BlockPos { x: 0, y: 63, z: 0 },
+            kind: super::EndPodiumBlockKind::Bedrock,
+        }));
+        assert!(inactive_podium.contains(&super::EndPodiumPlacementBlock {
+            pos: BlockPos { x: 3, y: 63, z: 0 },
+            kind: super::EndPodiumBlockKind::EndStone,
+        }));
+        assert!(inactive_podium.contains(&super::EndPodiumPlacementBlock {
+            pos: BlockPos { x: 3, y: 64, z: 0 },
+            kind: super::EndPodiumBlockKind::Bedrock,
+        }));
+        assert!(inactive_podium.contains(&super::EndPodiumPlacementBlock {
+            pos: BlockPos { x: 0, y: 66, z: -1 },
+            kind: super::EndPodiumBlockKind::WallTorch(super::HorizontalDirection::North),
+        }));
+        assert!(active_podium.contains(&super::EndPodiumPlacementBlock {
+            pos: BlockPos { x: 1, y: 64, z: 1 },
+            kind: super::EndPodiumBlockKind::EndPortal,
+        }));
+        assert!(inactive_podium.contains(&super::EndPodiumPlacementBlock {
+            pos: BlockPos { x: 1, y: 64, z: 1 },
+            kind: super::EndPodiumBlockKind::Air,
+        }));
+        assert_eq!(
+            active_podium
+                .iter()
+                .filter(|block| block.kind
+                    == super::EndPodiumBlockKind::WallTorch(super::HorizontalDirection::East))
+                .count(),
+            1
         );
 
         let pile_config = super::BlockPileConfigurationModel {
