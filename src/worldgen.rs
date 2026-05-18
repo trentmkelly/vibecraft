@@ -1576,6 +1576,24 @@ pub struct JigsawMaxDistanceModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawJunctionModel {
+    pub source_x: i32,
+    pub source_ground_y: i32,
+    pub source_z: i32,
+    pub delta_y: i32,
+    pub dest_projection: JigsawProjectionModel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawJunctionTagModel {
+    pub source_x: i32,
+    pub source_ground_y: i32,
+    pub source_z: i32,
+    pub delta_y: i32,
+    pub dest_proj: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartModel {
     pub structure: Option<&'static str>,
     pub chunk_pos: ChunkPos,
@@ -7456,6 +7474,45 @@ impl JigsawMaxDistanceModel {
 
     pub fn can_encode_as_uniform(self) -> bool {
         self.horizontal == self.vertical
+    }
+}
+
+impl JigsawJunctionModel {
+    pub fn serialize(&self) -> JigsawJunctionTagModel {
+        JigsawJunctionTagModel {
+            source_x: self.source_x,
+            source_ground_y: self.source_ground_y,
+            source_z: self.source_z,
+            delta_y: self.delta_y,
+            dest_proj: self.dest_projection.id(),
+        }
+    }
+
+    pub fn deserialize(tag: JigsawJunctionTagModel) -> Option<Self> {
+        Some(Self {
+            source_x: tag.source_x,
+            source_ground_y: tag.source_ground_y,
+            source_z: tag.source_z,
+            delta_y: tag.delta_y,
+            dest_projection: JigsawProjectionModel::from_id(tag.dest_proj)?,
+        })
+    }
+
+    pub fn java_equals(&self, other: &Self) -> bool {
+        self.source_x == other.source_x
+            && self.source_z == other.source_z
+            && self.delta_y == other.delta_y
+            && self.dest_projection == other.dest_projection
+    }
+
+    pub fn java_hash_inputs(&self) -> (i32, i32, i32, i32, JigsawProjectionModel) {
+        (
+            self.source_x,
+            self.source_ground_y,
+            self.source_z,
+            self.delta_y,
+            self.dest_projection,
+        )
     }
 }
 
@@ -18874,6 +18931,58 @@ mod tests {
             super::JigsawMaxDistanceModel::new(64, 385),
             Err("jigsaw vertical max distance must be in 1..=384".to_string())
         );
+    }
+
+    #[test]
+    fn jigsaw_junction_serialization_and_java_equality_match_vanilla() {
+        let junction = super::JigsawJunctionModel {
+            source_x: 12,
+            source_ground_y: 70,
+            source_z: -4,
+            delta_y: 3,
+            dest_projection: super::JigsawProjectionModel::TerrainMatching,
+        };
+        let tag = junction.serialize();
+        assert_eq!(
+            tag,
+            super::JigsawJunctionTagModel {
+                source_x: 12,
+                source_ground_y: 70,
+                source_z: -4,
+                delta_y: 3,
+                dest_proj: "terrain_matching",
+            }
+        );
+        assert_eq!(
+            super::JigsawJunctionModel::deserialize(tag),
+            Some(junction.clone())
+        );
+        assert_eq!(
+            super::JigsawJunctionModel::deserialize(super::JigsawJunctionTagModel {
+                source_x: 0,
+                source_ground_y: 0,
+                source_z: 0,
+                delta_y: 0,
+                dest_proj: "",
+            }),
+            None
+        );
+
+        let different_ground_y = super::JigsawJunctionModel {
+            source_ground_y: 99,
+            ..junction.clone()
+        };
+        assert!(junction.java_equals(&different_ground_y));
+        assert_ne!(
+            junction.java_hash_inputs(),
+            different_ground_y.java_hash_inputs()
+        );
+
+        let different_projection = super::JigsawJunctionModel {
+            dest_projection: super::JigsawProjectionModel::Rigid,
+            ..junction.clone()
+        };
+        assert!(!junction.java_equals(&different_projection));
     }
 
     #[test]
