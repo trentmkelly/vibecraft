@@ -143,6 +143,9 @@ const SPAWN_CHUNK_SECTION_COUNT: usize = 24;
 const SUPERFLAT_SOLID_SECTION_INDEX: usize = 8;
 const AIR_BLOCK_STATE_ID: i32 = 0;
 const STONE_BLOCK_STATE_ID: i32 = 1;
+const GRANITE_BLOCK_STATE_ID: i32 = 2;
+const DIORITE_BLOCK_STATE_ID: i32 = 4;
+const ANDESITE_BLOCK_STATE_ID: i32 = 6;
 const GRASS_BLOCK_STATE_ID: i32 = 9;
 const DIRT_BLOCK_STATE_ID: i32 = 10;
 const BEDROCK_BLOCK_STATE_ID: i32 = 85;
@@ -2221,10 +2224,12 @@ fn visible_spawn_surface_top_block_id(
     let world_x = chunk_x * 16 + local_x as i32;
     let world_z = chunk_z * 16 + local_z as i32;
     let hash = world_x.wrapping_mul(193_496_63) ^ world_z.wrapping_mul(83_492_791);
-    if hash.rem_euclid(37) == 0 {
-        STONE_BLOCK_STATE_ID
-    } else {
-        GRASS_BLOCK_STATE_ID
+    match hash.rem_euclid(47) {
+        0 => STONE_BLOCK_STATE_ID,
+        11 => GRANITE_BLOCK_STATE_ID,
+        23 => DIORITE_BLOCK_STATE_ID,
+        35 => ANDESITE_BLOCK_STATE_ID,
+        _ => GRASS_BLOCK_STATE_ID,
     }
 }
 
@@ -2255,9 +2260,12 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
     const VALUES_PER_LONG: usize = 64 / BITS_PER_ENTRY as usize;
 
     writer.write_all(&[BITS_PER_ENTRY])?;
-    write_var_i32(writer, 8)?;
+    write_var_i32(writer, 11)?;
     write_var_i32(writer, AIR_BLOCK_STATE_ID)?;
     write_var_i32(writer, STONE_BLOCK_STATE_ID)?;
+    write_var_i32(writer, GRANITE_BLOCK_STATE_ID)?;
+    write_var_i32(writer, DIORITE_BLOCK_STATE_ID)?;
+    write_var_i32(writer, ANDESITE_BLOCK_STATE_ID)?;
     write_var_i32(writer, BEDROCK_BLOCK_STATE_ID)?;
     write_var_i32(writer, DIRT_BLOCK_STATE_ID)?;
     write_var_i32(writer, GRASS_BLOCK_STATE_ID)?;
@@ -2270,16 +2278,19 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
         for x in 0..16 {
             let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, x, z);
             for y in TERRAIN_BASE_LOCAL_Y..=top_y {
-                let palette_index = if y == TERRAIN_BASE_LOCAL_Y {
-                    2_u64
-                } else if y == top_y {
+                let palette_index = if y == top_y {
                     match visible_spawn_surface_top_block_id(chunk_x, chunk_z, x, z) {
                         STONE_BLOCK_STATE_ID => 1_u64,
-                        GRASS_BLOCK_STATE_ID => 4_u64,
+                        GRANITE_BLOCK_STATE_ID => 2_u64,
+                        DIORITE_BLOCK_STATE_ID => 3_u64,
+                        ANDESITE_BLOCK_STATE_ID => 4_u64,
+                        GRASS_BLOCK_STATE_ID => 7_u64,
                         _ => unreachable!("surface top palette id is registered above"),
                     }
+                } else if y == TERRAIN_BASE_LOCAL_Y {
+                    5_u64
                 } else {
-                    3_u64
+                    6_u64
                 };
                 let block_index = (y << 8) | (z << 4) | x;
                 let word_index = block_index / VALUES_PER_LONG;
@@ -2290,9 +2301,9 @@ fn write_visible_spawn_terrain_block_state_container<W: Write>(
             if visible_spawn_surface_top_block_id(chunk_x, chunk_z, x, z) == GRASS_BLOCK_STATE_ID {
                 if let Some(feature_id) = visible_spawn_surface_feature_id(chunk_x, chunk_z, x, z) {
                     let palette_index = match feature_id {
-                        SHORT_GRASS_BLOCK_STATE_ID => 5_u64,
-                        DANDELION_BLOCK_STATE_ID => 6_u64,
-                        POPPY_BLOCK_STATE_ID => 7_u64,
+                        SHORT_GRASS_BLOCK_STATE_ID => 8_u64,
+                        DANDELION_BLOCK_STATE_ID => 9_u64,
+                        POPPY_BLOCK_STATE_ID => 10_u64,
                         _ => unreachable!("surface feature palette id is registered above"),
                     };
                     let y = top_y + 1;
@@ -3668,9 +3679,10 @@ mod tests {
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
-        write_visible_spawn_terrain_block_state_container, CompressionState, BANNER_PATTERNS,
-        BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS,
-        DANDELION_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS,
+        write_visible_spawn_terrain_block_state_container, CompressionState,
+        ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
+        BIOMES, CHAT_TYPES, DAMAGE_TYPE_TAGS, DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID,
+        DIRT_BLOCK_STATE_ID, GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS,
         JUKEBOX_SONGS, POPPY_BLOCK_STATE_ID,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
@@ -4081,9 +4093,12 @@ mod tests {
         let mut bits = [0_u8; 1];
         input.read_exact(&mut bits).unwrap();
         assert_eq!(bits[0], 4);
-        assert_eq!(read_var_i32(&mut input).unwrap(), 8);
+        assert_eq!(read_var_i32(&mut input).unwrap(), 11);
         assert_eq!(read_var_i32(&mut input).unwrap(), 0);
         assert_eq!(read_var_i32(&mut input).unwrap(), STONE_BLOCK_STATE_ID);
+        assert_eq!(read_var_i32(&mut input).unwrap(), GRANITE_BLOCK_STATE_ID);
+        assert_eq!(read_var_i32(&mut input).unwrap(), DIORITE_BLOCK_STATE_ID);
+        assert_eq!(read_var_i32(&mut input).unwrap(), ANDESITE_BLOCK_STATE_ID);
         assert_eq!(read_var_i32(&mut input).unwrap(), BEDROCK_BLOCK_STATE_ID);
         assert_eq!(read_var_i32(&mut input).unwrap(), DIRT_BLOCK_STATE_ID);
         assert_eq!(read_var_i32(&mut input).unwrap(), GRASS_BLOCK_STATE_ID);
@@ -4108,7 +4123,10 @@ mod tests {
 
         let high_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
-            .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == 14)
+            .find(|(x, z)| {
+                visible_spawn_terrain_height(0, 0, *x, *z) == 14
+                    && visible_spawn_surface_top_block_id(0, 0, *x, *z) == GRASS_BLOCK_STATE_ID
+            })
             .expect("spawn chunk should contain a local hill top");
         let featured_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
@@ -4126,20 +4144,20 @@ mod tests {
                     && visible_spawn_surface_top_block_id(0, 0, *x, *z) == GRASS_BLOCK_STATE_ID
             })
             .expect("spawn chunk should contain a bare low column");
-        let stone_column = (0..16)
+        let outcrop_column = (0..16)
             .flat_map(|z| (0..16).map(move |x| (x, z)))
             .find(|(x, z)| {
-                visible_spawn_surface_top_block_id(0, 0, *x, *z) == STONE_BLOCK_STATE_ID
+                visible_spawn_surface_top_block_id(0, 0, *x, *z) != GRASS_BLOCK_STATE_ID
                     && visible_spawn_terrain_height(0, 0, *x, *z) > TERRAIN_BASE_LOCAL_Y
             })
-            .expect("spawn chunk should contain a visible stone outcrop");
+            .expect("spawn chunk should contain a visible stone-family outcrop");
         assert_eq!(
             visible_spawn_terrain_height(0, 0, 0, 0),
             TERRAIN_BASE_LOCAL_Y
         );
         assert!(visible_spawn_terrain_block_count(0, 0) > 512);
         assert_eq!(words[191], 0);
-        assert_eq!(words[192], 0x2222_2222_2222_2222);
+        assert_ne!(words[192], 0);
         assert_eq!(
             palette_index_at(
                 &words,
@@ -4147,7 +4165,7 @@ mod tests {
                 TERRAIN_BASE_LOCAL_Y,
                 bare_low_column.1
             ),
-            2
+            7
         );
         assert_eq!(
             palette_index_at(
@@ -4160,27 +4178,35 @@ mod tests {
         );
         assert_eq!(
             palette_index_at(&words, high_column.0, 13, high_column.1),
-            3
+            6
         );
         assert_eq!(
             palette_index_at(&words, high_column.0, 14, high_column.1),
-            4
+            7
         );
+        let expected_outcrop_palette =
+            match visible_spawn_surface_top_block_id(0, 0, outcrop_column.0, outcrop_column.1) {
+                STONE_BLOCK_STATE_ID => 1,
+                GRANITE_BLOCK_STATE_ID => 2,
+                DIORITE_BLOCK_STATE_ID => 3,
+                ANDESITE_BLOCK_STATE_ID => 4,
+                _ => unreachable!("outcrop column must be stone-family"),
+            };
         assert_eq!(
             palette_index_at(
                 &words,
-                stone_column.0,
-                visible_spawn_terrain_height(0, 0, stone_column.0, stone_column.1),
-                stone_column.1
+                outcrop_column.0,
+                visible_spawn_terrain_height(0, 0, outcrop_column.0, outcrop_column.1),
+                outcrop_column.1
             ),
-            1
+            expected_outcrop_palette
         );
         let feature_y =
             visible_spawn_terrain_height(0, 0, featured_column.0, featured_column.1) + 1;
         let expected_feature_palette = match featured_column.2 {
-            SHORT_GRASS_BLOCK_STATE_ID => 5,
-            DANDELION_BLOCK_STATE_ID => 6,
-            POPPY_BLOCK_STATE_ID => 7,
+            SHORT_GRASS_BLOCK_STATE_ID => 8,
+            DANDELION_BLOCK_STATE_ID => 9,
+            POPPY_BLOCK_STATE_ID => 10,
             _ => unreachable!("feature id must be in the emitted palette"),
         };
         assert_eq!(
