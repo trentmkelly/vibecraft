@@ -80,10 +80,13 @@ pub enum ParticleOptionShape {
     Dust,
     DustColorTransition,
     Color,
+    Power,
     Item,
     Vibration,
     Trail,
     SculkCharge,
+    Shriek,
+    Spell,
 }
 
 pub const PARTICLES: &[ParticleDef] = &[
@@ -94,22 +97,304 @@ pub const PARTICLES: &[ParticleDef] = &[
     ),
     particle("minecraft:block", false, ParticleOptionShape::Block),
     particle("minecraft:block_marker", true, ParticleOptionShape::Block),
+    particle("minecraft:bubble", false, ParticleOptionShape::Simple),
+    particle("minecraft:cloud", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:copper_fire_flame",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:crit", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:damage_indicator",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:dragon_breath", false, ParticleOptionShape::Power),
+    particle(
+        "minecraft:dripping_lava",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:falling_lava", false, ParticleOptionShape::Simple),
+    particle("minecraft:landing_lava", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:dripping_water",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_water",
+        false,
+        ParticleOptionShape::Simple,
+    ),
     particle("minecraft:dust", false, ParticleOptionShape::Dust),
     particle(
         "minecraft:dust_color_transition",
         false,
         ParticleOptionShape::DustColorTransition,
     ),
+    particle("minecraft:effect", false, ParticleOptionShape::Spell),
+    particle(
+        "minecraft:elder_guardian",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:enchanted_hit",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:enchant", false, ParticleOptionShape::Simple),
+    particle("minecraft:end_rod", false, ParticleOptionShape::Simple),
     particle("minecraft:entity_effect", false, ParticleOptionShape::Color),
-    particle("minecraft:item", false, ParticleOptionShape::Item),
-    particle("minecraft:vibration", true, ParticleOptionShape::Vibration),
-    particle("minecraft:trail", false, ParticleOptionShape::Trail),
+    particle(
+        "minecraft:explosion_emitter",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:explosion", true, ParticleOptionShape::Simple),
+    particle("minecraft:gust", true, ParticleOptionShape::Simple),
+    particle("minecraft:small_gust", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:gust_emitter_large",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:gust_emitter_small",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:sonic_boom", true, ParticleOptionShape::Simple),
+    particle("minecraft:falling_dust", false, ParticleOptionShape::Block),
+    particle("minecraft:firework", false, ParticleOptionShape::Simple),
+    particle("minecraft:fishing", false, ParticleOptionShape::Simple),
+    particle("minecraft:flame", false, ParticleOptionShape::Simple),
+    particle("minecraft:infested", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:cherry_leaves",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:pale_oak_leaves",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:tinted_leaves", false, ParticleOptionShape::Color),
+    particle("minecraft:sculk_soul", false, ParticleOptionShape::Simple),
     particle(
         "minecraft:sculk_charge",
         true,
         ParticleOptionShape::SculkCharge,
     ),
-    particle("minecraft:sonic_boom", true, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:sculk_charge_pop",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:soul_fire_flame",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:soul", false, ParticleOptionShape::Simple),
+    particle("minecraft:flash", false, ParticleOptionShape::Color),
+    particle(
+        "minecraft:happy_villager",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:composter", false, ParticleOptionShape::Simple),
+    particle("minecraft:heart", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:instant_effect",
+        false,
+        ParticleOptionShape::Spell,
+    ),
+    particle("minecraft:item", false, ParticleOptionShape::Item),
+    particle("minecraft:vibration", true, ParticleOptionShape::Vibration),
+    particle("minecraft:trail", false, ParticleOptionShape::Trail),
+    particle(
+        "minecraft:pause_mob_growth",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:reset_mob_growth",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:item_slime", false, ParticleOptionShape::Simple),
+    particle("minecraft:item_cobweb", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:item_snowball",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:large_smoke", false, ParticleOptionShape::Simple),
+    particle("minecraft:lava", false, ParticleOptionShape::Simple),
+    particle("minecraft:mycelium", false, ParticleOptionShape::Simple),
+    particle("minecraft:note", false, ParticleOptionShape::Simple),
+    particle("minecraft:poof", true, ParticleOptionShape::Simple),
+    particle("minecraft:portal", false, ParticleOptionShape::Simple),
+    particle("minecraft:rain", false, ParticleOptionShape::Simple),
+    particle("minecraft:smoke", false, ParticleOptionShape::Simple),
+    particle("minecraft:white_smoke", false, ParticleOptionShape::Simple),
+    particle("minecraft:sneeze", false, ParticleOptionShape::Simple),
+    particle("minecraft:spit", true, ParticleOptionShape::Simple),
+    particle("minecraft:squid_ink", true, ParticleOptionShape::Simple),
+    particle("minecraft:sweep_attack", true, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:totem_of_undying",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:underwater", false, ParticleOptionShape::Simple),
+    particle("minecraft:splash", false, ParticleOptionShape::Simple),
+    particle("minecraft:witch", false, ParticleOptionShape::Simple),
+    particle("minecraft:bubble_pop", false, ParticleOptionShape::Simple),
+    particle("minecraft:current_down", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:bubble_column_up",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:nautilus", false, ParticleOptionShape::Simple),
+    particle("minecraft:dolphin", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:campfire_cosy_smoke",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:campfire_signal_smoke",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:dripping_honey",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_honey",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:landing_honey",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_nectar",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_spore_blossom",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:ash", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:crimson_spore",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:warped_spore", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:spore_blossom_air",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:dripping_obsidian_tear",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_obsidian_tear",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:landing_obsidian_tear",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:reverse_portal",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:white_ash", false, ParticleOptionShape::Simple),
+    particle("minecraft:small_flame", false, ParticleOptionShape::Simple),
+    particle("minecraft:snowflake", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:dripping_dripstone_lava",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_dripstone_lava",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:dripping_dripstone_water",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:falling_dripstone_water",
+        false,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:glow_squid_ink",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:glow", true, ParticleOptionShape::Simple),
+    particle("minecraft:wax_on", true, ParticleOptionShape::Simple),
+    particle("minecraft:wax_off", true, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:electric_spark",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:scrape", true, ParticleOptionShape::Simple),
+    particle("minecraft:shriek", false, ParticleOptionShape::Shriek),
+    particle("minecraft:egg_crack", false, ParticleOptionShape::Simple),
+    particle("minecraft:dust_plume", false, ParticleOptionShape::Simple),
+    particle(
+        "minecraft:trial_spawner_detection",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:trial_spawner_detection_ominous",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle(
+        "minecraft:vault_connection",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:dust_pillar", false, ParticleOptionShape::Block),
+    particle(
+        "minecraft:ominous_spawning",
+        true,
+        ParticleOptionShape::Simple,
+    ),
+    particle("minecraft:raid_omen", false, ParticleOptionShape::Simple),
+    particle("minecraft:trial_omen", false, ParticleOptionShape::Simple),
+    particle("minecraft:block_crumble", false, ParticleOptionShape::Block),
+    particle("minecraft:firefly", false, ParticleOptionShape::Simple),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -649,6 +934,9 @@ mod tests {
 
     #[test]
     fn particles_cover_simple_and_data_backed_option_shapes() {
+        assert_eq!(PARTICLES.len(), 117);
+        assert_eq!(PARTICLES.first().unwrap().id, "minecraft:angry_villager");
+        assert_eq!(PARTICLES.last().unwrap().id, "minecraft:firefly");
         assert!(PARTICLES.iter().any(|particle| {
             particle.id == "minecraft:block" && particle.option_shape == ParticleOptionShape::Block
         }));
@@ -658,10 +946,43 @@ mod tests {
                 && !particle.override_limiter
         }));
         assert!(PARTICLES.iter().any(|particle| {
+            particle.id == "minecraft:dragon_breath"
+                && particle.option_shape == ParticleOptionShape::Power
+        }));
+        assert!(PARTICLES.iter().any(|particle| {
             particle.id == "minecraft:vibration"
                 && particle.option_shape == ParticleOptionShape::Vibration
                 && particle.override_limiter
         }));
+        assert!(PARTICLES.iter().any(|particle| {
+            particle.id == "minecraft:item" && particle.option_shape == ParticleOptionShape::Item
+        }));
+        assert!(PARTICLES
+            .iter()
+            .any(|particle| particle.option_shape == ParticleOptionShape::Shriek));
+        assert!(PARTICLES
+            .iter()
+            .any(|particle| particle.option_shape == ParticleOptionShape::Spell));
+        assert!(PARTICLES
+            .iter()
+            .filter(|particle| particle.option_shape != ParticleOptionShape::Simple)
+            .map(|particle| particle.option_shape)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .all(|shape| matches!(
+                shape,
+                ParticleOptionShape::Block
+                    | ParticleOptionShape::Dust
+                    | ParticleOptionShape::DustColorTransition
+                    | ParticleOptionShape::Color
+                    | ParticleOptionShape::Item
+                    | ParticleOptionShape::Vibration
+                    | ParticleOptionShape::Trail
+                    | ParticleOptionShape::SculkCharge
+                    | ParticleOptionShape::Shriek
+                    | ParticleOptionShape::Power
+                    | ParticleOptionShape::Spell
+            )));
     }
 
     #[test]
