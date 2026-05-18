@@ -1495,6 +1495,14 @@ pub enum RandomSpreadType {
     Triangular,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrequencyReductionMethod {
+    Default,
+    LegacyType1,
+    LegacyType2,
+    LegacyType3,
+}
+
 impl RandomSpreadType {
     pub fn evaluate(self, random: &mut LegacyRandom, limit: i32) -> i32 {
         match self {
@@ -1502,6 +1510,17 @@ impl RandomSpreadType {
             RandomSpreadType::Triangular => {
                 (random.next_i32_bound(limit) + random.next_i32_bound(limit)) / 2
             }
+        }
+    }
+}
+
+impl FrequencyReductionMethod {
+    pub fn id(self) -> &'static str {
+        match self {
+            FrequencyReductionMethod::Default => "default",
+            FrequencyReductionMethod::LegacyType1 => "legacy_type_1",
+            FrequencyReductionMethod::LegacyType2 => "legacy_type_2",
+            FrequencyReductionMethod::LegacyType3 => "legacy_type_3",
         }
     }
 }
@@ -6488,6 +6507,56 @@ pub fn random_spread_is_placement_chunk(
         spread_type,
     )?;
     Ok(chunk.x == source_x && chunk.z == source_z)
+}
+
+pub fn validate_structure_frequency(frequency: f32) -> Result<(), String> {
+    if !(0.0..=1.0).contains(&frequency) {
+        return Err("Structure placement frequency must be in 0.0..=1.0".to_string());
+    }
+    Ok(())
+}
+
+pub fn structure_frequency_reducer_should_generate(
+    method: FrequencyReductionMethod,
+    seed: i64,
+    salt: i32,
+    source_x: i32,
+    source_z: i32,
+    frequency: f32,
+) -> Result<bool, String> {
+    validate_structure_frequency(frequency)?;
+    if frequency >= 1.0 {
+        return Ok(true);
+    }
+    if frequency <= 0.0 {
+        return Ok(false);
+    }
+    Ok(match method {
+        FrequencyReductionMethod::Default => {
+            let mut random =
+                LegacyRandom::new(large_feature_seed_with_salt(seed, salt, source_x, source_z));
+            random.next_f32() < frequency
+        }
+        FrequencyReductionMethod::LegacyType1 => {
+            let cx = source_x >> 4;
+            let cz = source_z >> 4;
+            let mut random = LegacyRandom::new((cx ^ (cz << 4)) as i64 ^ seed);
+            random.next_i32();
+            random.next_i32_bound((1.0 / frequency) as i32) == 0
+        }
+        FrequencyReductionMethod::LegacyType2 => {
+            let mut random = LegacyRandom::new(large_feature_seed_with_salt(
+                seed, source_x, source_z, 10_387_320,
+            ));
+            random.next_f32() < frequency
+        }
+        FrequencyReductionMethod::LegacyType3 => {
+            let mut random = LegacyRandom::new(crate::random_source::large_feature_seed(
+                seed, source_x, source_z,
+            ));
+            random.next_f64() < frequency as f64
+        }
+    })
 }
 
 const fn feature_type(
@@ -16456,6 +16525,82 @@ mod tests {
             .unwrap(),
             ChunkPos { x: -37, z: -54 }
         );
+    }
+
+    #[test]
+    fn structure_frequency_reducers_match_vanilla_methods() {
+        assert_eq!(super::FrequencyReductionMethod::Default.id(), "default");
+        assert_eq!(
+            super::FrequencyReductionMethod::LegacyType1.id(),
+            "legacy_type_1"
+        );
+        assert_eq!(
+            super::FrequencyReductionMethod::LegacyType2.id(),
+            "legacy_type_2"
+        );
+        assert_eq!(
+            super::FrequencyReductionMethod::LegacyType3.id(),
+            "legacy_type_3"
+        );
+        assert_eq!(
+            super::validate_structure_frequency(1.25).unwrap_err(),
+            "Structure placement frequency must be in 0.0..=1.0".to_string()
+        );
+
+        assert!(super::structure_frequency_reducer_should_generate(
+            super::FrequencyReductionMethod::Default,
+            12345,
+            10387312,
+            21,
+            5,
+            1.0,
+        )
+        .unwrap());
+        assert!(!super::structure_frequency_reducer_should_generate(
+            super::FrequencyReductionMethod::Default,
+            12345,
+            10387312,
+            21,
+            5,
+            0.0,
+        )
+        .unwrap());
+        assert!(!super::structure_frequency_reducer_should_generate(
+            super::FrequencyReductionMethod::Default,
+            12345,
+            10387312,
+            21,
+            5,
+            0.5,
+        )
+        .unwrap());
+        assert!(super::structure_frequency_reducer_should_generate(
+            super::FrequencyReductionMethod::LegacyType1,
+            12345,
+            10387312,
+            21,
+            5,
+            0.5,
+        )
+        .unwrap());
+        assert!(super::structure_frequency_reducer_should_generate(
+            super::FrequencyReductionMethod::LegacyType2,
+            12345,
+            10387312,
+            21,
+            5,
+            0.5,
+        )
+        .unwrap());
+        assert!(!super::structure_frequency_reducer_should_generate(
+            super::FrequencyReductionMethod::LegacyType3,
+            12345,
+            10387312,
+            21,
+            5,
+            0.5,
+        )
+        .unwrap());
     }
 
     #[test]

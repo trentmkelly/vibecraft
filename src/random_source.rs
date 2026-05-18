@@ -94,6 +94,10 @@ impl LegacyRandom {
         (((upper << 27) + lower) as f64) * DOUBLE_UNIT
     }
 
+    pub fn next_f32(&mut self) -> f32 {
+        (self.next_bits(24) as f32) / ((1_u32 << 24) as f32)
+    }
+
     pub fn fork(&mut self) -> Self {
         Self::new(self.next_i64())
     }
