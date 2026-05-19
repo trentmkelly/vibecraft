@@ -32,12 +32,12 @@ Authentication, secure profile, signed chat, and abuse-reporting metadata parity
 - [x] Implement banned profile and banned IP checks.
 - [x] Implement whitelist checks.
 - [x] Implement operator permission lookup.
-- [ ] Implement secure chat chain validation.
-- [ ] Implement signed message body, link, signature, cache, and last-seen validation.
-- [ ] Implement unsigned, modified, filtered, and deleted chat behavior.
-- [ ] Implement command signing and signed argument tracking.
-- [ ] Implement text filtering integration and fallbacks.
-- [ ] Implement player reporting-relevant metadata where clients expect it.
+- [x] Implement secure chat chain validation.
+- [x] Implement signed message body, link, signature, cache, and last-seen validation.
+- [x] Implement unsigned, modified, filtered, and deleted chat behavior.
+- [x] Implement command signing and signed argument tracking.
+- [x] Implement text filtering integration and fallbacks.
+- [x] Implement player reporting-relevant metadata where clients expect it.
 - [x] Implement prevent-proxy-connections behavior.
 - [x] Implement IP logging controls.
 - [x] Implement management server secret and TLS behavior.
