@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
+use crate::block_entity::BLOCK_ENTITY_TYPES;
 use crate::network::codec::{
     read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
     write_identifier, write_optional, write_string, write_uuid, Uuid,
@@ -1678,7 +1679,7 @@ pub enum DebugPacketKind {
     Sample,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundLevelChunkWithLightPacket {
     pub pos: ChunkPos,
     pub chunk_data: Option<ClientboundLevelChunkPacketData>,
@@ -1729,11 +1730,20 @@ pub struct ClientboundLightUpdatePacketData {
     pub block_updates: Vec<Vec<i8>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundLevelChunkPacketData {
     pub heightmaps: BTreeMap<String, Vec<i64>>,
     pub buffer: Vec<u8>,
     pub block_entity_count: usize,
+    pub block_entities: Vec<LevelChunkBlockEntityInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelChunkBlockEntityInfo {
+    pub packed_xz: u8,
+    pub y: i16,
+    pub block_entity_type_id: i32,
+    pub tag: Tag,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3017,6 +3027,37 @@ impl ClientboundLevelChunkWithLightPacket {
             light_data: Some(light_data),
         }
     }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i32(writer, self.pos.x)?;
+        write_i32(writer, self.pos.z)?;
+        self.chunk_data
+            .as_ref()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "chunk-with-light packet missing chunk data",
+                )
+            })?
+            .write(writer)?;
+        self.light_data
+            .as_ref()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "chunk-with-light packet missing light data",
+                )
+            })?
+            .write(writer)
+    }
+}
+
+impl ClientboundLightUpdatePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.pos.x)?;
+        write_var_i32(writer, self.pos.z)?;
+        self.light_data.write(writer)
+    }
 }
 
 impl SectionPos {
@@ -3901,13 +3942,75 @@ impl ClientboundLevelChunkPacketData {
                 .heightmaps
                 .iter()
                 .filter_map(|(name, tag)| match tag {
-                    Tag::LongArray(values) => Some((name.clone(), values.clone())),
+                    Tag::LongArray(values) if heightmap_sent_to_client(name) => {
+                        Some((name.clone(), values.clone()))
+                    }
                     _ => None,
                 })
                 .collect(),
             buffer,
             block_entity_count: chunk.block_entities.len(),
+            block_entities: chunk
+                .block_entities
+                .iter()
+                .filter_map(LevelChunkBlockEntityInfo::from_nbt)
+                .collect(),
         }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let mut heightmaps = self
+            .heightmaps
+            .iter()
+            .map(|(name, values)| Ok((heightmap_type_id(name)?, values)))
+            .collect::<io::Result<Vec<_>>>()?;
+        heightmaps.sort_by_key(|(type_id, _)| *type_id);
+        write_var_i32(writer, heightmaps.len() as i32)?;
+        for (type_id, values) in heightmaps {
+            write_var_i32(writer, type_id)?;
+            write_var_i32(writer, values.len() as i32)?;
+            for value in values {
+                write_i64(writer, *value)?;
+            }
+        }
+        if self.buffer.len() > Self::MAX_BUFFER_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "chunk packet buffer exceeds vanilla two-megabyte guard",
+            ));
+        }
+        write_var_i32(writer, self.buffer.len() as i32)?;
+        writer.write_all(&self.buffer)?;
+        write_var_i32(writer, self.block_entities.len() as i32)?;
+        for block_entity in &self.block_entities {
+            block_entity.write(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl LevelChunkBlockEntityInfo {
+    fn from_nbt(tag: &Tag) -> Option<Self> {
+        let Tag::Compound(fields) = tag else {
+            return None;
+        };
+        let x = compound_i32(fields, "x")?;
+        let y = compound_i32(fields, "y")?;
+        let z = compound_i32(fields, "z")?;
+        let id = compound_string(fields, "id")?;
+        Some(Self {
+            packed_xz: (((x & 15) << 4) | (z & 15)) as u8,
+            y: y as i16,
+            block_entity_type_id: block_entity_type_network_id(id).unwrap_or(0),
+            tag: tag.clone(),
+        })
+    }
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.packed_xz])?;
+        write_i16(writer, self.y)?;
+        write_var_i32(writer, self.block_entity_type_id)?;
+        write_network_compound_tag(writer, &self.tag)
     }
 }
 
@@ -4102,6 +4205,56 @@ fn storage_palette_entry_network_id(tag: &Tag, kind: PaletteKind) -> i32 {
             .unwrap_or(0),
         _ => 0,
     }
+}
+
+fn heightmap_type_id(name: &str) -> io::Result<i32> {
+    match name {
+        "WORLD_SURFACE_WG" => Ok(0),
+        "WORLD_SURFACE" => Ok(1),
+        "OCEAN_FLOOR_WG" => Ok(2),
+        "OCEAN_FLOOR" => Ok(3),
+        "MOTION_BLOCKING" => Ok(4),
+        "MOTION_BLOCKING_NO_LEAVES" => Ok(5),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unknown heightmap type {name}"),
+        )),
+    }
+}
+
+fn heightmap_sent_to_client(name: &str) -> bool {
+    matches!(
+        name,
+        "WORLD_SURFACE" | "MOTION_BLOCKING" | "MOTION_BLOCKING_NO_LEAVES"
+    )
+}
+
+fn block_entity_type_network_id(name: &str) -> Option<i32> {
+    let normalized = name.strip_prefix("minecraft:").unwrap_or(name);
+    BLOCK_ENTITY_TYPES
+        .iter()
+        .position(|entry| entry.key == normalized)
+        .map(|index| index as i32)
+}
+
+fn compound_i32(fields: &[(String, Tag)], name: &str) -> Option<i32> {
+    fields
+        .iter()
+        .find(|(field_name, _)| field_name == name)
+        .and_then(|(_, value)| match value {
+            Tag::Int(value) => Some(*value),
+            _ => None,
+        })
+}
+
+fn compound_string<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> {
+    fields
+        .iter()
+        .find(|(field_name, _)| field_name == name)
+        .and_then(|(_, value)| match value {
+            Tag::String(value) => Some(value.as_str()),
+            _ => None,
+        })
 }
 
 fn section_non_empty_block_count(tag: &Tag) -> i16 {
@@ -8615,7 +8768,12 @@ mod tests {
                 sky_light: Some(vec![-1; 2048]),
             }],
             heightmaps,
-            block_entities: vec![Tag::Compound(Vec::new())],
+            block_entities: vec![Tag::Compound(vec![
+                ("id".to_string(), Tag::String("minecraft:chest".to_string())),
+                ("x".to_string(), Tag::Int(65)),
+                ("y".to_string(), Tag::Int(70)),
+                ("z".to_string(), Tag::Int(-18)),
+            ])],
             entities: Vec::new(),
             structures: Tag::Compound(Vec::new()),
             block_ticks: Vec::new(),
@@ -8629,8 +8787,39 @@ mod tests {
         let chunk_data = packet.chunk_data.as_ref().unwrap();
         assert_eq!(chunk_data.heightmaps["WORLD_SURFACE"], vec![1, 2, 3]);
         assert_eq!(chunk_data.block_entity_count, 1);
+        assert_eq!(chunk_data.block_entities.len(), 1);
+        assert_eq!(chunk_data.block_entities[0].packed_xz, 0x1e);
+        assert_eq!(chunk_data.block_entities[0].y, 70);
+        assert_eq!(chunk_data.block_entities[0].block_entity_type_id, 1);
         assert_eq!(chunk_data.buffer, vec![0x10, 0, 0, 0, 0, 5, 0, 7]);
-        assert_eq!(packet.light_data, Some(light_data));
+        assert_eq!(packet.light_data, Some(light_data.clone()));
+
+        let mut chunk_payload = Vec::new();
+        packet.write(&mut chunk_payload).unwrap();
+        assert_eq!(&chunk_payload[..4], &4_i32.to_be_bytes());
+        assert_eq!(&chunk_payload[4..8], &(-2_i32).to_be_bytes());
+        assert_eq!(chunk_payload[8], 1);
+        assert_eq!(chunk_payload[9], 1);
+        assert_eq!(chunk_payload[10], 3);
+        assert_eq!(&chunk_payload[11..19], &1_i64.to_be_bytes());
+        assert_eq!(&chunk_payload[19..27], &2_i64.to_be_bytes());
+        assert_eq!(&chunk_payload[27..35], &3_i64.to_be_bytes());
+        assert_eq!(&chunk_payload[35..44], &[8, 0x10, 0, 0, 0, 0, 5, 0, 7]);
+        assert!(
+            chunk_payload
+                .windows(4)
+                .any(|bytes| bytes == [1, 0x1e, 0, 70]),
+            "block entity list writes packed XZ, y short, type id and tag"
+        );
+
+        let mut light_payload = Vec::new();
+        ClientboundLightUpdatePacket {
+            pos: chunk.pos,
+            light_data,
+        }
+        .write(&mut light_payload)
+        .unwrap();
+        assert_eq!(&light_payload[..2], &[4, 0xfe]);
     }
 
     #[test]

@@ -1075,15 +1075,13 @@ fn handle_login_connection(
 
     let mut login = LoginSession::default();
     let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
-    if let Some(reason) =
-        login_access_disconnect_reason(
-            properties,
-            player_access,
-            &finished.profile,
-            remote_ip,
-            login_host_ip.as_deref(),
-        )?
-    {
+    if let Some(reason) = login_access_disconnect_reason(
+        properties,
+        player_access,
+        &finished.profile,
+        remote_ip,
+        login_host_ip.as_deref(),
+    )? {
         return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
             ClientboundLoginDisconnectPacket {
                 reason: crate::network::codec::ComponentJson(format!(
@@ -1383,7 +1381,8 @@ fn handle_login_connection(
                 if let PacketRateDecision::Kick { reason } =
                     rate_limiter.record_packet(Instant::now())
                 {
-                    let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                    let _ =
+                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                     write_framed_packet_with_compression(
                         stream,
                         compression,
@@ -1845,7 +1844,9 @@ fn login_host_ip(server_address: &str) -> Option<String> {
         .and_then(|address| address.split_once(']').map(|(host, _)| host))
         .or_else(|| server_address.split_once(':').map(|(host, _)| host))
         .unwrap_or(server_address);
-    host.parse::<IpAddr>().ok().map(|address| address.to_string())
+    host.parse::<IpAddr>()
+        .ok()
+        .map(|address| address.to_string())
 }
 
 fn wait_for_configuration_packet<R: Read>(
@@ -2410,11 +2411,10 @@ fn write_generated_spawn_chunk_packet<W: Write>(
 ) -> io::Result<()> {
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
-    let chunk = try_load_chunk_from_region(&region_dir, pos)
-        .unwrap_or_else(|| {
-            generate_overworld_chunk_for_preset(pos, "normal")
-                .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
-        });
+    let chunk = try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
+        generate_overworld_chunk_for_preset(pos, "normal")
+            .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
+    });
     let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
     let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
     write_level_chunk_with_light_payload(writer, &packet)
@@ -2455,54 +2455,7 @@ fn write_level_chunk_packet_data<W: Write>(
     writer: &mut W,
     data: &ClientboundLevelChunkPacketData,
 ) -> io::Result<()> {
-    write_level_chunk_heightmaps(writer, &data.heightmaps)?;
-    write_var_i32(writer, data.buffer.len() as i32)?;
-    writer.write_all(&data.buffer)?;
-    write_var_i32(writer, data.block_entity_count as i32)
-}
-
-fn write_level_chunk_heightmaps<W: Write>(
-    writer: &mut W,
-    heightmaps: &std::collections::BTreeMap<String, Vec<i64>>,
-) -> io::Result<()> {
-    let entries = clientbound_heightmap_entries(heightmaps);
-    write_var_i32(writer, entries.len() as i32)?;
-    for (type_id, values) in entries {
-        write_var_i32(writer, type_id)?;
-        write_var_i32(writer, values.len() as i32)?;
-        for value in values {
-            writer.write_all(&value.to_be_bytes())?;
-        }
-    }
-    Ok(())
-}
-
-fn clientbound_heightmap_entries(
-    heightmaps: &std::collections::BTreeMap<String, Vec<i64>>,
-) -> Vec<(i32, Vec<i64>)> {
-    let mut entries = Vec::new();
-    if let Some(values) = heightmaps
-        .get("WORLD_SURFACE")
-        .or_else(|| heightmaps.get("WORLD_SURFACE_WG"))
-    {
-        entries.push((1, values.clone()));
-    }
-    if let Some(values) = heightmaps
-        .get("MOTION_BLOCKING")
-        .or_else(|| heightmaps.get("WORLD_SURFACE"))
-        .or_else(|| heightmaps.get("WORLD_SURFACE_WG"))
-    {
-        entries.push((4, values.clone()));
-    }
-    if let Some(values) = heightmaps
-        .get("MOTION_BLOCKING_NO_LEAVES")
-        .or_else(|| heightmaps.get("MOTION_BLOCKING"))
-        .or_else(|| heightmaps.get("WORLD_SURFACE"))
-        .or_else(|| heightmaps.get("WORLD_SURFACE_WG"))
-    {
-        entries.push((5, values.clone()));
-    }
-    entries
+    data.write(writer)
 }
 
 #[allow(dead_code)]
@@ -2650,19 +2603,23 @@ fn block_state_to_item_drop(block_state_id: i32) -> Option<i32> {
     }
 }
 
-
-fn save_broken_block_to_region(layout: &WorldLayout, chunk_pos: ChunkPos, bx: i32, by: i32, bz: i32) {
+fn save_broken_block_to_region(
+    layout: &WorldLayout,
+    chunk_pos: ChunkPos,
+    bx: i32,
+    by: i32,
+    bz: i32,
+) {
     let region_dir = layout.region_dir();
     let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) else {
         return;
     };
     let mut chunk = match region.read_chunk_nbt(chunk_pos) {
-        Ok(Some((_name, tag))) => {
-            crate::storage::chunk::LevelChunk::from_nbt(chunk_pos, &tag).unwrap_or_else(|_| {
+        Ok(Some((_name, tag))) => crate::storage::chunk::LevelChunk::from_nbt(chunk_pos, &tag)
+            .unwrap_or_else(|_| {
                 generate_overworld_chunk_for_preset(chunk_pos, "normal")
                     .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(chunk_pos))
-            })
-        }
+            }),
         _ => generate_overworld_chunk_for_preset(chunk_pos, "normal")
             .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(chunk_pos)),
     };
@@ -4140,9 +4097,8 @@ mod tests {
         chunk_batch_size, chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
         handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response, load_favicon,
-        login_access_disconnect_reason, login_host_ip, newly_visible_chunks,
-        packed_chunk_pos, pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt,
-        trim_pattern_nbt,
+        login_access_disconnect_reason, login_host_ip, newly_visible_chunks, packed_chunk_pos,
+        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
         vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
         visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
         visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
@@ -4164,11 +4120,11 @@ mod tests {
         write_vanilla_zombie_nautilus_variant_registry_packet,
         write_visible_spawn_terrain_block_state_container, CompressionState,
         ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
-        BIOMES, CHAT_TYPES, DAMAGE_TYPES, DAMAGE_TYPE_TAGS, DANDELION_BLOCK_STATE_ID,
-        DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID, GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID,
-        INSTRUMENTS, JUKEBOX_SONGS, POPPY_BLOCK_STATE_ID,
-        SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
-        CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID, CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
+        BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
+        CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
+        DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
+        GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS,
+        POPPY_BLOCK_STATE_ID, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
         STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
@@ -5090,8 +5046,12 @@ mod tests {
     #[test]
     fn chunk_batch_start_packet_has_no_payload_after_packet_id() {
         let mut packet = Vec::new();
-        write_framed_packet(&mut packet, CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, |_| Ok(()))
-            .unwrap();
+        write_framed_packet(
+            &mut packet,
+            CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
+            |_| Ok(()),
+        )
+        .unwrap();
 
         let mut cursor = Cursor::new(packet);
         let frame_len = read_var_i32(&mut cursor).unwrap();
@@ -5109,9 +5069,11 @@ mod tests {
         assert_eq!(packed_chunk_pos(-1, 0), 0xffff_ffff);
 
         let mut packet = Vec::new();
-        write_framed_packet(&mut packet, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID, |payload| {
-            payload.write_all(&packed_chunk_pos(4, -2).to_be_bytes())
-        })
+        write_framed_packet(
+            &mut packet,
+            CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
+            |payload| payload.write_all(&packed_chunk_pos(4, -2).to_be_bytes()),
+        )
         .unwrap();
 
         let mut cursor = Cursor::new(packet);
@@ -5368,11 +5330,18 @@ mod tests {
     #[test]
     fn level_chunk_packet_data_uses_vanilla_heightmap_stream_codec_not_nbt() {
         let mut heightmaps = std::collections::BTreeMap::new();
-        heightmaps.insert("WORLD_SURFACE_WG".to_string(), vec![0x0102_0304_0506_0708]);
+        for name in [
+            "WORLD_SURFACE",
+            "MOTION_BLOCKING",
+            "MOTION_BLOCKING_NO_LEAVES",
+        ] {
+            heightmaps.insert(name.to_string(), vec![0x0102_0304_0506_0708]);
+        }
         let data = super::ClientboundLevelChunkPacketData {
             heightmaps,
             buffer: Vec::new(),
             block_entity_count: 0,
+            block_entities: Vec::new(),
         };
 
         let mut payload = Vec::new();

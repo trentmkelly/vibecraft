@@ -880,7 +880,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "level_chunk_with_light",
         java_class: "ClientboundLevelChunkWithLightPacket",
-        field_order: "unparsed",
+        field_order: "x:int, z:int, chunk_data(heightmaps:Map<Heightmap.Types, long[]>, buffer:VarInt length+bytes up to 2MiB, block_entities:List(packed_xz:byte, y:short, type:registry VarInt, tag:nullable compound NBT)), light_data(sky_y_mask, block_y_mask, empty_sky_y_mask, empty_block_y_mask bitsets, sky_updates/block_updates lists of 2048-byte arrays)",
     },
     PlayPacketSpec {
         id: 46,
@@ -901,7 +901,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "light_update",
         java_class: "ClientboundLightUpdatePacket",
-        field_order: "unparsed",
+        field_order: "x:VarInt, z:VarInt, light_data(sky_y_mask, block_y_mask, empty_sky_y_mask, empty_block_y_mask bitsets, sky_updates/block_updates lists of 2048-byte arrays)",
     },
     PlayPacketSpec {
         id: 49,
