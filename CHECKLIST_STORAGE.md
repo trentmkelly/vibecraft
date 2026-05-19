@@ -34,7 +34,7 @@
 
 ## Player Data Storage
 
-- [ ] Implement `PlayerDataStorage`: save compressed gzip `<uuid>.dat`, rotate to `<uuid>.dat_old` on save, on load corruption copy to `<uuid>_corrupted_<timestamp>.dat` and fall back to `<uuid>.dat_old`
+- [x] Implement `PlayerDataStorage`: save compressed gzip `<uuid>.dat`, rotate to `<uuid>.dat_old` on save, on load corruption copy to `<uuid>_corrupted_<timestamp>.dat` and fall back to `<uuid>.dat_old`
 - [ ] Implement player NBT fields: `Pos` (3 doubles), `Rotation` (2 floats), `Motion` (3 doubles), `Health` (float), `FoodLevel` (int), `FoodSaturationLevel` (float), `FoodExhaustion` (float), `XpP` (float), `XpLevel` (int), `XpTotal` (int), `XpSeed` (int), `Score` (int), `SelectedItemSlot` (int, 0–8), `Inventory` (list of slot NBT), `EnderItems` (ender chest), `playerGameType` (int), `previousPlayerGameType` (int), `SpawnX/Y/Z`, `SpawnForced` (bool), `SpawnDimension`, `seenCredits` (bool), `recipeBook` (compound), `LastDeathLocation` (optional dimension+pos), `enteredNetherPosition` (optional), `RootVehicle` (optional), `abilities` compound, `active_effects` list
 - [ ] Implement player data bounds clamping on load: `Health` clamped to [0, max-health], `FoodLevel` to [0, 20], `SelectedItemSlot` to [0, 8], invalid `playerGameType` to 0 (survival)
 - [ ] Add parity test: player NBT save/load round-trip preserves all fields identically for a full-state profile
@@ -76,7 +76,7 @@
 - [ ] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
 - [ ] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
 - [ ] Implement POI region files: `<dim>/poi/*.mca` with POI type and occupation counts
-- [ ] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
+- [x] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
 - [x] Implement advancements: `advancements/<uuid>.json`
 - [x] Implement stats: `stats/<uuid>.json`
 - [x] Implement server icon: `server-icon.png` (64×64 PNG, base64-encoded for status response)
