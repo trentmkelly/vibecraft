@@ -78,9 +78,9 @@
 - [ ] Implement selector parsing, entity predicates, score predicates, NBT predicates, range predicates, sort/order, limits, and current entity context.
 - [ ] Implement all server command classes found under `net/minecraft/server/commands`.
 - [x] Implement `/advancement`.
-- [ ] Implement `/attribute`.
+- [x] Implement `/attribute`.
 - [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
-- [ ] Implement `/bossbar`.
+- [x] Implement `/bossbar`.
 - [ ] Implement `/chase`.
 - [ ] Implement `/clear`.
 - [ ] Implement `/clone`.
@@ -88,13 +88,13 @@
 - [ ] Implement `/datapack`.
 - [ ] Implement `/deop` and `/op`.
 - [ ] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.
-- [ ] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
+- [x] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
 - [ ] Implement `/dialog`.
 - [ ] Implement `/effect`.
 - [ ] Implement `/emote`.
 - [ ] Implement `/enchant`.
 - [ ] Implement `/execute`.
-- [ ] Implement `/experience`.
+- [x] Implement `/experience`.
 - [ ] Implement `/fetchprofile`.
 - [ ] Implement `/fill` and `/fillbiome`.
 - [ ] Implement `/forceload`.
@@ -112,8 +112,8 @@
 - [ ] Implement `/place`.
 - [ ] Implement `/playsound` and `/stopsound`.
 - [ ] Implement `/publish`.
-- [ ] Implement `/raid`.
-- [ ] Implement `/random`.
+- [x] Implement `/raid`.
+- [x] Implement `/random`.
 - [x] Implement `/recipe`.
 - [ ] Implement `/reload`.
 - [ ] Implement `/return`.
@@ -122,21 +122,21 @@
 - [ ] Implement `/save-all`, `/save-off`, `/save-on`.
 - [ ] Implement `/schedule`.
 - [x] Implement `/scoreboard`.
-- [ ] Implement `/seed`.
+- [x] Implement `/seed`.
 - [ ] Implement `/serverpack`.
 - [ ] Implement `/setblock`.
 - [ ] Implement `/setidletimeout`.
 - [ ] Implement `/spawnpoint`, `/setworldspawn`.
 - [ ] Implement `/spawn_armor_trims`.
 - [ ] Implement `/spectate`.
-- [ ] Implement `/spreadplayers`.
+- [x] Implement `/spreadplayers`.
 - [ ] Implement `/stop`.
 - [ ] Implement `/stopwatch`.
-- [ ] Implement `/summon`.
+- [x] Implement `/summon`.
 - [ ] Implement `/swing`.
-- [ ] Implement `/tag`.
+- [x] Implement `/tag`.
 - [x] Implement `/team`.
-- [ ] Implement `/teleport`.
+- [x] Implement `/teleport`.
 - [ ] Add Mineflayer command execution tests for teleporting a bot, validating its observed position correction, success feedback, and permission failures.
 - [ ] Add Mineflayer offline-mode `/list` login-state tests that run `/list` from console and bot during login, after join, after duplicate replacement, and after disconnect to verify player counts and names match vanilla.
 - [x] Add command-model `/list` login-state fallback coverage for empty, joined, duplicate-replacement, multi-player, and post-disconnect online counts while raw play command execution is not wired to `/list` yet.
