@@ -124,11 +124,12 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Noise Samplers
 
-- [ ] Implement `NormalNoise` (octave Perlin): exact Java `PerlinNoiseSampler` per octave, amplitude scaling from persistence
-- [ ] Implement `PerlinNoise` (simplex-like, pre-1.18 compat path) for legacy random path
-- [ ] Implement `BlendedNoise` (old 3D noise for `OldBlendedNoise` density function)
-- [ ] Implement `SimplexNoise` for end terrain and end island generation
-- [ ] Add byte-for-byte parity test: `NormalNoise` at specific coordinates matches Java output for same seed
+- [x] Implement `NormalNoise` (octave Perlin): exact Java `PerlinNoiseSampler` per octave, amplitude scaling from persistence — both new (xoroshiro, hashed octave keys) and legacy (sequential LegacyRandom) initialisation paths; `valueFactor`, `maxValue`, and derivative accumulation all match Java
+- [x] Implement `PerlinSimplexNoise` (simplex-like, pre-1.18 compat path) for legacy random path — multi-octave `SimplexNoise` with exact Java octave ordering, skip-262 for absent octaves, and derived `LegacyRandom` seed for positive octaves; implements `Biome.TEMPERATURE_NOISE` (seed 1234, octave {0}), `FROZEN_TEMPERATURE_NOISE` (seed 3456, octaves {-2,-1,0}), and `BIOME_INFO_NOISE` (seed 2345, octave {0})
+- [x] Implement `BlendedNoise` (old 3D noise for `OldBlendedNoise` density function) — three legacy `PerlinNoise` stacks (minLimit/maxLimit 16-octave, main 8-octave), exact xz/y multiplier and smear scale, `Mth.clampedLerp` blend, `/512 /128` normalisation
+- [x] Implement `SimplexNoise` for end terrain and end island generation — 2-D and 3-D variants with exact gradient table, corner-noise kernel, and factor (70× for 2-D, 32× for 3-D); `PerlinSimplexNoise` wraps it with `highestFreqInputFactor`/`highestFreqValueFactor` progression
+- [x] Add byte-for-byte parity test: `NormalNoise` at specific coordinates matches Java output for same seed — validated via `normal_noise_snapshot_samples_match_vanilla_dual_perlin_composition` (exact f64 values to 1e-12); `PerlinSimplexNoise` biome constants verified via six dedicated tests pinning xo offsets and sample values
+- [x] Edge case: `PerlinSimplexNoise` positive-octave derived-seed path — when `highFreqOctaves > 0`, secondary `LegacyRandom` is seeded with `(long)(zeroOctave.getValue(xo, yo, zo) * 9.223372E18F)` (float literal → f32 precision before widening to f64) and used for all octave indices below `zeroOctaveIndex`; skipped positive octaves consume 262 values from the derived random
 
 ## Aquifer and Fluid Placement
 

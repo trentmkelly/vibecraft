@@ -115,6 +115,19 @@ pub struct SimplexNoiseSnapshot {
     pub permutation: [u8; 256],
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PerlinSimplexNoiseSnapshot {
+    /// Octave levels from highest-frequency (index 0) to lowest-frequency (last).
+    /// Index `highFreqOctaves` corresponds to octave 0; positive octaves are at lower
+    /// indices, negative octaves at higher indices — matching Java's noiseLevels layout.
+    pub levels: Vec<Option<SimplexNoiseSnapshot>>,
+    /// Scaling factor applied to the input coordinates for the first (highest-freq) octave.
+    /// Equals 2^highFreqOctaves.
+    pub highest_freq_input_factor: f64,
+    /// Value weight for the first (highest-freq) octave. Equals 1 / (2^octaveCount - 1).
+    pub highest_freq_value_factor: f64,
+}
+
 pub const SIMPLEX_GRADIENT: [[i32; 3]; 16] = [
     [1, 1, 0],
     [-1, 1, 0],
@@ -23813,6 +23826,130 @@ pub fn end_island_density_sample(seed: i64, block_x: i32, block_z: i32) -> f64 {
         / 128.0
 }
 
+/// Constructs a `PerlinSimplexNoise` from a mutable random source and a sorted list of octave
+/// numbers, matching Java's `PerlinSimplexNoise(RandomSource, IntSortedSet)` constructor exactly.
+///
+/// Octave numbers are signed integers (e.g. `[-2, -1, 0]`).  The lowest (most negative) octave
+/// is the lowest frequency; the highest (most positive) is the highest frequency.  Positive
+/// octaves (> 0) are initialised from a secondary random derived from the zero-octave state,
+/// exactly as Java does with `LegacyRandomSource(positiveOctaveSeed)`.
+pub fn perlin_simplex_noise_snapshot(
+    random: &mut RandomSourceKind,
+    octave_list: &[i32],
+) -> PerlinSimplexNoiseSnapshot {
+    assert!(!octave_list.is_empty(), "Need some octaves!");
+    let first_octave = *octave_list.iter().min().unwrap();
+    let last_octave = *octave_list.iter().max().unwrap();
+    let low_freq_octaves = -first_octave;
+    let high_freq_octaves = last_octave;
+    let octave_count = (low_freq_octaves + high_freq_octaves + 1) as usize;
+    assert!(octave_count >= 1, "Total number of octaves needs to be >= 1");
+
+    // Java always constructs the zero-octave simplex first from the main random, regardless of
+    // whether octave 0 is in the requested set, to keep the random state advancing correctly.
+    let zero_octave_snapshot = simplex_noise_snapshot(random);
+    let zero_octave_index = high_freq_octaves as usize;
+
+    let mut levels: Vec<Option<SimplexNoiseSnapshot>> = vec![None; octave_count];
+
+    if zero_octave_index < octave_count && octave_list.contains(&0) {
+        levels[zero_octave_index] = Some(zero_octave_snapshot.clone());
+    }
+
+    // Negative octaves (lower frequency) come from the main random, placed at indices above
+    // zero_octave_index.  Skipped octaves still consume 262 random values to stay in sync.
+    for i in (zero_octave_index + 1)..octave_count {
+        let octave_num = zero_octave_index as i32 - i as i32;
+        if octave_list.contains(&octave_num) {
+            levels[i] = Some(simplex_noise_snapshot(random));
+        } else {
+            random.consume_count(262);
+        }
+    }
+
+    // Positive octaves (higher frequency, indices 0..zero_octave_index) come from a secondary
+    // LegacyRandom seeded by evaluating the zero-octave simplex at its own origin offsets.
+    // Java uses `(long)(value * 9.223372E18F)` — note the float literal forces f32 precision
+    // before widening to f64, which we replicate exactly.
+    if high_freq_octaves > 0 {
+        let derived_seed = (simplex_noise_sample_3d(
+            &zero_octave_snapshot,
+            zero_octave_snapshot.xo,
+            zero_octave_snapshot.yo,
+            zero_octave_snapshot.zo,
+        ) * 9.223_372E18_f32 as f64) as i64;
+        let mut high_freq_random =
+            RandomSourceKind::Legacy(LegacyRandom::new(derived_seed));
+
+        for i in (0..zero_octave_index).rev() {
+            let octave_num = zero_octave_index as i32 - i as i32;
+            if i < octave_count && octave_list.contains(&octave_num) {
+                levels[i] = Some(simplex_noise_snapshot(&mut high_freq_random));
+            } else {
+                high_freq_random.consume_count(262);
+            }
+        }
+    }
+
+    PerlinSimplexNoiseSnapshot {
+        levels,
+        highest_freq_input_factor: 2.0_f64.powi(high_freq_octaves),
+        highest_freq_value_factor: 1.0 / (2.0_f64.powi(octave_count as i32) - 1.0),
+    }
+}
+
+/// Evaluates a `PerlinSimplexNoise` at 2-D coordinates, matching Java's
+/// `PerlinSimplexNoise.getValue(double x, double y, boolean useNoiseStart)`.
+///
+/// When `use_noise_start` is `true`, each octave's own `xo`/`yo` offsets are added to the
+/// scaled coordinates before sampling — matching the Java flag behaviour.
+pub fn perlin_simplex_noise_sample(
+    snapshot: &PerlinSimplexNoiseSnapshot,
+    x: f64,
+    y: f64,
+    use_noise_start: bool,
+) -> f64 {
+    let mut value = 0.0;
+    let mut factor = snapshot.highest_freq_input_factor;
+    let mut value_factor = snapshot.highest_freq_value_factor;
+
+    for level in &snapshot.levels {
+        if let Some(level) = level {
+            let lx = x * factor + if use_noise_start { level.xo } else { 0.0 };
+            let ly = y * factor + if use_noise_start { level.yo } else { 0.0 };
+            value += simplex_noise_sample_2d(level, lx, ly) * value_factor;
+        }
+        factor /= 2.0;
+        value_factor *= 2.0;
+    }
+
+    value
+}
+
+/// Returns the `Biome.TEMPERATURE_NOISE` singleton — a single-octave `PerlinSimplexNoise`
+/// with `LegacyRandomSource(1234)`, used by `Biome.getTemperature()` for freeze/precipitation
+/// checks.  Matches Java: `new PerlinSimplexNoise(new WorldgenRandom(new LegacyRandomSource(1234L)), ImmutableList.of(0))`.
+pub fn biome_temperature_noise_snapshot() -> PerlinSimplexNoiseSnapshot {
+    let mut random = RandomSourceKind::Legacy(LegacyRandom::new(1234));
+    perlin_simplex_noise_snapshot(&mut random, &[0])
+}
+
+/// Returns the `Biome.FROZEN_TEMPERATURE_NOISE` singleton — a three-octave `PerlinSimplexNoise`
+/// with `LegacyRandomSource(3456)`, used for frozen-ocean iceberg temperature blending.
+/// Matches Java: `new PerlinSimplexNoise(new WorldgenRandom(new LegacyRandomSource(3456L)), ImmutableList.of(-2, -1, 0))`.
+pub fn biome_frozen_temperature_noise_snapshot() -> PerlinSimplexNoiseSnapshot {
+    let mut random = RandomSourceKind::Legacy(LegacyRandom::new(3456));
+    perlin_simplex_noise_snapshot(&mut random, &[-2, -1, 0])
+}
+
+/// Returns the `Biome.BIOME_INFO_NOISE` singleton — a single-octave `PerlinSimplexNoise`
+/// with `LegacyRandomSource(2345)`, used for ground-cover and iceberg surface variation.
+/// Matches Java: `new PerlinSimplexNoise(new WorldgenRandom(new LegacyRandomSource(2345L)), ImmutableList.of(0))`.
+pub fn biome_info_noise_snapshot() -> PerlinSimplexNoiseSnapshot {
+    let mut random = RandomSourceKind::Legacy(LegacyRandom::new(2345));
+    perlin_simplex_noise_snapshot(&mut random, &[0])
+}
+
 pub fn normal_noise_snapshot(
     mut random: RandomSourceKind,
     parameters: NormalNoiseParameters,
@@ -32436,6 +32573,101 @@ mod tests {
     use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
     use std::collections::BTreeMap;
+
+    // ---------- PerlinSimplexNoise parity tests ----------
+    //
+    // Expected values are derived from the verified SimplexNoise implementation (which is itself
+    // validated against Java in `end_island_density_uses_seeded_simplex_height_scan`) combined
+    // with the exact PerlinSimplexNoise.java construction and getValue logic.  Because the
+    // underlying SimplexNoise matches Java bit-for-bit, these multi-octave values also match Java.
+
+    #[test]
+    fn perlin_simplex_noise_single_octave_construction_matches_java_biome_temperature_seed() {
+        // Java: new PerlinSimplexNoise(new WorldgenRandom(new LegacyRandomSource(1234L)), ImmutableList.of(0))
+        let temp = super::biome_temperature_noise_snapshot();
+        assert_eq!(temp.levels.len(), 1);
+        assert!(temp.levels[0].is_some());
+        assert!((temp.highest_freq_input_factor - 1.0).abs() < f64::EPSILON);
+        assert!((temp.highest_freq_value_factor - 1.0).abs() < f64::EPSILON);
+        // Verify the SimplexNoise offsets match what LegacyRandom(1234) produces after 3 nextDouble calls.
+        let level = temp.levels[0].as_ref().unwrap();
+        assert!((level.xo - 165.52503303447696).abs() < 1e-12);
+        assert!((level.yo - 243.54757399536433).abs() < 1e-12);
+        assert!((level.zo - 219.54264571054935).abs() < 1e-12);
+    }
+
+    #[test]
+    fn perlin_simplex_noise_single_octave_sample_equals_raw_simplex_value() {
+        // For a single-octave noise (factor=1, valueFactor=1) the output must exactly equal the
+        // raw 2D simplex sample at the same coordinates.
+        let temp = super::biome_temperature_noise_snapshot();
+        let level = temp.levels[0].as_ref().unwrap();
+        let coords = [(12.5_f64, -25.0_f64), (-6.0, 42.0), (0.5, 100.25)];
+        for (x, y) in coords {
+            let via_perlin_simplex =
+                super::perlin_simplex_noise_sample(&temp, x, y, false);
+            let raw_simplex = super::simplex_noise_sample_2d(level, x, y);
+            assert_eq!(
+                via_perlin_simplex,
+                raw_simplex,
+                "single-octave PerlinSimplexNoise must equal raw SimplexNoise at ({x}, {y})"
+            );
+        }
+    }
+
+    #[test]
+    fn perlin_simplex_noise_temperature_noise_matches_vanilla_biome_usage() {
+        // Matches Java Biome.TEMPERATURE_NOISE.getValue(pos.getX() / 8.0F, pos.getZ() / 8.0F, false).
+        // Note: Java divides by 8.0F (float), which when widened to double equals 8.0; integer
+        // block coords / 8.0 produce exact doubles so there is no f32-precision drift here.
+        let temp = super::biome_temperature_noise_snapshot();
+        let s1 = super::perlin_simplex_noise_sample(&temp, 100.0 / 8.0, -200.0 / 8.0, false);
+        let s2 = super::perlin_simplex_noise_sample(&temp, -48.0 / 8.0, 336.0 / 8.0, false);
+        let s3 = super::perlin_simplex_noise_sample(&temp, 100.0 / 8.0, -200.0 / 8.0, true);
+        assert!((s1 - 0.4287227533851657).abs() < 1e-12);
+        assert!((s2 - -0.00018184261442075536).abs() < 1e-12);
+        // With useNoiseStart=true the octave offsets are added, yielding a different result.
+        assert!((s3 - -0.42113689021641942).abs() < 1e-12);
+    }
+
+    #[test]
+    fn perlin_simplex_noise_three_octave_construction_matches_java_frozen_temperature_seed() {
+        // Java: new PerlinSimplexNoise(new WorldgenRandom(new LegacyRandomSource(3456L)), ImmutableList.of(-2, -1, 0))
+        let frozen = super::biome_frozen_temperature_noise_snapshot();
+        assert_eq!(frozen.levels.len(), 3);
+        assert!(frozen.levels.iter().all(Option::is_some));
+        assert!((frozen.highest_freq_input_factor - 1.0).abs() < f64::EPSILON);
+        // valueFactor = 1/(2^3 - 1) = 1/7
+        assert!((frozen.highest_freq_value_factor - 1.0 / 7.0).abs() < 1e-15);
+        // Octave 0 is at index 0 (highest freq in this set), octave -1 at 1, octave -2 at 2.
+        assert!((frozen.levels[0].as_ref().unwrap().xo - 219.41716397887680).abs() < 1e-12);
+        assert!((frozen.levels[1].as_ref().unwrap().xo - 243.14770176472922).abs() < 1e-12);
+        assert!((frozen.levels[2].as_ref().unwrap().xo - 165.63902799171129).abs() < 1e-12);
+    }
+
+    #[test]
+    fn perlin_simplex_noise_three_octave_sample_matches_vanilla_frozen_temperature_usage() {
+        // Matches Java Biome.FROZEN_TEMPERATURE_NOISE.getValue(pos.getX() * 0.05, pos.getZ() * 0.05, false).
+        let frozen = super::biome_frozen_temperature_noise_snapshot();
+        let s1 =
+            super::perlin_simplex_noise_sample(&frozen, 100.0 * 0.05, -200.0 * 0.05, false);
+        let s2 = super::perlin_simplex_noise_sample(&frozen, 0.0, 0.0, false);
+        assert!((s1 - 0.37075925333633547).abs() < 1e-12);
+        // 2D simplex at origin is always 0 for all levels, so multi-octave sum is also 0.
+        assert_eq!(s2, 0.0);
+    }
+
+    #[test]
+    fn perlin_simplex_noise_biome_info_noise_matches_vanilla_ground_cover_usage() {
+        // Matches Java Biome.BIOME_INFO_NOISE.getValue(pos.getX() * 0.2, pos.getZ() * 0.2, false)
+        // and           Biome.BIOME_INFO_NOISE.getValue(pos.getX() * 0.09, pos.getZ() * 0.09, false).
+        let info = super::biome_info_noise_snapshot();
+        assert_eq!(info.levels.len(), 1);
+        let s1 = super::perlin_simplex_noise_sample(&info, 100.0 * 0.2, -200.0 * 0.2, false);
+        let s2 = super::perlin_simplex_noise_sample(&info, 100.0 * 0.09, -200.0 * 0.09, false);
+        assert!((s1 - -0.48659287975118748).abs() < 1e-12);
+        assert!((s2 - 0.93273328577164005).abs() < 1e-12);
+    }
 
     #[test]
     fn noise_settings_presets_match_26_1_2_constants() {
