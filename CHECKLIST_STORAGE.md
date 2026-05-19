@@ -87,7 +87,7 @@
 ## Management Server (JSON-RPC)
 
 - [x] Implement JSON-RPC management server: method dispatch, JSON schema validation for parameters and results — `ManagementServerState::dispatch_request()` routes every declared incoming JSON-RPC method, `validate_params_schema()`/`validate_result_schema()` enforce the discovery schemas around dispatch, and `json_rpc_dispatch_covers_declared_methods_and_validates_schemas` covers declared method dispatch plus invalid param/result mismatches
-- [ ] Implement management server methods: `minecraft:list_players`, `minecraft:kick_player`, `minecraft:ban_player`, `minecraft:pardon_player`, etc. (all methods from decompiled `management-server.json` schema)
+- [x] Implement management server methods: `minecraft:list_players`, `minecraft:kick_player`, `minecraft:ban_player`, `minecraft:pardon_player`, etc. (all methods from decompiled `management-server.json` schema)
 - [x] Implement management server outgoing notifications: vanilla `players/joined`, `players/left`, and the full `OutgoingRpcMethods` set — `OutgoingNotification`/`OUTGOING_METHODS` mirror the decompiled method names and queue broadcasts per connected client
 - [x] Implement player DTOs in management server responses: UUID, name, latency, game mode — `PlayerDto` now serializes `id`, `name`, `latency`, and `gameMode`, with discovery schema coverage
 - [x] Implement pending request tracking, response correlation — `ManagementServerState::handle_client_request()` records pending JSON-RPC IDs per client, correlates responses by ID, and clears abandoned requests on disconnect

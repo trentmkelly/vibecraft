@@ -285,6 +285,85 @@ pub struct GameRuleDto {
     pub value: String,
 }
 
+impl GameRuleDto {
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"key\":{},\"value\":{}}}",
+            json_string(&self.key),
+            json_string(&self.value)
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerSettingsDto {
+    pub online_mode: bool,
+    pub max_players: i32,
+    pub motd: String,
+}
+
+impl ServerSettingsDto {
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"onlineMode\":{},\"maxPlayers\":{},\"motd\":{}}}",
+            self.online_mode,
+            self.max_players,
+            json_string(&self.motd)
+        )
+    }
+}
+
+impl Default for ServerSettingsDto {
+    fn default() -> Self {
+        Self {
+            online_mode: false,
+            max_players: 20,
+            motd: "A Minecraft Server".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerStatusDto {
+    pub running: bool,
+    pub player_count: i32,
+}
+
+impl ServerStatusDto {
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"running\":{},\"playerCount\":{}}}",
+            self.running, self.player_count
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ServerMetricsDto {
+    pub tick: i64,
+    pub tick_duration_nanos: i64,
+    pub over_budget_nanos: i64,
+    pub bytes_in: i64,
+    pub bytes_out: i64,
+    pub packets_in: i64,
+    pub packets_out: i64,
+}
+
+impl ServerMetricsDto {
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"tick\":{},\"tickDurationNanos\":{},\"overBudgetNanos\":{},\"bytesIn\":{},\"bytesOut\":{},\"packetsIn\":{},\"packetsOut\":{}}}",
+            self.tick,
+            self.tick_duration_nanos,
+            self.over_budget_nanos,
+            self.bytes_in,
+            self.bytes_out,
+            self.packets_in,
+            self.packets_out
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerDisconnectEvent {
     pub player: NameAndId,
@@ -328,6 +407,10 @@ pub struct JsonRpcRequest {
 pub enum JsonRpcResult {
     Null,
     Players(Vec<PlayerDto>),
+    GameRules(Vec<GameRuleDto>),
+    ServerSettings(ServerSettingsDto),
+    ServerStatus(ServerStatusDto),
+    ServerMetrics(ServerMetricsDto),
     Discovery(DiscoveryDocument),
     NotificationQueued(String),
 }
@@ -337,6 +420,10 @@ impl JsonRpcResult {
         match self {
             Self::Null => "null".to_string(),
             Self::Players(players) => json_array(players.iter().map(PlayerDto::to_json).collect()),
+            Self::GameRules(rules) => json_array(rules.iter().map(GameRuleDto::to_json).collect()),
+            Self::ServerSettings(settings) => settings.to_json(),
+            Self::ServerStatus(status) => status.to_json(),
+            Self::ServerMetrics(metrics) => metrics.to_json(),
             Self::Discovery(document) => document.to_json(),
             Self::NotificationQueued(method) => {
                 format!("{{\"queued\":{}}}", json_string(method))
@@ -577,6 +664,13 @@ pub struct QueuedNotification {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ManagementServerState {
     pub online_players: Vec<NameAndId>,
+    pub operators: Vec<NameAndId>,
+    pub allowlist: Vec<NameAndId>,
+    pub banned_players: Vec<NameAndId>,
+    pub ip_bans: Vec<IpBanDto>,
+    pub game_rules: Vec<GameRuleDto>,
+    pub settings: ServerSettingsDto,
+    pub metrics: ServerMetricsDto,
     connected_clients: Vec<String>,
     pending_requests: Vec<PendingManagementRequest>,
     pub disconnected_players: Vec<PlayerDisconnectEvent>,
@@ -677,11 +771,46 @@ impl ManagementServerState {
             "players/kick" => self
                 .kick_players(request.params.clone())
                 .map(JsonRpcResult::Players),
-            "operators/add" | "operators/remove" | "allowlist/add" | "allowlist/remove"
-            | "bans/add" | "bans/remove" | "ip_bans/add" | "ip_bans/remove" | "gamerules/get"
-            | "gamerules/update" | "server/settings" | "server/state" | "server/metrics" => {
-                Ok(JsonRpcResult::Null)
-            }
+            "operators/add" => self.update_player_set(
+                request.params.clone(),
+                PlayerSetKind::Operators,
+                PlayerSetOperation::Add,
+            ),
+            "operators/remove" => self.update_player_set(
+                request.params.clone(),
+                PlayerSetKind::Operators,
+                PlayerSetOperation::Remove,
+            ),
+            "allowlist/add" => self.update_player_set(
+                request.params.clone(),
+                PlayerSetKind::Allowlist,
+                PlayerSetOperation::Add,
+            ),
+            "allowlist/remove" => self.update_player_set(
+                request.params.clone(),
+                PlayerSetKind::Allowlist,
+                PlayerSetOperation::Remove,
+            ),
+            "bans/add" => self.update_player_set(
+                request.params.clone(),
+                PlayerSetKind::Bans,
+                PlayerSetOperation::Add,
+            ),
+            "bans/remove" => self.update_player_set(
+                request.params.clone(),
+                PlayerSetKind::Bans,
+                PlayerSetOperation::Remove,
+            ),
+            "ip_bans/add" => self.update_ip_bans(request.params.clone(), IpBanOperation::Add),
+            "ip_bans/remove" => self.update_ip_bans(request.params.clone(), IpBanOperation::Remove),
+            "gamerules/get" => Ok(JsonRpcResult::GameRules(self.game_rules.clone())),
+            "gamerules/update" => self.update_game_rules(request.params.clone()),
+            "server/settings" => Ok(JsonRpcResult::ServerSettings(self.settings.clone())),
+            "server/state" => Ok(JsonRpcResult::ServerStatus(ServerStatusDto {
+                running: true,
+                player_count: self.online_players.len() as i32,
+            })),
+            "server/metrics" => Ok(JsonRpcResult::ServerMetrics(self.metrics.clone())),
             _ => Err(JsonRpcError::METHOD_NOT_FOUND),
         }
     }
@@ -727,6 +856,177 @@ impl ManagementServerState {
         }
         Ok(kicked)
     }
+
+    fn update_player_set(
+        &mut self,
+        params: JsonRpcParams,
+        kind: PlayerSetKind,
+        operation: PlayerSetOperation,
+    ) -> Result<JsonRpcResult, JsonRpcError> {
+        let JsonRpcParams::Players(players) = params else {
+            return Err(JsonRpcError::INVALID_PARAMS);
+        };
+        let mut changed = Vec::new();
+        for dto in players {
+            let Some(profile) = dto.to_name_and_id() else {
+                continue;
+            };
+            let list = match kind {
+                PlayerSetKind::Operators => &mut self.operators,
+                PlayerSetKind::Allowlist => &mut self.allowlist,
+                PlayerSetKind::Bans => &mut self.banned_players,
+            };
+            match operation {
+                PlayerSetOperation::Add => {
+                    if !contains_profile(list, &profile) {
+                        list.push(profile.clone());
+                        changed.push(PlayerDto::from_profile(&profile));
+                    }
+                }
+                PlayerSetOperation::Remove => {
+                    let before = list.len();
+                    list.retain(|existing| !profile_matches(existing, &profile));
+                    if list.len() != before {
+                        changed.push(PlayerDto::from_profile(&profile));
+                    }
+                }
+            }
+        }
+        if !changed.is_empty() {
+            self.broadcast(kind.notification(operation, changed));
+        }
+        Ok(JsonRpcResult::Null)
+    }
+
+    fn update_ip_bans(
+        &mut self,
+        params: JsonRpcParams,
+        operation: IpBanOperation,
+    ) -> Result<JsonRpcResult, JsonRpcError> {
+        let JsonRpcParams::IpBans(ip_bans) = params else {
+            return Err(JsonRpcError::INVALID_PARAMS);
+        };
+        let mut changed = Vec::new();
+        for ban in ip_bans {
+            match operation {
+                IpBanOperation::Add => {
+                    if let Some(existing) = self.ip_bans.iter_mut().find(|entry| entry.ip == ban.ip)
+                    {
+                        *existing = ban.clone();
+                    } else {
+                        self.ip_bans.push(ban.clone());
+                    }
+                    changed.push(ban.ip);
+                }
+                IpBanOperation::Remove => {
+                    let before = self.ip_bans.len();
+                    self.ip_bans.retain(|entry| entry.ip != ban.ip);
+                    if self.ip_bans.len() != before {
+                        changed.push(ban.ip);
+                    }
+                }
+            }
+        }
+        if !changed.is_empty() {
+            self.broadcast(match operation {
+                IpBanOperation::Add => OutgoingNotification::IpBansAdded(changed),
+                IpBanOperation::Remove => OutgoingNotification::IpBansRemoved(changed),
+            });
+        }
+        Ok(JsonRpcResult::Null)
+    }
+
+    fn update_game_rules(&mut self, params: JsonRpcParams) -> Result<JsonRpcResult, JsonRpcError> {
+        let JsonRpcParams::GameRules(rules) = params else {
+            return Err(JsonRpcError::INVALID_PARAMS);
+        };
+        let mut changed = Vec::new();
+        for rule in rules {
+            if let Some(existing) = self
+                .game_rules
+                .iter_mut()
+                .find(|entry| entry.key == rule.key)
+            {
+                if existing.value != rule.value {
+                    existing.value = rule.value.clone();
+                    changed.push(rule.key);
+                }
+            } else {
+                changed.push(rule.key.clone());
+                self.game_rules.push(rule);
+            }
+        }
+        if !changed.is_empty() {
+            self.broadcast(OutgoingNotification::GameRulesUpdated(changed));
+        }
+        Ok(JsonRpcResult::Null)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlayerSetKind {
+    Operators,
+    Allowlist,
+    Bans,
+}
+
+impl PlayerSetKind {
+    fn notification(
+        self,
+        operation: PlayerSetOperation,
+        players: Vec<PlayerDto>,
+    ) -> OutgoingNotification {
+        match (self, operation) {
+            (Self::Operators, PlayerSetOperation::Add) => {
+                OutgoingNotification::OperatorsAdded(players)
+            }
+            (Self::Operators, PlayerSetOperation::Remove) => {
+                OutgoingNotification::OperatorsRemoved(players)
+            }
+            (Self::Allowlist, PlayerSetOperation::Add) => {
+                OutgoingNotification::AllowlistAdded(players)
+            }
+            (Self::Allowlist, PlayerSetOperation::Remove) => {
+                OutgoingNotification::AllowlistRemoved(players)
+            }
+            (Self::Bans, PlayerSetOperation::Add) => OutgoingNotification::BansAdded(players),
+            (Self::Bans, PlayerSetOperation::Remove) => OutgoingNotification::BansRemoved(players),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlayerSetOperation {
+    Add,
+    Remove,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IpBanOperation {
+    Add,
+    Remove,
+}
+
+impl PlayerDto {
+    fn to_name_and_id(&self) -> Option<NameAndId> {
+        match (&self.name, &self.id) {
+            (Some(name), Some(uuid)) => Some(NameAndId {
+                name: name.clone(),
+                uuid: uuid.clone(),
+            }),
+            _ => None,
+        }
+    }
+}
+
+fn contains_profile(players: &[NameAndId], profile: &NameAndId) -> bool {
+    players
+        .iter()
+        .any(|existing| profile_matches(existing, profile))
+}
+
+fn profile_matches(left: &NameAndId, right: &NameAndId) -> bool {
+    left.uuid == right.uuid || left.name.eq_ignore_ascii_case(&right.name)
 }
 
 fn empty_to_none(value: &str) -> Option<String> {
@@ -772,10 +1072,11 @@ fn validate_result_schema(method: &str, result: &JsonRpcResult) -> Result<(), Js
     match (schema, result) {
         ("DiscoveryDocument", JsonRpcResult::Discovery(_)) => Ok(()),
         ("PlayerDto[]", JsonRpcResult::Players(_)) => Ok(()),
+        ("GameRuleDto[]", JsonRpcResult::GameRules(_)) => Ok(()),
         ("void", JsonRpcResult::Null) => Ok(()),
-        ("ServerSettingsDto", JsonRpcResult::Null)
-        | ("ServerStatusDto", JsonRpcResult::Null)
-        | ("ServerMetricsDto", JsonRpcResult::Null) => Ok(()),
+        ("ServerSettingsDto", JsonRpcResult::ServerSettings(_)) => Ok(()),
+        ("ServerStatusDto", JsonRpcResult::ServerStatus(_)) => Ok(()),
+        ("ServerMetricsDto", JsonRpcResult::ServerMetrics(_)) => Ok(()),
         _ => Err(JsonRpcError::INTERNAL_ERROR),
     }
 }
@@ -784,6 +1085,7 @@ fn incoming_result_schema(method: &str) -> Option<&'static str> {
     match method {
         "players/get" | "players/kick" => Some("PlayerDto[]"),
         "rpc/discover" => Some("DiscoveryDocument"),
+        "gamerules/get" => Some("GameRuleDto[]"),
         "server/settings" => Some("ServerSettingsDto"),
         "server/state" => Some("ServerStatusDto"),
         "server/metrics" => Some("ServerMetricsDto"),
@@ -1107,6 +1409,176 @@ mod tests {
                 client_id: "admin".to_string(),
                 method: "players/left".to_string(),
             }]
+        );
+    }
+
+    #[test]
+    fn management_player_lists_ip_bans_and_gamerules_mutate_state_and_notify() {
+        let steve = player("Steve");
+        let alex = player("Alex");
+        let mut state = ManagementServerState::default();
+        state.connect_client("admin");
+
+        let add_ops = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(1),
+            method: "operators/add".to_string(),
+            params: JsonRpcParams::Players(vec![PlayerDto::from_profile(&steve)]),
+        });
+        assert_eq!(add_ops.result, Ok(JsonRpcResult::Null));
+        assert_eq!(state.operators, vec![steve.clone()]);
+        assert_eq!(state.notifications[0].method, "operators/added");
+
+        let remove_ops = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(2),
+            method: "operators/remove".to_string(),
+            params: JsonRpcParams::Players(vec![PlayerDto::from_profile(&steve)]),
+        });
+        assert_eq!(remove_ops.result, Ok(JsonRpcResult::Null));
+        assert!(state.operators.is_empty());
+        assert_eq!(state.notifications[1].method, "operators/removed");
+
+        let add_allowlist = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(3),
+            method: "allowlist/add".to_string(),
+            params: JsonRpcParams::Players(vec![PlayerDto::from_profile(&alex)]),
+        });
+        assert_eq!(add_allowlist.result, Ok(JsonRpcResult::Null));
+        assert_eq!(state.allowlist, vec![alex.clone()]);
+        assert_eq!(state.notifications[2].method, "allowlist/added");
+
+        let add_ban = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(4),
+            method: "bans/add".to_string(),
+            params: JsonRpcParams::Players(vec![PlayerDto::from_profile(&alex)]),
+        });
+        assert_eq!(add_ban.result, Ok(JsonRpcResult::Null));
+        assert_eq!(state.banned_players, vec![alex.clone()]);
+        assert_eq!(state.notifications[3].method, "bans/added");
+
+        let ip_ban = IpBanDto {
+            ip: "203.0.113.9".to_string(),
+            reason: Some("test".to_string()),
+            expires: None,
+        };
+        let add_ip_ban = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(5),
+            method: "ip_bans/add".to_string(),
+            params: JsonRpcParams::IpBans(vec![ip_ban.clone()]),
+        });
+        assert_eq!(add_ip_ban.result, Ok(JsonRpcResult::Null));
+        assert_eq!(state.ip_bans, vec![ip_ban.clone()]);
+        assert_eq!(state.notifications[4].method, "ip_bans/added");
+
+        let remove_ip_ban = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(6),
+            method: "ip_bans/remove".to_string(),
+            params: JsonRpcParams::IpBans(vec![IpBanDto {
+                ip: ip_ban.ip,
+                reason: None,
+                expires: None,
+            }]),
+        });
+        assert_eq!(remove_ip_ban.result, Ok(JsonRpcResult::Null));
+        assert!(state.ip_bans.is_empty());
+        assert_eq!(state.notifications[5].method, "ip_bans/removed");
+
+        let update_rules = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(7),
+            method: "gamerules/update".to_string(),
+            params: JsonRpcParams::GameRules(vec![GameRuleDto {
+                key: "doDaylightCycle".to_string(),
+                value: "false".to_string(),
+            }]),
+        });
+        assert_eq!(update_rules.result, Ok(JsonRpcResult::Null));
+        assert_eq!(
+            state.game_rules,
+            vec![GameRuleDto {
+                key: "doDaylightCycle".to_string(),
+                value: "false".to_string(),
+            }]
+        );
+        assert_eq!(state.notifications[6].method, "gamerules/updated");
+
+        let get_rules = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(8),
+            method: "gamerules/get".to_string(),
+            params: JsonRpcParams::None,
+        });
+        assert_eq!(
+            get_rules.result,
+            Ok(JsonRpcResult::GameRules(vec![GameRuleDto {
+                key: "doDaylightCycle".to_string(),
+                value: "false".to_string(),
+            }]))
+        );
+    }
+
+    #[test]
+    fn management_settings_state_and_metrics_return_typed_snapshots() {
+        let steve = player("Steve");
+        let mut state = ManagementServerState {
+            online_players: vec![steve],
+            settings: ServerSettingsDto {
+                online_mode: false,
+                max_players: 42,
+                motd: "RustCraft".to_string(),
+            },
+            metrics: ServerMetricsDto {
+                tick: 99,
+                tick_duration_nanos: 40_000_000,
+                over_budget_nanos: 0,
+                bytes_in: 123,
+                bytes_out: 456,
+                packets_in: 7,
+                packets_out: 8,
+            },
+            ..Default::default()
+        };
+
+        let settings = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::String("settings".to_string()),
+            method: "server/settings".to_string(),
+            params: JsonRpcParams::None,
+        });
+        assert_eq!(
+            settings.result,
+            Ok(JsonRpcResult::ServerSettings(ServerSettingsDto {
+                online_mode: false,
+                max_players: 42,
+                motd: "RustCraft".to_string(),
+            }))
+        );
+
+        let status = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::String("state".to_string()),
+            method: "server/state".to_string(),
+            params: JsonRpcParams::None,
+        });
+        assert_eq!(
+            status.result,
+            Ok(JsonRpcResult::ServerStatus(ServerStatusDto {
+                running: true,
+                player_count: 1,
+            }))
+        );
+
+        let metrics = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::String("metrics".to_string()),
+            method: "server/metrics".to_string(),
+            params: JsonRpcParams::None,
+        });
+        assert_eq!(
+            metrics.result,
+            Ok(JsonRpcResult::ServerMetrics(ServerMetricsDto {
+                tick: 99,
+                tick_duration_nanos: 40_000_000,
+                over_budget_nanos: 0,
+                bytes_in: 123,
+                bytes_out: 456,
+                packets_in: 7,
+                packets_out: 8,
+            }))
         );
     }
 
