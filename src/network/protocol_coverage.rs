@@ -965,7 +965,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "move_vehicle",
         java_class: "ClientboundMoveVehiclePacket",
-        field_order: "unparsed",
+        field_order: "position:Vec3.STREAM_CODEC, y_rot:f32, x_rot:f32",
     },
     PlayPacketSpec {
         id: 58,

@@ -828,6 +828,13 @@ pub struct ClientboundSetEntityMotionPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundMoveVehiclePacket {
+    pub position: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ClientboundTeleportEntityPacket {
     pub id: i32,
     pub position: Vec3,
@@ -859,6 +866,12 @@ pub struct ClientboundRotateHeadPacket {
 pub struct ClientboundSetPassengersPacket {
     pub vehicle: i32,
     pub passengers: Vec<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundEntityEventPacket {
+    pub entity_id: i32,
+    pub event_id: i8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2399,6 +2412,16 @@ impl ClientboundAddEntityPacket {
     }
 }
 
+impl ClientboundRemoveEntitiesPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_ids.len() as i32)?;
+        for id in &self.entity_ids {
+            write_var_i32(writer, *id)?;
+        }
+        Ok(())
+    }
+}
+
 impl ClientboundMoveEntityPacket {
     pub fn pos(id: i32, delta: [i16; 3], on_ground: bool) -> Self {
         Self {
@@ -2437,12 +2460,25 @@ impl ClientboundMoveEntityPacket {
     }
 }
 
+impl ClientboundMoveVehiclePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_vec3(writer, self.position)?;
+        write_f32(writer, self.y_rot)?;
+        write_f32(writer, self.x_rot)
+    }
+}
+
 impl ClientboundSetEntityMotionPacket {
     pub fn new(id: i32, movement: Vec3) -> Self {
         Self {
             id,
             movement: clamp_velocity(movement),
         }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_lp_vec3(writer, self.movement)
     }
 }
 
@@ -2452,6 +2488,36 @@ impl ClientboundRotateHeadPacket {
             id,
             y_head_rot: pack_degrees(y_head_rot),
         }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_i8(writer, self.y_head_rot as i8)
+    }
+}
+
+impl ClientboundSetPassengersPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.vehicle)?;
+        write_var_i32(writer, self.passengers.len() as i32)?;
+        for passenger in &self.passengers {
+            write_var_i32(writer, *passenger)?;
+        }
+        Ok(())
+    }
+}
+
+impl ClientboundEntityEventPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i32(writer, self.entity_id)?;
+        write_i8(writer, self.event_id)
+    }
+}
+
+impl ClientboundAnimatePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        writer.write_all(&[self.action as u8])
     }
 }
 
@@ -4829,6 +4895,16 @@ fn read_f64<R: Read>(reader: &mut R) -> io::Result<f64> {
     Ok(f64::from_be_bytes(bytes))
 }
 
+fn write_f64<W: Write>(writer: &mut W, value: f64) -> io::Result<()> {
+    writer.write_all(&value.to_be_bytes())
+}
+
+fn write_vec3<W: Write>(writer: &mut W, value: Vec3) -> io::Result<()> {
+    write_f64(writer, value.x)?;
+    write_f64(writer, value.y)?;
+    write_f64(writer, value.z)
+}
+
 fn pack_move_flags(on_ground: bool, horizontal_collision: bool) -> u8 {
     (if on_ground { 1 } else { 0 }) | (if horizontal_collision { 2 } else { 0 })
 }
@@ -5429,6 +5505,38 @@ mod tests {
             32
         );
         assert_eq!(ClientboundRotateHeadPacket::new(7, 180.0).y_head_rot, 128);
+        let motion = ClientboundSetEntityMotionPacket::new(
+            7,
+            Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        );
+        let mut motion_payload = Vec::new();
+        motion.write(&mut motion_payload).unwrap();
+        assert_eq!(motion_payload, vec![7, 0]);
+        let move_vehicle = ClientboundMoveVehiclePacket {
+            position: Vec3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            y_rot: 90.0,
+            x_rot: 45.0,
+        };
+        let mut move_vehicle_payload = Vec::new();
+        move_vehicle.write(&mut move_vehicle_payload).unwrap();
+        assert_eq!(&move_vehicle_payload[..8], &1.0_f64.to_be_bytes());
+        assert_eq!(&move_vehicle_payload[8..16], &2.0_f64.to_be_bytes());
+        assert_eq!(&move_vehicle_payload[16..24], &3.0_f64.to_be_bytes());
+        assert_eq!(&move_vehicle_payload[24..28], &90.0_f32.to_be_bytes());
+        assert_eq!(&move_vehicle_payload[28..32], &45.0_f32.to_be_bytes());
+        let mut rotate_head_payload = Vec::new();
+        ClientboundRotateHeadPacket::new(7, 180.0)
+            .write(&mut rotate_head_payload)
+            .unwrap();
+        assert_eq!(rotate_head_payload, vec![7, 128]);
         assert_eq!(
             ClientboundSetEntityLinkPacket::new(7, None),
             ClientboundSetEntityLinkPacket {
@@ -5444,6 +5552,14 @@ mod tests {
             .passengers,
             vec![8, 9]
         );
+        let mut passengers_payload = Vec::new();
+        ClientboundSetPassengersPacket {
+            vehicle: 7,
+            passengers: vec![8, 9],
+        }
+        .write(&mut passengers_payload)
+        .unwrap();
+        assert_eq!(passengers_payload, vec![7, 2, 8, 9]);
         assert_eq!(
             ClientboundAnimatePacket {
                 id: 7,
@@ -5452,6 +5568,22 @@ mod tests {
             .action as i32,
             3
         );
+        let mut animate_payload = Vec::new();
+        ClientboundAnimatePacket {
+            id: 7,
+            action: EntityAnimation::SwingOffHand,
+        }
+        .write(&mut animate_payload)
+        .unwrap();
+        assert_eq!(animate_payload, vec![7, 3]);
+        let mut entity_event_payload = Vec::new();
+        ClientboundEntityEventPacket {
+            entity_id: 7,
+            event_id: 3,
+        }
+        .write(&mut entity_event_payload)
+        .unwrap();
+        assert_eq!(entity_event_payload, vec![0, 0, 0, 7, 3]);
         assert_eq!(
             ClientboundRemoveEntitiesPacket {
                 entity_ids: vec![7, 8]
@@ -5459,6 +5591,13 @@ mod tests {
             .entity_ids,
             vec![7, 8]
         );
+        let mut remove_payload = Vec::new();
+        ClientboundRemoveEntitiesPacket {
+            entity_ids: vec![7, 8],
+        }
+        .write(&mut remove_payload)
+        .unwrap();
+        assert_eq!(remove_payload, vec![2, 7, 8]);
     }
 
     #[test]

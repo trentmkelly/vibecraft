@@ -51,16 +51,16 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundAddEntityPacket` (0x01): entity ID, UUID, type, pos X/Y/Z, pitch, yaw, head-yaw, data (varies by type), velocity X/Y/Z; verify type-specific `data` field encoding
 - [ ] `ClientboundAddExperienceOrbPacket` (0x02): entity ID, position, count short
-- [ ] `ClientboundRemoveEntitiesPacket` (0x40): VarInt array of entity IDs
-- [ ] `ClientboundSetEntityMotionPacket` (0x57): entity ID, velocity X/Y/Z as shorts (units: 1/8000 blocks/tick)
+- [x] `ClientboundRemoveEntitiesPacket` (0x4D): VarInt entity ID list (`FriendlyByteBuf.writeIntIdList`)
+- [x] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
 - [ ] `ClientboundTeleportEntityPacket` (0x70): entity ID, pos X/Y/Z, velocity X/Y/Z, yaw/pitch bytes, on-ground bool
-- [ ] `ClientboundRotateHeadPacket` (0x46): entity ID, head-yaw byte
+- [x] `ClientboundRotateHeadPacket` (0x53): entity ID VarInt, head-yaw byte
 - [ ] `ClientboundMoveEntityPacket.Pos` (0x2E): entity ID, delta X/Y/Z shorts, on-ground bool
 - [ ] `ClientboundMoveEntityPacket.PosRot` (0x2F): entity ID, delta X/Y/Z, yaw/pitch, on-ground bool
 - [ ] `ClientboundMoveEntityPacket.Rot` (0x30): entity ID, yaw/pitch, on-ground bool
-- [ ] `ClientboundMoveVehiclePacket` (0x32): position, yaw, pitch
-- [ ] `ClientboundSetPassengersPacket` (0x58): vehicle entity ID, passenger entity ID list
-- [ ] `ClientboundEntityEventPacket` (0x1C): entity ID, event ID byte (living entity events: 2=hurt, 3=death, 6=tame-fail, 7=tame-success, etc.)
+- [x] `ClientboundMoveVehiclePacket` (0x39): position `Vec3.STREAM_CODEC`, yaw float, pitch float
+- [x] `ClientboundSetPassengersPacket` (0x6B): vehicle entity ID VarInt, passenger entity ID VarInt array
+- [x] `ClientboundEntityEventPacket` (0x22): entity ID int, event ID byte (living entity events: 2=hurt, 3=death, 6=tame-fail, 7=tame-success, etc.)
 
 ## Entity Metadata Packets
 
@@ -70,7 +70,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundUpdateAttributesPacket` (0x72): entity ID, attribute list (ID, base value, modifier list with UUID/amount/operation)
 - [ ] `ClientboundUpdateMobEffectPacket` (0x73): entity ID, effect ID VarInt, amplifier byte, duration VarInt, flags byte (ambient/visible/show-icon/blend)
 - [ ] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
-- [ ] `ClientboundAnimatePacket` (0x03): entity ID, animation byte (0=swing-main, 1=hurt, 2=wake-up, 3=swing-off, 4=critical, 5=magic-critical)
+- [x] `ClientboundAnimatePacket` (0x02): entity ID VarInt, animation unsigned byte (0=swing-main, 2=wake-up, 3=swing-off, 4=critical, 5=magic-critical)
 - [ ] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)
 
 ## Inventory / Container Packets (Clientbound)
