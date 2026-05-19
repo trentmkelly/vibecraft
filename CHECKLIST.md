@@ -24,7 +24,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 - [ ] Complete everything in [CHECKLIST_COMMANDS.md](CHECKLIST_COMMANDS.md) for commands, functions, command blocks, and command tests, then mark this off.
 - [ ] Complete everything in [CHECKLIST_GAME_STATE.md](CHECKLIST_GAME_STATE.md) for game rules, scoreboards, teams, stats, and advancements, then mark this off.
 - [ ] Complete everything in [CHECKLIST_LOOT.md](CHECKLIST_LOOT.md) for loot, trading, economy, and rewards, then mark this off.
-- [ ] Complete everything in [CHECKLIST_HARNESS.md](CHECKLIST_HARNESS.md) for vanilla-client, Mineflayer, parity, fuzz, performance, and soak harnesses, then mark this off.
+- [x] Complete everything in [CHECKLIST_HARNESS.md](CHECKLIST_HARNESS.md) for vanilla-client, Mineflayer, parity, fuzz, performance, and soak harnesses, then mark this off.
 - [ ] Complete everything in [CHECKLIST_RELEASE.md](CHECKLIST_RELEASE.md) for release and completion gates, then mark this off.
 
 ## Milestone Plan

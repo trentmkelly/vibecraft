@@ -41,22 +41,22 @@ Use the unmodified 26.1.2 client as the authoritative visual/connectability orac
 - [x] Build a Mineflayer offline-mode failure minimizer that can rerun a failing login scenario with one bot, one property file, one temp world, and packet capture still enabled.
 - [x] Build worldgen comparison tests for deterministic chunks across many seeds and coordinates.
 - [x] Build command parity tests for syntax, suggestions, success counts, side effects, and error messages.
-- [ ] Build Mineflayer command tests for `/list`, `/tell`, `/msg`, `/me`, `/help`, `/seed`, `/gamemode`, and permission-denied feedback in offline mode.
-- [ ] Build Mineflayer chat tests for public chat, private messages, formatting, death/advancement announcements where applicable, and disconnect-on-malformed-message cases.
+- [x] Build Mineflayer command tests for `/list`, `/tell`, `/msg`, `/me`, `/help`, `/seed`, `/gamemode`, and permission-denied feedback in offline mode.
+- [x] Build Mineflayer chat tests for public chat, private messages, formatting, death/advancement announcements where applicable, and disconnect-on-malformed-message cases.
 - [x] Build inventory transaction tests using scripted client packets.
-- [ ] Build Mineflayer inventory tests for hotbar selection, item pickup/drop, window open/close, slot clicks, held item sync, and carried item correction.
-- [ ] Build block behavior tests for placement, break, use, redstone, fluid, and scheduled ticks.
-- [ ] Build Mineflayer block interaction tests for digging, placing, using blocks, denied interactions, spawn-protection behavior, and block update visibility.
-- [ ] Build entity behavior tests for spawning, AI, pathfinding, combat, drops, save/load, and network metadata.
-- [ ] Build Mineflayer entity observation tests for spawn/despawn events, metadata updates, damage animations, item pickup, and simple combat interactions.
-- [ ] Build persistence round-trip tests for worlds, chunks, players, advancements, stats, scoreboards, maps, raids, and POIs.
+- [x] Build Mineflayer inventory tests for hotbar selection, item pickup/drop, window open/close, slot clicks, held item sync, and carried item correction.
+- [x] Build block behavior tests for placement, break, use, redstone, fluid, and scheduled ticks.
+- [x] Build Mineflayer block interaction tests for digging, placing, using blocks, denied interactions, spawn-protection behavior, and block update visibility.
+- [x] Build entity behavior tests for spawning, AI, pathfinding, combat, drops, save/load, and network metadata.
+- [x] Build Mineflayer entity observation tests for spawn/despawn events, metadata updates, damage animations, item pickup, and simple combat interactions.
+- [x] Build persistence round-trip tests for worlds, chunks, players, advancements, stats, scoreboards, maps, raids, and POIs.
 - [x] Build datapack reload tests with valid and invalid packs.
 - [x] Build fuzz tests for packet decoders, NBT parser, command parser, resource loaders, and save readers.
 - [x] Build performance benchmarks for tick loop, chunk IO, chunk generation, packet throughput, entity ticking, pathfinding, and redstone.
-- [ ] Build long-running soak tests with real clients.
-- [ ] Build a Mineflayer multi-bot soak test for repeated offline-mode joins, leaves, movement ticks, keepalives, chat, and reconnects.
-- [ ] Build compatibility tests with vanilla 26.1.2 client join, survival play, death/respawn, dimension travel, saving, reconnecting, and shutdown.
-- [ ] Build Mineflayer gameplay smoke tests for movement, block dig/place, item pickup/drop, inventory clicks, respawn, and reconnect persistence.
-- [ ] Build Mineflayer offline-mode regression tests that run after every protocol/login change and fail on login timeout, unexpected kick, registry-order drift, or play-state stall.
-- [ ] Build crash recovery tests using killed process and corrupted inputs.
+- [x] Build long-running soak tests with real clients.
+- [x] Build a Mineflayer multi-bot soak test for repeated offline-mode joins, leaves, movement ticks, keepalives, chat, and reconnects.
+- [x] Build compatibility tests with vanilla 26.1.2 client join, survival play, death/respawn, dimension travel, saving, reconnecting, and shutdown.
+- [x] Build Mineflayer gameplay smoke tests for movement, block dig/place, item pickup/drop, inventory clicks, respawn, and reconnect persistence.
+- [x] Build Mineflayer offline-mode regression tests that run after every protocol/login change and fail on login timeout, unexpected kick, registry-order drift, or play-state stall.
+- [x] Build crash recovery tests using killed process and corrupted inputs.
 - [x] Build a release gate requiring no known vanilla parity regressions in core workflows.
