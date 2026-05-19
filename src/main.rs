@@ -88,6 +88,7 @@ mod portal;
 mod post_processing;
 mod potion_fluid_container;
 mod presentation_data;
+mod project_foundation_tests;
 mod projectile_entity;
 mod raid;
 mod random_source;

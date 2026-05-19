@@ -5,10 +5,10 @@ RustCraft targets Minecraft Java Edition 26.1.2 dedicated-server behavior.
 Initial implementation choices:
 
 - Language: Rust 2021.
-- Runtime: standard library only until networking and async needs force a dependency.
-- Serialization: standard library for bootstrap files; dedicated NBT, packet, and JSON codecs will be implemented in project modules.
-- Compression: pending, expected zlib-compatible implementation for packet compression and region files.
-- Crypto: pending, must support the vanilla login encryption flow.
+- Runtime: standard library TCP/threading; no async runtime is currently part of the server architecture.
+- Serialization: standard library for bootstrap files, `serde_json` where JSON helpers are useful, and project-owned NBT, packet, and JSON-facing codecs in RustCraft modules.
+- Compression: `flate2` for zlib/gzip packet, log, NBT, and region-file compression; `lz4` for vanilla region-file compression option parity.
+- Crypto: `aes` for the Minecraft AES/CFB8 stream used by login encryption and `sha1` for vanilla server-hash formatting.
 - Persistence: project-owned world storage modules matching vanilla folder, NBT, region, entity, and POI formats.
 
 Planned module boundaries:
