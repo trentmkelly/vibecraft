@@ -23026,7 +23026,7 @@ impl MappedDensityFunction {
                     input * 0.25
                 }
             }
-            MappedDensityFunction::Invert => -input,
+            MappedDensityFunction::Invert => 1.0 / input,
             MappedDensityFunction::Squeeze => {
                 let clamped = input.clamp(-1.0, 1.0);
                 clamped / 2.0 - clamped * clamped * clamped / 24.0
@@ -34847,7 +34847,7 @@ mod tests {
         assert_eq!(MappedDensityFunction::Cube.transform(-2.0), -8.0);
         assert_eq!(MappedDensityFunction::HalfNegative.transform(-2.0), -1.0);
         assert_eq!(MappedDensityFunction::QuarterNegative.transform(-2.0), -0.5);
-        assert_eq!(MappedDensityFunction::Invert.transform(2.0), -2.0);
+        assert_eq!(MappedDensityFunction::Invert.transform(2.0), 0.5);
         assert!((MappedDensityFunction::Squeeze.transform(1.0) - 0.4583333333333333).abs() < 1e-12);
 
         let add = DensityFunction::Binary {
