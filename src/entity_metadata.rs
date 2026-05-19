@@ -140,6 +140,187 @@ pub const ZOMBIE_METADATA: &[EntityMetadataField] = &[
     field("Zombie", 18, "DATA_DROWNED_CONVERSION_ID", "BOOLEAN"),
 ];
 
+pub const BAT_METADATA: &[EntityMetadataField] = &[field("Bat", 16, "DATA_ID_FLAGS", "BYTE")];
+
+pub const CREEPER_METADATA: &[EntityMetadataField] = &[
+    field("Creeper", 16, "DATA_SWELL_DIR", "INT"),
+    field("Creeper", 17, "DATA_IS_POWERED", "BOOLEAN"),
+    field("Creeper", 18, "DATA_IS_IGNITED", "BOOLEAN"),
+];
+
+pub const SPIDER_METADATA: &[EntityMetadataField] = &[field("Spider", 16, "DATA_FLAGS_ID", "BYTE")];
+
+pub const BLAZE_METADATA: &[EntityMetadataField] = &[field("Blaze", 16, "DATA_FLAGS_ID", "BYTE")];
+
+pub const ENDER_MAN_METADATA: &[EntityMetadataField] = &[
+    field("EnderMan", 16, "DATA_CARRY_STATE", "OPTIONAL_BLOCK_STATE"),
+    field("EnderMan", 17, "DATA_CREEPY", "BOOLEAN"),
+    field("EnderMan", 18, "DATA_STARED_AT", "BOOLEAN"),
+];
+
+pub const GUARDIAN_METADATA: &[EntityMetadataField] = &[
+    field("Guardian", 16, "DATA_ID_MOVING", "BOOLEAN"),
+    field("Guardian", 17, "DATA_ID_ATTACK_TARGET", "INT"),
+];
+
+pub const SLIME_METADATA: &[EntityMetadataField] = &[field("Slime", 16, "ID_SIZE", "INT")];
+
+pub const PHANTOM_METADATA: &[EntityMetadataField] = &[field("Phantom", 16, "ID_SIZE", "INT")];
+
+pub const GHAST_METADATA: &[EntityMetadataField] =
+    &[field("Ghast", 16, "DATA_IS_CHARGING", "BOOLEAN")];
+
+pub const WARDEN_METADATA: &[EntityMetadataField] =
+    &[field("Warden", 16, "CLIENT_ANGER_LEVEL", "INT")];
+
+pub const VEX_METADATA: &[EntityMetadataField] = &[field("Vex", 16, "DATA_FLAGS_ID", "BYTE")];
+
+pub const ZOGLIN_METADATA: &[EntityMetadataField] =
+    &[field("Zoglin", 16, "DATA_BABY_ID", "BOOLEAN")];
+
+pub const CREAKING_METADATA: &[EntityMetadataField] = &[
+    field("Creaking", 16, "CAN_MOVE", "BOOLEAN"),
+    field("Creaking", 17, "IS_ACTIVE", "BOOLEAN"),
+    field("Creaking", 18, "IS_TEARING_DOWN", "BOOLEAN"),
+    field("Creaking", 19, "HOME_POS", "OPTIONAL_BLOCK_POS"),
+];
+
+pub const ABSTRACT_PIGLIN_METADATA: &[EntityMetadataField] = &[field(
+    "AbstractPiglin",
+    16,
+    "DATA_IMMUNE_TO_ZOMBIFICATION",
+    "BOOLEAN",
+)];
+
+pub const PIGLIN_METADATA: &[EntityMetadataField] = &[
+    field("Piglin", 17, "DATA_BABY_ID", "BOOLEAN"),
+    field("Piglin", 18, "DATA_IS_CHARGING_CROSSBOW", "BOOLEAN"),
+    field("Piglin", 19, "DATA_IS_DANCING", "BOOLEAN"),
+];
+
+pub const SKELETON_METADATA: &[EntityMetadataField] =
+    &[field("Skeleton", 16, "DATA_STRAY_CONVERSION_ID", "BOOLEAN")];
+
+pub const BOGGED_METADATA: &[EntityMetadataField] =
+    &[field("Bogged", 16, "DATA_SHEARED", "BOOLEAN")];
+
+pub const ZOMBIE_VILLAGER_METADATA: &[EntityMetadataField] = &[
+    field("ZombieVillager", 19, "DATA_CONVERTING_ID", "BOOLEAN"),
+    field("ZombieVillager", 20, "DATA_VILLAGER_DATA", "VILLAGER_DATA"),
+    field(
+        "ZombieVillager",
+        21,
+        "DATA_VILLAGER_DATA_FINALIZED",
+        "BOOLEAN",
+    ),
+];
+
+pub const RAIDER_METADATA: &[EntityMetadataField] =
+    &[field("Raider", 16, "IS_CELEBRATING", "BOOLEAN")];
+
+pub const WITCH_METADATA: &[EntityMetadataField] =
+    &[field("Witch", 17, "DATA_USING_ITEM", "BOOLEAN")];
+
+pub const PILLAGER_METADATA: &[EntityMetadataField] =
+    &[field("Pillager", 17, "IS_CHARGING_CROSSBOW", "BOOLEAN")];
+
+pub const SPELLCASTER_ILLAGER_METADATA: &[EntityMetadataField] = &[field(
+    "SpellcasterIllager",
+    17,
+    "DATA_SPELL_CASTING_ID",
+    "BYTE",
+)];
+
+pub const ABSTRACT_GOLEM_METADATA: &[EntityMetadataField] = &[];
+
+pub const IRON_GOLEM_METADATA: &[EntityMetadataField] =
+    &[field("IronGolem", 16, "DATA_FLAGS_ID", "BYTE")];
+
+pub const SNOW_GOLEM_METADATA: &[EntityMetadataField] =
+    &[field("SnowGolem", 16, "DATA_PUMPKIN_ID", "BYTE")];
+
+pub const COPPER_GOLEM_METADATA: &[EntityMetadataField] = &[
+    field(
+        "CopperGolem",
+        16,
+        "DATA_WEATHER_STATE",
+        "WEATHERING_COPPER_STATE",
+    ),
+    field(
+        "CopperGolem",
+        17,
+        "COPPER_GOLEM_STATE",
+        "COPPER_GOLEM_STATE",
+    ),
+];
+
+pub const ABSTRACT_VILLAGER_METADATA: &[EntityMetadataField] =
+    &[field("AbstractVillager", 18, "DATA_UNHAPPY_COUNTER", "INT")];
+
+pub const VILLAGER_METADATA: &[EntityMetadataField] = &[
+    field("Villager", 19, "DATA_VILLAGER_DATA", "VILLAGER_DATA"),
+    field("Villager", 20, "DATA_VILLAGER_DATA_FINALIZED", "BOOLEAN"),
+];
+
+pub const RABBIT_METADATA: &[EntityMetadataField] = &[field("Rabbit", 18, "DATA_TYPE_ID", "INT")];
+
+pub const SHEEP_METADATA: &[EntityMetadataField] = &[field("Sheep", 18, "DATA_WOOL_ID", "BYTE")];
+
+pub const TURTLE_METADATA: &[EntityMetadataField] = &[
+    field("Turtle", 18, "HAS_EGG", "BOOLEAN"),
+    field("Turtle", 19, "LAYING_EGG", "BOOLEAN"),
+];
+
+pub const PANDA_METADATA: &[EntityMetadataField] = &[
+    field("Panda", 18, "UNHAPPY_COUNTER", "INT"),
+    field("Panda", 19, "SNEEZE_COUNTER", "INT"),
+    field("Panda", 20, "EAT_COUNTER", "INT"),
+    field("Panda", 21, "MAIN_GENE_ID", "BYTE"),
+    field("Panda", 22, "HIDDEN_GENE_ID", "BYTE"),
+    field("Panda", 23, "DATA_ID_FLAGS", "BYTE"),
+];
+
+pub const FOX_METADATA: &[EntityMetadataField] = &[
+    field("Fox", 18, "DATA_TYPE_ID", "INT"),
+    field("Fox", 19, "DATA_FLAGS_ID", "BYTE"),
+    field(
+        "Fox",
+        20,
+        "DATA_TRUSTED_ID_0",
+        "OPTIONAL_LIVING_ENTITY_REFERENCE",
+    ),
+    field(
+        "Fox",
+        21,
+        "DATA_TRUSTED_ID_1",
+        "OPTIONAL_LIVING_ENTITY_REFERENCE",
+    ),
+];
+
+pub const POLAR_BEAR_METADATA: &[EntityMetadataField] =
+    &[field("PolarBear", 18, "DATA_STANDING_ID", "BOOLEAN")];
+
+pub const OCELOT_METADATA: &[EntityMetadataField] =
+    &[field("Ocelot", 18, "DATA_TRUSTING", "BOOLEAN")];
+
+pub const PARROT_METADATA: &[EntityMetadataField] =
+    &[field("Parrot", 20, "DATA_VARIANT_ID", "INT")];
+
+pub const ABSTRACT_HORSE_METADATA: &[EntityMetadataField] =
+    &[field("AbstractHorse", 18, "DATA_ID_FLAGS", "BYTE")];
+
+pub const ABSTRACT_CHESTED_HORSE_METADATA: &[EntityMetadataField] = &[field(
+    "AbstractChestedHorse",
+    19,
+    "DATA_ID_CHEST",
+    "BOOLEAN",
+)];
+
+pub const CAMEL_METADATA: &[EntityMetadataField] = &[
+    field("Camel", 19, "DASH", "BOOLEAN"),
+    field("Camel", 20, "LAST_POSE_CHANGE_TICK", "LONG"),
+];
+
 pub const AREA_EFFECT_CLOUD_METADATA: &[EntityMetadataField] = &[
     field("AreaEffectCloud", 8, "DATA_RADIUS", "FLOAT"),
     field("AreaEffectCloud", 9, "DATA_WAITING", "BOOLEAN"),
@@ -306,6 +487,7 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
     class("Mob", Some("LivingEntity"), MOB_METADATA),
     class("PathfinderMob", Some("Mob"), &[]),
     class("Monster", Some("PathfinderMob"), &[]),
+    class("AmbientCreature", Some("Mob"), &[]),
     class("Player", Some("LivingEntity"), PLAYER_METADATA),
     class("AgeableMob", Some("PathfinderMob"), AGEABLE_MOB_METADATA),
     class("Animal", Some("AgeableMob"), &[]),
@@ -323,6 +505,82 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
     class("Sniffer", Some("Animal"), SNIFFER_METADATA),
     class("Wolf", Some("TamableAnimal"), WOLF_METADATA),
     class("Zombie", Some("Monster"), ZOMBIE_METADATA),
+    class("Bat", Some("AmbientCreature"), BAT_METADATA),
+    class("Creeper", Some("Monster"), CREEPER_METADATA),
+    class("Spider", Some("Monster"), SPIDER_METADATA),
+    class("CaveSpider", Some("Spider"), &[]),
+    class("Blaze", Some("Monster"), BLAZE_METADATA),
+    class("EnderMan", Some("Monster"), ENDER_MAN_METADATA),
+    class("Guardian", Some("Monster"), GUARDIAN_METADATA),
+    class("ElderGuardian", Some("Guardian"), &[]),
+    class("Slime", Some("Mob"), SLIME_METADATA),
+    class("MagmaCube", Some("Slime"), &[]),
+    class("Phantom", Some("Mob"), PHANTOM_METADATA),
+    class("Ghast", Some("Mob"), GHAST_METADATA),
+    class("Warden", Some("Monster"), WARDEN_METADATA),
+    class("Vex", Some("Monster"), VEX_METADATA),
+    class("Zoglin", Some("Monster"), ZOGLIN_METADATA),
+    class("Creaking", Some("Monster"), CREAKING_METADATA),
+    class("AbstractPiglin", Some("Monster"), ABSTRACT_PIGLIN_METADATA),
+    class("Piglin", Some("AbstractPiglin"), PIGLIN_METADATA),
+    class("PiglinBrute", Some("AbstractPiglin"), &[]),
+    class("AbstractSkeleton", Some("Monster"), &[]),
+    class("Skeleton", Some("AbstractSkeleton"), SKELETON_METADATA),
+    class("WitherSkeleton", Some("AbstractSkeleton"), &[]),
+    class("Stray", Some("Skeleton"), &[]),
+    class("Parched", Some("AbstractSkeleton"), &[]),
+    class("Bogged", Some("AbstractSkeleton"), BOGGED_METADATA),
+    class("Husk", Some("Zombie"), &[]),
+    class("Drowned", Some("Zombie"), &[]),
+    class("ZombifiedPiglin", Some("Zombie"), &[]),
+    class("ZombieVillager", Some("Zombie"), ZOMBIE_VILLAGER_METADATA),
+    class("PatrollingMonster", Some("Monster"), &[]),
+    class("Raider", Some("PatrollingMonster"), RAIDER_METADATA),
+    class("Ravager", Some("Raider"), &[]),
+    class("Witch", Some("Raider"), WITCH_METADATA),
+    class("AbstractIllager", Some("Raider"), &[]),
+    class("Pillager", Some("AbstractIllager"), PILLAGER_METADATA),
+    class("Vindicator", Some("AbstractIllager"), &[]),
+    class(
+        "SpellcasterIllager",
+        Some("AbstractIllager"),
+        SPELLCASTER_ILLAGER_METADATA,
+    ),
+    class("Evoker", Some("SpellcasterIllager"), &[]),
+    class("Illusioner", Some("SpellcasterIllager"), &[]),
+    class(
+        "AbstractGolem",
+        Some("PathfinderMob"),
+        ABSTRACT_GOLEM_METADATA,
+    ),
+    class("IronGolem", Some("AbstractGolem"), IRON_GOLEM_METADATA),
+    class("SnowGolem", Some("AbstractGolem"), SNOW_GOLEM_METADATA),
+    class("CopperGolem", Some("AbstractGolem"), COPPER_GOLEM_METADATA),
+    class(
+        "AbstractVillager",
+        Some("AgeableMob"),
+        ABSTRACT_VILLAGER_METADATA,
+    ),
+    class("Villager", Some("AbstractVillager"), VILLAGER_METADATA),
+    class("WanderingTrader", Some("AbstractVillager"), &[]),
+    class("Rabbit", Some("Animal"), RABBIT_METADATA),
+    class("Sheep", Some("Animal"), SHEEP_METADATA),
+    class("Turtle", Some("Animal"), TURTLE_METADATA),
+    class("Panda", Some("Animal"), PANDA_METADATA),
+    class("Fox", Some("Animal"), FOX_METADATA),
+    class("PolarBear", Some("Animal"), POLAR_BEAR_METADATA),
+    class("Ocelot", Some("Animal"), OCELOT_METADATA),
+    class("ShoulderRidingEntity", Some("TamableAnimal"), &[]),
+    class("Parrot", Some("ShoulderRidingEntity"), PARROT_METADATA),
+    class("AbstractHorse", Some("Animal"), ABSTRACT_HORSE_METADATA),
+    class(
+        "AbstractChestedHorse",
+        Some("AbstractHorse"),
+        ABSTRACT_CHESTED_HORSE_METADATA,
+    ),
+    class("Mule", Some("AbstractChestedHorse"), &[]),
+    class("Camel", Some("AbstractHorse"), CAMEL_METADATA),
+    class("CamelHusk", Some("Camel"), &[]),
     class(
         "AreaEffectCloud",
         Some("Entity"),
@@ -521,6 +779,97 @@ mod tests {
         assert_eq!(metadata_class("Projectile").unwrap().fields, &[]);
         assert_eq!(metadata_class("BlockAttachedEntity").unwrap().fields, &[]);
         assert!(metadata_class("Missing").is_none());
+    }
+
+    #[test]
+    fn common_monster_metadata_uses_mob_and_monster_offsets() {
+        let creeper = inherited_metadata_fields("Creeper").unwrap();
+        assert_eq!(creeper[15].accessor, "DATA_MOB_FLAGS_ID");
+        assert_eq!(creeper[16].accessor, "DATA_SWELL_DIR");
+        assert_eq!(creeper[18].accessor, "DATA_IS_IGNITED");
+
+        let enderman = inherited_metadata_fields("EnderMan").unwrap();
+        assert_eq!(enderman[16].serializer, "OPTIONAL_BLOCK_STATE");
+        assert_eq!(enderman[18].accessor, "DATA_STARED_AT");
+
+        let guardian = inherited_metadata_fields("Guardian").unwrap();
+        assert_eq!(guardian[16].accessor, "DATA_ID_MOVING");
+        assert_eq!(guardian[17].accessor, "DATA_ID_ATTACK_TARGET");
+        assert_eq!(
+            inherited_metadata_fields("ElderGuardian").unwrap(),
+            guardian
+        );
+
+        let slime = inherited_metadata_fields("MagmaCube").unwrap();
+        assert_eq!(slime[16].accessor, "ID_SIZE");
+
+        let creaking = inherited_metadata_fields("Creaking").unwrap();
+        assert_eq!(creaking[16].accessor, "CAN_MOVE");
+        assert_eq!(creaking[19].serializer, "OPTIONAL_BLOCK_POS");
+    }
+
+    #[test]
+    fn monster_subclass_branches_continue_after_parent_accessors() {
+        let piglin = inherited_metadata_fields("Piglin").unwrap();
+        assert_eq!(piglin[16].accessor, "DATA_IMMUNE_TO_ZOMBIFICATION");
+        assert_eq!(piglin[17].accessor, "DATA_BABY_ID");
+        assert_eq!(piglin[19].accessor, "DATA_IS_DANCING");
+
+        let zombie_villager = inherited_metadata_fields("ZombieVillager").unwrap();
+        assert_eq!(zombie_villager[18].accessor, "DATA_DROWNED_CONVERSION_ID");
+        assert_eq!(zombie_villager[19].accessor, "DATA_CONVERTING_ID");
+        assert_eq!(zombie_villager[20].serializer, "VILLAGER_DATA");
+
+        let skeleton = inherited_metadata_fields("Skeleton").unwrap();
+        assert_eq!(skeleton[16].accessor, "DATA_STRAY_CONVERSION_ID");
+        assert_eq!(inherited_metadata_fields("Stray").unwrap(), skeleton);
+
+        let bogged = inherited_metadata_fields("Bogged").unwrap();
+        assert_eq!(bogged[16].accessor, "DATA_SHEARED");
+    }
+
+    #[test]
+    fn raider_golem_and_villager_metadata_offsets_match_decompiled_parents() {
+        let witch = inherited_metadata_fields("Witch").unwrap();
+        assert_eq!(witch[16].accessor, "IS_CELEBRATING");
+        assert_eq!(witch[17].accessor, "DATA_USING_ITEM");
+
+        let pillager = inherited_metadata_fields("Pillager").unwrap();
+        assert_eq!(pillager[16].accessor, "IS_CELEBRATING");
+        assert_eq!(pillager[17].accessor, "IS_CHARGING_CROSSBOW");
+
+        let evoker = inherited_metadata_fields("Evoker").unwrap();
+        assert_eq!(evoker[17].accessor, "DATA_SPELL_CASTING_ID");
+        assert_eq!(inherited_metadata_fields("Illusioner").unwrap(), evoker);
+
+        let copper_golem = inherited_metadata_fields("CopperGolem").unwrap();
+        assert_eq!(copper_golem[16].serializer, "WEATHERING_COPPER_STATE");
+        assert_eq!(copper_golem[17].serializer, "COPPER_GOLEM_STATE");
+
+        let villager = inherited_metadata_fields("Villager").unwrap();
+        assert_eq!(villager[18].accessor, "DATA_UNHAPPY_COUNTER");
+        assert_eq!(villager[19].serializer, "VILLAGER_DATA");
+        assert_eq!(villager[20].serializer, "BOOLEAN");
+    }
+
+    #[test]
+    fn additional_animal_metadata_covers_common_visual_state() {
+        let panda = inherited_metadata_fields("Panda").unwrap();
+        assert_eq!(panda[18].accessor, "UNHAPPY_COUNTER");
+        assert_eq!(panda[23].accessor, "DATA_ID_FLAGS");
+
+        let fox = inherited_metadata_fields("Fox").unwrap();
+        assert_eq!(fox[18].accessor, "DATA_TYPE_ID");
+        assert_eq!(fox[21].serializer, "OPTIONAL_LIVING_ENTITY_REFERENCE");
+
+        let parrot = inherited_metadata_fields("Parrot").unwrap();
+        assert_eq!(parrot[18].accessor, "DATA_FLAGS_ID");
+        assert_eq!(parrot[20].accessor, "DATA_VARIANT_ID");
+
+        let camel = inherited_metadata_fields("Camel").unwrap();
+        assert_eq!(camel[18].accessor, "DATA_ID_FLAGS");
+        assert_eq!(camel[19].accessor, "DASH");
+        assert_eq!(camel[20].serializer, "LONG");
     }
 
     #[test]
