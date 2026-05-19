@@ -4,11 +4,11 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 
 ## Migrated From Main Checklist: Ground Rules
 
-- [ ] Define the target as Minecraft Java Edition 26.1.2 protocol and server behavior.
-- [ ] Keep the new implementation independent of Mojang source code licensing constraints.
-- [ ] Use black-box tests, public protocol references, vanilla datapacks, generated assets, and observed behavior as validation sources.
-- [ ] Track every intentional deviation from vanilla behavior in a compatibility document.
-- [ ] Build a repeatable test harness that can compare the rebuilt server against the official `server.jar`.
+- [x] Define the target as Minecraft Java Edition 26.1.2 protocol and server behavior.
+- [x] Keep the new implementation independent of Mojang source code licensing constraints.
+- [x] Use black-box tests, public protocol references, vanilla datapacks, generated assets, and observed behavior as validation sources.
+- [x] Track every intentional deviation from vanilla behavior in a compatibility document.
+- [x] Build a repeatable test harness that can compare the rebuilt server against the official `server.jar`.
 - [ ] Add Mineflayer-based black-box smoke tests that can target either RustCraft or the official `server.jar`.
 - [ ] Add a Mineflayer fixture that records bot event order, disconnect reasons, kicked messages, and packet-level errors for every black-box scenario.
 - [ ] Add a Mineflayer offline-mode baseline scenario shared by all black-box tests, including deterministic bot names, expected offline UUIDs, seeded temp worlds, fixed ports, and vanilla comparison output.
@@ -27,7 +27,7 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 - [ ] Preserve exact client compatibility for unmodified 26.1.2 clients.
 - [ ] Preserve compatibility with vanilla resource/data packs that rely only on official behavior.
 - [ ] Decide which implementation language, async runtime, serialization libraries, compression libraries, crypto libraries, and persistence libraries will be used.
-- [ ] Define project modules matching major vanilla boundaries: bootstrap, registries, network, commands, resources, storage, world, entities, gameplay, operations, and tests.
+- [x] Define project modules matching major vanilla boundaries: bootstrap, registries, network, commands, resources, storage, world, entities, gameplay, operations, and tests.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix Note
 
