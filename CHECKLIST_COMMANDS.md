@@ -20,7 +20,7 @@
 
 ## Command Blocks
 
-- [ ] Implement `CommandBlockEntity` command execution on redstone pulse: permission-level check, `CommandSourceStack` with `CommandBlockEntity` context, output capture into `lastOutput` component
+- [x] Implement `CommandBlockEntity` command execution on redstone pulse: permission-level check, `CommandSourceStack` with `CommandBlockEntity` context, output capture into `lastOutput` component — `CommandBlockEntity::execute_from_context` models redstone-gated execution with command-block source position/level, permission success count, same-tick suppression, and tracked output capture
 - [x] Implement command block modes: SEQUENCE (advances chain), AUTO (always active, runs every tick), REDSTONE (triggered by signal)
 - [x] Implement conditional flag: block only executes if previous chain command succeeded (`successCount > 0`)
 - [x] Implement command block NBT: `Command`, `auto`, `conditionMet`, `LastOutput`, `SuccessCount`, `TrackOutput`

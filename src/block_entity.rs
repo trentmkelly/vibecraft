@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::block_update::{BlockPos, Direction};
+use crate::command_execution::{CommandSourceStackModel, Vec3};
 use crate::map_state::DyeColor;
 use crate::recipe_system::FuelValues;
 use crate::redstone::{comparator_output, ComparatorMode, MAX_SIGNAL};
@@ -327,6 +328,24 @@ pub struct CommandBlockEntity {
     pub condition_met: bool,
     pub mode: CommandBlockMode,
     pub conditional: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandBlockExecutionContext {
+    pub pos: BlockPos,
+    pub level: String,
+    pub game_time: i64,
+    pub command_blocks_enabled: bool,
+    pub has_permission: bool,
+    pub previous_success: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandBlockExecution {
+    pub command: String,
+    pub source: CommandSourceStackModel,
+    pub success_count: i32,
+    pub output: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2100,6 +2119,17 @@ impl CommandBlockEntity {
         player_can_use_gamemaster_blocks
     }
 
+    pub fn command_source_stack(
+        pos: BlockPos,
+        level: impl Into<String>,
+    ) -> CommandSourceStackModel {
+        CommandSourceStackModel::new("CommandBlockEntity", level, 2).with_position(Vec3 {
+            x: f64::from(pos.x) + 0.5,
+            y: f64::from(pos.y) + 0.5,
+            z: f64::from(pos.z) + 0.5,
+        })
+    }
+
     pub fn execution_action(
         &self,
         has_permission: bool,
@@ -2154,6 +2184,38 @@ impl CommandBlockEntity {
             }
         }
         executed
+    }
+
+    pub fn execute_from_context(
+        &mut self,
+        context: CommandBlockExecutionContext,
+        output: Option<String>,
+    ) -> Option<CommandBlockExecution> {
+        let source = Self::command_source_stack(context.pos, context.level);
+        if !self.perform_command(
+            context.game_time,
+            context.command_blocks_enabled,
+            context.has_permission,
+            context.previous_success,
+        ) {
+            return None;
+        }
+
+        if self.track_output {
+            if let Some(output) = output.clone() {
+                self.last_output = Some(output);
+            }
+        } else {
+            self.last_output = None;
+        }
+
+        let output = output.or_else(|| self.last_output.clone());
+        Some(CommandBlockExecution {
+            command: self.command.clone(),
+            source,
+            success_count: self.success_count,
+            output,
+        })
     }
 }
 
@@ -9621,6 +9683,80 @@ mod tests {
             loaded_without_tracking.last_execution,
             CommandBlockEntity::NO_LAST_EXECUTION
         );
+    }
+
+    #[test]
+    fn command_block_execution_uses_block_source_and_captures_output() {
+        let mut command = CommandBlockEntity::new(CommandBlockMode::Redstone, false);
+        command.set_command("say hello");
+        command.powered = true;
+
+        let execution = command
+            .execute_from_context(
+                CommandBlockExecutionContext {
+                    pos: BlockPos { x: 4, y: 64, z: -2 },
+                    level: "minecraft:overworld".to_string(),
+                    game_time: 100,
+                    command_blocks_enabled: true,
+                    has_permission: true,
+                    previous_success: true,
+                },
+                Some("{\"text\":\"hello\"}".to_string()),
+            )
+            .expect("powered redstone command block should execute on the leading edge");
+
+        assert_eq!(execution.command, "say hello");
+        assert_eq!(execution.success_count, 1);
+        assert_eq!(execution.output.as_deref(), Some("{\"text\":\"hello\"}"));
+        assert_eq!(command.last_output.as_deref(), Some("{\"text\":\"hello\"}"));
+        assert_eq!(command.last_execution, 100);
+        assert_eq!(execution.source.source, "CommandBlockEntity");
+        assert_eq!(execution.source.level, "minecraft:overworld");
+        assert_eq!(execution.source.permission_level, 2);
+        assert_eq!(
+            execution.source.position,
+            Vec3 {
+                x: 4.5,
+                y: 64.5,
+                z: -1.5,
+            }
+        );
+
+        assert!(
+            command
+                .execute_from_context(
+                    CommandBlockExecutionContext {
+                        pos: BlockPos { x: 4, y: 64, z: -2 },
+                        level: "minecraft:overworld".to_string(),
+                        game_time: 100,
+                        command_blocks_enabled: true,
+                        has_permission: true,
+                        previous_success: true,
+                    },
+                    Some("{\"text\":\"again\"}".to_string()),
+                )
+                .is_none(),
+            "command block should not run twice in the same game tick"
+        );
+
+        let mut denied = CommandBlockEntity::new(CommandBlockMode::Auto, false);
+        denied.set_command("say denied");
+        let denied_execution = denied
+            .execute_from_context(
+                CommandBlockExecutionContext {
+                    pos: BlockPos { x: 0, y: 70, z: 0 },
+                    level: "minecraft:overworld".to_string(),
+                    game_time: 101,
+                    command_blocks_enabled: true,
+                    has_permission: false,
+                    previous_success: true,
+                },
+                Some("{\"text\":\"denied\"}".to_string()),
+            )
+            .expect("permission-denied command block records a zero-success execution");
+        assert_eq!(denied_execution.success_count, 0);
+        assert_eq!(denied.success_count, 0);
+        assert_eq!(denied.last_output.as_deref(), Some("{\"text\":\"denied\"}"));
     }
 
     #[test]
