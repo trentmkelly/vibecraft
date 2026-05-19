@@ -388,8 +388,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a Mineflayer configuration regression test that asserts the bot reaches play state only after registry sync, feature flags, tags, and finish-configuration complete.
 - [x] Add a Mineflayer configuration custom-payload test that records unknown payload handling, brand exchange, client information, cookies, and disconnect behavior during offline-mode login.
 - [x] Add a Mineflayer offline-mode configuration replay test that records a vanilla login/configuration transcript and verifies RustCraft reaches the same bot event milestones without hidden sleeps or retry-only success.
-- [ ] Implement common state.
-- [ ] Implement cookie state.
+- [x] Implement common state.
+- [x] Implement cookie state.
 - [ ] Implement game/play state.
 - [ ] Implement all 227 packet classes represented under `net/minecraft/network/protocol`.
 - [x] Implement protocol transition from handshake to status.
