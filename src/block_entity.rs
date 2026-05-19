@@ -525,6 +525,36 @@ pub struct SculkCatalystBlockEntity {
     pub pulse_ticks: i32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BeehiveOccupant {
+    pub entity_type: String,
+    pub entity_data: Tag,
+    pub ticks_in_hive: i32,
+    pub min_ticks_in_hive: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BeeReleaseStatus {
+    HoneyDelivered,
+    BeeReleased,
+    Emergency,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BeeReleaseEvent {
+    pub entity_type: String,
+    pub status: BeeReleaseStatus,
+    pub honey_level: i32,
+    pub stay_out_of_hive_ticks: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BeehiveBlockEntity {
+    pub occupants: Vec<BeehiveOccupant>,
+    pub saved_flower_pos: Option<BlockPos>,
+    pub honey_level: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SculkCatalystEventResult {
     Ignored,
@@ -3691,6 +3721,241 @@ impl SculkCatalystBlockEntity {
             cursors,
             pulse_ticks: get_int(entries, "pulse_ticks").unwrap_or(0).max(0),
         }
+    }
+}
+
+impl BeehiveOccupant {
+    pub const DEFAULT_ENTITY_TYPE: &'static str = "minecraft:bee";
+
+    pub fn bee(ticks_in_hive: i32, has_nectar: bool) -> Self {
+        let mut entity_fields = Vec::new();
+        if has_nectar {
+            entity_fields.push(("HasNectar".to_string(), Tag::Byte(1)));
+        }
+        Self {
+            entity_type: Self::DEFAULT_ENTITY_TYPE.to_string(),
+            entity_data: Tag::Compound(entity_fields),
+            ticks_in_hive: ticks_in_hive.max(0),
+            min_ticks_in_hive: if has_nectar {
+                BeehiveBlockEntity::MIN_OCCUPATION_TICKS_NECTAR
+            } else {
+                BeehiveBlockEntity::MIN_OCCUPATION_TICKS_NECTARLESS
+            },
+        }
+    }
+
+    pub fn has_nectar(&self) -> bool {
+        compound_entries(&self.entity_data)
+            .and_then(|entries| get_bool(entries, "HasNectar"))
+            .unwrap_or(false)
+    }
+
+    fn tick_ready(&mut self) -> bool {
+        let was_ready = self.ticks_in_hive > self.min_ticks_in_hive;
+        self.ticks_in_hive += 1;
+        was_ready
+    }
+
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "entity_type".to_string(),
+                Tag::String(self.entity_type.clone()),
+            ),
+            ("entity_data".to_string(), self.entity_data.clone()),
+            ("ticks_in_hive".to_string(), Tag::Int(self.ticks_in_hive)),
+            (
+                "min_ticks_in_hive".to_string(),
+                Tag::Int(self.min_ticks_in_hive),
+            ),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Option<Self> {
+        let entries = compound_entries(tag)?;
+        Some(Self {
+            entity_type: get_string(entries, "entity_type")
+                .unwrap_or(Self::DEFAULT_ENTITY_TYPE)
+                .to_string(),
+            entity_data: entries
+                .iter()
+                .find(|(name, _)| name == "entity_data")
+                .map(|(_, tag)| tag.clone())
+                .unwrap_or_else(|| Tag::Compound(Vec::new())),
+            ticks_in_hive: get_int(entries, "ticks_in_hive").unwrap_or(0).max(0),
+            min_ticks_in_hive: get_int(entries, "min_ticks_in_hive")
+                .unwrap_or(BeehiveBlockEntity::MIN_OCCUPATION_TICKS_NECTARLESS)
+                .max(0),
+        })
+    }
+}
+
+impl BeehiveBlockEntity {
+    pub const MAX_OCCUPANTS: usize = 3;
+    pub const MIN_TICKS_BEFORE_REENTERING_HIVE: i32 = 400;
+    pub const MIN_OCCUPATION_TICKS_NECTAR: i32 = 2400;
+    pub const MIN_OCCUPATION_TICKS_NECTARLESS: i32 = 600;
+    pub const MAX_HONEY_LEVEL: i32 = 5;
+    pub const PLAYER_ANGER_RADIUS_SQUARED: f64 = 16.0;
+    pub const WORK_SOUND_CHANCE: f64 = 0.005;
+
+    pub fn new() -> Self {
+        Self {
+            occupants: Vec::new(),
+            saved_flower_pos: None,
+            honey_level: 0,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.occupants.is_empty()
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.occupants.len() == Self::MAX_OCCUPANTS
+    }
+
+    pub fn occupant_count(&self) -> usize {
+        self.occupants.len()
+    }
+
+    pub fn add_occupant(
+        &mut self,
+        occupant: BeehiveOccupant,
+        saved_flower_pos: Option<BlockPos>,
+    ) -> bool {
+        if self.is_full() {
+            return false;
+        }
+        if self.saved_flower_pos.is_none() {
+            self.saved_flower_pos = saved_flower_pos;
+        }
+        self.occupants.push(occupant);
+        true
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = vec![
+            (
+                "bees".to_string(),
+                Tag::List(self.occupants.iter().map(BeehiveOccupant::to_tag).collect()),
+            ),
+            ("honey_level".to_string(), Tag::Int(self.honey_level)),
+        ];
+        if let Some(pos) = self.saved_flower_pos {
+            fields.push(("flower_pos".to_string(), block_pos_to_tag(pos)));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        let occupants = entries
+            .iter()
+            .find(|(name, _)| name == "bees")
+            .and_then(|(_, tag)| match tag {
+                Tag::List(values) => Some(
+                    values
+                        .iter()
+                        .filter_map(BeehiveOccupant::from_tag)
+                        .take(Self::MAX_OCCUPANTS)
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default();
+        Self {
+            occupants,
+            saved_flower_pos: entries
+                .iter()
+                .find(|(name, _)| name == "flower_pos")
+                .and_then(|(_, tag)| block_pos_from_tag(tag)),
+            honey_level: get_int(entries, "honey_level")
+                .unwrap_or(0)
+                .clamp(0, Self::MAX_HONEY_LEVEL),
+        }
+    }
+
+    pub fn tick(
+        &mut self,
+        bees_stay_in_hive: bool,
+        front_blocked: bool,
+        honey_bonus_roll: bool,
+    ) -> Vec<BeeReleaseEvent> {
+        let mut released = Vec::new();
+        let mut index = 0;
+        while index < self.occupants.len() {
+            if self.occupants[index].tick_ready() {
+                let status = if self.occupants[index].has_nectar() {
+                    BeeReleaseStatus::HoneyDelivered
+                } else {
+                    BeeReleaseStatus::BeeReleased
+                };
+                if let Some(event) = self.release_at(
+                    index,
+                    status,
+                    bees_stay_in_hive,
+                    front_blocked,
+                    honey_bonus_roll,
+                ) {
+                    released.push(event);
+                    continue;
+                }
+            }
+            index += 1;
+        }
+        released
+    }
+
+    pub fn empty_all_living_from_hive(
+        &mut self,
+        status: BeeReleaseStatus,
+        is_sedated: bool,
+    ) -> Vec<BeeReleaseEvent> {
+        let mut released = Vec::new();
+        while !self.occupants.is_empty() {
+            if let Some(mut event) = self.release_at(0, status, false, false, false) {
+                event.stay_out_of_hive_ticks = if is_sedated {
+                    Self::MIN_TICKS_BEFORE_REENTERING_HIVE
+                } else {
+                    0
+                };
+                released.push(event);
+            } else {
+                break;
+            }
+        }
+        released
+    }
+
+    pub fn on_fire_nearby(&mut self) -> Vec<BeeReleaseEvent> {
+        self.empty_all_living_from_hive(BeeReleaseStatus::Emergency, false)
+    }
+
+    fn release_at(
+        &mut self,
+        index: usize,
+        status: BeeReleaseStatus,
+        bees_stay_in_hive: bool,
+        front_blocked: bool,
+        honey_bonus_roll: bool,
+    ) -> Option<BeeReleaseEvent> {
+        if status != BeeReleaseStatus::Emergency && (bees_stay_in_hive || front_blocked) {
+            return None;
+        }
+        let occupant = self.occupants.remove(index);
+        if status == BeeReleaseStatus::HoneyDelivered && self.honey_level < Self::MAX_HONEY_LEVEL {
+            let level_increase = if honey_bonus_roll { 2 } else { 1 };
+            self.honey_level = (self.honey_level + level_increase).min(Self::MAX_HONEY_LEVEL);
+        }
+        Some(BeeReleaseEvent {
+            entity_type: occupant.entity_type,
+            status,
+            honey_level: self.honey_level,
+            stay_out_of_hive_ticks: 0,
+        })
     }
 }
 
@@ -6977,6 +7242,89 @@ mod tests {
         };
         ignored.tick(BlockPos { x: 0, y: 0, z: 0 });
         assert_eq!(ignored.cursors.len(), 31);
+    }
+
+    #[test]
+    fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_java() {
+        assert_eq!(BeehiveBlockEntity::MAX_OCCUPANTS, 3);
+        assert_eq!(BeehiveBlockEntity::MIN_OCCUPATION_TICKS_NECTAR, 2400);
+        assert_eq!(BeehiveBlockEntity::MIN_OCCUPATION_TICKS_NECTARLESS, 600);
+        assert_eq!(BeehiveBlockEntity::MIN_TICKS_BEFORE_REENTERING_HIVE, 400);
+        assert_eq!(BeehiveBlockEntity::MAX_HONEY_LEVEL, 5);
+        assert_eq!(BeehiveBlockEntity::WORK_SOUND_CHANCE, 0.005);
+
+        let mut hive = BeehiveBlockEntity::new();
+        assert!(hive.is_empty());
+        assert!(hive.add_occupant(
+            BeehiveOccupant::bee(600, false),
+            Some(BlockPos { x: 2, y: 70, z: -3 })
+        ));
+        assert!(hive.add_occupant(BeehiveOccupant::bee(2400, true), None));
+        assert!(hive.add_occupant(BeehiveOccupant::bee(2401, true), None));
+        assert!(!hive.add_occupant(BeehiveOccupant::bee(0, false), None));
+        assert!(hive.is_full());
+        assert_eq!(hive.occupant_count(), 3);
+        assert_eq!(hive.saved_flower_pos, Some(BlockPos { x: 2, y: 70, z: -3 }));
+
+        let saved = hive.save_additional();
+        let loaded = BeehiveBlockEntity::load_additional(&saved);
+        assert_eq!(loaded, hive);
+
+        let blocked = hive.tick(true, false, false);
+        assert!(blocked.is_empty());
+        assert_eq!(hive.occupant_count(), 3);
+        assert_eq!(hive.occupants[0].ticks_in_hive, 601);
+        assert_eq!(hive.occupants[1].ticks_in_hive, 2401);
+        assert_eq!(hive.occupants[2].ticks_in_hive, 2402);
+
+        let released = hive.tick(false, true, false);
+        assert!(released.is_empty());
+        assert_eq!(hive.occupant_count(), 3);
+
+        let released = hive.tick(false, false, false);
+        assert_eq!(
+            released,
+            vec![
+                BeeReleaseEvent {
+                    entity_type: "minecraft:bee".to_string(),
+                    status: BeeReleaseStatus::BeeReleased,
+                    honey_level: 0,
+                    stay_out_of_hive_ticks: 0,
+                },
+                BeeReleaseEvent {
+                    entity_type: "minecraft:bee".to_string(),
+                    status: BeeReleaseStatus::HoneyDelivered,
+                    honey_level: 1,
+                    stay_out_of_hive_ticks: 0,
+                },
+                BeeReleaseEvent {
+                    entity_type: "minecraft:bee".to_string(),
+                    status: BeeReleaseStatus::HoneyDelivered,
+                    honey_level: 2,
+                    stay_out_of_hive_ticks: 0,
+                },
+            ]
+        );
+        assert!(hive.is_empty());
+
+        hive.honey_level = 4;
+        assert!(hive.add_occupant(BeehiveOccupant::bee(2401, true), None));
+        let released = hive.tick(false, false, true);
+        assert_eq!(released[0].honey_level, 5);
+        assert_eq!(hive.honey_level, 5);
+
+        assert!(hive.add_occupant(BeehiveOccupant::bee(0, false), None));
+        assert!(hive.add_occupant(BeehiveOccupant::bee(0, false), None));
+        let emergency = hive.on_fire_nearby();
+        assert_eq!(emergency.len(), 2);
+        assert!(emergency
+            .iter()
+            .all(|event| event.status == BeeReleaseStatus::Emergency));
+        assert!(hive.is_empty());
+
+        assert!(hive.add_occupant(BeehiveOccupant::bee(0, false), None));
+        let sedated = hive.empty_all_living_from_hive(BeeReleaseStatus::Emergency, true);
+        assert_eq!(sedated[0].stay_out_of_hive_ticks, 400);
     }
 
     #[test]
