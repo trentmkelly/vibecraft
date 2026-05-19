@@ -769,6 +769,13 @@ pub struct ClientboundContainerSetDataPacket {
     pub value: i16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundMountScreenOpenPacket {
+    pub container_id: i32,
+    pub inventory_columns: i32,
+    pub entity_id: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundCooldownPacket {
     pub cooldown_group: Identifier,
@@ -5190,6 +5197,14 @@ impl ClientboundContainerSetDataPacket {
     }
 }
 
+impl ClientboundMountScreenOpenPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.inventory_columns)?;
+        write_i32(writer, self.entity_id)
+    }
+}
+
 impl ClientboundCooldownPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_identifier(writer, &self.cooldown_group)?;
@@ -6280,6 +6295,19 @@ mod tests {
         .write(&mut set_data)
         .unwrap();
         assert_eq!(set_data, vec![2, 0xff, 0xfd, 0x01, 0x90]);
+
+        let mut mount_screen = Vec::new();
+        ClientboundMountScreenOpenPacket {
+            container_id: 2,
+            inventory_columns: 5,
+            entity_id: 300,
+        }
+        .write(&mut mount_screen)
+        .unwrap();
+        assert_eq!(
+            mount_screen,
+            [vec![2, 5], 300_i32.to_be_bytes().to_vec()].concat()
+        );
 
         let mut cooldown = Vec::new();
         ClientboundCooldownPacket {

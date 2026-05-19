@@ -852,7 +852,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "mount_screen_open",
         java_class: "ClientboundMountScreenOpenPacket",
-        field_order: "unparsed",
+        field_order: "container_id:VarInt, inventory_columns:VarInt, entity_id:int",
     },
     PlayPacketSpec {
         id: 42,
