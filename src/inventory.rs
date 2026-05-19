@@ -30,9 +30,12 @@ pub struct Slot {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Menu {
     pub slots: Vec<Slot>,
+    pub last_slots: Vec<ItemStack>,
     pub remote_slots: Vec<ItemStack>,
     pub data_slots: Vec<DataSlot>,
     pub remote_data_slots: Vec<i32>,
+    pub listeners: Vec<ContainerListener>,
+    pub synchronizer: Option<ContainerSynchronizer>,
     pub carried: ItemStack,
     pub remote_carried: ItemStack,
     pub hotbar: Vec<ItemStack>,
@@ -61,6 +64,30 @@ pub struct ContainerData {
 pub struct DataChange {
     pub id: usize,
     pub value: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ContainerListenerEvent {
+    SlotChanged(SlotChange),
+    DataChanged(DataChange),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContainerListener {
+    pub events: Vec<ContainerListenerEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ContainerSynchronizerEvent {
+    InitialData(MenuDataSync),
+    SlotChanged(SlotChange),
+    CarriedChanged(ItemStack),
+    DataChanged(DataChange),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContainerSynchronizer {
+    pub events: Vec<ContainerSynchronizerEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -196,18 +223,107 @@ impl ContainerData {
     }
 }
 
+impl ContainerListener {
+    pub fn new() -> Self {
+        Self { events: Vec::new() }
+    }
+
+    pub fn slot_changed(&mut self, slot: usize, stack: ItemStack) {
+        self.events
+            .push(ContainerListenerEvent::SlotChanged(SlotChange {
+                slot,
+                stack,
+            }));
+    }
+
+    pub fn data_changed(&mut self, id: usize, value: i32) {
+        self.events
+            .push(ContainerListenerEvent::DataChanged(DataChange {
+                id,
+                value,
+            }));
+    }
+}
+
+impl Default for ContainerListener {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ContainerSynchronizer {
+    pub fn new() -> Self {
+        Self { events: Vec::new() }
+    }
+
+    pub fn send_initial_data(&mut self, sync: MenuDataSync) {
+        self.events
+            .push(ContainerSynchronizerEvent::InitialData(sync));
+    }
+
+    pub fn send_slot_change(&mut self, slot: usize, stack: ItemStack) {
+        self.events
+            .push(ContainerSynchronizerEvent::SlotChanged(SlotChange {
+                slot,
+                stack,
+            }));
+    }
+
+    pub fn send_carried_change(&mut self, stack: ItemStack) {
+        self.events
+            .push(ContainerSynchronizerEvent::CarriedChanged(stack));
+    }
+
+    pub fn send_data_change(&mut self, id: usize, value: i32) {
+        self.events
+            .push(ContainerSynchronizerEvent::DataChanged(DataChange {
+                id,
+                value,
+            }));
+    }
+}
+
+impl Default for ContainerSynchronizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Menu {
     pub fn new(slot_count: usize) -> Self {
         Self {
             slots: vec![Slot::empty(); slot_count],
+            last_slots: vec![ItemStack::empty(); slot_count],
             remote_slots: vec![ItemStack::empty(); slot_count],
             data_slots: Vec::new(),
             remote_data_slots: Vec::new(),
+            listeners: Vec::new(),
+            synchronizer: None,
             carried: ItemStack::empty(),
             remote_carried: ItemStack::empty(),
             hotbar: vec![ItemStack::empty(); 9],
             creative: false,
             dropped: Vec::new(),
+        }
+    }
+
+    pub fn add_listener(&mut self, listener: ContainerListener) {
+        self.listeners.push(listener);
+        self.broadcast_changes();
+    }
+
+    pub fn remove_listener(&mut self, index: usize) -> Option<ContainerListener> {
+        if index >= self.listeners.len() {
+            return None;
+        }
+        Some(self.listeners.remove(index))
+    }
+
+    pub fn set_synchronizer(&mut self, synchronizer: ContainerSynchronizer) {
+        self.synchronizer = Some(synchronizer);
+        let sync = self.send_all_data_to_remote();
+        if let Some(synchronizer) = &mut self.synchronizer {
+            synchronizer.send_initial_data(sync);
         }
     }
 
@@ -298,6 +414,76 @@ impl Menu {
             }
         }
         changes
+    }
+
+    pub fn broadcast_changes(&mut self) -> MenuDataSync {
+        let mut slot_changes = Vec::new();
+        for slot in 0..self.slots.len() {
+            let current = self.slots[slot].stack.clone();
+            if !same_stack(&self.last_slots[slot], &current) {
+                self.last_slots[slot] = current.clone();
+                for listener in &mut self.listeners {
+                    listener.slot_changed(slot, current.clone());
+                }
+            }
+            if let Some(change) = self.send_slot_change(slot) {
+                if let Some(synchronizer) = &mut self.synchronizer {
+                    synchronizer.send_slot_change(change.slot, change.stack.clone());
+                }
+                slot_changes.push(change);
+            }
+        }
+
+        let carried = self.send_carried_change();
+        if let Some(stack) = &carried {
+            if let Some(synchronizer) = &mut self.synchronizer {
+                synchronizer.send_carried_change(stack.clone());
+            }
+        }
+
+        let mut data = Vec::new();
+        for id in 0..self.data_slots.len() {
+            let current = self.data_slots[id].get();
+            if self.data_slots[id].check_and_clear_update_flag() {
+                for listener in &mut self.listeners {
+                    listener.data_changed(id, current);
+                }
+            }
+            if let Some(change) = self.send_data_change(id) {
+                if let Some(synchronizer) = &mut self.synchronizer {
+                    synchronizer.send_data_change(change.id, change.value);
+                }
+                data.push(change);
+            }
+        }
+
+        MenuDataSync {
+            slots: slot_changes,
+            data,
+            carried,
+        }
+    }
+
+    pub fn broadcast_full_state(&mut self) -> MenuDataSync {
+        for slot in 0..self.slots.len() {
+            let current = self.slots[slot].stack.clone();
+            self.last_slots[slot] = current.clone();
+            for listener in &mut self.listeners {
+                listener.slot_changed(slot, current.clone());
+            }
+        }
+        for id in 0..self.data_slots.len() {
+            let current = self.data_slots[id].get();
+            self.data_slots[id].check_and_clear_update_flag();
+            for listener in &mut self.listeners {
+                listener.data_changed(id, current);
+            }
+        }
+        let sync = self.send_all_data_to_remote();
+        if let Some(synchronizer) = &mut self.synchronizer {
+            synchronizer.send_initial_data(sync.clone());
+        }
+        sync
     }
 
     pub fn click_pickup(
@@ -483,6 +669,10 @@ pub fn same_item_same_components(a: &ItemStack, b: &ItemStack) -> bool {
             && !b.is_empty()
             && a.item_id() == b.item_id()
             && a.components_patch() == b.components_patch())
+}
+
+pub fn same_stack(a: &ItemStack, b: &ItemStack) -> bool {
+    same_item_same_components(a, b) && a.count() == b.count()
 }
 
 #[cfg(test)]
@@ -677,5 +867,70 @@ mod tests {
         let changes = menu.send_data_changes();
         assert_eq!(changes, vec![DataChange { id: 1, value: 7 }]);
         assert!(menu.send_data_changes().is_empty());
+    }
+
+    #[test]
+    fn synchronizer_receives_initial_data_and_incremental_remote_changes() {
+        let mut menu = Menu::new(1);
+        menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stick", 2));
+        menu.add_data_slot(DataSlot::with_value(5));
+        menu.set_synchronizer(ContainerSynchronizer::new());
+
+        let synchronizer = menu.synchronizer.as_ref().unwrap();
+        assert_eq!(synchronizer.events.len(), 1);
+        match &synchronizer.events[0] {
+            ContainerSynchronizerEvent::InitialData(sync) => {
+                assert_eq!(sync.slots[0].stack.item_id(), "minecraft:stick");
+                assert_eq!(sync.data, vec![DataChange { id: 0, value: 5 }]);
+            }
+            event => panic!("unexpected synchronizer event: {event:?}"),
+        }
+
+        menu.slots[0].stack.grow(1);
+        menu.carried = ItemStack::new("minecraft:apple", 1);
+        menu.data_slots[0].set(9);
+        let sync = menu.broadcast_changes();
+        assert_eq!(sync.slots[0].stack.count(), 3);
+        assert_eq!(sync.carried.unwrap().item_id(), "minecraft:apple");
+        assert_eq!(sync.data, vec![DataChange { id: 0, value: 9 }]);
+
+        let events = &menu.synchronizer.as_ref().unwrap().events;
+        assert!(matches!(
+            &events[1],
+            ContainerSynchronizerEvent::SlotChanged(SlotChange { slot: 0, stack })
+                if stack.count() == 3
+        ));
+        assert!(matches!(
+            &events[2],
+            ContainerSynchronizerEvent::CarriedChanged(stack) if stack.item_id() == "minecraft:apple"
+        ));
+        assert_eq!(
+            events[3],
+            ContainerSynchronizerEvent::DataChanged(DataChange { id: 0, value: 9 })
+        );
+        assert!(menu.broadcast_changes().slots.is_empty());
+    }
+
+    #[test]
+    fn listeners_receive_local_slot_and_data_changes() {
+        let mut menu = Menu::new(1);
+        menu.add_data_slot(DataSlot::standalone());
+        menu.add_listener(ContainerListener::new());
+        menu.listeners[0].events.clear();
+
+        menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stone", 4));
+        menu.data_slots[0].set(12);
+        menu.broadcast_changes();
+
+        assert_eq!(
+            menu.listeners[0].events,
+            vec![
+                ContainerListenerEvent::SlotChanged(SlotChange {
+                    slot: 0,
+                    stack: ItemStack::new("minecraft:stone", 4)
+                }),
+                ContainerListenerEvent::DataChanged(DataChange { id: 0, value: 12 })
+            ]
+        );
     }
 }

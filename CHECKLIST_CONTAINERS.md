@@ -44,7 +44,7 @@
 - [x] Implement `DataSlot` / `ContainerData` sync: `inventory.rs` now models Java-style `DataSlot`/`ContainerData`, tracks remote integer shadows, and reports full or changed `DataChange` values for `ContainerSetData`
 - [x] Implement click validation: `inventory_transactions.rs` dispatches all seven `ContainerInput` modes (PICKUP, QUICK_MOVE, SWAP, CLONE, THROW, QUICK_CRAFT, PICKUP_ALL) with state-ID re-validation and correction collection
 - [x] Implement quick-craft (drag-split): `Menu.quick_craft` splits carried stack evenly across target slots
-- [ ] Implement `ContainerSynchronizer` and `ContainerListener` interfaces used to push updates back to client
+- [x] Implement `ContainerSynchronizer` and `ContainerListener` interfaces used to push updates back to client: `Menu` now tracks listener/synchronizer event sinks, sends Java-style initial data, and broadcasts slot/carried/data changes from the remote shadows
 - [ ] Implement `stillValid(player)` check on every tick (close menu if block/entity no longer accessible)
 - [ ] Add parity test: stateId desync detection — client sending old stateId causes vanilla-compatible correction packet
 
