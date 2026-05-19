@@ -257,6 +257,39 @@ pub struct ShelfBlockEntity {
     pub align_items_to_bottom: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BeaconBeamBlock {
+    Transparent,
+    Blocking,
+    Bedrock,
+    TintedGlass(i32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BeaconBeamSection {
+    pub color: i32,
+    pub height: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BeaconEffectApplication {
+    pub effect: String,
+    pub duration_ticks: i32,
+    pub amplifier: i32,
+    pub range: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BeaconBlockEntity {
+    pub levels: i32,
+    pub primary_power: Option<String>,
+    pub secondary_power: Option<String>,
+    pub custom_name: Option<String>,
+    pub lock_key: Option<String>,
+    pub payment_item: Option<PotItemStack>,
+    pub beam_sections: Vec<BeaconBeamSection>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
@@ -1567,6 +1600,233 @@ impl ShelfBlockEntity {
     pub fn comparator_output(&self) -> u8 {
         self.filled_slot_count() as u8
     }
+}
+
+impl BeaconBeamSection {
+    pub fn new(color: i32) -> Self {
+        Self { color, height: 1 }
+    }
+
+    pub fn increase_height(&mut self) {
+        self.height += 1;
+    }
+}
+
+impl BeaconBlockEntity {
+    pub const MAX_LEVELS: i32 = 4;
+    pub const BLOCKS_CHECK_PER_TICK: i32 = 10;
+    pub const DEFAULT_NAME: &'static str = "container.beacon";
+
+    pub fn new() -> Self {
+        Self {
+            levels: 0,
+            primary_power: None,
+            secondary_power: None,
+            custom_name: None,
+            lock_key: None,
+            payment_item: None,
+            beam_sections: Vec::new(),
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = Vec::new();
+        if let Some(primary) = &self.primary_power {
+            entries.push(("primary_effect".to_string(), Tag::String(primary.clone())));
+        }
+        if let Some(secondary) = &self.secondary_power {
+            entries.push((
+                "secondary_effect".to_string(),
+                Tag::String(secondary.clone()),
+            ));
+        }
+        entries.push(("Levels".to_string(), Tag::Int(self.levels)));
+        if let Some(custom_name) = &self.custom_name {
+            entries.push(("CustomName".to_string(), Tag::String(custom_name.clone())));
+        }
+        if let Some(lock_key) = &self.lock_key {
+            entries.push(("Lock".to_string(), Tag::String(lock_key.clone())));
+        }
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut beacon = Self::new();
+        let Some(entries) = compound_entries(tag) else {
+            return beacon;
+        };
+        beacon.primary_power = get_string(entries, "primary_effect").and_then(filter_beacon_effect);
+        beacon.secondary_power =
+            get_string(entries, "secondary_effect").and_then(filter_beacon_effect);
+        beacon.levels = get_int(entries, "Levels")
+            .unwrap_or(0)
+            .clamp(0, Self::MAX_LEVELS);
+        beacon.custom_name = get_string(entries, "CustomName").map(ToString::to_string);
+        beacon.lock_key = get_string(entries, "Lock").map(ToString::to_string);
+        beacon
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn display_name(&self) -> &str {
+        self.custom_name.as_deref().unwrap_or(Self::DEFAULT_NAME)
+    }
+
+    pub fn set_primary_power(&mut self, effect: Option<&str>) {
+        self.primary_power = effect.and_then(filter_beacon_effect);
+    }
+
+    pub fn set_secondary_power(&mut self, effect: Option<&str>) {
+        self.secondary_power = effect.and_then(filter_beacon_effect);
+    }
+
+    pub fn can_pay_with(item: &PotItemStack) -> bool {
+        matches!(
+            item.item_id.as_str(),
+            "minecraft:netherite_ingot"
+                | "minecraft:emerald"
+                | "minecraft:diamond"
+                | "minecraft:gold_ingot"
+                | "minecraft:iron_ingot"
+                | "minecraft:amethyst_shard"
+        )
+    }
+
+    pub fn set_payment_item(&mut self, item: Option<PotItemStack>) -> bool {
+        if item.as_ref().is_some_and(|item| !Self::can_pay_with(item)) {
+            return false;
+        }
+        self.payment_item = item.filter(|item| !item.is_empty());
+        true
+    }
+
+    pub fn comparator_output(&self) -> u8 {
+        self.levels.clamp(0, Self::MAX_LEVELS) as u8
+    }
+
+    pub fn update_base(
+        beacon_pos: BlockPos,
+        min_y: i32,
+        is_base_block: impl Fn(BlockPos) -> bool,
+    ) -> i32 {
+        let mut levels = 0;
+        for step in 1..=Self::MAX_LEVELS {
+            let y = beacon_pos.y - step;
+            if y < min_y {
+                break;
+            }
+            let mut ok = true;
+            'layer: for x in beacon_pos.x - step..=beacon_pos.x + step {
+                for z in beacon_pos.z - step..=beacon_pos.z + step {
+                    if !is_base_block(BlockPos { x, y, z }) {
+                        ok = false;
+                        break 'layer;
+                    }
+                }
+            }
+            if !ok {
+                break;
+            }
+            levels = step;
+        }
+        levels
+    }
+
+    pub fn scan_beam(blocks: impl IntoIterator<Item = BeaconBeamBlock>) -> Vec<BeaconBeamSection> {
+        let mut sections: Vec<BeaconBeamSection> = Vec::new();
+        let mut last: Option<BeaconBeamSection> = None;
+        for block in blocks {
+            match block {
+                BeaconBeamBlock::TintedGlass(color) => {
+                    if sections.len() <= 1 {
+                        let section = BeaconBeamSection::new(color);
+                        sections.push(section.clone());
+                        last = Some(section);
+                    } else if let Some(current) = last.as_mut() {
+                        if current.color == color {
+                            current.increase_height();
+                            if let Some(stored) = sections.last_mut() {
+                                stored.increase_height();
+                            }
+                        } else {
+                            let averaged = average_argb(current.color, color);
+                            let section = BeaconBeamSection::new(averaged);
+                            sections.push(section.clone());
+                            last = Some(section);
+                        }
+                    }
+                }
+                BeaconBeamBlock::Transparent | BeaconBeamBlock::Bedrock => {
+                    if let Some(stored) = sections.last_mut() {
+                        stored.increase_height();
+                    } else {
+                        let mut section = BeaconBeamSection::new(0xFFFF_FFFFu32 as i32);
+                        section.increase_height();
+                        sections.push(section.clone());
+                        last = Some(section);
+                    }
+                }
+                BeaconBeamBlock::Blocking => return Vec::new(),
+            }
+        }
+        sections
+    }
+
+    pub fn effect_applications(&self) -> Vec<BeaconEffectApplication> {
+        if self.levels <= 0 {
+            return Vec::new();
+        }
+        let Some(primary) = self.primary_power.as_ref() else {
+            return Vec::new();
+        };
+        let range = self.levels * 10 + 10;
+        let duration_ticks = (9 + self.levels * 2) * 20;
+        let mut out = vec![BeaconEffectApplication {
+            effect: primary.clone(),
+            duration_ticks,
+            amplifier: if self.levels >= 4 && self.secondary_power.as_ref() == Some(primary) {
+                1
+            } else {
+                0
+            },
+            range,
+        }];
+        if self.levels >= 4 {
+            if let Some(secondary) = self.secondary_power.as_ref() {
+                if secondary != primary {
+                    out.push(BeaconEffectApplication {
+                        effect: secondary.clone(),
+                        duration_ticks,
+                        amplifier: 0,
+                        range,
+                    });
+                }
+            }
+        }
+        out
+    }
+}
+
+fn filter_beacon_effect(effect: &str) -> Option<String> {
+    matches!(
+        effect,
+        "minecraft:speed"
+            | "minecraft:haste"
+            | "minecraft:resistance"
+            | "minecraft:jump_boost"
+            | "minecraft:strength"
+            | "minecraft:regeneration"
+    )
+    .then(|| effect.to_string())
+}
+
+fn average_argb(left: i32, right: i32) -> i32 {
+    let left = left as u32;
+    let right = right as u32;
+    let avg = |shift| (((left >> shift) & 0xFFu32) + ((right >> shift) & 0xFFu32)) / 2u32;
+    ((avg(24) << 24) | (avg(16) << 16) | (avg(8) << 8) | avg(0)) as i32
 }
 
 impl DyeColor {
@@ -3960,6 +4220,123 @@ mod tests {
         assert_eq!(
             ShelfBlockEntity::load_additional(&out_of_range),
             ShelfBlockEntity::new()
+        );
+    }
+
+    #[test]
+    fn beacon_tier_effect_payment_and_beam_state_match_vanilla_rules() {
+        let pos = BlockPos { x: 0, y: 64, z: 0 };
+        let full_four_tier = |block: BlockPos| {
+            let dy = pos.y - block.y;
+            (1..=4).contains(&dy) && block.x.abs() <= dy && block.z.abs() <= dy
+        };
+        assert_eq!(BeaconBlockEntity::update_base(pos, 0, full_four_tier), 4);
+        let broken_second_tier = |block: BlockPos| {
+            let dy = pos.y - block.y;
+            (1..=4).contains(&dy)
+                && block.x.abs() <= dy
+                && block.z.abs() <= dy
+                && !(dy == 2 && block.x == 2 && block.z == 0)
+        };
+        assert_eq!(
+            BeaconBlockEntity::update_base(pos, 0, broken_second_tier),
+            1
+        );
+        assert_eq!(
+            BeaconBlockEntity::update_base(BlockPos { x: 0, y: 1, z: 0 }, 1, |_| true),
+            0
+        );
+
+        let mut beacon = BeaconBlockEntity::new();
+        beacon.levels = 4;
+        beacon.set_primary_power(Some("minecraft:speed"));
+        beacon.set_secondary_power(Some("minecraft:speed"));
+        assert_eq!(beacon.comparator_output(), 4);
+        assert_eq!(
+            beacon.effect_applications(),
+            vec![BeaconEffectApplication {
+                effect: "minecraft:speed".to_string(),
+                duration_ticks: 340,
+                amplifier: 1,
+                range: 50,
+            }]
+        );
+        beacon.set_secondary_power(Some("minecraft:regeneration"));
+        assert_eq!(
+            beacon.effect_applications(),
+            vec![
+                BeaconEffectApplication {
+                    effect: "minecraft:speed".to_string(),
+                    duration_ticks: 340,
+                    amplifier: 0,
+                    range: 50,
+                },
+                BeaconEffectApplication {
+                    effect: "minecraft:regeneration".to_string(),
+                    duration_ticks: 340,
+                    amplifier: 0,
+                    range: 50,
+                },
+            ]
+        );
+
+        beacon.set_primary_power(Some("minecraft:night_vision"));
+        assert_eq!(beacon.primary_power, None);
+        assert!(BeaconBlockEntity::can_pay_with(&PotItemStack {
+            item_id: "minecraft:amethyst_shard".to_string(),
+            count: 1,
+        }));
+        assert!(!beacon.set_payment_item(Some(PotItemStack {
+            item_id: "minecraft:apple".to_string(),
+            count: 1,
+        })));
+        assert!(beacon.set_payment_item(Some(PotItemStack {
+            item_id: "minecraft:emerald".to_string(),
+            count: 1,
+        })));
+
+        beacon.primary_power = Some("minecraft:haste".to_string());
+        beacon.secondary_power = Some("minecraft:regeneration".to_string());
+        beacon.custom_name = Some("\"Beacon\"".to_string());
+        beacon.lock_key = Some("secret".to_string());
+        let saved = beacon.save_additional();
+        let loaded = BeaconBlockEntity::load_additional(&saved);
+        assert_eq!(loaded.levels, 4);
+        assert_eq!(loaded.primary_power.as_deref(), Some("minecraft:haste"));
+        assert_eq!(
+            loaded.secondary_power.as_deref(),
+            Some("minecraft:regeneration")
+        );
+        assert_eq!(loaded.display_name(), "\"Beacon\"");
+        assert_eq!(loaded.lock_key.as_deref(), Some("secret"));
+        assert_eq!(loaded.get_update_tag(), loaded.save_additional());
+
+        let sections = BeaconBlockEntity::scan_beam([
+            BeaconBeamBlock::TintedGlass(0xFFFF_0000u32 as i32),
+            BeaconBeamBlock::TintedGlass(0xFFFF_0000u32 as i32),
+            BeaconBeamBlock::TintedGlass(0xFF00_00FFu32 as i32),
+            BeaconBeamBlock::Transparent,
+        ]);
+        assert_eq!(
+            sections,
+            vec![
+                BeaconBeamSection {
+                    color: 0xFFFF_0000u32 as i32,
+                    height: 1,
+                },
+                BeaconBeamSection {
+                    color: 0xFFFF_0000u32 as i32,
+                    height: 1,
+                },
+                BeaconBeamSection {
+                    color: 0xFF7F_007Fu32 as i32,
+                    height: 2,
+                },
+            ]
+        );
+        assert_eq!(
+            BeaconBlockEntity::scan_beam([BeaconBeamBlock::Blocking]),
+            Vec::<BeaconBeamSection>::new()
         );
     }
 
