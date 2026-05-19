@@ -34,6 +34,7 @@ pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
 pub const SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID: i32 = 31;
 pub const SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID: i32 = 32;
 pub const SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID: i32 = 33;
+pub const SERVERBOUND_MOVE_VEHICLE_PACKET_ID: i32 = 34;
 pub const SERVERBOUND_KEEP_ALIVE_PACKET_ID: i32 = 28;
 pub const SERVERBOUND_PLAYER_ACTION_PACKET_ID: i32 = 41;
 pub const SERVERBOUND_PLAYER_COMMAND_PACKET_ID: i32 = 42;
@@ -178,6 +179,14 @@ pub struct ServerboundMovePlayerPacket {
     pub horizontal_collision: bool,
     pub has_position: bool,
     pub has_rotation: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerboundMoveVehiclePacket {
+    pub position: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
+    pub on_ground: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -931,6 +940,7 @@ pub struct PlaySession {
     pub selected_slot: i16,
     pub pending_teleports: BTreeSet<i32>,
     pub last_move: Option<ServerboundMovePlayerPacket>,
+    pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1009,6 +1019,7 @@ impl PlaySession {
             selected_slot,
             pending_teleports: BTreeSet::new(),
             last_move: None,
+            last_vehicle_move: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1160,6 +1171,18 @@ impl PlaySession {
             }
             SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
                 self.handle_move_payload(packet.payload, MoveShape::StatusOnly)
+            }
+            SERVERBOUND_MOVE_VEHICLE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundMoveVehiclePacket::read(&mut input) {
+                    Ok(packet) => {
+                        self.last_vehicle_move = Some(packet);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad vehicle movement packet: {err}"))
+                    }
+                }
             }
             SERVERBOUND_PADDLE_BOAT_PACKET_ID => {
                 let mut input = &packet.payload[..];
@@ -2509,6 +2532,30 @@ impl ServerboundMovePlayerPacket {
     }
 }
 
+impl ServerboundMoveVehiclePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            position: Vec3 {
+                x: read_f64(reader)?,
+                y: read_f64(reader)?,
+                z: read_f64(reader)?,
+            },
+            y_rot: read_f32(reader)?,
+            x_rot: read_f32(reader)?,
+            on_ground: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.position.x.to_be_bytes())?;
+        writer.write_all(&self.position.y.to_be_bytes())?;
+        writer.write_all(&self.position.z.to_be_bytes())?;
+        write_f32(writer, self.y_rot)?;
+        write_f32(writer, self.x_rot)?;
+        write_bool(writer, self.on_ground)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MoveShape {
     Pos,
@@ -3821,6 +3868,34 @@ mod tests {
         assert!(decoded_status.horizontal_collision);
         assert!(!decoded_status.has_position);
         assert!(!decoded_status.has_rotation);
+    }
+
+    #[test]
+    fn move_vehicle_packet_matches_vanilla_field_layout() {
+        let vehicle = ServerboundMoveVehiclePacket {
+            position: Vec3 {
+                x: 1.25,
+                y: 65.0,
+                z: -2.5,
+            },
+            y_rot: 90.0,
+            x_rot: 30.0,
+            on_ground: true,
+        };
+        let mut payload = Vec::new();
+        vehicle.write(&mut payload).unwrap();
+        assert_eq!(payload.len(), 33);
+
+        let decoded_vehicle =
+            ServerboundMoveVehiclePacket::read(&mut cursor(payload.clone())).unwrap();
+        assert_eq!(decoded_vehicle, vehicle);
+
+        let mut session = PlaySession::new(1, 0);
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_vehicle_move, Some(vehicle));
     }
 
     #[test]
