@@ -173,7 +173,10 @@ impl FoodState {
                 let heal = spent / 6.0;
                 self.add_exhaustion(spent);
                 self.tick_timer = 0;
-                FoodTickOutcome::FastHeal { amount: heal, exhaustion_cost: spent }
+                FoodTickOutcome::FastHeal {
+                    amount: heal,
+                    exhaustion_cost: spent,
+                }
             } else {
                 FoodTickOutcome::None
             }

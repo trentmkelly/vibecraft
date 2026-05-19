@@ -155,7 +155,9 @@ mod tests {
         let file_name = path.file_name().unwrap().to_string_lossy();
         assert!(file_name.starts_with("crash-"));
         assert!(file_name.ends_with("-server.txt"));
-        assert!(fs::read_to_string(path).unwrap().contains("Description: boom"));
+        assert!(fs::read_to_string(path)
+            .unwrap()
+            .contains("Description: boom"));
 
         let _ = fs::remove_dir_all(&dir);
     }

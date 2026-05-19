@@ -350,7 +350,11 @@ impl PlayerInventory {
     ///   destroyed (not returned).
     ///
     /// Returns the items to be spawned as item entities.
-    pub fn death_drops<F>(&mut self, keep_inventory: bool, has_prevent_equipment_drop: F) -> Vec<ItemStack>
+    pub fn death_drops<F>(
+        &mut self,
+        keep_inventory: bool,
+        has_prevent_equipment_drop: F,
+    ) -> Vec<ItemStack>
     where
         F: Fn(&ItemStack) -> bool,
     {
@@ -360,7 +364,11 @@ impl PlayerInventory {
         let total = self.container_size();
         let mut drops = Vec::new();
         for slot in 0..total {
-            let stack = if let Some(s) = self.stack_mut(slot) { s } else { continue };
+            let stack = if let Some(s) = self.stack_mut(slot) {
+                s
+            } else {
+                continue;
+            };
             if stack.is_empty() {
                 continue;
             }
@@ -957,7 +965,10 @@ mod tests {
         assert!(dropped_ids.contains(&"minecraft:leather_boots"));
         // All slots now empty.
         for slot in 0..43 {
-            assert!(inv.get(slot).is_empty(), "slot {slot} should be empty after death");
+            assert!(
+                inv.get(slot).is_empty(),
+                "slot {slot} should be empty after death"
+            );
         }
     }
 }

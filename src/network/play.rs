@@ -15,6 +15,9 @@ use crate::registry::Identifier;
 use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
 use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
+use crate::world_time::ClockNetworkState;
+#[cfg(test)]
+use crate::world_time::{OVERWORLD_CLOCK_ID, THE_END_CLOCK_ID};
 
 pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
 pub const CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 141;
@@ -834,17 +837,13 @@ pub struct ClientboundPingPacket {
     pub id: i32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ClockNetworkState {
-    pub total_ticks: i64,
-    pub partial_tick: f32,
-    pub rate: f32,
-}
-
+/// Java: net/minecraft/network/protocol/game/ClientboundSetTimePacket.java
+/// Wire: fixed i64 game_time (ByteBufCodecs.LONG), then VarInt map length followed by
+/// (VarInt worldclock_registry_id, ClockNetworkState) pairs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundSetTimePacket {
     pub game_time: i64,
-    pub clock_updates: BTreeMap<Identifier, ClockNetworkState>,
+    pub clock_updates: BTreeMap<i32, ClockNetworkState>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -7256,7 +7255,8 @@ impl ClockNetworkState {
 
 impl ClientboundSetTimePacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let game_time = read_var_i64(reader)?;
+        // Java: ByteBufCodecs.LONG — fixed 8-byte big-endian long, not a varint
+        let game_time = read_i64(reader)?;
         let clock_updates_len = read_var_i32(reader)?;
         if clock_updates_len < 0 {
             return Err(io::Error::new(
@@ -7267,7 +7267,8 @@ impl ClientboundSetTimePacket {
 
         let mut clock_updates = BTreeMap::new();
         for _ in 0..clock_updates_len {
-            let key = read_identifier(reader)?;
+            // Java: WorldClock.STREAM_CODEC = ByteBufCodecs.holderRegistry(WORLD_CLOCK) — VarInt ID
+            let key = read_var_i32(reader)?;
             let state = ClockNetworkState::read(reader)?;
             clock_updates.insert(key, state);
         }
@@ -7279,10 +7280,10 @@ impl ClientboundSetTimePacket {
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_var_i64(writer, self.game_time)?;
+        write_i64(writer, self.game_time)?;
         write_var_i32(writer, self.clock_updates.len() as i32)?;
-        for (clock, state) in &self.clock_updates {
-            write_identifier(writer, clock)?;
+        for (clock_id, state) in &self.clock_updates {
+            write_var_i32(writer, *clock_id)?;
             state.write(writer)?;
         }
         Ok(())
@@ -12264,18 +12265,16 @@ mod tests {
         );
 
         let mut set_time = Vec::new();
-        let mut clock_updates = BTreeMap::new();
-        clock_updates.insert(
-            Identifier::parse("minecraft:overworld").unwrap(),
-            ClockNetworkState {
-                total_ticks: 12345,
-                partial_tick: 0.25,
-                rate: 1.0,
-            },
-        );
         ClientboundSetTimePacket {
             game_time: 900_000,
-            clock_updates,
+            clock_updates: BTreeMap::from([(
+                OVERWORLD_CLOCK_ID,
+                ClockNetworkState {
+                    total_ticks: 12345,
+                    partial_tick: 0.25,
+                    rate: 1.0,
+                },
+            )]),
         }
         .write(&mut set_time)
         .unwrap();
@@ -12284,7 +12283,7 @@ mod tests {
             ClientboundSetTimePacket {
                 game_time: 900_000,
                 clock_updates: BTreeMap::from([(
-                    Identifier::parse("minecraft:overworld").unwrap(),
+                    OVERWORLD_CLOCK_ID,
                     ClockNetworkState {
                         total_ticks: 12345,
                         partial_tick: 0.25,

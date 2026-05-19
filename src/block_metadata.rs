@@ -5936,6 +5936,20 @@ const TORCH_PHYSICAL: BlockPhysicalProperties = BlockPhysicalProperties {
     pathfind_air: true,
     can_survive_without_support: false,
 };
+// All simple plants/flowers use .instabreak() in Java → destroyTime=0.0, explosionResistance=0.0,
+// noCollision(), sound(SoundType.GRASS).
+const INSTABREAK_PLANT_PHYSICAL: BlockPhysicalProperties = BlockPhysicalProperties {
+    map_color: "plant",
+    sound_type: "grass",
+    destroy_time: 0.0,
+    explosion_resistance: 0.0,
+    has_collision: false,
+    occludes: false,
+    light_emission: 0,
+    pathfind_land: true,
+    pathfind_air: true,
+    can_survive_without_support: false,
+};
 
 pub fn registry_entry_by_id(registry_id: &str) -> Option<&'static BlockRegistryEntry> {
     BLOCK_REGISTRY
@@ -6001,6 +6015,47 @@ pub fn representative_state_definition(registry_id: &str) -> Option<BlockStateDe
             collision_shape: ShapeKind::Empty,
             occlusion_shape: ShapeKind::Empty,
         },
+        // Instabreak plants — all use .instabreak() in Java (destroyTime=0.0, noCollision)
+        "minecraft:short_grass"
+        | "minecraft:fern"
+        | "minecraft:dead_bush"
+        | "minecraft:bush"
+        | "minecraft:short_dry_grass"
+        | "minecraft:dandelion"
+        | "minecraft:golden_dandelion"
+        | "minecraft:torchflower"
+        | "minecraft:poppy"
+        | "minecraft:blue_orchid"
+        | "minecraft:allium"
+        | "minecraft:azure_bluet"
+        | "minecraft:red_tulip"
+        | "minecraft:orange_tulip"
+        | "minecraft:white_tulip"
+        | "minecraft:pink_tulip"
+        | "minecraft:oxeye_daisy"
+        | "minecraft:cornflower"
+        | "minecraft:wither_rose"
+        | "minecraft:lily_of_the_valley"
+        | "minecraft:brown_mushroom"
+        | "minecraft:red_mushroom"
+        | "minecraft:wildflowers"
+        | "minecraft:firefly_bush"
+        | "minecraft:tall_grass"
+        | "minecraft:large_fern"
+        | "minecraft:rose_bush"
+        | "minecraft:peony"
+        | "minecraft:lilac"
+        | "minecraft:sunflower" => {
+            // Use the static registry_id string so the lifetime requirement is satisfied
+            let static_id = registry_entry_by_id(registry_id)?.registry_id;
+            return Some(BlockStateDefinition {
+                registry_id: static_id,
+                properties: EMPTY_PROPERTIES,
+                physical: INSTABREAK_PLANT_PHYSICAL,
+                collision_shape: ShapeKind::Empty,
+                occlusion_shape: ShapeKind::Empty,
+            });
+        }
         _ => return None,
     })
 }

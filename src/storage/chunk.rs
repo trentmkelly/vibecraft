@@ -540,6 +540,20 @@ impl PalettedContainer {
         })
     }
 
+    pub fn get_entry(&self, index: usize) -> Option<&Tag> {
+        if self.palette.len() == 1 {
+            return self.palette.first();
+        }
+        let bits = palette_bits_for_size(self.palette.len());
+        let indices = unpack_palette_indices(
+            self.data.as_deref().unwrap_or(&[]),
+            bits,
+            self.expected_entries,
+        );
+        let palette_idx = *indices.get(index)? as usize;
+        self.palette.get(palette_idx)
+    }
+
     pub fn set_entry(&mut self, index: usize, entry: Tag) {
         let palette_idx = match self.palette.iter().position(|e| e == &entry) {
             Some(i) => i,
@@ -569,6 +583,28 @@ impl PalettedContainer {
 }
 
 impl LevelChunk {
+    pub fn get_block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<String> {
+        let section_y = world_y.div_euclid(16) as i8;
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_y = world_y.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_y * 256 + local_z * 16 + local_x;
+        let section = self.sections.iter().find(|s| s.y == section_y)?;
+        let container = PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).ok()?;
+        let entry = container.get_entry(index)?;
+        if let Tag::Compound(fields) = entry {
+            fields.iter().find(|(k, _)| k == "Name").and_then(|(_, v)| {
+                if let Tag::String(name) = v {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        }
+    }
+
     pub fn set_block_state(&mut self, world_x: i32, world_y: i32, world_z: i32, block_name: &str) {
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
@@ -582,7 +618,9 @@ impl LevelChunk {
         )]);
 
         if let Some(section) = self.sections.iter_mut().find(|s| s.y == section_y) {
-            if let Ok(mut container) = PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME) {
+            if let Ok(mut container) =
+                PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
+            {
                 container.set_entry(index, entry);
                 section.block_states = container.to_nbt();
             }

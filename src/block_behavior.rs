@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::block_entity::has_block_entity_for_block;
 use crate::block_metadata::{default_state, representative_state_definition};
 use crate::block_update::{
     plan_chunk_block_updates, BlockChange, BlockPos, BlockUpdateAction, Direction, UpdateFlags,
@@ -185,20 +186,7 @@ impl BlockStateModel {
     }
 
     pub fn has_block_entity(&self) -> bool {
-        matches!(
-            self.registry_id.as_str(),
-            "minecraft:chest"
-                | "minecraft:trapped_chest"
-                | "minecraft:barrel"
-                | "minecraft:furnace"
-                | "minecraft:blast_furnace"
-                | "minecraft:smoker"
-                | "minecraft:beehive"
-                | "minecraft:lectern"
-                | "minecraft:sign"
-                | "minecraft:oak_sign"
-                | "minecraft:oak_hanging_sign"
-        )
+        has_block_entity_for_block(self.registry_id.as_str())
     }
 }
 
@@ -821,5 +809,15 @@ mod tests {
             BlockPos { x: 0, y: 64, z: 0 },
             "minecraft:crafting_table"
         ));
+    }
+
+    #[test]
+    fn block_entity_lookup_is_authoritative_for_block_states() {
+        assert!(BlockStateModel::new("minecraft:chest").has_block_entity());
+        assert!(BlockStateModel::new("minecraft:oak_sign").has_block_entity());
+        assert!(BlockStateModel::new("minecraft:chiseled_bookshelf").has_block_entity());
+        assert!(BlockStateModel::new("minecraft:campfire").has_block_entity());
+        assert!(!BlockStateModel::new("minecraft:stone").has_block_entity());
+        assert!(!BlockStateModel::new("minecraft:dirt").has_block_entity());
     }
 }

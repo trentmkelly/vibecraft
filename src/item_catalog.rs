@@ -322,6 +322,195 @@ pub fn concrete_item_class_count() -> usize {
         .count()
 }
 
+/// Maps a Minecraft item registry ID to its numeric protocol ID.
+/// Maps a Minecraft item registry ID to its numeric protocol ID.
+///
+/// Protocol IDs are sourced from the vanilla data generator reports:
+/// `java -DbundlerMainClass=net.minecraft.data.Main -jar server.jar --reports`
+/// which produces `generated/reports/registries.json` with authoritative `protocol_id` values.
+pub fn item_protocol_id(registry_id: &str) -> Option<i32> {
+    let key = registry_id
+        .strip_prefix("minecraft:")
+        .unwrap_or(registry_id);
+    Some(match key {
+        // Stone variants
+        "air" => 0,
+        "stone" => 1,
+        "granite" => 2,
+        "polished_granite" => 3,
+        "diorite" => 4,
+        "polished_diorite" => 5,
+        "andesite" => 6,
+        "polished_andesite" => 7,
+        "deepslate" => 8,
+        "cobbled_deepslate" => 9,
+        // Dirt/soil
+        "grass_block" => 27,
+        "dirt" => 28,
+        "coarse_dirt" => 29,
+        "podzol" => 30,
+        "rooted_dirt" => 31,
+        "mud" => 32,
+        "clay" => 343,
+        "cobblestone" => 35,
+        // Saplings
+        "oak_sapling" => 49,
+        "spruce_sapling" => 50,
+        "birch_sapling" => 51,
+        "jungle_sapling" => 52,
+        "acacia_sapling" => 53,
+        "cherry_sapling" => 54,
+        "dark_oak_sapling" => 55,
+        "pale_oak_sapling" => 56,
+        "mangrove_propagule" => 57,
+        // Wood — planks
+        "oak_planks" => 36,
+        "spruce_planks" => 37,
+        "birch_planks" => 38,
+        "jungle_planks" => 39,
+        "acacia_planks" => 40,
+        "dark_oak_planks" => 42,
+        // Terrain
+        "sand" => 59,
+        "red_sand" => 62,
+        "gravel" => 63,
+        "flint" => 983,
+        // Ore blocks (for silk touch — not yet implemented, here for completeness)
+        "coal_ore" => 64,
+        "deepslate_coal_ore" => 65,
+        "iron_ore" => 66,
+        "deepslate_iron_ore" => 67,
+        "copper_ore" => 68,
+        "deepslate_copper_ore" => 69,
+        "gold_ore" => 70,
+        "deepslate_gold_ore" => 71,
+        "redstone_ore" | "lit_redstone_ore" => 72,
+        "deepslate_redstone_ore" | "lit_deepslate_redstone_ore" => 73,
+        "emerald_ore" => 74,
+        "deepslate_emerald_ore" => 75,
+        "lapis_ore" => 76,
+        "deepslate_lapis_ore" => 77,
+        "diamond_ore" => 78,
+        "deepslate_diamond_ore" => 79,
+        "nether_gold_ore" => 80,
+        "nether_quartz_ore" => 81,
+        // Ore drops
+        "coal" => 897,
+        "raw_iron" => 904,
+        "raw_gold" => 908,
+        "raw_copper" => 906,
+        "redstone" => 718,
+        "diamond" => 899,
+        "emerald" => 900,
+        "lapis_lazuli" => 901,
+        "quartz" => 902,
+        "gold_nugget" => 1119,
+        // Wood — logs (each variant has a distinct protocol ID)
+        "oak_log" => 134,
+        "spruce_log" => 135,
+        "birch_log" => 136,
+        "jungle_log" => 137,
+        "acacia_log" => 138,
+        "dark_oak_log" => 141,
+        "stripped_oak_log" => 148,
+        "stripped_spruce_log" => 149,
+        "stripped_birch_log" => 150,
+        "stripped_jungle_log" => 151,
+        "stripped_acacia_log" => 152,
+        "stripped_dark_oak_log" => 154,
+        "oak_wood" => 171,
+        "spruce_wood" => 172,
+        "birch_wood" => 173,
+        "jungle_wood" => 174,
+        "acacia_wood" => 175,
+        "dark_oak_wood" => 178,
+        "stripped_oak_wood" => 159,
+        "stripped_spruce_wood" => 160,
+        "stripped_birch_wood" => 161,
+        "stripped_jungle_wood" => 162,
+        "stripped_acacia_wood" => 163,
+        "stripped_dark_oak_wood" => 165,
+        // Leaves (for shears self-drop)
+        "oak_leaves" => 182,
+        "spruce_leaves" => 183,
+        "birch_leaves" => 184,
+        "jungle_leaves" => 185,
+        "acacia_leaves" => 186,
+        "cherry_leaves" => 187,
+        "dark_oak_leaves" => 188,
+        "pale_oak_leaves" => 189,
+        "mangrove_leaves" => 190,
+        "azalea_leaves" => 191,
+        "flowering_azalea_leaves" => 192,
+        // Sandstone
+        "sandstone" => 198,
+        "chiseled_sandstone" => 199,
+        "cut_sandstone" => 200,
+        "smooth_sandstone" => 303,
+        // Plants — grass-type
+        "short_grass" => 202,
+        "fern" => 203,
+        "dead_bush" => 207,
+        "firefly_bush" => 208,
+        // Azalea bushes (drop from azalea/flowering_azalea leaves)
+        "azalea" => 205,
+        "flowering_azalea" => 206,
+        // Flowers — all self-drop
+        "dandelion" => 229,
+        "golden_dandelion" => 230,
+        "poppy" => 233,
+        "blue_orchid" => 234,
+        "allium" => 235,
+        "azure_bluet" => 236,
+        "red_tulip" => 237,
+        "orange_tulip" => 238,
+        "white_tulip" => 239,
+        "pink_tulip" => 240,
+        "oxeye_daisy" => 241,
+        "cornflower" => 242,
+        "lily_of_the_valley" => 243,
+        "wither_rose" => 244,
+        "torchflower" => 245,
+        "brown_mushroom" => 248,
+        "red_mushroom" => 249,
+        "wildflowers" => 260,
+        // Double-tall flowers (drop self from lower half)
+        "sunflower" => 525,
+        "lilac" => 526,
+        "rose_bush" => 527,
+        "peony" => 528,
+        // Crops and food
+        "apple" => 894,
+        "carrot" => 1228,
+        "potato" => 1229,
+        "poisonous_potato" => 1231,
+        "beetroot" => 1288,
+        "beetroot_seeds" => 1289,
+        "melon_slice" => 1107,
+        // Natural blocks
+        "sugar_cane" => 257,
+        "pumpkin" => 357,
+        "melon" => 410,
+        "cactus" => 341,
+        "bamboo" => 270,
+        "snow" => 338,
+        "snow_block" => 340,
+        "glowstone" => 368,
+        "sea_lantern" => 569,
+        "bookshelf" => 318,
+        // Natural block fragment drops
+        "clay_ball" => 1027,
+        "glowstone_dust" => 1057,
+        "prismarine_crystals" => 1249,
+        "snowball" => 1017,
+        "book" => 1030,
+        // Crafted items
+        "stick" => 947,
+        "wheat_seeds" => 952,
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

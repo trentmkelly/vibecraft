@@ -943,7 +943,9 @@ mod tests {
         assert!(has_block_entity_for_block("minecraft:oak_hanging_sign"));
         assert!(has_block_entity_for_block("minecraft:lectern"));
         assert!(has_block_entity_for_block("minecraft:command_block"));
-        assert!(has_block_entity_for_block("minecraft:wither_skeleton_skull"));
+        assert!(has_block_entity_for_block(
+            "minecraft:wither_skeleton_skull"
+        ));
         assert!(has_block_entity_for_block("minecraft:red_banner"));
         assert!(has_block_entity_for_block("minecraft:conduit"));
         assert!(has_block_entity_for_block("minecraft:bell"));
@@ -954,13 +956,17 @@ mod tests {
         assert!(has_block_entity_for_block("minecraft:spawner"));
         assert!(has_block_entity_for_block("minecraft:vault"));
         assert!(has_block_entity_for_block("minecraft:trial_spawner"));
-        assert!(has_block_entity_for_block("minecraft:calibrated_sculk_sensor"));
+        assert!(has_block_entity_for_block(
+            "minecraft:calibrated_sculk_sensor"
+        ));
         assert!(has_block_entity_for_block("minecraft:chiseled_bookshelf"));
         assert!(has_block_entity_for_block("minecraft:suspicious_sand"));
         assert!(has_block_entity_for_block("minecraft:green_bed"));
         assert!(has_block_entity_for_block("minecraft:black_shulker_box"));
         assert!(has_block_entity_for_block("minecraft:crimson_shelf"));
-        assert!(has_block_entity_for_block("minecraft:warped_wall_hanging_sign"));
+        assert!(has_block_entity_for_block(
+            "minecraft:warped_wall_hanging_sign"
+        ));
         assert!(has_block_entity_for_block("minecraft:campfire"));
         assert!(!has_block_entity_for_block("minecraft:candle"));
         assert!(!has_block_entity_for_block("minecraft:cauldron"));

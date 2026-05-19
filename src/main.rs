@@ -216,10 +216,7 @@ fn run(options: CliOptions) -> Result<(), String> {
         "serverId={}",
         options.server_id.as_deref().unwrap_or("")
     ))?;
-    logger.info(&format!(
-        "maxTickTime={}",
-        watchdog.max_tick_time_millis()
-    ))?;
+    logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))?;
     let (console_input, _console_handle) = console::spawn_console_input_thread();
     logger.info("Started server console input thread")?;
 

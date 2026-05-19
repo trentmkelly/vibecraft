@@ -840,8 +840,11 @@ mod tests {
             .schemas
             .iter()
             .any(|schema| schema.name == "PlayerDto" && schema.fields == ["id", "name"]));
-        assert!(discovery.schemas.iter().any(|schema| schema.name == "ServerMetricsDto"
-            && schema.fields.contains(&"tickDurationNanos".to_string())));
+        assert!(discovery
+            .schemas
+            .iter()
+            .any(|schema| schema.name == "ServerMetricsDto"
+                && schema.fields.contains(&"tickDurationNanos".to_string())));
     }
 
     #[test]

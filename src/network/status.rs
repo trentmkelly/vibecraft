@@ -10,7 +10,13 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::block_metadata::representative_state_definition;
 use crate::console::ConsoleInput;
+use crate::item_catalog::item_protocol_id;
+use crate::loot_system::{
+    LootCondition, LootContext, LootEntry, LootFunction, LootParamSet, LootPool, LootTable,
+    NumberProvider,
+};
 use crate::network::codec::ComponentJson;
 use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
 use crate::network::common::{
@@ -58,6 +64,7 @@ use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
+use crate::storage::chunk::LevelChunk;
 use crate::storage::nbt::Tag;
 use crate::storage::region::{ChunkPos, RegionFile};
 use crate::storage::world::WorldLayout;
@@ -1326,6 +1333,15 @@ fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_vanilla_instrument_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java:125,160
+    // Registries.WORLD_CLOCK uses WorldClock.DIRECT_CODEC (MapCodec.unitCodec — empty compound).
+    // Must be sent before any ClientboundSetTimePacket so the client can resolve clock VarInt IDs.
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_world_clock_registry_packet,
+    )?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -1469,8 +1485,41 @@ fn handle_login_connection(
                     let mut direction_byte = [0u8; 1];
                     input.read_exact(&mut direction_byte)?;
                     let sequence = read_var_i32(&mut input)?;
-                    let should_break =
-                        action == 2 || (action == 0 && play_state.game_mode == GameMode::Creative);
+                    let (dbx, dby, dbz) = unpack_block_position(packed_pos);
+                    eprintln!(
+                        "[DEBUG] player_action action={action} pos=({dbx},{dby},{dbz}) mode={:?}",
+                        play_state.game_mode
+                    );
+                    // Java ServerPlayerGameMode: START_DESTROY_BLOCK with getDestroyProgress >= 1.0
+                    // (i.e. destroy_time == 0) → "insta mine" — break immediately, same as creative.
+                    if action == 0 {
+                        let chunk_pos_dbg = ChunkPos {
+                            x: dbx.div_euclid(16),
+                            z: dbz.div_euclid(16),
+                        };
+                        let actual_block =
+                            read_block_at(&world_layout, chunk_pos_dbg, dbx, dby, dbz);
+                        let destroy_time = actual_block
+                            .as_deref()
+                            .and_then(|name| representative_state_definition(name))
+                            .map(|def| def.physical.destroy_time);
+                        eprintln!("[DEBUG] instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}");
+                    }
+                    let is_instabreak =
+                        action == 0 && play_state.game_mode != GameMode::Creative && {
+                            let chunk_pos_ib = ChunkPos {
+                                x: dbx.div_euclid(16),
+                                z: dbz.div_euclid(16),
+                            };
+                            read_block_at(&world_layout, chunk_pos_ib, dbx, dby, dbz)
+                                .as_deref()
+                                .and_then(|name| representative_state_definition(name))
+                                .map(|def| def.physical.destroy_time == 0.0)
+                                .unwrap_or(false)
+                        };
+                    let should_break = action == 2
+                        || (action == 0 && play_state.game_mode == GameMode::Creative)
+                        || is_instabreak;
                     if should_break {
                         write_framed_packet_with_compression(
                             stream,
@@ -1492,15 +1541,23 @@ fn handle_login_connection(
                             x: bx.div_euclid(16),
                             z: bz.div_euclid(16),
                         };
-                        let block_state = get_block_state_at(bx, by, bz);
-                        save_broken_block_to_region(&world_layout, chunk_pos, bx, by, bz);
+                        let block_name =
+                            break_block_in_region(&world_layout, chunk_pos, bx, by, bz);
+                        eprintln!("[DEBUG] block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}", play_state.game_mode);
                         if play_state.game_mode != GameMode::Creative {
-                            if let Some(item_id) = block_state_to_item_drop(block_state) {
+                            let loot_seed = (bx as u64).wrapping_mul(0x9E37_79B9)
+                                ^ (by as u64).wrapping_mul(0x6C62_272E)
+                                ^ (bz as u64).wrapping_mul(0x517C_C1B7);
+                            let drops = block_name
+                                .as_deref()
+                                .map(|n| evaluate_block_loot(n, loot_seed))
+                                .unwrap_or_default();
+                            let drop_x = bx as f64 + 0.5;
+                            let drop_y = by as f64 + 0.5;
+                            let drop_z = bz as f64 + 0.5;
+                            for (item_id, count) in drops {
                                 entity_id_counter = entity_id_counter.wrapping_add(1);
                                 let eid = entity_id_counter;
-                                let drop_x = bx as f64 + 0.5;
-                                let drop_y = by as f64 + 0.5;
-                                let drop_z = bz as f64 + 0.5;
                                 write_framed_packet_with_compression(
                                     stream,
                                     compression,
@@ -1517,9 +1574,9 @@ fn handle_login_connection(
                                         p.write_all(&drop_x.to_be_bytes())?;
                                         p.write_all(&drop_y.to_be_bytes())?;
                                         p.write_all(&drop_z.to_be_bytes())?;
-                                        p.write_all(&[0u8])?; // movement = Vec3.ZERO (LpVec3: 0x00)
-                                        p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
-                                        write_var_i32(p, 0) // data
+                                        p.write_all(&[0u8])?;
+                                        p.write_all(&[0u8, 0u8, 0u8])?;
+                                        write_var_i32(p, 0)
                                     },
                                 )?;
                                 write_framed_packet_with_compression(
@@ -1528,13 +1585,13 @@ fn handle_login_connection(
                                     CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
                                     |p| {
                                         write_var_i32(p, eid)?;
-                                        p.write_all(&[8u8])?; // metadata index 8 = item stack
-                                        write_var_i32(p, 7)?; // serializer id: ItemStack
-                                        write_var_i32(p, 1)?; // count = 1
+                                        p.write_all(&[8u8])?;
+                                        write_var_i32(p, 7)?;
+                                        write_var_i32(p, count)?;
                                         write_var_i32(p, item_id)?;
-                                        write_var_i32(p, 0)?; // add_components = 0
-                                        write_var_i32(p, 0)?; // remove_components = 0
-                                        p.write_all(&[0xFFu8]) // end of metadata
+                                        write_var_i32(p, 0)?;
+                                        write_var_i32(p, 0)?;
+                                        p.write_all(&[0xFFu8])
                                     },
                                 )?;
                             }
@@ -2710,43 +2767,799 @@ fn get_block_state_at(x: i32, y: i32, z: i32) -> i32 {
     STONE_BLOCK_STATE_ID
 }
 
-fn block_state_to_item_drop(block_state_id: i32) -> Option<i32> {
-    match block_state_id {
-        STONE_BLOCK_STATE_ID => Some(35),      // stone → cobblestone
-        GRANITE_BLOCK_STATE_ID => Some(2),     // granite → granite
-        DIORITE_BLOCK_STATE_ID => Some(4),     // diorite → diorite
-        ANDESITE_BLOCK_STATE_ID => Some(6),    // andesite → andesite
-        GRASS_BLOCK_STATE_ID => Some(28),      // grass block → dirt
-        DIRT_BLOCK_STATE_ID => Some(28),       // dirt → dirt
-        DANDELION_BLOCK_STATE_ID => Some(229), // dandelion → dandelion
-        POPPY_BLOCK_STATE_ID => Some(233),     // poppy → poppy
-        _ => None,
+/// Builds the block loot table for `block_name`, matching the JSON loot tables
+/// from data/minecraft/loot_table/blocks/ in the Java source.
+fn block_loot_table(block_name: &str) -> Option<LootTable> {
+    let key = block_name.strip_prefix("minecraft:").unwrap_or(block_name);
+    let random_sequence = format!("minecraft:blocks/{key}");
+
+    // A pool that drops one stack of `item` unconditionally.
+    fn self_drop_table(item: &str, sequence: String) -> LootTable {
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools: vec![LootPool::single(LootEntry::item(
+                format!("minecraft:{item}"),
+                1,
+            ))],
+            functions: Vec::new(),
+        }
     }
+
+    // A pool that drops one stack of `item` only if the block survives explosion.
+    // For normal block breaking (no explosion), this always drops.
+    fn self_drop_survives_explosion(item: &str, sequence: String) -> LootTable {
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools: vec![LootPool {
+                entries: vec![LootEntry::item(format!("minecraft:{item}"), 1)],
+                conditions: vec![LootCondition::SurvivesExplosion],
+                functions: Vec::new(),
+                rolls: NumberProvider::Constant(1.0),
+                bonus_rolls: NumberProvider::Constant(0.0),
+            }],
+            functions: Vec::new(),
+        }
+    }
+
+    // Ore that always drops a single item (coal, iron, gold, diamond, emerald, quartz).
+    // Silk touch (ore block self-drop) not yet implemented; always uses the raw-product path.
+    fn ore_drop_1(drop_item: &str, sequence: String) -> LootTable {
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: format!("minecraft:{drop_item}"),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![LootFunction::ApplyExplosionDecay],
+            })],
+            functions: Vec::new(),
+        }
+    }
+
+    // Ore that drops a uniform-count range (copper 2-5, redstone 4-5, lapis 4-9, etc.).
+    // Fortune bonuses not yet implemented; `min`/`max` are base counts.
+    fn ore_drop_count(drop_item: &str, min: f32, max: f32, sequence: String) -> LootTable {
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: format!("minecraft:{drop_item}"),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Uniform { min, max }),
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        }
+    }
+
+    // Grass-type plants: shears → self, else 12.5% chance of wheat_seeds.
+    fn grass_table(self_item: &str, sequence: String) -> LootTable {
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools: vec![LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: format!("minecraft:{self_item}"),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::MatchTool {
+                        item: "minecraft:shears".to_string(),
+                    }],
+                    functions: Vec::new(),
+                },
+                LootEntry::Item {
+                    item: "minecraft:wheat_seeds".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::RandomChance(0.125)],
+                    functions: Vec::new(),
+                },
+            ]))],
+            functions: Vec::new(),
+        }
+    }
+
+    // Standard leaf block: shears → leaves, else sapling at `sapling_chance` (fortune-0 base),
+    // plus a 2% stick pool when not using shears. Oak additionally has a 0.5% apple pool.
+    // Silk touch and fortune bonuses not yet implemented.
+    fn leaves_table(
+        leaves_item: &str,
+        sapling_item: &str,
+        sapling_chance: f32,
+        has_apple_pool: bool,
+        sequence: String,
+    ) -> LootTable {
+        let not_shears = LootCondition::Inverted(Box::new(LootCondition::MatchTool {
+            item: "minecraft:shears".to_string(),
+        }));
+        let mut pools = vec![
+            // Pool 0: shears → leaves block, else sapling with survival + chance
+            LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: format!("minecraft:{leaves_item}"),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::MatchTool {
+                        item: "minecraft:shears".to_string(),
+                    }],
+                    functions: Vec::new(),
+                },
+                LootEntry::Item {
+                    item: format!("minecraft:{sapling_item}"),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![
+                        LootCondition::SurvivesExplosion,
+                        LootCondition::RandomChance(sapling_chance),
+                    ],
+                    functions: Vec::new(),
+                },
+            ])),
+            // Pool 1: 2% chance of 1-2 sticks when not using shears
+            LootPool {
+                entries: vec![LootEntry::Item {
+                    item: "minecraft:stick".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::RandomChance(0.02)],
+                    functions: vec![
+                        LootFunction::SetCount(NumberProvider::Uniform { min: 1.0, max: 2.0 }),
+                        LootFunction::ApplyExplosionDecay,
+                    ],
+                }],
+                conditions: vec![not_shears.clone()],
+                functions: Vec::new(),
+                rolls: NumberProvider::Constant(1.0),
+                bonus_rolls: NumberProvider::Constant(0.0),
+            },
+        ];
+        if has_apple_pool {
+            // Pool 2 (oak only): 0.5% apple when not using shears
+            pools.push(LootPool {
+                entries: vec![LootEntry::Item {
+                    item: "minecraft:apple".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![
+                        LootCondition::SurvivesExplosion,
+                        LootCondition::RandomChance(0.005),
+                    ],
+                    functions: Vec::new(),
+                }],
+                conditions: vec![not_shears],
+                functions: Vec::new(),
+                rolls: NumberProvider::Constant(1.0),
+                bonus_rolls: NumberProvider::Constant(0.0),
+            });
+        }
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools,
+            functions: Vec::new(),
+        }
+    }
+
+    // Fully-grown crop: 1 food item + Binomial(3, 0.5714) bonus `bonus_item`.
+    // Block-state age checks not yet implemented; always applies mature-crop drops.
+    // Fortune bonuses not yet implemented; Binomial(3, 0.5714) is the fortune-0 base count.
+    fn mature_crop_table(food_item: &str, bonus_item: &str, sequence: String) -> LootTable {
+        LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(sequence),
+            pools: vec![
+                LootPool::single(LootEntry::item(format!("minecraft:{food_item}"), 1)),
+                LootPool::single(LootEntry::Item {
+                    item: format!("minecraft:{bonus_item}"),
+                    weight: 1,
+                    quality: 0,
+                    conditions: Vec::new(),
+                    functions: vec![LootFunction::SetCount(NumberProvider::Binomial {
+                        n: 3,
+                        p: 0.5714286,
+                    })],
+                }),
+            ],
+            functions: vec![LootFunction::ApplyExplosionDecay],
+        }
+    }
+
+    Some(match key {
+        // ── TERRAIN ────────────────────────────────────────────────────────────────────────
+
+        // These drop cobblestone/dirt instead of themselves (silk touch not implemented)
+        "stone" => self_drop_table("cobblestone", random_sequence),
+        "grass_block" | "mycelium" | "podzol" | "dirt_path" | "farmland" => {
+            self_drop_table("dirt", random_sequence)
+        }
+
+        // Clay → 4 clay_balls (silk touch not implemented)
+        "clay" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:clay_ball".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Constant(4.0)),
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Gravel: 10% flint (fortune-0 base), else gravel. Both require survives_explosion.
+        "gravel" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: "minecraft:flint".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![
+                        LootCondition::SurvivesExplosion,
+                        LootCondition::RandomChance(0.1),
+                    ],
+                    functions: Vec::new(),
+                },
+                LootEntry::Item {
+                    item: "minecraft:gravel".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::SurvivesExplosion],
+                    functions: Vec::new(),
+                },
+            ]))],
+            functions: Vec::new(),
+        },
+
+        // Terrain self-drops
+        "granite"
+        | "polished_granite"
+        | "diorite"
+        | "polished_diorite"
+        | "andesite"
+        | "polished_andesite"
+        | "deepslate"
+        | "cobbled_deepslate"
+        | "cobblestone"
+        | "dirt"
+        | "coarse_dirt"
+        | "rooted_dirt"
+        | "mud"
+        | "sand"
+        | "red_sand"
+        | "sandstone"
+        | "chiseled_sandstone"
+        | "cut_sandstone"
+        | "smooth_sandstone" => self_drop_table(key, random_sequence),
+
+        // ── ORES ───────────────────────────────────────────────────────────────────────────
+        // Silk touch (ore block self-drop) not yet implemented; always drops raw product.
+        // Fortune bonuses not yet implemented; counts are base values.
+
+        "coal_ore" | "deepslate_coal_ore" => ore_drop_1("coal", random_sequence),
+        "iron_ore" | "deepslate_iron_ore" => ore_drop_1("raw_iron", random_sequence),
+        "gold_ore" | "deepslate_gold_ore" => ore_drop_1("raw_gold", random_sequence),
+        "copper_ore" | "deepslate_copper_ore" => {
+            ore_drop_count("raw_copper", 2.0, 5.0, random_sequence)
+        }
+        "redstone_ore"
+        | "lit_redstone_ore"
+        | "deepslate_redstone_ore"
+        | "lit_deepslate_redstone_ore" => ore_drop_count("redstone", 4.0, 5.0, random_sequence),
+        "emerald_ore" | "deepslate_emerald_ore" => ore_drop_1("emerald", random_sequence),
+        "lapis_ore" | "deepslate_lapis_ore" => {
+            ore_drop_count("lapis_lazuli", 4.0, 9.0, random_sequence)
+        }
+        "diamond_ore" | "deepslate_diamond_ore" => ore_drop_1("diamond", random_sequence),
+        "nether_quartz_ore" => ore_drop_1("quartz", random_sequence),
+        "nether_gold_ore" => ore_drop_count("gold_nugget", 2.0, 6.0, random_sequence),
+
+        // ── WOOD ───────────────────────────────────────────────────────────────────────────
+        "oak_log"
+        | "spruce_log"
+        | "birch_log"
+        | "jungle_log"
+        | "acacia_log"
+        | "dark_oak_log"
+        | "stripped_oak_log"
+        | "stripped_spruce_log"
+        | "stripped_birch_log"
+        | "stripped_jungle_log"
+        | "stripped_acacia_log"
+        | "stripped_dark_oak_log"
+        | "oak_wood"
+        | "spruce_wood"
+        | "birch_wood"
+        | "jungle_wood"
+        | "acacia_wood"
+        | "dark_oak_wood"
+        | "stripped_oak_wood"
+        | "stripped_spruce_wood"
+        | "stripped_birch_wood"
+        | "stripped_jungle_wood"
+        | "stripped_acacia_wood"
+        | "stripped_dark_oak_wood"
+        | "oak_planks"
+        | "spruce_planks"
+        | "birch_planks"
+        | "jungle_planks"
+        | "acacia_planks"
+        | "dark_oak_planks" => self_drop_table(key, random_sequence),
+
+        // ── LEAVES ─────────────────────────────────────────────────────────────────────────
+        // Silk touch and fortune bonuses not yet implemented. Sapling chance is fortune-0 base.
+        // Stick drop: 2% when not using shears. Oak additionally has a 0.5% apple drop.
+
+        "oak_leaves" => leaves_table("oak_leaves", "oak_sapling", 0.05, true, random_sequence),
+        "spruce_leaves" => {
+            leaves_table("spruce_leaves", "spruce_sapling", 0.05, false, random_sequence)
+        }
+        "birch_leaves" => {
+            leaves_table("birch_leaves", "birch_sapling", 0.05, false, random_sequence)
+        }
+        // Jungle sapling has a lower base drop chance (2.5% vs 5%)
+        "jungle_leaves" => {
+            leaves_table("jungle_leaves", "jungle_sapling", 0.025, false, random_sequence)
+        }
+        "acacia_leaves" => {
+            leaves_table("acacia_leaves", "acacia_sapling", 0.05, false, random_sequence)
+        }
+        "dark_oak_leaves" => {
+            leaves_table("dark_oak_leaves", "dark_oak_sapling", 0.05, false, random_sequence)
+        }
+        "cherry_leaves" => {
+            leaves_table("cherry_leaves", "cherry_sapling", 0.05, false, random_sequence)
+        }
+        "pale_oak_leaves" => {
+            leaves_table("pale_oak_leaves", "pale_oak_sapling", 0.05, false, random_sequence)
+        }
+        // Azalea leaves drop an azalea bush (not a sapling variant)
+        "azalea_leaves" => {
+            leaves_table("azalea_leaves", "azalea", 0.05, false, random_sequence)
+        }
+        "flowering_azalea_leaves" => leaves_table(
+            "flowering_azalea_leaves",
+            "flowering_azalea",
+            0.05,
+            false,
+            random_sequence,
+        ),
+        // Mangrove leaves: no propagule from breaking; only sticks via the shears-alternative
+        "mangrove_leaves" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: "minecraft:mangrove_leaves".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::MatchTool {
+                        item: "minecraft:shears".to_string(),
+                    }],
+                    functions: Vec::new(),
+                },
+                LootEntry::Item {
+                    item: "minecraft:stick".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::RandomChance(0.02)],
+                    functions: vec![
+                        LootFunction::SetCount(NumberProvider::Uniform { min: 1.0, max: 2.0 }),
+                        LootFunction::ApplyExplosionDecay,
+                    ],
+                },
+            ]))],
+            functions: Vec::new(),
+        },
+
+        // ── PLANTS ─────────────────────────────────────────────────────────────────────────
+
+        // Grass-type: shears → self, else 12.5% wheat_seeds
+        "short_grass" => grass_table("short_grass", random_sequence),
+        "fern" => grass_table("fern", random_sequence),
+
+        // Double-tall grass: same logic, but shears yield 2 items
+        "tall_grass" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: "minecraft:short_grass".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::MatchTool {
+                        item: "minecraft:shears".to_string(),
+                    }],
+                    functions: vec![LootFunction::SetCount(NumberProvider::Constant(2.0))],
+                },
+                LootEntry::Item {
+                    item: "minecraft:wheat_seeds".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![
+                        LootCondition::SurvivesExplosion,
+                        LootCondition::RandomChance(0.125),
+                    ],
+                    functions: Vec::new(),
+                },
+            ]))],
+            functions: Vec::new(),
+        },
+        "large_fern" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: "minecraft:fern".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::MatchTool {
+                        item: "minecraft:shears".to_string(),
+                    }],
+                    functions: vec![LootFunction::SetCount(NumberProvider::Constant(2.0))],
+                },
+                LootEntry::Item {
+                    item: "minecraft:wheat_seeds".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![
+                        LootCondition::SurvivesExplosion,
+                        LootCondition::RandomChance(0.125),
+                    ],
+                    functions: Vec::new(),
+                },
+            ]))],
+            functions: Vec::new(),
+        },
+
+        // Dead bush: shears → dead_bush, else 0-2 sticks
+        "dead_bush" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Alternatives(vec![
+                LootEntry::Item {
+                    item: "minecraft:dead_bush".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::MatchTool {
+                        item: "minecraft:shears".to_string(),
+                    }],
+                    functions: Vec::new(),
+                },
+                LootEntry::Item {
+                    item: "minecraft:stick".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: Vec::new(),
+                    functions: vec![
+                        LootFunction::SetCount(NumberProvider::Uniform { min: 0.0, max: 2.0 }),
+                        LootFunction::ApplyExplosionDecay,
+                    ],
+                },
+            ]))],
+            functions: Vec::new(),
+        },
+
+        // Single-block flowers: always self-drop
+        "dandelion"
+        | "golden_dandelion"
+        | "torchflower"
+        | "poppy"
+        | "blue_orchid"
+        | "allium"
+        | "azure_bluet"
+        | "red_tulip"
+        | "orange_tulip"
+        | "white_tulip"
+        | "pink_tulip"
+        | "oxeye_daisy"
+        | "cornflower"
+        | "wither_rose"
+        | "lily_of_the_valley"
+        | "brown_mushroom"
+        | "red_mushroom"
+        | "wildflowers"
+        | "firefly_bush" => self_drop_table(key, random_sequence),
+
+        // Double-tall flowers: drop self (survives_explosion).
+        // Java checks block_state_property half=lower (only lower half drops), which we can't
+        // evaluate yet. Simplification: always drop on any half break.
+        "sunflower" | "lilac" | "rose_bush" | "peony" => {
+            self_drop_survives_explosion(key, random_sequence)
+        }
+
+        // ── CROPS ──────────────────────────────────────────────────────────────────────────
+        // Block-state age checks not yet implemented; always treats crop as fully grown.
+        // Fortune bonuses not yet implemented; Binomial(3, 0.5714) is the fortune-0 base count.
+
+        // Wheat at age 7: 1 wheat + Binomial(3, 0.57) bonus wheat_seeds
+        "wheat" => mature_crop_table("wheat", "wheat_seeds", random_sequence),
+        // Carrots at age 7: 1 carrot + Binomial(3, 0.57) bonus carrots
+        "carrots" => mature_crop_table("carrot", "carrot", random_sequence),
+        // Beetroots at age 3: 1 beetroot + Binomial(3, 0.57) bonus beetroot_seeds
+        "beetroots" => mature_crop_table("beetroot", "beetroot_seeds", random_sequence),
+        // Potatoes at age 7: 1 potato + bonus potatoes + 2% poisonous_potato
+        "potatoes" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![
+                LootPool::single(LootEntry::item("minecraft:potato".to_string(), 1)),
+                LootPool::single(LootEntry::Item {
+                    item: "minecraft:potato".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: Vec::new(),
+                    functions: vec![LootFunction::SetCount(NumberProvider::Binomial {
+                        n: 3,
+                        p: 0.5714286,
+                    })],
+                }),
+                LootPool::single(LootEntry::Item {
+                    item: "minecraft:poisonous_potato".to_string(),
+                    weight: 1,
+                    quality: 0,
+                    conditions: vec![LootCondition::RandomChance(0.02)],
+                    functions: Vec::new(),
+                }),
+            ],
+            functions: vec![LootFunction::ApplyExplosionDecay],
+        },
+
+        // ── SPECIAL BLOCKS ─────────────────────────────────────────────────────────────────
+
+        // Glowstone: 2-4 glowstone_dust, limited to 1-4 (silk touch not implemented)
+        "glowstone" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:glowstone_dust".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Uniform { min: 2.0, max: 4.0 }),
+                    LootFunction::LimitCount { min: 1, max: 4 },
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Sea lantern: 2-3 prismarine_crystals, limited to 1-5 (silk touch not implemented)
+        "sea_lantern" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:prismarine_crystals".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Uniform { min: 2.0, max: 3.0 }),
+                    LootFunction::LimitCount { min: 1, max: 5 },
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Bookshelf: 3 books (silk touch not implemented)
+        "bookshelf" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:book".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Constant(3.0)),
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Snow block: 4 snowballs (silk touch not implemented)
+        "snow_block" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:snowball".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Constant(4.0)),
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Snow layers: 1 snowball (layer count from block state not yet tracked)
+        "snow" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:snowball".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![LootFunction::SetCount(NumberProvider::Constant(1.0))],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Melon: 3-7 melon_slices, capped at 9 (silk touch not implemented)
+        "melon" => LootTable {
+            param_set: LootParamSet::Block,
+            random_sequence: Some(random_sequence),
+            pools: vec![LootPool::single(LootEntry::Item {
+                item: "minecraft:melon_slice".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: vec![
+                    LootFunction::SetCount(NumberProvider::Uniform { min: 3.0, max: 7.0 }),
+                    LootFunction::LimitCount { min: 0, max: 9 },
+                    LootFunction::ApplyExplosionDecay,
+                ],
+            })],
+            functions: Vec::new(),
+        },
+
+        // Pumpkin / carved pumpkin: self-drop (survives explosion)
+        "pumpkin" | "carved_pumpkin" => self_drop_survives_explosion("pumpkin", random_sequence),
+
+        // Simple self-drops conditional on surviving explosion
+        "sugar_cane" => self_drop_survives_explosion("sugar_cane", random_sequence),
+        "cactus" => self_drop_survives_explosion("cactus", random_sequence),
+        "bamboo" => self_drop_survives_explosion("bamboo", random_sequence),
+
+        // ── NO DROP ────────────────────────────────────────────────────────────────────────
+        "air"
+        | "cave_air"
+        | "void_air"
+        | "bedrock"
+        | "water"
+        | "flowing_water"
+        | "lava"
+        | "flowing_lava"
+        | "fire"
+        | "soul_fire"
+        | "ice"        // silk touch only
+        | "packed_ice" // silk touch only
+        | "blue_ice"   // silk touch only
+        | "glass"      // silk touch only
+        | "glass_pane" // silk touch only
+        | "nether_portal" => return None,
+
+        _ => return None,
+    })
 }
 
-fn save_broken_block_to_region(
+/// Evaluates the loot table for `block_name` and returns (item_protocol_id, count) pairs.
+/// `seed` should be derived from block position for deterministic but varied drops.
+fn evaluate_block_loot(block_name: &str, seed: u64) -> Vec<(i32, i32)> {
+    let Some(table) = block_loot_table(block_name) else {
+        return Vec::new();
+    };
+    let mut context = LootContext::new(LootParamSet::Block, seed);
+    table
+        .evaluate(&mut context)
+        .into_iter()
+        .filter_map(|stack| {
+            if stack.count <= 0 {
+                return None;
+            }
+            let id = item_protocol_id(&stack.item)?;
+            Some((id, stack.count))
+        })
+        .collect()
+}
+
+fn load_chunk(layout: &WorldLayout, chunk_pos: ChunkPos) -> LevelChunk {
+    let region_dir = layout.region_dir();
+    if let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) {
+        if let Ok(Some((_name, tag))) = region.read_chunk_nbt(chunk_pos) {
+            if let Ok(chunk) = LevelChunk::from_nbt(chunk_pos, &tag) {
+                return chunk;
+            }
+        }
+    }
+    generate_overworld_chunk_for_preset(chunk_pos, "normal")
+        .unwrap_or_else(|_| LevelChunk::empty(chunk_pos))
+}
+
+fn read_block_at(
     layout: &WorldLayout,
     chunk_pos: ChunkPos,
     bx: i32,
     by: i32,
     bz: i32,
-) {
+) -> Option<String> {
+    load_chunk(layout, chunk_pos)
+        .get_block_state(bx, by, bz)
+        .filter(|n| n != "minecraft:air")
+}
+
+// Reads the old block name from the region, sets it to air, saves, and returns the old name.
+fn break_block_in_region(
+    layout: &WorldLayout,
+    chunk_pos: ChunkPos,
+    bx: i32,
+    by: i32,
+    bz: i32,
+) -> Option<String> {
     let region_dir = layout.region_dir();
     let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) else {
-        return;
+        return None;
     };
-    let mut chunk = match region.read_chunk_nbt(chunk_pos) {
-        Ok(Some((_name, tag))) => crate::storage::chunk::LevelChunk::from_nbt(chunk_pos, &tag)
-            .unwrap_or_else(|_| {
-                generate_overworld_chunk_for_preset(chunk_pos, "normal")
-                    .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(chunk_pos))
-            }),
-        _ => generate_overworld_chunk_for_preset(chunk_pos, "normal")
-            .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(chunk_pos)),
-    };
+    let mut chunk = load_chunk(layout, chunk_pos);
+    let old_name = chunk
+        .get_block_state(bx, by, bz)
+        .filter(|n| n != "minecraft:air");
     chunk.set_block_state(bx, by, bz, "minecraft:air");
     let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
     let _ = region.write_chunk_nbt(chunk_pos, "", &nbt);
+    old_name
+}
+
+fn visual_terrain_block_at(bx: i32, by: i32, bz: i32) -> Option<&'static str> {
+    let chunk_x = bx.div_euclid(16);
+    let chunk_z = bz.div_euclid(16);
+    let local_x = bx.rem_euclid(16) as usize;
+    let local_z = bz.rem_euclid(16) as usize;
+    let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, local_x, local_z);
+    if by == TERRAIN_BASE_Y {
+        return Some("minecraft:bedrock");
+    }
+    if by < TERRAIN_BASE_Y || by > top_y + 1 {
+        return None;
+    }
+    if by == top_y + 1 {
+        let surface_id = visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z);
+        if surface_id == GRASS_BLOCK_STATE_ID {
+            return visible_spawn_surface_feature_id(chunk_x, chunk_z, local_x, local_z)
+                .map(visual_block_state_id_to_name);
+        }
+        return None;
+    }
+    if by == top_y {
+        return Some(visual_block_state_id_to_name(
+            visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z),
+        ));
+    }
+    Some("minecraft:stone")
+}
+
+fn visual_block_state_id_to_name(id: i32) -> &'static str {
+    match id {
+        STONE_BLOCK_STATE_ID => "minecraft:stone",
+        GRANITE_BLOCK_STATE_ID => "minecraft:granite",
+        DIORITE_BLOCK_STATE_ID => "minecraft:diorite",
+        ANDESITE_BLOCK_STATE_ID => "minecraft:andesite",
+        GRASS_BLOCK_STATE_ID => "minecraft:grass_block",
+        DIRT_BLOCK_STATE_ID => "minecraft:dirt",
+        DANDELION_BLOCK_STATE_ID => "minecraft:dandelion",
+        POPPY_BLOCK_STATE_ID => "minecraft:poppy",
+        SHORT_GRASS_BLOCK_STATE_ID => "minecraft:short_grass",
+        _ => "minecraft:air",
+    }
 }
 
 fn section_min_y(section_index: usize) -> i32 {
@@ -3043,6 +3856,27 @@ fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io::Res
         )?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &instrument_nbt(instrument))?;
+    }
+    Ok(())
+}
+
+/// Java: net/minecraft/world/clock/WorldClock.java — `record WorldClock()` with DIRECT_CODEC =
+/// `MapCodec.unitCodec(...)`, which encodes as an empty NBT compound.
+/// Java: net/minecraft/world/clock/WorldClocks.java:12–13 — overworld registered first (ID 0),
+/// the_end second (ID 1). This order defines the VarInt IDs used in ClientboundSetTimePacket.
+/// Java: net/minecraft/resources/RegistryDataLoader.java:125,160 — WORLD_CLOCK is a
+/// datapack-loaded registry that must be synced to clients during the configuration phase.
+fn write_world_clock_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:world_clock").unwrap())?;
+    write_var_i32(writer, 2)?; // minecraft:overworld (ID 0) and minecraft:the_end (ID 1)
+    for name in ["overworld", "the_end"] {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{name}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        // WorldClock is a zero-field record; its NBT codec encodes as an empty compound.
+        write_network_nbt(writer, &Tag::Compound(vec![]))?;
     }
     Ok(())
 }
@@ -4223,9 +5057,9 @@ mod tests {
         pig_sound_variant_nbt, read_code_of_conducts, read_packet, status_json,
         strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
         vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
-        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count, visible_spawn_terrain_height,
-        wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
-        write_legacy_string, write_minimal_biome_registry_packet,
+        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
+        visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
+        write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
         write_vanilla_banner_pattern_registry_packet,

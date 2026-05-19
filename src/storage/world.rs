@@ -836,7 +836,10 @@ mod tests {
     #[test]
     fn saves_entity_and_poi_region_files_separate_from_block_regions() {
         let mut path = std::env::temp_dir();
-        path.push(format!("rustcraft-entity-poi-regions-{}", std::process::id()));
+        path.push(format!(
+            "rustcraft-entity-poi-regions-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&path);
 
         let layout = WorldLayout::new(&path);
@@ -858,7 +861,10 @@ mod tests {
         layout.save_entity_region_chunk(pos, &entity_tag).unwrap();
         layout.save_poi_region_chunk(pos, &poi_tag).unwrap();
 
-        assert_eq!(layout.load_entity_region_chunk(pos).unwrap(), Some(entity_tag));
+        assert_eq!(
+            layout.load_entity_region_chunk(pos).unwrap(),
+            Some(entity_tag)
+        );
         assert_eq!(layout.load_poi_region_chunk(pos).unwrap(), Some(poi_tag));
         assert!(layout.entities_dir().join("r.0.-1.mca").is_file());
         assert!(layout.poi_dir().join("r.0.-1.mca").is_file());

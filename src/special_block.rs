@@ -29,16 +29,37 @@ pub enum SpecialBlockKind {
 pub enum SpecialBlockAction {
     OpenEditor,
     DenyEditor,
-    ExecuteCommand { success_count: i32 },
-    Animate { event: &'static str },
+    ExecuteCommand {
+        success_count: i32,
+    },
+    Animate {
+        event: &'static str,
+    },
     EmitSignal(u8),
     ToggleLit(bool),
     ChangeLevel(u8),
-    SpawnEntity { entity: String },
-    InsertItem { slot: usize },
-    RemoveItem { slot: usize },
-    Brush { completed: bool, turns_into: String },
+    SpawnEntity {
+        entity: String,
+    },
+    InsertItem {
+        slot: usize,
+    },
+    RemoveItem {
+        slot: usize,
+    },
+    Brush {
+        stage: u8,
+        completed: bool,
+        turns_into: String,
+    },
     Noop,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandBlockMode {
+    Redstone,
+    Auto,
+    Sequence,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,13 +73,17 @@ pub struct SignState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandBlockState {
     pub command: String,
-    pub automatic: bool,
+    pub mode: CommandBlockMode,
+    /// Current powered signal state for the block.
     pub powered: bool,
+    /// Previous powered value so redstone command blocks can gate on rising edges.
+    pub previously_powered: bool,
     pub conditional: bool,
     pub previous_success: bool,
 }
 
 pub fn edit_sign(sign: &SignState, player: &str, front: bool) -> SpecialBlockAction {
+    let _ = front;
     if sign.waxed
         || sign
             .editor
@@ -67,7 +92,6 @@ pub fn edit_sign(sign: &SignState, player: &str, front: bool) -> SpecialBlockAct
     {
         SpecialBlockAction::DenyEditor
     } else {
-        let _ = front;
         SpecialBlockAction::OpenEditor
     }
 }
@@ -76,13 +100,29 @@ pub fn command_block_tick(state: &CommandBlockState, has_permission: bool) -> Sp
     if !has_permission || state.command.is_empty() {
         return SpecialBlockAction::ExecuteCommand { success_count: 0 };
     }
+
+    let should_execute = match state.mode {
+        CommandBlockMode::Auto => true,
+        CommandBlockMode::Sequence => state.powered || state.previously_powered,
+        CommandBlockMode::Redstone => state.powered && !state.previously_powered,
+    };
+
+    if !should_execute {
+        return SpecialBlockAction::Noop;
+    }
+
     if state.conditional && !state.previous_success {
         return SpecialBlockAction::ExecuteCommand { success_count: 0 };
     }
-    if state.automatic || state.powered {
-        SpecialBlockAction::ExecuteCommand { success_count: 1 }
+
+    SpecialBlockAction::ExecuteCommand { success_count: 1 }
+}
+
+pub fn command_block_mode_from_automatic(automatic: bool) -> CommandBlockMode {
+    if automatic {
+        CommandBlockMode::Auto
     } else {
-        SpecialBlockAction::Noop
+        CommandBlockMode::Redstone
     }
 }
 
@@ -104,25 +144,33 @@ pub fn bell_ring(hit_direction: Direction) -> SpecialBlockAction {
 }
 
 pub fn campfire_use(lit: bool, has_food: bool, waterlogged: bool) -> SpecialBlockAction {
+    let _ = lit;
     if waterlogged {
-        SpecialBlockAction::ToggleLit(false)
+        SpecialBlockAction::Noop
     } else if has_food {
         SpecialBlockAction::InsertItem { slot: 0 }
     } else {
-        SpecialBlockAction::ToggleLit(!lit)
+        SpecialBlockAction::Noop
     }
 }
 
 pub fn candle_use(candles: u8, lit: bool, add_candle: bool) -> SpecialBlockAction {
-    if add_candle && candles < 4 {
-        SpecialBlockAction::ChangeLevel(candles + 1)
+    if add_candle {
+        if candles >= 4 {
+            SpecialBlockAction::Noop
+        } else {
+            SpecialBlockAction::ChangeLevel(candles + 1)
+        }
+    } else if lit {
+        SpecialBlockAction::ToggleLit(false)
     } else {
-        SpecialBlockAction::ToggleLit(!lit)
+        SpecialBlockAction::Noop
     }
 }
 
 pub fn cauldron_fill_level(current: u8, delta: i8) -> SpecialBlockAction {
-    SpecialBlockAction::ChangeLevel((i16::from(current) + i16::from(delta)).clamp(0, 3) as u8)
+    let next = (i16::from(current) + i16::from(delta)).clamp(0, 3) as u8;
+    SpecialBlockAction::ChangeLevel(next)
 }
 
 pub fn skull_animation(kind: &str, powered: bool) -> SpecialBlockAction {
@@ -161,6 +209,7 @@ pub fn spawner_tick(
     {
         return SpecialBlockAction::Noop;
     }
+
     if delay <= 0 {
         SpecialBlockAction::SpawnEntity {
             entity: match kind {
@@ -194,8 +243,23 @@ pub fn chiseled_bookshelf_use(slot: usize, occupied: bool) -> SpecialBlockAction
     }
 }
 
+fn brushable_stage(brush_count: u8) -> u8 {
+    if brush_count == 0 {
+        0
+    } else if brush_count < 3 {
+        1
+    } else if brush_count < 6 {
+        2
+    } else if brush_count < 10 {
+        3
+    } else {
+        4
+    }
+}
+
 pub fn brushable_progress(progress: u8, turns_into: &str) -> SpecialBlockAction {
     SpecialBlockAction::Brush {
+        stage: brushable_stage(progress),
         completed: progress >= 10,
         turns_into: if progress >= 10 {
             turns_into.to_string()
@@ -215,6 +279,7 @@ pub fn block_entity_update_pos(pos: BlockPos, kind: SpecialBlockKind) -> Option<
         | SpecialBlockKind::Conduit
         | SpecialBlockKind::Bell
         | SpecialBlockKind::Spawner
+        | SpecialBlockKind::Campfire
         | SpecialBlockKind::Vault
         | SpecialBlockKind::TrialSpawner
         | SpecialBlockKind::CalibratedSculkSensor
@@ -265,23 +330,77 @@ mod tests {
     }
 
     #[test]
-    fn command_blocks_execute_only_when_allowed_and_triggered() {
-        let command = CommandBlockState {
+    fn command_block_tick_mode_and_edge_detection_match_vanilla_modes() {
+        let base = CommandBlockState {
             command: "say hi".to_string(),
-            automatic: false,
+            mode: CommandBlockMode::Redstone,
             powered: true,
+            previously_powered: false,
             conditional: false,
             previous_success: false,
         };
         assert_eq!(
-            command_block_tick(&command, true),
+            command_block_tick(&base, true),
             SpecialBlockAction::ExecuteCommand { success_count: 1 }
         );
         assert_eq!(
             command_block_tick(
                 &CommandBlockState {
+                    powered: true,
+                    previously_powered: true,
+                    ..base.clone()
+                },
+                true
+            ),
+            SpecialBlockAction::Noop
+        );
+        assert_eq!(
+            command_block_tick(
+                &CommandBlockState {
+                    mode: CommandBlockMode::Auto,
+                    powered: false,
+                    previously_powered: false,
+                    ..base
+                },
+                true
+            ),
+            SpecialBlockAction::ExecuteCommand { success_count: 1 }
+        );
+
+        assert_eq!(
+            command_block_tick(
+                &CommandBlockState {
+                    mode: CommandBlockMode::Sequence,
+                    powered: true,
+                    previously_powered: false,
+                    ..CommandBlockState {
+                        command: "say hi".to_string(),
+                        mode: CommandBlockMode::Sequence,
+                        powered: false,
+                        previously_powered: false,
+                        conditional: true,
+                        previous_success: true,
+                    }
+                },
+                true
+            ),
+            SpecialBlockAction::ExecuteCommand { success_count: 1 }
+        );
+
+        assert_eq!(
+            command_block_tick(
+                &CommandBlockState {
+                    mode: CommandBlockMode::Redstone,
                     conditional: true,
-                    ..command
+                    previous_success: false,
+                    ..CommandBlockState {
+                        command: "say hi".to_string(),
+                        mode: CommandBlockMode::Redstone,
+                        powered: true,
+                        previously_powered: false,
+                        conditional: true,
+                        previous_success: false,
+                    }
                 },
                 true
             ),
@@ -290,30 +409,43 @@ mod tests {
     }
 
     #[test]
-    fn note_bell_campfire_candle_and_cauldron_actions_match_core_state_changes() {
+    fn note_bell_campfire_candle_and_cauldron_actions_match_deeper_state_transitions() {
         assert_eq!(
             note_block_signal(30, false, true),
             SpecialBlockAction::EmitSignal(24)
         );
+        assert_eq!(note_block_signal(2, true, true), SpecialBlockAction::Noop);
         assert_eq!(
             bell_ring(Direction::North),
             SpecialBlockAction::Animate { event: "bell_ring" }
         );
+        assert_eq!(bell_ring(Direction::Up), SpecialBlockAction::Noop);
         assert_eq!(
-            campfire_use(true, false, false),
-            SpecialBlockAction::ToggleLit(false)
-        );
-        assert_eq!(
-            campfire_use(true, true, false),
+            campfire_use(false, true, false),
             SpecialBlockAction::InsertItem { slot: 0 }
         );
+        assert_eq!(campfire_use(true, false, false), SpecialBlockAction::Noop);
         assert_eq!(
             candle_use(2, false, true),
             SpecialBlockAction::ChangeLevel(3)
         );
+        assert_eq!(candle_use(4, false, true), SpecialBlockAction::Noop);
+        assert_eq!(
+            candle_use(2, true, false),
+            SpecialBlockAction::ToggleLit(false)
+        );
+        assert_eq!(candle_use(2, false, false), SpecialBlockAction::Noop);
+        assert_eq!(
+            cauldron_fill_level(1, 0),
+            SpecialBlockAction::ChangeLevel(1)
+        );
         assert_eq!(
             cauldron_fill_level(1, 3),
             SpecialBlockAction::ChangeLevel(3)
+        );
+        assert_eq!(
+            cauldron_fill_level(0, -5),
+            SpecialBlockAction::ChangeLevel(0)
         );
     }
 
@@ -330,11 +462,16 @@ mod tests {
             conduit_effect(true, true),
             SpecialBlockAction::EmitSignal(MAX_SIGNAL)
         );
+        assert_eq!(conduit_effect(false, false), SpecialBlockAction::Noop);
         assert_eq!(
             calibrated_sculk_frequency(5, 5),
             SpecialBlockAction::EmitSignal(5)
         );
         assert_eq!(calibrated_sculk_frequency(4, 5), SpecialBlockAction::Noop);
+        assert_eq!(
+            calibrated_sculk_frequency(0, 5),
+            SpecialBlockAction::EmitSignal(5)
+        );
     }
 
     #[test]
@@ -355,13 +492,39 @@ mod tests {
             chiseled_bookshelf_use(2, false),
             SpecialBlockAction::InsertItem { slot: 2 }
         );
+        assert_eq!(chiseled_bookshelf_use(6, false), SpecialBlockAction::Noop);
         assert_eq!(
             chiseled_bookshelf_use(2, true),
             SpecialBlockAction::RemoveItem { slot: 2 }
         );
         assert_eq!(
+            brushable_progress(0, "minecraft:sand"),
+            SpecialBlockAction::Brush {
+                stage: 0,
+                completed: false,
+                turns_into: String::new(),
+            }
+        );
+        assert_eq!(
+            brushable_progress(2, "minecraft:sand"),
+            SpecialBlockAction::Brush {
+                stage: 1,
+                completed: false,
+                turns_into: String::new(),
+            }
+        );
+        assert_eq!(
+            brushable_progress(9, "minecraft:sand"),
+            SpecialBlockAction::Brush {
+                stage: 3,
+                completed: false,
+                turns_into: String::new(),
+            }
+        );
+        assert_eq!(
             brushable_progress(10, "minecraft:sand"),
             SpecialBlockAction::Brush {
+                stage: 4,
                 completed: true,
                 turns_into: "minecraft:sand".to_string()
             }
@@ -377,7 +540,8 @@ mod tests {
         );
         assert_eq!(
             block_entity_update_pos(pos, SpecialBlockKind::Campfire),
-            None
+            Some(pos)
         );
+        assert_eq!(block_entity_update_pos(pos, SpecialBlockKind::Book), None);
     }
 }

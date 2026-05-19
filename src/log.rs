@@ -174,12 +174,7 @@ mod tests {
         let rotated = fs::read_dir(&dir)
             .unwrap()
             .filter_map(Result::ok)
-            .find(|entry| {
-                entry
-                    .file_name()
-                    .to_string_lossy()
-                    .ends_with("-1.log.gz")
-            })
+            .find(|entry| entry.file_name().to_string_lossy().ends_with("-1.log.gz"))
             .expect("expected rotated gzip log");
         let mut decoded = String::new();
         GzDecoder::new(fs::File::open(rotated.path()).unwrap())

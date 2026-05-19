@@ -395,7 +395,10 @@ mod tests {
     #[test]
     fn region_file_round_trips_zlib_none_and_lz4_payloads() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-region-compression-{}", std::process::id()));
+        dir.push(format!(
+            "rustcraft-region-compression-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&dir);
 
         let tag = crate::storage::nbt::Tag::Compound(vec![(
