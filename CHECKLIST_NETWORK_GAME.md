@@ -183,6 +183,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Interactions / Block / Entity Actions (Serverbound)
 
 - [x] `ServerboundChangeDifficultyPacket` (0x04): difficulty enum byte
+- [x] `ServerboundClientCommandPacket` (0x0C): action enum VarInt (`PERFORM_RESPAWN`, `REQUEST_STATS`, `REQUEST_GAMERULE_VALUES`)
 - [x] `ServerboundClientTickEndPacket` (0x0D): empty payload
 - [x] `ServerboundLockDifficultyPacket` (0x1D): locked bool
 - [ ] `ServerboundInteractPacket` (0x1A): entity ID, interaction type (attack/interact/interact-at with optional hand and hit position), using-secondary-action bool

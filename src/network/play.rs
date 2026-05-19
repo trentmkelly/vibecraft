@@ -1981,36 +1981,34 @@ impl ServerboundChangeDifficultyPacket {
 }
 
 impl ServerboundClientCommandAction {
-    fn from_id(id: u8) -> Self {
+    fn from_id(id: i32) -> Self {
         match id {
             0 => Self::PerformRespawn,
             1 => Self::RequestStats,
             2 => Self::RequestGameruleValues,
-            _ => Self::Unknown(id),
+            _ => Self::Unknown(id as u8),
         }
     }
 
-    fn to_id(self) -> u8 {
+    fn to_id(self) -> i32 {
         match self {
             Self::PerformRespawn => 0,
             Self::RequestStats => 1,
             Self::RequestGameruleValues => 2,
-            Self::Unknown(value) => value,
+            Self::Unknown(value) => i32::from(value),
         }
     }
 }
 
 impl ServerboundClientCommandPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let mut bytes = [0u8; 1];
-        reader.read_exact(&mut bytes)?;
         Ok(Self {
-            action: ServerboundClientCommandAction::from_id(bytes[0]),
+            action: ServerboundClientCommandAction::from_id(read_var_i32(reader)?),
         })
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_all(&[self.action.to_id()])
+        write_var_i32(writer, self.action.to_id())
     }
 }
 
@@ -3849,11 +3847,25 @@ mod tests {
         }
         .write(&mut client_command)
         .unwrap();
+        assert_eq!(client_command, vec![1]);
         let parsed_client_command =
             ServerboundClientCommandPacket::read(&mut cursor(client_command)).unwrap();
         assert!(matches!(
             parsed_client_command.action,
             ServerboundClientCommandAction::RequestStats
+        ));
+        let mut unknown_client_command = Vec::new();
+        ServerboundClientCommandPacket {
+            action: ServerboundClientCommandAction::Unknown(128),
+        }
+        .write(&mut unknown_client_command)
+        .unwrap();
+        assert_eq!(unknown_client_command, vec![0x80, 0x01]);
+        let parsed_unknown_client_command =
+            ServerboundClientCommandPacket::read(&mut cursor(unknown_client_command)).unwrap();
+        assert!(matches!(
+            parsed_unknown_client_command.action,
+            ServerboundClientCommandAction::Unknown(128)
         ));
 
         let mut client_tick_end = Vec::new();
