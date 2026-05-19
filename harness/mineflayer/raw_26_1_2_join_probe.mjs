@@ -15,8 +15,8 @@ const firstTickActionRequest = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTION
 const firstTickActions = new Set(firstTickActionRequest === '1'
   ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'player_input', 'swing', 'use_item_on', 'use_item']
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
-const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
-const expectedDefaultSpawn = parseBlockPosEnv(process.env.RUSTCRAFT_EXPECT_DEFAULT_SPAWN, { x: 0, y: 80, z: 0 })
+const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, null)
+const expectedDefaultSpawn = parseBlockPosEnv(process.env.RUSTCRAFT_EXPECT_DEFAULT_SPAWN, null)
 const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 const extraMovementPositions = parsePositionArrayEnv(process.env.RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS)
 const expectedHeldSlot = Number(process.env.RUSTCRAFT_EXPECT_HELD_SLOT ?? 0)
@@ -34,7 +34,9 @@ const expectedCommandSuggestion = process.env.RUSTCRAFT_EXPECT_COMMAND_SUGGESTIO
 const expectedWorldSeed = process.env.RUSTCRAFT_EXPECT_WORLD_SEED == null
   ? null
   : BigInt(process.env.RUSTCRAFT_EXPECT_WORLD_SEED)
-const expectedIsFlat = parseBoolEnv(process.env.RUSTCRAFT_EXPECT_IS_FLAT, true)
+const expectedIsFlat = process.env.RUSTCRAFT_EXPECT_IS_FLAT == null
+  ? null
+  : parseBoolEnv(process.env.RUSTCRAFT_EXPECT_IS_FLAT, true)
 const serverboundAcceptTeleportationPacketId = 0
 const clientboundCommandSuggestionsPacketId = 15
 const serverboundChatPacketId = 9
@@ -783,7 +785,7 @@ async function main () {
     if (loginSpawn.gameMode !== expectedGameMode || loginSpawn.previousGameMode !== expectedPreviousGameMode) {
       throw new Error(`expected login gameMode=${expectedGameMode} previous=${expectedPreviousGameMode}, got ${loginSpawn.gameMode}/${loginSpawn.previousGameMode}`)
     }
-    if ((expectedWorldSeed != null && loginSpawn.seed !== expectedWorldSeed) || loginSpawn.isFlat !== expectedIsFlat || loginSpawn.seaLevel !== 63) {
+    if ((expectedWorldSeed != null && loginSpawn.seed !== expectedWorldSeed) || (expectedIsFlat != null && loginSpawn.isFlat !== expectedIsFlat) || loginSpawn.seaLevel !== 63) {
       throw new Error(`unexpected login spawn info seed=${loginSpawn.seed} isFlat=${loginSpawn.isFlat} seaLevel=${loginSpawn.seaLevel}`)
     }
     joinState.loginSpawnInfo = {
@@ -891,14 +893,14 @@ async function main () {
     const relatives = positionPacket.body.length - offset >= 4
       ? positionPacket.body.readInt32BE(offset)
       : positionPacket.body.readUInt8(offset)
-    if (
+    if (expectedJoinPosition != null && (
       !nearlyEqual(x, expectedJoinPosition.x) ||
       !nearlyEqual(y, expectedJoinPosition.y) ||
       !nearlyEqual(z, expectedJoinPosition.z) ||
       !nearlyEqual(yaw, expectedJoinPosition.yaw) ||
       !nearlyEqual(pitch, expectedJoinPosition.pitch) ||
       relatives !== 0
-    ) {
+    )) {
       throw new Error('unexpected first-spawn position/look payload')
     }
     joinState.position = { x, y, z, yaw, pitch }
@@ -906,7 +908,10 @@ async function main () {
     if (!spawnPacket) throw new Error('missing default spawn position packet')
     const spawnDimension = readString(spawnPacket.body, 0)
     const spawnPos = readBlockPos(spawnPacket.body, spawnDimension.offset)
-    if (spawnDimension.value !== 'minecraft:overworld' || spawnPos.x !== expectedDefaultSpawn.x || spawnPos.y !== expectedDefaultSpawn.y || spawnPos.z !== expectedDefaultSpawn.z) {
+    if (spawnDimension.value !== 'minecraft:overworld') {
+      throw new Error(`unexpected default spawn dimension ${spawnDimension.value}`)
+    }
+    if (expectedDefaultSpawn != null && (spawnPos.x !== expectedDefaultSpawn.x || spawnPos.y !== expectedDefaultSpawn.y || spawnPos.z !== expectedDefaultSpawn.z)) {
       throw new Error(`unexpected default spawn ${spawnDimension.value} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`)
     }
     joinState.defaultSpawn = {
