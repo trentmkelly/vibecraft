@@ -5523,6 +5523,7 @@ mod tests {
         write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
+        write_world_clock_registry_packet,
         write_vanilla_banner_pattern_registry_packet,
         write_vanilla_cat_sound_variant_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet,
@@ -5783,6 +5784,12 @@ mod tests {
             expected_entry_count: 8,
             java_network_shape: "Instrument.DIRECT_CODEC",
             write_packet: write_vanilla_instrument_registry_packet,
+        },
+        SynchronizedRegistryManifestEntry {
+            registry_id: "minecraft:world_clock",
+            expected_entry_count: 2,
+            java_network_shape: "WorldClock.DIRECT_CODEC",
+            write_packet: write_world_clock_registry_packet,
         },
     ];
 

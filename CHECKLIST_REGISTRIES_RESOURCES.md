@@ -30,18 +30,18 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement pack metadata parsing and compatibility checks.
 - [x] Implement pack priority, enabling, disabling, safe mode, and reload.
 - [x] Implement `data/minecraft/advancement`.
-- [ ] Implement `data/minecraft/banner_pattern`.
-- [ ] Implement cat, chicken, cow, frog, pig, wolf, and zombie nautilus variants.
-- [ ] Implement `data/minecraft/chat_type`.
-- [ ] Implement `data/minecraft/damage_type`.
+- [x] Implement `data/minecraft/banner_pattern`.
+- [x] Implement cat, chicken, cow, frog, pig, wolf, and zombie nautilus variants.
+- [x] Implement `data/minecraft/chat_type`.
+- [x] Implement `data/minecraft/damage_type`.
 - [ ] Implement `data/minecraft/dialog`.
-- [ ] Implement `data/minecraft/dimension_type`.
+- [x] Implement `data/minecraft/dimension_type`.
 - [ ] Implement `data/minecraft/enchantment`.
 - [ ] Implement `data/minecraft/enchantment_provider`.
-- [ ] Implement `data/minecraft/instrument`.
-- [ ] Implement `data/minecraft/jukebox_song`.
+- [x] Implement `data/minecraft/instrument`.
+- [x] Implement `data/minecraft/jukebox_song`.
 - [ ] Implement `data/minecraft/loot_table`.
-- [ ] Implement `data/minecraft/painting_variant`.
+- [x] Implement `data/minecraft/painting_variant`.
 - [x] Implement `data/minecraft/recipe`.
 - [ ] Implement `data/minecraft/structure`.
 - [x] Implement `data/minecraft/tags`.
@@ -50,9 +50,9 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [ ] Implement `data/minecraft/timeline`.
 - [ ] Implement `data/minecraft/trade_set`.
 - [ ] Implement `data/minecraft/trial_spawner`.
-- [ ] Implement `data/minecraft/trim_material`.
-- [ ] Implement `data/minecraft/trim_pattern`.
+- [x] Implement `data/minecraft/trim_material`.
+- [x] Implement `data/minecraft/trim_pattern`.
 - [ ] Implement `data/minecraft/villager_trade`.
-- [ ] Implement `data/minecraft/world_clock`.
+- [x] Implement `data/minecraft/world_clock`.
 - [ ] Implement `data/minecraft/worldgen`.
 - [x] Implement reload failure rollback and user-facing error reporting.
