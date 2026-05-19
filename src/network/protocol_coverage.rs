@@ -263,7 +263,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "interact",
         java_class: "ServerboundInteractPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, hand:InteractionHand enum VarInt, location:LpVec3, using_secondary_action:bool",
     },
     PlayPacketSpec {
         id: 27,

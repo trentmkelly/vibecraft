@@ -34,6 +34,7 @@ pub const SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID: i32 = 17;
 pub const SERVERBOUND_CONTAINER_CLICK_PACKET_ID: i32 = 18;
 pub const SERVERBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 19;
 pub const SERVERBOUND_EDIT_BOOK_PACKET_ID: i32 = 24;
+pub const SERVERBOUND_INTERACT_PACKET_ID: i32 = 26;
 pub const SERVERBOUND_JIGSAW_GENERATE_PACKET_ID: i32 = 27;
 pub const SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID: i32 = 29;
 pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
@@ -428,6 +429,20 @@ pub struct ServerboundEditBookPacket {
     pub slot: i32,
     pub pages: Vec<String>,
     pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerboundInteractPacket {
+    pub entity_id: i32,
+    pub hand: ServerboundInteractionHand,
+    pub location: Vec3,
+    pub using_secondary_action: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerboundInteractionHand {
+    MainHand,
+    OffHand,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1191,6 +1206,7 @@ pub struct PlaySession {
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
     pub last_edit_book: Option<ServerboundEditBookPacket>,
+    pub last_interact: Option<ServerboundInteractPacket>,
     pub last_resource_pack_response: Option<ServerboundResourcePackPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
@@ -1292,6 +1308,7 @@ impl PlaySession {
             last_rename_item: None,
             last_command_suggestion: None,
             last_edit_book: None,
+            last_interact: None,
             last_resource_pack_response: None,
             last_container_close: None,
             last_container_button_click: None,
@@ -1496,6 +1513,16 @@ impl PlaySession {
                         DispatchOutcome::Handled
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad edit book packet: {err}")),
+                }
+            }
+            SERVERBOUND_INTERACT_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundInteractPacket::read(&mut input) {
+                    Ok(interact) => {
+                        self.last_interact = Some(interact);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad interact packet: {err}")),
                 }
             }
             SERVERBOUND_JIGSAW_GENERATE_PACKET_ID => {
@@ -3211,6 +3238,115 @@ impl ServerboundEditBookPacket {
     }
 }
 
+impl ServerboundInteractionHand {
+    fn from_id(id: i32) -> Self {
+        match id {
+            1 => Self::OffHand,
+            _ => Self::MainHand,
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::MainHand => 0,
+            Self::OffHand => 1,
+        }
+    }
+}
+
+impl ServerboundInteractPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            entity_id: read_var_i32(reader)?,
+            hand: ServerboundInteractionHand::from_id(read_var_i32(reader)?),
+            location: read_lp_vec3(reader)?,
+            using_secondary_action: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.hand.to_id())?;
+        write_lp_vec3(writer, self.location)?;
+        write_bool(writer, self.using_secondary_action)
+    }
+}
+
+fn read_lp_vec3<R: Read>(reader: &mut R) -> io::Result<Vec3> {
+    let lowest = read_u8(reader)?;
+    if lowest == 0 {
+        return Ok(Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        });
+    }
+
+    let middle = read_u8(reader)?;
+    let mut highest_bytes = [0u8; 4];
+    reader.read_exact(&mut highest_bytes)?;
+    let highest = u32::from_be_bytes(highest_bytes) as u64;
+    let buffer = (highest << 16) | ((middle as u64) << 8) | lowest as u64;
+    let mut scale = (lowest & 3) as u64;
+    if lowest & 4 == 4 {
+        scale |= (read_var_i32(reader)? as u32 as u64) << 2;
+    }
+    let scale = scale as f64;
+
+    Ok(Vec3 {
+        x: unpack_lp_vec3_component(buffer >> 3) * scale,
+        y: unpack_lp_vec3_component(buffer >> 18) * scale,
+        z: unpack_lp_vec3_component(buffer >> 33) * scale,
+    })
+}
+
+fn write_lp_vec3<W: Write>(writer: &mut W, value: Vec3) -> io::Result<()> {
+    const ABS_MAX_VALUE: f64 = 1.7179869183E10;
+    const ABS_MIN_VALUE: f64 = 3.051944088384301E-5;
+
+    let x = sanitize_lp_vec3_component(value.x, ABS_MAX_VALUE);
+    let y = sanitize_lp_vec3_component(value.y, ABS_MAX_VALUE);
+    let z = sanitize_lp_vec3_component(value.z, ABS_MAX_VALUE);
+    let chessboard_length = x.abs().max(y.abs()).max(z.abs());
+    if chessboard_length < ABS_MIN_VALUE {
+        return writer.write_all(&[0]);
+    }
+
+    let scale = chessboard_length.ceil() as u64;
+    let is_partial = (scale & 3) != scale;
+    let markers = if is_partial {
+        (scale & 3) | 4
+    } else {
+        scale
+    };
+    let buffer = markers
+        | (pack_lp_vec3_component(x / scale as f64) << 3)
+        | (pack_lp_vec3_component(y / scale as f64) << 18)
+        | (pack_lp_vec3_component(z / scale as f64) << 33);
+    writer.write_all(&[(buffer & 0xff) as u8, ((buffer >> 8) & 0xff) as u8])?;
+    writer.write_all(&((buffer >> 16) as u32).to_be_bytes())?;
+    if is_partial {
+        write_var_i32(writer, (scale >> 2) as i32)?;
+    }
+    Ok(())
+}
+
+fn sanitize_lp_vec3_component(value: f64, abs_max: f64) -> f64 {
+    if value.is_nan() {
+        0.0
+    } else {
+        value.clamp(-abs_max, abs_max)
+    }
+}
+
+fn pack_lp_vec3_component(value: f64) -> u64 {
+    ((value * 0.5 + 0.5) * 32766.0).round() as u64
+}
+
+fn unpack_lp_vec3_component(value: u64) -> f64 {
+    (value & 32767).min(32766) as f64 * 2.0 / 32766.0 - 1.0
+}
+
 impl ServerboundPickItemFromBlockPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let (x, y, z) = read_block_position(reader)?;
@@ -4922,6 +5058,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_EDIT_BOOK_PACKET_ID, vec![0, 101])),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_INTERACT_PACKET_ID, vec![1, 0])),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5653,6 +5793,43 @@ mod tests {
         }
         .write(&mut Vec::new())
         .is_err());
+
+        let interact = ServerboundInteractPacket {
+            entity_id: 128,
+            hand: ServerboundInteractionHand::OffHand,
+            location: Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            using_secondary_action: true,
+        };
+        let mut interact_payload = Vec::new();
+        interact.write(&mut interact_payload).unwrap();
+        assert_eq!(interact_payload, vec![0x80, 0x01, 1, 0, 1]);
+        assert_eq!(
+            ServerboundInteractPacket::read(&mut cursor(interact_payload.clone())).unwrap(),
+            interact
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_INTERACT_PACKET_ID, interact_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_interact, Some(interact));
+        let invalid_hand_payload = vec![1, 7, 0, 0];
+        assert_eq!(
+            ServerboundInteractPacket::read(&mut cursor(invalid_hand_payload)).unwrap(),
+            ServerboundInteractPacket {
+                entity_id: 1,
+                hand: ServerboundInteractionHand::MainHand,
+                location: Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                using_secondary_action: false,
+            }
+        );
 
         let chat_ack = ServerboundChatAckPacket { offset: 128 };
         let mut chat_ack_payload = Vec::new();
