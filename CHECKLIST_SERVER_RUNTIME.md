@@ -27,14 +27,14 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Emit crash reports with useful environment, thread, and world state.
 - [ ] Implement graceful shutdown from console, signal, stop command, and JVM-style shutdown hook equivalents.
 - [ ] Save all worlds, players, scoreboards, advancements, raids, maps, and server state during shutdown.
-- [ ] Add a Mineflayer shutdown/restart test that joins in offline mode, mutates visible player state, stops the server cleanly, restarts, and verifies reconnect plus persisted position, inventory, and stats.
-- [ ] Add a Mineflayer crash-after-login recovery test that joins in offline mode, waits for the first save boundary, terminates the process, restarts, and verifies vanilla-compatible reconnect behavior and no corrupted player/world files.
-- [ ] Add a Mineflayer startup-race test that begins connecting during bootstrap in offline mode and verifies the bot is either held until readiness or rejected with the same timing/message as official `server.jar`.
-- [ ] Add a Mineflayer first-login bootstrap test that starts from only `eula=true`, joins in offline mode, and verifies generated config/world/player artifacts appear before the bot reaches play state in vanilla order.
-- [ ] Add a Mineflayer offline-mode failed-start cleanup test that attempts login when startup is refused by missing EULA, bad world metadata, or invalid properties, then verifies no partial player files or stale bot sessions remain.
-- [ ] Add a Mineflayer offline-mode lifecycle artifact test that records startup logs, readiness signal, first accepted login tick, shutdown reason, and post-exit file flushes for vanilla and RustCraft.
-- [ ] Add a Mineflayer offline-mode interrupted-bootstrap test that kills the server while a bot is mid-login and verifies restart does not retain half-created players, sockets, or world locks.
-- [ ] Add a Mineflayer offline-mode EULA refusal test that attempts login before `eula=true`, verifies vanilla-compatible connection refusal/log messages, then accepts EULA and verifies the same bot can join without stale state.
+- [x] Add a Mineflayer shutdown/restart test that joins in offline mode, mutates visible player state, stops the server cleanly, restarts, and verifies reconnect plus persisted position, inventory, and stats.
+- [x] Add a Mineflayer crash-after-login recovery test that joins in offline mode, waits for the first save boundary, terminates the process, restarts, and verifies vanilla-compatible reconnect behavior and no corrupted player/world files.
+- [x] Add a Mineflayer startup-race test that begins connecting during bootstrap in offline mode and verifies the bot is either held until readiness or rejected with the same timing/message as official `server.jar`.
+- [x] Add a Mineflayer first-login bootstrap test that starts from only `eula=true`, joins in offline mode, and verifies generated config/world/player artifacts appear before the bot reaches play state in vanilla order.
+- [x] Add a Mineflayer offline-mode failed-start cleanup test that attempts login when startup is refused by missing EULA, bad world metadata, or invalid properties, then verifies no partial player files or stale bot sessions remain.
+- [x] Add a Mineflayer offline-mode lifecycle artifact test that records startup logs, readiness signal, first accepted login tick, shutdown reason, and post-exit file flushes for vanilla and RustCraft.
+- [x] Add a Mineflayer offline-mode interrupted-bootstrap test that kills the server while a bot is mid-login and verifies restart does not retain half-created players, sockets, or world locks.
+- [x] Add a Mineflayer offline-mode EULA refusal test that attempts login before `eula=true`, verifies vanilla-compatible connection refusal/log messages, then accepts EULA and verifies the same bot can join without stale state.
 - [x] Handle corrupted world metadata with vanilla-compatible refusal paths.
 - [x] Detect incompatible world versions before loading.
 - [x] Provide safe-mode datapack loading.
@@ -46,18 +46,18 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Parse and write `server.properties` with vanilla defaults.
 - [x] Preserve unknown property keys when rewriting configuration.
 - [x] Implement `online-mode`.
-- [ ] Add a Mineflayer offline-mode login test using a generated bot profile and default `server.properties`.
-- [ ] Add a Mineflayer offline-mode login test matrix covering `online-mode=false`, `enforce-secure-profile=false`, default port selection, and generated world directory setup.
-- [ ] Add a Mineflayer offline-mode login test matrix covering `max-players`, `enable-status`, `hide-online-players`, `network-compression-threshold`, `player-idle-timeout`, and `white-list` interactions during first join.
-- [ ] Add a Mineflayer offline-mode login test matrix for `level-name`, `level-seed`, `gamemode`, `difficulty`, `hardcore`, `force-gamemode`, `allow-flight`, and `spawn-protection`, verifying the first joined bot observes vanilla-compatible initial state.
-- [ ] Add a Mineflayer offline-mode single-property login bisect test that toggles one `server.properties` key per run and reports the first key that changes login, configuration, spawn, or disconnect behavior.
-- [ ] Add a Mineflayer offline-mode generated-properties test that starts with deleted or partial `server.properties`, accepts the generated defaults, then verifies the first bot can join without hand-edited configuration.
-- [ ] Add a Mineflayer offline-mode property-minimization test that removes optional keys one at a time and verifies vanilla-compatible defaulting, warnings, and first-login behavior.
-- [ ] Add a Mineflayer offline-mode negative configuration test covering accidental `online-mode=true`, secure-profile enforcement, invalid `server-ip`, occupied ports, and malformed properties with vanilla-compatible refusal or kick messages.
-- [ ] Add a Mineflayer offline-mode login test that starts from an empty working directory and verifies `eula.txt`, `server.properties`, world folders, and first successful bot join are produced in vanilla-compatible order.
-- [ ] Add a Mineflayer offline-mode login property-roundtrip test that rewrites `server.properties`, restarts, reconnects the same generated bot, and verifies vanilla-compatible UUID/profile reuse and observed config changes.
-- [ ] Add a Mineflayer offline-mode bind-address test that verifies bots can connect through `localhost`, explicit `server-ip`, randomized ports, and rejected addresses with vanilla-compatible socket or kick behavior.
-- [ ] Add a Mineflayer offline-mode compression-property login test that verifies first join succeeds with `network-compression-threshold=-1`, `0`, small positive values, and the vanilla default while preserving packet ordering.
+- [x] Add a Mineflayer offline-mode login test using a generated bot profile and default `server.properties`.
+- [x] Add a Mineflayer offline-mode login test matrix covering `online-mode=false`, `enforce-secure-profile=false`, default port selection, and generated world directory setup.
+- [x] Add a Mineflayer offline-mode login test matrix covering `max-players`, `enable-status`, `hide-online-players`, `network-compression-threshold`, `player-idle-timeout`, and `white-list` interactions during first join.
+- [x] Add a Mineflayer offline-mode login test matrix for `level-name`, `level-seed`, `gamemode`, `difficulty`, `hardcore`, `force-gamemode`, `allow-flight`, and `spawn-protection`, verifying the first joined bot observes vanilla-compatible initial state.
+- [x] Add a Mineflayer offline-mode single-property login bisect test that toggles one `server.properties` key per run and reports the first key that changes login, configuration, spawn, or disconnect behavior.
+- [x] Add a Mineflayer offline-mode generated-properties test that starts with deleted or partial `server.properties`, accepts the generated defaults, then verifies the first bot can join without hand-edited configuration.
+- [x] Add a Mineflayer offline-mode property-minimization test that removes optional keys one at a time and verifies vanilla-compatible defaulting, warnings, and first-login behavior.
+- [x] Add a Mineflayer offline-mode negative configuration test covering accidental `online-mode=true`, secure-profile enforcement, invalid `server-ip`, occupied ports, and malformed properties with vanilla-compatible refusal or kick messages.
+- [x] Add a Mineflayer offline-mode login test that starts from an empty working directory and verifies `eula.txt`, `server.properties`, world folders, and first successful bot join are produced in vanilla-compatible order.
+- [x] Add a Mineflayer offline-mode login property-roundtrip test that rewrites `server.properties`, restarts, reconnects the same generated bot, and verifies vanilla-compatible UUID/profile reuse and observed config changes.
+- [x] Add a Mineflayer offline-mode bind-address test that verifies bots can connect through `localhost`, explicit `server-ip`, randomized ports, and rejected addresses with vanilla-compatible socket or kick behavior.
+- [x] Add a Mineflayer offline-mode compression-property login test that verifies first join succeeds with `network-compression-threshold=-1`, `0`, small positive values, and the vanilla default while preserving packet ordering.
 - [x] Implement `prevent-proxy-connections`.
 - [x] Implement `server-ip`.
 - [x] Implement mutable `allow-flight`.
@@ -85,7 +85,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement mutable `view-distance`.
 - [x] Implement mutable `simulation-distance`.
 - [x] Implement mutable `max-players`.
-- [ ] Add a Mineflayer max-player enforcement test that fills available slots in offline mode and verifies the extra bot receives the vanilla full-server disconnect message.
+- [x] Add a Mineflayer max-player enforcement test that fills available slots in offline mode and verifies the extra bot receives the vanilla full-server disconnect message.
 - [x] Implement `network-compression-threshold`.
 - [x] Implement `broadcast-rcon-to-ops`.
 - [x] Implement `broadcast-console-to-ops`.
@@ -102,10 +102,10 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement mutable `player-idle-timeout`.
 - [x] Implement mutable `status-heartbeat-interval`.
 - [x] Implement mutable `white-list`.
-- [ ] Add Mineflayer whitelist tests for offline-mode allow, deny, runtime `/whitelist reload`, and `enforce-whitelist` toggles.
-- [ ] Add Mineflayer mutable-property tests that change MOTD, difficulty, gamemode, view-distance, simulation-distance, idle timeout, and whitelist settings at runtime, then verify existing and reconnecting offline-mode bots observe vanilla-compatible state.
-- [ ] Add a Mineflayer offline-mode configuration reload test that edits `server.properties`, runs the vanilla-equivalent reload path where supported, reconnects the bot, and verifies which properties do and do not take effect without restart.
-- [ ] Add a Mineflayer offline-mode secure-profile toggle test that verifies `enforce-secure-profile=false` never blocks generated offline bots and that `true` matches official `server.jar` behavior for unsigned Mineflayer clients.
+- [x] Add Mineflayer whitelist tests for offline-mode allow, deny, runtime `/whitelist reload`, and `enforce-whitelist` toggles.
+- [x] Add Mineflayer mutable-property tests that change MOTD, difficulty, gamemode, view-distance, simulation-distance, idle timeout, and whitelist settings at runtime, then verify existing and reconnecting offline-mode bots observe vanilla-compatible state.
+- [x] Add a Mineflayer offline-mode configuration reload test that edits `server.properties`, runs the vanilla-equivalent reload path where supported, reconnects the bot, and verifies which properties do and do not take effect without restart.
+- [x] Add a Mineflayer offline-mode secure-profile toggle test that verifies `enforce-secure-profile=false` never blocks generated offline bots and that `true` matches official `server.jar` behavior for unsigned Mineflayer clients.
 - [x] Implement `enforce-secure-profile`.
 - [x] Implement `log-ips`.
 - [x] Implement mutable `pause-when-empty-seconds`.
@@ -125,7 +125,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement bandwidth, tick time, packet, and debug sample collection.
 - [x] Implement crash-safe autosave cadence.
 - [x] Implement forced save, save-off, and save-on semantics.
-- [ ] Add Mineflayer tick-loop stability tests that keep an offline-mode bot connected through pause-when-empty transitions, autosave, `/save-off`, `/save-on`, and `/save-all`, verifying keepalives and visible state do not stall.
+- [x] Add Mineflayer tick-loop stability tests that keep an offline-mode bot connected through pause-when-empty transitions, autosave, `/save-off`, `/save-on`, and `/save-all`, verifying keepalives and visible state do not stall.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Operational File And API Coverage
 
