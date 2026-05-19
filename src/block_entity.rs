@@ -252,6 +252,12 @@ pub struct EnchantingTableBlockEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShelfBlockEntity {
+    pub items: Vec<Option<PotItemStack>>,
+    pub align_items_to_bottom: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
     pub color: DyeColor,
@@ -1455,6 +1461,112 @@ fn wrap_radians(mut value: f32) -> f32 {
         value += std::f32::consts::TAU;
     }
     value
+}
+
+impl ShelfBlockEntity {
+    pub const MAX_ITEMS: usize = 3;
+    pub const ALIGN_ITEMS_TO_BOTTOM_TAG: &'static str = "align_items_to_bottom";
+
+    pub fn new() -> Self {
+        Self {
+            items: vec![None; Self::MAX_ITEMS],
+            align_items_to_bottom: false,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = vec![(
+            "Items".to_string(),
+            Tag::List(
+                self.items
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(slot, item)| {
+                        let item = item.as_ref().filter(|item| !item.is_empty())?;
+                        let mut tag = match item.to_tag() {
+                            Tag::Compound(entries) => entries,
+                            _ => return None,
+                        };
+                        tag.push(("Slot".to_string(), Tag::Byte(slot as i8)));
+                        Some(Tag::Compound(tag))
+                    })
+                    .collect(),
+            ),
+        )];
+        entries.push((
+            Self::ALIGN_ITEMS_TO_BOTTOM_TAG.to_string(),
+            Tag::Byte(self.align_items_to_bottom as i8),
+        ));
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut shelf = Self::new();
+        let Some(entries) = compound_entries(tag) else {
+            return shelf;
+        };
+        shelf.align_items_to_bottom =
+            get_bool(entries, Self::ALIGN_ITEMS_TO_BOTTOM_TAG).unwrap_or(false);
+        if let Some(Tag::List(items)) = entries
+            .iter()
+            .find(|(key, _)| key == "Items")
+            .map(|(_, tag)| tag)
+        {
+            for item_tag in items {
+                let Some(item_entries) = compound_entries(item_tag) else {
+                    continue;
+                };
+                let Some(slot) = get_byte(item_entries, "Slot") else {
+                    continue;
+                };
+                if let Some(slot) = usize::try_from(slot)
+                    .ok()
+                    .filter(|slot| *slot < Self::MAX_ITEMS)
+                {
+                    shelf.items[slot] = PotItemStack::from_tag(item_tag);
+                }
+            }
+        }
+        shelf
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn get_item(&self, slot: usize) -> Option<&PotItemStack> {
+        self.items.get(slot).and_then(Option::as_ref)
+    }
+
+    pub fn set_item_no_update(&mut self, slot: usize, item: Option<PotItemStack>) -> bool {
+        let Some(target) = self.items.get_mut(slot) else {
+            return false;
+        };
+        *target = item.filter(|item| !item.is_empty());
+        true
+    }
+
+    pub fn remove_item_no_update(&mut self, slot: usize) -> Option<PotItemStack> {
+        self.items.get_mut(slot).and_then(Option::take)
+    }
+
+    pub fn swap_item_no_update(
+        &mut self,
+        slot: usize,
+        held_item_stack: Option<PotItemStack>,
+    ) -> Option<PotItemStack> {
+        let retrieved = self.remove_item_no_update(slot);
+        self.set_item_no_update(slot, held_item_stack);
+        retrieved
+    }
+
+    pub fn filled_slot_count(&self) -> usize {
+        self.items.iter().filter(|item| item.is_some()).count()
+    }
+
+    pub fn comparator_output(&self) -> u8 {
+        self.filled_slot_count() as u8
+    }
 }
 
 impl DyeColor {
@@ -3773,6 +3885,82 @@ mod tests {
         table.book_animation_tick(None, None);
         assert!(table.rot < std::f32::consts::PI);
         assert!(table.t_rot > -std::f32::consts::PI);
+    }
+
+    #[test]
+    fn shelf_block_entity_saves_three_items_align_flag_and_swaps_slots() {
+        let mut shelf = ShelfBlockEntity::new();
+        assert_eq!(shelf.items.len(), ShelfBlockEntity::MAX_ITEMS);
+        assert_eq!(shelf.comparator_output(), 0);
+        assert!(shelf.set_item_no_update(
+            0,
+            Some(PotItemStack {
+                item_id: "minecraft:book".to_string(),
+                count: 1,
+            })
+        ));
+        assert!(shelf.set_item_no_update(
+            2,
+            Some(PotItemStack {
+                item_id: "minecraft:diamond".to_string(),
+                count: 3,
+            })
+        ));
+        assert!(!shelf.set_item_no_update(
+            3,
+            Some(PotItemStack {
+                item_id: "minecraft:apple".to_string(),
+                count: 1,
+            })
+        ));
+        shelf.align_items_to_bottom = true;
+        assert_eq!(shelf.filled_slot_count(), 2);
+        assert_eq!(shelf.comparator_output(), 2);
+
+        let saved = shelf.save_additional();
+        assert_eq!(ShelfBlockEntity::load_additional(&saved), shelf);
+        assert_eq!(shelf.get_update_tag(), saved);
+        assert_eq!(
+            shelf.swap_item_no_update(
+                0,
+                Some(PotItemStack {
+                    item_id: "minecraft:stick".to_string(),
+                    count: 4,
+                })
+            ),
+            Some(PotItemStack {
+                item_id: "minecraft:book".to_string(),
+                count: 1,
+            })
+        );
+        assert_eq!(
+            shelf.get_item(0),
+            Some(&PotItemStack {
+                item_id: "minecraft:stick".to_string(),
+                count: 4,
+            })
+        );
+        assert_eq!(
+            shelf.remove_item_no_update(2),
+            Some(PotItemStack {
+                item_id: "minecraft:diamond".to_string(),
+                count: 3,
+            })
+        );
+        assert_eq!(shelf.comparator_output(), 1);
+
+        let out_of_range = Tag::Compound(vec![(
+            "Items".to_string(),
+            Tag::List(vec![Tag::Compound(vec![
+                ("id".to_string(), Tag::String("minecraft:apple".to_string())),
+                ("count".to_string(), Tag::Int(1)),
+                ("Slot".to_string(), Tag::Byte(9)),
+            ])]),
+        )]);
+        assert_eq!(
+            ShelfBlockEntity::load_additional(&out_of_range),
+            ShelfBlockEntity::new()
+        );
     }
 
     #[test]
