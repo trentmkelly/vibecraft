@@ -45,8 +45,8 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/recipe`.
 - [ ] Implement `data/minecraft/structure`.
 - [x] Implement `data/minecraft/tags`.
-- [ ] Implement `data/minecraft/test_environment`.
-- [ ] Implement `data/minecraft/test_instance`.
+- [x] Implement `data/minecraft/test_environment`.
+- [x] Implement `data/minecraft/test_instance`.
 - [x] Implement `data/minecraft/timeline`.
 - [ ] Implement `data/minecraft/trade_set`.
 - [ ] Implement `data/minecraft/trial_spawner`.

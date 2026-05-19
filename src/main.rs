@@ -51,6 +51,7 @@ mod fluid;
 mod fuzz_tests;
 mod game_event;
 mod game_rules;
+mod gametest_resources;
 mod gravity;
 mod inhabited_time;
 mod inventory;
