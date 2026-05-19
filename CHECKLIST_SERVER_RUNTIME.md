@@ -70,7 +70,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `gamemode`.
 - [x] Implement `level-name`.
 - [x] Implement `server-port`.
-- [ ] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
+- [x] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
 - [ ] Implement legacy `announce-player-achievements` migration behavior.
 - [x] Implement `enable-query` and `query.port`.
 - [x] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
@@ -130,9 +130,9 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Operational File And API Coverage
 
 - [ ] Implement `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json`, `session.lock`, `level.dat`, `level.dat_old`, region files, entity region files, POI files, playerdata, advancements, stats, icon, crash reports, logs, debug output, and generated reports.
-- [ ] Implement RCON authentication, command execution, response fragmentation, broadcast behavior, and failure modes.
-- [ ] Implement query protocol basic and full stat responses with plugin list behavior equivalent to vanilla.
-- [ ] Implement JSON-RPC management methods, schemas, notifications, player DTOs, reference utilities, pending request tracking, origin checks, TLS settings, and shutdown behavior.
+- [x] Implement RCON authentication, command execution, response fragmentation, broadcast behavior, and failure modes.
+- [x] Implement query protocol basic and full stat responses with plugin list behavior equivalent to vanilla.
+- [x] Implement JSON-RPC management methods, schemas, notifications, player DTOs, reference utilities, pending request tracking, origin checks, TLS settings, and shutdown behavior.
 - [ ] Implement chase server/client debug feature or document it as intentionally unsupported with no impact on vanilla clients.
 - [ ] Implement game test framework hooks enough for parity test execution or document a replacement harness.
 - [ ] Implement generated data/report tooling used to compare registries, tags, commands, packs, and worldgen definitions.
