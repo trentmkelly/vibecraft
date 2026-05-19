@@ -24,8 +24,8 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 - [x] Add a Mineflayer offline-mode fixture sanity test that proves each generated bot username maps to the expected UUID before server start, after vanilla login, and after RustCraft login.
 - [x] Add a Mineflayer offline-mode artifact diff test that compares vanilla and RustCraft login artifacts with volatile ports, timestamps, temp paths, and random seeds normalized out.
 - [x] Treat Mineflayer as the primary automated beacon for regressions whenever its prismarine protocol tables support the target protocol; keep the vanilla 26.1.2 client as the authoritative connectability oracle and use a raw protocol probe to bridge version-support gaps.
-- [ ] Preserve exact client compatibility for unmodified 26.1.2 clients.
-- [ ] Preserve compatibility with vanilla resource/data packs that rely only on official behavior.
+- [x] Preserve exact client compatibility for unmodified 26.1.2 clients.
+- [x] Preserve compatibility with vanilla resource/data packs that rely only on official behavior.
 - [x] Decide which implementation language, async runtime, serialization libraries, compression libraries, crypto libraries, and persistence libraries will be used.
 - [x] Define project modules matching major vanilla boundaries: bootstrap, registries, network, commands, resources, storage, world, entities, gameplay, operations, and tests.
 

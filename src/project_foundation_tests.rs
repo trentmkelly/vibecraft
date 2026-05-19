@@ -15,6 +15,15 @@ mod tests {
         })
     }
 
+    fn doc_file(name: &str) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("docs")
+            .join(name);
+        fs::read_to_string(&path).unwrap_or_else(|err| {
+            panic!("failed to read {}: {err}", path.display());
+        })
+    }
+
     #[test]
     fn mineflayer_runner_targets_rustcraft_and_official_server() {
         let runner = harness_file("runner.mjs");
@@ -143,5 +152,58 @@ mod tests {
         assert!(transcript_wrapper.contains("prismarineSupportsTargetProtocol"));
         assert!(transcript_wrapper.contains("runner: 'raw-26.1.2'"));
         assert!(transcript_wrapper.contains("runner: 'mineflayer'"));
+    }
+
+    #[test]
+    fn unmodified_vanilla_client_compatibility_oracle_is_documented_and_tested() {
+        let compatibility = harness_file("vanilla_compatibility.mjs");
+        let client_smoke = harness_file("vanilla_client_connection_smoke.mjs");
+        let client_xephyr = harness_file("vanilla_client_xephyr.mjs");
+        let docs = doc_file("COMPATIBILITY.md");
+
+        assert!(compatibility.contains("vanilla-26.1.2-compatibility"));
+        assert!(compatibility.contains("targetServer: 'minecraft_server.26.1.2'"));
+        assert!(compatibility.contains("client-join"));
+        assert!(compatibility.contains("survival-play"));
+        assert!(compatibility.contains("death-respawn"));
+        assert!(compatibility.contains("dimension-travel"));
+        assert!(compatibility.contains("reconnecting"));
+
+        assert!(client_smoke.contains("vanilla-client-xephyr-connection-smoke"));
+        assert!(client_smoke.contains("wait for terrain to render"));
+        assert!(client_smoke.contains("capture joined-world screenshot"));
+        assert!(client_smoke.contains("collect latest.log and crash reports"));
+        assert!(client_xephyr.contains("vanilla-client-xephyr-oracle"));
+        assert!(client_xephyr
+            .contains("no full argv logging because vanilla launch args contain auth material"));
+
+        assert!(docs.contains("Target: Minecraft Java Edition 26.1.2."));
+        assert!(docs.contains("does not affect vanilla client protocol compatibility"));
+        assert!(docs.contains("Before any `CHECKLIST.md` item is checked"));
+    }
+
+    #[test]
+    fn vanilla_datapack_and_resource_pack_compatibility_is_covered_by_resource_harnesses() {
+        let datapack = harness_file("datapack_scenarios.mjs");
+        let registry = harness_file("registry_scenarios.mjs");
+        let fixture_linter = harness_file("fixture_linter.mjs");
+        let docs = doc_file("COMPATIBILITY.md");
+
+        assert!(datapack.contains("datapack-reload"));
+        assert!(datapack.contains("feature-flag-datapack-mismatch"));
+        assert!(datapack.contains("changed-datapack-registry-contents"));
+        assert!(datapack.contains("vanilla-compatible-success-or-disconnect"));
+        assert!(datapack.contains("disconnect-component-parity"));
+
+        assert!(registry.contains("compares-registry-ids"));
+        assert!(registry.contains("compares-tag-contents"));
+        assert!(registry.contains("compares-known-packs"));
+        assert!(registry.contains("compares-enabled-feature-order"));
+        assert!(registry.contains("official-server-oracle"));
+
+        assert!(fixture_linter.contains("vanillaComparison"));
+        assert!(fixture_linter.contains("comparison mode must be required, optional, or disabled"));
+        assert!(docs.contains("vanilla datapacks"));
+        assert!(docs.contains("vanilla resources"));
     }
 }
