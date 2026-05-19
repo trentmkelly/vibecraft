@@ -1044,6 +1044,115 @@ impl CookingKind {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FuelValues {
+    entries: Vec<(&'static str, i32)>,
+}
+
+impl FuelValues {
+    pub fn vanilla() -> Self {
+        Self::vanilla_with_base_unit(200)
+    }
+
+    pub fn vanilla_with_base_unit(base_unit: i32) -> Self {
+        let mut entries = Vec::new();
+        let mut add = |item, ticks| push_fuel(&mut entries, item, ticks);
+
+        add("minecraft:lava_bucket", base_unit * 100);
+        add("minecraft:coal_block", base_unit * 8 * 10);
+        add("minecraft:blaze_rod", base_unit * 12);
+        add("minecraft:coal", base_unit * 8);
+        add("minecraft:charcoal", base_unit * 8);
+        add("minecraft:oak_log", base_unit * 3 / 2);
+        add("minecraft:bamboo_block", base_unit * 3 / 2);
+        add("minecraft:oak_planks", base_unit * 3 / 2);
+        add("minecraft:bamboo_mosaic", base_unit * 3 / 2);
+        add("minecraft:oak_stairs", base_unit * 3 / 2);
+        add("minecraft:bamboo_mosaic_stairs", base_unit * 3 / 2);
+        add("minecraft:oak_slab", base_unit * 3 / 4);
+        add("minecraft:bamboo_mosaic_slab", base_unit * 3 / 4);
+        add("minecraft:oak_trapdoor", base_unit * 3 / 2);
+        add("minecraft:oak_pressure_plate", base_unit * 3 / 2);
+        add("minecraft:oak_shelf", base_unit * 3 / 2);
+        add("minecraft:oak_fence", base_unit * 3 / 2);
+        add("minecraft:oak_fence_gate", base_unit * 3 / 2);
+        add("minecraft:note_block", base_unit * 3 / 2);
+        add("minecraft:bookshelf", base_unit * 3 / 2);
+        add("minecraft:chiseled_bookshelf", base_unit * 3 / 2);
+        add("minecraft:lectern", base_unit * 3 / 2);
+        add("minecraft:jukebox", base_unit * 3 / 2);
+        add("minecraft:chest", base_unit * 3 / 2);
+        add("minecraft:trapped_chest", base_unit * 3 / 2);
+        add("minecraft:crafting_table", base_unit * 3 / 2);
+        add("minecraft:daylight_detector", base_unit * 3 / 2);
+        add("minecraft:white_banner", base_unit * 3 / 2);
+        add("minecraft:bow", base_unit * 3 / 2);
+        add("minecraft:fishing_rod", base_unit * 3 / 2);
+        add("minecraft:ladder", base_unit * 3 / 2);
+        add("minecraft:oak_sign", base_unit);
+        add("minecraft:oak_hanging_sign", base_unit * 4);
+        add("minecraft:wooden_shovel", base_unit);
+        add("minecraft:wooden_sword", base_unit);
+        add("minecraft:wooden_spear", base_unit);
+        add("minecraft:wooden_hoe", base_unit);
+        add("minecraft:wooden_axe", base_unit);
+        add("minecraft:wooden_pickaxe", base_unit);
+        add("minecraft:oak_door", base_unit);
+        add("minecraft:oak_boat", base_unit * 6);
+        add("minecraft:white_wool", base_unit / 2);
+        add("minecraft:oak_button", base_unit / 2);
+        add("minecraft:stick", base_unit / 2);
+        add("minecraft:oak_sapling", base_unit / 2);
+        add("minecraft:bowl", base_unit / 2);
+        add("minecraft:white_carpet", 1 + base_unit / 3);
+        add("minecraft:dried_kelp_block", 1 + base_unit * 20);
+        add("minecraft:crossbow", base_unit * 3 / 2);
+        add("minecraft:bamboo", base_unit / 4);
+        add("minecraft:dead_bush", base_unit / 2);
+        add("minecraft:short_dry_grass", base_unit / 2);
+        add("minecraft:tall_dry_grass", base_unit / 2);
+        add("minecraft:scaffolding", base_unit / 4);
+        add("minecraft:loom", base_unit * 3 / 2);
+        add("minecraft:barrel", base_unit * 3 / 2);
+        add("minecraft:cartography_table", base_unit * 3 / 2);
+        add("minecraft:fletching_table", base_unit * 3 / 2);
+        add("minecraft:smithing_table", base_unit * 3 / 2);
+        add("minecraft:composter", base_unit * 3 / 2);
+        add("minecraft:azalea", base_unit / 2);
+        add("minecraft:flowering_azalea", base_unit / 2);
+        add("minecraft:mangrove_roots", base_unit * 3 / 2);
+        add("minecraft:leaf_litter", base_unit / 2);
+
+        Self { entries }
+    }
+
+    pub fn burn_duration(&self, item: Option<&str>) -> i32 {
+        let Some(item) = item else {
+            return 0;
+        };
+        self.entries
+            .iter()
+            .find_map(|(candidate, ticks)| (*candidate == item).then_some(*ticks))
+            .unwrap_or(0)
+    }
+
+    pub fn is_fuel(&self, item: &str) -> bool {
+        self.burn_duration(Some(item)) > 0
+    }
+
+    pub fn fuel_items(&self) -> Vec<&'static str> {
+        self.entries.iter().map(|(item, _)| *item).collect()
+    }
+}
+
+fn push_fuel(entries: &mut Vec<(&'static str, i32)>, item: &'static str, ticks: i32) {
+    if let Some((_, existing)) = entries.iter_mut().find(|(candidate, _)| *candidate == item) {
+        *existing = ticks;
+    } else {
+        entries.push((item, ticks));
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialRecipeKind {
     Transmute,
@@ -1658,6 +1767,36 @@ mod tests {
         ));
         assert_eq!(trim.serializer(), "smithing_trim");
         assert_eq!(trim.assemble(), None);
+    }
+
+    #[test]
+    fn fuel_values_match_vanilla_burn_time_defaults() {
+        let fuels = FuelValues::vanilla();
+        assert_eq!(fuels.burn_duration(Some("minecraft:lava_bucket")), 20_000);
+        assert_eq!(fuels.burn_duration(Some("minecraft:coal_block")), 16_000);
+        assert_eq!(fuels.burn_duration(Some("minecraft:blaze_rod")), 2_400);
+        assert_eq!(fuels.burn_duration(Some("minecraft:coal")), 1_600);
+        assert_eq!(fuels.burn_duration(Some("minecraft:charcoal")), 1_600);
+        assert_eq!(fuels.burn_duration(Some("minecraft:oak_log")), 300);
+        assert_eq!(fuels.burn_duration(Some("minecraft:oak_planks")), 300);
+        assert_eq!(fuels.burn_duration(Some("minecraft:oak_slab")), 150);
+        assert_eq!(fuels.burn_duration(Some("minecraft:oak_hanging_sign")), 800);
+        assert_eq!(fuels.burn_duration(Some("minecraft:oak_boat")), 1_200);
+        assert_eq!(fuels.burn_duration(Some("minecraft:white_wool")), 100);
+        assert_eq!(fuels.burn_duration(Some("minecraft:white_carpet")), 67);
+        assert_eq!(
+            fuels.burn_duration(Some("minecraft:dried_kelp_block")),
+            4_001
+        );
+        assert_eq!(fuels.burn_duration(Some("minecraft:bamboo")), 50);
+        assert_eq!(fuels.burn_duration(None), 0);
+        assert_eq!(fuels.burn_duration(Some("minecraft:diamond")), 0);
+        assert!(fuels.is_fuel("minecraft:stick"));
+        assert!(!fuels.is_fuel("minecraft:bucket"));
+
+        let faster = FuelValues::vanilla_with_base_unit(100);
+        assert_eq!(faster.burn_duration(Some("minecraft:coal")), 800);
+        assert_eq!(faster.burn_duration(Some("minecraft:white_carpet")), 34);
     }
 
     #[test]
