@@ -281,9 +281,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [x] Implement handshake state.
 - [x] Implement status state.
-- [ ] Add a Mineflayer/raw 26.1.2 status/ping test that validates MOTD, version, player counts, and latency ping echo shape while Mineflayer play support lags the target protocol.
-- [ ] Add a Mineflayer/raw status test that compares hidden-player-count and disabled-status behavior against the decompiled 26.1.2 status handshake behavior.
-- [ ] Add a Mineflayer/raw status-to-login transition test that pings the server, immediately logs in offline mode from the same harness process, and verifies the status socket cleanup cannot corrupt the login connection.
+- [x] Add a Mineflayer/raw 26.1.2 status/ping test that validates MOTD, version, player counts, and latency ping echo shape while Mineflayer play support lags the target protocol.
+- [x] Add a Mineflayer/raw status test that compares hidden-player-count and disabled-status behavior against the decompiled 26.1.2 status handshake behavior.
+- [x] Add a Mineflayer/raw status-to-login transition test that pings the server, immediately logs in offline mode from the same harness process, and verifies the status socket cleanup cannot corrupt the login connection.
 - [x] Implement ping state.
 - [x] Implement login state.
 - [ ] Add a Mineflayer offline-mode login test that reaches login success without Yggdrasil, encryption, or secure-profile requirements.
