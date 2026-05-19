@@ -1308,7 +1308,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_objective",
         java_class: "ClientboundSetObjectivePacket",
-        field_order: "unparsed",
+        field_order: "objectiveName:String, method:byte, if add/change displayName:trusted Component network NBT tag, renderType:ObjectiveCriteria.RenderType enum VarInt, numberFormat:Optional<NumberFormatTypes.STREAM_CODEC>",
     },
     PlayPacketSpec {
         id: 107,
@@ -1336,7 +1336,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_score",
         java_class: "ClientboundSetScorePacket",
-        field_order: "unparsed",
+        field_order: "owner:String, objectiveName:String, score:VarInt, display:Optional<trusted Component network NBT tag>, numberFormat:Optional<NumberFormatTypes.STREAM_CODEC>",
     },
     PlayPacketSpec {
         id: 111,

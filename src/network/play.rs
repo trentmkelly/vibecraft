@@ -1230,6 +1230,49 @@ pub struct ClientboundSetDisplayObjectivePacket {
     pub objective_name: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetObjectivePacket {
+    pub objective_name: String,
+    pub method: ObjectiveMethod,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ObjectiveMethod {
+    Add {
+        display_name: Tag,
+        render_type: ObjectiveRenderType,
+        number_format: Option<NumberFormat>,
+    },
+    Remove,
+    Change {
+        display_name: Tag,
+        render_type: ObjectiveRenderType,
+        number_format: Option<NumberFormat>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectiveRenderType {
+    Integer = 0,
+    Hearts = 1,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NumberFormat {
+    Blank,
+    Styled { style: Tag },
+    Fixed { value: Tag },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetScorePacket {
+    pub owner: String,
+    pub objective_name: String,
+    pub score: i32,
+    pub display: Option<Tag>,
+    pub number_format: Option<NumberFormat>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundResourcePackPopPacket {
     pub id: Option<Uuid>,
@@ -3303,6 +3346,79 @@ impl ClientboundSetDisplayObjectivePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.slot)?;
         write_string(writer, &self.objective_name, 32767)
+    }
+}
+
+impl ClientboundSetObjectivePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.objective_name, 32767)?;
+        match &self.method {
+            ObjectiveMethod::Add {
+                display_name,
+                render_type,
+                number_format,
+            } => {
+                writer.write_all(&[0])?;
+                write_objective_payload(writer, display_name, *render_type, number_format)
+            }
+            ObjectiveMethod::Remove => writer.write_all(&[1]),
+            ObjectiveMethod::Change {
+                display_name,
+                render_type,
+                number_format,
+            } => {
+                writer.write_all(&[2])?;
+                write_objective_payload(writer, display_name, *render_type, number_format)
+            }
+        }
+    }
+}
+
+fn write_objective_payload<W: Write>(
+    writer: &mut W,
+    display_name: &Tag,
+    render_type: ObjectiveRenderType,
+    number_format: &Option<NumberFormat>,
+) -> io::Result<()> {
+    write_network_tag(writer, display_name)?;
+    write_var_i32(writer, render_type as i32)?;
+    write_optional_number_format(writer, number_format.as_ref())
+}
+
+impl ClientboundSetScorePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.owner, 32767)?;
+        write_string(writer, &self.objective_name, 32767)?;
+        write_var_i32(writer, self.score)?;
+        write_optional(writer, self.display.as_ref(), |writer, display| {
+            write_network_tag(writer, display)
+        })?;
+        write_optional_number_format(writer, self.number_format.as_ref())
+    }
+}
+
+fn write_optional_number_format<W: Write>(
+    writer: &mut W,
+    number_format: Option<&NumberFormat>,
+) -> io::Result<()> {
+    write_optional(writer, number_format, |writer, number_format| {
+        number_format.write(writer)
+    })
+}
+
+impl NumberFormat {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Blank => write_var_i32(writer, 0),
+            Self::Styled { style } => {
+                write_var_i32(writer, 1)?;
+                write_network_tag(writer, style)
+            }
+            Self::Fixed { value } => {
+                write_var_i32(writer, 2)?;
+                write_network_tag(writer, value)
+            }
+        }
     }
 }
 
@@ -7039,6 +7155,55 @@ mod tests {
             display_objective,
             [vec![1, 7], b"sidebar".to_vec()].concat()
         );
+
+        let score_name =
+            Tag::Compound(vec![("text".to_string(), Tag::String("Kills".to_string()))]);
+        let mut set_objective = Vec::new();
+        ClientboundSetObjectivePacket {
+            objective_name: "kills".to_string(),
+            method: ObjectiveMethod::Add {
+                display_name: score_name.clone(),
+                render_type: ObjectiveRenderType::Hearts,
+                number_format: Some(NumberFormat::Fixed {
+                    value: score_name.clone(),
+                }),
+            },
+        }
+        .write(&mut set_objective)
+        .unwrap();
+        assert_eq!(&set_objective[..7], &[5, b'k', b'i', b'l', b'l', b's', 0]);
+        assert_eq!(set_objective[7], 10);
+        assert!(set_objective.windows(3).any(|window| window == [1, 1, 2]));
+        assert!(set_objective.ends_with(&[0]));
+
+        let mut remove_objective = Vec::new();
+        ClientboundSetObjectivePacket {
+            objective_name: "kills".to_string(),
+            method: ObjectiveMethod::Remove,
+        }
+        .write(&mut remove_objective)
+        .unwrap();
+        assert_eq!(
+            remove_objective,
+            [vec![5], b"kills".to_vec(), vec![1]].concat()
+        );
+
+        let mut set_score = Vec::new();
+        ClientboundSetScorePacket {
+            owner: "Alex".to_string(),
+            objective_name: "kills".to_string(),
+            score: 300,
+            display: Some(score_name),
+            number_format: Some(NumberFormat::Blank),
+        }
+        .write(&mut set_score)
+        .unwrap();
+        assert_eq!(
+            &set_score[..12],
+            &[4, b'A', b'l', b'e', b'x', 5, b'k', b'i', b'l', b'l', b's', 0xac]
+        );
+        assert!(set_score.windows(3).any(|window| window == [0x02, 1, 10]));
+        assert_eq!(&set_score[set_score.len() - 3..], &[0, 1, 0]);
 
         let mut pack_pop = Vec::new();
         ClientboundResourcePackPopPacket {

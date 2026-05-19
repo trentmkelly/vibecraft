@@ -131,8 +131,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Scoreboard / Team Packets
 
 - [x] `ClientboundSetDisplayObjectivePacket` (0x55): slot byte, objective name string
-- [ ] `ClientboundSetObjectivePacket` (0x56): objective name, mode byte (0=add, 1=remove, 2=change), optional display name/criteria/render-type/number-format
-- [ ] `ClientboundSetScorePacket` (0x5A): owner string, objective name, score VarInt, optional display name, optional number format
+- [x] `ClientboundSetObjectivePacket` (0x56): objective name, mode byte (0=add, 1=remove, 2=change), optional display name/render-type/number-format
+- [x] `ClientboundSetScorePacket` (0x5A): owner string, objective name, score VarInt, optional display name, optional number format
 - [x] `ClientboundResetScorePacket` (0x42): owner string, optional objective name
 - [ ] `ClientboundSetPlayerTeamPacket` (0x5B): team name, method byte (0=create, 1=remove, 2=update, 3=add-players, 4=remove-players), team data for create/update (display name, options bitmask, name-tag visibility, collision rule, color VarInt, prefix, suffix), player list for add/remove
 
