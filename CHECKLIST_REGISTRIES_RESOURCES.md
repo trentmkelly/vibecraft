@@ -34,10 +34,10 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement cat, chicken, cow, frog, pig, wolf, and zombie nautilus variants.
 - [x] Implement `data/minecraft/chat_type`.
 - [x] Implement `data/minecraft/damage_type`.
-- [ ] Implement `data/minecraft/dialog`.
+- [x] Implement `data/minecraft/dialog`.
 - [x] Implement `data/minecraft/dimension_type`.
-- [ ] Implement `data/minecraft/enchantment`.
-- [ ] Implement `data/minecraft/enchantment_provider`.
+- [x] Implement `data/minecraft/enchantment`.
+- [x] Implement `data/minecraft/enchantment_provider`.
 - [x] Implement `data/minecraft/instrument`.
 - [x] Implement `data/minecraft/jukebox_song`.
 - [ ] Implement `data/minecraft/loot_table`.
@@ -47,7 +47,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/tags`.
 - [ ] Implement `data/minecraft/test_environment`.
 - [ ] Implement `data/minecraft/test_instance`.
-- [ ] Implement `data/minecraft/timeline`.
+- [x] Implement `data/minecraft/timeline`.
 - [ ] Implement `data/minecraft/trade_set`.
 - [ ] Implement `data/minecraft/trial_spawner`.
 - [x] Implement `data/minecraft/trim_material`.
