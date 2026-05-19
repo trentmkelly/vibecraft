@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::block_update::BlockPos;
+use crate::map_state::DyeColor;
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
 
@@ -145,6 +146,11 @@ pub struct TestInstanceErrorMarker {
 pub struct TestInstanceBlockEntityState {
     pub data: TestInstanceBlockEntityData,
     pub errors: Vec<TestInstanceErrorMarker>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BedBlockEntity {
+    pub color: DyeColor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -456,6 +462,35 @@ impl TestInstanceErrorMarker {
                 })?;
         let text = get_string(entries, "text")?.to_string();
         Some(Self { pos, text })
+    }
+}
+
+impl BedBlockEntity {
+    pub fn from_block_state(block_state: &str) -> Option<Self> {
+        let color = match block_state.strip_prefix("minecraft:")? {
+            "white_bed" => DyeColor::White,
+            "orange_bed" => DyeColor::Orange,
+            "magenta_bed" => DyeColor::Magenta,
+            "light_blue_bed" => DyeColor::LightBlue,
+            "yellow_bed" => DyeColor::Yellow,
+            "lime_bed" => DyeColor::Lime,
+            "pink_bed" => DyeColor::Pink,
+            "gray_bed" => DyeColor::Gray,
+            "light_gray_bed" => DyeColor::LightGray,
+            "cyan_bed" => DyeColor::Cyan,
+            "purple_bed" => DyeColor::Purple,
+            "blue_bed" => DyeColor::Blue,
+            "brown_bed" => DyeColor::Brown,
+            "green_bed" => DyeColor::Green,
+            "red_bed" => DyeColor::Red,
+            "black_bed" => DyeColor::Black,
+            _ => return None,
+        };
+        Some(Self { color })
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(Vec::new())
     }
 }
 
@@ -1421,6 +1456,54 @@ mod tests {
         assert!(!has_block_entity_for_block("minecraft:cauldron"));
         assert!(!has_block_entity_for_block("minecraft:stone"));
         assert!(!has_block_entity_for_block("minecraft:dirt"));
+    }
+
+    #[test]
+    fn bed_block_entity_is_color_only_placeholder() {
+        assert_eq!(
+            BedBlockEntity::from_block_state("minecraft:white_bed"),
+            Some(BedBlockEntity {
+                color: DyeColor::White
+            })
+        );
+        assert_eq!(
+            BedBlockEntity::from_block_state("minecraft:light_blue_bed"),
+            Some(BedBlockEntity {
+                color: DyeColor::LightBlue
+            })
+        );
+        assert_eq!(
+            BedBlockEntity::from_block_state("minecraft:black_bed"),
+            Some(BedBlockEntity {
+                color: DyeColor::Black
+            })
+        );
+        assert_eq!(BedBlockEntity::from_block_state("minecraft:stone"), None);
+
+        let bed = BlockEntity::new(BlockEntityTypeId::Bed, pos(), "minecraft:red_bed").unwrap();
+        assert_eq!(bed.ty, BlockEntityTypeId::Bed);
+        assert_eq!(
+            BedBlockEntity::from_block_state(&bed.block_state),
+            Some(BedBlockEntity {
+                color: DyeColor::Red
+            })
+        );
+        assert_eq!(
+            BedBlockEntity::from_block_state(&bed.block_state)
+                .unwrap()
+                .save_additional(),
+            Tag::Compound(Vec::new())
+        );
+        assert_eq!(
+            bed.save_with_full_metadata(),
+            Tag::Compound(vec![
+                ("components".to_string(), Tag::Compound(Vec::new())),
+                ("id".to_string(), Tag::String("bed".to_string())),
+                ("x".to_string(), Tag::Int(pos().x)),
+                ("y".to_string(), Tag::Int(pos().y)),
+                ("z".to_string(), Tag::Int(pos().z)),
+            ])
+        );
     }
 
     #[test]

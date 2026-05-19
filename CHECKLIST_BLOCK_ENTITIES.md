@@ -91,7 +91,7 @@
 ## Decorative / Lore Block Entities
 
 - [ ] Implement `BannerBlockEntity`: banner color, `BannerPatternLayers` list (up to 6 `BannerPatternLayer` each with pattern holder + `DyeColor`), serialization for both save NBT and `getUpdateTag()` network subset
-- [ ] Implement `BedBlockEntity`: empty placeholder (no data), required only for `BlockEntityType` registration and color variant
+- [x] Implement `BedBlockEntity`: empty placeholder (no data), required only for `BlockEntityType` registration and color variant
 - [ ] Implement `BrushableBlockEntity`: brush-progress animation (0–10), loot-table seeded item, loot-table seed, brush-item durability tracking, FULL/HIT/RESET state, `unpackLootTable()` on first brush
 - [ ] Implement `DecoratedPotBlockEntity`: `PotDecorations` (4 sides: back/left/right/front, each a sherd or brick), loot-table content, 1-slot item storage, wobble animation (type + ticks)
 - [ ] Implement `SkullBlockEntity`: owner `GameProfile` (player head variant), note-block sound data, `SkullOwner` NBT round-trip, async profile lookup for player-head textures
