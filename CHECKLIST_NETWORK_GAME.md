@@ -348,7 +348,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Extend the raw 26.1.2 probe to verify every emitted biome has the decompiled codec-required fields before finish-configuration.
 - [x] Add a raw 26.1.2 transcript fallback for initial chunk biome palette compatibility while Mineflayer target-protocol chunk observation remains pending. References: `harness/mineflayer/raw_26_1_2_join_probe.mjs`, `harness/mineflayer/raw_26_1_2_chunk_streaming.test.mjs`.
 - [x] Sync `minecraft:chat_type` during configuration with vanilla `chat`, `say_command`, `msg_command_incoming`, `msg_command_outgoing`, `team_msg_command_incoming`, `team_msg_command_outgoing`, and `emote_command` entries.
-- [ ] Sync `minecraft:trim_pattern` during configuration with all vanilla smithing template patterns and component descriptions.
+- [x] Sync `minecraft:trim_pattern` during configuration with all vanilla smithing template patterns and component descriptions.
 - [x] Sync `minecraft:trim_material` during configuration with all vanilla trim materials, including `redstone`.
 - [x] Sync `minecraft:wolf_variant` during configuration with all vanilla wolf variants.
 - [x] Sync `minecraft:wolf_sound_variant` during configuration with a non-empty codec-compatible default.
