@@ -90,6 +90,10 @@ async function enterPlay (socket, reader, username) {
 
   const login = await reader.nextFrame()
   assert.equal(login.packetId, 49)
+  while (true) {
+    const packet = await reader.nextFrame()
+    if (packet.packetId === 11) break
+  }
 }
 
 async function observeRejection (socket, reader, { allowedDisconnectIds }) {

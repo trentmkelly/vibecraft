@@ -272,7 +272,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement custom payload channels and known payload validation.
 - [x] Implement keepalive and timeout handling for all relevant protocol states.
 - [x] Add a Mineflayer/raw keepalive test that stays connected for multiple heartbeat intervals and verifies no false timeout or duplicate keepalive response handling.
-- [ ] Add a Mineflayer malformed-client-behavior test that uses Mineflayer packet hooks to send unexpected status, login, configuration, and play packets in offline mode and verifies vanilla-compatible disconnect reasons.
+- [x] Add a Mineflayer malformed-client-behavior test that uses Mineflayer packet hooks to send unexpected status, login, configuration, and play packets in offline mode and verifies vanilla-compatible disconnect reasons.
 - [x] Add a Mineflayer compression-threshold test that logs in offline mode with disabled, low, and default thresholds, then verifies packet flow still reaches play state and large packets are decoded correctly.
 - [x] Implement packet listener dispatch and main-thread handoff rules.
 - [x] Implement disconnect messages and close ordering matching vanilla closely enough for clients.
