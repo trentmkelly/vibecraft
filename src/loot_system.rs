@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootStack {
@@ -204,6 +205,173 @@ pub struct LootResolution {
     pub param_set: LootParamSet,
     pub delivery: LootDelivery,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LootTableResource {
+    pub param_set: String,
+    pub random_sequence: Option<String>,
+    pub pools: Vec<LootPoolResource>,
+    pub functions: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LootPoolResource {
+    pub entries: Vec<serde_json::Value>,
+    pub conditions: Vec<serde_json::Value>,
+    pub functions: Vec<serde_json::Value>,
+    pub rolls: serde_json::Value,
+    pub bonus_rolls: serde_json::Value,
+}
+
+pub fn parse_loot_table_resource(raw: &str) -> Result<LootTableResource, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|err| format!("invalid loot table JSON: {err}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "loot table must be a JSON object".to_string())?;
+    let pools = object
+        .get("pools")
+        .map(parse_loot_pools)
+        .transpose()?
+        .unwrap_or_default();
+    let functions = object
+        .get("functions")
+        .map(parse_json_list)
+        .transpose()?
+        .unwrap_or_default();
+
+    Ok(LootTableResource {
+        param_set: object
+            .get("type")
+            .map(json_string_value)
+            .transpose()?
+            .unwrap_or_else(|| "minecraft:all_params".to_string()),
+        random_sequence: object
+            .get("random_sequence")
+            .map(json_string_value)
+            .transpose()?,
+        pools,
+        functions,
+    })
+}
+
+pub fn load_loot_table_resource(path: impl AsRef<Path>) -> Result<LootTableResource, String> {
+    let raw = std::fs::read_to_string(path.as_ref())
+        .map_err(|err| format!("failed to read {}: {err}", path.as_ref().display()))?;
+    parse_loot_table_resource(&raw)
+}
+
+fn parse_loot_pools(value: &serde_json::Value) -> Result<Vec<LootPoolResource>, String> {
+    value
+        .as_array()
+        .ok_or_else(|| "pools must be a list".to_string())?
+        .iter()
+        .map(parse_loot_pool)
+        .collect()
+}
+
+fn parse_loot_pool(value: &serde_json::Value) -> Result<LootPoolResource, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "loot pool must be a JSON object".to_string())?;
+    let entries = object
+        .get("entries")
+        .map(parse_json_list)
+        .transpose()?
+        .ok_or_else(|| "loot pool entries are required".to_string())?;
+    for entry in &entries {
+        validate_loot_entry(entry)?;
+    }
+    let conditions = object
+        .get("conditions")
+        .map(parse_json_list)
+        .transpose()?
+        .unwrap_or_default();
+    let functions = object
+        .get("functions")
+        .map(parse_json_list)
+        .transpose()?
+        .unwrap_or_default();
+
+    Ok(LootPoolResource {
+        entries,
+        conditions,
+        functions,
+        rolls: required_value(object, "rolls")?.clone(),
+        bonus_rolls: object
+            .get("bonus_rolls")
+            .cloned()
+            .unwrap_or(serde_json::Value::from(0.0)),
+    })
+}
+
+fn validate_loot_entry(value: &serde_json::Value) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "loot entry must be a JSON object".to_string())?;
+    let entry_type = json_string(object, "type")?;
+    match entry_type.as_str() {
+        "minecraft:item" => {
+            json_string(object, "name")?;
+        }
+        "minecraft:alternatives" | "minecraft:group" | "minecraft:sequence" => {
+            let children = object
+                .get("children")
+                .map(parse_json_list)
+                .transpose()?
+                .unwrap_or_default();
+            for child in &children {
+                validate_loot_entry(child)?;
+            }
+        }
+        "minecraft:loot_table" => {
+            required_value(object, "value")?;
+        }
+        "minecraft:dynamic" => {
+            json_string(object, "name")?;
+        }
+        "minecraft:tag" => {
+            json_string(object, "name")?;
+        }
+        "minecraft:empty" => {}
+        other => return Err(format!("unsupported loot entry type {other}")),
+    }
+    Ok(())
+}
+
+fn parse_json_list(value: &serde_json::Value) -> Result<Vec<serde_json::Value>, String> {
+    value
+        .as_array()
+        .cloned()
+        .ok_or_else(|| "value must be a list".to_string())
+}
+
+fn required_value<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<&'a serde_json::Value, String> {
+    object
+        .get(field)
+        .ok_or_else(|| format!("{field} is required"))
+}
+
+fn json_string(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<String, String> {
+    object
+        .get(field)
+        .map(json_string_value)
+        .transpose()?
+        .ok_or_else(|| format!("{field} must be a string"))
+}
+
+fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
+    value
+        .as_str()
+        .map(ToString::to_string)
+        .ok_or_else(|| "value must be a string".to_string())
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1351,5 +1519,76 @@ mod tests {
 
         assert_eq!(first_slots, second_slots);
         assert!(first.unpack_once(&engine, (0.0, 64.0, 0.0)).is_none());
+    }
+
+    #[test]
+    fn loot_table_resources_decode_all_vanilla_tables() {
+        let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/loot_table");
+        let mut paths = Vec::new();
+        collect_json_paths(root, &mut paths);
+        paths.sort();
+
+        assert_eq!(paths.len(), 1326);
+        let mut param_sets = HashSet::new();
+        let mut nested_table_count = 0;
+        let mut item_entry_count = 0;
+        for path in &paths {
+            let table = load_loot_table_resource(path).unwrap_or_else(|err| {
+                panic!("{} failed to decode: {err}", path.display());
+            });
+            param_sets.insert(table.param_set);
+            for pool in table.pools {
+                assert!(
+                    !pool.entries.is_empty(),
+                    "{} has empty pool",
+                    path.display()
+                );
+                for entry in pool.entries {
+                    let entry_type = entry
+                        .get("type")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default();
+                    if entry_type == "minecraft:item" {
+                        item_entry_count += 1;
+                    } else if entry_type == "minecraft:loot_table" {
+                        nested_table_count += 1;
+                    }
+                }
+            }
+        }
+
+        assert!(param_sets.contains("minecraft:block"));
+        assert!(param_sets.contains("minecraft:chest"));
+        assert!(param_sets.contains("minecraft:entity"));
+        assert!(param_sets.contains("minecraft:fishing"));
+        assert!(item_entry_count > 1_000);
+        assert!(nested_table_count > 0);
+    }
+
+    #[test]
+    fn loot_table_resource_defaults_match_java_direct_codec() {
+        let table = parse_loot_table_resource("{}").unwrap();
+        assert_eq!(table.param_set, "minecraft:all_params");
+        assert_eq!(table.random_sequence, None);
+        assert!(table.pools.is_empty());
+        assert!(table.functions.is_empty());
+
+        assert!(parse_loot_table_resource(r#"{"pools":[{"rolls":1.0}]}"#).is_err());
+        assert!(parse_loot_table_resource(
+            r#"{"pools":[{"rolls":1.0,"entries":[{"type":"minecraft:item"}]}]}"#
+        )
+        .is_err());
+    }
+
+    fn collect_json_paths(root: &std::path::Path, paths: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(root).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                collect_json_paths(&path, paths);
+            } else if path.extension().and_then(|ext| ext.to_str()) == Some("json") {
+                paths.push(path);
+            }
+        }
     }
 }

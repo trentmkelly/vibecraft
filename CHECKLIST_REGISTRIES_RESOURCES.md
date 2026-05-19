@@ -40,7 +40,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/enchantment_provider`.
 - [x] Implement `data/minecraft/instrument`.
 - [x] Implement `data/minecraft/jukebox_song`.
-- [ ] Implement `data/minecraft/loot_table`.
+- [x] Implement `data/minecraft/loot_table`.
 - [x] Implement `data/minecraft/painting_variant`.
 - [x] Implement `data/minecraft/recipe`.
 - [ ] Implement `data/minecraft/structure`.
