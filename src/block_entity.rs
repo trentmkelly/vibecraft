@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
-use crate::redstone::{comparator_output, ComparatorMode};
+use crate::redstone::{comparator_output, ComparatorMode, MAX_SIGNAL};
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
 
@@ -195,6 +195,12 @@ pub struct JigsawBlockEntity {
 pub struct ComparatorBlockEntity {
     pub mode: ComparatorMode,
     pub output_signal: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DaylightDetectorBlockEntity {
+    pub inverted: bool,
+    pub power: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -912,6 +918,60 @@ impl ComparatorBlockEntity {
         let changed = self.output_signal != next;
         self.output_signal = next;
         changed
+    }
+}
+
+impl DaylightDetectorBlockEntity {
+    pub const TICK_INTERVAL: u64 = 20;
+
+    pub fn new(inverted: bool) -> Self {
+        Self { inverted, power: 0 }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(Vec::new())
+    }
+
+    pub fn calculate_power(
+        inverted: bool,
+        effective_sky_brightness: i32,
+        sun_angle_degrees: f32,
+    ) -> u8 {
+        let mut target = effective_sky_brightness;
+        if inverted {
+            target = i32::from(MAX_SIGNAL) - target;
+        } else if target > 0 {
+            let mut sun_angle = sun_angle_degrees.to_radians();
+            let offset = if sun_angle < std::f32::consts::PI {
+                0.0
+            } else {
+                std::f32::consts::TAU
+            };
+            sun_angle += (offset - sun_angle) * 0.2;
+            target = ((target as f32) * sun_angle.cos()).round() as i32;
+        }
+
+        target.clamp(0, i32::from(MAX_SIGNAL)) as u8
+    }
+
+    pub fn update_signal(&mut self, effective_sky_brightness: i32, sun_angle_degrees: f32) -> bool {
+        let next =
+            Self::calculate_power(self.inverted, effective_sky_brightness, sun_angle_degrees);
+        let changed = self.power != next;
+        self.power = next;
+        changed
+    }
+
+    pub fn tick(
+        &mut self,
+        game_time: u64,
+        effective_sky_brightness: i32,
+        sun_angle_degrees: f32,
+    ) -> bool {
+        if game_time % Self::TICK_INTERVAL != 0 {
+            return false;
+        }
+        self.update_signal(effective_sky_brightness, sun_angle_degrees)
     }
 }
 
@@ -3003,6 +3063,35 @@ mod tests {
         assert_eq!(subtract.output_signal, 5);
         assert!(subtract.update_output(3, 10));
         assert_eq!(subtract.output_signal, 0);
+    }
+
+    #[test]
+    fn daylight_detector_updates_power_with_vanilla_solar_math_and_tick_cadence() {
+        let mut normal = DaylightDetectorBlockEntity::new(false);
+        assert_eq!(normal.save_additional(), Tag::Compound(Vec::new()));
+        assert!(!normal.tick(19, 15, 0.0));
+        assert_eq!(normal.power, 0);
+        assert!(normal.tick(20, 15, 0.0));
+        assert_eq!(normal.power, 15);
+        assert!(normal.update_signal(15, 180.0));
+        assert_eq!(normal.power, 0);
+        assert!(!normal.update_signal(-4, 0.0));
+        assert_eq!(normal.power, 0);
+
+        assert_eq!(
+            DaylightDetectorBlockEntity::calculate_power(false, 10, 90.0),
+            3
+        );
+        assert_eq!(
+            DaylightDetectorBlockEntity::calculate_power(false, 99, 0.0),
+            15
+        );
+
+        let mut inverted = DaylightDetectorBlockEntity::new(true);
+        assert!(inverted.update_signal(4, 90.0));
+        assert_eq!(inverted.power, 11);
+        assert!(inverted.update_signal(99, 0.0));
+        assert_eq!(inverted.power, 0);
     }
 
     #[test]
