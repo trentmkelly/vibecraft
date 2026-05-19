@@ -366,6 +366,24 @@ pub struct RecipeHolder {
     pub recipe: RecipeKind,
 }
 
+impl RecipeHolder {
+    pub fn get_id(&self) -> &'static str {
+        self.id
+    }
+
+    pub fn get_serializer(&self) -> &'static str {
+        self.recipe.serializer()
+    }
+
+    pub fn get_type(&self) -> &'static str {
+        self.recipe.recipe_type()
+    }
+
+    pub fn get_result_item(&self) -> Option<ItemAmount> {
+        self.recipe.assemble()
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecipeMap {
     recipes: Vec<RecipeHolder>,
@@ -849,6 +867,80 @@ impl ItemAmount {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CraftingStack {
+    pub item: &'static str,
+    pub count: u32,
+}
+
+impl CraftingStack {
+    pub fn one(item: &'static str) -> Self {
+        Self { item, count: 1 }
+    }
+}
+
+pub fn default_crafting_remaining_items(
+    input: &[Option<CraftingStack>],
+) -> Vec<Option<CraftingStack>> {
+    input
+        .iter()
+        .map(|stack| {
+            let item = stack.as_ref()?.item;
+            crafting_remainder(item).map(CraftingStack::one)
+        })
+        .collect()
+}
+
+fn crafting_remainder(item: &str) -> Option<&'static str> {
+    match item {
+        "minecraft:water_bucket" | "minecraft:lava_bucket" | "minecraft:milk_bucket" => {
+            Some("minecraft:bucket")
+        }
+        "minecraft:honey_bottle"
+        | "minecraft:potion"
+        | "minecraft:splash_potion"
+        | "minecraft:lingering_potion" => Some("minecraft:glass_bottle"),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CraftingBookCategoryModel {
+    Building,
+    Equipment,
+    Redstone,
+    Misc,
+}
+
+impl CraftingBookCategoryModel {
+    pub fn recipe_book_category(self) -> &'static str {
+        match self {
+            Self::Building => "crafting_building_blocks",
+            Self::Equipment => "crafting_equipment",
+            Self::Redstone => "crafting_redstone",
+            Self::Misc => "crafting_misc",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalCraftingRecipeModel {
+    pub category: CraftingBookCategoryModel,
+    pub group: &'static str,
+    pub show_notification: bool,
+    pub placement_info: PlacementInfo,
+}
+
+impl NormalCraftingRecipeModel {
+    pub fn recipe_book_category(&self) -> &'static str {
+        self.category.recipe_book_category()
+    }
+
+    pub fn is_incomplete(&self) -> bool {
+        self.placement_info.is_impossible_to_place()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnchantmentComponent {
     pub id: &'static str,
     pub level: u32,
@@ -1275,6 +1367,39 @@ impl RecipeKind {
                 SpecialRecipeKind::Imbue => "crafting_imbue",
             },
         }
+    }
+
+    pub fn is_special(&self) -> bool {
+        matches!(self, RecipeKind::Special { .. })
+    }
+
+    pub fn recipe_book_category(&self) -> &'static str {
+        match self {
+            RecipeKind::Shaped { .. } | RecipeKind::Shapeless { .. } => "crafting_misc",
+            RecipeKind::Cooking {
+                kind: CookingKind::Smelting,
+                ..
+            } => "furnace_misc",
+            RecipeKind::Cooking {
+                kind: CookingKind::Blasting,
+                ..
+            } => "blast_furnace_misc",
+            RecipeKind::Cooking {
+                kind: CookingKind::Smoking,
+                ..
+            } => "smoker_food",
+            RecipeKind::Cooking {
+                kind: CookingKind::CampfireCooking,
+                ..
+            } => "campfire",
+            RecipeKind::Stonecutting { .. } => "stonecutter",
+            RecipeKind::SmithingTransform { .. } | RecipeKind::SmithingTrim { .. } => "smithing",
+            RecipeKind::Special { .. } => "crafting_misc",
+        }
+    }
+
+    pub fn show_notification(&self) -> bool {
+        !self.is_special()
     }
 
     pub fn matches(
@@ -2134,6 +2259,72 @@ mod tests {
             vec!["minecraft:diamond_sword"]
         );
         assert!(manager.stonecutter_recipes().is_empty());
+    }
+
+    #[test]
+    fn core_recipe_interface_methods_match_java_defaults() {
+        let holder = RecipeHolder {
+            id: "minecraft:crafting_table",
+            recipe: RecipeKind::Shaped {
+                width: 2,
+                height: 2,
+                pattern: vec![
+                    Some(IngredientSpec::Item("minecraft:oak_planks")),
+                    Some(IngredientSpec::Item("minecraft:oak_planks")),
+                    Some(IngredientSpec::Item("minecraft:oak_planks")),
+                    Some(IngredientSpec::Item("minecraft:oak_planks")),
+                ],
+                result: ItemAmount::one("minecraft:crafting_table"),
+            },
+        };
+        assert_eq!(holder.get_id(), "minecraft:crafting_table");
+        assert_eq!(holder.get_serializer(), "crafting_shaped");
+        assert_eq!(holder.get_type(), "crafting");
+        assert_eq!(
+            holder.get_result_item(),
+            Some(ItemAmount::one("minecraft:crafting_table"))
+        );
+        assert!(!holder.recipe.is_special());
+        assert!(holder.recipe.show_notification());
+        assert_eq!(holder.recipe.recipe_book_category(), "crafting_misc");
+
+        let special = RecipeKind::Special {
+            kind: SpecialRecipeKind::RepairItem,
+            result_hint: None,
+        };
+        assert!(special.is_special());
+        assert!(!special.show_notification());
+        assert_eq!(special.recipe_book_category(), "crafting_misc");
+
+        let normal = NormalCraftingRecipeModel {
+            category: CraftingBookCategoryModel::Equipment,
+            group: "tools",
+            show_notification: true,
+            placement_info: PlacementInfo::create(IngredientSpec::Item("minecraft:stick")),
+        };
+        assert_eq!(normal.recipe_book_category(), "crafting_equipment");
+        assert_eq!(normal.group, "tools");
+        assert!(!normal.is_incomplete());
+        assert!(!normal.placement_info.is_impossible_to_place());
+    }
+
+    #[test]
+    fn crafting_recipe_default_remaining_items_uses_item_remainders() {
+        let remaining = default_crafting_remaining_items(&[
+            Some(CraftingStack::one("minecraft:water_bucket")),
+            Some(CraftingStack::one("minecraft:potion")),
+            Some(CraftingStack::one("minecraft:oak_planks")),
+            None,
+        ]);
+        assert_eq!(
+            remaining,
+            vec![
+                Some(CraftingStack::one("minecraft:bucket")),
+                Some(CraftingStack::one("minecraft:glass_bottle")),
+                None,
+                None,
+            ]
+        );
     }
 
     #[test]

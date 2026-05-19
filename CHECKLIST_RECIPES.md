@@ -37,10 +37,10 @@
 
 ## Core Recipe Interfaces
 
-- [ ] Implement `Recipe<I extends RecipeInput>`: `matches(input, level)`, `assemble(input, registries)`, `getResultItem(registries)`, `getId()`, `getSerializer()`, `getType()`, `isSpecial()`, `getRemainingItems(input)` (for remainder stacks like buckets/bottles)
-- [ ] Implement `CraftingRecipe`: extends `Recipe<CraftingInput>`, `category()` → `CraftingBookCategory`, `isIncomplete()` check
-- [ ] Implement `NormalCraftingRecipe`: marker interface for non-special crafting recipes
-- [ ] Implement `CustomRecipe`: base for special single-output recipes with `isSpecial() = true`
+- [x] Implement `Recipe<I extends RecipeInput>`: `matches(input, level)`, `assemble(input, registries)`, `getResultItem(registries)`, `getId()`, `getSerializer()`, `getType()`, `isSpecial()`, `getRemainingItems(input)` (for remainder stacks like buckets/bottles)
+- [x] Implement `CraftingRecipe`: extends `Recipe<CraftingInput>`, `category()` → `CraftingBookCategory`, `isIncomplete()` check
+- [x] Implement `NormalCraftingRecipe`: marker interface for non-special crafting recipes
+- [x] Implement `CustomRecipe`: base for special single-output recipes with `isSpecial() = true`
 - [ ] Implement `SingleItemRecipe`: stonecutter/smithing base with single item input, serializer, and result count
 - [ ] Implement `AbstractCookingRecipe`: `cookingTime`, `experience`, `category` (CookingBookCategory), ingredient matching
 - [ ] Implement `SmithingRecipe`: template + base + addition input matching, isIncomplete check
