@@ -265,7 +265,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement compression threshold negotiation and zlib payload handling.
 - [x] Implement AES/CFB8 encryption after login key exchange.
 - [x] Implement rate limiting and packet flood kicking.
-- [ ] Implement local memory connection equivalent if needed for integrated tests.
+- [x] Implement local memory connection equivalent if needed for integrated tests.
 - [x] Implement bundled packet packing/unpacking.
 - [x] Implement cookie request/response packets.
 - [x] Implement transfer packets.
