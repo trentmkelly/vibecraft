@@ -109,7 +109,7 @@
 
 - [x] Implement world folder layout.
 - [x] Implement `level.dat`, `level.dat_old`, and session lock behavior.
-- [ ] Implement NBT binary format, compressed NBT, SNBT where needed, and visitor/traversal utilities.
+- [x] Implement NBT binary format, compressed NBT, SNBT where needed, and visitor/traversal utilities.
 - [x] Implement DataVersion tracking.
 - [x] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.
 - [x] Implement region file format `.mca`.
