@@ -1116,8 +1116,21 @@ pub struct EntitySpawnBundle {
 pub struct ClientboundContainerPacket {
     pub container_id: i32,
     pub state_id: i32,
-    pub slots: Vec<Option<i32>>,
-    pub carried_item: Option<i32>,
+    pub slots: Vec<RawItemStack>,
+    pub carried_item: RawItemStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundContainerSetSlotPacket {
+    pub container_id: i32,
+    pub state_id: i32,
+    pub slot: i16,
+    pub item_stack: RawItemStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSetCursorItemPacket {
+    pub item_stack: RawItemStack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5763,6 +5776,33 @@ impl ClientboundContainerSetDataPacket {
     }
 }
 
+impl ClientboundContainerPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.state_id)?;
+        write_var_i32(writer, self.slots.len() as i32)?;
+        for slot in &self.slots {
+            slot.write_optional_untrusted(writer)?;
+        }
+        self.carried_item.write_optional_untrusted(writer)
+    }
+}
+
+impl ClientboundContainerSetSlotPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.state_id)?;
+        write_i16(writer, self.slot)?;
+        self.item_stack.write_optional_untrusted(writer)
+    }
+}
+
+impl ClientboundSetCursorItemPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.item_stack.write_optional_untrusted(writer)
+    }
+}
+
 impl ClientboundMountScreenOpenPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)?;
@@ -6563,8 +6603,15 @@ mod tests {
             PlayInstruction::Container(ClientboundContainerPacket {
                 container_id: 1,
                 state_id: 2,
-                slots: vec![Some(5), None],
-                carried_item: None,
+                slots: vec![
+                    RawItemStack {
+                        count: 1,
+                        item_id: Some(5),
+                        components: RawDataComponentPatch::empty(),
+                    },
+                    RawItemStack::empty(),
+                ],
+                carried_item: RawItemStack::empty(),
             }),
             PlayInstruction::Recipes(ClientboundRecipePacket {
                 recipes: vec![Identifier::parse("minecraft:stone").unwrap()],
@@ -7168,6 +7215,42 @@ mod tests {
         assert_eq!(player_info_remove[0], 2);
         assert_eq!(&player_info_remove[1..17], &[1; 16]);
         assert_eq!(&player_info_remove[17..33], &[2; 16]);
+
+        let filled_stack = RawItemStack {
+            count: 2,
+            item_id: Some(5),
+            components: RawDataComponentPatch::empty(),
+        };
+        let mut container_content = Vec::new();
+        ClientboundContainerPacket {
+            container_id: 3,
+            state_id: 4,
+            slots: vec![filled_stack.clone(), RawItemStack::empty()],
+            carried_item: RawItemStack::empty(),
+        }
+        .write(&mut container_content)
+        .unwrap();
+        assert_eq!(container_content, vec![3, 4, 2, 2, 5, 0, 0, 0, 0]);
+
+        let mut container_slot = Vec::new();
+        ClientboundContainerSetSlotPacket {
+            container_id: 3,
+            state_id: 4,
+            slot: -1,
+            item_stack: filled_stack.clone(),
+        }
+        .write(&mut container_slot)
+        .unwrap();
+        assert_eq!(&container_slot[..5], &[3, 4, 0xff, 0xff, 2]);
+        assert_eq!(&container_slot[5..], &[5, 0, 0]);
+
+        let mut cursor_item = Vec::new();
+        ClientboundSetCursorItemPacket {
+            item_stack: filled_stack,
+        }
+        .write(&mut cursor_item)
+        .unwrap();
+        assert_eq!(cursor_item, vec![2, 5, 0, 0]);
 
         let mut recipe_remove = Vec::new();
         ClientboundRecipeBookRemovePacket {

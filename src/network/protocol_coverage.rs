@@ -691,7 +691,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "container_set_content",
         java_class: "ClientboundContainerSetContentPacket",
-        field_order: "unparsed",
+        field_order: "containerId:CONTAINER_ID VarInt, stateId:VarInt, items:ItemStack.OPTIONAL_LIST_STREAM_CODEC, carriedItem:ItemStack.OPTIONAL_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 19,
@@ -705,7 +705,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "container_set_slot",
         java_class: "ClientboundContainerSetSlotPacket",
-        field_order: "unparsed",
+        field_order: "containerId:CONTAINER_ID VarInt, stateId:VarInt, slot:short, itemStack:ItemStack.OPTIONAL_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 21,
@@ -1238,7 +1238,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_cursor_item",
         java_class: "ClientboundSetCursorItemPacket",
-        field_order: "unparsed",
+        field_order: "contents:ItemStack.OPTIONAL_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 97,

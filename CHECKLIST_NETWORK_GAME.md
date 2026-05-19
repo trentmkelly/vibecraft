@@ -75,8 +75,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Inventory / Container Packets (Clientbound)
 
-- [ ] `ClientboundContainerSetContentPacket` (0x12): window ID byte, state ID VarInt, items list, carried item
-- [ ] `ClientboundContainerSetSlotPacket` (0x13): window ID byte, state ID VarInt, slot short, item
+- [x] `ClientboundContainerSetContentPacket` (0x12): window ID byte, state ID VarInt, items list, carried item
+- [x] `ClientboundContainerSetSlotPacket` (0x13): window ID byte, state ID VarInt, slot short, item
 - [x] `ClientboundContainerSetDataPacket` (0x13): container ID VarInt, property short, value short
 - [x] `ClientboundOpenScreenPacket` (0x35): window ID VarInt, menu type VarInt, title component
 - [x] `ClientboundContainerClosePacket` (0x11): container ID VarInt
@@ -84,7 +84,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundMerchantOffersPacket` (0x31): container ID, offers list (input1, input2 optional, result, uses, maxUses, xp, specialPrice, priceMultiplier, demand, ignoreDiscount), villager level, xp, is-regular-villager, can-restock
 - [x] `ClientboundSetHeldSlotPacket` (0x69): slot VarInt (renamed from older carried item packet)
 - [x] `ClientboundCooldownPacket` (0x16): cooldown group Identifier, cooldown duration VarInt
-- [ ] `ClientboundSetCursorItemPacket` (0x4F): cursor item
+- [x] `ClientboundSetCursorItemPacket` (0x4F): cursor item
 
 ## Inventory / Container Packets (Serverbound)
 
