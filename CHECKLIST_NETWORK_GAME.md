@@ -142,12 +142,12 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## World Border Packets
 
-- [ ] `ClientboundInitializeBorderPacket` (0x24): new center X/Z, old size, new size, lerp time, new absolute max size, warning blocks, warning time
-- [ ] `ClientboundSetBorderCenterPacket` (0x4A): new center X/Z
-- [ ] `ClientboundSetBorderLerpSizePacket` (0x4B): old size, new size, lerp time
-- [ ] `ClientboundSetBorderSizePacket` (0x4C): new size
-- [ ] `ClientboundSetBorderWarningDelayPacket` (0x4D): warning time
-- [ ] `ClientboundSetBorderWarningDistancePacket` (0x4E): warning blocks
+- [x] `ClientboundInitializeBorderPacket` (0x2B): new center X/Z doubles, old size double, new size double, lerp time VarLong, new absolute max size VarInt, warning blocks VarInt, warning time VarInt
+- [x] `ClientboundSetBorderCenterPacket` (0x58): new center X/Z doubles
+- [x] `ClientboundSetBorderLerpSizePacket` (0x59): old size double, new size double, lerp time VarLong
+- [x] `ClientboundSetBorderSizePacket` (0x5A): new size double
+- [x] `ClientboundSetBorderWarningDelayPacket` (0x5B): warning time VarInt
+- [x] `ClientboundSetBorderWarningDistancePacket` (0x5C): warning blocks VarInt
 
 ## Sound / Particle Packets
 

@@ -958,6 +958,46 @@ pub enum EntityAnimation {
     MagicCriticalHit = 5,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundInitializeBorderPacket {
+    pub new_center_x: f64,
+    pub new_center_z: f64,
+    pub old_size: f64,
+    pub new_size: f64,
+    pub lerp_time: i64,
+    pub new_absolute_max_size: i32,
+    pub warning_blocks: i32,
+    pub warning_time: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetBorderCenterPacket {
+    pub new_center_x: f64,
+    pub new_center_z: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetBorderLerpSizePacket {
+    pub old_size: f64,
+    pub new_size: f64,
+    pub lerp_time: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundSetBorderSizePacket {
+    pub size: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetBorderWarningDelayPacket {
+    pub warning_delay: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetBorderWarningDistancePacket {
+    pub warning_blocks: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntitySpawnBundle {
     pub spawn: ClientboundAddEntityPacket,
@@ -2518,6 +2558,52 @@ impl ClientboundAnimatePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.id)?;
         writer.write_all(&[self.action as u8])
+    }
+}
+
+impl ClientboundInitializeBorderPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_f64(writer, self.new_center_x)?;
+        write_f64(writer, self.new_center_z)?;
+        write_f64(writer, self.old_size)?;
+        write_f64(writer, self.new_size)?;
+        write_var_i64(writer, self.lerp_time)?;
+        write_var_i32(writer, self.new_absolute_max_size)?;
+        write_var_i32(writer, self.warning_blocks)?;
+        write_var_i32(writer, self.warning_time)
+    }
+}
+
+impl ClientboundSetBorderCenterPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_f64(writer, self.new_center_x)?;
+        write_f64(writer, self.new_center_z)
+    }
+}
+
+impl ClientboundSetBorderLerpSizePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_f64(writer, self.old_size)?;
+        write_f64(writer, self.new_size)?;
+        write_var_i64(writer, self.lerp_time)
+    }
+}
+
+impl ClientboundSetBorderSizePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_f64(writer, self.size)
+    }
+}
+
+impl ClientboundSetBorderWarningDelayPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.warning_delay)
+    }
+}
+
+impl ClientboundSetBorderWarningDistancePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.warning_blocks)
     }
 }
 
@@ -5598,6 +5684,64 @@ mod tests {
         .write(&mut remove_payload)
         .unwrap();
         assert_eq!(remove_payload, vec![2, 7, 8]);
+
+        let border = ClientboundInitializeBorderPacket {
+            new_center_x: 1.0,
+            new_center_z: 2.0,
+            old_size: 100.0,
+            new_size: 200.0,
+            lerp_time: 300,
+            new_absolute_max_size: 400,
+            warning_blocks: 5,
+            warning_time: 6,
+        };
+        let mut border_payload = Vec::new();
+        border.write(&mut border_payload).unwrap();
+        assert_eq!(&border_payload[..8], &1.0_f64.to_be_bytes());
+        assert_eq!(&border_payload[8..16], &2.0_f64.to_be_bytes());
+        assert_eq!(&border_payload[16..24], &100.0_f64.to_be_bytes());
+        assert_eq!(&border_payload[24..32], &200.0_f64.to_be_bytes());
+        assert_eq!(&border_payload[32..], &[0xac, 0x02, 0x90, 0x03, 5, 6]);
+
+        let mut border_center = Vec::new();
+        ClientboundSetBorderCenterPacket {
+            new_center_x: 1.0,
+            new_center_z: 2.0,
+        }
+        .write(&mut border_center)
+        .unwrap();
+        assert_eq!(&border_center[..8], &1.0_f64.to_be_bytes());
+        assert_eq!(&border_center[8..], &2.0_f64.to_be_bytes());
+
+        let mut border_lerp = Vec::new();
+        ClientboundSetBorderLerpSizePacket {
+            old_size: 100.0,
+            new_size: 200.0,
+            lerp_time: 300,
+        }
+        .write(&mut border_lerp)
+        .unwrap();
+        assert_eq!(&border_lerp[..8], &100.0_f64.to_be_bytes());
+        assert_eq!(&border_lerp[8..16], &200.0_f64.to_be_bytes());
+        assert_eq!(&border_lerp[16..], &[0xac, 0x02]);
+
+        let mut border_size = Vec::new();
+        ClientboundSetBorderSizePacket { size: 200.0 }
+            .write(&mut border_size)
+            .unwrap();
+        assert_eq!(border_size, 200.0_f64.to_be_bytes());
+
+        let mut warning_delay = Vec::new();
+        ClientboundSetBorderWarningDelayPacket { warning_delay: 6 }
+            .write(&mut warning_delay)
+            .unwrap();
+        assert_eq!(warning_delay, vec![6]);
+
+        let mut warning_distance = Vec::new();
+        ClientboundSetBorderWarningDistancePacket { warning_blocks: 5 }
+            .write(&mut warning_distance)
+            .unwrap();
+        assert_eq!(warning_distance, vec![5]);
     }
 
     #[test]
