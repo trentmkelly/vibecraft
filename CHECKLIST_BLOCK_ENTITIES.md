@@ -69,7 +69,7 @@
 - [ ] Implement `BrewingStandBlockEntity`: ingredient slot (0), 3 potion output slots (1–3), fuel slot (4, blaze powder), brew-time countdown (400 ticks), fuel-count decrement, recipe matching (ingredient applies transformation per `PotionBrewing`)
 - [ ] Implement `CrafterBlockEntity`: 9 crafting grid slots each with enabled/disabled flag, on-pulse crafting behavior (craft once per redstone leading-edge), comparator output (occupied non-disabled slots)
 - [ ] Implement `EnchantingTableBlockEntity`: bookshelf power scan (up to 15 bookshelves within range), visual book animation hint in `getUpdateTag()` (book open/close angle, page turn)
-- [ ] Implement `JukeboxBlockEntity`: disc `ItemStack`, `isPlaying` flag, `ticksSinceSongStarted`, comparator output (disc = signal from 1–15), `startPlaying()` / `stopPlaying()`, `SongPlayer` dispatch for jukebox song resource
+- [x] Implement `JukeboxBlockEntity`: disc `ItemStack`, `isPlaying` flag, `ticksSinceSongStarted`, comparator output (disc = signal from 1–15), `startPlaying()` / `stopPlaying()`, `SongPlayer` dispatch for jukebox song resource
 - [x] Implement `ComparatorBlockEntity`: mode (COMPARE/SUBTRACT), `outputSignal` cached value, compare vs. subtract logic
 - [x] Implement `DaylightDetectorBlockEntity`: sky-light level lookup, linear signal mapping (0–15), inverted mode (night sensor)
 - [x] Implement `CommandBlockEntity`: command string, `lastOutput` component, `CommandBlockMode` (SEQUENCE/AUTO/REDSTONE), `isConditional`, `isAutomatic`, permission-level check, `performCommand(level)` execution

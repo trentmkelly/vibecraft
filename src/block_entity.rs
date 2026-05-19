@@ -222,6 +222,20 @@ pub struct CommandBlockEntity {
     pub conditional: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JukeboxSongEvent {
+    Started,
+    Stopped,
+    ItemChanged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JukeboxBlockEntity {
+    pub item: Option<PotItemStack>,
+    pub is_playing: bool,
+    pub ticks_since_song_started: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
@@ -1160,6 +1174,145 @@ impl CommandBlockEntity {
             }
         }
         executed
+    }
+}
+
+impl JukeboxBlockEntity {
+    pub const RECORD_ITEM_TAG_ID: &'static str = "RecordItem";
+    pub const TICKS_SINCE_SONG_STARTED_TAG_ID: &'static str = "ticks_since_song_started";
+    pub const STOP_LEVEL_EVENT: i32 = 1011;
+
+    pub fn new() -> Self {
+        Self {
+            item: None,
+            is_playing: false,
+            ticks_since_song_started: 0,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = Vec::new();
+        if let Some(item) = self.item.as_ref().filter(|item| !item.is_empty()) {
+            entries.push((Self::RECORD_ITEM_TAG_ID.to_string(), item.to_tag()));
+        }
+        if self.song_item().is_some() {
+            entries.push((
+                Self::TICKS_SINCE_SONG_STARTED_TAG_ID.to_string(),
+                Tag::Long(self.ticks_since_song_started),
+            ));
+        }
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        let item = entries
+            .iter()
+            .find(|(key, _)| key == Self::RECORD_ITEM_TAG_ID)
+            .and_then(|(_, tag)| PotItemStack::from_tag(tag));
+        let mut jukebox = Self {
+            item,
+            is_playing: false,
+            ticks_since_song_started: 0,
+        };
+        if jukebox.song_item().is_some() {
+            jukebox.ticks_since_song_started =
+                get_long(entries, Self::TICKS_SINCE_SONG_STARTED_TAG_ID).unwrap_or(0);
+        }
+        jukebox
+    }
+
+    pub fn set_the_item(&mut self, item: Option<PotItemStack>) -> JukeboxSongEvent {
+        self.item = item.filter(|item| !item.is_empty());
+        self.ticks_since_song_started = 0;
+        if self.song_item().is_some() {
+            self.is_playing = true;
+            JukeboxSongEvent::Started
+        } else {
+            self.is_playing = false;
+            JukeboxSongEvent::Stopped
+        }
+    }
+
+    pub fn set_song_item_without_playing(&mut self, item: PotItemStack) -> JukeboxSongEvent {
+        self.item = (!item.is_empty()).then_some(item);
+        self.is_playing = false;
+        self.ticks_since_song_started = 0;
+        JukeboxSongEvent::ItemChanged
+    }
+
+    pub fn remove_the_item(&mut self) -> Option<PotItemStack> {
+        self.is_playing = false;
+        self.ticks_since_song_started = 0;
+        self.item.take()
+    }
+
+    pub fn pop_out_the_item(&mut self) -> Option<PotItemStack> {
+        self.remove_the_item()
+    }
+
+    pub fn tick(&mut self) -> bool {
+        if self.is_playing {
+            self.ticks_since_song_started += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn redstone_signal(&self) -> u8 {
+        if self.is_playing {
+            MAX_SIGNAL
+        } else {
+            0
+        }
+    }
+
+    pub fn comparator_output(&self) -> u8 {
+        self.song_item()
+            .map(jukebox_song_comparator_output)
+            .unwrap_or(0)
+    }
+
+    pub fn can_place_item(&self, item: &PotItemStack) -> bool {
+        self.item.is_none() && jukebox_song_item_id(&item.item_id).is_some()
+    }
+
+    pub fn can_take_item(&self, destination_has_empty_slot: bool) -> bool {
+        destination_has_empty_slot
+    }
+
+    fn song_item(&self) -> Option<&str> {
+        self.item
+            .as_ref()
+            .and_then(|item| jukebox_song_item_id(&item.item_id))
+    }
+}
+
+fn jukebox_song_item_id(item_id: &str) -> Option<&str> {
+    item_id.strip_prefix("minecraft:music_disc_")
+}
+
+fn jukebox_song_comparator_output(song_id: &str) -> u8 {
+    match song_id {
+        "13" => 1,
+        "cat" => 2,
+        "blocks" => 3,
+        "chirp" => 4,
+        "far" => 5,
+        "mall" => 6,
+        "mellohi" => 7,
+        "stal" => 8,
+        "strad" | "lava_chicken" => 9,
+        "ward" | "tears" => 10,
+        "11" | "creator_music_box" => 11,
+        "wait" | "creator" => 12,
+        "pigstep" | "precipice" => 13,
+        "otherside" | "relic" => 14,
+        "5" => 15,
+        _ => 0,
     }
 }
 
@@ -3353,6 +3506,78 @@ mod tests {
             loaded_without_tracking.last_execution,
             CommandBlockEntity::NO_LAST_EXECUTION
         );
+    }
+
+    #[test]
+    fn jukebox_block_entity_tracks_disc_playback_ticks_and_outputs() {
+        let mut jukebox = JukeboxBlockEntity::new();
+        let disc = PotItemStack {
+            item_id: "minecraft:music_disc_13".to_string(),
+            count: 1,
+        };
+        assert!(jukebox.can_place_item(&disc));
+        assert_eq!(
+            jukebox.set_the_item(Some(disc.clone())),
+            JukeboxSongEvent::Started
+        );
+        assert!(jukebox.is_playing);
+        assert_eq!(jukebox.redstone_signal(), 15);
+        assert_eq!(jukebox.comparator_output(), 1);
+        assert!(jukebox.tick());
+        assert_eq!(jukebox.ticks_since_song_started, 1);
+
+        let saved = jukebox.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                ("RecordItem".to_string(), disc.to_tag()),
+                ("ticks_since_song_started".to_string(), Tag::Long(1)),
+            ])
+        );
+        let loaded = JukeboxBlockEntity::load_additional(&saved);
+        assert_eq!(loaded.item, Some(disc.clone()));
+        assert_eq!(loaded.ticks_since_song_started, 1);
+        assert!(!loaded.is_playing);
+        assert_eq!(loaded.comparator_output(), 1);
+
+        assert!(!jukebox.can_place_item(&PotItemStack {
+            item_id: "minecraft:music_disc_5".to_string(),
+            count: 1,
+        }));
+        assert_eq!(jukebox.pop_out_the_item(), Some(disc));
+        assert!(!jukebox.is_playing);
+        assert_eq!(jukebox.redstone_signal(), 0);
+        assert_eq!(jukebox.comparator_output(), 0);
+        assert_eq!(jukebox.save_additional(), Tag::Compound(Vec::new()));
+
+        let mut inert = JukeboxBlockEntity::new();
+        assert_eq!(
+            inert.set_the_item(Some(PotItemStack {
+                item_id: "minecraft:diamond".to_string(),
+                count: 1,
+            })),
+            JukeboxSongEvent::Stopped
+        );
+        assert!(!inert.tick());
+        assert_eq!(inert.comparator_output(), 0);
+        assert!(!inert.can_place_item(&PotItemStack {
+            item_id: "minecraft:diamond".to_string(),
+            count: 1,
+        }));
+        assert!(inert.can_take_item(true));
+        assert!(!inert.can_take_item(false));
+
+        let mut without_playing = JukeboxBlockEntity::new();
+        assert_eq!(
+            without_playing.set_song_item_without_playing(PotItemStack {
+                item_id: "minecraft:music_disc_5".to_string(),
+                count: 1,
+            }),
+            JukeboxSongEvent::ItemChanged
+        );
+        assert!(!without_playing.is_playing);
+        assert_eq!(without_playing.redstone_signal(), 0);
+        assert_eq!(without_playing.comparator_output(), 15);
     }
 
     #[test]
