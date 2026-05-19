@@ -35,8 +35,8 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode lifecycle artifact test that records startup logs, readiness signal, first accepted login tick, shutdown reason, and post-exit file flushes for vanilla and RustCraft.
 - [ ] Add a Mineflayer offline-mode interrupted-bootstrap test that kills the server while a bot is mid-login and verifies restart does not retain half-created players, sockets, or world locks.
 - [ ] Add a Mineflayer offline-mode EULA refusal test that attempts login before `eula=true`, verifies vanilla-compatible connection refusal/log messages, then accepts EULA and verifies the same bot can join without stale state.
-- [ ] Handle corrupted world metadata with vanilla-compatible refusal paths.
-- [ ] Detect incompatible world versions before loading.
+- [x] Handle corrupted world metadata with vanilla-compatible refusal paths.
+- [x] Detect incompatible world versions before loading.
 - [x] Provide safe-mode datapack loading.
 - [ ] Support world data upgrade and region recreation workflow.
 - [x] Implement server watchdog behavior controlled by `max-tick-time`.
