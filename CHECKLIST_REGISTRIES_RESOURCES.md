@@ -29,7 +29,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Load world datapacks from `datapacks`.
 - [x] Implement pack metadata parsing and compatibility checks.
 - [x] Implement pack priority, enabling, disabling, safe mode, and reload.
-- [ ] Implement `data/minecraft/advancement`.
+- [x] Implement `data/minecraft/advancement`.
 - [ ] Implement `data/minecraft/banner_pattern`.
 - [ ] Implement cat, chicken, cow, frog, pig, wolf, and zombie nautilus variants.
 - [ ] Implement `data/minecraft/chat_type`.
@@ -42,7 +42,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [ ] Implement `data/minecraft/jukebox_song`.
 - [ ] Implement `data/minecraft/loot_table`.
 - [ ] Implement `data/minecraft/painting_variant`.
-- [ ] Implement `data/minecraft/recipe`.
+- [x] Implement `data/minecraft/recipe`.
 - [ ] Implement `data/minecraft/structure`.
 - [x] Implement `data/minecraft/tags`.
 - [ ] Implement `data/minecraft/test_environment`.
