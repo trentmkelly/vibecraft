@@ -101,22 +101,27 @@ impl GameRules {
         GameRuleRuntimeEffects {
             advance_time: self.bool("advance_time"),
             advance_weather: self.bool("advance_weather"),
+            allow_entering_nether_using_portals: self.bool("allow_entering_nether_using_portals"),
             block_drops: self.bool("block_drops"),
             block_explosion_drop_decay: self.bool("block_explosion_drop_decay"),
             command_blocks_work: self.bool("command_blocks_work"),
+            command_block_output: self.bool("command_block_output"),
             drowning_damage: self.bool("drowning_damage"),
             elytra_movement_check: self.bool("elytra_movement_check"),
+            ender_pearls_vanish_on_death: self.bool("ender_pearls_vanish_on_death"),
             entity_drops: self.bool("entity_drops"),
             fall_damage: self.bool("fall_damage"),
             fire_damage: self.bool("fire_damage"),
             fire_spread_radius_around_player: self.int("fire_spread_radius_around_player"),
             forgive_dead_players: self.bool("forgive_dead_players"),
             freeze_damage: self.bool("freeze_damage"),
+            global_sound_events: self.bool("global_sound_events"),
             immediate_respawn: self.bool("immediate_respawn"),
             keep_inventory: self.bool("keep_inventory"),
             lava_source_conversion: self.bool("lava_source_conversion"),
             limited_crafting: self.bool("limited_crafting"),
             locator_bar: self.bool("locator_bar"),
+            log_admin_commands: self.bool("log_admin_commands"),
             max_block_modifications: self.int("max_block_modifications"),
             max_command_forks: self.int("max_command_forks"),
             max_command_sequence_length: self.int("max_command_sequence_length"),
@@ -172,22 +177,27 @@ impl GameRules {
 pub struct GameRuleRuntimeEffects {
     pub advance_time: bool,
     pub advance_weather: bool,
+    pub allow_entering_nether_using_portals: bool,
     pub block_drops: bool,
     pub block_explosion_drop_decay: bool,
     pub command_blocks_work: bool,
+    pub command_block_output: bool,
     pub drowning_damage: bool,
     pub elytra_movement_check: bool,
+    pub ender_pearls_vanish_on_death: bool,
     pub entity_drops: bool,
     pub fall_damage: bool,
     pub fire_damage: bool,
     pub fire_spread_radius_around_player: i32,
     pub forgive_dead_players: bool,
     pub freeze_damage: bool,
+    pub global_sound_events: bool,
     pub immediate_respawn: bool,
     pub keep_inventory: bool,
     pub lava_source_conversion: bool,
     pub limited_crafting: bool,
     pub locator_bar: bool,
+    pub log_admin_commands: bool,
     pub max_block_modifications: i32,
     pub max_command_forks: i32,
     pub max_command_sequence_length: i32,
@@ -596,6 +606,11 @@ mod tests {
         assert_eq!(effects.random_tick_speed, 12);
         assert!(!effects.mob_griefing);
         assert!(!effects.send_command_feedback);
+        assert!(effects.allow_entering_nether_using_portals);
+        assert!(effects.command_block_output);
+        assert!(effects.ender_pearls_vanish_on_death);
+        assert!(effects.global_sound_events);
+        assert!(effects.log_admin_commands);
         assert!(effects.spawn_patrols);
         assert!(effects.spawn_wardens);
         assert_eq!(effects.max_block_modifications, 32768);
