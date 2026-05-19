@@ -148,13 +148,13 @@
 - [x] Add raw 26.1.2 playerdata-corruption fallback coverage that creates primary and `.dat_old` playerdata through real joins, corrupts the primary `.dat`, restarts, verifies first spawn position is loaded from `.dat_old`, and confirms a `_corrupted_*.dat` copy is created while Mineflayer lacks target-protocol play support.
 - [x] Implement advancements files.
 - [x] Implement stats files.
-- [ ] Implement scoreboard save data.
-- [ ] Implement raids save data.
-- [ ] Implement map item save data.
-- [ ] Implement forced chunks save data.
-- [ ] Implement command storage.
-- [ ] Implement custom bossbar save data.
-- [ ] Implement random sequences save data.
+- [x] Implement scoreboard save data.
+- [x] Implement raids save data.
+- [x] Implement map item save data.
+- [x] Implement forced chunks save data.
+- [x] Implement command storage.
+- [x] Implement custom bossbar save data.
+- [x] Implement random sequences save data.
 - [ ] Implement POI storage.
 - [ ] Implement entity region/storage behavior.
 - [ ] Implement durable write, temp-file, backup, and corruption handling semantics.
