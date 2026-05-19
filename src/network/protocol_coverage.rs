@@ -600,7 +600,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "block_destruction",
         java_class: "ClientboundBlockDestructionPacket",
-        field_order: "unparsed",
+        field_order: "id:VarInt, pos:BlockPos, progress:u8",
     },
     PlayPacketSpec {
         id: 6,
@@ -614,14 +614,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "block_event",
         java_class: "ClientboundBlockEventPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, action:u8, param:u8, block:registry VarInt",
     },
     PlayPacketSpec {
         id: 8,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "block_update",
         java_class: "ClientboundBlockUpdatePacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, block_state:Block.BLOCK_STATE_REGISTRY VarInt",
     },
     PlayPacketSpec {
         id: 9,
@@ -887,7 +887,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "level_event",
         java_class: "ClientboundLevelEventPacket",
-        field_order: "unparsed",
+        field_order: "type:int, pos:BlockPos, data:int, global_event:bool",
     },
     PlayPacketSpec {
         id: 47,
@@ -1049,7 +1049,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_info_remove",
         java_class: "ClientboundPlayerInfoRemovePacket",
-        field_order: "unparsed",
+        field_order: "profile_ids:list UUID",
     },
     PlayPacketSpec {
         id: 70,

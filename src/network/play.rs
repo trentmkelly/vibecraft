@@ -715,6 +715,48 @@ pub struct ClientboundSetHeldSlotPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundBlockDestructionPacket {
+    pub id: i32,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub progress: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundBlockEventPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub action: u8,
+    pub param: u8,
+    pub block_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundBlockUpdatePacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub block_state_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundLevelEventPacket {
+    pub event_type: i32,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub data: i32,
+    pub global_event: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundPlayerInfoRemovePacket {
+    pub profile_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundContainerClosePacket {
     pub container_id: i32,
 }
@@ -4768,6 +4810,48 @@ impl ClientboundSetHeldSlotPacket {
     }
 }
 
+impl ClientboundBlockDestructionPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_block_position(writer, self.x, self.y, self.z)?;
+        writer.write_all(&[self.progress])
+    }
+}
+
+impl ClientboundBlockEventPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        writer.write_all(&[self.action, self.param])?;
+        write_var_i32(writer, self.block_id)
+    }
+}
+
+impl ClientboundBlockUpdatePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_var_i32(writer, self.block_state_id)
+    }
+}
+
+impl ClientboundLevelEventPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i32(writer, self.event_type)?;
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_i32(writer, self.data)?;
+        write_bool(writer, self.global_event)
+    }
+}
+
+impl ClientboundPlayerInfoRemovePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.profile_ids.len() as i32)?;
+        for id in &self.profile_ids {
+            write_uuid(writer, *id)?;
+        }
+        Ok(())
+    }
+}
+
 impl ClientboundContainerClosePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)
@@ -5898,6 +5982,72 @@ mod tests {
         assert_eq!(abilities_payload[0], 0b1101);
         assert_eq!(&abilities_payload[1..5], &0.05_f32.to_be_bytes());
         assert_eq!(&abilities_payload[5..9], &0.1_f32.to_be_bytes());
+
+        let mut block_destruction = Vec::new();
+        ClientboundBlockDestructionPacket {
+            id: 99,
+            x: -12,
+            y: 64,
+            z: 34,
+            progress: 9,
+        }
+        .write(&mut block_destruction)
+        .unwrap();
+        assert_eq!(block_destruction[0], 99);
+        assert_eq!(block_destruction.len(), 10);
+        assert_eq!(*block_destruction.last().unwrap(), 9);
+
+        let mut block_event = Vec::new();
+        ClientboundBlockEventPacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            action: 1,
+            param: 2,
+            block_id: 300,
+        }
+        .write(&mut block_event)
+        .unwrap();
+        assert_eq!(block_event.len(), 12);
+        assert_eq!(&block_event[8..10], &[1, 2]);
+        assert_eq!(&block_event[10..], &[0xac, 0x02]);
+
+        let mut block_update = Vec::new();
+        ClientboundBlockUpdatePacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            block_state_id: 300,
+        }
+        .write(&mut block_update)
+        .unwrap();
+        assert_eq!(block_update.len(), 10);
+        assert_eq!(&block_update[8..], &[0xac, 0x02]);
+
+        let mut level_event = Vec::new();
+        ClientboundLevelEventPacket {
+            event_type: 2001,
+            x: -12,
+            y: 64,
+            z: 34,
+            data: 300,
+            global_event: true,
+        }
+        .write(&mut level_event)
+        .unwrap();
+        assert_eq!(&level_event[..4], &2001_i32.to_be_bytes());
+        assert_eq!(&level_event[12..16], &300_i32.to_be_bytes());
+        assert_eq!(level_event[16], 1);
+
+        let mut player_info_remove = Vec::new();
+        ClientboundPlayerInfoRemovePacket {
+            profile_ids: vec![Uuid([1; 16]), Uuid([2; 16])],
+        }
+        .write(&mut player_info_remove)
+        .unwrap();
+        assert_eq!(player_info_remove[0], 2);
+        assert_eq!(&player_info_remove[1..17], &[1; 16]);
+        assert_eq!(&player_info_remove[17..33], &[2; 16]);
     }
 
     #[test]

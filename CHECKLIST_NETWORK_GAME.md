@@ -121,7 +121,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundDisguisedChatPacket` (0x19): content component, chat type bound
 - [ ] `ClientboundDeleteChatPacket` (0x18): message signature bytes
 - [ ] `ClientboundPlayerInfoUpdatePacket` (0x3D): action bitmask, entries list (UUID + per-action data: add-player name/properties, initialize-chat session, update-game-mode, update-listed, update-latency, update-display-name, update-hat, update-list-order)
-- [ ] `ClientboundPlayerInfoRemovePacket` (0x3C): UUID list
+- [x] `ClientboundPlayerInfoRemovePacket` (0x45): UUID list
 - [x] `ServerboundChatPacket` (0x09): message string max 256, timestamp epoch millis long, salt long, optional 256-byte signature, last-seen update (offset VarInt + fixed 20-bit acknowledgment bitset + checksum byte)
 - [x] `ServerboundChatCommandPacket` (0x07): command string max 32767
 - [x] `ServerboundChatCommandSignedPacket` (0x08): command string max 32767, timestamp epoch millis long, salt long, argument signatures capped at 8 entries with 16-char names and 256-byte signatures, last-seen update
@@ -156,7 +156,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundStopSoundPacket` (0x67): optional source, optional sound name
 - [ ] `ClientboundNamedSoundEffectPacket`: deprecated alias handled by `ClientboundSoundPacket`
 - [ ] `ClientboundLevelParticlesPacket` (0x29): particle type VarInt, long distance bool, pos X/Y/Z, offset X/Y/Z, max speed, count, particle data (varies by type); verify all ~100 particle type data shapes
-- [ ] `ClientboundLevelEventPacket` (0x28): event int, pos BlockPos, data int, global bool
+- [x] `ClientboundLevelEventPacket` (0x2E): event int, pos BlockPos, data int, global bool
 
 ## Map Packets
 
@@ -177,7 +177,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt → value VarInt)
 - [x] `ClientboundSetExperiencePacket` (0x56): experience-progress float, total-experience VarInt, level VarInt
 - [x] `ClientboundSetHealthPacket` (0x58): health float, food VarInt, saturation float
-- [ ] `ClientboundGameEventPacket` (0x22): (also covers mode-change event 3 = change game mode)
+- [x] `ClientboundGameEventPacket` (0x26): event unsigned byte and float parameter (also covers mode-change event 3 = change game mode)
 - [ ] `ClientboundPlayerLookAtPacket` (0x39): from-anchor VarInt, target entity-or-block, optional entity-anchor
 
 ## Interactions / Block / Entity Actions (Serverbound)
@@ -207,11 +207,11 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Block / Entity Action Packets (Clientbound)
 
-- [ ] `ClientboundBlockUpdatePacket` (0x09): block pos, block state VarInt
+- [x] `ClientboundBlockUpdatePacket` (0x08): block pos, block state VarInt
 - [ ] `ClientboundSectionBlocksUpdatePacket` (0x47): chunk section pos, block states array (packed pos+state longs)
 - [ ] `ClientboundBlockEntityDataPacket` (0x07): block pos, type VarInt, NBT tag
-- [ ] `ClientboundBlockEventPacket` (0x08): block pos, action byte, param byte, block type VarInt
-- [ ] `ClientboundBlockDestructionPacket` (0x06): entity ID, block pos, progress byte (0–9, 10=done)
+- [x] `ClientboundBlockEventPacket` (0x07): block pos, action unsigned byte, param unsigned byte, block type VarInt
+- [x] `ClientboundBlockDestructionPacket` (0x05): entity ID VarInt, block pos, progress unsigned byte (0-9, 10=done)
 - [ ] `ClientboundExplodePacket` (0x1D): pos X/Y/Z, radius, affected blocks list (byte offsets), player velocity X/Y/Z, block interaction VarInt, small explosion particle, large explosion particle, sound
 - [ ] `ClientboundEntityPositionSyncPacket` (0x20): (26.1.2 name for teleport ack; confirm ID VarInt)
 - [x] `ServerboundAcceptTeleportationPacket` (0x00): teleport ID VarInt
