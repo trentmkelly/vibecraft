@@ -30,7 +30,7 @@ const configurationCrashSignatures = [
   },
   {
     signature: 'Failed to parse value for key minecraft:default from server',
-    dependency: 'registry:minecraft:chicken_sound_variant:minecraft:default',
+    dependency: 'not-registry:minecraft:chicken_sound_variant:minecraft:default',
     initializer: 'ChickenSoundVariant.DIRECT_CODEC'
   },
   {
@@ -76,13 +76,18 @@ function probeCoversDependency (source, dependency) {
     const element = parts.slice(3, 5).join(':')
     return source.includes(`['${registry}'`) && source.includes(`'${element}'`)
   }
+  if (dependency.startsWith('not-registry:') && parts.length === 5) {
+    const registry = parts.slice(1, 3).join(':')
+    const element = parts.slice(3, 5).join(':')
+    return source.includes(`['${registry}'`) && !source.includes(`'${element}'`)
+  }
   if (dependency.startsWith('tag:') && parts.length === 5) {
     const registry = parts.slice(1, 3).join(':')
     const tag = parts.slice(3, 5).join(':')
     return source.includes(`['${registry}'`) && source.includes(`'${tag}'`)
   }
   if (dependency === 'play-packet:clientbound/minecraft:player_position:length=62') {
-    return source.includes('positionPacket.length !== 62')
+    return source.includes('expected player_position body with fixed-int relatives')
   }
   return false
 }
