@@ -196,7 +196,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundMovePlayerPacket.Rot` (0x1D): yaw/pitch, on-ground bool, horizontal-collision bool
 - [ ] `ServerboundMovePlayerPacket.StatusOnly` (0x1E): on-ground bool, horizontal-collision bool
 - [ ] `ServerboundMoveVehiclePacket` (0x1F): pos X/Y/Z, yaw, pitch
-- [ ] `ServerboundPaddleBoatPacket` (0x1E): left-paddle, right-paddle booleans
+- [x] `ServerboundPaddleBoatPacket` (0x23): left-paddle, right-paddle booleans
 - [x] `ServerboundPlayerInputPacket` (0x21): single-byte `Input.STREAM_CODEC` bitset for forward, backward, left, right, jump, shift, and sprint flags (26.1.2 format)
 - [ ] `ClientboundPlayerPositionPacket` (0x40): pos X/Y/Z, velocity X/Y/Z, yaw, pitch, relative flags (4-byte INT bitmask — not VarInt), teleport ID VarInt
 
