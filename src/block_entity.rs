@@ -11,8 +11,9 @@ use crate::special_block::{
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
 use crate::vibration::{
-    redstone_strength_for_distance, tick_vibration, vibration_frequency, VibrationData,
-    VibrationInfo, VibrationTickAction, NO_VIBRATION_FREQUENCY,
+    calibrated_sculk_sensor_receive, redstone_strength_for_distance, tick_vibration,
+    vibration_frequency, SculkSensorAction, VibrationData, VibrationInfo, VibrationTickAction,
+    NO_VIBRATION_FREQUENCY,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -501,6 +502,12 @@ pub struct SculkSensorBlockEntity {
     pub listener_radius: i32,
     pub power: u8,
     pub active_ticks: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CalibratedSculkSensorBlockEntity {
+    pub sensor: SculkSensorBlockEntity,
+    pub back_signal: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3392,6 +3399,90 @@ impl SculkSensorBlockEntity {
             fields.push(("distance".to_string(), Tag::Float(vibration.distance)));
         }
         Tag::Compound(fields)
+    }
+}
+
+impl CalibratedSculkSensorBlockEntity {
+    pub const LISTENER_RADIUS: i32 = 16;
+
+    pub fn new(back_signal: u8) -> Self {
+        let mut sensor = SculkSensorBlockEntity::new();
+        sensor.listener_radius = Self::LISTENER_RADIUS;
+        Self {
+            sensor,
+            back_signal: back_signal.min(15),
+        }
+    }
+
+    pub fn set_back_signal(&mut self, back_signal: u8) {
+        self.back_signal = back_signal.min(15);
+    }
+
+    pub fn can_receive_vibration(&self, event_id: &str, sensor_can_activate: bool) -> bool {
+        if !self
+            .sensor
+            .can_receive_vibration(event_id, sensor_can_activate)
+        {
+            return false;
+        }
+        let frequency = vibration_frequency(event_id);
+        self.back_signal == 0 || self.back_signal == frequency
+    }
+
+    pub fn receive_vibration(
+        &mut self,
+        event_id: &str,
+        distance: f32,
+    ) -> Option<SculkSensorTickResult> {
+        match calibrated_sculk_sensor_receive(
+            self.back_signal,
+            event_id,
+            distance,
+            Self::LISTENER_RADIUS,
+        ) {
+            SculkSensorAction::Activate {
+                frequency,
+                redstone,
+            } if self.sensor.can_receive_vibration(event_id, true) => {
+                self.sensor.last_vibration_frequency = frequency;
+                self.sensor.power = redstone;
+                self.sensor.phase = SculkSensorPhase::VibrationDone;
+                self.sensor.active_ticks = SculkSensorBlockEntity::ACTIVE_TICKS;
+                Some(SculkSensorTickResult::Activate {
+                    frequency,
+                    redstone,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    pub fn tick(&mut self, game_time: i64) -> SculkSensorTickResult {
+        self.sensor.tick(game_time)
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = match self.sensor.save_additional() {
+            Tag::Compound(entries) => entries,
+            _ => Vec::new(),
+        };
+        entries.push(("back_signal".to_string(), Tag::Byte(self.back_signal as i8)));
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let sensor = SculkSensorBlockEntity::load_additional(tag);
+        let back_signal = compound_entries(tag)
+            .and_then(|entries| get_byte(entries, "back_signal"))
+            .unwrap_or(0)
+            .clamp(0, 15) as u8;
+        Self {
+            sensor: SculkSensorBlockEntity {
+                listener_radius: Self::LISTENER_RADIUS,
+                ..sensor
+            },
+            back_signal,
+        }
     }
 }
 
@@ -6457,6 +6548,44 @@ mod tests {
         assert_eq!(loaded.power, delayed.power);
         assert_eq!(loaded.active_ticks, delayed.active_ticks);
         assert_eq!(delayed.get_update_tag(), saved);
+    }
+
+    #[test]
+    fn calibrated_sculk_sensor_filters_vibrations_by_back_signal() {
+        assert_eq!(CalibratedSculkSensorBlockEntity::LISTENER_RADIUS, 16);
+
+        let mut sensor = CalibratedSculkSensorBlockEntity::new(13);
+        assert!(sensor.can_receive_vibration("minecraft:block_place", true));
+        assert!(!sensor.can_receive_vibration("minecraft:explode", true));
+        assert_eq!(sensor.receive_vibration("minecraft:explode", 4.0), None);
+        assert_eq!(
+            sensor.receive_vibration("minecraft:block_place", 4.0),
+            Some(SculkSensorTickResult::Activate {
+                frequency: 13,
+                redstone: 12,
+            })
+        );
+        assert_eq!(sensor.sensor.listener_radius, 16);
+        assert_eq!(sensor.sensor.last_vibration_frequency, 13);
+        assert_eq!(sensor.sensor.power, 12);
+
+        let saved = sensor.save_additional();
+        let loaded = CalibratedSculkSensorBlockEntity::load_additional(&saved);
+        assert_eq!(loaded.back_signal, 13);
+        assert_eq!(loaded.sensor.listener_radius, 16);
+        assert_eq!(loaded.sensor.last_vibration_frequency, 13);
+        assert_eq!(loaded.sensor.power, 12);
+
+        let mut unfiltered = CalibratedSculkSensorBlockEntity::new(0);
+        assert_eq!(
+            unfiltered.receive_vibration("minecraft:explode", 4.0),
+            Some(SculkSensorTickResult::Activate {
+                frequency: 15,
+                redstone: 12,
+            })
+        );
+        unfiltered.set_back_signal(99);
+        assert_eq!(unfiltered.back_signal, 15);
     }
 
     #[test]
