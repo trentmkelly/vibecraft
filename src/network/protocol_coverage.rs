@@ -403,14 +403,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "recipe_book_change_settings",
         java_class: "ServerboundRecipeBookChangeSettingsPacket",
-        field_order: "unparsed",
+        field_order: "book_type:RecipeBookType enum VarInt, is_open:bool, is_filtering:bool",
     },
     PlayPacketSpec {
         id: 47,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "recipe_book_seen_recipe",
         java_class: "ServerboundRecipeBookSeenRecipePacket",
-        field_order: "unparsed",
+        field_order: "recipe:RecipeDisplayId VarInt index",
     },
     PlayPacketSpec {
         id: 48,

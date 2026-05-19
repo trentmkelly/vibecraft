@@ -48,6 +48,8 @@ pub const SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID: i32 = 37;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
+pub const SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID: i32 = 46;
+pub const SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID: i32 = 47;
 pub const SERVERBOUND_RENAME_ITEM_PACKET_ID: i32 = 48;
 pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
@@ -391,6 +393,26 @@ pub struct ServerboundPickItemFromBlockPacket {
 pub struct ServerboundPickItemFromEntityPacket {
     pub entity_id: i32,
     pub include_data: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecipeBookType {
+    Crafting,
+    Furnace,
+    BlastFurnace,
+    Smoker,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundRecipeBookChangeSettingsPacket {
+    pub book_type: RecipeBookType,
+    pub is_open: bool,
+    pub is_filtering: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundRecipeBookSeenRecipePacket {
+    pub recipe_index: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1119,6 +1141,8 @@ pub struct PlaySession {
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
     pub last_pick_item_from_block: Option<ServerboundPickItemFromBlockPacket>,
     pub last_pick_item_from_entity: Option<ServerboundPickItemFromEntityPacket>,
+    pub last_recipe_book_change_settings: Option<ServerboundRecipeBookChangeSettingsPacket>,
+    pub last_recipe_book_seen_recipe: Option<ServerboundRecipeBookSeenRecipePacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1212,6 +1236,8 @@ impl PlaySession {
             last_container_button_click: None,
             last_pick_item_from_block: None,
             last_pick_item_from_entity: None,
+            last_recipe_book_change_settings: None,
+            last_recipe_book_seen_recipe: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1523,6 +1549,30 @@ impl PlaySession {
                         DispatchOutcome::Handled
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad pong packet: {err}")),
+                }
+            }
+            SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundRecipeBookChangeSettingsPacket::read(&mut input) {
+                    Ok(settings) => {
+                        self.last_recipe_book_change_settings = Some(settings);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad recipe book change settings packet: {err}"
+                    )),
+                }
+            }
+            SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundRecipeBookSeenRecipePacket::read(&mut input) {
+                    Ok(recipe) => {
+                        self.last_recipe_book_seen_recipe = Some(recipe);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad recipe book seen recipe packet: {err}"
+                    )),
                 }
             }
             SERVERBOUND_RENAME_ITEM_PACKET_ID => {
@@ -2921,6 +2971,58 @@ impl ServerboundPickItemFromEntityPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.entity_id)?;
         write_bool(writer, self.include_data)
+    }
+}
+
+impl RecipeBookType {
+    fn from_id(id: i32) -> io::Result<Self> {
+        match id {
+            0 => Ok(Self::Crafting),
+            1 => Ok(Self::Furnace),
+            2 => Ok(Self::BlastFurnace),
+            3 => Ok(Self::Smoker),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid recipe book type {id}"),
+            )),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::Crafting => 0,
+            Self::Furnace => 1,
+            Self::BlastFurnace => 2,
+            Self::Smoker => 3,
+        }
+    }
+}
+
+impl ServerboundRecipeBookChangeSettingsPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            book_type: RecipeBookType::from_id(read_var_i32(reader)?)?,
+            is_open: read_bool(reader)?,
+            is_filtering: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.book_type.to_id())?;
+        write_bool(writer, self.is_open)?;
+        write_bool(writer, self.is_filtering)
+    }
+}
+
+impl ServerboundRecipeBookSeenRecipePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            recipe_index: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.recipe_index)
     }
 }
 
@@ -5280,6 +5382,56 @@ mod tests {
             session.last_pick_item_from_entity,
             Some(pick_item_from_entity)
         );
+
+        let recipe_book_settings = ServerboundRecipeBookChangeSettingsPacket {
+            book_type: RecipeBookType::BlastFurnace,
+            is_open: true,
+            is_filtering: false,
+        };
+        let mut recipe_book_settings_payload = Vec::new();
+        recipe_book_settings
+            .write(&mut recipe_book_settings_payload)
+            .unwrap();
+        assert_eq!(recipe_book_settings_payload, vec![2, 1, 0]);
+        assert_eq!(
+            ServerboundRecipeBookChangeSettingsPacket::read(&mut cursor(
+                recipe_book_settings_payload.clone()
+            ))
+            .unwrap(),
+            recipe_book_settings
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
+                recipe_book_settings_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_recipe_book_change_settings,
+            Some(recipe_book_settings)
+        );
+        assert!(
+            ServerboundRecipeBookChangeSettingsPacket::read(&mut cursor(vec![4, 0, 0])).is_err()
+        );
+
+        let seen_recipe = ServerboundRecipeBookSeenRecipePacket { recipe_index: 128 };
+        let mut seen_recipe_payload = Vec::new();
+        seen_recipe.write(&mut seen_recipe_payload).unwrap();
+        assert_eq!(seen_recipe_payload, vec![0x80, 0x01]);
+        assert_eq!(
+            ServerboundRecipeBookSeenRecipePacket::read(&mut cursor(seen_recipe_payload.clone()))
+                .unwrap(),
+            seen_recipe
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID,
+                seen_recipe_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_recipe_book_seen_recipe, Some(seen_recipe));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
