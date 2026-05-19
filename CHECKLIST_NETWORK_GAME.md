@@ -286,10 +286,10 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a Mineflayer/raw status-to-login transition test that pings the server, immediately logs in offline mode from the same harness process, and verifies the status socket cleanup cannot corrupt the login connection.
 - [x] Implement ping state.
 - [x] Implement login state.
-- [ ] Add a Mineflayer offline-mode login test that reaches login success without Yggdrasil, encryption, or secure-profile requirements.
-- [ ] Add a Mineflayer offline-mode login test that asserts no session-server HTTP calls are made, no encryption request is sent, and no profile-key packet is required before login success.
+- [x] Add a Mineflayer offline-mode login test that reaches login success without Yggdrasil, encryption, or secure-profile requirements.
+- [x] Add a Mineflayer offline-mode login test that asserts no session-server HTTP calls are made, no encryption request is sent, and no profile-key packet is required before login success.
 - [ ] Add a Mineflayer offline-mode login-order test that captures handshake, login start, compression negotiation, login success, login acknowledgment, configuration packets, finish configuration, and join game ordering against official `server.jar`.
-- [ ] Add a Mineflayer duplicate-login test that connects two bots with the same offline username and verifies vanilla-compatible replacement or rejection behavior.
+- [x] Add a Mineflayer duplicate-login test that connects two bots with the same offline username and verifies vanilla-compatible replacement or rejection behavior.
 - [ ] Add a Mineflayer offline-mode returning-login test that joins, disconnects, reconnects with the same username and UUID, and verifies the second login skips first-join initialization that vanilla does not repeat.
 - [ ] Add a Mineflayer offline-mode username validation test covering valid names, case sensitivity, length limits, illegal characters, duplicate casing, and resulting disconnect messages.
 - [ ] Add a Mineflayer offline-mode username corpus test that runs a table of vanilla-accepted and vanilla-rejected generated names, asserting UUID derivation, display name preservation, and disconnect component parity.
