@@ -383,6 +383,11 @@ management-server-port=24454
 rcon.port=24455
 query.port=24456
 announce-player-achievements=true
+resource-pack-id=00000000-0000-0000-0000-000000000001
+resource-pack=https://example.invalid/pack.zip
+resource-pack-sha1=0123456789abcdef0123456789abcdef01234567
+require-resource-pack=true
+resource-pack-prompt={\"text\":\"Use pack?\"}
 ",
         )
         .unwrap();
@@ -402,6 +407,20 @@ announce-player-achievements=true
         assert_eq!(properties.rcon_port, 24455);
         assert_eq!(properties.query_port, 24456);
         assert_eq!(properties.announce_player_achievements, Some(true));
+        assert_eq!(
+            properties.resource_pack_id,
+            "00000000-0000-0000-0000-000000000001"
+        );
+        assert_eq!(
+            properties.resource_pack,
+            "https://example.invalid/pack.zip"
+        );
+        assert_eq!(
+            properties.resource_pack_sha1,
+            "0123456789abcdef0123456789abcdef01234567"
+        );
+        assert!(properties.require_resource_pack);
+        assert_eq!(properties.resource_pack_prompt, "{\"text\":\"Use pack?\"}");
     }
 
     #[test]
