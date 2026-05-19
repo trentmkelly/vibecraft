@@ -4,6 +4,8 @@ import {
   commandScenarioManifest,
   observeCommandFeedback,
   offlineCommandScenarios,
+  operatorCommandSmokeManifest,
+  operatorCommandSmokeScenarios,
   runCommandScenario
 } from './command_scenarios.mjs'
 
@@ -85,4 +87,31 @@ test('commandScenarioManifest serializes offline command test metadata', () => {
   assert.equal(manifest.auth, 'offline')
   assert.equal(manifest.commands.length, 8)
   assert.ok(manifest.commands.some(command => command.command === '/tell Alex hello'))
+})
+
+test('operatorCommandSmokeScenarios cover required op command smoke surface', () => {
+  const commands = operatorCommandSmokeScenarios({ primary: 'Steve', secondary: 'Alex' })
+    .map(entry => entry.command.split(' ')[0])
+
+  assert.deepEqual(commands, [
+    '/op',
+    '/deop',
+    '/whitelist',
+    '/ban',
+    '/pardon',
+    '/gamemode',
+    '/tp',
+    '/give',
+    '/effect'
+  ])
+})
+
+test('operatorCommandSmokeManifest records feedback, permission gates, and reconnect-visible state', () => {
+  const manifest = operatorCommandSmokeManifest({ primary: 'Steve', secondary: 'Alex' })
+  assert.equal(manifest.source, 'op-bot')
+  assert.equal(manifest.commands.length, 9)
+  assert.ok(manifest.commands.every(command => command.minPermission >= 2))
+  assert.ok(manifest.commands.some(command => command.expectedFeedbackKey === 'commands.op.success'))
+  assert.ok(manifest.commands.some(command => command.expectedFeedbackKey === 'commands.effect.give.success.single'))
+  assert.ok(manifest.commands.filter(command => command.reconnectVisibleState).length >= 5)
 })

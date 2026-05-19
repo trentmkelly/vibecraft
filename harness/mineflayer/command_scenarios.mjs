@@ -62,6 +62,37 @@ export function commandScenarioManifest(options = {}) {
   }
 }
 
+export function operatorCommandSmokeScenarios(options = {}) {
+  const primary = options.primary ?? 'OpBot'
+  const secondary = options.secondary ?? 'PlainBot'
+  return [
+    scenario(`/op ${secondary}`, 'commands.op.success', { minPermission: 3, reconnectVisibleState: true }),
+    scenario(`/deop ${secondary}`, 'commands.deop.success', { minPermission: 3, reconnectVisibleState: true }),
+    scenario(`/whitelist add ${secondary}`, 'commands.whitelist.add.success', { minPermission: 3, reconnectVisibleState: true }),
+    scenario(`/ban ${secondary}`, 'commands.ban.success', { minPermission: 3, reconnectVisibleState: true }),
+    scenario(`/pardon ${secondary}`, 'commands.pardon.success', { minPermission: 3, reconnectVisibleState: true }),
+    scenario(`/gamemode creative ${primary}`, 'commands.gamemode.success.other', { minPermission: 2, target: primary }),
+    scenario(`/tp ${primary} 4 70 4`, 'commands.teleport.success.location.single', { minPermission: 2, target: primary }),
+    scenario(`/give ${primary} minecraft:stone 2`, 'commands.give.success.single', { minPermission: 2, target: primary }),
+    scenario(`/effect give ${primary} minecraft:speed 5 1`, 'commands.effect.give.success.single', { minPermission: 2, target: primary })
+  ]
+}
+
+export function operatorCommandSmokeManifest(options = {}) {
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    source: 'op-bot',
+    commands: operatorCommandSmokeScenarios(options).map(entry => ({
+      command: entry.command,
+      expectedFeedbackKey: entry.expectedFeedbackKey,
+      minPermission: entry.minPermission,
+      target: entry.target,
+      reconnectVisibleState: entry.reconnectVisibleState ?? false
+    }))
+  }
+}
+
 function scenario(command, expectedFeedbackKey, options = {}) {
   return {
     command,
@@ -69,6 +100,7 @@ function scenario(command, expectedFeedbackKey, options = {}) {
     minPermission: options.minPermission ?? 0,
     runAsPermission: options.runAsPermission ?? options.minPermission ?? 0,
     target: options.target,
+    reconnectVisibleState: options.reconnectVisibleState,
     expectDenied: options.expectDenied ?? false
   }
 }
