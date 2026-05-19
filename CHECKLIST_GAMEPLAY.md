@@ -163,7 +163,7 @@
 - [x] Add command-model world-state fallback coverage that drives `/time`, `/weather`, and `/worldborder` together and verifies client-observable runtime state, success counts, feedback keys, broadcast visibility, and border lerp/warning fields while full Mineflayer observation remains pending.
 - [x] Implement explosions and game events.
 - [x] Implement vibrations, sculk sensors, calibrated sculk sensors, wardens, allays, and event listeners.
-- [ ] Implement raids, patrols, hero of the village, bad omen/raid omen/trial omen, and village raid state.
+- [x] Implement raids, patrols, hero of the village, bad omen/raid omen/trial omen, and village raid state.
 - [x] Implement maps, banners on maps, markers, frames, and map decorations.
 - [x] Implement waypoints and timelines introduced in this version.
 - [x] Implement dialogs, server links, notifications, and code-of-conduct flow.
