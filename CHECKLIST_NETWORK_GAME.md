@@ -95,7 +95,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundEditBookPacket` (0x14): hand, pages list, optional title
 - [ ] `ServerboundRenameItemPacket` (0x25): name string
 - [ ] `ServerboundSelectTradePacket` (0x27): item number VarInt
-- [ ] `ServerboundSetBeaconPacket` (0x28): primary effect optional, secondary effect optional
+- [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
 - [ ] `ServerboundSetCreativeModeSlotPacket` (0x2D): slot short, item
 - [ ] `ServerboundContainerButtonClickPacket` (0x0B): window ID byte, button ID byte
 
@@ -236,7 +236,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundSetStructureBlockPacket` (0x2F): block pos, update type, mode, offset, size, mirror, rotation, name, metadata, integrity, seed, flags
 - [ ] `ServerboundSetCommandBlockPacket` (0x29): block pos, command, mode VarInt, flags byte
 - [ ] `ServerboundSetCommandMinecartPacket` (0x2A): entity ID, command, track-output bool
-- [ ] `ServerboundSetBeaconPacket` (0x28): primary effect optional VarInt, secondary effect optional VarInt
+- [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
 
 ## Protocol Coverage Requirements
 

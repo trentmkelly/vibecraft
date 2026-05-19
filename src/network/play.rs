@@ -45,6 +45,7 @@ pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
+pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
@@ -344,6 +345,12 @@ pub struct ServerboundSignUpdatePacket {
     pub z: i32,
     pub is_front_text: bool,
     pub lines: [String; 4],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundSetBeaconPacket {
+    pub primary_effect_id: Option<i32>,
+    pub secondary_effect_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1065,6 +1072,7 @@ pub struct PlaySession {
     pub last_pong: Option<ServerboundPongPacket>,
     pub last_jigsaw_generate: Option<ServerboundJigsawGeneratePacket>,
     pub last_sign_update: Option<ServerboundSignUpdatePacket>,
+    pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1151,6 +1159,7 @@ impl PlaySession {
             last_pong: None,
             last_jigsaw_generate: None,
             last_sign_update: None,
+            last_set_beacon: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1429,6 +1438,18 @@ impl PlaySession {
                     )),
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad carried item packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_SET_BEACON_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSetBeaconPacket::read(&mut input) {
+                    Ok(beacon) => {
+                        self.last_set_beacon = Some(beacon);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad set beacon packet: {err}"))
                     }
                 }
             }
@@ -2662,6 +2683,39 @@ impl ServerboundSignUpdatePacket {
             write_string(writer, line, 384)?;
         }
         Ok(())
+    }
+}
+
+impl ServerboundSetBeaconPacket {
+    fn read_optional_mob_effect<R: Read>(reader: &mut R) -> io::Result<Option<i32>> {
+        if read_bool(reader)? {
+            Ok(Some(read_var_i32(reader)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn write_optional_mob_effect<W: Write>(
+        writer: &mut W,
+        effect_id: Option<i32>,
+    ) -> io::Result<()> {
+        write_bool(writer, effect_id.is_some())?;
+        if let Some(effect_id) = effect_id {
+            write_var_i32(writer, effect_id)?;
+        }
+        Ok(())
+    }
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            primary_effect_id: Self::read_optional_mob_effect(reader)?,
+            secondary_effect_id: Self::read_optional_mob_effect(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        Self::write_optional_mob_effect(writer, self.primary_effect_id)?;
+        Self::write_optional_mob_effect(writer, self.secondary_effect_id)
     }
 }
 
@@ -4859,6 +4913,32 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_sign_update, Some(sign_update));
+
+        let set_beacon = ServerboundSetBeaconPacket {
+            primary_effect_id: Some(1),
+            secondary_effect_id: Some(128),
+        };
+        let mut set_beacon_payload = Vec::new();
+        set_beacon.write(&mut set_beacon_payload).unwrap();
+        assert_eq!(set_beacon_payload, vec![1, 1, 1, 0x80, 0x01]);
+        assert_eq!(
+            ServerboundSetBeaconPacket::read(&mut cursor(set_beacon_payload.clone())).unwrap(),
+            set_beacon
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_SET_BEACON_PACKET_ID, set_beacon_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_set_beacon, Some(set_beacon));
+
+        let mut empty_beacon_payload = Vec::new();
+        ServerboundSetBeaconPacket {
+            primary_effect_id: None,
+            secondary_effect_id: None,
+        }
+        .write(&mut empty_beacon_payload)
+        .unwrap();
+        assert_eq!(empty_beacon_payload, vec![0, 0]);
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {

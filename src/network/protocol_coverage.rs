@@ -445,7 +445,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_beacon",
         java_class: "ServerboundSetBeaconPacket",
-        field_order: "unparsed",
+        field_order: "primary:optional MobEffect.STREAM_CODEC, secondary:optional MobEffect.STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 53,
