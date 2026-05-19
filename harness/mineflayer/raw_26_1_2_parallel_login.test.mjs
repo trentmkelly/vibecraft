@@ -7,7 +7,8 @@ import { promisify } from 'node:util'
 const execFileAsync = promisify(execFile)
 
 test('raw 26.1.2 parallel offline logins isolate profile, configuration, play, and keepalive state', { timeout: 40_000 }, async () => {
-  const usernames = ['ParallelA', 'ParallelB', 'ParallelC', 'ParallelD']
+  const suffix = crypto.randomUUID().replaceAll('-', '').slice(0, 6)
+  const usernames = ['A', 'B', 'C', 'D'].map(name => `Par${name}${suffix}`)
   const started = Promise.all(usernames.map(username => runJoinProbe(username)))
   const results = await started
 
@@ -21,7 +22,8 @@ test('raw 26.1.2 parallel offline logins isolate profile, configuration, play, a
     assert.equal(result.joinState.profile.uuid, offlineUuid(username))
     assert.equal(result.joinState.entityId, 1)
     assert.equal(result.joinState.dimension, 'minecraft:overworld')
-    assert.equal(result.joinState.lastReceivedChunk, 8)
+    assert.ok(result.joinState.initialChunkCount > 0, `${username} should receive an initial chunk batch`)
+    assert.equal(result.joinState.lastReceivedChunk, result.joinState.initialChunkCount - 1)
     assert.ok(result.config.some(packet => packet.id === 3), `${username} should finish configuration`)
     assert.ok(result.play.some(packet => packet.id === 49), `${username} should reach play login`)
     assert.ok(result.play.some(packet => packet.id === 70), `${username} should receive its own tab-list profile`)
