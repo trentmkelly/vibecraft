@@ -25,6 +25,7 @@
     "registry": "node registry_scenarios.mjs",
     "datapack": "node datapack_scenarios.mjs",
     "game-state": "node game_state_scenarios.mjs",
+    "recipes": "node recipe_scenarios.mjs",
     "probe:raw-26": "node raw_26_1_2_join_probe.mjs",
     "probe:status-raw-26": "node raw_26_1_2_status_probe.mjs"
   },

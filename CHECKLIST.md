@@ -17,7 +17,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 - [ ] Complete everything in [CHECKLIST_BLOCK_ENTITIES.md](CHECKLIST_BLOCK_ENTITIES.md) for block entity implementations, then mark this off.
 - [ ] Complete everything in [CHECKLIST_ITEMS.md](CHECKLIST_ITEMS.md) for items, inventories, item stacks, and crafting integration, then mark this off.
 - [ ] Complete everything in [CHECKLIST_CONTAINERS.md](CHECKLIST_CONTAINERS.md) for container menus and inventory transaction behavior, then mark this off.
-- [ ] Complete everything in [CHECKLIST_RECIPES.md](CHECKLIST_RECIPES.md) for recipe loading and execution, then mark this off.
+- [x] Complete everything in [CHECKLIST_RECIPES.md](CHECKLIST_RECIPES.md) for recipe loading and execution, then mark this off.
 - [ ] Complete everything in [CHECKLIST_MOBS.md](CHECKLIST_MOBS.md) for entities, mobs, AI, bosses, raids, and vehicles, then mark this off.
 - [x] Complete everything in [CHECKLIST_PLAYER.md](CHECKLIST_PLAYER.md) for player state, movement, multiplayer operations, and presentation data, then mark this off.
 - [ ] Complete everything in [CHECKLIST_GAMEPLAY.md](CHECKLIST_GAMEPLAY.md) for gameplay mechanics, combat, effects, weather, time, and world border, then mark this off.
