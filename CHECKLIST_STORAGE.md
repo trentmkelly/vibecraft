@@ -63,7 +63,7 @@
   - [ ] Villager data migrations (profession IDs, trade format)
   - [ ] WorldGen settings format changes (pre-1.16 generator → new WorldGenSettings codec)
   - [ ] Versioned registry renames across DataVersions
-- [ ] Implement `DataVersion` tracking: embed `DataVersion` int in all saved files, detect version mismatch on load
+- [x] Implement `DataVersion` tracking: embed `DataVersion` int in all saved files, detect version mismatch on load — `storage::datafix` exposes shared tag validation, NBT world/player/saved-data/chunk/entity paths stamp or reject `DataVersion`, advancement/stat JSON sidecars are stamped and checked, and storage tests cover missing/unsupported versions
 - [ ] Implement upgrade CLI path: `--forceUpgrade` flag triggers DataFixer pass on all chunks and entities
 - [ ] Add parity test: a vanilla 1.20.x world loaded by the rebuilt server upgrades without data loss for representative blocks/entities/players
 - [ ] Add parity test: `--eraseCache` removes only the cache data without corrupting world content

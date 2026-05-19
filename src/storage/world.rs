@@ -694,19 +694,29 @@ impl WorldLayout {
     }
 
     pub fn save_advancements(&self, uuid: &str, json: &str) -> std::io::Result<()> {
-        self.save_json_sidecar(self.advancements_file(uuid), json)
+        self.save_json_sidecar(
+            self.advancements_file(uuid),
+            &json_with_data_version("advancements", json)?,
+        )
     }
 
     pub fn load_advancements(&self, uuid: &str) -> std::io::Result<String> {
-        fs::read_to_string(self.advancements_file(uuid))
+        let json = fs::read_to_string(self.advancements_file(uuid))?;
+        checked_json_data_version("advancements", &json)?;
+        Ok(json)
     }
 
     pub fn save_stats(&self, uuid: &str, json: &str) -> std::io::Result<()> {
-        self.save_json_sidecar(self.stats_file(uuid), json)
+        self.save_json_sidecar(
+            self.stats_file(uuid),
+            &json_with_data_version("stats", json)?,
+        )
     }
 
     pub fn load_stats(&self, uuid: &str) -> std::io::Result<String> {
-        fs::read_to_string(self.stats_file(uuid))
+        let json = fs::read_to_string(self.stats_file(uuid))?;
+        checked_json_data_version("stats", &json)?;
+        Ok(json)
     }
 
     pub fn save_saved_data(&self, name: &str, tag: &Tag) -> std::io::Result<()> {
@@ -1234,6 +1244,52 @@ fn checked_saved_tag(surface: &str, tag: Tag) -> std::io::Result<Tag> {
     Ok(tag)
 }
 
+fn json_with_data_version(surface: &str, json: &str) -> std::io::Result<String> {
+    let mut value: serde_json::Value = serde_json::from_str(json).map_err(|err| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{surface} JSON is invalid: {err}"),
+        )
+    })?;
+    let Some(object) = value.as_object_mut() else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{surface} JSON root must be an object"),
+        ));
+    };
+    object.insert(
+        "DataVersion".to_string(),
+        serde_json::Value::Number(TARGET_DATA_VERSION.into()),
+    );
+    serde_json::to_string(&value).map_err(|err| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{surface} JSON cannot be serialized: {err}"),
+        )
+    })
+}
+
+fn checked_json_data_version(surface: &str, json: &str) -> std::io::Result<()> {
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|err| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{surface} JSON is invalid: {err}"),
+        )
+    })?;
+    let version = value
+        .as_object()
+        .and_then(|object| object.get("DataVersion"))
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("{surface} missing DataVersion"),
+            )
+        })?;
+    require_current_world_data_version(version as i32)
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{LevelStorageSource, PlayerDataStorage, WorldLayout};
@@ -1556,11 +1612,64 @@ mod tests {
             layout.load_player_data(uuid).unwrap(),
             super::tag_with_data_version(&player)
         );
-        assert_eq!(layout.load_advancements(uuid).unwrap(), "{\"done\":true}");
+        assert_eq!(
+            layout.load_advancements(uuid).unwrap(),
+            format!(
+                "{{\"DataVersion\":{},\"done\":true}}",
+                crate::storage::datafix::TARGET_DATA_VERSION
+            )
+        );
         assert_eq!(
             layout.load_stats(uuid).unwrap(),
-            "{\"minecraft:custom\":{}}"
+            format!(
+                "{{\"DataVersion\":{},\"minecraft:custom\":{{}}}}",
+                crate::storage::datafix::TARGET_DATA_VERSION
+            )
         );
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn json_sidecars_stamp_and_validate_data_versions() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-json-version-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        let uuid = "00000000-0000-0000-0000-000000000005";
+        layout
+            .save_advancements(uuid, "{\"DataVersion\":1,\"advancements\":{}}")
+            .unwrap();
+        assert!(layout.load_advancements(uuid).unwrap().contains(&format!(
+            "\"DataVersion\":{}",
+            crate::storage::datafix::TARGET_DATA_VERSION
+        )));
+
+        layout
+            .save_stats(uuid, "{\"stats\":{},\"DataVersion\":1}")
+            .unwrap();
+        assert!(layout.load_stats(uuid).unwrap().contains(&format!(
+            "\"DataVersion\":{}",
+            crate::storage::datafix::TARGET_DATA_VERSION
+        )));
+
+        fs::write(layout.advancements_file(uuid), "{\"advancements\":{}}").unwrap();
+        let err = layout.load_advancements(uuid).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("missing DataVersion"));
+
+        fs::write(
+            layout.stats_file(uuid),
+            format!(
+                "{{\"stats\":{{}},\"DataVersion\":{}}}",
+                crate::storage::datafix::TARGET_DATA_VERSION - 1
+            ),
+        )
+        .unwrap();
+        let err = layout.load_stats(uuid).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Unsupported world DataVersion"));
 
         let _ = fs::remove_dir_all(&path);
     }
