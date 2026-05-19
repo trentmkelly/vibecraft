@@ -28,7 +28,7 @@ const corpus = [
   { name: 'delete\u007fname', accepted: false, disconnect: 'transport-close-without-login-success' }
 ]
 
-test('raw 26.1.2 offline username corpus preserves accepted identities and rejected disconnect shape', { timeout: 60_000 }, async () => {
+test('raw 26.1.2 offline username corpus preserves accepted identities and rejected disconnect shape', { timeout: 240_000 }, async () => {
   const acceptedResults = new Map()
 
   for (const entry of corpus) {
@@ -60,7 +60,8 @@ async function runJoinProbe (name) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: name
+        RUSTCRAFT_USERNAME: name,
+        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary'
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

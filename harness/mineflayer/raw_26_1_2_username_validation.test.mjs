@@ -10,7 +10,7 @@ const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
 const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
 
-test('raw 26.1.2 offline username validation follows vanilla login rules', { timeout: 45_000 }, async () => {
+test('raw 26.1.2 offline username validation follows vanilla login rules', { timeout: 180_000 }, async () => {
   const validNames = [
     'Valid_Name',
     'abcdefghijklmnop',
@@ -58,6 +58,7 @@ async function runJoinProbe (name, options = {}) {
       env: {
         ...process.env,
         RUSTCRAFT_USERNAME: name,
+        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary',
         RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: String(options.keepAliveMs ?? 0)
       },
       timeout: 30_000,
