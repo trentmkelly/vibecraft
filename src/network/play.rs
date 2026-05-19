@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
 use crate::block_entity::BLOCK_ENTITY_TYPES;
-use crate::inventory::Menu;
+use crate::inventory::{Menu, Slot};
 use crate::inventory_transactions::{
     apply_scripted_packet, InventoryTransactionResult, ScriptedContainerClickPacket, SlotCorrection,
 };
@@ -17,6 +17,7 @@ use crate::network::codec::{
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
+use crate::player_inventory::InventoryMenu;
 use crate::registry::Identifier;
 use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
 use crate::storage::nbt::Tag;
@@ -2332,6 +2333,9 @@ pub enum PlayInstruction {
     RotateHead(ClientboundRotateHeadPacket),
     Animate(ClientboundAnimatePacket),
     Container(ClientboundContainerPacket),
+    ContainerSetSlot(ClientboundContainerSetSlotPacket),
+    RecipeBookAdd(ClientboundRecipeBookAddPacket),
+    SetCursorItem(ClientboundSetCursorItemPacket),
     MerchantOffers(ClientboundMerchantOffersPacket),
     Recipes(ClientboundRecipePacket),
     Advancements(ClientboundAdvancementsPacket),
@@ -2655,6 +2659,166 @@ impl PlaySession {
             self.container_state_id = result.next_state_id;
         }
         result
+    }
+
+    /// Process the pending `last_container_click` against the player's `InventoryMenu`,
+    /// advancing the state ID on accepted actions and returning `PlayInstruction`s for
+    /// every slot that changed plus any recipe-book unlocks.
+    ///
+    /// Matches the server-side click dispatch in Java's
+    /// `ServerGamePacketListenerImpl.handleContainerClick` + `AbstractContainerMenu.clicked`.
+    pub fn process_pending_container_click(
+        &mut self,
+        inventory_menu: &mut InventoryMenu,
+        carried: &mut ItemStack,
+    ) -> Vec<PlayInstruction> {
+        let Some(packet) = self.last_container_click.take() else {
+            return Vec::new();
+        };
+        // Only container 0 (the player's own inventory) is handled here.
+        if packet.container_id != 0 {
+            return Vec::new();
+        }
+        // State-ID guard — reject stale packets without touching server state.
+        if packet.state_id != self.container_state_id {
+            return slot_corrections_from_inventory_menu(
+                inventory_menu,
+                carried,
+                self.container_state_id,
+            );
+        }
+
+        let before_slots = inventory_menu.all_slots();
+        let before_carried = carried.clone();
+        let slot_idx = usize::try_from(packet.slot_num).ok();
+
+        // Shift-click (QuickMove) is handled entirely by InventoryMenu::quick_move because it
+        // requires zone-aware logic that spans the whole menu.
+        if packet.container_input == ContainerInput::QuickMove {
+            if let Some(slot) = slot_idx {
+                inventory_menu.quick_move(slot);
+            }
+            self.container_state_id += 1;
+        } else {
+            // Build a flat Menu snapshot from the current InventoryMenu state, then run the
+            // generic click logic through apply_scripted_packet.
+            let mut snapshot = inventory_menu_to_flat_menu(inventory_menu, carried);
+            let scripted = ScriptedContainerClickPacket {
+                container_id: 0,
+                state_id: packet.state_id,
+                slot: packet.slot_num as i32,
+                button: packet.button_num as i32,
+                mode: play_container_input_to_inventory(packet.container_input),
+                // Omit client-provided changed_slots — we validate purely from server state.
+                changed_slots: Vec::new(),
+                carried: carried.clone(),
+            };
+            let result = apply_scripted_packet(&mut snapshot, self.container_state_id, &scripted);
+            if result.accepted {
+                self.container_state_id = result.next_state_id;
+                // ResultSlot pickup: slot 0 was non-empty and the snapshot now shows it empty.
+                let result_taken = slot_idx == Some(0)
+                    && matches!(
+                        result.action,
+                        crate::inventory::InventoryAction::PickedUp { slot: 0, .. }
+                    );
+                if result_taken {
+                    // take_result: consume crafting inputs, apply remainders, refresh result slot,
+                    // record recipe-book unlock events. Java: ResultSlot.onTake.
+                    let taken = inventory_menu.take_result();
+                    *carried = taken;
+                } else {
+                    // Apply the snapshot's slot changes back to InventoryMenu (slots 1-45).
+                    // Slot 0 (result) is read-only via set_slot, so skip it; it is refreshed
+                    // automatically when crafting input slots change.
+                    for (i, slot) in snapshot.slots.iter().enumerate().skip(1) {
+                        inventory_menu.set_slot(i, slot.stack.clone());
+                    }
+                    *carried = snapshot.carried.clone();
+                }
+            }
+        }
+
+        // Emit ContainerSetSlot for every slot that changed.
+        let mut instructions: Vec<PlayInstruction> = Vec::new();
+        let after_slots = inventory_menu.all_slots();
+        for (i, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
+            if before != after {
+                if let Ok(raw) = raw_item_stack_from_item_stack(after) {
+                    instructions.push(PlayInstruction::ContainerSetSlot(
+                        ClientboundContainerSetSlotPacket {
+                            container_id: 0,
+                            state_id: self.container_state_id,
+                            slot: i as i16,
+                            item_stack: raw,
+                        },
+                    ));
+                }
+            }
+        }
+        if *carried != before_carried {
+            if let Ok(raw) = raw_item_stack_from_item_stack(carried) {
+                instructions.push(PlayInstruction::SetCursorItem(
+                    ClientboundSetCursorItemPacket { item_stack: raw },
+                ));
+            }
+        }
+        // Emit recipe-book unlock packets for any recipe first crafted in this click.
+        let unlock_events: Vec<&'static str> = inventory_menu.drain_recipe_unlock_events();
+        if !unlock_events.is_empty() {
+            let entries = unlock_events
+                .into_iter()
+                .enumerate()
+                .map(|(index, _id)| {
+                    RecipeBookAddEntry::new(
+                        RecipeDisplayEntryData {
+                            id: index as i32,
+                            display: RecipeDisplayData::CraftingShapeless {
+                                ingredients: Vec::new(),
+                                result: SlotDisplayData::Empty,
+                                crafting_station: SlotDisplayData::Item {
+                                    item_id: item_protocol_id("minecraft:crafting_table")
+                                        .unwrap_or(0),
+                                },
+                            },
+                            group: None,
+                            category_id: 0,
+                            crafting_requirements: None,
+                        },
+                        true,
+                        true,
+                    )
+                })
+                .collect();
+            instructions.push(PlayInstruction::RecipeBookAdd(
+                ClientboundRecipeBookAddPacket {
+                    entries,
+                    replace: false,
+                },
+            ));
+        }
+        instructions
+    }
+
+    /// Build a `ClientboundContainerPacket` (ContainerSetContent) from the current
+    /// InventoryMenu state.  Called by the server runtime when it processes the
+    /// `PlayInstruction::InitInventoryMenu` signal.
+    pub fn build_container_set_content(
+        inventory_menu: &InventoryMenu,
+        carried: &ItemStack,
+        state_id: i32,
+    ) -> io::Result<ClientboundContainerPacket> {
+        let slots = inventory_menu
+            .all_slots()
+            .iter()
+            .map(raw_item_stack_from_item_stack)
+            .collect::<io::Result<Vec<_>>>()?;
+        Ok(ClientboundContainerPacket {
+            container_id: 0,
+            state_id,
+            slots,
+            carried_item: raw_item_stack_from_item_stack(carried)?,
+        })
     }
 
     pub fn handle_decoded(&mut self, packet: DecodedPacket) -> DispatchOutcome {
@@ -7619,6 +7783,67 @@ pub fn slot_corrections_to_set_slot_packets(
             })
         })
         .collect()
+}
+
+/// Convert the network-layer `ContainerInput` to the inventory-layer `ContainerInput`.
+fn play_container_input_to_inventory(input: ContainerInput) -> crate::inventory::ContainerInput {
+    match input {
+        ContainerInput::Pickup => crate::inventory::ContainerInput::Pickup,
+        ContainerInput::QuickMove => crate::inventory::ContainerInput::QuickMove,
+        ContainerInput::Swap => crate::inventory::ContainerInput::Swap,
+        ContainerInput::Clone => crate::inventory::ContainerInput::Clone,
+        ContainerInput::Throw => crate::inventory::ContainerInput::Throw,
+        ContainerInput::QuickCraft => crate::inventory::ContainerInput::QuickCraft,
+        ContainerInput::PickupAll => crate::inventory::ContainerInput::PickupAll,
+    }
+}
+
+/// Flatten an `InventoryMenu` (+ separate cursor) into a generic `Menu` snapshot for use with
+/// `apply_scripted_packet`.  Slot 0 (result) has `may_place = false`.
+pub fn inventory_menu_to_flat_menu(inventory_menu: &InventoryMenu, carried: &ItemStack) -> Menu {
+    let mut menu = Menu::new(InventoryMenu::SLOT_COUNT);
+    for i in 0..InventoryMenu::SLOT_COUNT {
+        let stack = inventory_menu
+            .get_slot(i)
+            .unwrap_or_else(crate::item_stack::ItemStack::empty);
+        menu.slots[i] = Slot {
+            stack,
+            max_stack_size: 64,
+            may_place: inventory_menu.may_place(i),
+            may_pickup: true,
+        };
+    }
+    menu.carried = carried.clone();
+    menu
+}
+
+/// Build `ContainerSetSlot` correction instructions for every slot that differs between the
+/// server's `InventoryMenu` state and the client's expected view.  Used when a stale state-ID
+/// packet is rejected.
+pub fn slot_corrections_from_inventory_menu(
+    inventory_menu: &InventoryMenu,
+    carried: &ItemStack,
+    state_id: i32,
+) -> Vec<PlayInstruction> {
+    let mut instructions = Vec::new();
+    for (i, stack) in inventory_menu.all_slots().iter().enumerate() {
+        if let Ok(raw) = raw_item_stack_from_item_stack(stack) {
+            instructions.push(PlayInstruction::ContainerSetSlot(
+                ClientboundContainerSetSlotPacket {
+                    container_id: 0,
+                    state_id,
+                    slot: i as i16,
+                    item_stack: raw,
+                },
+            ));
+        }
+    }
+    if let Ok(raw) = raw_item_stack_from_item_stack(carried) {
+        instructions.push(PlayInstruction::SetCursorItem(
+            ClientboundSetCursorItemPacket { item_stack: raw },
+        ));
+    }
+    instructions
 }
 
 impl ClientboundSetCursorItemPacket {

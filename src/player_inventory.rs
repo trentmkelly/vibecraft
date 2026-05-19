@@ -885,6 +885,10 @@ impl InventoryMenu {
         &self.recipe_unlock_events
     }
 
+    pub fn drain_recipe_unlock_events(&mut self) -> Vec<&'static str> {
+        std::mem::take(&mut self.recipe_unlock_events)
+    }
+
     pub fn get_slot(&self, slot: usize) -> Option<ItemStack> {
         match InventoryMenuSlot::from_vanilla_slot(slot)? {
             InventoryMenuSlot::Result => Some(self.crafting.result().clone()),
