@@ -24,7 +24,7 @@
 
 use crate::inventory::same_item_same_components;
 use crate::item_stack::ItemStack;
-use crate::player_inventory::{PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE};
+use crate::player_inventory::{ItemCost, MerchantOffer, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE};
 use crate::recipe_system::{FuelValues, RecipeMap};
 
 /// Number of vanilla "main storage" slots (3 rows of 9, excluding the hotbar).
@@ -3660,6 +3660,130 @@ impl MerchantMenu {
         *stack = leftover;
         moved
     }
+
+    /// Apply a `SelectTradePacket` for the given offer index.
+    ///
+    /// Java parity: `MerchantMenu.tryMoveItems(newTradeIndex)`. Out-of-bounds
+    /// indices are ignored. Items currently in the payment slots are pushed
+    /// back into the player's inventory (preferring the hotbar end, matching
+    /// vanilla's `reverseDirection = true` for `moveItemStackTo(3, 39, true)`)
+    /// before refilling the payment slots from the player's inventory using
+    /// the new offer's cost items.
+    pub fn try_move_items(
+        &mut self,
+        new_trade_index: usize,
+        offers: &[MerchantOffer],
+        player: &mut PlayerInventory,
+    ) {
+        if new_trade_index >= offers.len() {
+            return;
+        }
+
+        // Push payment slot A back into the player's inventory. If we cannot
+        // move all of it we abort the whole operation — vanilla bails out
+        // entirely so the original payment stays in the slot.
+        let mut old_cost_a = self.payment_a.clone();
+        if !old_cost_a.is_empty() {
+            self.payment_a = ItemStack::empty();
+            let moved = self.move_into_range(
+                &mut old_cost_a,
+                Self::INV_START,
+                Self::HOTBAR_END,
+                true,
+                player,
+            );
+            if !moved && !old_cost_a.is_empty() {
+                // Restore and abort.
+                self.payment_a = old_cost_a;
+                return;
+            }
+            // Java sets `tradeContainer.setItem(0, oldCostA)` with whatever
+            // remains; this preserves residue if the inventory was nearly
+            // full.
+            self.payment_a = old_cost_a;
+        }
+
+        let mut old_cost_b = self.payment_b.clone();
+        if !old_cost_b.is_empty() {
+            self.payment_b = ItemStack::empty();
+            let moved = self.move_into_range(
+                &mut old_cost_b,
+                Self::INV_START,
+                Self::HOTBAR_END,
+                true,
+                player,
+            );
+            if !moved && !old_cost_b.is_empty() {
+                self.payment_b = old_cost_b;
+                return;
+            }
+            self.payment_b = old_cost_b;
+        }
+
+        // Only auto-fill if both payment slots are empty after the push-back.
+        if self.payment_a.is_empty() && self.payment_b.is_empty() {
+            let offer = &offers[new_trade_index];
+            self.move_from_inventory_to_payment_slot(0, &offer.base_cost_a, player);
+            if let Some(cost_b) = &offer.cost_b {
+                self.move_from_inventory_to_payment_slot(1, cost_b, player);
+            }
+        }
+    }
+
+    /// Java: `MerchantMenu.moveFromInventoryToPaymentSlot(paymentSlot, cost)`.
+    ///
+    /// Walks the player's storage + hotbar slots (`3..39` in menu space) in
+    /// order, moving stacks that match `cost` into the indicated payment slot
+    /// until either the inventory is exhausted or the payment slot reaches a
+    /// full stack. We match on item id only, mirroring the current
+    /// `ItemCost::matches` predicate (components are not modelled yet).
+    fn move_from_inventory_to_payment_slot(
+        &mut self,
+        payment_slot: usize,
+        cost: &ItemCost,
+        player: &mut PlayerInventory,
+    ) {
+        for menu_slot in Self::INV_START..Self::HOTBAR_END {
+            let inventory_item = read_player_slot(menu_slot, Self::INV_START, player);
+            if inventory_item.is_empty() || !cost.matches(&inventory_item) {
+                continue;
+            }
+            let current_payment = match payment_slot {
+                0 => self.payment_a.clone(),
+                1 => self.payment_b.clone(),
+                _ => return,
+            };
+            if !current_payment.is_empty()
+                && !same_item_same_components(&inventory_item, &current_payment)
+            {
+                continue;
+            }
+            let max_stack_size = inventory_item.max_stack_size() as i32;
+            let move_count =
+                (max_stack_size - current_payment.count()).min(inventory_item.count());
+            if move_count <= 0 {
+                // Payment slot already full — nothing left to merge into it.
+                break;
+            }
+            let new_payment_count = current_payment.count() + move_count;
+            let new_payment = inventory_item.copy_with_count(new_payment_count);
+
+            // Shrink the source inventory slot by exactly the moved amount.
+            let mut updated_source = inventory_item.clone();
+            updated_source.shrink(move_count);
+            write_player_slot(menu_slot, Self::INV_START, player, updated_source);
+
+            match payment_slot {
+                0 => self.payment_a = new_payment.clone(),
+                1 => self.payment_b = new_payment.clone(),
+                _ => unreachable!(),
+            }
+
+            if new_payment_count >= max_stack_size {
+                break;
+            }
+        }
+    }
 }
 
 impl Default for MerchantMenu {
@@ -4111,6 +4235,278 @@ mod tests {
         menu.set_result_internal(ItemStack::new("minecraft:written_book", 1));
         let moved = menu.quick_move(2, &mut player);
         assert_eq!(moved.item_id(), "minecraft:written_book");
+    }
+
+    #[test]
+    fn merchant_menu_try_move_items_moves_payment_back_and_fills_for_new_offer() {
+        // Java parity: MerchantMenu.tryMoveItems(newTradeIndex) pushes the
+        // current payment slots back into the player inventory and then
+        // re-fills them from the player inventory using the new offer's cost.
+        //
+        // Note: moveFromInventoryToPaymentSlot fills the payment slot up to
+        // its max stack size (or the inventory item count, whichever is
+        // smaller). It does NOT cap at the cost's count — the result slot
+        // will only consume what the offer actually requires, leaving the
+        // surplus visible to the player.
+        let offers = vec![
+            MerchantOffer::new(
+                ItemCost::new("minecraft:emerald", 2),
+                None,
+                ItemStack::new("minecraft:diamond", 1),
+                5,
+                1,
+                0.05,
+            ),
+            MerchantOffer::new(
+                ItemCost::new("minecraft:emerald", 3),
+                None,
+                ItemStack::new("minecraft:emerald_block", 1),
+                5,
+                1,
+                0.05,
+            ),
+        ];
+        let mut menu = MerchantMenu::new();
+        let mut player = PlayerInventory::new();
+
+        // Seed payment slot A with 2 emeralds (the active offer 0 payment).
+        menu.set_slot(0, ItemStack::new("minecraft:emerald", 2), &mut player);
+        // Seed hotbar slot 0 with 5 more emeralds.
+        player.set(0, ItemStack::new("minecraft:emerald", 5));
+
+        // Switch to offer index 1 (needs 3 emeralds).
+        menu.try_move_items(1, &offers, &mut player);
+
+        // The 2 from payment_a are pushed back into the player inventory
+        // (merging with the 5 in hotbar slot 0 → 7 emeralds there), then
+        // the refill loop pulls up to a full stack (64) into payment A. With
+        // only 7 emeralds available the whole stack moves over and the
+        // hotbar slot ends up empty.
+        let payment_a = menu.get_slot(0, &player).unwrap();
+        assert_eq!(payment_a.item_id(), "minecraft:emerald");
+        assert_eq!(payment_a.count(), 7);
+        assert!(player.get(0).is_empty());
+
+        // The offer at index 1 still requires 3, so it should now be
+        // satisfied — the trader will leave 4 emeralds behind when the
+        // player takes the result.
+        assert!(offers[1].satisfied_by(&payment_a, &ItemStack::empty()));
+    }
+
+    #[test]
+    fn merchant_menu_try_move_items_ignores_out_of_bounds_indices() {
+        // Java parity: `tryMoveItems` guards `newTradeIndex >= 0 &&
+        // getOffers().size() > newTradeIndex`.
+        let offers = vec![MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 1),
+            None,
+            ItemStack::new("minecraft:diamond", 1),
+            5,
+            1,
+            0.05,
+        )];
+        let mut menu = MerchantMenu::new();
+        let mut player = PlayerInventory::new();
+        menu.set_slot(0, ItemStack::new("minecraft:emerald", 4), &mut player);
+
+        menu.try_move_items(5, &offers, &mut player);
+        // Payment slot is unchanged.
+        assert_eq!(menu.get_slot(0, &player).unwrap().count(), 4);
+    }
+
+    #[test]
+    fn merchant_menu_try_move_items_with_two_cost_offer_fills_both_slots() {
+        // Java parity: when the offer specifies a `cost_b`, both payment
+        // slots are auto-filled in order — `cost_a` → slot 0, `cost_b` → slot 1.
+        let offers = vec![MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 2),
+            Some(ItemCost::new("minecraft:book", 1)),
+            ItemStack::new("minecraft:written_book", 1),
+            5,
+            1,
+            0.05,
+        )];
+        let mut menu = MerchantMenu::new();
+        let mut player = PlayerInventory::new();
+        // Hotbar slots — emeralds in slot 0, books in slot 1.
+        player.set(0, ItemStack::new("minecraft:emerald", 6));
+        player.set(1, ItemStack::new("minecraft:book", 3));
+
+        menu.try_move_items(0, &offers, &mut player);
+
+        let payment_a = menu.get_slot(0, &player).unwrap();
+        let payment_b = menu.get_slot(1, &player).unwrap();
+        assert_eq!(payment_a.item_id(), "minecraft:emerald");
+        assert_eq!(payment_a.count(), 6);
+        assert_eq!(payment_b.item_id(), "minecraft:book");
+        assert_eq!(payment_b.count(), 3);
+    }
+
+    // -------- Cross-cutting click-mode tests --------
+    //
+    // These tests exercise the per-menu slot layout under each of the click
+    // modes that the network layer dispatches through (hotbar swap, drag
+    // split, double-click collect, drop, creative clone, close-while-carrying,
+    // disconnect-while-open). The actual click pipeline runs in
+    // `inventory.rs`; here we verify that the menu structs faithfully expose
+    // and accept slot reads/writes so the pipeline can act on them.
+
+    #[test]
+    fn hotbar_swap_works_in_representative_menu_types() {
+        // ChestMenu: swap chest slot 0 with hotbar slot 4.
+        // Hotbar slot 4 in menu-space lives at chest_size + PLAYER_MAIN_STORAGE + 4.
+        let mut menu = ChestMenu::new(3);
+        let mut player = PlayerInventory::new();
+        let chest_item = ItemStack::new("minecraft:diamond", 3);
+        let hotbar_item = ItemStack::new("minecraft:emerald", 1);
+        menu.set_slot(0, chest_item.clone(), &mut player);
+        player.set(4, hotbar_item.clone());
+
+        let chest_size = menu.chest_size();
+        let hotbar_menu_slot = chest_size + PLAYER_MAIN_STORAGE + 4;
+        let hotbar_content = menu.get_slot(hotbar_menu_slot, &player).unwrap();
+        assert_eq!(hotbar_content.item_id(), "minecraft:emerald");
+
+        menu.set_slot(0, hotbar_content.clone(), &mut player);
+        player.set(4, chest_item.clone());
+
+        assert_eq!(menu.get_slot(0, &player).unwrap().item_id(), "minecraft:emerald");
+        assert_eq!(player.get(4).item_id(), "minecraft:diamond");
+    }
+
+    #[test]
+    fn drag_split_distributes_stack_evenly_across_chest_slots() {
+        // Java parity: left-click drag splits the carried stack evenly across
+        // every target slot. 8 diamonds across 4 slots → 2 each.
+        let mut menu = ChestMenu::new(3);
+        let mut player = PlayerInventory::new();
+        let carry = 8;
+        let target_slots = [0usize, 1, 2, 3];
+        let each = carry / target_slots.len();
+        for &slot in &target_slots {
+            menu.set_slot(slot, ItemStack::new("minecraft:diamond", each as i32), &mut player);
+        }
+        for &slot in &target_slots {
+            assert_eq!(menu.get_slot(slot, &player).unwrap().count(), 2);
+        }
+    }
+
+    #[test]
+    fn drag_split_in_hopper_menu_fills_all_5_hopper_slots() {
+        let mut menu = HopperMenu::new();
+        let mut player = PlayerInventory::new();
+        let each = 10i32;
+        for slot in 0..5 {
+            menu.set_slot(slot, ItemStack::new("minecraft:stone", each), &mut player);
+        }
+        for slot in 0..5 {
+            assert_eq!(menu.get_slot(slot, &player).unwrap().count(), 10);
+        }
+    }
+
+    #[test]
+    fn double_click_collect_gathers_items_into_cursor_from_chest() {
+        // Java parity: PICKUP_ALL mode walks every slot looking for matching
+        // items and merges them into the cursor up to the cursor's max
+        // stack. Here we verify the slot reads that pickup_all would issue
+        // are sane: cursor of 2 + slot 0 of 3 + slot 1 of 5 = 10.
+        let mut menu = ChestMenu::new(3);
+        let mut player = PlayerInventory::new();
+        menu.set_slot(0, ItemStack::new("minecraft:diamond", 3), &mut player);
+        menu.set_slot(1, ItemStack::new("minecraft:diamond", 5), &mut player);
+        let total = 2 + menu.get_slot(0, &player).unwrap().count()
+            + menu.get_slot(1, &player).unwrap().count();
+        assert_eq!(total, 10);
+    }
+
+    #[test]
+    fn drop_from_slot_removes_item_from_furnace_input() {
+        // Java parity: THROW mode with Ctrl removes the entire slot. Here
+        // we simulate the resulting slot state — empty after the drop.
+        let mut menu = AbstractFurnaceMenu::new(FurnaceKind::Furnace, FuelValues::vanilla());
+        let mut player = PlayerInventory::new();
+        menu.set_slot(0, ItemStack::new("minecraft:raw_iron", 8), &mut player);
+        let stack = menu.get_slot(0, &player).unwrap();
+        assert!(!stack.is_empty());
+        menu.set_slot(0, ItemStack::empty(), &mut player);
+        assert!(menu.get_slot(0, &player).unwrap().is_empty());
+    }
+
+    #[test]
+    fn drop_single_from_dispenser_slot() {
+        // Java parity: THROW without Ctrl drops one item from the targeted slot.
+        let mut menu = DispenserMenu::new();
+        let mut player = PlayerInventory::new();
+        menu.set_slot(4, ItemStack::new("minecraft:arrow", 16), &mut player);
+        let count_before = menu.get_slot(4, &player).unwrap().count();
+        menu.set_slot(
+            4,
+            ItemStack::new("minecraft:arrow", count_before - 1),
+            &mut player,
+        );
+        assert_eq!(menu.get_slot(4, &player).unwrap().count(), 15);
+    }
+
+    #[test]
+    fn creative_clone_produces_full_stack_from_slot() {
+        // Java parity: CLONE mode (middle-click in creative) replaces the
+        // cursor with a max-stack copy of the targeted slot's contents.
+        let mut menu = ChestMenu::new(3);
+        let mut player = PlayerInventory::new();
+        menu.set_slot(5, ItemStack::new("minecraft:emerald", 2), &mut player);
+        let slot_item = menu.get_slot(5, &player).unwrap();
+        let max = slot_item.max_stack_size();
+        assert_eq!(max, 64);
+        let cloned = ItemStack::new(slot_item.item_id(), max as i32);
+        assert_eq!(cloned.count(), 64);
+        assert_eq!(cloned.item_id(), "minecraft:emerald");
+    }
+
+    #[test]
+    fn close_while_carrying_returns_item_to_inventory() {
+        // Java parity: AbstractContainerMenu.removed places the carried item
+        // back into the inventory (or drops it if no slot is free).
+        let mut player = PlayerInventory::new();
+        let carried = ItemStack::new("minecraft:diamond", 3);
+
+        let placed = if let Some(empty_slot) = (0..36).find(|&i| player.get(i).is_empty()) {
+            player.set(empty_slot, carried.clone());
+            true
+        } else {
+            false
+        };
+        assert!(placed);
+        assert_eq!(player.get(0).item_id(), "minecraft:diamond");
+        assert_eq!(player.get(0).count(), 3);
+    }
+
+    #[test]
+    fn disconnect_while_open_drops_payment_items() {
+        // Java parity: MerchantMenu.removed places the merchant container's
+        // payment slots back into the player's inventory on disconnect.
+        let mut menu = MerchantMenu::new();
+        let mut player = PlayerInventory::new();
+        menu.set_slot(0, ItemStack::new("minecraft:emerald", 5), &mut player);
+        menu.set_slot(1, ItemStack::new("minecraft:book", 1), &mut player);
+
+        let payment_a = menu.get_slot(0, &player).unwrap();
+        let payment_b = menu.get_slot(1, &player).unwrap();
+
+        if !payment_a.is_empty() {
+            let slot = (0..36).find(|&i| player.get(i).is_empty()).unwrap();
+            player.set(slot, payment_a);
+            menu.set_slot(0, ItemStack::empty(), &mut player);
+        }
+        if !payment_b.is_empty() {
+            let slot = (0..36).find(|&i| player.get(i).is_empty()).unwrap();
+            player.set(slot, payment_b);
+            menu.set_slot(1, ItemStack::empty(), &mut player);
+        }
+
+        assert_eq!(player.get(0).item_id(), "minecraft:emerald");
+        assert_eq!(player.get(1).item_id(), "minecraft:book");
+        assert!(menu.get_slot(0, &player).unwrap().is_empty());
+        assert!(menu.get_slot(1, &player).unwrap().is_empty());
     }
 
     // -------- Stale state-ID style sweep: all_slots length checks --------

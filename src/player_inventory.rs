@@ -689,6 +689,129 @@ impl MerchantContainer {
             .iter()
             .position(|offer| offer.satisfied_by(buy_a, buy_b))
     }
+
+    /// Number of offers exposed by the merchant. Java: `MerchantOffers.size()`.
+    pub fn offer_count(&self) -> usize {
+        self.offers.len()
+    }
+
+    /// Read-only access to the offers. Used by `MerchantMenu::try_move_items`
+    /// and by clients persisting trade state.
+    pub fn offers(&self) -> &[MerchantOffer] {
+        &self.offers
+    }
+
+    /// Run the full restock cycle for this merchant.
+    ///
+    /// Java: `Villager.restock()` calls `updateDemand()` over every offer
+    /// *before* resetting uses so the next demand tick observes the trades
+    /// that have happened during this restock window. After that, every
+    /// offer's `uses` counter is cleared and the result slot is refreshed
+    /// so the player immediately sees the restored stock.
+    pub fn restock(&mut self) {
+        self.update_demand();
+        for offer in &mut self.offers {
+            offer.reset_uses();
+        }
+        self.update_sell_item();
+    }
+
+    /// Update demand for every offer.
+    ///
+    /// Java: `Villager.updateDemand()` iterates the offers and delegates to
+    /// `MerchantOffer.updateDemand()`, which uses the formula
+    /// `demand = demand + uses - (maxUses - uses)`.
+    pub fn update_demand(&mut self) {
+        for offer in &mut self.offers {
+            offer.update_demand();
+        }
+    }
+
+    /// Apply the hero-of-the-village price reduction to every offer.
+    ///
+    /// Java: `Villager.updateSpecialPrices()` computes
+    /// `modifier = 0.3 + 0.0625 * amplifier`, then for every offer subtracts
+    /// `max(floor(modifier * baseCostA.count), 1)` from `specialPriceDiff`.
+    /// `amplifier` is the 0-based effect amplifier from
+    /// `MobEffectInstance.getAmplifier()`.
+    pub fn apply_hero_discount(&mut self, amplifier: i32) {
+        let modifier = 0.3 + 0.0625 * amplifier as f64;
+        for offer in &mut self.offers {
+            let cost_reduction =
+                ((modifier * offer.base_cost_a.count as f64).floor() as i32).max(1);
+            offer.special_price_diff -= cost_reduction;
+        }
+    }
+
+    /// Clear the hero-of-the-village discount for every offer.
+    ///
+    /// Called when the effect wears off and after restock so prices return to
+    /// their base values plus any demand modifier. Java: `Villager` re-runs
+    /// `updateSpecialPrices()` on each interaction; this matches the side
+    /// effect of an empty reputation/effect combination.
+    pub fn reset_special_prices(&mut self) {
+        for offer in &mut self.offers {
+            offer.special_price_diff = 0;
+        }
+    }
+}
+
+// ============================================================================
+// MerchantRestockTracker
+// ============================================================================
+
+/// Tracks how many times a villager has restocked today and at what game time.
+///
+/// Java: `Villager` holds two persistent fields: `numberOfRestocksToday` and
+/// `lastRestockGameTime`. The merchant is allowed to restock if it has not
+/// restocked yet today, or it has restocked once and at least 2400 ticks have
+/// passed since that restock. `Villager.shouldRestock()` resets the counter
+/// when a new game day starts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MerchantRestockTracker {
+    pub restocks_today: i32,
+    pub last_restock_game_time: i64,
+}
+
+impl MerchantRestockTracker {
+    /// Build a fresh tracker for a villager that has never restocked.
+    pub fn new() -> Self {
+        Self {
+            restocks_today: 0,
+            last_restock_game_time: 0,
+        }
+    }
+
+    /// Java: `Villager.allowedToRestock()`.
+    ///
+    /// A villager may restock either if it has not restocked at all today, or
+    /// it has restocked exactly once and the configured cooldown (2400 ticks
+    /// = 2 minutes of game time) has elapsed since the last restock.
+    pub fn allowed_to_restock(&self, game_time: i64) -> bool {
+        self.restocks_today == 0
+            || (self.restocks_today < 2 && game_time > self.last_restock_game_time + 2400)
+    }
+
+    /// Record a restock at the given game time.
+    ///
+    /// Java: at the end of `Villager.restock()` the villager assigns
+    /// `lastRestockGameTime = level.getGameTime()` and increments
+    /// `numberOfRestocksToday`.
+    pub fn record_restock(&mut self, game_time: i64) {
+        self.last_restock_game_time = game_time;
+        self.restocks_today += 1;
+    }
+
+    /// Java: `Villager.resetNumberOfRestocks()`. Called when a new day begins.
+    pub fn reset_for_new_day(&mut self) {
+        self.restocks_today = 0;
+    }
+}
+
+impl Default for MerchantRestockTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1355,6 +1478,110 @@ mod tests {
         assert!(!container.can_trade());
         assert!(container.result().is_empty());
         assert_eq!(container.future_xp(), 0);
+    }
+
+    #[test]
+    fn merchant_offer_demand_increases_after_purchase_and_resets_after_restock() {
+        // Java parity: trading consumes uses; updateDemand uses the formula
+        // demand += uses - (maxUses - uses); restock then clears uses.
+        let mut container = MerchantContainer::new(vec![MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 5),
+            None,
+            ItemStack::new("minecraft:written_book", 1),
+            2,    // max_uses
+            1,    // xp
+            0.05, // price_multiplier
+        )]);
+
+        // Place enough emeralds to trade
+        container.set_payment(0, ItemStack::new("minecraft:emerald", 5));
+        assert!(container.can_trade());
+
+        // First trade — uses becomes 1.
+        let result = container.take_result();
+        assert_eq!(result.item_id(), "minecraft:written_book");
+        assert_eq!(container.offers()[0].uses, 1);
+
+        // Second trade — uses becomes 2, offer goes out of stock.
+        container.set_payment(0, ItemStack::new("minecraft:emerald", 5));
+        let _ = container.take_result();
+        assert_eq!(container.offers()[0].uses, 2);
+        assert!(container.offers()[0].is_out_of_stock());
+
+        // Restock: demand += uses - (maxUses - uses) = 0 + 2 - 0 = 2, then
+        // every offer's uses counter resets to 0.
+        container.restock();
+        assert_eq!(container.offers()[0].uses, 0);
+        assert_eq!(container.offers()[0].demand, 2);
+
+        // With a higher price multiplier (0.5) and demand=2 the cost shifts
+        // from 5 to 10 emeralds: 5 + floor(5 * 2 * 0.5) = 5 + 5 = 10.
+        let mut offer2 = MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 5),
+            None,
+            ItemStack::new("minecraft:written_book", 1),
+            2,
+            1,
+            0.5,
+        );
+        offer2.demand = 2;
+        assert_eq!(offer2.cost_a_count(), 10);
+    }
+
+    #[test]
+    fn merchant_restock_tracker_allows_two_restocks_per_day_2400_ticks_apart() {
+        // Java parity: Villager.allowedToRestock() returns true when the
+        // villager has never restocked today, or it has restocked once and
+        // 2400 ticks have passed since that restock.
+        let mut tracker = MerchantRestockTracker::new();
+
+        // Initially allowed (first restock of the day).
+        assert!(tracker.allowed_to_restock(0));
+        tracker.record_restock(100);
+        assert_eq!(tracker.restocks_today, 1);
+
+        // Second restock requires 2400 ticks of cooldown to elapse.
+        assert!(!tracker.allowed_to_restock(100));
+        assert!(!tracker.allowed_to_restock(2499));
+        assert!(tracker.allowed_to_restock(2501));
+
+        tracker.record_restock(2501);
+        assert_eq!(tracker.restocks_today, 2);
+
+        // After two restocks no further restock is allowed regardless of
+        // how much time has passed — the cap resets only on a new day.
+        assert!(!tracker.allowed_to_restock(9999));
+
+        // resetForNewDay clears the daily counter.
+        tracker.reset_for_new_day();
+        assert!(tracker.allowed_to_restock(9999));
+    }
+
+    #[test]
+    fn merchant_hero_discount_reduces_special_price_diff() {
+        // Java parity: Villager.updateSpecialPrices subtracts
+        // max(floor((0.3 + 0.0625 * amplifier) * baseCostA.count), 1) from
+        // each offer's specialPriceDiff when the player has the
+        // hero-of-the-village effect.
+        let mut container = MerchantContainer::new(vec![MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 10),
+            None,
+            ItemStack::new("minecraft:diamond", 1),
+            5,
+            1,
+            0.05,
+        )]);
+
+        // amplifier 0: modifier = 0.3, costReduction = floor(0.3 * 10) = 3.
+        container.apply_hero_discount(0);
+        assert_eq!(container.offers()[0].special_price_diff, -3);
+
+        // Reset and verify amplifier 1 yields the same rounded discount
+        // (modifier = 0.3625, floor(0.3625 * 10) = 3).
+        container.reset_special_prices();
+        assert_eq!(container.offers()[0].special_price_diff, 0);
+        container.apply_hero_discount(1);
+        assert_eq!(container.offers()[0].special_price_diff, -3);
     }
 
     #[test]

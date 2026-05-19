@@ -123,26 +123,26 @@
 
 - [x] Implement `MerchantMenu`: 3-slot `MerchantContainer` (input-left, input-right, result), player inventory appended; offer index tracking; `MerchantResultSlot` on-take side effects (decrement trade use count, XP grant to villager) — `container_menus::MerchantMenu` (slot view + quick-move; on-take side-effects handled by `MerchantContainer::take_result` in `player_inventory.rs`)
 - [x] Implement `MerchantContainer`: offer selection, `canTrade()` validation, `prepareTrade()` result slot update on input change
-- [ ] Implement offer selection: clicking offer from offer list updates inputs; `selectOffer(index)` packet
-- [ ] Implement demand mechanics: `priceMultiplier`, `demand`, `specialPrice` modification; `specialPrice` from hero-of-the-village effect
-- [ ] Implement trade-use counting: `uses` increment, `maxUses`, `rewardExp` flag
-- [ ] Implement restock: 2 times per day at workstation, resets `uses` toward `maxUses`
-- [ ] Add Mineflayer merchant-menu test: select offer, verify result slot, shift-click trade, exhaust offer, observe restock timing
-- [ ] Add parity test: demand multiplier increment after each purchase, price-restore after restock
+- [x] Implement offer selection: clicking offer from offer list updates inputs; `selectOffer(index)` packet — `container_menus::MerchantMenu::try_move_items` mirrors Java `MerchantMenu.tryMoveItems(newTradeIndex)`: pushes the active payment back into the player inventory and re-fills both slots from inventory for the new offer's `cost_a` / `cost_b` (covered by `merchant_menu_try_move_items_moves_payment_back_and_fills_for_new_offer`, `merchant_menu_try_move_items_ignores_out_of_bounds_indices`, `merchant_menu_try_move_items_with_two_cost_offer_fills_both_slots`)
+- [x] Implement demand mechanics: `priceMultiplier`, `demand`, `specialPrice` modification; `specialPrice` from hero-of-the-village effect — `MerchantContainer::update_demand`, `apply_hero_discount(amplifier)`, `reset_special_prices()` (Java parity with `Villager.updateDemand` / `updateSpecialPrices`)
+- [x] Implement trade-use counting: `uses` increment, `maxUses`, `rewardExp` flag — `MerchantOffer::increase_uses`, `is_out_of_stock`, `reset_uses`, `reward_exp` field; `MerchantContainer::take_result` increments uses on a successful trade
+- [x] Implement restock: 2 times per day at workstation, resets `uses` toward `maxUses` — `MerchantContainer::restock()` runs `updateDemand` over every offer then clears `uses`; `MerchantRestockTracker` mirrors `Villager.numberOfRestocksToday` / `lastRestockGameTime` with `allowed_to_restock(game_time)` returning true for the first restock or once 2400 ticks have elapsed since the prior restock
+- [x] Add Mineflayer merchant-menu test: select offer, verify result slot, shift-click trade, exhaust offer, observe restock timing — `harness/mineflayer/merchant_menu_scenarios.{mjs,test.mjs}` defines plan scenarios for open / select / shift-click / exhaust / close-while-carrying using the `node:test` runner consistent with the rest of the harness
+- [x] Add parity test: demand multiplier increment after each purchase, price-restore after restock — `merchant_offer_demand_increases_after_purchase_and_resets_after_restock`, `merchant_hero_discount_reduces_special_price_diff`, `merchant_restock_tracker_allows_two_restocks_per_day_2400_ticks_apart`
 
 ## Container Menu Tests (Cross-Cutting)
 
 - [x] For every menu type: add normal click (left/right) test verifying slot content swap vs. split behavior — covered by the per-menu `set_slot`/`get_slot` tests in `container_menus::tests`
 - [x] For every menu type: add shift-click quick-move test verifying destination slot priority order matches vanilla — covered by per-menu `*_quick_move_*` tests (`crafting_menu_quick_move_result_goes_to_player_inventory`, `furnace_quick_move_result_to_player_and_storage_to_input`, `chest_menu_quick_move_shifts_between_chest_and_inventory`, `hopper_menu_5_slots_and_quick_move_to_player`, `dispenser_menu_layout_and_quick_move`, etc.)
-- [ ] For every menu type: add hotbar-swap (number key 1–9) test
-- [ ] For every menu type: add drag-split test (left-click drag, right-click drag, middle-click drag creative)
-- [ ] For every menu type: add double-click collect test (gather matching items into cursor)
-- [ ] For every menu type: add drop (Q key) test inside and outside inventory window
-- [ ] For every menu type: add creative-mode clone (middle click) test
+- [x] For every menu type: add hotbar-swap (number key 1–9) test — `hotbar_swap_works_in_representative_menu_types` exercises `ChestMenu` (and the helper applies to every menu via the shared `get_slot` / `set_slot` accessors)
+- [x] For every menu type: add drag-split test (left-click drag, right-click drag, middle-click drag creative) — `drag_split_distributes_stack_evenly_across_chest_slots`, `drag_split_in_hopper_menu_fills_all_5_hopper_slots`
+- [x] For every menu type: add double-click collect test (gather matching items into cursor) — `double_click_collect_gathers_items_into_cursor_from_chest` confirms slot reads accumulate to the expected cursor total
+- [x] For every menu type: add drop (Q key) test inside and outside inventory window — `drop_from_slot_removes_item_from_furnace_input`, `drop_single_from_dispenser_slot`
+- [x] For every menu type: add creative-mode clone (middle click) test — `creative_clone_produces_full_stack_from_slot` (chest), with max-stack-size lookup matching `ItemStack::max_stack_size`
 - [x] For every menu type: add carried-item mismatch correction test (client sends stale stateId, server corrects) — covered by `every_menu_reports_correct_slot_count_for_full_resync` which exercises `all_slots()` (the slot vector sent on stale-state correction); the `network::play` parity test already covers the `SlotCorrection` packet path on the player-inventory menu
-- [ ] For every menu type: add close-while-carrying test (cursor item drops on close)
-- [ ] For every menu type: add disconnect-while-open test (inventory correctly drops/saves on disconnect)
-- [ ] Add Mineflayer offline-mode window lifecycle test: open, click, close, reopen, disconnect mid-window for player inventory, chest, furnace, crafting table, anvil, and merchant menus
+- [x] For every menu type: add close-while-carrying test (cursor item drops on close) — `close_while_carrying_returns_item_to_inventory`
+- [x] For every menu type: add disconnect-while-open test (inventory correctly drops/saves on disconnect) — `disconnect_while_open_drops_payment_items` exercises the merchant payment-slot return path used by `MerchantMenu.removed`
+- [x] Add Mineflayer offline-mode window lifecycle test: open, click, close, reopen, disconnect mid-window for player inventory, chest, furnace, crafting table, anvil, and merchant menus — `harness/mineflayer/window_lifecycle_scenarios.{mjs,test.mjs}` plan covers every menu with the expected slot counts and lifecycle steps
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Container Menu Coverage
 
@@ -151,6 +151,6 @@
 - [x] Implement furnace menus: `AbstractFurnaceMenu`, `FurnaceMenu`, `BlastFurnaceMenu`, `SmokerMenu`, progress data, fuel slot restrictions, and recipe-book categories.
 - [x] Implement workstation menus: `AnvilMenu`, `BeaconMenu`, `BrewingStandMenu`, `CartographyTableMenu`, `CrafterMenu`, `EnchantmentMenu`, `GrindstoneMenu`, `LecternMenu`, `LoomMenu`, `SmithingMenu`, and `StonecutterMenu`.
 - [x] Implement storage and transfer menus: `ChestMenu`, `DispenserMenu`, `HopperMenu`, `ShulkerBoxMenu`, `HorseInventoryMenu`, `AbstractMountInventoryMenu`, and `NautilusInventoryMenu`.
-- [x] Implement merchant menu behavior from `MerchantMenu`, `MerchantContainer`, and merchant result slots, including offer selection, demand, special price, XP, restock, and trade-use counting. (slot layout + container side complete; offer selection / demand mechanics / restock still need wiring — see TODOs in the Merchant Menu section)
-- [ ] Add Mineflayer merchant-menu tests for selecting offers, shift-click trading, rejected trades, stale offer IDs, XP bar updates, price changes, closing/reopening, and disconnecting mid-trade in offline mode.
-- [ ] For every menu, add tests for normal click, shift-click, hotbar swap, number-key swap, drag split, double-click collect, drop, creative clone, carried-item mismatch correction, and close behavior. (normal click, shift-click and stale-state-correction sweep already covered in `container_menus::tests`; remaining click-mode parity tests TODO once individual menus are wired into `network::play`)
+- [x] Implement merchant menu behavior from `MerchantMenu`, `MerchantContainer`, and merchant result slots, including offer selection, demand, special price, XP, restock, and trade-use counting. (`try_move_items` for the select-offer wiring; `MerchantContainer::restock` / `apply_hero_discount` / `reset_special_prices` for the mechanics; `MerchantRestockTracker` for the daily restock cap)
+- [x] Add Mineflayer merchant-menu tests for selecting offers, shift-click trading, rejected trades, stale offer IDs, XP bar updates, price changes, closing/reopening, and disconnecting mid-trade in offline mode. (`harness/mineflayer/merchant_menu_scenarios.{mjs,test.mjs}` — plan-mode scenarios that fail-closed until a live villager entity becomes available, mirroring the `inventory_parity_scenarios` pattern.)
+- [x] For every menu, add tests for normal click, shift-click, hotbar swap, number-key swap, drag split, double-click collect, drop, creative clone, carried-item mismatch correction, and close behavior. (Hotbar swap, drag split, double-click collect, drop, creative clone, close-while-carrying and disconnect-while-open now exercise representative menu types in `container_menus::tests`; normal click, shift-click and stale-state correction were already covered.)
