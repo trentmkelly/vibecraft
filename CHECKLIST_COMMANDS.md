@@ -81,36 +81,36 @@
 - [x] Implement `/attribute`.
 - [x] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
 - [x] Implement `/bossbar`.
-- [ ] Implement `/chase`.
+- [x] Implement `/chase`.
 - [x] Implement `/clear`.
 - [x] Implement `/clone`.
 - [x] Implement `/damage`.
-- [ ] Implement `/datapack`.
+- [x] Implement `/datapack`.
 - [x] Implement `/deop` and `/op`.
-- [ ] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.
+- [x] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.
 - [x] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
-- [ ] Implement `/dialog`.
+- [x] Implement `/dialog`.
 - [x] Implement `/effect`.
 - [ ] Implement `/emote`.
 - [x] Implement `/enchant`.
 - [x] Implement `/execute`.
 - [x] Implement `/experience`.
-- [ ] Implement `/fetchprofile`.
+- [x] Implement `/fetchprofile`.
 - [x] Implement `/fill` and `/fillbiome`.
 - [x] Implement `/forceload`.
 - [x] Implement `/function` and function scheduling.
 - [x] Implement `/give`.
 - [x] Implement `/help`.
-- [ ] Implement `/item`.
-- [ ] Implement `/jfr`.
+- [x] Implement `/item`.
+- [x] Implement `/jfr`.
 - [x] Implement `/kick`, `/kill`, `/list`.
 - [x] Implement `/locate`.
 - [x] Implement `/loot`.
 - [x] Implement `/msg`, `/teammsg`, `/say`, `/tellraw`.
 - [x] Implement `/particle`.
-- [ ] Implement `/perf`.
-- [ ] Implement `/place`.
-- [ ] Implement `/playsound` and `/stopsound`.
+- [x] Implement `/perf`.
+- [x] Implement `/place`.
+- [x] Implement `/playsound` and `/stopsound`.
 - [x] Implement `/publish`.
 - [x] Implement `/raid`.
 - [x] Implement `/random`.
@@ -127,13 +127,13 @@
 - [x] Implement `/setblock`.
 - [x] Implement `/setidletimeout`.
 - [x] Implement `/spawnpoint`, `/setworldspawn`.
-- [ ] Implement `/spawn_armor_trims`.
+- [x] Implement `/spawn_armor_trims`.
 - [x] Implement `/spectate`.
 - [x] Implement `/spreadplayers`.
 - [x] Implement `/stop`.
 - [x] Implement `/stopwatch`.
 - [x] Implement `/summon`.
-- [ ] Implement `/swing`.
+- [x] Implement `/swing`.
 - [x] Implement `/tag`.
 - [x] Implement `/team`.
 - [x] Implement `/teleport`.
@@ -155,7 +155,7 @@
 - [x] Add raw 26.1.2 command-before-ready fallback coverage that sends command-suggestion and chat-shaped packets during login/configuration before play readiness and verifies vanilla-compatible rejection/close behavior while Mineflayer lacks target-protocol play support.
 - [ ] Add Mineflayer offline-mode command-result consistency tests that run commands from console, op bot, non-op bot, command block, and function context, then compare success count, feedback visibility, and player-observed side effects.
 - [x] Add command-model command-result fallback coverage for non-op denial, op self-target side effects, repeated no-op success counts, console explicit-target execution, feedback keys, and admin broadcast flags while live bot command execution remains incomplete.
-- [ ] Implement `/tick`.
+- [x] Implement `/tick`.
 - [x] Implement `/time`.
 - [x] Implement `/title`.
 - [x] Implement `/transfer`.
