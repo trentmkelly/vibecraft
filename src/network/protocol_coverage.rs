@@ -677,7 +677,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "commands",
         java_class: "ClientboundCommandsPacket",
-        field_order: "unparsed",
+        field_order: "entries:List(Entry(flags:byte type/root/literal/argument + executable + redirect + custom_suggestions + restricted, children:VarIntArray, redirect:optional VarInt, literal:name String or argument:name String + command_argument_type registry VarInt + type payload + optional suggestion Identifier)), root_index:VarInt",
     },
     PlayPacketSpec {
         id: 17,

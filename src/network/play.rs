@@ -1843,7 +1843,30 @@ pub enum WorldBorderPacketKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundCommandsPacket {
     pub root_index: i32,
-    pub node_count: usize,
+    pub entries: Vec<CommandNodeEntryData>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandNodeEntryData {
+    pub stub: CommandNodeStubData,
+    pub executable: bool,
+    pub restricted: bool,
+    pub redirect: Option<i32>,
+    pub children: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandNodeStubData {
+    Root,
+    Literal {
+        name: String,
+    },
+    Argument {
+        name: String,
+        parser_type_id: i32,
+        parser_payload: Vec<u8>,
+        suggestion_id: Option<Identifier>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -4255,6 +4278,99 @@ impl CriterionProgressData {
                 write_i64(writer, epoch_millis)
             }
             None => write_bool(writer, false),
+        }
+    }
+}
+
+impl ClientboundCommandsPacket {
+    pub fn root_only() -> Self {
+        Self {
+            root_index: 0,
+            entries: vec![CommandNodeEntryData {
+                stub: CommandNodeStubData::Root,
+                executable: false,
+                restricted: false,
+                redirect: None,
+                children: Vec::new(),
+            }],
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(writer, &self.entries, |writer, entry| entry.write(writer))?;
+        write_var_i32(writer, self.root_index)
+    }
+}
+
+impl CommandNodeEntryData {
+    const FLAG_EXECUTABLE: u8 = 4;
+    const FLAG_REDIRECT: u8 = 8;
+    const FLAG_CUSTOM_SUGGESTIONS: u8 = 16;
+    const FLAG_RESTRICTED: u8 = 32;
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let mut flags = self.stub.node_type();
+        if self.executable {
+            flags |= Self::FLAG_EXECUTABLE;
+        }
+        if self.redirect.is_some() {
+            flags |= Self::FLAG_REDIRECT;
+        }
+        if self.restricted {
+            flags |= Self::FLAG_RESTRICTED;
+        }
+        if self.stub.has_custom_suggestions() {
+            flags |= Self::FLAG_CUSTOM_SUGGESTIONS;
+        }
+        writer.write_all(&[flags])?;
+        write_var_i32(writer, self.children.len() as i32)?;
+        for child in &self.children {
+            write_var_i32(writer, *child)?;
+        }
+        if let Some(redirect) = self.redirect {
+            write_var_i32(writer, redirect)?;
+        }
+        self.stub.write(writer)
+    }
+}
+
+impl CommandNodeStubData {
+    fn node_type(&self) -> u8 {
+        match self {
+            Self::Root => 0,
+            Self::Literal { .. } => 1,
+            Self::Argument { .. } => 2,
+        }
+    }
+
+    fn has_custom_suggestions(&self) -> bool {
+        matches!(
+            self,
+            Self::Argument {
+                suggestion_id: Some(_),
+                ..
+            }
+        )
+    }
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Root => Ok(()),
+            Self::Literal { name } => write_string(writer, name, 32767),
+            Self::Argument {
+                name,
+                parser_type_id,
+                parser_payload,
+                suggestion_id,
+            } => {
+                write_string(writer, name, 32767)?;
+                write_var_i32(writer, *parser_type_id)?;
+                writer.write_all(parser_payload)?;
+                if let Some(suggestion_id) = suggestion_id {
+                    write_identifier(writer, suggestion_id)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -7880,10 +7996,7 @@ mod tests {
                 warning_blocks: Some(5),
                 warning_time: Some(15),
             }),
-            PlayInstruction::Commands(ClientboundCommandsPacket {
-                root_index: 0,
-                node_count: 1,
-            }),
+            PlayInstruction::Commands(ClientboundCommandsPacket::root_only()),
             PlayInstruction::CommandSuggestions(ClientboundCommandSuggestionsPacket {
                 transaction_id: 4,
                 start: 0,
@@ -8715,6 +8828,56 @@ mod tests {
                 ],
                 b"stone".to_vec(),
                 vec![0, 1], // not done, show advancements
+            ]
+            .concat()
+        );
+
+        let mut commands = Vec::new();
+        ClientboundCommandsPacket {
+            root_index: 0,
+            entries: vec![
+                CommandNodeEntryData {
+                    stub: CommandNodeStubData::Root,
+                    executable: false,
+                    restricted: false,
+                    redirect: None,
+                    children: vec![1, 2],
+                },
+                CommandNodeEntryData {
+                    stub: CommandNodeStubData::Literal {
+                        name: "help".to_string(),
+                    },
+                    executable: true,
+                    restricted: false,
+                    redirect: None,
+                    children: Vec::new(),
+                },
+                CommandNodeEntryData {
+                    stub: CommandNodeStubData::Argument {
+                        name: "target".to_string(),
+                        parser_type_id: 5,
+                        parser_payload: vec![0x03],
+                        suggestion_id: Some(Identifier::parse("minecraft:ask_server").unwrap()),
+                    },
+                    executable: false,
+                    restricted: true,
+                    redirect: Some(1),
+                    children: Vec::new(),
+                },
+            ],
+        }
+        .write(&mut commands)
+        .unwrap();
+        assert_eq!(
+            commands,
+            [
+                vec![3, 0, 2, 1, 2, 5, 0, 4],
+                b"help".to_vec(),
+                vec![58, 0, 1, 6],
+                b"target".to_vec(),
+                vec![5, 0x03, 20],
+                b"minecraft:ask_server".to_vec(),
+                vec![0],
             ]
             .concat()
         );
