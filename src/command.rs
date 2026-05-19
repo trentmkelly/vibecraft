@@ -152,6 +152,9 @@ pub struct ServerCommandState {
     pub function_tags: Vec<CommandFunctionTag>,
     pub queued_functions: Vec<QueuedFunctionCall>,
     pub macro_functions: Vec<String>,
+    pub macro_entity_nbt_sources: Vec<CommandEntityNbtSource>,
+    pub macro_block_nbt_sources: Vec<CommandBlockNbtSource>,
+    pub macro_storage_nbt_sources: Vec<CommandStorageNbtSource>,
     pub function_permission_level: PermissionLevel,
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
@@ -645,6 +648,24 @@ pub struct RandomSample {
 pub struct EntityRef {
     pub id: String,
     pub display_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandEntityNbtSource {
+    pub entity: EntityRef,
+    pub nbt: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandBlockNbtSource {
+    pub pos: BlockPos,
+    pub nbt: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandStorageNbtSource {
+    pub id: String,
+    pub nbt: Tag,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2236,6 +2257,9 @@ impl Default for ServerCommandState {
             function_tags: Vec::new(),
             queued_functions: Vec::new(),
             macro_functions: Vec::new(),
+            macro_entity_nbt_sources: Vec::new(),
+            macro_block_nbt_sources: Vec::new(),
+            macro_storage_nbt_sources: Vec::new(),
             function_permission_level: PermissionLevel::Gamemasters,
             command_source_player: None,
             command_source_entity: None,
@@ -9132,15 +9156,16 @@ fn function_command(
     let mut arguments = None;
     if parts.len() > 2 {
         if parts[2] == "with" {
-            return Err(CommandError::FunctionArgumentNotCompound);
+            arguments = Some(resolve_function_macro_nbt_source(state, &parts[3..])?.to_snbt());
+        } else {
+            if parts.len() != 3 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            if !looks_like_compound_tag(parts[2]) {
+                return Err(CommandError::FunctionArgumentNotCompound);
+            }
+            arguments = Some(parts[2].to_string());
         }
-        if parts.len() != 3 {
-            return Err(CommandError::InvalidSyntax);
-        }
-        if !looks_like_compound_tag(parts[2]) {
-            return Err(CommandError::FunctionArgumentNotCompound);
-        }
-        arguments = Some(parts[2].to_string());
     }
 
     let functions = resolve_command_functions(state, &name.0, name.1)?;
@@ -9207,6 +9232,39 @@ fn resolve_command_functions(
 
 fn looks_like_compound_tag(input: &str) -> bool {
     input.starts_with('{') && input.ends_with('}')
+}
+
+fn resolve_function_macro_nbt_source(
+    state: &ServerCommandState,
+    parts: &[&str],
+) -> Result<Tag, CommandError> {
+    match parts {
+        ["entity", target] => state
+            .macro_entity_nbt_sources
+            .iter()
+            .find(|source| source.entity.id == *target || source.entity.display_name == *target)
+            .map(|source| source.nbt.clone())
+            .ok_or(CommandError::FunctionInstantiationFailure),
+        ["block", x, y, z] => {
+            let pos = parse_block_pos(x, y, z)?;
+            state
+                .macro_block_nbt_sources
+                .iter()
+                .find(|source| source.pos == pos)
+                .map(|source| source.nbt.clone())
+                .ok_or(CommandError::FunctionInstantiationFailure)
+        }
+        ["storage", id] => {
+            let id = parse_resource_identifier(id)?;
+            state
+                .macro_storage_nbt_sources
+                .iter()
+                .find(|source| source.id == id)
+                .map(|source| source.nbt.clone())
+                .ok_or(CommandError::FunctionInstantiationFailure)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
 }
 
 fn scoreboard_command(
@@ -12465,24 +12523,25 @@ mod tests {
         AdvancementDefinition, AttributeModifierState, AttributeOperation, AvatarProfile,
         BiomeEntry, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
         ChaseEvent, ChaseSession, ChatCommandKind, ChunkPos, CloneFilter, CloneMode,
-        CommandAvailability, CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable,
-        CommandError, CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
-        CommandItemModifierEvent, CommandItemStack, CommandItemTarget, CommandLocatableEntry,
-        CommandLocateResult, CommandLootSource, CommandLootTable, CommandLootTarget,
-        CommandPlayerInventory, CommandRaidEvent, CommandRaidState, DamageCommandSource,
-        DialogCommandEvent, EntityAnchor, EntityAttributeState, EntityKind, EntityMount,
-        EntityPosition, EntityRef, EntityState, EntityTags, ExecuteSourceSnapshot,
-        FetchProfileQuery, FillMode, ForcedChunk, GameMode, InteractionHand,
-        LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport, Permission,
-        PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
-        PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
-        PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
-        RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
-        ScoreboardDisplaySlot, ScoreboardObjective, ScoreboardPersistence, ScoreboardScore,
-        ServerCommandState, ServerFunctionTickState, ServerPackCommandEvent, ServerPackPushRequest,
-        SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
-        SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction, TitleTextKind, Vec3,
-        VersionInfo, WardenSpawnTrackerState, WaypointState, WeatherMode,
+        CommandAvailability, CommandBlockItemSlot, CommandBlockNbtSource, CommandEntityItemSlot,
+        CommandEntityLootTable, CommandEntityNbtSource, CommandError, CommandFunctionDefinition,
+        CommandFunctionTag, CommandItemEnchantment, CommandItemModifierEvent, CommandItemStack,
+        CommandItemTarget, CommandLocatableEntry, CommandLocateResult, CommandLootSource,
+        CommandLootTable, CommandLootTarget, CommandPlayerInventory, CommandRaidEvent,
+        CommandRaidState, CommandStorageNbtSource, DamageCommandSource, DialogCommandEvent,
+        EntityAnchor, EntityAttributeState, EntityKind, EntityMount, EntityPosition, EntityRef,
+        EntityState, EntityTags, ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk,
+        GameMode, InteractionHand, LevelBasedPermissionSet, LocateKind, ParticleCommandEvent,
+        PerfReport, Permission, PermissionLevel, PlaceKind, PlaySoundRequest,
+        PlayerAdvancementProgress, PlayerExperienceState, PlayerGameMode, PlayerIpAddress,
+        PlayerRecipeBook, PlayerSpawn, PublishRequest, QueuedFunctionCall, ReloadRequest,
+        RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode, RotationRequest,
+        SaveAllRequest, ScheduledFunction, ScoreboardDisplaySlot, ScoreboardObjective,
+        ScoreboardPersistence, ScoreboardScore, ServerCommandState, ServerFunctionTickState,
+        ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode, SoundCommandEvent,
+        SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent, TeamMembership,
+        TeamState, TitleCommandAction, TitleTextKind, Vec3, VersionInfo, WardenSpawnTrackerState,
+        WaypointState, WeatherMode,
     };
     use crate::player_access::NameAndId;
     use crate::storage::nbt::Tag;
@@ -12896,6 +12955,84 @@ mod tests {
         );
         assert!(instantiate_command_function(&function, Some(r#"{name:"Steve"}"#)).is_err());
         assert!(instantiate_command_function(&function, None).is_err());
+    }
+
+    #[test]
+    fn function_with_entity_block_and_storage_sources_instantiates_macros() {
+        let function = CommandFunctionDefinition {
+            id: "minecraft:macro".to_string(),
+            commands: vec!["say $(name) $(value)".to_string()],
+            macro_parameters: vec!["name".to_string(), "value".to_string()],
+        };
+        let mut state = ServerCommandState {
+            available_functions: vec![function],
+            macro_functions: vec!["minecraft:macro".to_string()],
+            macro_entity_nbt_sources: vec![CommandEntityNbtSource {
+                entity: EntityRef {
+                    id: "entity-1".to_string(),
+                    display_name: "Pig".to_string(),
+                },
+                nbt: Tag::Compound(vec![
+                    ("name".to_string(), Tag::String("entity".to_string())),
+                    ("value".to_string(), Tag::Int(1)),
+                ]),
+            }],
+            macro_block_nbt_sources: vec![CommandBlockNbtSource {
+                pos: BlockPos { x: 1, y: 2, z: 3 },
+                nbt: Tag::Compound(vec![
+                    ("name".to_string(), Tag::String("block".to_string())),
+                    ("value".to_string(), Tag::Int(2)),
+                ]),
+            }],
+            macro_storage_nbt_sources: vec![CommandStorageNbtSource {
+                id: "minecraft:test".to_string(),
+                nbt: Tag::Compound(vec![
+                    ("name".to_string(), Tag::String("storage".to_string())),
+                    ("value".to_string(), Tag::Int(3)),
+                ]),
+            }],
+            ..ServerCommandState::default()
+        };
+
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "function minecraft:macro with entity Pig",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "function minecraft:macro with block 1 2 3",
+        )
+        .unwrap();
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "function minecraft:macro with storage minecraft:test",
+        )
+        .unwrap();
+
+        assert_eq!(
+            state
+                .queued_functions
+                .iter()
+                .map(|call| call.commands[0].clone())
+                .collect::<Vec<_>>(),
+            vec![
+                "say entity 1".to_string(),
+                "say block 2".to_string(),
+                "say storage 3".to_string(),
+            ]
+        );
+        assert_eq!(
+            execute_builtin_command(
+                &mut state,
+                LevelBasedPermissionSet::GAMEMASTER,
+                "function minecraft:macro with storage missing:value",
+            ),
+            Err(CommandError::FunctionInstantiationFailure)
+        );
     }
 
     #[test]

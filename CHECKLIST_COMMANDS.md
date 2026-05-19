@@ -43,14 +43,14 @@
 - [x] Implement `#minecraft:load` invocation: call all tagged functions on world load and datapack reload
 - [x] Implement `/function <id>` command: execute a named function with the invoker's command source stack
 - [x] Implement function-level return values: `/return` command sets the function result used by `/execute` return predicates: `return_command()` records success/failure/forwarded-command return events, returning command tasks in `command_execution::ExecutionContextModel` discard same-depth continuations and propagate callbacks for `/execute` return-style result handling; covered by `return_command_requires_gamemaster_and_records_success_or_failure`, `return_command_records_forwarded_command_and_rejects_invalid_syntax`, and `return_value_discards_same_depth_continuations`
-- [ ] Implement macro functions (26.1.2): `$` prefix lines in `.mcfunction` accept macro arguments, `$(variable)` substitution; `/function <id> with <entity|block|storage>` syntax
+- [x] Implement macro functions (26.1.2): `$` prefix lines in `.mcfunction` accept macro arguments, `$(variable)` substitution; `/function <id> with <entity|block|storage>` syntax — function loading already records `$` macro lines and `$(variable)` arguments; `/function <id> with entity|block|storage` now resolves modeled NBT sources into the existing macro instantiation path
 - [x] Implement macro function instantiation for `/function <id> {compound}`: SNBT compound parsing, missing-argument errors, vanilla-style numeric/string argument stringification, and `$(variable)` substitution before queueing commands
 - [x] Implement function-argument type in Brigadier argument list for `/function` command autocompletion: `command_tree::ArgumentParser::Function` validates function/tag resource IDs, `vanilla_like_tree()` exposes `/function <name>`, and `CommandTree::function_suggestions()` suggests known function IDs plus `#tag` IDs; covered by `function_argument_suggestions_use_function_and_tag_ids` plus the existing command-parity suggestion suite
 - [x] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
 - [x] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
 - [x] Implement function execution quota/fork limiting using `maxCommandChainLength` / `max_command_sequence_length`, `maxCommandForkCount` / `max_command_forks`, and vanilla queue overflow behavior
 - [x] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
-- [ ] Add parity test: macro function variable substitution with entity/storage/block NBT source
+- [x] Add parity test: macro function variable substitution with entity/storage/block NBT source — `function_with_entity_block_and_storage_sources_instantiates_macros` covers all three source forms and missing-source failure
 - [x] Add parity test: command function execution stops at the vanilla game-rule sequence/fork limits and queue-overflow boundary
 
 ## Command Testing (Mineflayer / Integration)
