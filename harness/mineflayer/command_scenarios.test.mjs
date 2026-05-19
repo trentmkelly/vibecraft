@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   commandScenarioManifest,
+  loginGatedCommandManifest,
+  loginGatedCommandScenarios,
   listLoginStateManifest,
   listLoginStateScenarios,
   observeCommandFeedback,
@@ -9,6 +11,7 @@ import {
   operatorCommandSmokeManifest,
   operatorCommandSmokeScenarios,
   runCommandScenario,
+  summarizeLoginGatedCommandEvidence,
   summarizeListLoginStateEvidence,
   summarizeTeleportCommandEvidence,
   teleportCommandExecutionScenario
@@ -183,4 +186,35 @@ test('summarizeTeleportCommandEvidence validates observed position, success feed
   assert.equal(summarizeTeleportCommandEvidence(evidence, scenario).ok, true)
   evidence.timeline[1].summary[1].z = 5
   assert.equal(summarizeTeleportCommandEvidence(evidence, scenario).ok, false)
+})
+
+test('loginGatedCommandManifest covers commands that must wait for play readiness', () => {
+  const manifest = loginGatedCommandManifest({ primary: 'Steve', secondary: 'Alex' })
+
+  assert.equal(manifest.readinessBoundary, 'play-state-ready')
+  assert.deepEqual(manifest.commands.map(command => command.command), [
+    '/list',
+    '/tell Alex ready',
+    '/gamemode creative Steve',
+    '/tp Steve 0 80 0'
+  ])
+  assert.ok(manifest.commands.every(command => command.preReadyBlocked))
+})
+
+test('summarizeLoginGatedCommandEvidence requires blocked pre-ready and successful post-ready feedback', () => {
+  const scenarios = loginGatedCommandScenarios({ primary: 'Steve', secondary: 'Alex' })
+  const evidence = {
+    timeline: scenarios.map(scenario => ({
+      name: 'login_gated_command',
+      summary: [scenario.command, {
+        preReadyBlocked: true,
+        postReadyRan: true,
+        feedback: scenario.expectedFeedbackKey
+      }]
+    }))
+  }
+
+  assert.equal(summarizeLoginGatedCommandEvidence(evidence, scenarios).ok, true)
+  evidence.timeline[0].summary[1].preReadyBlocked = false
+  assert.equal(summarizeLoginGatedCommandEvidence(evidence, scenarios).ok, false)
 })

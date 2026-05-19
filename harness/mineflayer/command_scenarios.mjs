@@ -160,6 +160,46 @@ export function summarizeTeleportCommandEvidence(evidence, scenario = teleportCo
   return { ok: Object.values(steps).every(Boolean), steps }
 }
 
+export function loginGatedCommandScenarios(options = {}) {
+  const primary = options.primary ?? 'ReadyBot'
+  const secondary = options.secondary ?? 'FriendBot'
+  return [
+    gatedScenario('/list', 'commands.list.players', { minPermission: 0 }),
+    gatedScenario(`/tell ${secondary} ready`, 'commands.message.display', { minPermission: 0, target: secondary }),
+    gatedScenario(`/gamemode creative ${primary}`, 'commands.gamemode.success.other', { minPermission: 2, target: primary }),
+    gatedScenario(`/tp ${primary} 0 80 0`, 'commands.teleport.success.location.single', { minPermission: 2, target: primary })
+  ]
+}
+
+export function loginGatedCommandManifest(options = {}) {
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    readinessBoundary: 'play-state-ready',
+    commands: loginGatedCommandScenarios(options).map(entry => ({
+      command: entry.command,
+      expectedFeedbackKey: entry.expectedFeedbackKey,
+      minPermission: entry.minPermission,
+      target: entry.target,
+      preReadyBlocked: true
+    }))
+  }
+}
+
+export function summarizeLoginGatedCommandEvidence(evidence, scenarios = loginGatedCommandScenarios()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'login_gated_command')
+    .map(event => [event.summary?.[0], event.summary?.[1] ?? {}]))
+  const steps = Object.fromEntries(scenarios.map(scenario => {
+    const observed = observations.get(scenario.command)
+    const ok = observed?.preReadyBlocked === true &&
+      observed?.postReadyRan === true &&
+      String(observed?.feedback ?? '').includes(scenario.expectedFeedbackKey)
+    return [scenario.command, ok]
+  }))
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')
@@ -177,6 +217,15 @@ export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginS
 
 function listScenario(name, source, phase, expectedNames) {
   return { name, source, phase, expectedNames }
+}
+
+function gatedScenario(command, expectedFeedbackKey, options = {}) {
+  return {
+    command,
+    expectedFeedbackKey,
+    minPermission: options.minPermission ?? 0,
+    target: options.target
+  }
 }
 
 function scenario(command, expectedFeedbackKey, options = {}) {
