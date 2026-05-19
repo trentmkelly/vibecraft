@@ -402,6 +402,60 @@ export function summarizeCommandSuggestionEvidence(evidence, scenario = commandS
   return { ok: Object.values(steps).every(Boolean), steps }
 }
 
+export function lootCommandScenario(options = {}) {
+  const target = options.target ?? 'LootBot'
+  return {
+    target,
+    commands: [
+      `/loot give ${target} loot minecraft:chests/simple_dungeon`,
+      '/loot insert 0 64 0 loot minecraft:chests/simple_dungeon',
+      '/loot spawn 0 64 0 fish minecraft:gameplay/fishing 0 64 0',
+      `/loot replace entity ${target} container.0 loot minecraft:chests/simple_dungeon`
+    ],
+    sources: [
+      'block-source',
+      'entity-source',
+      'chest-source',
+      'fishing-source',
+      'custom-table-source'
+    ],
+    effects: [
+      'inventory-update',
+      'window-update',
+      'dropped-item-entity'
+    ]
+  }
+}
+
+export function lootCommandManifest(options = {}) {
+  const scenario = lootCommandScenario(options)
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    comparedAgainst: 'official-server.jar',
+    target: scenario.target,
+    commands: scenario.commands,
+    sources: scenario.sources,
+    effects: scenario.effects
+  }
+}
+
+export function summarizeLootCommandEvidence(evidence, scenario = lootCommandScenario()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'loot_command')
+    .map(event => [event.summary?.[0], event.summary?.[1] ?? {}]))
+  const commands = observations.get('commands')?.commands ?? []
+  const sources = observations.get('sources')?.sources ?? []
+  const effects = observations.get('effects')?.effects ?? []
+  const steps = {
+    commands: scenario.commands.every(command => commands.includes(command)),
+    sources: scenario.sources.every(source => sources.includes(source)),
+    effects: scenario.effects.every(effect => effects.includes(effect)),
+    vanilla: observations.get('vanilla-comparison')?.matches === true
+  }
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')

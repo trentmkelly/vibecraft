@@ -14,6 +14,8 @@ import {
   loginGatedCommandScenarios,
   listLoginStateManifest,
   listLoginStateScenarios,
+  lootCommandManifest,
+  lootCommandScenario,
   observeCommandFeedback,
   offlineCommandScenarios,
   operatorCommandSmokeManifest,
@@ -25,6 +27,7 @@ import {
   summarizeCommandSuggestionEvidence,
   summarizeLoginGatedCommandEvidence,
   summarizeListLoginStateEvidence,
+  summarizeLootCommandEvidence,
   summarizeTeleportCommandEvidence,
   teleportCommandExecutionScenario
 } from './command_scenarios.mjs'
@@ -360,4 +363,32 @@ test('summarizeCommandSuggestionEvidence requires vanilla-matched suggestions an
   assert.equal(summarizeCommandSuggestionEvidence(evidence, scenario).ok, true)
   evidence.timeline[3].summary[1].matchesVanilla = false
   assert.equal(summarizeCommandSuggestionEvidence(evidence, scenario).ok, false)
+})
+
+test('lootCommandManifest covers give, insert, spawn, replace, sources, and visible effects', () => {
+  const manifest = lootCommandManifest({ target: 'Steve' })
+
+  assert.equal(manifest.comparedAgainst, 'official-server.jar')
+  assert.ok(manifest.commands.some(command => command.startsWith('/loot give Steve')))
+  assert.ok(manifest.commands.some(command => command.startsWith('/loot insert')))
+  assert.ok(manifest.commands.some(command => command.startsWith('/loot spawn')))
+  assert.ok(manifest.commands.some(command => command.startsWith('/loot replace entity Steve')))
+  assert.ok(manifest.sources.includes('custom-table-source'))
+  assert.ok(manifest.effects.includes('dropped-item-entity'))
+})
+
+test('summarizeLootCommandEvidence requires commands, loot sources, effects, and vanilla comparison', () => {
+  const scenario = lootCommandScenario({ target: 'Steve' })
+  const evidence = {
+    timeline: [
+      { name: 'loot_command', summary: ['commands', { commands: scenario.commands }] },
+      { name: 'loot_command', summary: ['sources', { sources: scenario.sources }] },
+      { name: 'loot_command', summary: ['effects', { effects: scenario.effects }] },
+      { name: 'loot_command', summary: ['vanilla-comparison', { matches: true }] }
+    ]
+  }
+
+  assert.equal(summarizeLootCommandEvidence(evidence, scenario).ok, true)
+  evidence.timeline[2].summary[1].effects = ['inventory-update']
+  assert.equal(summarizeLootCommandEvidence(evidence, scenario).ok, false)
 })
