@@ -78,7 +78,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `use-native-transport` or document the equivalent transport decision.
 - [x] Implement mutable `spawn-protection`.
 - [x] Implement mutable `op-permission-level`.
-- [ ] Implement `function-permission-level`.
+- [x] Implement `function-permission-level`.
 - [x] Implement `max-tick-time`.
 - [ ] Implement `max-chained-neighbor-updates`.
 - [x] Implement `rate-limit`.

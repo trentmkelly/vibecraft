@@ -152,6 +152,7 @@ pub struct ServerCommandState {
     pub function_tags: Vec<CommandFunctionTag>,
     pub queued_functions: Vec<QueuedFunctionCall>,
     pub macro_functions: Vec<String>,
+    pub function_permission_level: PermissionLevel,
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
     pub command_source_position: Vec3,
@@ -1854,6 +1855,7 @@ impl Default for ServerCommandState {
             function_tags: Vec::new(),
             queued_functions: Vec::new(),
             macro_functions: Vec::new(),
+            function_permission_level: PermissionLevel::Gamemasters,
             command_source_player: None,
             command_source_entity: None,
             command_source_position: Vec3::default(),
@@ -8775,7 +8777,7 @@ fn function_command(
             arguments: arguments.clone(),
             source_dimension: state.command_source_dimension.clone(),
             suppressed_output: true,
-            permission_level: PermissionLevel::Gamemasters,
+            permission_level: state.function_permission_level,
         });
         queued += 1;
     }
@@ -12353,6 +12355,7 @@ mod tests {
     fn function_command_queues_single_function_tags_and_arguments() {
         let mut state = ServerCommandState {
             command_source_dimension: "minecraft:the_nether".to_string(),
+            function_permission_level: PermissionLevel::Admins,
             available_functions: vec![
                 CommandFunctionDefinition {
                     id: "minecraft:tick/foo".to_string(),
@@ -12403,7 +12406,7 @@ mod tests {
                 arguments: None,
                 source_dimension: "minecraft:the_nether".to_string(),
                 suppressed_output: true,
-                permission_level: PermissionLevel::Gamemasters,
+                permission_level: PermissionLevel::Admins,
             }
         );
 

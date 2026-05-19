@@ -383,6 +383,7 @@ management-server-port=24454
 rcon.port=24455
 query.port=24456
 announce-player-achievements=true
+function-permission-level=3
 resource-pack-id=00000000-0000-0000-0000-000000000001
 resource-pack=https://example.invalid/pack.zip
 resource-pack-sha1=0123456789abcdef0123456789abcdef01234567
@@ -407,6 +408,7 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(properties.rcon_port, 24455);
         assert_eq!(properties.query_port, 24456);
         assert_eq!(properties.announce_player_achievements, Some(true));
+        assert_eq!(properties.function_permission_level, 3);
         assert_eq!(
             properties.resource_pack_id,
             "00000000-0000-0000-0000-000000000001"
