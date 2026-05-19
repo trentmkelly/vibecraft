@@ -81,7 +81,7 @@
 - [x] Implement stats: `stats/<uuid>.json`
 - [x] Implement server icon: `server-icon.png` (64×64 PNG, base64-encoded for status response)
 - [ ] Implement crash reports: `crash-reports/crash-<timestamp>-server.txt`
-- [ ] Implement logs rotation: `logs/latest.log` + `logs/<date>-<n>.log.gz`
+- [x] Implement logs rotation: `logs/latest.log` + `logs/<date>-<n>.log.gz`
 - [ ] Implement generated reports: `generated/` directory for registry/command/tag reports from `--report` flag
 
 ## Management Server (JSON-RPC)
