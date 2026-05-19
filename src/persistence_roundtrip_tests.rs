@@ -120,7 +120,11 @@ mod tests {
         let mut chunk = LevelChunk::empty(ChunkPos { x: 4, z: -2 });
         chunk.status = "minecraft:full".to_string();
         chunk.inhabited_time = 44;
-        let decoded = LevelChunk::from_nbt(chunk.pos, &chunk.to_nbt(4189)).unwrap();
+        let decoded = LevelChunk::from_nbt(
+            chunk.pos,
+            &chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION),
+        )
+        .unwrap();
         assert_eq!(decoded.status, "minecraft:full");
         assert_eq!(decoded.inhabited_time, 44);
 

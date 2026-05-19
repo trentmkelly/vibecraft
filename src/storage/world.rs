@@ -11,7 +11,9 @@ use crate::storage::nbt::{
 };
 use crate::storage::region::{ChunkPos, RegionFile};
 
-use super::datafix::require_current_world_data_version;
+use super::datafix::{
+    require_current_tag_data_version, require_current_world_data_version, TARGET_DATA_VERSION,
+};
 
 const SESSION_LOCK_MARKER: &[u8] = "\u{2603}".as_bytes();
 const CURRENT_VERSION_NAME: &str = "26.1.2";
@@ -649,7 +651,8 @@ impl WorldLayout {
     pub fn save_player_data(&self, uuid: &str, tag: &Tag) -> std::io::Result<()> {
         fs::create_dir_all(self.playerdata_dir())?;
         let mut bytes = Vec::new();
-        write_gzip_named_tag(&mut bytes, "", tag)?;
+        let tag = tag_with_data_version(tag);
+        write_gzip_named_tag(&mut bytes, "", &tag)?;
         durable_write_with_backup(
             &self.player_data_file(uuid),
             Some(&self.player_data_old_file(uuid)),
@@ -659,11 +662,11 @@ impl WorldLayout {
 
     pub fn load_player_data(&self, uuid: &str) -> std::io::Result<Tag> {
         match read_gzip_named_tag_file(&self.player_data_file(uuid)) {
-            Ok((_name, tag)) => Ok(tag),
+            Ok((_name, tag)) => checked_saved_tag("playerdata", tag),
             Err(primary_err) => {
                 self.backup_corrupt_player_data(uuid, ".dat")?;
                 match read_gzip_named_tag_file(&self.player_data_old_file(uuid)) {
-                    Ok((_name, tag)) => Ok(tag),
+                    Ok((_name, tag)) => checked_saved_tag("playerdata backup", tag),
                     Err(_) => Err(primary_err),
                 }
             }
@@ -709,14 +712,15 @@ impl WorldLayout {
     pub fn save_saved_data(&self, name: &str, tag: &Tag) -> std::io::Result<()> {
         fs::create_dir_all(self.data_dir())?;
         let mut bytes = Vec::new();
-        write_named_tag(&mut bytes, "", tag)?;
+        let tag = tag_with_data_version(tag);
+        write_named_tag(&mut bytes, "", &tag)?;
         durable_write_with_backup(&self.saved_data_file(name), None, &bytes)
     }
 
     pub fn load_saved_data(&self, name: &str) -> std::io::Result<Tag> {
         let bytes = fs::read(self.saved_data_file(name))?;
         let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
-        Ok(tag)
+        checked_saved_tag(name, tag)
     }
 
     pub fn save_scoreboard(&self, tag: &Tag) -> std::io::Result<()> {
@@ -738,14 +742,15 @@ impl WorldLayout {
     pub fn save_map_data(&self, id: i32, tag: &Tag) -> std::io::Result<()> {
         fs::create_dir_all(self.data_dir())?;
         let mut bytes = Vec::new();
-        write_named_tag(&mut bytes, "", tag)?;
+        let tag = tag_with_data_version(tag);
+        write_named_tag(&mut bytes, "", &tag)?;
         durable_write_with_backup(&self.map_data_file(id), None, &bytes)
     }
 
     pub fn load_map_data(&self, id: i32) -> std::io::Result<Tag> {
         let bytes = fs::read(self.map_data_file(id))?;
         let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
-        Ok(tag)
+        checked_saved_tag(&format!("map_{id}"), tag)
     }
 
     pub fn save_forced_chunks(&self, tag: &Tag) -> std::io::Result<()> {
@@ -1208,6 +1213,27 @@ fn durable_write_with_backup(
     fs::rename(tmp, target)
 }
 
+fn tag_with_data_version(tag: &Tag) -> Tag {
+    let mut tag = tag.clone();
+    if let Tag::Compound(values) = &mut tag {
+        match values
+            .iter_mut()
+            .find(|(name, _)| name == "DataVersion")
+            .map(|(_, value)| value)
+        {
+            Some(value) => *value = Tag::Int(TARGET_DATA_VERSION),
+            None => values.push(("DataVersion".to_string(), Tag::Int(TARGET_DATA_VERSION))),
+        }
+    }
+    tag
+}
+
+fn checked_saved_tag(surface: &str, tag: Tag) -> std::io::Result<Tag> {
+    require_current_tag_data_version(surface, &tag)
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+    Ok(tag)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{LevelStorageSource, PlayerDataStorage, WorldLayout};
@@ -1526,7 +1552,10 @@ mod tests {
             .save_stats(uuid, "{\"minecraft:custom\":{}}")
             .unwrap();
 
-        assert_eq!(layout.load_player_data(uuid).unwrap(), player);
+        assert_eq!(
+            layout.load_player_data(uuid).unwrap(),
+            super::tag_with_data_version(&player)
+        );
         assert_eq!(layout.load_advancements(uuid).unwrap(), "{\"done\":true}");
         assert_eq!(
             layout.load_stats(uuid).unwrap(),
@@ -1563,11 +1592,17 @@ mod tests {
 
         layout.save_player_data(uuid, &first).unwrap();
         layout.save_player_data(uuid, &second).unwrap();
-        assert_eq!(layout.load_player_data(uuid).unwrap(), second);
+        assert_eq!(
+            layout.load_player_data(uuid).unwrap(),
+            super::tag_with_data_version(&second)
+        );
         assert!(layout.player_data_old_file(uuid).is_file());
 
         fs::write(layout.player_data_file(uuid), b"corrupt playerdata").unwrap();
-        assert_eq!(layout.load_player_data(uuid).unwrap(), first);
+        assert_eq!(
+            layout.load_player_data(uuid).unwrap(),
+            super::tag_with_data_version(&first)
+        );
         let corrupt_backups = fs::read_dir(layout.playerdata_dir())
             .unwrap()
             .filter_map(Result::ok)
@@ -1601,7 +1636,10 @@ mod tests {
         )]);
 
         storage.save(uuid, &player).unwrap();
-        assert_eq!(storage.load(uuid).unwrap(), player);
+        assert_eq!(
+            storage.load(uuid).unwrap(),
+            super::tag_with_data_version(&player)
+        );
         assert_eq!(
             storage.player_data_file(uuid),
             layout.player_data_file(uuid)
@@ -1610,6 +1648,42 @@ mod tests {
             storage.player_data_old_file(uuid),
             layout.player_data_old_file(uuid)
         );
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn saved_nbt_loaders_refuse_missing_or_unsupported_data_versions() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-saved-version-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        let uuid = "00000000-0000-0000-0000-000000000004";
+
+        let missing = crate::storage::nbt::Tag::Compound(vec![(
+            "Health".to_string(),
+            crate::storage::nbt::Tag::Float(20.0),
+        )]);
+        let mut bytes = Vec::new();
+        crate::storage::nbt::write_gzip_named_tag(&mut bytes, "", &missing).unwrap();
+        fs::create_dir_all(layout.playerdata_dir()).unwrap();
+        fs::write(layout.player_data_file(uuid), bytes).unwrap();
+        let err = layout.load_player_data(uuid).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("missing DataVersion"));
+
+        let unsupported = crate::storage::nbt::Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION - 1),
+        )]);
+        let mut bytes = Vec::new();
+        crate::storage::nbt::write_named_tag(&mut bytes, "", &unsupported).unwrap();
+        fs::create_dir_all(layout.data_dir()).unwrap();
+        fs::write(layout.saved_data_file("scoreboard"), bytes).unwrap();
+        let err = layout.load_scoreboard().unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Unsupported world DataVersion"));
 
         let _ = fs::remove_dir_all(&path);
     }

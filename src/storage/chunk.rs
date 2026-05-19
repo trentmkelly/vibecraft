@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use super::datafix::require_current_tag_data_version;
 use super::nbt::Tag;
 use super::region::ChunkPos;
 
@@ -365,6 +366,7 @@ impl LevelChunk {
     }
 
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
+        require_current_tag_data_version("chunk", tag)?;
         let root = compound(tag)?;
         let pos = ChunkPos {
             x: int_field(root, "xPos")?,
@@ -793,6 +795,22 @@ mod tests {
         let tag = LevelChunk::empty(ChunkPos { x: 9, z: 9 }).to_nbt(TARGET_DATA_VERSION);
         let err = LevelChunk::from_nbt(ChunkPos { x: 0, z: 0 }, &tag).unwrap_err();
         assert!(err.contains("wrong position"));
+    }
+
+    #[test]
+    fn level_chunk_rejects_missing_or_unsupported_data_versions() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut missing = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        if let Tag::Compound(values) = &mut missing {
+            values.retain(|(name, _)| name != "DataVersion");
+        }
+        let err = LevelChunk::from_nbt(pos, &missing).unwrap_err();
+        assert!(err.contains("missing DataVersion"));
+
+        let unsupported =
+            LevelChunk::empty(pos).to_nbt(crate::storage::datafix::TARGET_DATA_VERSION - 1);
+        let err = LevelChunk::from_nbt(pos, &unsupported).unwrap_err();
+        assert!(err.contains("Unsupported world DataVersion"));
     }
 
     #[test]

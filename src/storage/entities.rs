@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::datafix::require_current_tag_data_version;
 use super::nbt::Tag;
 use super::region::ChunkPos;
 
@@ -77,6 +78,7 @@ impl ChunkEntities {
     }
 
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
+        require_current_tag_data_version("entity chunk", tag)?;
         let compound = compound(tag)?;
         let stored_pos = match field(compound, "Position")? {
             Tag::IntArray(values) if values.len() == 2 => ChunkPos {
@@ -228,5 +230,20 @@ mod tests {
         let err = ChunkEntities::from_nbt(pos, &wrong).unwrap_err();
 
         assert!(err.contains("wrong position"));
+    }
+
+    #[test]
+    fn entity_chunks_reject_missing_or_unsupported_data_versions() {
+        let pos = ChunkPos { x: 1, z: 2 };
+        let mut missing = ChunkEntities::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        if let Tag::Compound(values) = &mut missing {
+            values.retain(|(name, _)| name != "DataVersion");
+        }
+        let err = ChunkEntities::from_nbt(pos, &missing).unwrap_err();
+        assert!(err.contains("missing DataVersion"));
+
+        let unsupported = ChunkEntities::empty(pos).to_nbt(TARGET_DATA_VERSION - 1);
+        let err = ChunkEntities::from_nbt(pos, &unsupported).unwrap_err();
+        assert!(err.contains("Unsupported world DataVersion"));
     }
 }

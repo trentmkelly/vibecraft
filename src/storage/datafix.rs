@@ -1,5 +1,7 @@
 pub const TARGET_DATA_VERSION: i32 = 4790;
 
+use super::nbt::Tag;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataFixDecision {
     Current,
@@ -67,6 +69,23 @@ pub fn require_current_world_data_version(found_data_version: i32) -> Result<(),
             "Unsupported world DataVersion {found_data_version}; RustCraft currently supports only {target_data_version} and will not perform unsafe migrations"
         )),
     }
+}
+
+pub fn tag_data_version(tag: &Tag) -> Option<i32> {
+    let Tag::Compound(values) = tag else {
+        return None;
+    };
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            ("DataVersion", Tag::Int(version)) => Some(*version),
+            _ => None,
+        })
+}
+
+pub fn require_current_tag_data_version(surface: &str, tag: &Tag) -> Result<(), String> {
+    let version = tag_data_version(tag).ok_or_else(|| format!("{surface} missing DataVersion"))?;
+    require_current_world_data_version(version)
 }
 
 pub fn plan_world_upgrade(options: WorldUpgradeOptions) -> Vec<WorldUpgradeStep> {

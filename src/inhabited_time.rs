@@ -147,7 +147,7 @@ mod tests {
         increment_inhabited_time(&mut chunk, 42);
         increment_inhabited_time(&mut chunk, 5);
 
-        let encoded = chunk.to_nbt(4321);
+        let encoded = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
         let decoded = LevelChunk::from_nbt(pos, &encoded).expect("chunk decodes");
         assert_eq!(decoded.inhabited_time, 47);
         match encoded {
