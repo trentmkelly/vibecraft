@@ -114,6 +114,37 @@ pub struct TickingBlockEntity {
     pub client_side: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockEntityMenuOpen {
+    pub container_id: i32,
+    pub menu_type: &'static str,
+    pub initial_slots: Vec<Option<PotItemStack>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockEntityMenuClose {
+    pub container_id: i32,
+}
+
+impl BlockEntityMenuOpen {
+    pub fn close(self) -> BlockEntityMenuClose {
+        BlockEntityMenuClose {
+            container_id: self.container_id,
+        }
+    }
+}
+
+pub fn open_ender_chest_menu(
+    container_id: i32,
+    ender_chest_slots: Vec<Option<PotItemStack>>,
+) -> BlockEntityMenuOpen {
+    BlockEntityMenuOpen {
+        container_id,
+        menu_type: "generic_9x3",
+        initial_slots: ender_chest_slots,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TestBlockMode {
     Start,
@@ -2274,6 +2305,14 @@ impl EnchantingTableBlockEntity {
         self.custom_name.as_deref().unwrap_or(Self::DEFAULT_NAME)
     }
 
+    pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
+        BlockEntityMenuOpen {
+            container_id,
+            menu_type: "enchantment",
+            initial_slots: vec![None, None],
+        }
+    }
+
     pub fn save_additional(&self) -> Tag {
         let mut entries = Vec::new();
         if let Some(custom_name) = &self.custom_name {
@@ -2583,6 +2622,14 @@ impl BeaconBlockEntity {
         true
     }
 
+    pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
+        BlockEntityMenuOpen {
+            container_id,
+            menu_type: "beacon",
+            initial_slots: vec![self.payment_item.clone()],
+        }
+    }
+
     pub fn comparator_output(&self) -> u8 {
         self.levels.clamp(0, Self::MAX_LEVELS) as u8
     }
@@ -2789,6 +2836,14 @@ impl LecternBlockEntity {
         self.page = 0;
         self.page_count = 0;
         book
+    }
+
+    pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
+        BlockEntityMenuOpen {
+            container_id,
+            menu_type: "lectern",
+            initial_slots: vec![self.book.clone()],
+        }
     }
 
     pub fn get_redstone_signal(&self) -> u8 {
@@ -3194,6 +3249,14 @@ impl BrewingStandBlockEntity {
         ]
     }
 
+    pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
+        BlockEntityMenuOpen {
+            container_id,
+            menu_type: "brewing_stand",
+            initial_slots: self.items.clone(),
+        }
+    }
+
     pub fn is_brewable(&self, recipes: &[BrewingRecipe]) -> bool {
         let Some(ingredient) = self.items[Self::INGREDIENT_SLOT].as_ref() else {
             return false;
@@ -3438,6 +3501,16 @@ impl CrafterBlockEntity {
             .zip(self.disabled_slots)
             .filter(|(stack, disabled)| stack.is_some() || *disabled)
             .count() as u8
+    }
+
+    pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
+        let mut initial_slots = self.items.clone();
+        initial_slots.push(None);
+        BlockEntityMenuOpen {
+            container_id,
+            menu_type: "crafter_3x3",
+            initial_slots,
+        }
     }
 
     pub fn server_tick(&mut self) -> bool {
@@ -4940,6 +5013,14 @@ impl PotItemStack {
 }
 
 impl FurnaceBlockEntityKind {
+    pub fn menu_type(self) -> &'static str {
+        match self {
+            Self::Furnace => "furnace",
+            Self::BlastFurnace => "blast_furnace",
+            Self::Smoker => "smoker",
+        }
+    }
+
     pub fn recipe_type(self) -> &'static str {
         match self {
             Self::Furnace => "smelting",
@@ -5171,6 +5252,14 @@ impl AbstractFurnaceBlockEntity {
             .sum::<f32>()
             / Self::SLOT_COUNT as f32;
         (1 + (fullness * 14.0).floor() as u8).min(MAX_SIGNAL)
+    }
+
+    pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
+        BlockEntityMenuOpen {
+            container_id,
+            menu_type: self.kind.menu_type(),
+            initial_slots: self.items.to_vec(),
+        }
     }
 
     pub fn xp_to_award_and_clear(&mut self, fraction_roll: f32) -> i32 {
@@ -5446,6 +5535,26 @@ impl ContainerBlockEntityModel {
         }
         self.unpack_loot_table();
         Some(self.kind.menu_type())
+    }
+
+    pub fn open_menu(
+        &mut self,
+        container_id: i32,
+        player_lock_key: Option<&str>,
+        spectator: bool,
+    ) -> Option<BlockEntityMenuOpen> {
+        let menu_type = self.create_menu(player_lock_key, spectator)?;
+        self.start_open();
+        Some(BlockEntityMenuOpen {
+            container_id,
+            menu_type,
+            initial_slots: self.items.clone(),
+        })
+    }
+
+    pub fn close_menu(&mut self, menu: BlockEntityMenuOpen) -> BlockEntityMenuClose {
+        self.stop_open();
+        menu.close()
     }
 
     pub fn unpack_loot_table(&mut self) -> bool {
@@ -8768,6 +8877,17 @@ mod tests {
         }
     }
 
+    fn assert_menu(
+        menu: &BlockEntityMenuOpen,
+        container_id: i32,
+        menu_type: &'static str,
+        initial_slots: &[Option<PotItemStack>],
+    ) {
+        assert_eq!(menu.container_id, container_id);
+        assert_eq!(menu.menu_type, menu_type);
+        assert_eq!(menu.initial_slots, initial_slots);
+    }
+
     #[test]
     fn block_entity_registry_matches_26_1_2_type_surface() {
         assert_eq!(BLOCK_ENTITY_TYPES.len(), 49);
@@ -9261,6 +9381,116 @@ mod tests {
             ))),
             0
         );
+    }
+
+    #[test]
+    fn gui_block_entities_open_with_menu_id_initial_slots_and_close_state() {
+        let mut furnace = AbstractFurnaceBlockEntity::furnace();
+        furnace.set_item(
+            AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+            Some(stack("minecraft:iron_ore", 3)),
+            None,
+        );
+        assert_menu(
+            &furnace.open_menu(1),
+            1,
+            "furnace",
+            &[Some(stack("minecraft:iron_ore", 3)), None, None],
+        );
+
+        let mut blast = AbstractFurnaceBlockEntity::blast_furnace();
+        blast.set_item(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            Some(stack("minecraft:coal", 2)),
+            None,
+        );
+        assert_menu(
+            &blast.open_menu(2),
+            2,
+            "blast_furnace",
+            &[None, Some(stack("minecraft:coal", 2)), None],
+        );
+        assert_menu(
+            &AbstractFurnaceBlockEntity::smoker().open_menu(3),
+            3,
+            "smoker",
+            &[None, None, None],
+        );
+
+        let ender_slots = vec![Some(stack("minecraft:ender_pearl", 16)); 27];
+        let ender_menu = open_ender_chest_menu(4, ender_slots.clone());
+        assert_menu(&ender_menu, 4, "generic_9x3", &ender_slots);
+        assert_eq!(ender_menu.close(), BlockEntityMenuClose { container_id: 4 });
+
+        for (index, (kind, menu_type, slot_count)) in [
+            (ContainerBlockEntityKind::Chest, "generic_9x3", 27),
+            (ContainerBlockEntityKind::TrappedChest, "generic_9x3", 27),
+            (ContainerBlockEntityKind::Barrel, "generic_9x3", 27),
+            (ContainerBlockEntityKind::ShulkerBox, "shulker_box", 27),
+            (ContainerBlockEntityKind::Dispenser, "generic_3x3", 9),
+            (ContainerBlockEntityKind::Dropper, "generic_3x3", 9),
+            (ContainerBlockEntityKind::Hopper, "hopper", 5),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut container = ContainerBlockEntityModel::new(kind);
+            container.lock_key = Some("key".to_string());
+            assert_eq!(container.open_menu(20 + index as i32, None, false), None);
+            container.set_item(0, Some(stack("minecraft:apple", 5)));
+
+            let menu = container
+                .open_menu(20 + index as i32, Some("key"), false)
+                .unwrap();
+            let mut expected = vec![None; slot_count];
+            expected[0] = Some(stack("minecraft:apple", 5));
+            assert_menu(&menu, 20 + index as i32, menu_type, &expected);
+            assert_eq!(container.viewer_count, 1);
+            let close = container.close_menu(menu);
+            assert_eq!(
+                close,
+                BlockEntityMenuClose {
+                    container_id: 20 + index as i32
+                }
+            );
+            assert_eq!(container.viewer_count, 0);
+        }
+
+        let enchantment = EnchantingTableBlockEntity::new();
+        assert_menu(&enchantment.open_menu(40), 40, "enchantment", &[None, None]);
+
+        let mut brewing = BrewingStandBlockEntity::new();
+        brewing.set_item(0, Some(stack("minecraft:potion", 1)));
+        assert_menu(
+            &brewing.open_menu(41),
+            41,
+            "brewing_stand",
+            &[Some(stack("minecraft:potion", 1)), None, None, None, None],
+        );
+
+        let mut beacon = BeaconBlockEntity::new();
+        assert!(beacon.set_payment_item(Some(stack("minecraft:emerald", 1))));
+        assert_menu(
+            &beacon.open_menu(42),
+            42,
+            "beacon",
+            &[Some(stack("minecraft:emerald", 1))],
+        );
+
+        let mut lectern = LecternBlockEntity::new();
+        lectern.set_book(Some(stack("minecraft:written_book", 1)), 3);
+        assert_menu(
+            &lectern.open_menu(43),
+            43,
+            "lectern",
+            &[Some(stack("minecraft:written_book", 1))],
+        );
+
+        let mut crafter = CrafterBlockEntity::new();
+        crafter.set_item(8, Some(stack("minecraft:redstone", 4)));
+        let mut crafter_slots = vec![None; CrafterBlockEntity::CONTAINER_SIZE + 1];
+        crafter_slots[8] = Some(stack("minecraft:redstone", 4));
+        assert_menu(&crafter.open_menu(44), 44, "crafter_3x3", &crafter_slots);
     }
 
     #[test]
