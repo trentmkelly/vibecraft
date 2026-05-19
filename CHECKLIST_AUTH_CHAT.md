@@ -5,7 +5,7 @@ Authentication, secure profile, signed chat, and abuse-reporting metadata parity
 ## Migrated From Main Checklist: Authentication, Security, And Chat Trust
 
 - [ ] Implement Yggdrasil session server authentication for online-mode.
-- [ ] Implement profile lookup/cache with expiration behavior.
+- [x] Implement profile lookup/cache with expiration behavior.
 - [ ] Add a Mineflayer offline-mode identity test that confirms username, UUID derivation, whitelist checks, bans, and operator lookup behavior.
 - [x] Add raw 26.1.2 offline-mode identity/access fallback coverage for username, offline UUID derivation, usercache writes, whitelist rejection, whitelist allow, op whitelist bypass, player ban, and IP ban while Mineflayer lacks target-protocol play support.
 - [x] Add a Mineflayer/raw 26.1.2 offline-mode deterministic UUID test that logs in multiple generated names, verifies `OfflinePlayer:<name>` UUID derivation against vanilla, then repeats across restart and case-variant joins.
@@ -29,15 +29,15 @@ Authentication, secure profile, signed chat, and abuse-reporting metadata parity
 - [x] Add focused raw 26.1.2 usercache-corruption fallback coverage that starts isolated servers with missing, empty, malformed, stale, and duplicate `usercache.json`, joins generated offline profiles, and verifies repaired UUID/name/expiresOn entries plus stale bogus UUID removal while Mineflayer lacks target-protocol play support.
 - [ ] Add a Mineflayer offline-mode auth-file hot-edit test that edits `ops.json`, `whitelist.json`, `banned-players.json`, and `banned-ips.json` while bots are online, runs the vanilla reload path, and verifies current and reconnecting bots observe the same effects as official `server.jar`.
 - [x] Add raw 26.1.2 auth-file hot-edit fallback coverage that edits `banned-players.json` while the server process is online, runs console `reload`/`whitelist reload`, and verifies reconnecting offline profiles observe the new ban and subsequent pardon while Mineflayer lacks target-protocol play support.
-- [ ] Implement banned profile and banned IP checks.
-- [ ] Implement whitelist checks.
-- [ ] Implement operator permission lookup.
+- [x] Implement banned profile and banned IP checks.
+- [x] Implement whitelist checks.
+- [x] Implement operator permission lookup.
 - [ ] Implement secure chat chain validation.
 - [ ] Implement signed message body, link, signature, cache, and last-seen validation.
 - [ ] Implement unsigned, modified, filtered, and deleted chat behavior.
 - [ ] Implement command signing and signed argument tracking.
 - [ ] Implement text filtering integration and fallbacks.
 - [ ] Implement player reporting-relevant metadata where clients expect it.
-- [ ] Implement prevent-proxy-connections behavior.
-- [ ] Implement IP logging controls.
-- [ ] Implement management server secret and TLS behavior.
+- [x] Implement prevent-proxy-connections behavior.
+- [x] Implement IP logging controls.
+- [x] Implement management server secret and TLS behavior.
