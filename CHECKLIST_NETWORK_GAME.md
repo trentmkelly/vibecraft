@@ -402,9 +402,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement configuration registry data sync.
 - [x] Implement enabled feature sync.
 - [x] Implement known-packs negotiation.
-- [ ] Implement code of conduct packet behavior.
-- [ ] Implement resource pack push/pop/status flow.
-- [ ] Implement server links and dialog packets.
+- [x] Implement code of conduct packet behavior.
+- [x] Implement resource pack push/pop/status flow.
+- [x] Implement server links and dialog packets.
 - [ ] Implement game join sequence exactly enough for vanilla client login.
 - [ ] Add a Mineflayer join smoke test that waits for spawn, verifies dimension, gamemode, position, health, inventory, and tab-list identity.
 - [ ] Add a Mineflayer offline-mode login-to-spawn contract test that asserts the reusable login gate does not pass until the bot has a loaded entity, spawn position, tab-list profile, and first chunk visibility.
