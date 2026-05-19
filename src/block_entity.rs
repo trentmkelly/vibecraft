@@ -2417,6 +2417,76 @@ mod tests {
     }
 
     #[test]
+    fn banner_pattern_layers_preserve_order_and_enforce_six_layer_cap() {
+        let mut banner = BannerBlockEntity::from_block_state("minecraft:red_banner").unwrap();
+        let layers = [
+            ("minecraft:stripe_bottom", DyeColor::White),
+            ("minecraft:stripe_top", DyeColor::Black),
+            ("minecraft:stripe_left", DyeColor::Blue),
+            ("minecraft:stripe_right", DyeColor::Yellow),
+            ("minecraft:diagonal_left", DyeColor::Green),
+            ("minecraft:diagonal_right", DyeColor::Purple),
+        ];
+        for (pattern, color) in layers {
+            assert!(banner.add_pattern(pattern, color));
+        }
+        assert!(!banner.add_pattern("minecraft:globe", DyeColor::Cyan));
+        banner.custom_name = Some("{\"text\":\"Six Layers\"}".to_string());
+
+        let saved = banner.save_additional();
+        let Tag::Compound(fields) = &saved else {
+            panic!("banner save_additional should produce a compound");
+        };
+        assert_eq!(fields[0].0, "patterns");
+        assert_eq!(fields[1].0, "CustomName");
+
+        let Tag::List(saved_layers) = &fields[0].1 else {
+            panic!("patterns should be a list");
+        };
+        assert_eq!(saved_layers.len(), BannerBlockEntity::MAX_PATTERNS);
+        for (idx, (expected_pattern, expected_color)) in layers.iter().enumerate() {
+            assert_eq!(
+                saved_layers[idx],
+                Tag::Compound(vec![
+                    (
+                        "pattern".to_string(),
+                        Tag::String((*expected_pattern).to_string())
+                    ),
+                    (
+                        "color".to_string(),
+                        Tag::String(expected_color.vanilla_name().to_string())
+                    ),
+                ])
+            );
+        }
+
+        let loaded = BannerBlockEntity::load_additional("minecraft:red_wall_banner", &saved)
+            .expect("saved red banner should load");
+        assert_eq!(loaded.base_color, DyeColor::Red);
+        assert_eq!(loaded.patterns, banner.patterns);
+        assert_eq!(loaded.custom_name, banner.custom_name);
+
+        let overlong = Tag::Compound(vec![(
+            "patterns".to_string(),
+            Tag::List(
+                (0..8)
+                    .map(|idx| {
+                        BannerPatternLayer {
+                            pattern: format!("minecraft:test_{idx}"),
+                            color: DyeColor::White,
+                        }
+                        .to_tag()
+                    })
+                    .collect(),
+            ),
+        )]);
+        let truncated =
+            BannerBlockEntity::load_additional("minecraft:white_banner", &overlong).unwrap();
+        assert_eq!(truncated.patterns.len(), BannerBlockEntity::MAX_PATTERNS);
+        assert_eq!(truncated.patterns[5].pattern, "minecraft:test_5");
+    }
+
+    #[test]
     fn decorated_pot_saves_sherds_item_loot_and_wobble_like_java() {
         let mut pot = DecoratedPotBlockEntity {
             decorations: PotDecorations::new(

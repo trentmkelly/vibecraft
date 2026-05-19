@@ -97,7 +97,7 @@
 - [x] Implement `SkullBlockEntity`: owner profile component data, note-block sound data, custom-name component data, update tag, component stripping, and powered animation state
 - [x] Implement `BellBlockEntity`: ringing-direction last value, resonating state, `ring(level, direction, entity)` trigger, bell-sound dispatch, entity highlighting on ring
 - [x] Implement `CopperGolemStatueBlockEntity` (new in 26.1.2): weathering/waxed block-state mirroring, pose cycling, comparator output, and custom-name component preservation
-- [ ] Add parity test: banner pattern layers NBT field order, maximum 6 layers enforced, color+pattern round-trip
+- [x] Add parity test: banner pattern layers NBT field order, maximum 6 layers enforced, color+pattern round-trip
 - [ ] Add parity test: decorated pot wobble animation state after item insertion, destruction drops both sherds and stored item
 
 ## Mob / Environment Block Entities
