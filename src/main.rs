@@ -143,6 +143,8 @@ use resources::{
     WorldDataConfiguration,
 };
 use server_properties::ServerProperties;
+use storage::datafix::{run_world_upgrade, WorldUpgradeOptions};
+use storage::world::{LevelVersion, WorldLayout};
 use world::WorldOptions;
 
 fn main() {
@@ -244,6 +246,34 @@ fn run(options: CliOptions) -> Result<(), String> {
         options.server_id.as_deref().unwrap_or("")
     ))?;
     logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))?;
+
+    if options.force_upgrade || options.erase_cache || options.recreate_region_files {
+        let layout = WorldLayout::new(universe.join(&world_name));
+        if layout.level_dat().is_file() || layout.level_dat_old().is_file() {
+            let tag = layout
+                .load_level_dat_with_backup()
+                .map_err(|err| format!("Failed to read level.dat for world upgrade: {err}"))?;
+            let version = LevelVersion::parse_level_dat(&tag)
+                .and_then(|version| version.data_version)
+                .ok_or_else(|| "level.dat missing DataVersion for world upgrade".to_string())?;
+            let report = run_world_upgrade(
+                &layout,
+                version,
+                WorldUpgradeOptions {
+                    force_upgrade: options.force_upgrade,
+                    erase_cache: options.erase_cache,
+                    recreate_region_files: options.recreate_region_files,
+                },
+            )?;
+            logger.info(&format!(
+                "worldUpgradeSteps={:?}, chunks={}, entityChunks={}",
+                report.plan.steps, report.chunk_count, report.entity_chunk_count
+            ))?;
+        } else {
+            logger.info("Skipping world upgrade: no level.dat exists yet")?;
+        }
+    }
+
     let (console_input, _console_handle) = console::spawn_console_input_thread();
     logger.info("Started server console input thread")?;
 
