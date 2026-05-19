@@ -155,11 +155,22 @@ struct PlaySessionState {
     health: f32,
     food_level: i32,
     food_saturation: f32,
+    food_exhaustion: f32,
     xp_progress: f32,
     xp_level: i32,
     xp_total: i32,
+    xp_seed: i32,
+    score: i32,
     game_mode: GameMode,
     previous_game_mode: Option<GameMode>,
+    spawn: Option<PlayerSpawnData>,
+    seen_credits: bool,
+    entered_nether_position: Option<(f64, f64, f64)>,
+    last_death_location: Option<PlayerGlobalPosData>,
+    root_vehicle: Option<Tag>,
+    active_effects: Vec<Tag>,
+    ender_items: Vec<Tag>,
+    abilities: PlayerNbtAbilities,
     /// Player inventory + 2×2 crafting grid. The state ID (incremented on each accepted
     /// container click or broadcast) is tracked separately in `container_state_id`.
     inventory_menu: InventoryMenu,
@@ -184,14 +195,67 @@ impl Default for PlaySessionState {
             health: 20.0,
             food_level: 20,
             food_saturation: 5.0,
+            food_exhaustion: 0.0,
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
+            xp_seed: 0,
+            score: 0,
             game_mode: GameMode::Survival,
             previous_game_mode: None,
+            spawn: None,
+            seen_credits: false,
+            entered_nether_position: None,
+            last_death_location: None,
+            root_vehicle: None,
+            active_effects: Vec::new(),
+            ender_items: Vec::new(),
+            abilities: PlayerNbtAbilities::default_survival(),
             inventory_menu: InventoryMenu::new(PlayerInventory::new(), RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PlayerSpawnData {
+    dimension: String,
+    x: i32,
+    y: i32,
+    z: i32,
+    forced: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct PlayerGlobalPosData {
+    dimension: String,
+    x: i32,
+    y: i32,
+    z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PlayerNbtAbilities {
+    invulnerable: bool,
+    flying: bool,
+    mayfly: bool,
+    instabuild: bool,
+    may_build: bool,
+    fly_speed: f32,
+    walk_speed: f32,
+}
+
+impl PlayerNbtAbilities {
+    fn default_survival() -> Self {
+        Self {
+            invulnerable: false,
+            flying: false,
+            mayfly: false,
+            instabuild: false,
+            may_build: true,
+            fly_speed: 0.05,
+            walk_speed: 0.1,
         }
     }
 }
@@ -2610,9 +2674,15 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             "foodSaturationLevel".to_string(),
             Tag::Float(state.food_saturation),
         ),
+        (
+            "foodExhaustionLevel".to_string(),
+            Tag::Float(state.food_exhaustion),
+        ),
         ("XpLevel".to_string(), Tag::Int(state.xp_level)),
         ("XpP".to_string(), Tag::Float(state.xp_progress)),
         ("XpTotal".to_string(), Tag::Int(state.xp_total)),
+        ("XpSeed".to_string(), Tag::Int(state.xp_seed)),
+        ("Score".to_string(), Tag::Int(state.score)),
         (
             "SelectedItemSlot".to_string(),
             Tag::Int(state.selected_slot),
@@ -2625,6 +2695,7 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             "Dimension".to_string(),
             Tag::String("minecraft:overworld".to_string()),
         ),
+        ("seenCredits".to_string(), Tag::Byte(i8::from(state.seen_credits))),
         (
             "recipeBook".to_string(),
             Tag::Compound(vec![
@@ -2632,12 +2703,86 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
                 ("toBeDisplayed".to_string(), Tag::List(vec![])),
             ]),
         ),
+        (
+            "abilities".to_string(),
+            Tag::Compound(vec![
+                (
+                    "invulnerable".to_string(),
+                    Tag::Byte(i8::from(state.abilities.invulnerable)),
+                ),
+                (
+                    "flying".to_string(),
+                    Tag::Byte(i8::from(state.abilities.flying)),
+                ),
+                (
+                    "mayfly".to_string(),
+                    Tag::Byte(i8::from(state.abilities.mayfly)),
+                ),
+                (
+                    "instabuild".to_string(),
+                    Tag::Byte(i8::from(state.abilities.instabuild)),
+                ),
+                (
+                    "mayBuild".to_string(),
+                    Tag::Byte(i8::from(state.abilities.may_build)),
+                ),
+                ("flySpeed".to_string(), Tag::Float(state.abilities.fly_speed)),
+                ("walkSpeed".to_string(), Tag::Float(state.abilities.walk_speed)),
+            ]),
+        ),
+        ("EnderItems".to_string(), Tag::List(state.ender_items.clone())),
+        (
+            "active_effects".to_string(),
+            Tag::List(state.active_effects.clone()),
+        ),
     ];
     if let Some(mode) = state.previous_game_mode {
         values.push((
             "previousPlayerGameType".to_string(),
             Tag::Int(game_mode_legacy_id(mode)),
         ));
+    }
+    if let Some(spawn) = &state.spawn {
+        values.push(("SpawnX".to_string(), Tag::Int(spawn.x)));
+        values.push(("SpawnY".to_string(), Tag::Int(spawn.y)));
+        values.push(("SpawnZ".to_string(), Tag::Int(spawn.z)));
+        values.push(("SpawnForced".to_string(), Tag::Byte(i8::from(spawn.forced))));
+        values.push((
+            "SpawnDimension".to_string(),
+            Tag::String(spawn.dimension.clone()),
+        ));
+    }
+    if let Some((x, y, z)) = state.entered_nether_position {
+        values.push((
+            "enteredNetherPosition".to_string(),
+            Tag::Compound(vec![
+                ("x".to_string(), Tag::Double(x)),
+                ("y".to_string(), Tag::Double(y)),
+                ("z".to_string(), Tag::Double(z)),
+            ]),
+        ));
+    }
+    if let Some(last_death) = &state.last_death_location {
+        values.push((
+            "LastDeathLocation".to_string(),
+            Tag::Compound(vec![
+                (
+                    "dimension".to_string(),
+                    Tag::String(last_death.dimension.clone()),
+                ),
+                (
+                    "pos".to_string(),
+                    Tag::List(vec![
+                        Tag::Int(last_death.x),
+                        Tag::Int(last_death.y),
+                        Tag::Int(last_death.z),
+                    ]),
+                ),
+            ]),
+        ));
+    }
+    if let Some(root_vehicle) = &state.root_vehicle {
+        values.push(("RootVehicle".to_string(), root_vehicle.clone()));
     }
     // Serialize the hotbar and main inventory (slots 0-35) as a TAG_List of TAG_Compound
     // entries, matching vanilla's player NBT format.
@@ -2696,6 +2841,10 @@ fn play_session_state_from_nbt(
         Some(Tag::Float(value)) => value.clamp(0.0, food_level as f32),
         _ => 5.0,
     };
+    let food_exhaustion = match compound_tag(compound, "foodExhaustionLevel") {
+        Some(Tag::Float(value)) => value.max(0.0),
+        _ => 0.0,
+    };
     let xp_progress = match compound_tag(compound, "XpP") {
         Some(Tag::Float(value)) => value.clamp(0.0, 1.0),
         _ => 0.0,
@@ -2708,6 +2857,14 @@ fn play_session_state_from_nbt(
         Some(Tag::Int(value)) => (*value).max(0),
         _ => 0,
     };
+    let xp_seed = match compound_tag(compound, "XpSeed") {
+        Some(Tag::Int(value)) => *value,
+        _ => 0,
+    };
+    let score = match compound_tag(compound, "Score") {
+        Some(Tag::Int(value)) => *value,
+        _ => 0,
+    };
     let game_mode = match compound_tag(compound, "playerGameType") {
         Some(Tag::Int(value)) => game_mode_from_legacy_id(*value),
         _ => default_game_mode,
@@ -2716,6 +2873,76 @@ fn play_session_state_from_nbt(
         Some(Tag::Int(value)) if *value == -1 => None,
         Some(Tag::Int(value)) => Some(game_mode_from_legacy_id(*value)),
         _ => None,
+    };
+    let spawn = match (
+        compound_tag(compound, "SpawnX"),
+        compound_tag(compound, "SpawnY"),
+        compound_tag(compound, "SpawnZ"),
+    ) {
+        (Some(Tag::Int(x)), Some(Tag::Int(y)), Some(Tag::Int(z))) => Some(PlayerSpawnData {
+            dimension: match compound_tag(compound, "SpawnDimension") {
+                Some(Tag::String(value)) => value.clone(),
+                _ => "minecraft:overworld".to_string(),
+            },
+            x: *x,
+            y: *y,
+            z: *z,
+            forced: matches!(compound_tag(compound, "SpawnForced"), Some(Tag::Byte(value)) if *value != 0),
+        }),
+        _ => None,
+    };
+    let seen_credits = matches!(compound_tag(compound, "seenCredits"), Some(Tag::Byte(value)) if *value != 0);
+    let entered_nether_position =
+        match compound_tag(compound, "enteredNetherPosition") {
+            Some(Tag::Compound(fields)) => match (
+                compound_tag(fields, "x"),
+                compound_tag(fields, "y"),
+                compound_tag(fields, "z"),
+            ) {
+                (Some(Tag::Double(x)), Some(Tag::Double(y)), Some(Tag::Double(z))) => {
+                    Some((*x, *y, *z))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+    let last_death_location = match compound_tag(compound, "LastDeathLocation") {
+        Some(Tag::Compound(fields)) => match (
+            compound_tag(fields, "dimension"),
+            compound_list(fields, "pos"),
+        ) {
+            (Some(Tag::String(dimension)), Some([Tag::Int(x), Tag::Int(y), Tag::Int(z)])) => {
+                Some(PlayerGlobalPosData {
+                    dimension: dimension.clone(),
+                    x: *x,
+                    y: *y,
+                    z: *z,
+                })
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    let root_vehicle = compound_tag(compound, "RootVehicle").cloned();
+    let active_effects = match compound_tag(compound, "active_effects") {
+        Some(Tag::List(values)) => values.clone(),
+        _ => Vec::new(),
+    };
+    let ender_items = match compound_tag(compound, "EnderItems") {
+        Some(Tag::List(values)) => values.clone(),
+        _ => Vec::new(),
+    };
+    let abilities = match compound_tag(compound, "abilities") {
+        Some(Tag::Compound(fields)) => PlayerNbtAbilities {
+            invulnerable: compound_bool_byte(fields, "invulnerable", false),
+            flying: compound_bool_byte(fields, "flying", false),
+            mayfly: compound_bool_byte(fields, "mayfly", false),
+            instabuild: compound_bool_byte(fields, "instabuild", false),
+            may_build: compound_bool_byte(fields, "mayBuild", true),
+            fly_speed: compound_float(fields, "flySpeed", 0.05),
+            walk_speed: compound_float(fields, "walkSpeed", 0.1),
+        },
+        _ => PlayerNbtAbilities::default_survival(),
     };
     // Restore hotbar and main inventory (slots 0-35) from the TAG_List written by
     // play_session_state_to_nbt.
@@ -2759,11 +2986,22 @@ fn play_session_state_from_nbt(
         health,
         food_level,
         food_saturation,
+        food_exhaustion,
         xp_progress,
         xp_level,
         xp_total,
+        xp_seed,
+        score,
         game_mode,
         previous_game_mode,
+        spawn,
+        seen_credits,
+        entered_nether_position,
+        last_death_location,
+        root_vehicle,
+        active_effects,
+        ender_items,
+        abilities,
         inventory_menu: InventoryMenu::new(inventory, recipes.clone()),
         carried_item: ItemStack::empty(),
         container_state_id: 0,
@@ -2780,6 +3018,20 @@ fn compound_list<'a>(compound: &'a [(String, Tag)], key: &str) -> Option<&'a [Ta
     match compound_tag(compound, key)? {
         Tag::List(values) => Some(values),
         _ => None,
+    }
+}
+
+fn compound_bool_byte(compound: &[(String, Tag)], key: &str, default_value: bool) -> bool {
+    match compound_tag(compound, key) {
+        Some(Tag::Byte(value)) => *value != 0,
+        _ => default_value,
+    }
+}
+
+fn compound_float(compound: &[(String, Tag)], key: &str, default_value: f32) -> f32 {
+    match compound_tag(compound, key) {
+        Some(Tag::Float(value)) => *value,
+        _ => default_value,
     }
 }
 
@@ -6820,10 +7072,11 @@ mod tests {
         login_host_ip, moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt,
         packed_chunk_pos, pig_sound_variant_nbt, play_session_state_from_nbt,
         play_session_state_to_nbt, pseudo_rand_f32, read_code_of_conducts, read_packet,
-        status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
-        vanilla_baseline_biome_nbt, var_int_encoded_len, villager_schedule_timeline_nbt,
-        visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
-        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
+        status_json, strip_minecraft_formatting, PlayerGlobalPosData, PlayerNbtAbilities,
+        PlayerSpawnData, trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
+        var_int_encoded_len, villager_schedule_timeline_nbt, visible_spawn_surface_feature_id,
+        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
+        visible_spawn_terrain_height,
         wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
         write_legacy_string, write_lp_vec3, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
@@ -8202,11 +8455,22 @@ mod tests {
             health: 20.0,
             food_level: 20,
             food_saturation: 5.0,
+            food_exhaustion: 0.0,
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
+            xp_seed: 0,
+            score: 0,
             game_mode: GameMode::Survival,
             previous_game_mode: None,
+            spawn: None,
+            seen_credits: false,
+            entered_nether_position: None,
+            last_death_location: None,
+            root_vehicle: None,
+            active_effects: Vec::new(),
+            ender_items: Vec::new(),
+            abilities: PlayerNbtAbilities::default_survival(),
             inventory_menu: InventoryMenu::new(inventory, RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
@@ -8342,6 +8606,105 @@ mod tests {
         assert_eq!(restored.xp_total, 0);
         assert_eq!(restored.selected_slot, 0);
         assert_eq!(restored.game_mode, GameMode::Survival);
+    }
+
+    #[test]
+    fn play_session_state_nbt_round_trip_preserves_full_playerdata_surface() {
+        let mut state = session_state_with_inventory(&[("minecraft:stone", 5, 3)]);
+        state.food_exhaustion = 3.5;
+        state.xp_progress = 0.75;
+        state.xp_level = 12;
+        state.xp_total = 345;
+        state.xp_seed = 98_765;
+        state.score = 42;
+        state.previous_game_mode = Some(GameMode::Adventure);
+        state.spawn = Some(PlayerSpawnData {
+            dimension: "minecraft:the_nether".to_string(),
+            x: 11,
+            y: 72,
+            z: -13,
+            forced: true,
+        });
+        state.seen_credits = true;
+        state.entered_nether_position = Some((1.25, 64.0, -2.5));
+        state.last_death_location = Some(PlayerGlobalPosData {
+            dimension: "minecraft:overworld".to_string(),
+            x: 3,
+            y: 65,
+            z: 4,
+        });
+        state.root_vehicle = Some(Tag::Compound(vec![(
+            "Entity".to_string(),
+            Tag::Compound(vec![("id".to_string(), Tag::String("minecraft:boat".to_string()))]),
+        )]));
+        state.active_effects = vec![Tag::Compound(vec![
+            ("id".to_string(), Tag::String("minecraft:speed".to_string())),
+            ("amplifier".to_string(), Tag::Int(1)),
+        ])];
+        state.ender_items = vec![Tag::Compound(vec![
+            ("Slot".to_string(), Tag::Byte(0)),
+            ("id".to_string(), Tag::String("minecraft:diamond".to_string())),
+            ("count".to_string(), Tag::Int(2)),
+        ])];
+        state.abilities = PlayerNbtAbilities {
+            invulnerable: true,
+            flying: true,
+            mayfly: true,
+            instabuild: true,
+            may_build: false,
+            fly_speed: 0.08,
+            walk_speed: 0.12,
+        };
+
+        let tag = play_session_state_to_nbt(&state);
+        for field in [
+            "Pos",
+            "Rotation",
+            "Motion",
+            "Health",
+            "foodLevel",
+            "foodSaturationLevel",
+            "foodExhaustionLevel",
+            "XpP",
+            "XpLevel",
+            "XpTotal",
+            "XpSeed",
+            "Score",
+            "SelectedItemSlot",
+            "Inventory",
+            "EnderItems",
+            "playerGameType",
+            "previousPlayerGameType",
+            "SpawnX",
+            "SpawnY",
+            "SpawnZ",
+            "SpawnForced",
+            "SpawnDimension",
+            "seenCredits",
+            "recipeBook",
+            "LastDeathLocation",
+            "enteredNetherPosition",
+            "RootVehicle",
+            "abilities",
+            "active_effects",
+        ] {
+            assert!(field_value(&tag, field).is_some(), "{field} missing from player NBT");
+        }
+
+        let restored =
+            play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
+        assert_eq!(restored.food_exhaustion, 3.5);
+        assert_eq!(restored.xp_seed, 98_765);
+        assert_eq!(restored.score, 42);
+        assert_eq!(restored.previous_game_mode, Some(GameMode::Adventure));
+        assert_eq!(restored.spawn, state.spawn);
+        assert!(restored.seen_credits);
+        assert_eq!(restored.entered_nether_position, state.entered_nether_position);
+        assert_eq!(restored.last_death_location, state.last_death_location);
+        assert_eq!(restored.root_vehicle, state.root_vehicle);
+        assert_eq!(restored.active_effects, state.active_effects);
+        assert_eq!(restored.ender_items, state.ender_items);
+        assert_eq!(restored.abilities, state.abilities);
     }
 
     #[test]
