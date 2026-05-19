@@ -114,17 +114,17 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 ## Migrated From Main Checklist: Core Runtime Model
 
-- [ ] Implement a main server thread with a deterministic 20 TPS tick loop.
-- [ ] Implement tick budget accounting and drift handling.
-- [ ] Implement pause-when-empty behavior.
-- [ ] Implement scheduled task execution on the server thread.
-- [ ] Implement async task pools for IO, chunk generation, resource reloads, and profile/session services.
-- [ ] Implement thread-safety rules equivalent to vanilla server access restrictions.
-- [ ] Implement tick-rate management, freeze/step/sprint behavior, and tick command hooks.
-- [ ] Implement profiling hooks equivalent to debug/perf/JFR command output where practical.
-- [ ] Implement bandwidth, tick time, packet, and debug sample collection.
-- [ ] Implement crash-safe autosave cadence.
-- [ ] Implement forced save, save-off, and save-on semantics.
+- [x] Implement a main server thread with a deterministic 20 TPS tick loop.
+- [x] Implement tick budget accounting and drift handling.
+- [x] Implement pause-when-empty behavior.
+- [x] Implement scheduled task execution on the server thread.
+- [x] Implement async task pools for IO, chunk generation, resource reloads, and profile/session services.
+- [x] Implement thread-safety rules equivalent to vanilla server access restrictions.
+- [x] Implement tick-rate management, freeze/step/sprint behavior, and tick command hooks.
+- [x] Implement profiling hooks equivalent to debug/perf/JFR command output where practical.
+- [x] Implement bandwidth, tick time, packet, and debug sample collection.
+- [x] Implement crash-safe autosave cadence.
+- [x] Implement forced save, save-off, and save-on semantics.
 - [ ] Add Mineflayer tick-loop stability tests that keep an offline-mode bot connected through pause-when-empty transitions, autosave, `/save-off`, `/save-on`, and `/save-all`, verifying keepalives and visible state do not stall.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Operational File And API Coverage
