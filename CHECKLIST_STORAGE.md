@@ -98,7 +98,7 @@
 ## Game Test Framework Hooks
 
 - [x] Implement game test framework hooks sufficient for parity test execution, or document a replacement harness that provides the same test coverage
-- [ ] Implement `TestBlockEntity`, `TestInstanceBlockEntity`, `/test` command stubs needed by vanilla test infrastructure if any tests rely on them
+- [x] Implement `TestBlockEntity`, `TestInstanceBlockEntity`, `/test` command stubs needed by vanilla test infrastructure if any tests rely on them — `block_entity.rs` includes test block/test instance block entity type registration plus Java-field state stubs for mode/message/powered, test instance data/status/errors, save/load, and basic trigger/status transitions
 
 ## Generated Data / Report Tooling
 
