@@ -21,7 +21,7 @@ test('raw 26.1.2 half-open login sockets time out and leave later login usable',
   ]
 
   for (const [phase, open] of phases) {
-    const username = `Half${phase.replaceAll('_', '').slice(0, 10)}`
+    const username = `Ho${phase.replaceAll('_', '').slice(0, 8)}${crypto.randomUUID().replaceAll('-', '').slice(0, 5)}`
     const idle = await open(username)
     assert.equal(idle.closed, true, `${phase} socket should be closed by server timeout`)
     assert.ok(idle.elapsedMs >= 25_000, `${phase} timeout should not be an immediate refusal`)
@@ -30,7 +30,8 @@ test('raw 26.1.2 half-open login sockets time out and leave later login usable',
     const retry = await runJoinProbe(username)
     assert.equal(retry.ok, true, `${phase} retry should reach play after half-open cleanup`)
     assert.equal(retry.joinState.profile.name, username)
-    assert.ok(retry.play.some(packet => packet.id === 49), `${phase} retry should receive join game`)
+    assert.ok(retry.playPacketCount > 0, `${phase} retry should receive play packets`)
+    assert.ok(retry.joinState.initialChunkCount > 0, `${phase} retry should receive initial chunks`)
   }
 })
 
@@ -103,7 +104,8 @@ async function runJoinProbe (username) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username
+        RUSTCRAFT_USERNAME: username,
+        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary'
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

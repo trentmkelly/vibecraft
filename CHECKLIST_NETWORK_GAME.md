@@ -256,7 +256,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a Mineflayer offline-mode port-reuse test that starts and stops servers repeatedly on the same randomized port, logs in once per cycle, and verifies no stale listener or TIME_WAIT handling regression blocks the next run.
 - [x] Add a Mineflayer parallel-offline-login transport test that starts several generated bots in the same tick window and verifies handshake/login packets are isolated per connection with no cross-bot profile, compression, or keepalive leakage.
 - [x] Add a Mineflayer offline-mode login transport-framing test that captures raw packet boundaries around handshake, login success, compression enablement, and configuration entry, then compares official-vs-RustCraft framing and disconnect behavior.
-- [ ] Add a Mineflayer offline-mode half-open login test that leaves a bot socket idle after TCP connect, after handshake, and after login start, then verifies vanilla-compatible timeout, slot cleanup, and later successful login.
+- [x] Add a Mineflayer offline-mode half-open login test that leaves a bot socket idle after TCP connect, after handshake, and after login start, then verifies vanilla-compatible timeout, slot cleanup, and later successful login.
 - [x] Implement Netty-equivalent pipeline behavior: frame decode, packet decode, compression, encryption, packet encode, frame encode.
 - [x] Implement VarInt and VarLong exactly.
 - [x] Implement string, identifier, UUID, optional, collection, enum, bitset, NBT, component, and registry-aware byte buffer codecs.
@@ -293,7 +293,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a Mineflayer offline-mode returning-login test that joins, disconnects, reconnects with the same username and UUID, and verifies the second login skips first-join initialization that vanilla does not repeat.
 - [x] Add a Mineflayer offline-mode username validation test covering valid names, case sensitivity, length limits, illegal characters, duplicate casing, and resulting disconnect messages.
 - [x] Add a Mineflayer offline-mode username corpus test that runs a table of vanilla-accepted and vanilla-rejected generated names, asserting UUID derivation, display name preservation, and disconnect component parity.
-- [ ] Add a Mineflayer offline-mode login timeout test that stalls after handshake, after login start, and during configuration acknowledgment, then verifies vanilla-compatible timeout handling and cleanup.
+- [x] Add a Mineflayer offline-mode login timeout test that stalls after handshake, after login start, and during configuration acknowledgment, then verifies vanilla-compatible timeout handling and cleanup.
 - [x] Add a Mineflayer offline-mode login reconnect-during-configuration test that drops the TCP connection after login success but before finish-configuration, reconnects, and verifies stale profile/session cleanup.
 - [x] Add a Mineflayer offline-mode login disconnect-matrix test that drops the bot at handshake, login start, login success, configuration start, known-packs exchange, and finish-configuration, then verifies server cleanup and log messages.
 - [x] Add a Mineflayer offline-mode login retry test that intentionally fails the first attempt with a forced disconnect, immediately retries with the same generated profile, and verifies vanilla-compatible recovery without manual sleeps.
