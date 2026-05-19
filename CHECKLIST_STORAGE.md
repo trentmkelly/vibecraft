@@ -36,7 +36,7 @@
 
 - [x] Implement `PlayerDataStorage`: save compressed gzip `<uuid>.dat`, rotate to `<uuid>.dat_old` on save, on load corruption copy to `<uuid>_corrupted_<timestamp>.dat` and fall back to `<uuid>.dat_old`
 - [ ] Implement player NBT fields: `Pos` (3 doubles), `Rotation` (2 floats), `Motion` (3 doubles), `Health` (float), `FoodLevel` (int), `FoodSaturationLevel` (float), `FoodExhaustion` (float), `XpP` (float), `XpLevel` (int), `XpTotal` (int), `XpSeed` (int), `Score` (int), `SelectedItemSlot` (int, 0–8), `Inventory` (list of slot NBT), `EnderItems` (ender chest), `playerGameType` (int), `previousPlayerGameType` (int), `SpawnX/Y/Z`, `SpawnForced` (bool), `SpawnDimension`, `seenCredits` (bool), `recipeBook` (compound), `LastDeathLocation` (optional dimension+pos), `enteredNetherPosition` (optional), `RootVehicle` (optional), `abilities` compound, `active_effects` list
-- [ ] Implement player data bounds clamping on load: `Health` clamped to [0, max-health], `FoodLevel` to [0, 20], `SelectedItemSlot` to [0, 8], invalid `playerGameType` to 0 (survival)
+- [x] Implement player data bounds clamping on load: `Health` clamped to [0, max-health], `FoodLevel` to [0, 20], `SelectedItemSlot` to [0, 8], invalid `playerGameType` to 0 (survival) — `play_session_state_from_nbt_clamps_vanilla_playerdata_bounds` plus raw 26.1.2 fallback tests cover login packet effects
 - [ ] Add parity test: player NBT save/load round-trip preserves all fields identically for a full-state profile
 - [ ] Add Mineflayer playerdata round-trip test: change position, rotation, inventory, selected slot, health, food, XP, game mode, recipe book, stats; disconnect; reconnect; verify all fields restored
 

@@ -7774,6 +7774,39 @@ mod tests {
     }
 
     #[test]
+    fn play_session_state_from_nbt_clamps_vanilla_playerdata_bounds() {
+        let tag = Tag::Compound(vec![
+            ("DataVersion".to_string(), Tag::Int(4790)),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![Tag::Double(0.0), Tag::Double(64.0), Tag::Double(0.0)]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(0.0), Tag::Float(0.0)]),
+            ),
+            ("Health".to_string(), Tag::Float(200.0)),
+            ("foodLevel".to_string(), Tag::Int(99)),
+            ("foodSaturationLevel".to_string(), Tag::Float(99.0)),
+            ("XpP".to_string(), Tag::Float(9.0)),
+            ("XpLevel".to_string(), Tag::Int(-7)),
+            ("XpTotal".to_string(), Tag::Int(-12)),
+            ("SelectedItemSlot".to_string(), Tag::Int(99)),
+            ("playerGameType".to_string(), Tag::Int(99)),
+        ]);
+
+        let restored = play_session_state_from_nbt(&tag, GameMode::Creative).unwrap();
+        assert_eq!(restored.health, 20.0);
+        assert_eq!(restored.food_level, 20);
+        assert_eq!(restored.food_saturation, 20.0);
+        assert_eq!(restored.xp_progress, 1.0);
+        assert_eq!(restored.xp_level, 0);
+        assert_eq!(restored.xp_total, 0);
+        assert_eq!(restored.selected_slot, 0);
+        assert_eq!(restored.game_mode, GameMode::Survival);
+    }
+
+    #[test]
     fn play_session_state_nbt_inventory_tag_matches_vanilla_format() {
         // Verify the serialised TAG_List contains TAG_Compound entries with the
         // exact field names used by vanilla: "Slot" (TAG_Byte), "id" (TAG_String),
