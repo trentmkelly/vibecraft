@@ -21,8 +21,8 @@
 ## Command Blocks
 
 - [ ] Implement `CommandBlockEntity` command execution on redstone pulse: permission-level check, `CommandSourceStack` with `CommandBlockEntity` context, output capture into `lastOutput` component
-- [ ] Implement command block modes: SEQUENCE (advances chain), AUTO (always active, runs every tick), REDSTONE (triggered by signal)
-- [ ] Implement conditional flag: block only executes if previous chain command succeeded (`successCount > 0`)
+- [x] Implement command block modes: SEQUENCE (advances chain), AUTO (always active, runs every tick), REDSTONE (triggered by signal)
+- [x] Implement conditional flag: block only executes if previous chain command succeeded (`successCount > 0`)
 - [ ] Implement command block NBT: `Command`, `auto`, `conditionMet`, `LastOutput`, `SuccessCount`, `TrackOutput`
 - [ ] Implement command block interaction: open GUI via `UseOnContext`, read/write command string via `ClientboundBlockEntityDataPacket` for 26.1.2
 - [ ] Implement facing-chain execution: a SEQUENCE/CHAIN command block executes the command block it faces after itself
