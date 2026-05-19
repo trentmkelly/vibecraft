@@ -1519,6 +1519,36 @@ pub struct ClientboundParticlePacket {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundExplodePacket {
+    pub center: Vec3,
+    pub radius: f32,
+    pub block_count: i32,
+    pub player_knockback: Option<Vec3>,
+    pub explosion_particle: RawParticleOptions,
+    pub explosion_sound: SoundEventHolder,
+    pub block_particles: Vec<WeightedExplosionParticle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawParticleOptions {
+    pub particle_id: i32,
+    pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExplosionParticleInfo {
+    pub particle: RawParticleOptions,
+    pub scaling: f32,
+    pub speed: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WeightedExplosionParticle {
+    pub value: ExplosionParticleInfo,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundMapItemDataPacket {
     pub map_id: i32,
     pub scale: u8,
@@ -1834,6 +1864,7 @@ pub enum PlayInstruction {
     Title(ClientboundTitlePacket),
     Sound(ClientboundSoundPacket),
     Particle(ClientboundParticlePacket),
+    Explode(ClientboundExplodePacket),
     MapItemData(ClientboundMapItemDataPacket),
     WorldBorder(ClientboundWorldBorderPacket),
     Commands(ClientboundCommandsPacket),
@@ -3272,6 +3303,48 @@ impl ClientboundParticlePacket {
         write_i32(writer, self.count)?;
         write_var_i32(writer, self.particle_id)?;
         writer.write_all(&self.particle_data)
+    }
+}
+
+impl RawParticleOptions {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.particle_id)?;
+        writer.write_all(&self.data)
+    }
+}
+
+impl ExplosionParticleInfo {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.particle.write(writer)?;
+        write_f32(writer, self.scaling)?;
+        write_f32(writer, self.speed)
+    }
+}
+
+impl WeightedExplosionParticle {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.value.write(writer)?;
+        write_var_i32(writer, self.weight)
+    }
+}
+
+impl ClientboundExplodePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_vec3(writer, self.center)?;
+        write_f32(writer, self.radius)?;
+        write_i32(writer, self.block_count)?;
+        write_optional(
+            writer,
+            self.player_knockback.as_ref(),
+            |writer, knockback| write_vec3(writer, *knockback),
+        )?;
+        self.explosion_particle.write(writer)?;
+        self.explosion_sound.write(writer)?;
+        write_var_i32(writer, self.block_particles.len() as i32)?;
+        for particle in &self.block_particles {
+            particle.write(writer)?;
+        }
+        Ok(())
     }
 }
 
@@ -6715,6 +6788,18 @@ mod tests {
                 count: 1,
                 particle_data: Vec::new(),
             }),
+            PlayInstruction::Explode(ClientboundExplodePacket {
+                center: Vec3::ZERO,
+                radius: 2.0,
+                block_count: 0,
+                player_knockback: None,
+                explosion_particle: RawParticleOptions {
+                    particle_id: 1,
+                    data: Vec::new(),
+                },
+                explosion_sound: SoundEventHolder::Registered { id: 1 },
+                block_particles: Vec::new(),
+            }),
             PlayInstruction::MapItemData(ClientboundMapItemDataPacket {
                 map_id: 1,
                 scale: 2,
@@ -6762,15 +6847,16 @@ mod tests {
             }),
         ];
 
-        assert_eq!(instructions.len(), 15);
+        assert_eq!(instructions.len(), 16);
         assert!(matches!(instructions[0], PlayInstruction::Container(_)));
         assert!(matches!(
             instructions[4],
             PlayInstruction::GameRuleValues(_)
         ));
         assert!(matches!(instructions[5], PlayInstruction::Scoreboard(_)));
-        assert!(matches!(instructions[11], PlayInstruction::WorldBorder(_)));
-        assert!(matches!(instructions[14], PlayInstruction::Debug(_)));
+        assert!(matches!(instructions[11], PlayInstruction::MapItemData(_)));
+        assert!(matches!(instructions[12], PlayInstruction::WorldBorder(_)));
+        assert!(matches!(instructions[15], PlayInstruction::Debug(_)));
     }
 
     #[test]
@@ -7977,6 +8063,53 @@ mod tests {
         assert_eq!(&particle[38..42], &1.25_f32.to_be_bytes());
         assert_eq!(&particle[42..46], &4_i32.to_be_bytes());
         assert_eq!(&particle[46..], &[0xac, 0x02, 0xaa, 0xbb]);
+
+        let mut explode = Vec::new();
+        ClientboundExplodePacket {
+            center: Vec3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            radius: 4.5,
+            block_count: 6,
+            player_knockback: Some(Vec3 {
+                x: 0.25,
+                y: 0.5,
+                z: 0.75,
+            }),
+            explosion_particle: RawParticleOptions {
+                particle_id: 300,
+                data: vec![0xaa],
+            },
+            explosion_sound: SoundEventHolder::Registered { id: 5 },
+            block_particles: vec![WeightedExplosionParticle {
+                value: ExplosionParticleInfo {
+                    particle: RawParticleOptions {
+                        particle_id: 1,
+                        data: Vec::new(),
+                    },
+                    scaling: 2.0,
+                    speed: 3.0,
+                },
+                weight: 7,
+            }],
+        }
+        .write(&mut explode)
+        .unwrap();
+        assert_eq!(&explode[..8], &1.0_f64.to_be_bytes());
+        assert_eq!(&explode[8..16], &2.0_f64.to_be_bytes());
+        assert_eq!(&explode[16..24], &3.0_f64.to_be_bytes());
+        assert_eq!(&explode[24..28], &4.5_f32.to_be_bytes());
+        assert_eq!(&explode[28..32], &6_i32.to_be_bytes());
+        assert_eq!(explode[32], 1);
+        assert_eq!(&explode[33..41], &0.25_f64.to_be_bytes());
+        assert_eq!(&explode[41..49], &0.5_f64.to_be_bytes());
+        assert_eq!(&explode[49..57], &0.75_f64.to_be_bytes());
+        assert_eq!(&explode[57..63], &[0xac, 0x02, 0xaa, 6, 1, 1]);
+        assert_eq!(&explode[63..67], &2.0_f32.to_be_bytes());
+        assert_eq!(&explode[67..71], &3.0_f32.to_be_bytes());
+        assert_eq!(explode[71], 7);
 
         let mut cached_delete_chat = Vec::new();
         ClientboundDeleteChatPacket {

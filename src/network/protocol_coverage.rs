@@ -817,7 +817,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "explode",
         java_class: "ClientboundExplodePacket",
-        field_order: "unparsed",
+        field_order: "center:Vec3, radius:float, block_count:int, player_knockback:Optional<Vec3>, explosion_particle:ParticleTypes.STREAM_CODEC, explosion_sound:SoundEvent.STREAM_CODEC, block_particles:WeightedList<ExplosionParticleInfo(particle, scaling:float, speed:float)>",
     },
     PlayPacketSpec {
         id: 37,
