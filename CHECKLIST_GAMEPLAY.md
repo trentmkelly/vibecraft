@@ -146,9 +146,9 @@
 - [x] Add Mineflayer combat/damage tests for melee, projectile, fall, fire, drowning, void, shield blocking, armor mitigation, invulnerability frames, and vanilla-compatible damage/death messages.
 - [ ] Implement all status effects, instant effects, ambient/particles/icon behavior, ticking, curative behavior where applicable, and serialization.
 - [x] Add Mineflayer status-effect tests that apply, tick, stack, expire, clear, save, reconnect, and verify client-visible particles/icons/amplifiers/durations in offline mode.
-- [ ] Implement attributes and modifiers, including operation ordering and sync packets.
+- [x] Implement attributes and modifiers, including operation ordering and sync packets.
 - [ ] Implement enchantments, enchantment providers, costs, compatibility, effects, loot integration, damage hooks, mining hooks, movement hooks, and post-attack hooks.
-- [ ] Implement equipment assets and armor trims.
+- [x] Implement equipment assets and armor trims.
 
 ## Migrated From Main Checklist: Weather, Time, Events, And World State
 
