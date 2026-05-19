@@ -782,7 +782,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "delete_chat",
         java_class: "ClientboundDeleteChatPacket",
-        field_order: "unparsed",
+        field_order: "message_signature:MessageSignature.Packed (VarInt id+1, full 256-byte signature when id is -1)",
     },
     PlayPacketSpec {
         id: 32,

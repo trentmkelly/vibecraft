@@ -1349,6 +1349,17 @@ pub struct ClientboundCommandSuggestionsPacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundDeleteChatPacket {
+    pub message_signature: PackedMessageSignature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackedMessageSignature {
+    CacheId(i32),
+    Full(MessageSignature),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundDebugPacket {
     pub kind: DebugPacketKind,
     pub payload_size: usize,
@@ -3438,6 +3449,24 @@ impl MessageSignature {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.0)
+    }
+}
+
+impl PackedMessageSignature {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::CacheId(id) => write_var_i32(writer, id + 1),
+            Self::Full(signature) => {
+                write_var_i32(writer, 0)?;
+                signature.write(writer)
+            }
+        }
+    }
+}
+
+impl ClientboundDeleteChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.message_signature.write(writer)
     }
 }
 
@@ -6528,6 +6557,23 @@ mod tests {
             stop_sound,
             [vec![3, 4, 31], b"minecraft:block.note_block.harp".to_vec()].concat()
         );
+
+        let mut cached_delete_chat = Vec::new();
+        ClientboundDeleteChatPacket {
+            message_signature: PackedMessageSignature::CacheId(7),
+        }
+        .write(&mut cached_delete_chat)
+        .unwrap();
+        assert_eq!(cached_delete_chat, vec![8]);
+
+        let mut full_delete_chat = Vec::new();
+        ClientboundDeleteChatPacket {
+            message_signature: PackedMessageSignature::Full(MessageSignature([9; 256])),
+        }
+        .write(&mut full_delete_chat)
+        .unwrap();
+        assert_eq!(full_delete_chat[0], 0);
+        assert_eq!(&full_delete_chat[1..], &[9; 256]);
     }
 
     #[test]
