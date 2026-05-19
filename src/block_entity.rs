@@ -170,6 +170,36 @@ pub struct BannerBlockEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PotDecorations {
+    pub back: Option<String>,
+    pub left: Option<String>,
+    pub right: Option<String>,
+    pub front: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PotItemStack {
+    pub item_id: String,
+    pub count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecoratedPotWobbleStyle {
+    Positive,
+    Negative,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecoratedPotBlockEntity {
+    pub decorations: PotDecorations,
+    pub item: Option<PotItemStack>,
+    pub loot_table: Option<String>,
+    pub loot_table_seed: i64,
+    pub wobble_started_at_tick: i64,
+    pub last_wobble_style: Option<DecoratedPotWobbleStyle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockEntityError {
     UnknownType(String),
     MissingId,
@@ -646,6 +676,195 @@ impl BannerBlockEntity {
             })
             .unwrap_or_default();
         Some(banner)
+    }
+}
+
+impl Default for PotDecorations {
+    fn default() -> Self {
+        Self {
+            back: None,
+            left: None,
+            right: None,
+            front: None,
+        }
+    }
+}
+
+impl PotDecorations {
+    const BRICK: &'static str = "minecraft:brick";
+
+    pub fn new(
+        back: Option<String>,
+        left: Option<String>,
+        right: Option<String>,
+        front: Option<String>,
+    ) -> Self {
+        Self {
+            back: Self::normalize_side(back),
+            left: Self::normalize_side(left),
+            right: Self::normalize_side(right),
+            front: Self::normalize_side(front),
+        }
+    }
+
+    fn normalize_side(side: Option<String>) -> Option<String> {
+        side.filter(|item| item != Self::BRICK)
+    }
+
+    pub fn ordered(&self) -> Vec<String> {
+        [&self.back, &self.left, &self.right, &self.front]
+            .into_iter()
+            .map(|side| side.clone().unwrap_or_else(|| Self::BRICK.to_string()))
+            .collect()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.back.is_none() && self.left.is_none() && self.right.is_none() && self.front.is_none()
+    }
+
+    fn to_tag(&self) -> Tag {
+        Tag::List(self.ordered().into_iter().map(Tag::String).collect())
+    }
+
+    fn from_tag(tag: &Tag) -> Self {
+        let Tag::List(values) = tag else {
+            return Self::default();
+        };
+        let item = |index: usize| -> Option<String> {
+            values.get(index).and_then(|tag| match tag {
+                Tag::String(item) if item != Self::BRICK => Some(item.clone()),
+                _ => None,
+            })
+        };
+        Self::new(item(0), item(1), item(2), item(3))
+    }
+}
+
+impl PotItemStack {
+    fn is_empty(&self) -> bool {
+        self.item_id == "minecraft:air" || self.count <= 0
+    }
+
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            ("id".to_string(), Tag::String(self.item_id.clone())),
+            ("count".to_string(), Tag::Int(self.count)),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Option<Self> {
+        let entries = compound_entries(tag)?;
+        let stack = Self {
+            item_id: get_string(entries, "id")?.to_string(),
+            count: get_int(entries, "count").unwrap_or(1),
+        };
+        (!stack.is_empty()).then_some(stack)
+    }
+}
+
+impl DecoratedPotWobbleStyle {
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Positive => 0,
+            Self::Negative => 1,
+        }
+    }
+
+    pub fn duration(self) -> i32 {
+        match self {
+            Self::Positive => 7,
+            Self::Negative => 10,
+        }
+    }
+
+    pub fn from_id(id: i32) -> Option<Self> {
+        match id {
+            0 => Some(Self::Positive),
+            1 => Some(Self::Negative),
+            _ => None,
+        }
+    }
+}
+
+impl Default for DecoratedPotBlockEntity {
+    fn default() -> Self {
+        Self {
+            decorations: PotDecorations::default(),
+            item: None,
+            loot_table: None,
+            loot_table_seed: 0,
+            wobble_started_at_tick: 0,
+            last_wobble_style: None,
+        }
+    }
+}
+
+impl DecoratedPotBlockEntity {
+    pub const EVENT_POT_WOBBLES: i32 = 1;
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if !self.decorations.is_empty() {
+            fields.push(("sherds".to_string(), self.decorations.to_tag()));
+        }
+        if let Some(loot_table) = &self.loot_table {
+            fields.push(("LootTable".to_string(), Tag::String(loot_table.clone())));
+            if self.loot_table_seed != 0 {
+                fields.push(("LootTableSeed".to_string(), Tag::Long(self.loot_table_seed)));
+            }
+        } else if let Some(item) = &self.item {
+            if !item.is_empty() {
+                fields.push(("item".to_string(), item.to_tag()));
+            }
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::default();
+        };
+        let decorations = entries
+            .iter()
+            .find(|(name, _)| name == "sherds")
+            .map(|(_, tag)| PotDecorations::from_tag(tag))
+            .unwrap_or_default();
+        let loot_table = get_string(entries, "LootTable").map(ToString::to_string);
+        let loot_table_seed = entries
+            .iter()
+            .find_map(|(name, tag)| match tag {
+                Tag::Long(seed) if name == "LootTableSeed" => Some(*seed),
+                _ => None,
+            })
+            .unwrap_or(0);
+        let item = if loot_table.is_some() {
+            None
+        } else {
+            entries
+                .iter()
+                .find(|(name, _)| name == "item")
+                .and_then(|(_, tag)| PotItemStack::from_tag(tag))
+        };
+        Self {
+            decorations,
+            item,
+            loot_table,
+            loot_table_seed,
+            wobble_started_at_tick: 0,
+            last_wobble_style: None,
+        }
+    }
+
+    pub fn trigger_event(&mut self, event: i32, data: i32, game_time: i64) -> bool {
+        let Some(style) = DecoratedPotWobbleStyle::from_id(data) else {
+            return false;
+        };
+        if event != Self::EVENT_POT_WOBBLES {
+            return false;
+        }
+        self.wobble_started_at_tick = game_time;
+        self.last_wobble_style = Some(style);
+        true
     }
 }
 
@@ -1784,6 +2003,85 @@ mod tests {
         assert!(
             matches!(entity.get_update_tag(), Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "patterns") && fields.iter().all(|(key, _)| key != "id"))
         );
+    }
+
+    #[test]
+    fn decorated_pot_saves_sherds_item_loot_and_wobble_like_java() {
+        let mut pot = DecoratedPotBlockEntity {
+            decorations: PotDecorations::new(
+                Some("minecraft:angler_pottery_sherd".to_string()),
+                None,
+                Some("minecraft:arms_up_pottery_sherd".to_string()),
+                Some("minecraft:brick".to_string()),
+            ),
+            item: Some(PotItemStack {
+                item_id: "minecraft:diamond".to_string(),
+                count: 2,
+            }),
+            ..DecoratedPotBlockEntity::default()
+        };
+
+        assert_eq!(
+            pot.decorations.ordered(),
+            vec![
+                "minecraft:angler_pottery_sherd".to_string(),
+                "minecraft:brick".to_string(),
+                "minecraft:arms_up_pottery_sherd".to_string(),
+                "minecraft:brick".to_string(),
+            ]
+        );
+        let saved = pot.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                (
+                    "sherds".to_string(),
+                    Tag::List(vec![
+                        Tag::String("minecraft:angler_pottery_sherd".to_string()),
+                        Tag::String("minecraft:brick".to_string()),
+                        Tag::String("minecraft:arms_up_pottery_sherd".to_string()),
+                        Tag::String("minecraft:brick".to_string()),
+                    ]),
+                ),
+                (
+                    "item".to_string(),
+                    Tag::Compound(vec![
+                        (
+                            "id".to_string(),
+                            Tag::String("minecraft:diamond".to_string())
+                        ),
+                        ("count".to_string(), Tag::Int(2)),
+                    ]),
+                ),
+            ])
+        );
+        assert_eq!(DecoratedPotBlockEntity::load_additional(&saved), pot);
+
+        pot.loot_table = Some("minecraft:chests/trial_chambers/reward".to_string());
+        pot.loot_table_seed = 123;
+        let loot_saved = pot.save_additional();
+        assert!(
+            matches!(&loot_saved, Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "LootTable") && fields.iter().all(|(key, _)| key != "item"))
+        );
+        let loaded_loot = DecoratedPotBlockEntity::load_additional(&loot_saved);
+        assert_eq!(loaded_loot.loot_table, pot.loot_table);
+        assert_eq!(loaded_loot.loot_table_seed, 123);
+        assert_eq!(loaded_loot.item, None);
+
+        assert_eq!(DecoratedPotWobbleStyle::Positive.duration(), 7);
+        assert_eq!(DecoratedPotWobbleStyle::Negative.duration(), 10);
+        assert!(pot.trigger_event(
+            DecoratedPotBlockEntity::EVENT_POT_WOBBLES,
+            DecoratedPotWobbleStyle::Negative.id(),
+            42,
+        ));
+        assert_eq!(pot.wobble_started_at_tick, 42);
+        assert_eq!(
+            pot.last_wobble_style,
+            Some(DecoratedPotWobbleStyle::Negative)
+        );
+        assert!(!pot.trigger_event(99, DecoratedPotWobbleStyle::Positive.id(), 43));
+        assert!(!pot.trigger_event(DecoratedPotBlockEntity::EVENT_POT_WOBBLES, 99, 43));
     }
 
     #[test]
