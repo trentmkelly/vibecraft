@@ -125,7 +125,7 @@
 - [x] Implement `/seed`.
 - [x] Implement `/serverpack`.
 - [x] Implement `/setblock`.
-- [ ] Implement `/setidletimeout`.
+- [x] Implement `/setidletimeout`.
 - [x] Implement `/spawnpoint`, `/setworldspawn`.
 - [ ] Implement `/spawn_armor_trims`.
 - [x] Implement `/spectate`.
