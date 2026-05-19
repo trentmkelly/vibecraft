@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
+use crate::recipe_system::FuelValues;
 use crate::redstone::{comparator_output, ComparatorMode, MAX_SIGNAL};
 use crate::special_block::{
     command_block_tick, CommandBlockMode, CommandBlockState, SpecialBlockAction,
@@ -355,6 +356,43 @@ pub struct LecternBlockEntity {
     pub book: Option<PotItemStack>,
     pub page: i32,
     pub page_count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FurnaceBlockEntityKind {
+    Furnace,
+    BlastFurnace,
+    Smoker,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FurnaceCookingRecipe {
+    pub recipe_id: String,
+    pub recipe_type: String,
+    pub input_item: String,
+    pub result: PotItemStack,
+    pub cooking_time: i32,
+    pub experience_millis: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FurnaceTickResult {
+    Idle,
+    LitChanged { lit: bool },
+    Cooking,
+    Burned { output_count: i32 },
+    Cooling,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractFurnaceBlockEntity {
+    pub kind: FurnaceBlockEntityKind,
+    pub items: [Option<PotItemStack>; 3],
+    pub lit_time_remaining: i32,
+    pub lit_total_time: i32,
+    pub cooking_time_spent: i32,
+    pub cooking_total_time: i32,
+    pub recipes_used: BTreeMap<String, (i32, i32)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2672,6 +2710,434 @@ impl PotItemStack {
             count: get_int(entries, "count").unwrap_or(1),
         };
         (!stack.is_empty()).then_some(stack)
+    }
+}
+
+impl FurnaceBlockEntityKind {
+    pub fn recipe_type(self) -> &'static str {
+        match self {
+            Self::Furnace => "smelting",
+            Self::BlastFurnace => "blasting",
+            Self::Smoker => "smoking",
+        }
+    }
+
+    pub fn default_cooking_time(self) -> i32 {
+        match self {
+            Self::Furnace => 200,
+            Self::BlastFurnace | Self::Smoker => 100,
+        }
+    }
+
+    fn burn_duration(self, fuel_values: &FuelValues, fuel: Option<&PotItemStack>) -> i32 {
+        let Some(fuel) = fuel else {
+            return 0;
+        };
+        let burn = fuel_values.burn_duration(Some(fuel.item_id.as_str()));
+        match self {
+            Self::Furnace => burn,
+            Self::BlastFurnace | Self::Smoker => burn / 2,
+        }
+    }
+}
+
+impl FurnaceCookingRecipe {
+    pub fn new(
+        recipe_id: &str,
+        recipe_type: &str,
+        input_item: &str,
+        result_item: &str,
+        cooking_time: i32,
+        experience_millis: i32,
+    ) -> Self {
+        Self {
+            recipe_id: recipe_id.to_string(),
+            recipe_type: recipe_type.to_string(),
+            input_item: input_item.to_string(),
+            result: PotItemStack {
+                item_id: result_item.to_string(),
+                count: 1,
+            },
+            cooking_time,
+            experience_millis,
+        }
+    }
+}
+
+impl AbstractFurnaceBlockEntity {
+    pub const INGREDIENT_SLOT: usize = 0;
+    pub const FUEL_SLOT: usize = 1;
+    pub const RESULT_SLOT: usize = 2;
+    pub const SLOT_COUNT: usize = 3;
+    pub const MAX_STACK_SIZE: i32 = 64;
+
+    pub fn furnace() -> Self {
+        Self::new(FurnaceBlockEntityKind::Furnace)
+    }
+
+    pub fn blast_furnace() -> Self {
+        Self::new(FurnaceBlockEntityKind::BlastFurnace)
+    }
+
+    pub fn smoker() -> Self {
+        Self::new(FurnaceBlockEntityKind::Smoker)
+    }
+
+    pub fn new(kind: FurnaceBlockEntityKind) -> Self {
+        Self {
+            kind,
+            items: [None, None, None],
+            lit_time_remaining: 0,
+            lit_total_time: 0,
+            cooking_time_spent: 0,
+            cooking_total_time: kind.default_cooking_time(),
+            recipes_used: BTreeMap::new(),
+        }
+    }
+
+    pub fn set_item(
+        &mut self,
+        slot: usize,
+        stack: Option<PotItemStack>,
+        recipe: Option<&FurnaceCookingRecipe>,
+    ) -> bool {
+        if slot >= Self::SLOT_COUNT {
+            return false;
+        }
+        let same_input = slot == Self::INGREDIENT_SLOT && self.items[slot] == stack;
+        self.items[slot] = stack.filter(|item| !item.is_empty());
+        if slot == Self::INGREDIENT_SLOT && !same_input {
+            self.cooking_total_time = recipe
+                .filter(|recipe| self.recipe_matches(recipe))
+                .map(|recipe| recipe.cooking_time)
+                .unwrap_or_else(|| self.kind.default_cooking_time());
+            self.cooking_time_spent = 0;
+        }
+        true
+    }
+
+    pub fn server_tick(
+        &mut self,
+        fuel_values: &FuelValues,
+        recipe: Option<&FurnaceCookingRecipe>,
+    ) -> FurnaceTickResult {
+        let was_lit = self.is_lit();
+        if self.lit_time_remaining > 0 {
+            self.lit_time_remaining -= 1;
+        }
+        let is_lit_after_decrement = self.is_lit();
+        let has_ingredient = self.items[Self::INGREDIENT_SLOT].is_some();
+        let has_fuel = self.items[Self::FUEL_SLOT].is_some();
+
+        if is_lit_after_decrement || has_fuel && has_ingredient {
+            if let Some(recipe) = recipe.filter(|recipe| self.recipe_matches(recipe)) {
+                self.cooking_total_time = recipe.cooking_time;
+                if self.can_burn(recipe) {
+                    if !self.is_lit() {
+                        let new_lit_time = self
+                            .kind
+                            .burn_duration(fuel_values, self.items[Self::FUEL_SLOT].as_ref());
+                        self.lit_time_remaining = new_lit_time;
+                        self.lit_total_time = new_lit_time;
+                        if new_lit_time > 0 {
+                            self.consume_fuel();
+                        }
+                    }
+
+                    if self.is_lit() {
+                        self.cooking_time_spent += 1;
+                        if self.cooking_time_spent == self.cooking_total_time {
+                            self.cooking_time_spent = 0;
+                            self.burn(recipe);
+                            self.record_recipe(recipe);
+                            return FurnaceTickResult::Burned {
+                                output_count: self.items[Self::RESULT_SLOT]
+                                    .as_ref()
+                                    .map(|stack| stack.count)
+                                    .unwrap_or(0),
+                            };
+                        }
+                        return if was_lit != self.is_lit() {
+                            FurnaceTickResult::LitChanged { lit: self.is_lit() }
+                        } else {
+                            FurnaceTickResult::Cooking
+                        };
+                    }
+                }
+                self.cooking_time_spent = 0;
+            } else if has_ingredient {
+                self.cooking_time_spent = 0;
+            }
+        } else if self.cooking_time_spent > 0 {
+            self.cooking_time_spent =
+                (self.cooking_time_spent - 2).clamp(0, self.cooking_total_time);
+            return FurnaceTickResult::Cooling;
+        }
+
+        if was_lit != self.is_lit() {
+            FurnaceTickResult::LitChanged { lit: self.is_lit() }
+        } else {
+            FurnaceTickResult::Idle
+        }
+    }
+
+    pub fn is_lit(&self) -> bool {
+        self.lit_time_remaining > 0
+    }
+
+    pub fn can_place_item(
+        &self,
+        slot: usize,
+        stack: &PotItemStack,
+        fuel_values: &FuelValues,
+    ) -> bool {
+        match slot {
+            Self::RESULT_SLOT => false,
+            Self::FUEL_SLOT => {
+                fuel_values.is_fuel(stack.item_id.as_str())
+                    || stack.item_id == "minecraft:bucket"
+                        && self.items[Self::FUEL_SLOT]
+                            .as_ref()
+                            .is_none_or(|fuel| fuel.item_id != "minecraft:bucket")
+            }
+            _ => slot < Self::SLOT_COUNT,
+        }
+    }
+
+    pub fn can_take_item_through_face(
+        &self,
+        slot: usize,
+        item_id: &str,
+        direction: Direction,
+    ) -> bool {
+        direction != Direction::Down
+            || slot != Self::FUEL_SLOT
+            || item_id == "minecraft:water_bucket"
+            || item_id == "minecraft:bucket"
+    }
+
+    pub fn max_stack_size(&self, slot: usize, item: &PotItemStack) -> i32 {
+        if slot == Self::FUEL_SLOT && item.item_id == "minecraft:bucket" {
+            1
+        } else {
+            Self::MAX_STACK_SIZE
+        }
+    }
+
+    pub fn get_slots_for_face(direction: Direction) -> &'static [usize] {
+        match direction {
+            Direction::Down => &[Self::RESULT_SLOT, Self::FUEL_SLOT],
+            Direction::Up => &[Self::INGREDIENT_SLOT],
+            _ => &[Self::FUEL_SLOT],
+        }
+    }
+
+    pub fn comparator_output(&self) -> u8 {
+        let non_empty = self.items.iter().filter(|stack| stack.is_some()).count();
+        if non_empty == 0 {
+            return 0;
+        }
+        let fullness: f32 = self
+            .items
+            .iter()
+            .filter_map(|stack| stack.as_ref())
+            .map(|stack| (stack.count.max(0) as f32 / Self::MAX_STACK_SIZE as f32).min(1.0))
+            .sum::<f32>()
+            / Self::SLOT_COUNT as f32;
+        (1 + (fullness * 14.0).floor() as u8).min(MAX_SIGNAL)
+    }
+
+    pub fn xp_to_award_and_clear(&mut self, fraction_roll: f32) -> i32 {
+        let total = self
+            .recipes_used
+            .iter()
+            .map(|(_, (times_used, experience_millis))| {
+                if *times_used <= 0 || *experience_millis <= 0 {
+                    return 0;
+                }
+                let total_millis = *times_used * *experience_millis;
+                let whole = total_millis / 1000;
+                let fraction = (total_millis % 1000) as f32 / 1000.0;
+                if fraction != 0.0 && fraction_roll < fraction {
+                    whole + 1
+                } else {
+                    whole
+                }
+            })
+            .sum();
+        self.recipes_used.clear();
+        total
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "cooking_time_spent".to_string(),
+                Tag::Short(self.cooking_time_spent as i16),
+            ),
+            (
+                "cooking_total_time".to_string(),
+                Tag::Short(self.cooking_total_time as i16),
+            ),
+            (
+                "lit_time_remaining".to_string(),
+                Tag::Short(self.lit_time_remaining as i16),
+            ),
+            (
+                "lit_total_time".to_string(),
+                Tag::Short(self.lit_total_time as i16),
+            ),
+            ("Items".to_string(), self.items_tag()),
+            ("RecipesUsed".to_string(), self.recipes_used_tag()),
+        ])
+    }
+
+    pub fn load_additional(kind: FurnaceBlockEntityKind, tag: &Tag) -> Self {
+        let mut furnace = Self::new(kind);
+        let Some(entries) = compound_entries(tag) else {
+            return furnace;
+        };
+        furnace.cooking_time_spent = get_short(entries, "cooking_time_spent").unwrap_or(0).max(0);
+        furnace.cooking_total_time = get_short(entries, "cooking_total_time")
+            .unwrap_or(kind.default_cooking_time())
+            .max(0);
+        furnace.lit_time_remaining = get_short(entries, "lit_time_remaining").unwrap_or(0).max(0);
+        furnace.lit_total_time = get_short(entries, "lit_total_time").unwrap_or(0).max(0);
+        if let Some(Tag::List(items)) = entries
+            .iter()
+            .find(|(name, _)| name == "Items")
+            .map(|(_, tag)| tag)
+        {
+            for item in items {
+                if let Some(item_entries) = compound_entries(item) {
+                    let slot = get_byte(item_entries, "Slot").unwrap_or(-1);
+                    if (0..Self::SLOT_COUNT as i8).contains(&slot) {
+                        furnace.items[slot as usize] = PotItemStack::from_tag(item);
+                    }
+                }
+            }
+        }
+        if let Some(Tag::Compound(recipes)) = entries
+            .iter()
+            .find(|(name, _)| name == "RecipesUsed")
+            .map(|(_, tag)| tag)
+        {
+            for (recipe_id, tag) in recipes {
+                if let Tag::Compound(values) = tag {
+                    let count = get_int(values, "count").unwrap_or(0).max(0);
+                    let experience = get_int(values, "experience_millis").unwrap_or(0).max(0);
+                    if count > 0 {
+                        furnace
+                            .recipes_used
+                            .insert(recipe_id.clone(), (count, experience));
+                    }
+                }
+            }
+        }
+        furnace
+    }
+
+    fn recipe_matches(&self, recipe: &FurnaceCookingRecipe) -> bool {
+        recipe.recipe_type == self.kind.recipe_type()
+            && self.items[Self::INGREDIENT_SLOT]
+                .as_ref()
+                .is_some_and(|input| input.item_id == recipe.input_item && input.count > 0)
+    }
+
+    fn can_burn(&self, recipe: &FurnaceCookingRecipe) -> bool {
+        match &self.items[Self::RESULT_SLOT] {
+            None => true,
+            Some(result) if result.item_id == recipe.result.item_id => {
+                result.count + recipe.result.count <= Self::MAX_STACK_SIZE
+            }
+            Some(_) => false,
+        }
+    }
+
+    fn burn(&mut self, recipe: &FurnaceCookingRecipe) {
+        match &mut self.items[Self::RESULT_SLOT] {
+            Some(result) => result.count += recipe.result.count,
+            slot @ None => *slot = Some(recipe.result.clone()),
+        }
+        if let Some(input) = &mut self.items[Self::INGREDIENT_SLOT] {
+            input.count -= 1;
+            if input.count <= 0 {
+                self.items[Self::INGREDIENT_SLOT] = None;
+            }
+        }
+        if self.items[Self::INGREDIENT_SLOT]
+            .as_ref()
+            .is_some_and(|input| input.item_id == "minecraft:wet_sponge")
+            && self.items[Self::FUEL_SLOT]
+                .as_ref()
+                .is_some_and(|fuel| fuel.item_id == "minecraft:bucket")
+        {
+            self.items[Self::FUEL_SLOT] = Some(PotItemStack {
+                item_id: "minecraft:water_bucket".to_string(),
+                count: 1,
+            });
+        }
+    }
+
+    fn consume_fuel(&mut self) {
+        if let Some(fuel) = &mut self.items[Self::FUEL_SLOT] {
+            fuel.count -= 1;
+            if fuel.count <= 0 {
+                self.items[Self::FUEL_SLOT] = if fuel.item_id == "minecraft:lava_bucket" {
+                    Some(PotItemStack {
+                        item_id: "minecraft:bucket".to_string(),
+                        count: 1,
+                    })
+                } else {
+                    None
+                };
+            }
+        }
+    }
+
+    fn record_recipe(&mut self, recipe: &FurnaceCookingRecipe) {
+        let entry = self
+            .recipes_used
+            .entry(recipe.recipe_id.clone())
+            .or_insert((0, recipe.experience_millis));
+        entry.0 += 1;
+        entry.1 = recipe.experience_millis;
+    }
+
+    fn items_tag(&self) -> Tag {
+        Tag::List(
+            self.items
+                .iter()
+                .enumerate()
+                .filter_map(|(slot, item)| {
+                    let mut tag = item.as_ref()?.to_tag();
+                    if let Tag::Compound(entries) = &mut tag {
+                        entries.insert(0, ("Slot".to_string(), Tag::Byte(slot as i8)));
+                    }
+                    Some(tag)
+                })
+                .collect(),
+        )
+    }
+
+    fn recipes_used_tag(&self) -> Tag {
+        Tag::Compound(
+            self.recipes_used
+                .iter()
+                .map(|(recipe_id, (count, experience_millis))| {
+                    (
+                        recipe_id.clone(),
+                        Tag::Compound(vec![
+                            ("count".to_string(), Tag::Int(*count)),
+                            (
+                                "experience_millis".to_string(),
+                                Tag::Int(*experience_millis),
+                            ),
+                        ]),
+                    )
+                })
+                .collect(),
+        )
     }
 }
 
@@ -5430,6 +5896,13 @@ fn get_int(entries: &[(String, Tag)], key: &str) -> Option<i32> {
     })
 }
 
+fn get_short(entries: &[(String, Tag)], key: &str) -> Option<i32> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::Short(value) if name == key => Some(i32::from(*value)),
+        _ => None,
+    })
+}
+
 fn get_long(entries: &[(String, Tag)], key: &str) -> Option<i64> {
     entries.iter().find_map(|(name, value)| match value {
         Tag::Long(value) if name == key => Some(*value),
@@ -6384,6 +6857,212 @@ mod tests {
         assert_eq!(single_page.get_redstone_signal(), 15);
         single_page.clear_content();
         assert_eq!(single_page.save_additional(), Tag::Compound(Vec::new()));
+    }
+
+    #[test]
+    fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
+        let fuels = FuelValues::vanilla();
+        let smelting = FurnaceCookingRecipe::new(
+            "minecraft:iron_ingot_from_smelting_raw_iron",
+            "smelting",
+            "minecraft:raw_iron",
+            "minecraft:iron_ingot",
+            200,
+            700,
+        );
+        let blasting = FurnaceCookingRecipe::new(
+            "minecraft:iron_ingot_from_blasting_raw_iron",
+            "blasting",
+            "minecraft:raw_iron",
+            "minecraft:iron_ingot",
+            100,
+            700,
+        );
+        let smoking = FurnaceCookingRecipe::new(
+            "minecraft:cooked_beef_from_smoking",
+            "smoking",
+            "minecraft:beef",
+            "minecraft:cooked_beef",
+            100,
+            350,
+        );
+
+        let mut furnace = AbstractFurnaceBlockEntity::furnace();
+        assert_eq!(furnace.kind.recipe_type(), "smelting");
+        assert_eq!(furnace.kind.default_cooking_time(), 200);
+        furnace.set_item(
+            AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:raw_iron".to_string(),
+                count: 1,
+            }),
+            Some(&smelting),
+        );
+        furnace.set_item(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:coal".to_string(),
+                count: 1,
+            }),
+            Some(&smelting),
+        );
+        assert_eq!(
+            furnace.server_tick(&fuels, Some(&smelting)),
+            FurnaceTickResult::LitChanged { lit: true }
+        );
+        assert_eq!(furnace.lit_time_remaining, 1600);
+        assert_eq!(furnace.lit_total_time, 1600);
+        assert_eq!(furnace.cooking_time_spent, 1);
+        assert!(furnace.items[AbstractFurnaceBlockEntity::FUEL_SLOT].is_none());
+
+        for _ in 1..199 {
+            furnace.server_tick(&fuels, Some(&smelting));
+        }
+        assert_eq!(
+            furnace.server_tick(&fuels, Some(&smelting)),
+            FurnaceTickResult::Burned { output_count: 1 }
+        );
+        assert!(furnace.items[AbstractFurnaceBlockEntity::INGREDIENT_SLOT].is_none());
+        assert_eq!(
+            furnace.items[AbstractFurnaceBlockEntity::RESULT_SLOT],
+            Some(PotItemStack {
+                item_id: "minecraft:iron_ingot".to_string(),
+                count: 1,
+            })
+        );
+        assert_eq!(
+            furnace
+                .recipes_used
+                .get("minecraft:iron_ingot_from_smelting_raw_iron"),
+            Some(&(1, 700))
+        );
+        assert_eq!(furnace.xp_to_award_and_clear(0.0), 1);
+        assert!(furnace.recipes_used.is_empty());
+
+        let saved = furnace.save_additional();
+        let loaded =
+            AbstractFurnaceBlockEntity::load_additional(FurnaceBlockEntityKind::Furnace, &saved);
+        assert_eq!(loaded, furnace);
+
+        let mut invalid_fuel = AbstractFurnaceBlockEntity::furnace();
+        invalid_fuel.set_item(
+            AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:raw_iron".to_string(),
+                count: 1,
+            }),
+            Some(&smelting),
+        );
+        invalid_fuel.set_item(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:stone".to_string(),
+                count: 1,
+            }),
+            Some(&smelting),
+        );
+        assert_eq!(
+            invalid_fuel.server_tick(&fuels, Some(&smelting)),
+            FurnaceTickResult::Idle
+        );
+        assert_eq!(invalid_fuel.cooking_time_spent, 0);
+
+        let mut blast = AbstractFurnaceBlockEntity::blast_furnace();
+        assert_eq!(blast.kind.recipe_type(), "blasting");
+        assert_eq!(blast.kind.default_cooking_time(), 100);
+        blast.set_item(
+            AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:raw_iron".to_string(),
+                count: 1,
+            }),
+            Some(&blasting),
+        );
+        blast.set_item(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:coal".to_string(),
+                count: 1,
+            }),
+            Some(&blasting),
+        );
+        assert_eq!(
+            blast.server_tick(&fuels, Some(&blasting)),
+            FurnaceTickResult::LitChanged { lit: true }
+        );
+        assert_eq!(blast.lit_total_time, 800);
+        for _ in 1..99 {
+            blast.server_tick(&fuels, Some(&blasting));
+        }
+        assert_eq!(
+            blast.server_tick(&fuels, Some(&blasting)),
+            FurnaceTickResult::Burned { output_count: 1 }
+        );
+
+        let mut smoker = AbstractFurnaceBlockEntity::smoker();
+        smoker.set_item(
+            AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:beef".to_string(),
+                count: 1,
+            }),
+            Some(&smoking),
+        );
+        smoker.set_item(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:coal".to_string(),
+                count: 1,
+            }),
+            Some(&smoking),
+        );
+        assert_eq!(
+            smoker.server_tick(&fuels, Some(&smoking)),
+            FurnaceTickResult::LitChanged { lit: true }
+        );
+        assert_eq!(smoker.kind.recipe_type(), "smoking");
+        assert_eq!(smoker.lit_total_time, 800);
+
+        assert_eq!(
+            AbstractFurnaceBlockEntity::get_slots_for_face(Direction::Up),
+            &[AbstractFurnaceBlockEntity::INGREDIENT_SLOT]
+        );
+        assert_eq!(
+            AbstractFurnaceBlockEntity::get_slots_for_face(Direction::Down),
+            &[
+                AbstractFurnaceBlockEntity::RESULT_SLOT,
+                AbstractFurnaceBlockEntity::FUEL_SLOT,
+            ]
+        );
+        assert!(smoker.can_take_item_through_face(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            "minecraft:bucket",
+            Direction::Down
+        ));
+        assert!(!smoker.can_take_item_through_face(
+            AbstractFurnaceBlockEntity::FUEL_SLOT,
+            "minecraft:coal",
+            Direction::Down
+        ));
+        assert!(!smoker.can_place_item(
+            AbstractFurnaceBlockEntity::RESULT_SLOT,
+            &PotItemStack {
+                item_id: "minecraft:iron_ingot".to_string(),
+                count: 1,
+            },
+            &fuels,
+        ));
+        assert_eq!(
+            smoker.max_stack_size(
+                AbstractFurnaceBlockEntity::FUEL_SLOT,
+                &PotItemStack {
+                    item_id: "minecraft:bucket".to_string(),
+                    count: 16,
+                },
+            ),
+            1
+        );
+        assert!(smoker.comparator_output() > 0);
     }
 
     #[test]

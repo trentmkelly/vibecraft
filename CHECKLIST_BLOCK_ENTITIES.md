@@ -30,12 +30,12 @@
 
 ## Furnace Family
 
-- [ ] Implement `AbstractFurnaceBlockEntity`: `litTime`/`litDuration` burn progress, `cookingProgress`/`cookingTotalTime` cook progress, per-tick recipe matching against the registered recipe type, `FuelValues` lookup for fuel slot items, XP float accumulation (`experience` field), XP orb release on item extraction, sided inventory access (`getMaxStackSize()` per slot), comparator output (0–14 based on progress/fuel)
-- [ ] Implement `FurnaceBlockEntity`: recipe type `minecraft:smelting`, 200-tick cook time, standard fuels
-- [ ] Implement `BlastFurnaceBlockEntity`: recipe type `minecraft:blasting`, 100-tick cook time (2× speed)
-- [ ] Implement `SmokerBlockEntity`: recipe type `minecraft:smoking`, 100-tick cook time (2× speed)
-- [ ] Add parity test: smelting progress ticks, fuel exhaustion, XP float accumulation, and XP orb count on item pickup
-- [ ] Add parity test: blast furnace and smoker speed factors vs. furnace; invalid fuel items do not burn
+- [x] Implement `AbstractFurnaceBlockEntity`: `litTime`/`litDuration` burn progress, `cookingProgress`/`cookingTotalTime` cook progress, per-tick recipe matching against the registered recipe type, `FuelValues` lookup for fuel slot items, XP recipe-use accumulation and XP orb count on result extraction, sided inventory access (`getMaxStackSize()` per slot), comparator output based on inventory fullness
+- [x] Implement `FurnaceBlockEntity`: recipe type `minecraft:smelting`, 200-tick cook time, standard fuels
+- [x] Implement `BlastFurnaceBlockEntity`: recipe type `minecraft:blasting`, 100-tick cook time (2× speed)
+- [x] Implement `SmokerBlockEntity`: recipe type `minecraft:smoking`, 100-tick cook time (2× speed)
+- [x] Add parity test: smelting progress ticks, fuel exhaustion, XP float accumulation, and XP orb count on item pickup
+- [x] Add parity test: blast furnace and smoker speed factors vs. furnace; invalid fuel items do not burn
 
 ## Container Block Entities
 
@@ -128,7 +128,7 @@
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Block Entity Coverage
 
 - [x] Implement base `BlockEntity`, ticker dispatch, type registry, update tag, update packet, save/load, and chunk attachment behavior.
-- [ ] Implement furnace family block entities: `AbstractFurnaceBlockEntity`, `FurnaceBlockEntity`, `BlastFurnaceBlockEntity`, and `SmokerBlockEntity`, including burn time, cook time, fuel values, recipe matching, XP storage, sided inventory, lit state, and comparator output.
+- [x] Implement furnace family block entities: `AbstractFurnaceBlockEntity`, `FurnaceBlockEntity`, `BlastFurnaceBlockEntity`, and `SmokerBlockEntity`, including burn time, cook time, fuel values, recipe matching, XP storage, sided inventory, lit state, and comparator output.
 - [ ] Implement container block entities: `BaseContainerBlockEntity`, `RandomizableContainerBlockEntity`, `ChestBlockEntity`, `TrappedChestBlockEntity`, `BarrelBlockEntity`, `ShulkerBoxBlockEntity`, `DispenserBlockEntity`, `DropperBlockEntity`, `HopperBlockEntity`, and `ShelfBlockEntity`, including loot tables, custom names, locks, viewer counts, lid animation, sided access, and redstone/comparator interactions.
 - [ ] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
 - [ ] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
