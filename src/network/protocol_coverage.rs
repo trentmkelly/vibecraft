@@ -508,7 +508,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "sign_update",
         java_class: "ServerboundSignUpdatePacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, is_front_text:bool, lines:[utf(384);4]",
     },
     PlayPacketSpec {
         id: 62,

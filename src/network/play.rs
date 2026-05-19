@@ -4,7 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
 use crate::network::codec::{
-    read_identifier, write_bitset, write_collection, write_identifier, write_string, Uuid,
+    read_identifier, read_string, write_bitset, write_collection, write_identifier, write_string,
+    Uuid,
 };
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
@@ -45,6 +46,7 @@ pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
+pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
 pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
@@ -333,6 +335,15 @@ pub struct ServerboundJigsawGeneratePacket {
     pub z: i32,
     pub levels: i32,
     pub keep_jigsaws: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSignUpdatePacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub is_front_text: bool,
+    pub lines: [String; 4],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1053,6 +1064,7 @@ pub struct PlaySession {
     pub last_use_item_on: Option<ServerboundUseItemOnPacket>,
     pub last_pong: Option<ServerboundPongPacket>,
     pub last_jigsaw_generate: Option<ServerboundJigsawGeneratePacket>,
+    pub last_sign_update: Option<ServerboundSignUpdatePacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1138,6 +1150,7 @@ impl PlaySession {
             last_use_item_on: None,
             last_pong: None,
             last_jigsaw_generate: None,
+            last_sign_update: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1416,6 +1429,18 @@ impl PlaySession {
                     )),
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad carried item packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_SIGN_UPDATE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSignUpdatePacket::read(&mut input) {
+                    Ok(sign_update) => {
+                        self.last_sign_update = Some(sign_update);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad sign update packet: {err}"))
                     }
                 }
             }
@@ -2609,6 +2634,34 @@ impl ServerboundJigsawGeneratePacket {
         write_block_position(writer, self.x, self.y, self.z)?;
         write_var_i32(writer, self.levels)?;
         write_bool(writer, self.keep_jigsaws)
+    }
+}
+
+impl ServerboundSignUpdatePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        let is_front_text = read_bool(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            is_front_text,
+            lines: [
+                read_string(reader, 384)?,
+                read_string(reader, 384)?,
+                read_string(reader, 384)?,
+                read_string(reader, 384)?,
+            ],
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_bool(writer, self.is_front_text)?;
+        for line in &self.lines {
+            write_string(writer, line, 384)?;
+        }
+        Ok(())
     }
 }
 
@@ -4781,6 +4834,31 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_jigsaw_generate, Some(jigsaw_packet));
+
+        let sign_update = ServerboundSignUpdatePacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            is_front_text: false,
+            lines: [
+                "one".to_string(),
+                "two".to_string(),
+                "three".to_string(),
+                "four".to_string(),
+            ],
+        };
+        let mut sign_payload = Vec::new();
+        sign_update.write(&mut sign_payload).unwrap();
+        assert_eq!(sign_payload[8], 0);
+        assert_eq!(
+            ServerboundSignUpdatePacket::read(&mut cursor(sign_payload.clone())).unwrap(),
+            sign_update
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_SIGN_UPDATE_PACKET_ID, sign_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_sign_update, Some(sign_update));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {

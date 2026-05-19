@@ -231,7 +231,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundPingPacket` (0x3D): ID int
 - [x] `ServerboundPongPacket` (0x2D): ID int
 - [ ] `ClientboundDisconnectPacket` (0x1B): reason component
-- [ ] `ServerboundSignUpdatePacket` (0x2C): block pos, is-front-text bool, 4 lines
+- [x] `ServerboundSignUpdatePacket` (0x3D): block pos, is-front-text bool, 4 UTF-8 lines capped at 384 chars each
 - [x] `ServerboundJigsawGeneratePacket` (0x1B): block pos, levels VarInt, keep-jigsaws bool
 - [ ] `ServerboundSetStructureBlockPacket` (0x2F): block pos, update type, mode, offset, size, mirror, rotation, name, metadata, integrity, seed, flags
 - [ ] `ServerboundSetCommandBlockPacket` (0x29): block pos, command, mode VarInt, flags byte
