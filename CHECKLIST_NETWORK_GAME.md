@@ -126,7 +126,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundChatCommandPacket` (0x04): command string, timestamp, salt, argument signatures, last-seen messages
 - [ ] `ServerboundChatCommandSignedPacket` (0x05): same as signed variant
 - [ ] `ServerboundChatSessionUpdatePacket` (0x07): profile public key (expires-at, key bytes, signature bytes)
-- [ ] `ServerboundMessageAcknowledgementPacket` (0x03): offset int
+- [x] `ServerboundChatAckPacket` (0x06): message acknowledgement offset VarInt
 
 ## Scoreboard / Team Packets
 

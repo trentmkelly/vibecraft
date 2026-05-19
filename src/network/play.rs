@@ -219,6 +219,11 @@ pub struct ServerboundChangeDifficultyPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundChatAckPacket {
+    pub offset: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundClientTickEndPacket;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1133,6 +1138,7 @@ pub struct PlaySession {
     pub pending_teleports: BTreeSet<i32>,
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
+    pub last_chat_ack: Option<ServerboundChatAckPacket>,
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub last_player_action: Option<ServerboundPlayerActionPacket>,
     pub last_use_item: Option<ServerboundUseItemPacket>,
@@ -1229,6 +1235,7 @@ impl PlaySession {
             pending_teleports: BTreeSet::new(),
             last_move: None,
             last_vehicle_move: None,
+            last_chat_ack: None,
             last_player_command: None,
             last_player_action: None,
             last_use_item: None,
@@ -1342,6 +1349,16 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad change difficulty packet: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_CHAT_ACK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChatAckPacket::read(&mut input) {
+                    Ok(ack) => {
+                        self.last_chat_ack = Some(ack);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad chat ack packet: {err}")),
                 }
             }
             SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
@@ -2462,6 +2479,18 @@ impl ServerboundChangeDifficultyPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.difficulty.to_wire_index())
+    }
+}
+
+impl ServerboundChatAckPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            offset: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.offset)
     }
 }
 
@@ -4668,6 +4697,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, Vec::new())),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CHAT_ACK_PACKET_ID, Vec::new())),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5368,6 +5401,20 @@ mod tests {
             session.last_container_button_click,
             Some(container_button_click)
         );
+
+        let chat_ack = ServerboundChatAckPacket { offset: 128 };
+        let mut chat_ack_payload = Vec::new();
+        chat_ack.write(&mut chat_ack_payload).unwrap();
+        assert_eq!(chat_ack_payload, vec![0x80, 0x01]);
+        assert_eq!(
+            ServerboundChatAckPacket::read(&mut cursor(chat_ack_payload.clone())).unwrap(),
+            chat_ack
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_CHAT_ACK_PACKET_ID, chat_ack_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_chat_ack, Some(chat_ack));
 
         let command_suggestion = ServerboundCommandSuggestionPacket {
             id: 128,
