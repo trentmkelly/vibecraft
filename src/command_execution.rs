@@ -66,6 +66,7 @@ pub struct CommandFrame {
 pub struct ExecutionContextModel {
     pub command_limit: usize,
     pub fork_limit: usize,
+    pub max_queue_depth: usize,
     pub quota: usize,
     pub current_depth: usize,
     pub queue: VecDeque<(CommandFrame, CommandTask)>,
@@ -127,12 +128,18 @@ impl ExecutionContextModel {
         Self {
             command_limit,
             fork_limit,
+            max_queue_depth: Self::MAX_QUEUE_DEPTH,
             quota: command_limit,
             current_depth: 0,
             queue: VecDeque::new(),
             queue_overflow: false,
             callbacks: Vec::new(),
         }
+    }
+
+    pub fn with_max_queue_depth(mut self, max_queue_depth: usize) -> Self {
+        self.max_queue_depth = max_queue_depth;
+        self
     }
 
     pub fn queue_initial_command(
@@ -187,7 +194,8 @@ impl ExecutionContextModel {
             }
             return;
         }
-        for source in current_sources.iter().take(self.fork_limit) {
+        let allowed_forks = self.fork_limit.saturating_sub(1);
+        for source in current_sources.iter().take(allowed_forks) {
             self.queue_next(
                 current_frame(self.current_depth + 1),
                 CommandTask::Command {
@@ -203,7 +211,7 @@ impl ExecutionContextModel {
     }
 
     pub fn queue_next(&mut self, frame: CommandFrame, task: CommandTask) {
-        if self.queue.len() >= Self::MAX_QUEUE_DEPTH {
+        if self.queue.len() > self.max_queue_depth {
             self.queue.clear();
             self.queue_overflow = true;
             return;
@@ -455,12 +463,12 @@ mod tests {
         let mut context = ExecutionContextModel::new(10, 2);
         context.queue_initial_function("minecraft:tick", &source);
         context.queue_continuation("say hi", &source, &sources, false);
-        assert_eq!(context.queue.len(), 3);
+        assert_eq!(context.queue.len(), 2);
         let executed = context.run(|_| CommandOutcome {
             success: true,
             result: 1,
         });
-        assert_eq!(executed.len(), 3);
+        assert_eq!(executed.len(), 2);
         assert!(executed.iter().any(|task| matches!(
             task,
             CommandTask::FunctionCall {
@@ -477,5 +485,32 @@ mod tests {
             empty_returning.queue.front().unwrap().1,
             CommandTask::Fallthrough
         ));
+    }
+
+    #[test]
+    fn execution_context_matches_vanilla_fork_limit_and_queue_overflow_boundary() {
+        let source = CommandSourceStackModel::new("server", "overworld", 4);
+        let sources = execute_as(&source, &["a", "b", "c", "d"]);
+        let mut context = ExecutionContextModel::new(10, 3);
+        context.queue_continuation("say fork", &source, &sources, false);
+        assert_eq!(context.queue.len(), 2);
+        assert!(context.queue.iter().all(|(_, task)| matches!(
+            task,
+            CommandTask::Command {
+                command,
+                returning: false,
+                ..
+            } if command == "say fork"
+        )));
+
+        let mut overflow = ExecutionContextModel::new(10, 8).with_max_queue_depth(2);
+        overflow.queue_initial_command("say one", &source);
+        overflow.queue_initial_command("say two", &source);
+        overflow.queue_initial_command("say three", &source);
+        assert_eq!(overflow.queue.len(), 3);
+        assert!(!overflow.queue_overflow);
+        overflow.queue_initial_command("say four", &source);
+        assert!(overflow.queue.is_empty());
+        assert!(overflow.queue_overflow);
     }
 }
