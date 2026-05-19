@@ -53,7 +53,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundAddExperienceOrbPacket` (0x02): entity ID, position, count short
 - [x] `ClientboundRemoveEntitiesPacket` (0x4D): VarInt entity ID list (`FriendlyByteBuf.writeIntIdList`)
 - [x] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
-- [ ] `ClientboundTeleportEntityPacket` (0x70): entity ID, pos X/Y/Z, velocity X/Y/Z, yaw/pitch bytes, on-ground bool
+- [x] `ClientboundTeleportEntityPacket` (0x7D): entity ID, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), relative flags int bitmask, on-ground bool
 - [x] `ClientboundRotateHeadPacket` (0x53): entity ID VarInt, head-yaw byte
 - [ ] `ClientboundMoveEntityPacket.Pos` (0x2E): entity ID, delta X/Y/Z shorts, on-ground bool
 - [ ] `ClientboundMoveEntityPacket.PosRot` (0x2F): entity ID, delta X/Y/Z, yaw/pitch, on-ground bool
@@ -213,7 +213,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundBlockEventPacket` (0x07): block pos, action unsigned byte, param unsigned byte, block type VarInt
 - [x] `ClientboundBlockDestructionPacket` (0x05): entity ID VarInt, block pos, progress unsigned byte (0-9, 10=done)
 - [ ] `ClientboundExplodePacket` (0x1D): pos X/Y/Z, radius, affected blocks list (byte offsets), player velocity X/Y/Z, block interaction VarInt, small explosion particle, large explosion particle, sound
-- [ ] `ClientboundEntityPositionSyncPacket` (0x20): (26.1.2 name for teleport ack; confirm ID VarInt)
+- [x] `ClientboundEntityPositionSyncPacket` (0x23): entity ID VarInt, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), on-ground bool
 - [x] `ServerboundAcceptTeleportationPacket` (0x00): teleport ID VarInt
 
 ## Resource State Packets

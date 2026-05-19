@@ -142,6 +142,7 @@ pub const CLIENTBOUND_SOUND_ENTITY_PACKET_ID: i32 = 116;
 pub const CLIENTBOUND_SOUND_PACKET_ID: i32 = 117;
 pub const CLIENTBOUND_START_CONFIGURATION_PACKET_ID: i32 = 118;
 pub const CLIENTBOUND_DISCONNECT_PACKET_ID: i32 = 32;
+pub const CLIENTBOUND_ENTITY_POSITION_SYNC_PACKET_ID: i32 = 35;
 pub const CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID: i32 = 125;
 pub const CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID: i32 = 130;
 pub const CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID: i32 = 131;
@@ -912,6 +913,16 @@ pub struct ClientboundTeleportEntityPacket {
     pub y_rot: f32,
     pub x_rot: f32,
     pub relative_flags: u32,
+    pub on_ground: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundEntityPositionSyncPacket {
+    pub id: i32,
+    pub position: Vec3,
+    pub movement: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
     pub on_ground: bool,
 }
 
@@ -2643,6 +2654,36 @@ impl ClientboundMoveVehiclePacket {
         write_vec3(writer, self.position)?;
         write_f32(writer, self.y_rot)?;
         write_f32(writer, self.x_rot)
+    }
+}
+
+fn write_position_move_rotation<W: Write>(
+    writer: &mut W,
+    position: Vec3,
+    movement: Vec3,
+    y_rot: f32,
+    x_rot: f32,
+) -> io::Result<()> {
+    write_vec3(writer, position)?;
+    write_vec3(writer, movement)?;
+    write_f32(writer, y_rot)?;
+    write_f32(writer, x_rot)
+}
+
+impl ClientboundTeleportEntityPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_position_move_rotation(writer, self.position, self.movement, self.y_rot, self.x_rot)?;
+        write_i32(writer, self.relative_flags as i32)?;
+        write_bool(writer, self.on_ground)
+    }
+}
+
+impl ClientboundEntityPositionSyncPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_position_move_rotation(writer, self.position, self.movement, self.y_rot, self.x_rot)?;
+        write_bool(writer, self.on_ground)
     }
 }
 
@@ -6286,6 +6327,48 @@ mod tests {
         .unwrap();
         assert_eq!(pack_pop[0], 1);
         assert_eq!(&pack_pop[1..], &[3; 16]);
+
+        let teleport = ClientboundTeleportEntityPacket {
+            id: 7,
+            position: Vec3 {
+                x: 1.25,
+                y: 64.0,
+                z: -2.5,
+            },
+            movement: Vec3 {
+                x: 0.1,
+                y: -0.2,
+                z: 0.3,
+            },
+            y_rot: 90.0,
+            x_rot: 30.0,
+            relative_flags: 0b1_0010_0011,
+            on_ground: true,
+        };
+        let mut teleport_payload = Vec::new();
+        teleport.write(&mut teleport_payload).unwrap();
+        assert_eq!(teleport_payload[0], 7);
+        assert_eq!(&teleport_payload[1..9], &1.25_f64.to_be_bytes());
+        assert_eq!(&teleport_payload[25..33], &0.1_f64.to_be_bytes());
+        assert_eq!(&teleport_payload[49..53], &90.0_f32.to_be_bytes());
+        assert_eq!(&teleport_payload[53..57], &30.0_f32.to_be_bytes());
+        assert_eq!(&teleport_payload[57..61], &0b1_0010_0011_i32.to_be_bytes());
+        assert_eq!(teleport_payload[61], 1);
+
+        let mut position_sync = Vec::new();
+        ClientboundEntityPositionSyncPacket {
+            id: 8,
+            position: teleport.position,
+            movement: teleport.movement,
+            y_rot: teleport.y_rot,
+            x_rot: teleport.x_rot,
+            on_ground: false,
+        }
+        .write(&mut position_sync)
+        .unwrap();
+        assert_eq!(position_sync[0], 8);
+        assert_eq!(position_sync.len(), 58);
+        assert_eq!(*position_sync.last().unwrap(), 0);
     }
 
     #[test]
