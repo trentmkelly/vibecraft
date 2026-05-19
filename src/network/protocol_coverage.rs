@@ -368,7 +368,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "player_action",
         java_class: "ServerboundPlayerActionPacket",
-        field_order: "unparsed",
+        field_order: "action:enum VarInt, pos:BlockPos, direction:u8, sequence:VarInt",
     },
     PlayPacketSpec {
         id: 42,

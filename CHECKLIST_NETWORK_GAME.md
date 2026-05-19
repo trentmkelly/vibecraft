@@ -189,7 +189,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundInteractPacket` (0x1A): entity ID, interaction type (attack/interact/interact-at with optional hand and hit position), using-secondary-action bool
 - [ ] `ServerboundUseItemOnPacket` (0x36): hand, hit result (block pos, direction, hit vector, inside flag), sequence VarInt
 - [ ] `ServerboundUseItemPacket` (0x37): hand, sequence VarInt, yaw/pitch
-- [ ] `ServerboundPlayerActionPacket` (0x1D): action (start-dig, abort-dig, stop-dig, drop-all, drop-one, release-use, swap-held), block pos, face direction, sequence VarInt
+- [x] `ServerboundPlayerActionPacket` (0x29): action enum VarInt (start-destroy, abort-destroy, stop-destroy, drop-all, drop-one, release-use, swap-offhand, stab), block pos, face direction byte, sequence VarInt
 - [x] `ServerboundSwingPacket` (0x3F): hand VarInt
 - [x] `ServerboundPlayerCommandPacket` (0x2A): entity ID VarInt, action enum VarInt (stop-sleeping, start-sprinting, stop-sprinting, start-riding-jump, stop-riding-jump, open-inventory, start-fall-flying), data VarInt
 

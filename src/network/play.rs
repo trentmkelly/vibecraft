@@ -257,6 +257,39 @@ pub struct ServerboundPlayerCommandPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction3d {
+    Down,
+    Up,
+    North,
+    South,
+    West,
+    East,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerboundPlayerAction {
+    StartDestroyBlock,
+    AbortDestroyBlock,
+    StopDestroyBlock,
+    DropAllItems,
+    DropItem,
+    ReleaseUseItem,
+    SwapItemWithOffhand,
+    Stab,
+    Unknown(i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlayerActionPacket {
+    pub action: ServerboundPlayerAction,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub direction: Direction3d,
+    pub sequence: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerboundClientCommandAction {
     PerformRespawn,
     RequestStats,
@@ -961,6 +994,7 @@ pub struct PlaySession {
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
+    pub last_player_action: Option<ServerboundPlayerActionPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1041,6 +1075,7 @@ impl PlaySession {
             last_move: None,
             last_vehicle_move: None,
             last_player_command: None,
+            last_player_action: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1251,6 +1286,24 @@ impl PlaySession {
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad player command packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_PLAYER_ACTION_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPlayerActionPacket::read(&mut input) {
+                    Ok(action) => {
+                        if matches!(action.action, ServerboundPlayerAction::Unknown(_)) {
+                            DispatchOutcome::Disconnect(
+                                "unknown player action packet action".to_string(),
+                            )
+                        } else {
+                            self.last_player_action = Some(action);
+                            DispatchOutcome::Handled
+                        }
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad player action packet: {err}"))
                     }
                 }
             }
@@ -2200,6 +2253,82 @@ impl ServerboundPlayerCommandPacket {
         write_var_i32(writer, self.entity_id)?;
         write_var_i32(writer, self.action.to_id())?;
         write_var_i32(writer, self.data)
+    }
+}
+
+impl Direction3d {
+    fn from_id(id: u8) -> Self {
+        match id % 6 {
+            0 => Self::Down,
+            1 => Self::Up,
+            2 => Self::North,
+            3 => Self::South,
+            4 => Self::West,
+            _ => Self::East,
+        }
+    }
+
+    fn to_id(self) -> u8 {
+        match self {
+            Self::Down => 0,
+            Self::Up => 1,
+            Self::North => 2,
+            Self::South => 3,
+            Self::West => 4,
+            Self::East => 5,
+        }
+    }
+}
+
+impl ServerboundPlayerAction {
+    fn from_id(id: i32) -> Self {
+        match id {
+            0 => Self::StartDestroyBlock,
+            1 => Self::AbortDestroyBlock,
+            2 => Self::StopDestroyBlock,
+            3 => Self::DropAllItems,
+            4 => Self::DropItem,
+            5 => Self::ReleaseUseItem,
+            6 => Self::SwapItemWithOffhand,
+            7 => Self::Stab,
+            _ => Self::Unknown(id),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::StartDestroyBlock => 0,
+            Self::AbortDestroyBlock => 1,
+            Self::StopDestroyBlock => 2,
+            Self::DropAllItems => 3,
+            Self::DropItem => 4,
+            Self::ReleaseUseItem => 5,
+            Self::SwapItemWithOffhand => 6,
+            Self::Stab => 7,
+            Self::Unknown(value) => value,
+        }
+    }
+}
+
+impl ServerboundPlayerActionPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let action = ServerboundPlayerAction::from_id(read_var_i32(reader)?);
+        let (x, y, z) = read_block_position(reader)?;
+        Ok(Self {
+            action,
+            x,
+            y,
+            z,
+            direction: Direction3d::from_id(read_u8(reader)?),
+            sequence: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.action.to_id())?;
+        write_block_position(writer, self.x, self.y, self.z)?;
+        writer.write_all(&[self.direction.to_id()])?;
+        write_var_i32(writer, self.sequence)
     }
 }
 
@@ -4192,6 +4321,39 @@ mod tests {
                 data: 128,
             })
         );
+
+        let mut player_action = Vec::new();
+        ServerboundPlayerActionPacket {
+            action: ServerboundPlayerAction::StopDestroyBlock,
+            x: -12,
+            y: 64,
+            z: 34,
+            direction: Direction3d::West,
+            sequence: 300,
+        }
+        .write(&mut player_action)
+        .unwrap();
+        assert_eq!(player_action[0], 2);
+        assert_eq!(player_action[9], 4);
+        assert_eq!(&player_action[10..], &[0xac, 0x02]);
+        let parsed_action =
+            ServerboundPlayerActionPacket::read(&mut cursor(player_action.clone())).unwrap();
+        assert_eq!(
+            parsed_action,
+            ServerboundPlayerActionPacket {
+                action: ServerboundPlayerAction::StopDestroyBlock,
+                x: -12,
+                y: 64,
+                z: 34,
+                direction: Direction3d::West,
+                sequence: 300,
+            }
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_PLAYER_ACTION_PACKET_ID, player_action)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_player_action, Some(parsed_action));
 
         let mut player_loaded = Vec::new();
         ServerboundPlayerLoadedPacket
