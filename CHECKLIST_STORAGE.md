@@ -73,7 +73,7 @@
 - [ ] Implement all operator-facing files: `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json` with vanilla-compatible JSON schemas and field names
 - [x] Implement `session.lock`: written on world open, exclusive lock enforced, released on clean shutdown; startup refuses if lock held by another process
 - [x] Implement `level.dat` + `level.dat_old` rotation: write new `level.dat` atomically (temp file + rename), keep previous as `level.dat_old`
-- [ ] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
+- [x] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
 - [x] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
 - [x] Implement POI region files: `<dim>/poi/*.mca` with POI type and occupation counts
 - [x] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
@@ -113,7 +113,7 @@
 - [ ] Implement DataVersion tracking.
 - [ ] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.
 - [x] Implement region file format `.mca`.
-- [ ] Implement region compression types used by 26.1.2.
+- [x] Implement region compression types used by 26.1.2.
 - [ ] Implement chunk serialization for blocks, biomes, heightmaps, block entities, entities, structures, ticks, lights, and post-processing.
 - [ ] Implement player data files.
 - [ ] Add a Mineflayer playerdata round-trip test that changes position, rotation, inventory, selected slot, health, food, XP, game mode, recipe book, and stats, disconnects, then reconnects in offline mode and verifies persistence.

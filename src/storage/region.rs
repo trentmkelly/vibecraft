@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use flate2::read::{GzDecoder, ZlibDecoder};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
+use lz4::{Decoder as Lz4Decoder, EncoderBuilder as Lz4EncoderBuilder};
 
 use super::nbt::{read_named_tag, write_named_tag, Tag};
 
@@ -209,6 +210,11 @@ impl RegionFile {
                 read_named_tag(&mut bytes.as_slice())
             }
             3 => read_named_tag(&mut compressed.as_ref()),
+            4 => {
+                let mut bytes = Vec::new();
+                Lz4Decoder::new(compressed)?.read_to_end(&mut bytes)?;
+                read_named_tag(&mut bytes.as_slice())
+            }
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -220,16 +226,23 @@ impl RegionFile {
     }
 
     pub fn write_chunk_nbt(&self, chunk: ChunkPos, name: &str, tag: &Tag) -> io::Result<()> {
-        let mut compressed = Vec::new();
-        let mut encoder = ZlibEncoder::new(&mut compressed, Compression::default());
-        write_named_tag(&mut encoder, name, tag)?;
-        encoder.finish()?;
+        self.write_chunk_nbt_with_compression(chunk, name, tag, RegionCompression::DEFAULT)
+    }
+
+    pub fn write_chunk_nbt_with_compression(
+        &self,
+        chunk: ChunkPos,
+        name: &str,
+        tag: &Tag,
+        compression: RegionCompression,
+    ) -> io::Result<()> {
+        let compressed = encode_region_payload(name, tag, compression)?;
 
         // data_len = compression-type byte + compressed bytes
         let data_len = 1 + compressed.len();
         let mut chunk_bytes: Vec<u8> = Vec::with_capacity(4 + data_len);
         chunk_bytes.extend_from_slice(&(data_len as u32).to_be_bytes());
-        chunk_bytes.push(RegionCompression::Deflate.id());
+        chunk_bytes.push(compression.id());
         chunk_bytes.extend_from_slice(&compressed);
 
         let sector_count = chunk_bytes.len().div_ceil(SECTOR_BYTES as usize);
@@ -257,6 +270,47 @@ impl RegionFile {
             .unwrap_or_default()
             .as_secs() as u32;
         self.write_timestamp(chunk, timestamp)
+    }
+}
+
+fn encode_region_payload(
+    name: &str,
+    tag: &Tag,
+    compression: RegionCompression,
+) -> io::Result<Vec<u8>> {
+    match compression {
+        RegionCompression::Gzip => {
+            let mut compressed = Vec::new();
+            let mut encoder =
+                flate2::write::GzEncoder::new(&mut compressed, Compression::default());
+            write_named_tag(&mut encoder, name, tag)?;
+            encoder.finish()?;
+            Ok(compressed)
+        }
+        RegionCompression::Deflate => {
+            let mut compressed = Vec::new();
+            let mut encoder = ZlibEncoder::new(&mut compressed, Compression::default());
+            write_named_tag(&mut encoder, name, tag)?;
+            encoder.finish()?;
+            Ok(compressed)
+        }
+        RegionCompression::None => {
+            let mut bytes = Vec::new();
+            write_named_tag(&mut bytes, name, tag)?;
+            Ok(bytes)
+        }
+        RegionCompression::Lz4 => {
+            let mut compressed = Vec::new();
+            let mut encoder = Lz4EncoderBuilder::new().build(&mut compressed)?;
+            write_named_tag(&mut encoder, name, tag)?;
+            let (_writer, result) = encoder.finish();
+            result?;
+            Ok(compressed)
+        }
+        RegionCompression::Custom => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "custom region compression cannot be written without an external stream",
+        )),
     }
 }
 
@@ -336,5 +390,53 @@ mod tests {
         );
         assert!(RegionCompression::is_valid_id(4));
         assert!(!RegionCompression::is_valid_id(5));
+    }
+
+    #[test]
+    fn region_file_round_trips_zlib_none_and_lz4_payloads() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-region-compression-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+
+        let tag = crate::storage::nbt::Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+        )]);
+
+        for (index, compression) in [
+            RegionCompression::Deflate,
+            RegionCompression::None,
+            RegionCompression::Lz4,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let region = RegionFile::open(
+                &dir,
+                RegionPos {
+                    x: index as i32,
+                    z: 0,
+                },
+            )
+            .unwrap();
+            let chunk = ChunkPos {
+                x: index as i32 * 32,
+                z: 0,
+            };
+            region
+                .write_chunk_nbt_with_compression(chunk, "Data", &tag, compression)
+                .unwrap();
+            assert_eq!(
+                region.read_chunk_nbt(chunk).unwrap(),
+                Some(("Data".to_string(), tag.clone()))
+            );
+
+            let location = region.read_location(chunk).unwrap().unwrap();
+            let bytes = fs::read(region.path()).unwrap();
+            let offset = location.sector_offset as usize * super::SECTOR_BYTES as usize;
+            assert_eq!(bytes[offset + 4], compression.id());
+        }
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }
