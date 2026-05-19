@@ -101,26 +101,26 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Density Functions
 
-- [ ] Implement all density function codecs and runtime evaluation (`DensityFunctions`):
-  - [ ] `BlendAlpha`, `BlendOffset`, `BlendDensity`
-  - [ ] `Clamp`, `Mapped`, `Abs`, `Square`, `Cube`, `HalfNegative`, `QuarterNegative`, `Squeeze`
-  - [ ] `Add`, `Mul`, `Min`, `Max`
-  - [ ] `Spline` (with `CubicSpline` evaluation)
-  - [ ] `YClampedGradient`
-  - [ ] `InterpolatedNoise` (trilinear interpolation of NormalNoise)
-  - [ ] `ShiftedNoise`
-  - [ ] `Noise` (direct NormalNoise sample)
-  - [ ] `WeirdScaledSampler`
-  - [ ] `OldBlendedNoise`
-  - [ ] `ShiftA`, `ShiftB`, `Shift` (noise-based position offsets)
-  - [ ] `Constant`
-  - [ ] `Cache2D`, `CacheFlat`, `CacheOnce`, `CacheAllInCell` (memoization)
-  - [ ] `FlatCache`, `EndIslands`
-  - [ ] `Beardifier` (structure terrain bump)
-  - [ ] Marker wrappers: `Interpolated`, `FlatCached`
-  - [ ] `HolderHolder` (registry-backed density function reference)
+- [x] Implement all density function codecs and runtime evaluation (`DensityFunctions`):
+  - [x] `BlendAlpha` (returns 1.0), `BlendOffset` (returns 0.0), `BlendDensity` (passthrough in single-point context, blending handled by `NoiseChunk`) — verified against Java `DensityFunctions.java`
+  - [x] `Clamp` (exact `Mth.clamp` match), `Mapped`: `Abs`, `Square`, `Cube`, `HalfNegative`, `QuarterNegative`, `Squeeze` (c/2 − c³/24) — all verified. Fixed `Invert` bug: was `-input`, corrected to `1.0 / input` to match Java `case INVERT -> 1.0 / input`
+  - [x] `Add`, `Mul` (short-circuits when first == 0.0), `Min` (skips arg2 if arg1 < arg2.minValue()), `Max` (skips arg2 if arg1 > arg2.maxValue()) — lazy evaluation logic verified against Java `Ap2`
+  - [x] `Spline` — `TerrainCubicSpline` implements the same Hermite interpolation as Java `CubicSpline.Multipoint.apply` (partition_point ≡ Mth.binarySearch−1, same lerp formula `lerp(t,y1,y2)+t*(1−t)*lerp(t,a,b)`)
+  - [x] `YClampedGradient` — exact linear ramp between `fromY`/`toY` with clamping, verified
+  - [x] `InterpolatedNoise` is not a separate type: `DensityMarker::Interpolated` (a `Marker` wrapper) is the passthrough at single-point resolution; cell-based trilinear interpolation belongs to `NoiseChunk` (out of scope for this slice)
+  - [x] `ShiftedNoise` — `blockX*xzScale + shiftX`, `blockY*yScale + shiftY`, `blockZ*xzScale + shiftZ` then `NormalNoise.getValue`, verified
+  - [x] `Noise` (direct `NormalNoise` sample at `blockX*xzScale`, `blockY*yScale`, `blockZ*xzScale`) — verified
+  - [x] `WeirdScaledSampler` — `rarity * abs(noise(x/rarity, y/rarity, z/rarity))` with `RarityValueMapper` thresholds verified against Java `QuantizedSpaghettiRarity`
+  - [x] `OldBlendedNoise` (`BlendedNoise`) — three legacy `PerlinNoise` stacks, clamped lerp blend, /512 /128 normalization — verified
+  - [x] `ShiftA`, `ShiftB`, `Shift` — `noise.getValue(x*0.25, y*0.25, z*0.25) * 4.0`, verified
+  - [x] `Constant` — direct passthrough, verified
+  - [x] `Cache2D`, `CacheFlat` (`FlatCache`), `CacheOnce`, `CacheAllInCell` — all `Marker` wrappers that pass through in single-point context (caching is a `NoiseChunk` concern), verified
+  - [x] `EndIslands` — `(getHeightValue(seed, blockX/8, blockZ/8) − 8.0) / 128.0` with legacy random `consumeCount(17292)`, verified
+  - [x] `Beardifier` — codec-registered type returns 0.0 (Java `BeardifierMarker.compute` always returns 0.0; actual structure adjustment is swapped in by `NoiseChunk`), verified
+  - [x] `HolderHolder` / reference lookup — `DensityFunction::Reference` resolves via `builtin_density_function()`, returns 0.0 on miss
+- [x] Implement `overworld/final_density`: `min(postProcess(slideOverworld(caves)), noodle)` — full inline constant tree matching Java `NoiseRouterData.overworld()`, registered in `BUILTIN_DENSITY_FUNCTIONS`; `slideOverworld`, `underground`, `postProcess` all ported as const density function graphs
 - [ ] Implement `NoiseChunk` cell-based sampling loop with proper XZ/Y cell sizing from noise settings
-- [ ] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0
+- [ ] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0. Current coverage: `overworld_final_density_resolves_and_produces_finite_squeezed_value_at_0_100_0_seed_0` verifies registry resolution and Squeeze bounds, but not an exact vanilla oracle value yet.
 
 ## Noise Samplers
 
