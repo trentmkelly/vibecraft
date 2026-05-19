@@ -49,7 +49,7 @@
 - [x] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
 - [x] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
 - [x] Implement function execution quota/fork limiting using `maxCommandChainLength` / `max_command_sequence_length`, `maxCommandForkCount` / `max_command_forks`, and vanilla queue overflow behavior
-- [ ] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
+- [x] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
 - [ ] Add parity test: macro function variable substitution with entity/storage/block NBT source
 - [x] Add parity test: command function execution stops at the vanilla game-rule sequence/fork limits and queue-overflow boundary
 
