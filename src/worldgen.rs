@@ -421,6 +421,73 @@ pub enum SurfaceRuleSource {
     },
 }
 
+/// Dynamic (owned) surface rule tree, suitable for JSON-loaded rules.
+///
+/// Unlike `SurfaceRuleSource` (which uses `&'static` references for hardcoded
+/// presets), this type owns its data and can be constructed at runtime from the
+/// `surface_rule` field in `worldgen/noise_settings/*.json`.
+///
+/// Mirrors Java's `SurfaceRules.RuleSource` hierarchy.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DynSurfaceRule {
+    /// Badlands clay-band pattern.  Mirrors `SurfaceRules.Bandlands`.
+    Bandlands,
+    /// Place a specific block.  Mirrors `SurfaceRules.BlockRuleSource`.
+    Block(String),
+    /// Try each rule in order; return the first non-null result.
+    Sequence(Vec<DynSurfaceRule>),
+    /// Apply `rule` only when `condition` is true.
+    Condition {
+        condition: Box<DynSurfaceCondition>,
+        rule: Box<DynSurfaceRule>,
+    },
+}
+
+/// Dynamic (owned) surface condition, suitable for JSON-loaded rules.
+///
+/// Mirrors Java's `SurfaceRules.ConditionSource` hierarchy.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DynSurfaceCondition {
+    /// True when the current biome is in the given list.
+    Biome(Vec<String>),
+    /// True when the specified noise at (x, 0, z) is in [min, max].
+    NoiseThreshold {
+        noise: String,
+        min: f64,
+        max: f64,
+    },
+    /// Probabilistic vertical gradient based on a named positional random.
+    VerticalGradient {
+        random_name: String,
+        true_at_and_below: VerticalAnchor,
+        false_at_and_above: VerticalAnchor,
+    },
+    /// True when `y + stoneDepthAbove (optionally) ≥ anchor + surfaceDepth * multiplier`.
+    YAbove {
+        anchor: VerticalAnchor,
+        surface_depth_multiplier: i32,
+        add_stone_depth: bool,
+    },
+    /// True when the block is at or above the adjusted water surface.
+    Water {
+        offset: i32,
+        surface_depth_multiplier: i32,
+        add_stone_depth: bool,
+    },
+    /// True when the stone-column depth is within the surface or ceiling threshold.
+    StoneDepth {
+        offset: i32,
+        add_surface_depth: bool,
+        secondary_depth_range: i32,
+        surface: CaveSurface,
+    },
+    Not(Box<DynSurfaceCondition>),
+    Steep,
+    Hole,
+    AbovePreliminarySurface,
+    Temperature,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SurfaceRuleType {
     pub id: &'static str,
@@ -22682,15 +22749,16 @@ pub fn generate_chunk_for_stem(
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
         ResolvedChunkGenerator::Flat { settings, .. } => Ok(materialize_flat_chunk(pos, settings)),
-        ResolvedChunkGenerator::Noise {
-            biome_source_model,
-            noise_settings,
-            ..
-        } => Ok(materialize_noise_preview_chunk(
-            pos,
-            biome_source_model,
-            noise_settings,
-        )),
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            // Resolve the NoiseRouter from the settings' preset ID.
+            // The world seed is not yet threaded through this call-site; using
+            // seed 0 as a placeholder until a proper seed is available.
+            let router_id = noise_router_id_for_settings(**noise_settings);
+            let noise_router = builtin_noise_router(router_id)
+                .map(|e| e.router)
+                .unwrap_or(NONE_NOISE_ROUTER);
+            Ok(fill_from_noise_chunk(pos, noise_settings, 0, noise_router))
+        }
         ResolvedChunkGenerator::Debug { .. } => Err(format!(
             "Debug chunk generation for {} is not implemented",
             stem.dimension
@@ -22740,7 +22808,35 @@ pub fn generator_build_surface_for_stem(
     pos: ChunkPos,
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
-    generated_chunk_with_status(pos, stem, "minecraft:surface")
+    match &stem.generator {
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            let router_id = noise_router_id_for_settings(**noise_settings);
+            let noise_router = builtin_noise_router(router_id)
+                .map(|e| e.router)
+                .unwrap_or(NONE_NOISE_ROUTER);
+            match load_surface_rule(noise_settings.id) {
+                Some(rule) => Ok(fill_noise_and_build_surface(
+                    pos,
+                    noise_settings,
+                    0,
+                    noise_router,
+                    &rule,
+                )),
+                None => {
+                    // No surface rule found — fall back to noise-only chunk.
+                    let mut chunk = fill_from_noise_chunk(pos, noise_settings, 0, noise_router);
+                    chunk.status = "minecraft:surface".to_string();
+                    Ok(chunk)
+                }
+            }
+        }
+        _ => {
+            // Flat / Debug generators: surface is identical to noise phase.
+            let mut chunk = generate_chunk_for_stem(pos, stem)?;
+            chunk.status = "minecraft:surface".to_string();
+            Ok(chunk)
+        }
+    }
 }
 
 pub fn generator_apply_carvers_for_stem(
@@ -24863,14 +24959,60 @@ pub fn normal_noise_sample(snapshot: &NormalNoiseSnapshot, x: f64, y: f64, z: f6
     (first + second) * snapshot.value_factor
 }
 
+// Thread-local cache for NormalNoise snapshots during chunk generation.
+// Mirrors Java's `RandomState.noiseInstances` cache: the noise tables depend only
+// on the seed and noise ID, not the sample position, so they can be reused across
+// every block in a chunk.  Without this cache, `fill_slice` would re-initialize
+// the full Perlin permutation tables on every cell-corner evaluation, making chunk
+// generation ~1000× slower than needed.
+//
+// Set up via `with_noise_snapshot_cache` before calling `fill_from_noise_chunk`.
+thread_local! {
+    static NOISE_SNAPSHOT_CACHE: std::cell::RefCell<Option<HashMap<String, NormalNoiseSnapshot>>>
+        = std::cell::RefCell::new(None);
+}
+
+/// Activate the thread-local noise cache, run `f`, then tear it down.
+/// Any `random_state_normal_noise_snapshot` call inside `f` will use the cache.
+fn with_noise_snapshot_cache<T>(f: impl FnOnce() -> T) -> T {
+    NOISE_SNAPSHOT_CACHE.with(|cell| {
+        *cell.borrow_mut() = Some(HashMap::new());
+    });
+    let result = f();
+    NOISE_SNAPSHOT_CACHE.with(|cell| {
+        *cell.borrow_mut() = None;
+    });
+    result
+}
+
 pub fn random_state_normal_noise_snapshot(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_id: &str,
 ) -> Option<NormalNoiseSnapshot> {
+    // Fast path: return a clone from the thread-local cache if active.
+    let cached = NOISE_SNAPSHOT_CACHE.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .and_then(|m| m.get(noise_id).cloned())
+    });
+    if let Some(snapshot) = cached {
+        return Some(snapshot);
+    }
+
     let plan = random_state_normal_noise_instantiation_plan(seed, settings, noise_id)?;
     let parameters = builtin_normal_noise_parameters(plan.id)?;
-    normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization).ok()
+    let snapshot =
+        normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization).ok()?;
+
+    // Store in cache if active.
+    NOISE_SNAPSHOT_CACHE.with(|cell| {
+        if let Some(ref mut m) = *cell.borrow_mut() {
+            m.insert(noise_id.to_string(), snapshot.clone());
+        }
+    });
+
+    Some(snapshot)
 }
 
 pub fn normal_noise_sample_with_derivative(
@@ -25169,6 +25311,718 @@ pub fn surface_rule_apply(
                 .flatten()
         }
     }
+}
+
+// ── DynSurfaceRule JSON parsing ───────────────────────────────────────────────
+
+/// Parse a `VerticalAnchor` from a JSON object that contains exactly one of
+/// the three anchor-kind keys: `"absolute"`, `"above_bottom"`, or `"below_top"`.
+///
+/// Mirrors the Java `VerticalAnchor` codec.
+pub fn parse_vertical_anchor_from_json(v: &serde_json::Value) -> Result<VerticalAnchor, String> {
+    if let Some(n) = v.get("absolute").and_then(|x| x.as_i64()) {
+        return Ok(VerticalAnchor::Absolute(n as i32));
+    }
+    if let Some(n) = v.get("above_bottom").and_then(|x| x.as_i64()) {
+        return Ok(VerticalAnchor::AboveBottom(n as i32));
+    }
+    if let Some(n) = v.get("below_top").and_then(|x| x.as_i64()) {
+        return Ok(VerticalAnchor::BelowTop(n as i32));
+    }
+    Err(format!("unrecognised vertical anchor: {v}"))
+}
+
+/// Parse a `DynSurfaceCondition` from a JSON object.
+///
+/// Mirrors Java's `SurfaceRules.ConditionSource` codec dispatch on `"type"`.
+pub fn parse_dyn_surface_condition(v: &serde_json::Value) -> Result<DynSurfaceCondition, String> {
+    let ty = v["type"].as_str().ok_or("surface condition missing type")?;
+    let name = ty.strip_prefix("minecraft:").unwrap_or(ty);
+    match name {
+        "biome" => {
+            let arr = v["biome_is"]
+                .as_array()
+                .ok_or("biome condition missing biome_is")?;
+            let biomes = arr
+                .iter()
+                .map(|b| {
+                    b.as_str()
+                        .ok_or("biome_is entry not a string")
+                        .map(|s| s.to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(DynSurfaceCondition::Biome(biomes))
+        }
+        "noise_threshold" => {
+            let noise = v["noise"]
+                .as_str()
+                .ok_or("noise_threshold missing noise")?
+                .to_string();
+            let min = v["min_threshold"]
+                .as_f64()
+                .ok_or("noise_threshold missing min_threshold")?;
+            let max = v["max_threshold"]
+                .as_f64()
+                .ok_or("noise_threshold missing max_threshold")?;
+            Ok(DynSurfaceCondition::NoiseThreshold { noise, min, max })
+        }
+        "vertical_gradient" => {
+            let random_name = v["random_name"]
+                .as_str()
+                .ok_or("vertical_gradient missing random_name")?
+                .to_string();
+            let true_at = parse_vertical_anchor_from_json(&v["true_at_and_below"])?;
+            let false_at = parse_vertical_anchor_from_json(&v["false_at_and_above"])?;
+            Ok(DynSurfaceCondition::VerticalGradient {
+                random_name,
+                true_at_and_below: true_at,
+                false_at_and_above: false_at,
+            })
+        }
+        "y_above" => {
+            let anchor = parse_vertical_anchor_from_json(&v["anchor"])?;
+            let multiplier = v["surface_depth_multiplier"]
+                .as_i64()
+                .ok_or("y_above missing surface_depth_multiplier")?
+                as i32;
+            let add_stone = v["add_stone_depth"]
+                .as_bool()
+                .ok_or("y_above missing add_stone_depth")?;
+            Ok(DynSurfaceCondition::YAbove {
+                anchor,
+                surface_depth_multiplier: multiplier,
+                add_stone_depth: add_stone,
+            })
+        }
+        "water" => {
+            let offset = v["offset"].as_i64().ok_or("water missing offset")? as i32;
+            let multiplier = v["surface_depth_multiplier"]
+                .as_i64()
+                .ok_or("water missing surface_depth_multiplier")?
+                as i32;
+            let add_stone = v["add_stone_depth"]
+                .as_bool()
+                .ok_or("water missing add_stone_depth")?;
+            Ok(DynSurfaceCondition::Water {
+                offset,
+                surface_depth_multiplier: multiplier,
+                add_stone_depth: add_stone,
+            })
+        }
+        "stone_depth" => {
+            let offset = v["offset"].as_i64().ok_or("stone_depth missing offset")? as i32;
+            let add_depth = v["add_surface_depth"]
+                .as_bool()
+                .ok_or("stone_depth missing add_surface_depth")?;
+            let secondary = v["secondary_depth_range"]
+                .as_i64()
+                .ok_or("stone_depth missing secondary_depth_range")?
+                as i32;
+            let surface = match v["surface_type"]
+                .as_str()
+                .ok_or("stone_depth missing surface_type")?
+            {
+                "floor" => CaveSurface::Floor,
+                "ceiling" => CaveSurface::Ceiling,
+                s => return Err(format!("unknown stone_depth surface_type: {s}")),
+            };
+            Ok(DynSurfaceCondition::StoneDepth {
+                offset,
+                add_surface_depth: add_depth,
+                secondary_depth_range: secondary,
+                surface,
+            })
+        }
+        "not" => {
+            let inner = parse_dyn_surface_condition(&v["invert"])?;
+            Ok(DynSurfaceCondition::Not(Box::new(inner)))
+        }
+        "steep" => Ok(DynSurfaceCondition::Steep),
+        "hole" => Ok(DynSurfaceCondition::Hole),
+        "above_preliminary_surface" => Ok(DynSurfaceCondition::AbovePreliminarySurface),
+        "temperature" => Ok(DynSurfaceCondition::Temperature),
+        _ => Err(format!("unknown surface condition type: {ty}")),
+    }
+}
+
+/// Parse a `DynSurfaceRule` from a JSON object.
+///
+/// Mirrors Java's `SurfaceRules.RuleSource` codec dispatch on `"type"`.
+pub fn parse_dyn_surface_rule(v: &serde_json::Value) -> Result<DynSurfaceRule, String> {
+    let ty = v["type"].as_str().ok_or("surface rule missing type")?;
+    let name = ty.strip_prefix("minecraft:").unwrap_or(ty);
+    match name {
+        "sequence" => {
+            let arr = v["sequence"]
+                .as_array()
+                .ok_or("sequence rule missing sequence array")?;
+            let rules = arr
+                .iter()
+                .map(parse_dyn_surface_rule)
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(DynSurfaceRule::Sequence(rules))
+        }
+        "condition" => {
+            let condition = parse_dyn_surface_condition(&v["if_true"])?;
+            let rule = parse_dyn_surface_rule(&v["then_run"])?;
+            Ok(DynSurfaceRule::Condition {
+                condition: Box::new(condition),
+                rule: Box::new(rule),
+            })
+        }
+        "block" => {
+            let block_name = v["result_state"]["Name"]
+                .as_str()
+                .ok_or("block rule missing result_state.Name")?
+                .to_string();
+            Ok(DynSurfaceRule::Block(block_name))
+        }
+        "bandlands" => Ok(DynSurfaceRule::Bandlands),
+        _ => Err(format!("unknown surface rule type: {ty}")),
+    }
+}
+
+// ── DynSurfaceRule evaluation ─────────────────────────────────────────────────
+
+/// Per-column state during `build_surface_for_chunk`.
+///
+/// Carries all the information Java's `SurfaceRules.Context` exposes to
+/// conditions. Constructed once per column (XZ), then mutated per block (Y).
+struct BuildSurfaceColumnState {
+    seed: i64,
+    algorithm: RandomAlgorithm,
+    heights: WorldGenerationHeightContext,
+    // Per column (XZ) — set once per column
+    block_x: i32,
+    block_z: i32,
+    surface_depth: i32,
+    surface_secondary: f64,
+    steep: bool,
+    hole: bool,
+    min_surface_level: i32,
+    // Per block (Y) — updated per block
+    block_y: i32,
+    water_height: i32,
+    stone_depth_above: i32,
+    stone_depth_below: i32,
+    biome: String,
+    temperature: f32,
+}
+
+/// Test a `DynSurfaceCondition` against the current column/block state.
+///
+/// Mirrors Java's `SurfaceRules.Condition::test()`.
+fn dyn_surface_condition_test(
+    cond: &DynSurfaceCondition,
+    state: &BuildSurfaceColumnState,
+    settings: NoiseGeneratorSettings,
+) -> bool {
+    match cond {
+        DynSurfaceCondition::Biome(biomes) => biomes.iter().any(|b| b == &state.biome),
+        DynSurfaceCondition::NoiseThreshold { noise, min, max } => {
+            // Sample the named noise at (blockX, 0, blockZ).
+            // Uses the thread-local noise cache when active.
+            let value = random_state_normal_noise_snapshot(state.seed, settings, noise)
+                .map(|snap| {
+                    normal_noise_sample(&snap, state.block_x as f64, 0.0, state.block_z as f64)
+                })
+                .unwrap_or(0.0);
+            value >= *min && value <= *max
+        }
+        DynSurfaceCondition::VerticalGradient {
+            random_name,
+            true_at_and_below,
+            false_at_and_above,
+        } => {
+            let true_y = true_at_and_below.resolve_y(state.heights);
+            let false_y = false_at_and_above.resolve_y(state.heights);
+            if state.block_y <= true_y {
+                true
+            } else if state.block_y >= false_y {
+                false
+            } else {
+                let probability =
+                    1.0 - f64::from(state.block_y - true_y) / f64::from(false_y - true_y);
+                surface_positional_random_float(
+                    state.seed,
+                    state.algorithm,
+                    random_name,
+                    state.block_x,
+                    state.block_y,
+                    state.block_z,
+                ) < probability as f32
+            }
+        }
+        DynSurfaceCondition::YAbove {
+            anchor,
+            surface_depth_multiplier,
+            add_stone_depth,
+        } => {
+            let mut threshold =
+                anchor.resolve_y(state.heights) + state.surface_depth * surface_depth_multiplier;
+            if *add_stone_depth {
+                threshold += state.stone_depth_above;
+            }
+            state.block_y >= threshold
+        }
+        DynSurfaceCondition::Water {
+            offset,
+            surface_depth_multiplier,
+            add_stone_depth,
+        } => {
+            if state.water_height == i32::MIN {
+                return true; // no water column → block is above any water
+            }
+            let mut threshold =
+                state.water_height + offset + state.surface_depth * surface_depth_multiplier;
+            if *add_stone_depth {
+                threshold += state.stone_depth_above;
+            }
+            state.block_y >= threshold
+        }
+        DynSurfaceCondition::StoneDepth {
+            offset,
+            add_surface_depth,
+            secondary_depth_range,
+            surface,
+        } => {
+            let mut threshold = 1 + offset;
+            if *add_surface_depth {
+                threshold += state.surface_depth;
+            }
+            if *secondary_depth_range != 0 {
+                // Java: Mth.map(surfaceSecondary, -1.0, 1.0, 0.0, secondaryDepthRange)
+                //      = (surfaceSecondary + 1.0) / 2.0 * secondaryDepthRange
+                threshold += ((state.surface_secondary + 1.0)
+                    * 0.5
+                    * f64::from(*secondary_depth_range)) as i32;
+            }
+            let depth = match surface {
+                CaveSurface::Floor => state.stone_depth_above,
+                CaveSurface::Ceiling => state.stone_depth_below,
+            };
+            depth <= threshold
+        }
+        DynSurfaceCondition::Not(inner) => !dyn_surface_condition_test(inner, state, settings),
+        DynSurfaceCondition::Steep => state.steep,
+        DynSurfaceCondition::Hole => state.hole,
+        DynSurfaceCondition::AbovePreliminarySurface => state.block_y >= state.min_surface_level,
+        DynSurfaceCondition::Temperature => state.temperature < 0.15,
+    }
+}
+
+/// Evaluate a `DynSurfaceRule` against the current column/block state.
+///
+/// Returns the block ID to place, or `None` if no rule matches.
+/// Mirrors Java's `SurfaceRules.SurfaceRule::tryApply(blockX, blockY, blockZ)`.
+fn dyn_surface_rule_apply(
+    rule: &DynSurfaceRule,
+    state: &BuildSurfaceColumnState,
+    settings: NoiseGeneratorSettings,
+    band_fn: &impl Fn(i32, i32, i32) -> &'static str,
+) -> Option<String> {
+    match rule {
+        DynSurfaceRule::Bandlands => {
+            Some(band_fn(state.block_x, state.block_y, state.block_z).to_string())
+        }
+        DynSurfaceRule::Block(block) => Some(block.clone()),
+        DynSurfaceRule::Sequence(rules) => rules
+            .iter()
+            .find_map(|r| dyn_surface_rule_apply(r, state, settings, band_fn)),
+        DynSurfaceRule::Condition { condition, rule } => {
+            if dyn_surface_condition_test(condition, state, settings) {
+                dyn_surface_rule_apply(rule, state, settings, band_fn)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+// ── Surface rule loading from JSON ────────────────────────────────────────────
+
+/// Cache of loaded `DynSurfaceRule` values keyed by noise settings ID.
+/// Populated lazily on first access from the data directory.
+static SURFACE_RULE_CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, DynSurfaceRule>>> =
+    std::sync::OnceLock::new();
+
+fn surface_rule_cache() -> &'static std::sync::Mutex<HashMap<String, DynSurfaceRule>> {
+    SURFACE_RULE_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Load (or return from cache) the `DynSurfaceRule` for the given noise settings ID.
+///
+/// Parse the `surface_rule` field from a noise settings JSON file.
+///
+/// Reads from the canonical data location used by the test suite:
+/// `../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings/<name>.json`.
+///
+/// Results are cached so each settings ID is only loaded once.
+///
+/// Mirrors how Java deserialises `NoiseGeneratorSettings` via its Codec.
+pub fn load_surface_rule(settings_id: &str) -> Option<DynSurfaceRule> {
+    {
+        let cache = surface_rule_cache().lock().ok()?;
+        if let Some(rule) = cache.get(settings_id) {
+            return Some(rule.clone());
+        }
+    }
+    let name = settings_id
+        .strip_prefix("minecraft:")
+        .unwrap_or(settings_id);
+    // Use the same data directory as the noise-settings parity tests.
+    let path = format!(
+        "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings/{}.json",
+        name
+    );
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let rule = parse_dyn_surface_rule(&json["surface_rule"]).ok()?;
+    let mut cache = surface_rule_cache().lock().ok()?;
+    cache.insert(settings_id.to_string(), rule.clone());
+    Some(rule)
+}
+
+// ── build_surface_for_chunk ───────────────────────────────────────────────────
+
+/// Read the WORLD_SURFACE_WG heightmap value at (local_x, local_z) from a chunk.
+///
+/// Returns the Y value of the highest non-air block + 1 (or 0 if not present).
+fn read_world_surface_wg(
+    chunk: &crate::storage::chunk::LevelChunk,
+    local_x: usize,
+    local_z: usize,
+) -> i32 {
+    let hm = match chunk.heightmaps.get("WORLD_SURFACE_WG") {
+        Some(crate::storage::nbt::Tag::LongArray(longs)) => longs,
+        _ => return 0,
+    };
+    const BITS: usize = 9;
+    const MASK: u64 = (1u64 << BITS) - 1;
+    let index = local_z * 16 + local_x;
+    let bit_offset = index * BITS;
+    let word_index = bit_offset / 64;
+    let bit_index = bit_offset % 64;
+    if word_index >= hm.len() {
+        return 0;
+    }
+    let word = hm[word_index] as u64;
+    let mut value = (word >> bit_index) & MASK;
+    let spill = bit_index + BITS;
+    if spill > 64 && word_index + 1 < hm.len() {
+        let next = hm[word_index + 1] as u64;
+        value |= (next << (64 - bit_index)) & MASK;
+    }
+    value as i32
+}
+
+/// Returns `true` when `block` is neither air nor a fluid.
+///
+/// Mirrors Java `SurfaceSystem.isStone`: `!state.isAir() && state.getFluidState().isEmpty()`.
+fn is_surface_stone(block: &str) -> bool {
+    !is_surface_air(block) && !is_surface_fluid(block)
+}
+
+fn is_surface_air(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+    )
+}
+
+fn is_surface_fluid(block: &str) -> bool {
+    matches!(block, "minecraft:water" | "minecraft:lava")
+}
+
+/// Evaluate the clay band at (worldX, y, worldZ) for a given world seed.
+///
+/// Generates the clay band array from `"minecraft:clay_bands"` positional random
+/// and applies the `minecraft:clay_bands_offset` noise offset — mirroring
+/// `SurfaceSystem.generateBands` + `SurfaceSystem.getBand`.
+fn get_clay_band(
+    seed: i64,
+    algorithm: RandomAlgorithm,
+    settings: NoiseGeneratorSettings,
+    world_x: i32,
+    y: i32,
+    world_z: i32,
+) -> &'static str {
+    use crate::random_source::{random_state_named_factory, random_state_seed_factories};
+
+    let base = random_state_seed_factories(seed, algorithm).base;
+    // Java: generateBands(noiseRandom.fromHashOf(Identifier.withDefaultNamespace("clay_bands")))
+    let factory = random_state_named_factory(base, "minecraft:clay_bands");
+    let mut rng = factory.at(0, 0, 0);
+
+    const LEN: usize = 192;
+    // 0=TERRACOTTA, 1=ORANGE, 2=YELLOW, 3=BROWN, 4=RED, 5=WHITE, 6=LIGHT_GRAY
+    let mut bands = [0u8; LEN];
+
+    // Orange stripes (mirroring the first loop in generateBands)
+    let mut i = 0usize;
+    while i < LEN {
+        i += (random_next_i32_bound(&mut rng, 5) + 1) as usize;
+        if i < LEN {
+            bands[i] = 1;
+        }
+    }
+
+    // makeBands helper: YELLOW (baseWidth=1), BROWN (baseWidth=2), RED (baseWidth=1)
+    for (base_width, kind) in [(1u32, 2u8), (2, 3), (1, 4)] {
+        let count = random_next_i32_bound(&mut rng, 10) + 6;
+        for _ in 0..count {
+            let width = base_width as usize + random_next_i32_bound(&mut rng, 3) as usize;
+            let start = random_next_i32_bound(&mut rng, LEN as i32) as usize;
+            for p in 0..width {
+                if start + p < LEN {
+                    bands[start + p] = kind;
+                }
+            }
+        }
+    }
+
+    // White + light-gray stripes
+    // Java: nextIntBetweenInclusive(9, 15) = nextInt(7) + 9
+    let white_count = random_next_i32_bound(&mut rng, 7) + 9;
+    let mut w_start = 0usize;
+    for _ in 0..white_count {
+        // Java: nextInt(16) + 4
+        w_start += (random_next_i32_bound(&mut rng, 16) + 4) as usize;
+        if w_start >= LEN {
+            break;
+        }
+        bands[w_start] = 5;
+        // Java: nextBoolean() = nextInt(2) != 0
+        if w_start > 0 && random_next_i32_bound(&mut rng, 2) != 0 {
+            bands[w_start - 1] = 6;
+        }
+        if w_start + 1 < LEN && random_next_i32_bound(&mut rng, 2) != 0 {
+            bands[w_start + 1] = 6;
+        }
+    }
+
+    // getBand: apply clay_bands_offset noise
+    let offset = random_state_normal_noise_snapshot(seed, settings, "minecraft:clay_bands_offset")
+        .map(|snap| {
+            (normal_noise_sample(&snap, world_x as f64, 0.0, world_z as f64) * 4.0).round() as i32
+        })
+        .unwrap_or(0);
+
+    let idx = ((y + offset + LEN as i32).rem_euclid(LEN as i32)) as usize;
+    match bands[idx] {
+        0 => "minecraft:terracotta",
+        1 => "minecraft:orange_terracotta",
+        2 => "minecraft:yellow_terracotta",
+        3 => "minecraft:brown_terracotta",
+        4 => "minecraft:red_terracotta",
+        5 => "minecraft:white_terracotta",
+        6 => "minecraft:light_gray_terracotta",
+        _ => "minecraft:terracotta",
+    }
+}
+
+/// Apply surface rules to a noise-filled chunk.
+///
+/// Converts plain stone/water terrain into grass, dirt, sand, deepslate,
+/// bedrock, etc. according to the surface rule tree — mirroring Java's
+/// `SurfaceSystem.buildSurface`.
+///
+/// Must be called inside `with_noise_snapshot_cache`.
+fn build_surface_for_chunk(
+    chunk: &mut crate::storage::chunk::LevelChunk,
+    rule: &DynSurfaceRule,
+    noise_router: NoiseRouter,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+) {
+    let min_y = settings.noise.min_y;
+    let heights = WorldGenerationHeightContext {
+        min_y,
+        height: settings.noise.height,
+    };
+    let algorithm = if settings.legacy_random_source {
+        RandomAlgorithm::Legacy
+    } else {
+        RandomAlgorithm::Xoroshiro
+    };
+    let default_block = settings.default_block;
+
+    // Java uses DimensionType.WAY_BELOW_MIN_Y = Integer.MIN_VALUE / 2 as the
+    // "no ceiling stone found" sentinel.
+    const WAY_BELOW_MIN_Y: i32 = i32::MIN / 2;
+
+    // Pre-sample surface/secondary noises (thread-local cache keeps this cheap).
+    let surface_noise = random_state_normal_noise_snapshot(seed, *settings, "minecraft:surface");
+    let surface_secondary_noise =
+        random_state_normal_noise_snapshot(seed, *settings, "minecraft:surface_secondary");
+
+    let chunk_min_x = chunk.pos.x * 16;
+    let chunk_min_z = chunk.pos.z * 16;
+
+    // Pre-compute the 4 preliminary-surface-level corner values used by all
+    // columns in this chunk for the minSurfaceLevel bilinear interpolation.
+    // Java: cornerCellX = blockX >> 4; surfaceCellToBlockCoord(cornerCellX) = cornerCellX << 4
+    // ⟹ for any blockX in the chunk, cornerCellX * 16 == chunk_min_x.
+    let prelim_fn = noise_router.preliminary_surface_level;
+    let prelim_q = |bx: i32, bz: i32| {
+        let qx = (bx >> 2) << 2; // QuartPos round-down
+        let qz = (bz >> 2) << 2;
+        prelim_fn
+            .compute_with_noise(seed, *settings, qx, 0, qz)
+            .floor() as i32
+    };
+    let prelim00 = prelim_q(chunk_min_x, chunk_min_z);
+    let prelim10 = prelim_q(chunk_min_x + 16, chunk_min_z);
+    let prelim01 = prelim_q(chunk_min_x, chunk_min_z + 16);
+    let prelim11 = prelim_q(chunk_min_x + 16, chunk_min_z + 16);
+
+    let base_rng = random_state_seed_factories(seed, algorithm).base;
+
+    for local_z in 0..16_i32 {
+        for local_x in 0..16_i32 {
+            let block_x = chunk_min_x + local_x;
+            let block_z = chunk_min_z + local_z;
+            let lx = local_x as usize;
+            let lz = local_z as usize;
+
+            // getSurfaceDepth: (int)(surfaceNoise * 2.75 + 3.0 + random * 0.25)
+            let surface_noise_val = surface_noise
+                .as_ref()
+                .map(|snap| normal_noise_sample(snap, block_x as f64, 0.0, block_z as f64))
+                .unwrap_or(0.0);
+            let surface_depth = {
+                let mut at_rng = base_rng.at(block_x, 0, block_z);
+                let jitter = random_next_f64(&mut at_rng) * 0.25;
+                (surface_noise_val * 2.75 + 3.0 + jitter) as i32
+            };
+
+            // getSurfaceSecondary: surfaceSecondaryNoise.getValue(blockX, 0, blockZ)
+            let surface_secondary = surface_secondary_noise
+                .as_ref()
+                .map(|snap| normal_noise_sample(snap, block_x as f64, 0.0, block_z as f64))
+                .unwrap_or(0.0);
+
+            // Steep: height-diff ≥ 4 between neighbouring columns.
+            let h_n = read_world_surface_wg(chunk, lx, lz.saturating_sub(1));
+            let h_s = read_world_surface_wg(chunk, lx, (lz + 1).min(15));
+            let h_w = read_world_surface_wg(chunk, lx.saturating_sub(1), lz);
+            let h_e = read_world_surface_wg(chunk, (lx + 1).min(15), lz);
+            let steep = h_s >= h_n + 4 || h_w >= h_e + 4;
+            let hole = surface_depth <= 0;
+
+            // minSurfaceLevel: bilinear interpolation of the 4 corner preliminary
+            // levels + surfaceDepth - HOW_FAR_BELOW_PRELIMINARY_SURFACE_LEVEL_TO_BUILD_SURFACE
+            let tx = local_x as f64 / 16.0;
+            let tz = local_z as f64 / 16.0;
+            let prelim = lerp(
+                tz,
+                lerp(tx, prelim00 as f64, prelim10 as f64),
+                lerp(tx, prelim01 as f64, prelim11 as f64),
+            )
+            .floor() as i32;
+            // Java: HOW_FAR_BELOW = 8
+            let min_surface_level = prelim + surface_depth - 8;
+
+            let start_height = read_world_surface_wg(chunk, lx, lz);
+
+            let mut col = BuildSurfaceColumnState {
+                seed,
+                algorithm,
+                heights,
+                block_x,
+                block_z,
+                surface_depth,
+                surface_secondary,
+                steep,
+                hole,
+                min_surface_level,
+                block_y: 0,
+                water_height: i32::MIN,
+                stone_depth_above: 0,
+                stone_depth_below: 0,
+                biome: "minecraft:plains".to_string(), // TODO: real biome lookup
+                temperature: 0.8,                      // plains default
+            };
+
+            let mut stone_depth_above: i32 = 0;
+            let mut water_height: i32 = i32::MIN;
+            let mut next_ceiling_stone_y: i32 = i32::MAX;
+            let end_y = min_y;
+
+            for y in (end_y..=start_height).rev() {
+                let block = chunk
+                    .get_block_state(block_x, y, block_z)
+                    .unwrap_or_else(|| "minecraft:air".to_string());
+                let block_str = block.as_str();
+
+                if is_surface_air(block_str) {
+                    stone_depth_above = 0;
+                    water_height = i32::MIN;
+                } else if is_surface_fluid(block_str) {
+                    if water_height == i32::MIN {
+                        water_height = y + 1;
+                    }
+                } else {
+                    // Solid block.
+                    if next_ceiling_stone_y >= y {
+                        next_ceiling_stone_y = WAY_BELOW_MIN_Y;
+                        let mut la = y - 1;
+                        while la >= end_y - 1 {
+                            let la_block = chunk
+                                .get_block_state(block_x, la, block_z)
+                                .unwrap_or_else(|| "minecraft:air".to_string());
+                            if !is_surface_stone(&la_block) {
+                                next_ceiling_stone_y = la + 1;
+                                break;
+                            }
+                            la -= 1;
+                        }
+                    }
+
+                    stone_depth_above += 1;
+                    let stone_depth_below = y - next_ceiling_stone_y + 1;
+
+                    col.block_y = y;
+                    col.water_height = water_height;
+                    col.stone_depth_above = stone_depth_above;
+                    col.stone_depth_below = stone_depth_below;
+
+                    if block_str == default_block {
+                        let band_fn = |wx: i32, by: i32, wz: i32| {
+                            get_clay_band(seed, algorithm, *settings, wx, by, wz)
+                        };
+                        if let Some(new_block) =
+                            dyn_surface_rule_apply(rule, &col, *settings, &band_fn)
+                        {
+                            chunk.set_block_state(block_x, y, block_z, &new_block);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Fill terrain from the noise density function AND apply surface rules.
+///
+/// Returns a chunk with status `"minecraft:surface"`, mirroring the Java
+/// pipeline of `NoiseBasedChunkGenerator.doFill` followed by
+/// `NoiseBasedChunkGenerator.buildSurface`.
+///
+/// Both phases share the same noise-snapshot cache for performance.
+pub fn fill_noise_and_build_surface(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+    surface_rule: &DynSurfaceRule,
+) -> crate::storage::chunk::LevelChunk {
+    with_noise_snapshot_cache(|| {
+        let mut chunk = fill_from_noise_chunk_inner(pos, settings, seed, noise_router);
+        build_surface_for_chunk(&mut chunk, surface_rule, noise_router, settings, seed);
+        chunk.status = "minecraft:surface".to_string();
+        chunk
+    })
 }
 
 pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily> {
@@ -33444,6 +34298,795 @@ pub fn carver_can_reach(
     xd * xd + zd * zd - remaining * remaining <= rr * rr
 }
 
+// ============================================================================
+// NoiseChunk — cell-based trilinear interpolation
+//
+// Mirrors Java's `NoiseChunk` / `NoiseInterpolator` in
+// `net.minecraft.world.level.levelgen.NoiseChunk`.
+//
+// Overview
+// --------
+// The overworld divides the world into *cells* (4×4 blocks wide, 8 blocks
+// tall by default).  For each Interpolated-marker density function in the
+// `final_density` tree, the inner function is sampled at every cell *corner*
+// (one call per corner per interpolator).  Inside the cell the sampled corner
+// values are trilinearly interpolated, avoiding per-block full noise
+// evaluation.
+//
+// Iteration order matches Java's `doFill` in `NoiseBasedChunkGenerator`:
+//
+//   for cell_x in 0..cell_count_xz:
+//     advance_cell_x(cell_x)          ← fills the next-X slice
+//     for cell_z in 0..cell_count_xz:
+//       for cell_y in (0..cell_count_y).rev():
+//         select_cell_yz(cell_y, cell_z)
+//         for y_in_cell in (0..cell_height).rev():
+//           update_for_y(…)
+//           for x_in_cell in 0..cell_width:
+//             update_for_x(…)
+//             for z_in_cell in 0..cell_width:
+//               update_for_z(…)
+//               // read interpolated_density(…)
+//     swap_slices()                   ← swap current / next
+// ============================================================================
+
+/// Pack a `(block_x, block_z)` pair into a single `i64` key.
+///
+/// Matches Java `ColumnPos.asLong(blockX, blockZ)`:
+/// `(blockX & 0xFFFF_FFFF_L) | ((long) blockZ << 32)`.
+fn pack_column(x: i32, z: i32) -> i64 {
+    ((x as i64) & 0xFFFF_FFFF) | ((z as i64) << 32)
+}
+
+/// Walk a `DensityFunction` tree depth-first and collect the `&'static`
+/// inner functions of every `Marker(Interpolated)` node.
+///
+/// Duplicates (by pointer identity) are not added twice — this matches Java's
+/// `HashMap<DensityFunction, DensityFunction>` deduplication in `NoiseChunk.wrap`.
+fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static DensityFunction>) {
+    match df {
+        DensityFunction::Marker {
+            kind: DensityMarker::Interpolated,
+            input,
+        } => {
+            let ptr = input as *const DensityFunction as usize;
+            if !out
+                .iter()
+                .any(|existing| *existing as *const DensityFunction as usize == ptr)
+            {
+                out.push(input);
+            }
+            // Recurse into the inner function in case it contains nested markers.
+            collect_interpolated_inputs(*input, out);
+        }
+        DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
+            collect_interpolated_inputs(*input, out);
+        }
+        DensityFunction::Clamp { input, .. } => {
+            collect_interpolated_inputs(*input, out);
+        }
+        DensityFunction::Mapped { input, .. } => {
+            collect_interpolated_inputs(*input, out);
+        }
+        DensityFunction::Binary {
+            argument1,
+            argument2,
+            ..
+        } => {
+            collect_interpolated_inputs(*argument1, out);
+            collect_interpolated_inputs(*argument2, out);
+        }
+        DensityFunction::RangeChoice {
+            input,
+            when_in_range,
+            when_out_of_range,
+            ..
+        } => {
+            collect_interpolated_inputs(*input, out);
+            collect_interpolated_inputs(*when_in_range, out);
+            collect_interpolated_inputs(*when_out_of_range, out);
+        }
+        DensityFunction::WeirdScaledSampler { input, .. } => {
+            collect_interpolated_inputs(*input, out);
+        }
+        DensityFunction::ShiftedNoise {
+            shift_x,
+            shift_y,
+            shift_z,
+            ..
+        } => {
+            collect_interpolated_inputs(*shift_x, out);
+            collect_interpolated_inputs(*shift_y, out);
+            collect_interpolated_inputs(*shift_z, out);
+        }
+        DensityFunction::FindTopSurface {
+            density,
+            upper_bound,
+            ..
+        } => {
+            collect_interpolated_inputs(*density, out);
+            collect_interpolated_inputs(*upper_bound, out);
+        }
+        DensityFunction::Reference(id) => {
+            if let Some(entry) = builtin_density_function(id) {
+                collect_interpolated_inputs(entry.function, out);
+            }
+        }
+        // Leaf nodes (Constant, YClampedGradient, Noise, Shift*, BlendedNoise,
+        // EndIslands, Beardifier, BlendAlpha, BlendOffset, Spline): no children.
+        _ => {}
+    }
+}
+
+/// Evaluate a `DensityFunction` tree, substituting interpolated values for
+/// every `Marker(Interpolated)` node whose inner function is tracked by the
+/// chunk's interpolator table.
+///
+/// Takes `&NoiseChunk` directly (instead of a pre-built HashMap) to avoid a
+/// 98,304-allocation-per-chunk overhead and to correctly handle
+/// `DensityFunction::Reference` nodes by following them recursively.
+///
+/// This mirrors how Java's `NoiseChunk` wraps each density function so that
+/// `compute(NoiseChunk.this)` returns the pre-interpolated value.
+fn eval_density_fn_with_interp(
+    df: DensityFunction,
+    chunk: &NoiseChunk,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> f64 {
+    let seed = chunk.seed;
+    let settings = chunk.settings;
+    match df {
+        DensityFunction::Marker {
+            kind: DensityMarker::Interpolated,
+            input,
+        } => {
+            let ptr = input as *const DensityFunction as usize;
+            if let Some(&idx) = chunk.interp_by_ptr.get(&ptr) {
+                // Return the trilinearly-interpolated value cached by the interpolator.
+                chunk.interpolators[idx].value
+            } else {
+                // Not tracked — fall back to point evaluation.
+                input.compute_with_noise(seed, settings, x, y, z)
+            }
+        }
+        // Follow references into the built-in density function registry.
+        // This is critical: the overworld's final_density IS a Reference node,
+        // so without this arm the entire interpolation system is bypassed.
+        DensityFunction::Reference(id) => {
+            if let Some(entry) = builtin_density_function(id) {
+                eval_density_fn_with_interp(entry.function, chunk, x, y, z)
+            } else {
+                0.0
+            }
+        }
+        DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
+            eval_density_fn_with_interp(*input, chunk, x, y, z)
+        }
+        DensityFunction::Clamp { input, min, max } => {
+            eval_density_fn_with_interp(*input, chunk, x, y, z).clamp(min, max)
+        }
+        DensityFunction::Mapped { kind, input } => {
+            kind.transform(eval_density_fn_with_interp(*input, chunk, x, y, z))
+        }
+        DensityFunction::Binary {
+            kind,
+            argument1,
+            argument2,
+        } => {
+            let first = eval_density_fn_with_interp(*argument1, chunk, x, y, z);
+            kind.apply_lazy(first, argument2.value_bounds(), || {
+                eval_density_fn_with_interp(*argument2, chunk, x, y, z)
+            })
+        }
+        DensityFunction::RangeChoice {
+            input,
+            min_inclusive,
+            max_exclusive,
+            when_in_range,
+            when_out_of_range,
+        } => {
+            let v = eval_density_fn_with_interp(*input, chunk, x, y, z);
+            if v >= min_inclusive && v < max_exclusive {
+                eval_density_fn_with_interp(*when_in_range, chunk, x, y, z)
+            } else {
+                eval_density_fn_with_interp(*when_out_of_range, chunk, x, y, z)
+            }
+        }
+        // All remaining variants have no children containing Interpolated markers
+        // (or are already fully evaluated at slice-fill time): delegate to
+        // compute_with_noise for correctness.
+        other => other.compute_with_noise(seed, settings, x, y, z),
+    }
+}
+
+// ── NoiseInterpolatorState ────────────────────────────────────────────────────
+
+/// Per-density-function trilinear interpolator.
+///
+/// Mirrors Java's `NoiseChunk.NoiseInterpolator`.
+///
+/// Two "slice" arrays (`slice0` / `slice1`) hold sampled corner values along
+/// the current and next X-cell-column respectively.  Each slice is indexed as
+/// `slice[z_corner][y_corner]` where both indices run from `0` to `cell_count`
+/// (inclusive).
+///
+/// During block iteration the 8 cell-corner values are loaded by
+/// `select_cell_yz`, then the Y/X/Z lerp steps update partial accumulators
+/// until `value` holds the fully-interpolated density.
+struct NoiseInterpolatorState {
+    /// The inner density function that is sampled at cell corners.
+    inner_fn: &'static DensityFunction,
+    /// `slice0[z_idx][y_idx]`: corner values for the *current* X cell column.
+    slice0: Vec<Vec<f64>>,
+    /// `slice1[z_idx][y_idx]`: corner values for the *next* X cell column.
+    slice1: Vec<Vec<f64>>,
+    // Eight cell-corner values (populated by `select_cell_yz`).
+    // Naming: noise_XYZ where X/Y/Z = 0 (current cell edge) or 1 (next edge).
+    noise000: f64,
+    noise001: f64,
+    noise100: f64,
+    noise101: f64,
+    noise010: f64,
+    noise011: f64,
+    noise110: f64,
+    noise111: f64,
+    // Partial lerp accumulators — written by update_for_y / update_for_x.
+    value_xz00: f64,
+    value_xz10: f64,
+    value_xz01: f64,
+    value_xz11: f64,
+    value_z0: f64,
+    value_z1: f64,
+    /// Fully-interpolated value for the current block position (written by
+    /// `update_for_z`).
+    value: f64,
+}
+
+impl NoiseInterpolatorState {
+    fn new(cell_count_y: usize, cell_count_xz: usize, inner_fn: &'static DensityFunction) -> Self {
+        let sz = cell_count_xz + 1; // z corners
+        let sy = cell_count_y + 1; // y corners
+        Self {
+            inner_fn,
+            slice0: (0..sz).map(|_| vec![0.0; sy]).collect(),
+            slice1: (0..sz).map(|_| vec![0.0; sy]).collect(),
+            noise000: 0.0,
+            noise001: 0.0,
+            noise100: 0.0,
+            noise101: 0.0,
+            noise010: 0.0,
+            noise011: 0.0,
+            noise110: 0.0,
+            noise111: 0.0,
+            value_xz00: 0.0,
+            value_xz10: 0.0,
+            value_xz01: 0.0,
+            value_xz11: 0.0,
+            value_z0: 0.0,
+            value_z1: 0.0,
+            value: 0.0,
+        }
+    }
+
+    /// Evaluate `inner_fn` at every (Z, Y) cell-corner for the given X
+    /// cell-column and store the results into either `slice0` or `slice1`.
+    ///
+    /// Mirrors Java's `NoiseChunk.fillSlice` / `NoiseInterpolator.fillArray`.
+    fn fill_slice(
+        &mut self,
+        use_slice0: bool,
+        block_x: i32,
+        cell_count_y: i32,
+        cell_noise_min_y: i32,
+        cell_height: i32,
+        first_cell_z: i32,
+        cell_count_xz: i32,
+        cell_width: i32,
+        seed: i64,
+        settings: NoiseGeneratorSettings,
+    ) {
+        let slice = if use_slice0 {
+            &mut self.slice0
+        } else {
+            &mut self.slice1
+        };
+        for z_idx in 0..=(cell_count_xz as usize) {
+            let block_z = (first_cell_z + z_idx as i32) * cell_width;
+            for y_idx in 0..=(cell_count_y as usize) {
+                // The Y corner corresponds to block_y = (cell_noise_min_y + y_idx) * cell_height.
+                // Java iterates y from 0 to cellCountY (inclusive) with inCellY = 0 and
+                // cellStartBlockY = (y_idx + cellNoiseMinY) * cellHeight — exactly this.
+                let block_y = (cell_noise_min_y + y_idx as i32) * cell_height;
+                slice[z_idx][y_idx] = self
+                    .inner_fn
+                    .compute_with_noise(seed, settings, block_x, block_y, block_z);
+            }
+        }
+    }
+
+    /// Load the 8 corner values for the cell at `(cell_y_idx, cell_z_idx)`.
+    ///
+    /// Mirrors Java `NoiseInterpolator.selectCellYZ`.
+    fn select_cell_yz(&mut self, cell_y_idx: usize, cell_z_idx: usize) {
+        self.noise000 = self.slice0[cell_z_idx][cell_y_idx];
+        self.noise001 = self.slice0[cell_z_idx + 1][cell_y_idx];
+        self.noise100 = self.slice1[cell_z_idx][cell_y_idx];
+        self.noise101 = self.slice1[cell_z_idx + 1][cell_y_idx];
+        self.noise010 = self.slice0[cell_z_idx][cell_y_idx + 1];
+        self.noise011 = self.slice0[cell_z_idx + 1][cell_y_idx + 1];
+        self.noise110 = self.slice1[cell_z_idx][cell_y_idx + 1];
+        self.noise111 = self.slice1[cell_z_idx + 1][cell_y_idx + 1];
+    }
+
+    /// Lerp along Y: populate `value_xz*` from the 8 corner values.
+    ///
+    /// `factor_y` is `y_in_cell / cell_height` (0.0 at bottom of cell → 1.0 at top).
+    ///
+    /// Mirrors Java `NoiseInterpolator.updateForY`.
+    fn update_for_y(&mut self, factor_y: f64) {
+        self.value_xz00 = lerp(factor_y, self.noise000, self.noise010);
+        self.value_xz10 = lerp(factor_y, self.noise100, self.noise110);
+        self.value_xz01 = lerp(factor_y, self.noise001, self.noise011);
+        self.value_xz11 = lerp(factor_y, self.noise101, self.noise111);
+    }
+
+    /// Lerp along X: populate `value_z*` from `value_xz*`.
+    ///
+    /// `factor_x` is `x_in_cell / cell_width`.
+    ///
+    /// Mirrors Java `NoiseInterpolator.updateForX`.
+    fn update_for_x(&mut self, factor_x: f64) {
+        self.value_z0 = lerp(factor_x, self.value_xz00, self.value_xz10);
+        self.value_z1 = lerp(factor_x, self.value_xz01, self.value_xz11);
+    }
+
+    /// Lerp along Z: write the fully-interpolated `value`.
+    ///
+    /// `factor_z` is `z_in_cell / cell_width`.
+    ///
+    /// Mirrors Java `NoiseInterpolator.updateForZ`.
+    fn update_for_z(&mut self, factor_z: f64) {
+        self.value = lerp(factor_z, self.value_z0, self.value_z1);
+    }
+
+    /// Swap `slice0` and `slice1` so that the previously-filled "next" slice
+    /// becomes the "current" slice at the start of the next X-cell-column.
+    ///
+    /// Mirrors Java `NoiseInterpolator.swapSlices`.
+    fn swap_slices(&mut self) {
+        std::mem::swap(&mut self.slice0, &mut self.slice1);
+    }
+}
+
+// ── NoiseChunk ────────────────────────────────────────────────────────────────
+
+/// Cell-based sampling context for one chunk's noise generation.
+///
+/// Mirrors Java's `NoiseChunk` (inner interpolation state only; Aquifer and
+/// Beardifier are not yet wired).
+///
+/// The overworld uses 4-wide × 8-tall cells (`cell_width = 4`, `cell_height = 8`).
+/// For each X-cell-column, `advance_cell_x` fills the *next* slice, then
+/// `swap_slices` promotes it to the *current* slice.  Within each cell, values
+/// are trilinearly interpolated by successive calls to `update_for_y`,
+/// `update_for_x`, and `update_for_z`.
+pub struct NoiseChunk {
+    pub cell_width: i32,
+    pub cell_height: i32,
+    /// Number of cells along X and Z (= 16 / cell_width).
+    pub cell_count_xz: i32,
+    /// Number of cells along Y (= height / cell_height).
+    pub cell_count_y: i32,
+    /// Lowest Y cell index (= min_y / cell_height, using floor division).
+    pub cell_noise_min_y: i32,
+    /// Cell X index of the chunk's west edge.
+    pub first_cell_x: i32,
+    /// Cell Z index of the chunk's north edge.
+    pub first_cell_z: i32,
+    /// Quart-block count along XZ within the chunk (= cell_count_xz * cell_width >> 2).
+    pub noise_size_xz: i32,
+
+    /// One interpolator per `Interpolated`-marked inner function found in
+    /// `final_density`.
+    interpolators: Vec<NoiseInterpolatorState>,
+    /// Maps inner-function pointer address → `interpolators` index so that
+    /// `eval_density_fn_with_interp` can look up the current interpolated value
+    /// in O(1).
+    interp_by_ptr: HashMap<usize, usize>,
+
+    // Current position tracking (updated during the iteration loops).
+    pub cell_start_block_x: i32,
+    pub cell_start_block_y: i32,
+    pub cell_start_block_z: i32,
+    pub in_cell_x: i32,
+    pub in_cell_y: i32,
+    pub in_cell_z: i32,
+
+    /// `true` while inside the X-cell-column iteration loop.
+    interpolating: bool,
+
+    /// Cache of preliminary surface levels, keyed by `pack_column(blockX, blockZ)`.
+    prelim_surface_cache: HashMap<i64, i32>,
+
+    pub seed: i64,
+    pub settings: NoiseGeneratorSettings,
+    pub noise_router: NoiseRouter,
+}
+
+impl NoiseChunk {
+    /// Create a new `NoiseChunk` for the chunk whose western-most block column
+    /// starts at `(chunk_min_block_x, chunk_min_block_z)`.
+    ///
+    /// Collects all `Interpolated`-marker inner functions from `final_density`
+    /// and pre-fills the first X-slice (the slice for `first_cell_x`).
+    ///
+    /// Mirrors Java `NoiseChunk.forChunk` / `NoiseChunk.initializeForFirstCellX`.
+    pub fn new(
+        chunk_min_block_x: i32,
+        chunk_min_block_z: i32,
+        settings: NoiseGeneratorSettings,
+        seed: i64,
+        noise_router: NoiseRouter,
+    ) -> Self {
+        let cell_width = settings.noise.cell_width();
+        let cell_height = settings.noise.cell_height();
+        let cell_count_xz = 16 / cell_width;
+        let cell_count_y = settings.noise.height / cell_height;
+        let cell_noise_min_y = settings.noise.min_y.div_euclid(cell_height);
+        let first_cell_x = chunk_min_block_x.div_euclid(cell_width);
+        let first_cell_z = chunk_min_block_z.div_euclid(cell_width);
+        let noise_size_xz = (cell_count_xz * cell_width) >> 2;
+
+        // Collect all Interpolated-marker inner functions from the final_density
+        // tree, in depth-first left-to-right order without duplicates.
+        let mut inputs: Vec<&'static DensityFunction> = Vec::new();
+        collect_interpolated_inputs(noise_router.final_density, &mut inputs);
+
+        // Build the lookup map: pointer → interpolator index.
+        let interp_by_ptr: HashMap<usize, usize> = inputs
+            .iter()
+            .enumerate()
+            .map(|(i, &fn_ref)| (fn_ref as *const DensityFunction as usize, i))
+            .collect();
+
+        // Allocate one interpolator per unique inner function.
+        let mut interpolators: Vec<NoiseInterpolatorState> = inputs
+            .iter()
+            .map(|&fn_ref| {
+                NoiseInterpolatorState::new(cell_count_y as usize, cell_count_xz as usize, fn_ref)
+            })
+            .collect();
+
+        // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
+        let block_x = first_cell_x * cell_width;
+        for interp in &mut interpolators {
+            interp.fill_slice(
+                true,
+                block_x,
+                cell_count_y,
+                cell_noise_min_y,
+                cell_height,
+                first_cell_z,
+                cell_count_xz,
+                cell_width,
+                seed,
+                settings,
+            );
+        }
+
+        Self {
+            cell_width,
+            cell_height,
+            cell_count_xz,
+            cell_count_y,
+            cell_noise_min_y,
+            first_cell_x,
+            first_cell_z,
+            noise_size_xz,
+            interpolators,
+            interp_by_ptr,
+            cell_start_block_x: first_cell_x * cell_width,
+            cell_start_block_y: cell_noise_min_y * cell_height,
+            cell_start_block_z: first_cell_z * cell_width,
+            in_cell_x: 0,
+            in_cell_y: 0,
+            in_cell_z: 0,
+            interpolating: false,
+            prelim_surface_cache: HashMap::new(),
+            seed,
+            settings,
+            noise_router,
+        }
+    }
+
+    /// Fill the *next* X-slice (slice1) for `first_cell_x + cell_x_index + 1`
+    /// and set `cell_start_block_x` to the start of the current X-cell-column.
+    ///
+    /// Mirrors Java `NoiseChunk.advanceCellX`.
+    pub fn advance_cell_x(&mut self, cell_x_index: i32) {
+        let next_cell_x = self.first_cell_x + cell_x_index + 1;
+        let block_x = next_cell_x * self.cell_width;
+        for interp in &mut self.interpolators {
+            interp.fill_slice(
+                false,
+                block_x,
+                self.cell_count_y,
+                self.cell_noise_min_y,
+                self.cell_height,
+                self.first_cell_z,
+                self.cell_count_xz,
+                self.cell_width,
+                self.seed,
+                self.settings,
+            );
+        }
+        self.cell_start_block_x = (self.first_cell_x + cell_x_index) * self.cell_width;
+        self.interpolating = true;
+    }
+
+    /// Load the 8 corner values for the (Y, Z) cell at `(cell_y_idx, cell_z_idx)`
+    /// and set the block-Y/Z start positions.
+    ///
+    /// Mirrors Java `NoiseChunk.selectCellYZ`.
+    pub fn select_cell_yz(&mut self, cell_y_idx: i32, cell_z_idx: i32) {
+        for interp in &mut self.interpolators {
+            interp.select_cell_yz(cell_y_idx as usize, cell_z_idx as usize);
+        }
+        self.cell_start_block_y = (self.cell_noise_min_y + cell_y_idx) * self.cell_height;
+        self.cell_start_block_z = (self.first_cell_z + cell_z_idx) * self.cell_width;
+    }
+
+    /// Advance the Y factor and update Y-axis partial lerp values for all
+    /// interpolators.
+    ///
+    /// `factor_y = y_in_cell / cell_height` (Java: `(double)posY / cellHeight`).
+    ///
+    /// Mirrors Java `NoiseChunk.updateForY`.
+    pub fn update_for_y(&mut self, pos_y: i32, factor_y: f64) {
+        self.in_cell_y = pos_y - self.cell_start_block_y;
+        for interp in &mut self.interpolators {
+            interp.update_for_y(factor_y);
+        }
+    }
+
+    /// Advance the X factor and update X-axis partial lerp values for all
+    /// interpolators.
+    ///
+    /// `factor_x = x_in_cell / cell_width`.
+    ///
+    /// Mirrors Java `NoiseChunk.updateForX`.
+    pub fn update_for_x(&mut self, pos_x: i32, factor_x: f64) {
+        self.in_cell_x = pos_x - self.cell_start_block_x;
+        for interp in &mut self.interpolators {
+            interp.update_for_x(factor_x);
+        }
+    }
+
+    /// Advance the Z factor and write the fully-interpolated `value` for all
+    /// interpolators.
+    ///
+    /// `factor_z = z_in_cell / cell_width`.
+    ///
+    /// Mirrors Java `NoiseChunk.updateForZ`.
+    pub fn update_for_z(&mut self, pos_z: i32, factor_z: f64) {
+        self.in_cell_z = pos_z - self.cell_start_block_z;
+        for interp in &mut self.interpolators {
+            interp.update_for_z(factor_z);
+        }
+    }
+
+    /// Swap the current and next X-slices for all interpolators.
+    ///
+    /// Called once per X-cell-column after all blocks in that column have been
+    /// processed.  Mirrors Java `NoiseChunk.swapSlices`.
+    pub fn swap_slices(&mut self) {
+        for interp in &mut self.interpolators {
+            interp.swap_slices();
+        }
+    }
+
+    /// Return the trilinearly-interpolated final density at the current block
+    /// position.
+    ///
+    /// Walks the `final_density` tree, substituting the current interpolated
+    /// value for every `Marker(Interpolated)` node tracked by this chunk.
+    /// `DensityFunction::Reference` nodes are followed into the built-in
+    /// registry so that the overworld's reference-based final_density is
+    /// evaluated correctly.
+    ///
+    /// If there are no `Interpolated` markers in `final_density` (rare), falls
+    /// back to a full point evaluation.
+    pub fn interpolated_density(&self, x: i32, y: i32, z: i32) -> f64 {
+        if self.interpolators.is_empty() {
+            // No Interpolated markers found — evaluate the full function point-wise.
+            return self.noise_router.final_density.compute_with_noise(
+                self.seed,
+                self.settings,
+                x,
+                y,
+                z,
+            );
+        }
+
+        eval_density_fn_with_interp(self.noise_router.final_density, self, x, y, z)
+    }
+
+    /// Compute and cache the preliminary surface level at the given block
+    /// column, quantised to the nearest quart-block boundary (matching Java's
+    /// `QuartPos.toBlock(QuartPos.fromBlock(x))`).
+    ///
+    /// Mirrors Java `NoiseChunk.preliminarySurfaceLevel`.
+    pub fn preliminary_surface_level(&mut self, block_x: i32, block_z: i32) -> i32 {
+        // Quantise: shift right by 2 then left by 2 (= round down to multiple of 4).
+        let qx = (block_x >> 2) << 2;
+        let qz = (block_z >> 2) << 2;
+        let key = pack_column(qx, qz);
+        if let Some(&cached) = self.prelim_surface_cache.get(&key) {
+            return cached;
+        }
+        let value = self
+            .noise_router
+            .preliminary_surface_level
+            .compute_with_noise(self.seed, self.settings, qx, 0, qz)
+            .floor() as i32;
+        self.prelim_surface_cache.insert(key, value);
+        value
+    }
+}
+
+// ── fill_from_noise_chunk ────────────────────────────────────────────────────
+
+/// Fill a chunk's blocks using cell-based trilinear interpolation of the noise
+/// density functions.
+///
+/// Mirrors Java `NoiseBasedChunkGenerator.doFill`.
+///
+/// Block assignment rules (no aquifer, simplified):
+/// - `density > 0`              → `settings.default_block` (typically stone)
+/// - `density ≤ 0`, `y < min_y + 10` → `minecraft:lava` (near bedrock floor)
+/// - `density ≤ 0`, `y ≤ sea_level` → `settings.default_fluid` (water)
+/// - `density ≤ 0`, `y > sea_level` → `minecraft:air`
+///
+/// The returned chunk has status `"minecraft:noise"` and contains
+/// `WORLD_SURFACE_WG` and `OCEAN_FLOOR_WG` heightmaps.
+pub fn fill_from_noise_chunk(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> LevelChunk {
+    // Activate the thread-local noise-snapshot cache so that Perlin noise tables
+    // are initialised once per noise key per chunk, not once per cell-corner
+    // evaluation — this makes chunk generation ~1000× faster.
+    with_noise_snapshot_cache(|| fill_from_noise_chunk_inner(pos, settings, seed, noise_router))
+}
+
+fn fill_from_noise_chunk_inner(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> LevelChunk {
+    let mut chunk = LevelChunk::empty(pos);
+    chunk.status = "minecraft:noise".to_string();
+
+    let min_y = settings.noise.min_y;
+    let height = settings.noise.height;
+    let section_count = (height + 15) / 16;
+    let min_section = min_y.div_euclid(16);
+
+    // Initialise all chunk sections to air.
+    chunk.sections = (0..section_count)
+        .map(|i| {
+            let section_y = min_section + i;
+            let biome = Tag::String("minecraft:plains".to_string());
+            ChunkSection {
+                y: section_y as i8,
+                block_states: PalettedContainer::single(
+                    Tag::Compound(vec![(
+                        "Name".to_string(),
+                        Tag::String("minecraft:air".to_string()),
+                    )]),
+                    SECTION_VOLUME,
+                )
+                .to_nbt(),
+                biomes: PalettedContainer::single(biome, BIOME_SECTION_VOLUME).to_nbt(),
+                block_light: None,
+                sky_light: Some(vec![-1i8; 2048]),
+            }
+        })
+        .collect();
+
+    let chunk_min_x = pos.x * 16;
+    let chunk_min_z = pos.z * 16;
+
+    let cell_width = settings.noise.cell_width();
+    let cell_height = settings.noise.cell_height();
+    let cell_count_xz = 16 / cell_width;
+    let cell_count_y = height / cell_height;
+    let cell_noise_min_y = min_y.div_euclid(cell_height);
+
+    let mut noise_chunk = NoiseChunk::new(chunk_min_x, chunk_min_z, *settings, seed, noise_router);
+
+    // Heightmap accumulators (Y+1 of the highest non-air block).
+    let mut ocean_floor = [min_y; 256];
+    let mut world_surface = [min_y; 256];
+
+    for cell_x_index in 0..cell_count_xz {
+        // Fill the next-X slice for this column and set cell_start_block_x.
+        noise_chunk.advance_cell_x(cell_x_index);
+
+        for cell_z_index in 0..cell_count_xz {
+            // Iterate Y from top of the world downward (matches Java doFill).
+            for cell_y_index in (0..cell_count_y).rev() {
+                noise_chunk.select_cell_yz(cell_y_index, cell_z_index);
+
+                for y_in_cell in (0..cell_height).rev() {
+                    let pos_y = (cell_noise_min_y + cell_y_index) * cell_height + y_in_cell;
+                    let factor_y = y_in_cell as f64 / cell_height as f64;
+                    noise_chunk.update_for_y(pos_y, factor_y);
+
+                    for x_in_cell in 0..cell_width {
+                        let pos_x = chunk_min_x + cell_x_index * cell_width + x_in_cell;
+                        let local_x = (pos_x & 15) as usize;
+                        let factor_x = x_in_cell as f64 / cell_width as f64;
+                        noise_chunk.update_for_x(pos_x, factor_x);
+
+                        for z_in_cell in 0..cell_width {
+                            let pos_z = chunk_min_z + cell_z_index * cell_width + z_in_cell;
+                            let local_z = (pos_z & 15) as usize;
+                            let factor_z = z_in_cell as f64 / cell_width as f64;
+                            noise_chunk.update_for_z(pos_z, factor_z);
+
+                            let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
+
+                            let block: &'static str = if density > 0.0 {
+                                settings.default_block
+                            } else if pos_y < min_y + 10 {
+                                "minecraft:lava"
+                            } else if pos_y <= settings.sea_level {
+                                settings.default_fluid
+                            } else {
+                                "minecraft:air"
+                            };
+
+                            if block != "minecraft:air" {
+                                chunk.set_block_state(pos_x, pos_y, pos_z, block);
+                                let idx = local_z * 16 + local_x;
+                                if pos_y + 1 > world_surface[idx] {
+                                    world_surface[idx] = pos_y + 1;
+                                }
+                                if block != "minecraft:water" && pos_y + 1 > ocean_floor[idx] {
+                                    ocean_floor[idx] = pos_y + 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Swap so that the filled next-slice becomes the current slice for the
+        // next iteration.
+        noise_chunk.swap_slices();
+    }
+
+    chunk.heightmaps = BTreeMap::from([
+        (
+            HeightmapKind::WorldSurfaceWg.storage_name().to_string(),
+            Tag::LongArray(pack_heightmap(world_surface)),
+        ),
+        (
+            HeightmapKind::OceanFloorWg.storage_name().to_string(),
+            Tag::LongArray(pack_heightmap(ocean_floor)),
+        ),
+    ]);
+
+    chunk
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -36460,6 +38103,128 @@ mod tests {
         assert_eq!(
             super::builtin_surface_rule_preset("air").unwrap().rule,
             SurfaceRuleKind::State("minecraft:air")
+        );
+    }
+
+    /// Parity test: after applying the overworld surface rule, any land column (top solid
+    /// block above sea level) should have grass on top, dirt directly below, and stone
+    /// several blocks further down.  Because chunk (0,0) at seed 0 may be partially or
+    /// fully underwater, we scan all 256 columns and pick the first one that is land.
+    ///
+    /// Verifies items 155-158 of CHECKLIST_WORLDGEN.md.
+    #[test]
+    fn overworld_surface_rules_place_grass_dirt_stone_in_plains_column() {
+        use super::{
+            builtin_noise_generator_settings, builtin_noise_router, fill_noise_and_build_surface,
+            load_surface_rule, noise_router_id_for_settings, ChunkPos, NONE_NOISE_ROUTER,
+        };
+
+        let settings = builtin_noise_generator_settings("minecraft:overworld")
+            .expect("overworld noise settings must exist");
+        let router_id = noise_router_id_for_settings(*settings);
+        let noise_router = builtin_noise_router(router_id)
+            .map(|e| e.router)
+            .unwrap_or(NONE_NOISE_ROUTER);
+        let rule = load_surface_rule("minecraft:overworld")
+            .expect("overworld surface rule must load from JSON");
+
+        let sea_level = settings.sea_level;
+        let min_y = settings.noise.min_y;
+        let max_y = min_y + settings.noise.height - 1;
+
+        // Try a range of nearby chunks until we find one with at least one land column.
+        // Seed 0 overworld terrain around the origin includes both ocean and land chunks.
+        let chunk = 'found: {
+            for cz in 0..4_i32 {
+                for cx in 0..4_i32 {
+                    let c = fill_noise_and_build_surface(
+                        ChunkPos { x: cx, z: cz },
+                        settings,
+                        0,
+                        noise_router,
+                        &rule,
+                    );
+                    // Check if any column in this chunk has its solid surface above sea level.
+                    let has_land = (0..16_i32).any(|lz| {
+                        (0..16_i32).any(|lx| {
+                            let bx = cx * 16 + lx;
+                            let bz = cz * 16 + lz;
+                            (min_y..=max_y).rev().any(|y| {
+                                match c.get_block_state(bx, y, bz).as_deref() {
+                                    Some(b)
+                                        if b != "minecraft:air"
+                                            && b != "minecraft:cave_air"
+                                            && b != "minecraft:void_air"
+                                            && b != "minecraft:water"
+                                            && b != "minecraft:lava" =>
+                                    {
+                                        y > sea_level
+                                    }
+                                    _ => false,
+                                }
+                            })
+                        })
+                    });
+                    if has_land {
+                        break 'found c;
+                    }
+                }
+            }
+            panic!("no land column found in any of the 16 chunks near the origin — terrain generation may be broken");
+        };
+
+        // Find the first land column in the chunk (top solid block above sea level).
+        let land_column = (0..16_i32)
+            .flat_map(|lz| (0..16_i32).map(move |lx| (lx, lz)))
+            .find_map(|(lx, lz)| {
+                let bx = chunk.pos.x * 16 + lx;
+                let bz = chunk.pos.z * 16 + lz;
+                let top = (min_y..=max_y).rev().find_map(|y| {
+                    match chunk.get_block_state(bx, y, bz).as_deref() {
+                        Some(b)
+                            if b != "minecraft:air"
+                                && b != "minecraft:cave_air"
+                                && b != "minecraft:void_air"
+                                && b != "minecraft:water"
+                                && b != "minecraft:lava" =>
+                        {
+                            if y > sea_level {
+                                Some((bx, y, bz, b.to_string()))
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    }
+                });
+                top
+            })
+            .expect("a land column must exist in the chunk we selected");
+
+        let (bx, top_y, bz, top_block_name) = land_column;
+
+        // The surface block should be grass (biome is hardcoded to plains in build_surface_for_chunk).
+        assert_eq!(
+            top_block_name, "minecraft:grass_block",
+            "top solid block at ({bx},{top_y},{bz}) should be grass_block (got {top_block_name})"
+        );
+
+        // The block directly below should be dirt.
+        let below = chunk.get_block_state(bx, top_y - 1, bz).unwrap_or_default();
+        assert_eq!(
+            below,
+            "minecraft:dirt",
+            "block below grass at ({bx},{},{bz}) should be dirt (got {below})",
+            top_y - 1
+        );
+
+        // Several blocks down should be stone (past the dirt layer which is ~3-4 deep).
+        let deep = chunk.get_block_state(bx, top_y - 5, bz).unwrap_or_default();
+        assert_eq!(
+            deep,
+            "minecraft:stone",
+            "block at ({bx},{},{bz}) should be stone (got {deep})",
+            top_y - 5
         );
     }
 

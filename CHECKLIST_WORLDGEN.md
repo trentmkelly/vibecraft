@@ -125,7 +125,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
   - [x] `Beardifier` — codec-registered type returns 0.0 (Java `BeardifierMarker.compute` always returns 0.0; actual structure adjustment is swapped in by `NoiseChunk`), verified
   - [x] `HolderHolder` / reference lookup — `DensityFunction::Reference` resolves via `builtin_density_function()`, returns 0.0 on miss
 - [x] Implement `overworld/final_density`: `min(postProcess(slideOverworld(caves)), noodle)` — full inline constant tree matching Java `NoiseRouterData.overworld()`, registered in `BUILTIN_DENSITY_FUNCTIONS`; `slideOverworld`, `underground`, `postProcess` all ported as const density function graphs
-- [ ] Implement `NoiseChunk` cell-based sampling loop with proper XZ/Y cell sizing from noise settings
+- [x] Implement `NoiseChunk` cell-based sampling loop with proper XZ/Y cell sizing from noise settings
 - [ ] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0. Current coverage: `overworld_final_density_resolves_and_produces_finite_squeezed_value_at_0_100_0_seed_0` verifies registry resolution and Squeeze bounds, but not an exact vanilla oracle value yet.
 
 ## Noise Samplers
@@ -152,10 +152,10 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Surface Rules and Material Rules
 
-- [ ] Implement `SurfaceRules` DSL codec: `Sequence`, `Condition`, `Block`, `Bandlands`, `StonDepthCheck`, `AbovePreliminarySurface`, `BiomeCondition`, `NoiseThreshold`, `VerticalGradient`, `YAbove`, `Water`, `Steep`, `Hole`, `SurfaceType` (FLOOR/CEILING/FLOOR_ONLY)
-- [ ] Implement `SurfaceSystem.buildSurface()`: iterate each chunk column, evaluate surface rule tree top-down, place surface blocks (grass, dirt, gravel, sand, etc.) per biome
-- [ ] Implement surface rule data loading from `data/minecraft/worldgen/noise_settings/<name>.json` `surface_rule` field
-- [ ] Add parity test: plains biome at y=64 surface has grass block, y=63 has dirt, stone below matches vanilla for seed 0
+- [x] Implement `SurfaceRules` DSL codec: `Sequence`, `Condition`, `Block`, `Bandlands`, `StonDepthCheck`, `AbovePreliminarySurface`, `BiomeCondition`, `NoiseThreshold`, `VerticalGradient`, `YAbove`, `Water`, `Steep`, `Hole`, `SurfaceType` (FLOOR/CEILING/FLOOR_ONLY)
+- [x] Implement `SurfaceSystem.buildSurface()`: iterate each chunk column, evaluate surface rule tree top-down, place surface blocks (grass, dirt, gravel, sand, etc.) per biome
+- [x] Implement surface rule data loading from `data/minecraft/worldgen/noise_settings/<name>.json` `surface_rule` field
+- [x] Add parity test: plains biome at y=64 surface has grass block, y=63 has dirt, stone below matches vanilla for seed 0
 
 ## Carvers
 
