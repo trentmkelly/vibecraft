@@ -247,10 +247,10 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Migrated From Main Checklist: Network Transport
 
 - [x] Implement TCP listener on configured host and port.
-- [ ] Add a Mineflayer/raw connection smoke test that verifies TCP accept, handshake, and clean disconnect on a local offline-mode server while Mineflayer play support lags 26.1.2.
-- [ ] Add a Mineflayer/raw reconnect smoke test that connects, disconnects cleanly, reconnects with the same offline username, and verifies the old connection is fully removed.
-- [ ] Add a Mineflayer/raw offline-mode login cancellation test that closes the client immediately after login success, during registry sync, and during first chunk delivery, then verifies the next login with the same name is not rejected as duplicate.
-- [ ] Add a Mineflayer/raw offline-mode wrong-protocol test that connects with an unsupported protocol version and verifies the status response and login disconnect match the decompiled 26.1.2 handshake gate.
+- [x] Add a Mineflayer/raw connection smoke test that verifies TCP accept, handshake, and clean disconnect on a local offline-mode server while Mineflayer play support lags 26.1.2.
+- [x] Add a Mineflayer/raw reconnect smoke test that connects, disconnects cleanly, reconnects with the same offline username, and verifies the old connection is fully removed.
+- [x] Add a Mineflayer/raw offline-mode login cancellation test that closes the client immediately after login success, during registry sync, and during first chunk delivery, then verifies the next login with the same name is not rejected as duplicate.
+- [x] Add a Mineflayer/raw offline-mode wrong-protocol test that connects with an unsupported protocol version and verifies the status response and login disconnect match the decompiled 26.1.2 handshake gate.
 - [ ] Add a Mineflayer connection-refusal test that attempts login before readiness, during shutdown, and immediately after port close, verifying vanilla-compatible socket errors or disconnect messages.
 - [ ] Add a Mineflayer offline-mode socket-cleanup test that aborts the TCP socket during handshake, login start, compression negotiation, configuration, and play entry, then verifies no leaked connection slots or pending keepalive tasks.
 - [ ] Add a Mineflayer offline-mode port-reuse test that starts and stops servers repeatedly on the same randomized port, logs in once per cycle, and verifies no stale listener or TIME_WAIT handling regression blocks the next run.
@@ -271,7 +271,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement transfer packets.
 - [x] Implement custom payload channels and known payload validation.
 - [x] Implement keepalive and timeout handling for all relevant protocol states.
-- [ ] Add a Mineflayer/raw keepalive test that stays connected for multiple heartbeat intervals and verifies no false timeout or duplicate keepalive response handling.
+- [x] Add a Mineflayer/raw keepalive test that stays connected for multiple heartbeat intervals and verifies no false timeout or duplicate keepalive response handling.
 - [ ] Add a Mineflayer malformed-client-behavior test that uses Mineflayer packet hooks to send unexpected status, login, configuration, and play packets in offline mode and verifies vanilla-compatible disconnect reasons.
 - [ ] Add a Mineflayer compression-threshold test that logs in offline mode with disabled, low, and default thresholds, then verifies packet flow still reaches play state and large packets are decoded correctly.
 - [x] Implement packet listener dispatch and main-thread handoff rules.
