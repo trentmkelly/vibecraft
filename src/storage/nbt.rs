@@ -351,6 +351,20 @@ impl Tag {
             }
         }
     }
+
+    pub fn to_text_component(
+        &self,
+        indentation: &str,
+        sort_keys: bool,
+    ) -> crate::chat_component::Component {
+        crate::chat_component::Component::literal(
+            self.to_text_component_plain(indentation, sort_keys),
+        )
+    }
+
+    pub fn to_text_component_plain(&self, indentation: &str, sort_keys: bool) -> String {
+        render_text_component_tag(self, indentation, sort_keys, 0, 0)
+    }
 }
 
 impl NbtFieldSelector {
@@ -434,6 +448,191 @@ fn quote_snbt_key(key: &str) -> String {
 
 fn escape_snbt_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn render_text_component_tag(
+    tag: &Tag,
+    indentation: &str,
+    sort_keys: bool,
+    indent_depth: usize,
+    depth: usize,
+) -> String {
+    const INLINE_LIST_THRESHOLD: usize = 8;
+    const MAX_DEPTH: usize = 64;
+    const MAX_LENGTH: usize = 128;
+
+    match tag {
+        Tag::End => String::new(),
+        Tag::Byte(value) => format!("{value}b"),
+        Tag::Short(value) => format!("{value}s"),
+        Tag::Int(value) => value.to_string(),
+        Tag::Long(value) => format!("{value}l"),
+        Tag::Float(value) => format!("{value}f"),
+        Tag::Double(value) => format!("{value}d"),
+        Tag::String(value) => format!("\"{}\"", escape_snbt_string(value)),
+        Tag::ByteArray(values) => render_text_component_array(
+            "B",
+            values.iter().map(|value| format!("{value}b")).collect(),
+            MAX_LENGTH,
+        ),
+        Tag::IntArray(values) => render_text_component_array(
+            "I",
+            values.iter().map(i32::to_string).collect(),
+            MAX_LENGTH,
+        ),
+        Tag::LongArray(values) => render_text_component_array(
+            "L",
+            values.iter().map(|value| format!("{value}l")).collect(),
+            MAX_LENGTH,
+        ),
+        Tag::List(values) => {
+            if values.is_empty() {
+                return "[]".to_string();
+            }
+            if depth >= MAX_DEPTH {
+                return "[<...>]".to_string();
+            }
+
+            let should_wrap = values.len() < INLINE_LIST_THRESHOLD
+                && values.iter().any(|value| {
+                    !matches!(
+                        value,
+                        Tag::Byte(_)
+                            | Tag::Short(_)
+                            | Tag::Int(_)
+                            | Tag::Long(_)
+                            | Tag::Float(_)
+                            | Tag::Double(_)
+                    )
+                });
+            if !should_wrap {
+                let rendered = values
+                    .iter()
+                    .map(|value| {
+                        render_text_component_tag(
+                            value,
+                            indentation,
+                            sort_keys,
+                            indent_depth,
+                            depth + 1,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return format!("[{rendered}]");
+            }
+
+            render_text_component_wrapped_list(values, indentation, sort_keys, indent_depth, depth)
+        }
+        Tag::Compound(values) => {
+            if values.is_empty() {
+                return "{}".to_string();
+            }
+            if depth >= MAX_DEPTH {
+                return "{<...>}".to_string();
+            }
+
+            let mut entries = values.iter().collect::<Vec<_>>();
+            if sort_keys {
+                entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            }
+            render_text_component_compound(entries, indentation, sort_keys, indent_depth, depth)
+        }
+    }
+}
+
+fn render_text_component_array(prefix: &str, values: Vec<String>, max_len: usize) -> String {
+    let mut rendered = format!("[{prefix};");
+    for (index, value) in values.iter().take(max_len).enumerate() {
+        rendered.push(' ');
+        rendered.push_str(value);
+        if index != values.len() - 1 {
+            rendered.push(',');
+        }
+    }
+    if values.len() > max_len {
+        rendered.push_str("<...>");
+    }
+    rendered.push(']');
+    rendered
+}
+
+fn render_text_component_wrapped_list(
+    values: &[Tag],
+    indentation: &str,
+    sort_keys: bool,
+    indent_depth: usize,
+    depth: usize,
+) -> String {
+    let mut rendered = "[".to_string();
+    if !indentation.is_empty() {
+        rendered.push('\n');
+    }
+    let entry_indent = indentation.repeat(indent_depth + 1);
+    let element_spacing = if indentation.is_empty() { " " } else { "\n" };
+
+    for (index, value) in values.iter().take(128).enumerate() {
+        rendered.push_str(&entry_indent);
+        rendered.push_str(&render_text_component_tag(
+            value,
+            indentation,
+            sort_keys,
+            indent_depth + 1,
+            depth + 1,
+        ));
+        if index != values.len() - 1 {
+            rendered.push(',');
+            rendered.push_str(element_spacing);
+        }
+    }
+    if values.len() > 128 {
+        rendered.push_str(&entry_indent);
+        rendered.push_str("<...>");
+    }
+    if !indentation.is_empty() {
+        rendered.push('\n');
+        rendered.push_str(&indentation.repeat(indent_depth));
+    }
+    rendered.push(']');
+    rendered
+}
+
+fn render_text_component_compound(
+    entries: Vec<&(String, Tag)>,
+    indentation: &str,
+    sort_keys: bool,
+    indent_depth: usize,
+    depth: usize,
+) -> String {
+    let mut rendered = "{".to_string();
+    if !indentation.is_empty() {
+        rendered.push('\n');
+    }
+    let entry_indent = indentation.repeat(indent_depth + 1);
+    let element_spacing = if indentation.is_empty() { " " } else { "\n" };
+
+    for (index, (key, value)) in entries.iter().enumerate() {
+        rendered.push_str(&entry_indent);
+        rendered.push_str(&quote_snbt_key(key));
+        rendered.push_str(": ");
+        rendered.push_str(&render_text_component_tag(
+            value,
+            indentation,
+            sort_keys,
+            indent_depth + 1,
+            depth + 1,
+        ));
+        if index != entries.len() - 1 {
+            rendered.push(',');
+            rendered.push_str(element_spacing);
+        }
+    }
+    if !indentation.is_empty() {
+        rendered.push('\n');
+        rendered.push_str(&indentation.repeat(indent_depth));
+    }
+    rendered.push('}');
+    rendered
 }
 
 struct SnbtParser<'a> {
@@ -994,5 +1193,43 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("expected"));
+    }
+
+    #[test]
+    fn text_component_visitor_matches_plain_java_layout_rules() {
+        let tag = Tag::Compound(vec![
+            ("z".to_string(), Tag::Int(3)),
+            ("a key".to_string(), Tag::String("quoted".to_string())),
+            (
+                "list".to_string(),
+                Tag::List(vec![
+                    Tag::Compound(vec![("inner".to_string(), Tag::Byte(1))]),
+                    Tag::Compound(vec![("inner".to_string(), Tag::Byte(2))]),
+                ]),
+            ),
+        ]);
+
+        assert_eq!(
+            tag.to_text_component_plain("  ", true),
+            "{\n  \"a key\": \"quoted\",\n  list: [\n    {\n      inner: 1b\n    },\n    {\n      inner: 2b\n    }\n  ],\n  z: 3\n}"
+        );
+        assert_eq!(
+            tag.to_text_component("", true).to_json(),
+            "{\"text\":\"{\\\"a key\\\": \\\"quoted\\\", list: [{inner: 1b}, {inner: 2b}], z: 3}\"}"
+        );
+    }
+
+    #[test]
+    fn text_component_visitor_folds_deep_tags_and_long_arrays() {
+        let long_array = Tag::ByteArray((0..130).map(|value| value as i8).collect());
+        let rendered = long_array.to_text_component_plain("", true);
+        assert!(rendered.starts_with("[B; 0b, 1b"));
+        assert!(rendered.ends_with(",<...>]"));
+
+        let mut deep = Tag::Int(1);
+        for index in 0..65 {
+            deep = Tag::Compound(vec![(format!("level{index}"), deep)]);
+        }
+        assert!(deep.to_text_component_plain("", true).contains("{<...>}"));
     }
 }
