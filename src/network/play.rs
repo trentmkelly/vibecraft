@@ -12,7 +12,7 @@ use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, 
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
 use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
-use crate::storage::nbt::{write_named_tag, Tag};
+use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
 
 pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
@@ -5536,12 +5536,20 @@ fn write_i64<W: Write>(writer: &mut W, value: i64) -> io::Result<()> {
 fn write_network_compound_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
     match tag {
         Tag::Compound(fields) if fields.is_empty() => writer.write_all(&[0]),
-        Tag::Compound(_) => write_named_tag(writer, "", tag),
+        Tag::Compound(_) => write_network_tag(writer, tag),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "network compound tag payload must be a compound",
         )),
     }
+}
+
+fn write_network_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
+    writer.write_all(&[tag.id()])?;
+    if !matches!(tag, Tag::End) {
+        tag.write_payload(writer)?;
+    }
+    Ok(())
 }
 
 fn read_length_prefixed_bytes<R: Read>(reader: &mut R, max_size: usize) -> io::Result<Vec<u8>> {
@@ -6659,6 +6667,26 @@ mod tests {
                 vec![1, 0],
             ]
             .concat()
+        );
+
+        let mut named_like_network_nbt = Vec::new();
+        ClientboundBlockEntityDataPacket {
+            x: 0,
+            y: 0,
+            z: 0,
+            block_entity_type_id: 1,
+            tag: Tag::Compound(vec![(
+                "id".to_string(),
+                Tag::String("minecraft:chest".to_string()),
+            )]),
+        }
+        .write(&mut named_like_network_nbt)
+        .unwrap();
+        assert_eq!(named_like_network_nbt[9], 10);
+        assert_eq!(
+            &named_like_network_nbt[10..13],
+            &[8, 0, 2],
+            "network NBT uses writeAnyTag and must not include a root name"
         );
 
         let mut reset_score = Vec::new();
