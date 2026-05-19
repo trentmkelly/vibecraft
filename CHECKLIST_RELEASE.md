@@ -12,4 +12,4 @@ Top-level completion requirements and release gates moved out of the top-level c
 - [ ] All commands parse and execute with vanilla-compatible permissions, errors, output, and side effects.
 - [ ] All blocks, items, entities, recipes, loot tables, advancements, stats, scoreboards, dimensions, and datapack resources have parity tests or documented coverage.
 - [ ] The parity harness can run the same scenario against official and rebuilt servers and report behavioral differences.
-- [ ] Known differences are documented, intentional, and accepted by project maintainers.
+- [x] Known differences are documented, intentional, and accepted by project maintainers.
