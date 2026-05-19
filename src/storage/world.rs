@@ -39,6 +39,251 @@ pub struct WorldLayout {
     root: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LevelDirectory {
+    path: PathBuf,
+}
+
+impl LevelDirectory {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn directory_name(&self) -> String {
+        self.path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    pub fn layout(&self) -> WorldLayout {
+        WorldLayout::new(&self.path)
+    }
+
+    pub fn data_file(&self) -> PathBuf {
+        self.layout().level_dat()
+    }
+
+    pub fn old_data_file(&self) -> PathBuf {
+        self.layout().level_dat_old()
+    }
+
+    pub fn icon_file(&self) -> PathBuf {
+        self.path.join("icon.png")
+    }
+
+    pub fn lock_file(&self) -> PathBuf {
+        self.layout().session_lock()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LevelCandidates {
+    levels: Vec<LevelDirectory>,
+}
+
+impl LevelCandidates {
+    pub fn new(levels: Vec<LevelDirectory>) -> Self {
+        Self { levels }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.levels.is_empty()
+    }
+
+    pub fn levels(&self) -> &[LevelDirectory] {
+        &self.levels
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LevelStorageSource {
+    base_dir: PathBuf,
+    backup_dir: PathBuf,
+}
+
+impl LevelStorageSource {
+    pub fn create_default(base_dir: impl Into<PathBuf>) -> std::io::Result<Self> {
+        let base_dir = base_dir.into();
+        fs::create_dir_all(&base_dir)?;
+        let backup_dir = base_dir
+            .parent()
+            .map(|parent| parent.join("backups"))
+            .unwrap_or_else(|| PathBuf::from("backups"));
+        Ok(Self {
+            base_dir,
+            backup_dir,
+        })
+    }
+
+    pub fn new(
+        base_dir: impl Into<PathBuf>,
+        backup_dir: impl Into<PathBuf>,
+    ) -> std::io::Result<Self> {
+        let base_dir = base_dir.into();
+        fs::create_dir_all(&base_dir)?;
+        Ok(Self {
+            base_dir,
+            backup_dir: backup_dir.into(),
+        })
+    }
+
+    pub fn name(&self) -> &'static str {
+        "Anvil"
+    }
+
+    pub fn base_dir(&self) -> &Path {
+        &self.base_dir
+    }
+
+    pub fn backup_dir(&self) -> &Path {
+        &self.backup_dir
+    }
+
+    pub fn level_path(&self, level_id: &str) -> std::io::Result<PathBuf> {
+        validate_level_id(level_id)?;
+        Ok(self.base_dir.join(level_id))
+    }
+
+    pub fn level_exists(&self, level_id: &str) -> bool {
+        self.level_path(level_id)
+            .map(|path| path.is_dir())
+            .unwrap_or(false)
+    }
+
+    pub fn is_new_level_id_acceptable(&self, level_id: &str) -> bool {
+        let Ok(path) = self.level_path(level_id) else {
+            return false;
+        };
+        match fs::create_dir(&path) {
+            Ok(()) => fs::remove_dir(&path).is_ok(),
+            Err(_) => false,
+        }
+    }
+
+    pub fn find_level_candidates(&self) -> std::io::Result<LevelCandidates> {
+        let mut levels = Vec::new();
+        for entry in fs::read_dir(&self.base_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                let level = LevelDirectory::new(path);
+                if level.data_file().is_file() || level.old_data_file().is_file() {
+                    levels.push(level);
+                }
+            }
+        }
+        levels.sort_by_key(LevelDirectory::directory_name);
+        Ok(LevelCandidates::new(levels))
+    }
+
+    pub fn validate_and_create_access(
+        &self,
+        level_id: &str,
+    ) -> std::io::Result<LevelStorageAccess> {
+        let path = self.level_path(level_id)?;
+        reject_symlinks_recursive(&path)?;
+        self.create_access(level_id)
+    }
+
+    pub fn create_access(&self, level_id: &str) -> std::io::Result<LevelStorageAccess> {
+        let path = self.level_path(level_id)?;
+        LevelStorageAccess::open(level_id.to_string(), path, self.backup_dir.clone())
+    }
+}
+
+#[derive(Debug)]
+pub struct LevelStorageAccess {
+    level_id: String,
+    level_directory: LevelDirectory,
+    backup_dir: PathBuf,
+    lock: SessionLock,
+}
+
+impl LevelStorageAccess {
+    fn open(level_id: String, path: PathBuf, backup_dir: PathBuf) -> std::io::Result<Self> {
+        fs::create_dir_all(&path)?;
+        let layout = WorldLayout::new(&path);
+        let lock = layout.acquire_session_lock()?;
+        Ok(Self {
+            level_id,
+            level_directory: LevelDirectory::new(path),
+            backup_dir,
+            lock,
+        })
+    }
+
+    pub fn level_id(&self) -> &str {
+        &self.level_id
+    }
+
+    pub fn level_directory(&self) -> &LevelDirectory {
+        &self.level_directory
+    }
+
+    pub fn layout(&self) -> WorldLayout {
+        self.level_directory.layout()
+    }
+
+    pub fn get_dimension_path(&self, dimension_id: &str) -> std::io::Result<PathBuf> {
+        self.layout().dimension_path(dimension_id)
+    }
+
+    pub fn read_level_data(&self) -> std::io::Result<Tag> {
+        self.layout().load_level_dat_with_backup()
+    }
+
+    pub fn save_level_data(&self, tag: &Tag) -> std::io::Result<()> {
+        self.layout().save_level_dat(tag)
+    }
+
+    pub fn has_world_data(&self) -> bool {
+        self.level_directory.data_file().is_file() || self.level_directory.old_data_file().is_file()
+    }
+
+    pub fn rename_level(&self, new_name: &str) -> std::io::Result<()> {
+        let mut tag = self.read_level_data()?;
+        put_level_name(&mut tag, new_name.trim());
+        self.save_level_data(&tag)
+    }
+
+    pub fn make_world_backup(&self) -> std::io::Result<PathBuf> {
+        fs::create_dir_all(&self.backup_dir)?;
+        let backup_path = self.backup_dir.join(format!(
+            "{}_{}",
+            corruption_backup_stamp(),
+            sanitize_backup_name(&self.level_id)
+        ));
+        copy_dir_recursive(
+            self.level_directory.path(),
+            &backup_path,
+            Some("session.lock"),
+        )?;
+        Ok(backup_path)
+    }
+
+    pub fn delete_level(self) -> std::io::Result<()> {
+        let Self {
+            level_directory,
+            lock,
+            ..
+        } = self;
+        let lock_path = level_directory.lock_file();
+        drop(lock);
+        if level_directory.path().exists() {
+            remove_dir_recursive_except(level_directory.path(), &lock_path)?;
+            let _ = fs::remove_file(lock_path);
+            let _ = fs::remove_dir(level_directory.path());
+        }
+        Ok(())
+    }
+}
+
 impl WorldLayout {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
@@ -606,6 +851,119 @@ fn validate_resource_location_path(value: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+fn validate_level_id(value: &str) -> std::io::Result<()> {
+    let path = Path::new(value);
+    if value.is_empty()
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid level id",
+        ));
+    }
+    Ok(())
+}
+
+fn reject_symlinks_recursive(path: &Path) -> std::io::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    if fs::symlink_metadata(path)?.file_type().is_symlink() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "symlinks are not allowed",
+        ));
+    }
+    if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            reject_symlinks_recursive(&entry?.path())?;
+        }
+    }
+    Ok(())
+}
+
+fn put_level_name(tag: &mut Tag, new_name: &str) {
+    let Tag::Compound(values) = tag else {
+        return;
+    };
+    if let Some(index) = values
+        .iter()
+        .position(|(name, value)| name == "Data" && matches!(value, Tag::Compound(_)))
+    {
+        if let Tag::Compound(data) = &mut values[index].1 {
+            put_compound_string(data, "LevelName", new_name);
+        }
+    } else {
+        put_compound_string(values, "LevelName", new_name);
+    }
+}
+
+fn put_compound_string(values: &mut Vec<(String, Tag)>, key: &str, value: &str) {
+    if let Some((_, tag)) = values.iter_mut().find(|(name, _)| name == key) {
+        *tag = Tag::String(value.to_string());
+    } else {
+        values.push((key.to_string(), Tag::String(value.to_string())));
+    }
+}
+
+fn sanitize_backup_name(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' => ch,
+            _ => '_',
+        })
+        .collect()
+}
+
+fn copy_dir_recursive(
+    source: &Path,
+    target: &Path,
+    skip_file_name: Option<&str>,
+) -> std::io::Result<()> {
+    fs::create_dir_all(target)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        if skip_file_name.is_some_and(|skip| {
+            source_path.file_name().and_then(|name| name.to_str()) == Some(skip)
+        }) {
+            continue;
+        }
+        let target_path = target.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_dir_recursive(&source_path, &target_path, skip_file_name)?;
+        } else if file_type.is_file() {
+            fs::copy(source_path, target_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn remove_dir_recursive_except(path: &Path, except: &Path) -> std::io::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let entry_path = entry.path();
+        if entry_path == except {
+            continue;
+        }
+        if entry_path.is_dir() {
+            remove_dir_recursive_except(&entry_path, except)?;
+            let _ = fs::remove_dir(&entry_path);
+        } else {
+            fs::remove_file(entry_path)?;
+        }
+    }
+    Ok(())
+}
+
 fn read_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)> {
     let bytes = fs::read(path)?;
     read_named_tag(&mut bytes.as_slice())
@@ -648,7 +1006,7 @@ fn durable_write_with_backup(
 
 #[cfg(test)]
 mod tests {
-    use super::WorldLayout;
+    use super::{LevelStorageSource, WorldLayout};
     use std::fs;
 
     #[test]
@@ -723,6 +1081,97 @@ mod tests {
         assert!(layout.region_dir().is_dir());
         assert!(layout.entities_dir().is_dir());
         assert!(layout.dimensions_dir().is_dir());
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn level_storage_source_enumerates_and_validates_world_folders() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-level-source-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let source = LevelStorageSource::new(&path, path.join("../backups")).unwrap();
+        assert_eq!(source.name(), "Anvil");
+        assert!(source.is_new_level_id_acceptable("new_world"));
+        assert!(!source.is_new_level_id_acceptable("../escape"));
+
+        let world = WorldLayout::new(path.join("world_one"));
+        world
+            .save_level_dat(&crate::storage::nbt::Tag::Compound(vec![(
+                "LevelName".to_string(),
+                crate::storage::nbt::Tag::String("World One".to_string()),
+            )]))
+            .unwrap();
+        fs::create_dir_all(path.join("not_a_world")).unwrap();
+
+        let candidates = source.find_level_candidates().unwrap();
+        assert_eq!(candidates.levels().len(), 1);
+        assert_eq!(candidates.levels()[0].directory_name(), "world_one");
+        assert!(source.level_exists("world_one"));
+        assert!(!source.level_exists("../escape"));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            symlink(world.level_dat(), path.join("world_one/linked.dat")).unwrap();
+            let err = source.validate_and_create_access("world_one").unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+            fs::remove_file(path.join("world_one/linked.dat")).unwrap();
+        }
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn level_storage_access_locks_saves_renames_backs_up_and_deletes() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-level-access-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let source = LevelStorageSource::new(&path, path.join("backups")).unwrap();
+        let access = source.create_access("world_two").unwrap();
+        assert_eq!(access.level_id(), "world_two");
+        assert_eq!(
+            access.get_dimension_path("minecraft:the_nether").unwrap(),
+            path.join("world_two/dimensions/minecraft/the_nether")
+        );
+
+        let tag = crate::storage::nbt::Tag::Compound(vec![
+            (
+                "DataVersion".to_string(),
+                crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+            ),
+            (
+                "LevelName".to_string(),
+                crate::storage::nbt::Tag::String("Old Name".to_string()),
+            ),
+        ]);
+        access.save_level_data(&tag).unwrap();
+        assert!(access.has_world_data());
+        assert_eq!(access.read_level_data().unwrap(), tag);
+
+        access.rename_level("  New Name  ").unwrap();
+        let renamed = access.read_level_data().unwrap();
+        let crate::storage::nbt::Tag::Compound(values) = renamed else {
+            panic!("expected compound");
+        };
+        assert_eq!(
+            values.iter().find(|(name, _)| name == "LevelName"),
+            Some(&(
+                "LevelName".to_string(),
+                crate::storage::nbt::Tag::String("New Name".to_string())
+            ))
+        );
+
+        fs::write(access.layout().root().join("kept.txt"), b"backup").unwrap();
+        let backup = access.make_world_backup().unwrap();
+        assert!(backup.join("level.dat").is_file());
+        assert!(backup.join("kept.txt").is_file());
+        assert!(!backup.join("session.lock").exists());
+
+        access.delete_level().unwrap();
+        assert!(!path.join("world_two").exists());
 
         let _ = fs::remove_dir_all(&path);
     }
