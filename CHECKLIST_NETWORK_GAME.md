@@ -78,7 +78,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundContainerSetContentPacket` (0x12): window ID byte, state ID VarInt, items list, carried item
 - [ ] `ClientboundContainerSetSlotPacket` (0x13): window ID byte, state ID VarInt, slot short, item
 - [x] `ClientboundContainerSetDataPacket` (0x13): container ID VarInt, property short, value short
-- [ ] `ClientboundOpenScreenPacket` (0x35): window ID VarInt, menu type VarInt, title component
+- [x] `ClientboundOpenScreenPacket` (0x35): window ID VarInt, menu type VarInt, title component
 - [x] `ClientboundContainerClosePacket` (0x11): container ID VarInt
 - [x] `ClientboundMountScreenOpenPacket` (0x29, replaces older HorseScreenOpen): container ID VarInt, inventory columns VarInt, entity ID fixed int
 - [ ] `ClientboundMerchantOffersPacket` (0x31): container ID, offers list (input1, input2 optional, result, uses, maxUses, xp, specialPrice, priceMultiplier, demand, ignoreDiscount), villager level, xp, is-regular-villager, can-restock

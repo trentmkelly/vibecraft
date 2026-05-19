@@ -1280,6 +1280,13 @@ pub struct ClientboundSetPlayerTeamPacket {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundOpenScreenPacket {
+    pub container_id: i32,
+    pub menu_type_id: i32,
+    pub title: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum TeamPacketMethod {
     Create {
         parameters: TeamPacketParameters,
@@ -3551,6 +3558,14 @@ impl ClientboundSetPlayerTeamPacket {
                 write_team_players(writer, players)
             }
         }
+    }
+}
+
+impl ClientboundOpenScreenPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.menu_type_id)?;
+        write_network_tag(writer, &self.title)
     }
 }
 
@@ -7500,6 +7515,18 @@ mod tests {
             team_remove_players,
             [vec![3], b"red".to_vec(), vec![4, 1, 4], b"Alex".to_vec()].concat()
         );
+
+        let mut open_screen = Vec::new();
+        ClientboundOpenScreenPacket {
+            container_id: 300,
+            menu_type_id: 9,
+            title: Tag::Compound(vec![("text".to_string(), Tag::String("Chest".to_string()))]),
+        }
+        .write(&mut open_screen)
+        .unwrap();
+        assert_eq!(&open_screen[..3], &[0xac, 0x02, 9]);
+        assert_eq!(open_screen[3], 10);
+        assert!(open_screen.ends_with(&[0]));
 
         let mut boss_add = Vec::new();
         ClientboundBossEventPacket {

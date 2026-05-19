@@ -979,7 +979,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "open_screen",
         java_class: "ClientboundOpenScreenPacket",
-        field_order: "unparsed",
+        field_order: "containerId:ContainerId VarInt, type:MenuType registry VarInt, title:trusted Component network NBT tag",
     },
     PlayPacketSpec {
         id: 60,
