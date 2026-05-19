@@ -393,6 +393,33 @@ pub struct HangingSignBlockEntityModel {
     pub attachment: HangingSignAttachment,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrewingRecipe {
+    pub source_item: &'static str,
+    pub source_potion: &'static str,
+    pub ingredient: &'static str,
+    pub result_item: &'static str,
+    pub result_potion: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrewingStandTickResult {
+    Idle,
+    FuelLoaded,
+    Started,
+    Brewing,
+    Brewed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrewingStandBlockEntity {
+    pub items: Vec<Option<PotItemStack>>,
+    pub brew_time: i32,
+    pub fuel: i32,
+    pub ingredient: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FurnaceBlockEntityKind {
     Furnace,
@@ -2888,6 +2915,204 @@ impl HangingSignBlockEntityModel {
             .and_then(HangingSignAttachment::from_str)
             .unwrap_or(HangingSignAttachment::Ceiling);
         Self { sign, attachment }
+    }
+}
+
+impl BrewingRecipe {
+    pub const fn new(
+        source_item: &'static str,
+        source_potion: &'static str,
+        ingredient: &'static str,
+        result_item: &'static str,
+        result_potion: &'static str,
+    ) -> Self {
+        Self {
+            source_item,
+            source_potion,
+            ingredient,
+            result_item,
+            result_potion,
+        }
+    }
+
+    fn applies_to(&self, stack: &PotItemStack, ingredient: &PotItemStack) -> bool {
+        let (item, potion) = brewing_stack_parts(&stack.item_id);
+        item == self.source_item
+            && potion == Some(self.source_potion)
+            && ingredient.item_id == self.ingredient
+    }
+
+    fn result_stack(&self, count: i32) -> PotItemStack {
+        PotItemStack {
+            item_id: brewing_stack_id(self.result_item, self.result_potion),
+            count,
+        }
+    }
+}
+
+impl BrewingStandBlockEntity {
+    pub const CONTAINER_SIZE: usize = 5;
+    pub const INGREDIENT_SLOT: usize = 3;
+    pub const FUEL_SLOT: usize = 4;
+    pub const FUEL_USES: i32 = 20;
+    pub const BREW_TIME: i32 = 400;
+    pub const DATA_BREW_TIME: i32 = 0;
+    pub const DATA_FUEL_USES: i32 = 1;
+    pub const DISPLAY_NAME: &'static str = "container.brewing";
+
+    pub fn new() -> Self {
+        Self {
+            items: vec![None; Self::CONTAINER_SIZE],
+            brew_time: 0,
+            fuel: 0,
+            ingredient: None,
+        }
+    }
+
+    pub fn set_item(&mut self, slot: usize, stack: Option<PotItemStack>) -> bool {
+        if slot >= Self::CONTAINER_SIZE {
+            return false;
+        }
+        self.items[slot] = stack.filter(|stack| !stack.is_empty());
+        true
+    }
+
+    pub fn potion_bits(&self) -> [bool; 3] {
+        [
+            self.items[0].is_some(),
+            self.items[1].is_some(),
+            self.items[2].is_some(),
+        ]
+    }
+
+    pub fn is_brewable(&self, recipes: &[BrewingRecipe]) -> bool {
+        let Some(ingredient) = self.items[Self::INGREDIENT_SLOT].as_ref() else {
+            return false;
+        };
+        recipes.iter().any(|recipe| {
+            self.items[..3]
+                .iter()
+                .flatten()
+                .any(|stack| recipe.applies_to(stack, ingredient))
+        })
+    }
+
+    pub fn server_tick(&mut self, recipes: &[BrewingRecipe]) -> BrewingStandTickResult {
+        if self.fuel <= 0
+            && self.items[Self::FUEL_SLOT]
+                .as_ref()
+                .is_some_and(is_brewing_fuel)
+        {
+            self.fuel = Self::FUEL_USES;
+            shrink_stack(&mut self.items[Self::FUEL_SLOT], 1);
+            return BrewingStandTickResult::FuelLoaded;
+        }
+
+        let brewable = self.is_brewable(recipes);
+        let ingredient_id = self.items[Self::INGREDIENT_SLOT]
+            .as_ref()
+            .map(|stack| stack.item_id.clone());
+        if self.brew_time > 0 {
+            self.brew_time -= 1;
+            if self.brew_time == 0 && brewable {
+                self.do_brew(recipes);
+                return BrewingStandTickResult::Brewed;
+            }
+            if !brewable || ingredient_id != self.ingredient {
+                self.brew_time = 0;
+                return BrewingStandTickResult::Cancelled;
+            }
+            return BrewingStandTickResult::Brewing;
+        }
+
+        if brewable && self.fuel > 0 {
+            self.fuel -= 1;
+            self.brew_time = Self::BREW_TIME;
+            self.ingredient = ingredient_id;
+            return BrewingStandTickResult::Started;
+        }
+
+        BrewingStandTickResult::Idle
+    }
+
+    fn do_brew(&mut self, recipes: &[BrewingRecipe]) {
+        let Some(ingredient) = self.items[Self::INGREDIENT_SLOT].as_ref().cloned() else {
+            return;
+        };
+        for slot in 0..3 {
+            let Some(stack) = self.items[slot].as_ref() else {
+                continue;
+            };
+            if let Some(recipe) = recipes
+                .iter()
+                .find(|recipe| recipe.applies_to(stack, &ingredient))
+            {
+                self.items[slot] = Some(recipe.result_stack(stack.count));
+            }
+        }
+        shrink_stack(&mut self.items[Self::INGREDIENT_SLOT], 1);
+        self.ingredient = self.items[Self::INGREDIENT_SLOT]
+            .as_ref()
+            .map(|stack| stack.item_id.clone());
+    }
+
+    pub fn can_place_item(
+        &self,
+        slot: usize,
+        stack: &PotItemStack,
+        recipes: &[BrewingRecipe],
+    ) -> bool {
+        match slot {
+            Self::INGREDIENT_SLOT => recipes
+                .iter()
+                .any(|recipe| recipe.ingredient == stack.item_id),
+            Self::FUEL_SLOT => is_brewing_fuel(stack),
+            0..=2 => {
+                is_brewing_container(&stack.item_id)
+                    && self.items.get(slot).is_some_and(Option::is_none)
+            }
+            _ => false,
+        }
+    }
+
+    pub fn slots_for_face(direction: Direction) -> &'static [usize] {
+        match direction {
+            Direction::Up => &[Self::INGREDIENT_SLOT],
+            Direction::Down => &[0, 1, 2, Self::INGREDIENT_SLOT],
+            _ => &[0, 1, 2, Self::FUEL_SLOT],
+        }
+    }
+
+    pub fn can_take_item_through_face(
+        slot: usize,
+        stack: &PotItemStack,
+        _direction: Direction,
+    ) -> bool {
+        slot != Self::INGREDIENT_SLOT || stack.item_id == "minecraft:glass_bottle"
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            ("BrewTime".to_string(), Tag::Short(self.brew_time as i16)),
+            ("Items".to_string(), container_items_tag(&self.items)),
+            ("Fuel".to_string(), Tag::Byte(self.fuel as i8)),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut stand = Self::new();
+        let Some(entries) = compound_entries(tag) else {
+            return stand;
+        };
+        load_container_items(entries, &mut stand.items);
+        stand.brew_time = get_short(entries, "BrewTime").unwrap_or(0) as i32;
+        stand.fuel = get_byte(entries, "Fuel").unwrap_or(0) as i32;
+        if stand.brew_time > 0 {
+            stand.ingredient = stand.items[Self::INGREDIENT_SLOT]
+                .as_ref()
+                .map(|stack| stack.item_id.clone());
+        }
+        stand
     }
 }
 
@@ -6630,6 +6855,38 @@ fn load_container_items(entries: &[(String, Tag)], items: &mut [Option<PotItemSt
     }
 }
 
+fn shrink_stack(stack: &mut Option<PotItemStack>, amount: i32) {
+    if let Some(item) = stack {
+        item.count -= amount;
+        if item.count <= 0 {
+            *stack = None;
+        }
+    }
+}
+
+fn is_brewing_fuel(stack: &PotItemStack) -> bool {
+    stack.item_id == "minecraft:blaze_powder" && stack.count > 0
+}
+
+fn is_brewing_container(item_id: &str) -> bool {
+    let (item, potion) = brewing_stack_parts(item_id);
+    matches!(
+        item,
+        "minecraft:potion" | "minecraft:splash_potion" | "minecraft:lingering_potion"
+    ) && potion.is_some()
+        || item == "minecraft:glass_bottle"
+}
+
+fn brewing_stack_id(item: &str, potion: &str) -> String {
+    format!("{item}#{potion}")
+}
+
+fn brewing_stack_parts(item_id: &str) -> (&str, Option<&str>) {
+    item_id
+        .split_once('#')
+        .map_or((item_id, None), |(item, potion)| (item, Some(potion)))
+}
+
 fn sign_line_to_tag(line: &SignLine) -> Tag {
     if let Some(command) = &line.click_command {
         Tag::Compound(vec![
@@ -7716,6 +7973,151 @@ mod tests {
             HangingSignAttachment::CeilingMiddle
         );
         assert_eq!(loaded_hanging.sign.front_text.lines[0].raw, "raw one");
+    }
+
+    #[test]
+    fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
+        let recipes = [
+            BrewingRecipe::new(
+                "minecraft:potion",
+                "water",
+                "minecraft:nether_wart",
+                "minecraft:potion",
+                "awkward",
+            ),
+            BrewingRecipe::new(
+                "minecraft:potion",
+                "awkward",
+                "minecraft:blaze_powder",
+                "minecraft:potion",
+                "strength",
+            ),
+            BrewingRecipe::new(
+                "minecraft:potion",
+                "awkward",
+                "minecraft:gunpowder",
+                "minecraft:splash_potion",
+                "awkward",
+            ),
+        ];
+        let mut stand = BrewingStandBlockEntity::new();
+        assert_eq!(stand.items.len(), BrewingStandBlockEntity::CONTAINER_SIZE);
+        assert_eq!(stand.potion_bits(), [false, false, false]);
+        assert_eq!(
+            BrewingStandBlockEntity::slots_for_face(Direction::Up),
+            &[BrewingStandBlockEntity::INGREDIENT_SLOT]
+        );
+        assert_eq!(
+            BrewingStandBlockEntity::slots_for_face(Direction::Down),
+            &[0, 1, 2, BrewingStandBlockEntity::INGREDIENT_SLOT]
+        );
+        assert_eq!(
+            BrewingStandBlockEntity::slots_for_face(Direction::North),
+            &[0, 1, 2, BrewingStandBlockEntity::FUEL_SLOT]
+        );
+
+        let water = PotItemStack {
+            item_id: brewing_stack_id("minecraft:potion", "water"),
+            count: 1,
+        };
+        let nether_wart = PotItemStack {
+            item_id: "minecraft:nether_wart".to_string(),
+            count: 1,
+        };
+        let blaze_powder = PotItemStack {
+            item_id: "minecraft:blaze_powder".to_string(),
+            count: 2,
+        };
+        assert!(stand.can_place_item(0, &water, &recipes));
+        assert!(stand.can_place_item(
+            BrewingStandBlockEntity::INGREDIENT_SLOT,
+            &nether_wart,
+            &recipes
+        ));
+        assert!(stand.can_place_item(BrewingStandBlockEntity::FUEL_SLOT, &blaze_powder, &recipes));
+        assert!(!BrewingStandBlockEntity::can_take_item_through_face(
+            BrewingStandBlockEntity::INGREDIENT_SLOT,
+            &nether_wart,
+            Direction::Down
+        ));
+        assert!(BrewingStandBlockEntity::can_take_item_through_face(
+            BrewingStandBlockEntity::INGREDIENT_SLOT,
+            &PotItemStack {
+                item_id: "minecraft:glass_bottle".to_string(),
+                count: 1,
+            },
+            Direction::Down
+        ));
+
+        stand.set_item(0, Some(water.clone()));
+        stand.set_item(1, Some(water));
+        stand.set_item(BrewingStandBlockEntity::INGREDIENT_SLOT, Some(nether_wart));
+        stand.set_item(BrewingStandBlockEntity::FUEL_SLOT, Some(blaze_powder));
+        assert_eq!(stand.potion_bits(), [true, true, false]);
+        assert_eq!(
+            stand.server_tick(&recipes),
+            BrewingStandTickResult::FuelLoaded
+        );
+        assert_eq!(stand.fuel, BrewingStandBlockEntity::FUEL_USES);
+        assert_eq!(
+            stand.items[BrewingStandBlockEntity::FUEL_SLOT]
+                .as_ref()
+                .map(|stack| stack.count),
+            Some(1)
+        );
+        assert_eq!(stand.server_tick(&recipes), BrewingStandTickResult::Started);
+        assert_eq!(stand.fuel, BrewingStandBlockEntity::FUEL_USES - 1);
+        assert_eq!(stand.brew_time, BrewingStandBlockEntity::BREW_TIME);
+        assert_eq!(stand.ingredient.as_deref(), Some("minecraft:nether_wart"));
+        for _ in 1..BrewingStandBlockEntity::BREW_TIME {
+            assert_eq!(stand.server_tick(&recipes), BrewingStandTickResult::Brewing);
+        }
+        assert_eq!(stand.server_tick(&recipes), BrewingStandTickResult::Brewed);
+        assert_eq!(stand.items[BrewingStandBlockEntity::INGREDIENT_SLOT], None);
+        assert_eq!(
+            stand.items[0].as_ref().map(|stack| stack.item_id.as_str()),
+            Some("minecraft:potion#awkward")
+        );
+        assert_eq!(
+            stand.items[1].as_ref().map(|stack| stack.item_id.as_str()),
+            Some("minecraft:potion#awkward")
+        );
+
+        let saved = stand.save_additional();
+        assert_eq!(BrewingStandBlockEntity::load_additional(&saved), stand);
+
+        let mut cancelled = BrewingStandBlockEntity::new();
+        cancelled.set_item(
+            0,
+            Some(PotItemStack {
+                item_id: brewing_stack_id("minecraft:potion", "awkward"),
+                count: 1,
+            }),
+        );
+        cancelled.set_item(
+            BrewingStandBlockEntity::INGREDIENT_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:blaze_powder".to_string(),
+                count: 1,
+            }),
+        );
+        cancelled.fuel = 1;
+        assert_eq!(
+            cancelled.server_tick(&recipes),
+            BrewingStandTickResult::Started
+        );
+        cancelled.set_item(
+            BrewingStandBlockEntity::INGREDIENT_SLOT,
+            Some(PotItemStack {
+                item_id: "minecraft:gunpowder".to_string(),
+                count: 1,
+            }),
+        );
+        assert_eq!(
+            cancelled.server_tick(&recipes),
+            BrewingStandTickResult::Cancelled
+        );
+        assert_eq!(cancelled.brew_time, 0);
     }
 
     #[test]

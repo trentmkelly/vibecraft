@@ -66,7 +66,7 @@
 ## Utility Block Entities
 
 - [x] Implement `BeaconBlockEntity`: pyramid-tier detection (scan 4 tiers, each layer must be diamond/emerald/gold/iron/netherite), primary effect (tier-dependent options), secondary effect (tier 4 only), fuel slot (payment item), beam color from stained glass above, `ContainerOpenersCounter` for GUI, comparator output (tier 0–4)
-- [ ] Implement `BrewingStandBlockEntity`: ingredient slot (0), 3 potion output slots (1–3), fuel slot (4, blaze powder), brew-time countdown (400 ticks), fuel-count decrement, recipe matching (ingredient applies transformation per `PotionBrewing`)
+- [x] Implement `BrewingStandBlockEntity`: ingredient slot (0), 3 potion output slots (1–3), fuel slot (4, blaze powder), brew-time countdown (400 ticks), fuel-count decrement, recipe matching (ingredient applies transformation per `PotionBrewing`)
 - [ ] Implement `CrafterBlockEntity`: 9 crafting grid slots each with enabled/disabled flag, on-pulse crafting behavior (craft once per redstone leading-edge), comparator output (occupied non-disabled slots)
 - [x] Implement `EnchantingTableBlockEntity`: bookshelf power scan (up to 15 bookshelves within range), visual book animation hint in `getUpdateTag()` (book open/close angle, page turn)
 - [x] Implement `JukeboxBlockEntity`: disc `ItemStack`, `isPlaying` flag, `ticksSinceSongStarted`, comparator output (disc = signal from 1–15), `startPlaying()` / `stopPlaying()`, `SongPlayer` dispatch for jukebox song resource
@@ -74,7 +74,7 @@
 - [x] Implement `DaylightDetectorBlockEntity`: sky-light level lookup, linear signal mapping (0–15), inverted mode (night sensor)
 - [x] Implement `CommandBlockEntity`: command string, `lastOutput` component, `CommandBlockMode` (SEQUENCE/AUTO/REDSTONE), `isConditional`, `isAutomatic`, permission-level check, `performCommand(level)` execution
 - [x] Add parity test: beacon tier detection with mixed pyramid materials, effect selection and duration
-- [ ] Add parity test: brewing stand tick countdown, fuel consumption, ingredient slot cleared after brew
+- [x] Add parity test: brewing stand tick countdown, fuel consumption, ingredient slot cleared after brew
 
 ## World / System Block Entities
 
