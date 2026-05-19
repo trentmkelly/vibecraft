@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
@@ -23843,7 +23843,10 @@ pub fn perlin_simplex_noise_snapshot(
     let low_freq_octaves = -first_octave;
     let high_freq_octaves = last_octave;
     let octave_count = (low_freq_octaves + high_freq_octaves + 1) as usize;
-    assert!(octave_count >= 1, "Total number of octaves needs to be >= 1");
+    assert!(
+        octave_count >= 1,
+        "Total number of octaves needs to be >= 1"
+    );
 
     // Java always constructs the zero-octave simplex first from the main random, regardless of
     // whether octave 0 is in the requested set, to keep the random state advancing correctly.
@@ -23878,8 +23881,7 @@ pub fn perlin_simplex_noise_snapshot(
             zero_octave_snapshot.yo,
             zero_octave_snapshot.zo,
         ) * 9.223_372E18_f32 as f64) as i64;
-        let mut high_freq_random =
-            RandomSourceKind::Legacy(LegacyRandom::new(derived_seed));
+        let mut high_freq_random = RandomSourceKind::Legacy(LegacyRandom::new(derived_seed));
 
         for i in (0..zero_octave_index).rev() {
             let octave_num = zero_octave_index as i32 - i as i32;
@@ -24056,6 +24058,39 @@ pub fn random_state_normal_noise_instantiation_plan(
         use_new_initialization: !use_legacy_nether_biome,
         random,
     })
+}
+
+/// Analogous to the `noiseInstances` ConcurrentHashMap inside Java's `RandomState`.
+///
+/// `RandomState` is created once per world load and caches every `NormalNoise`
+/// instance so that the same noise key always resolves to the same seeded object.
+/// This struct mirrors that caching contract: the first call to
+/// `get_or_create_noise` for a given id computes the snapshot; subsequent calls
+/// return the cached copy.
+pub struct RandomStateNoiseCache {
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    cache: HashMap<String, NormalNoiseSnapshot>,
+}
+
+impl RandomStateNoiseCache {
+    pub fn new(seed: i64, settings: NoiseGeneratorSettings) -> Self {
+        Self {
+            seed,
+            settings,
+            cache: HashMap::new(),
+        }
+    }
+
+    /// Returns the NormalNoise snapshot for `noise_id`, computing and caching
+    /// it on the first call — mirrors `RandomState.getOrCreateNoise()`.
+    pub fn get_or_create_noise(&mut self, noise_id: &str) -> Option<&NormalNoiseSnapshot> {
+        if !self.cache.contains_key(noise_id) {
+            let snapshot = random_state_normal_noise_snapshot(self.seed, self.settings, noise_id)?;
+            self.cache.insert(noise_id.to_string(), snapshot);
+        }
+        self.cache.get(noise_id)
+    }
 }
 
 pub fn builtin_density_function(id: &str) -> Option<&'static DensityFunctionEntry> {
@@ -32536,31 +32571,32 @@ pub fn carver_can_reach(
 mod tests {
     use super::{
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-        density_function_type, AquiferNoiseSettings, BinaryDensityFunction,
-        BiomeGenerationSettingsModel, BlendingDataPacked, BlendingOutput, BlockPos, BlockPredicate,
-        BlockPredicateContext, BlockStateProviderModel, CarverShape, CaveDensityOutput,
-        CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
+        density_function_type, random_state_normal_noise_snapshot, AquiferNoiseSettings,
+        BinaryDensityFunction, BiomeGenerationSettingsModel, BlendingDataPacked, BlendingOutput,
+        BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel, CarverShape,
+        CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo, FloatProvider,
         FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider, HeightRange,
         HorizontalDirection, MangroveRootPlacementModel, MappedDensityFunction,
         MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
         OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel, PlacementModifier,
-        RandomSpreadType, RootPlacerModel, RuleBasedBlockStateProviderRule, SpawnBlockKind,
-        SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceConditionSource,
-        SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource,
-        TreeDecoratorModel, TreeFoliageAttachmentModel, TreePlacementBlockKind, TrunkPlacerKind,
-        TrunkPlacerModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
-        WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
-        AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
-        BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES, BUILTIN_DENSITY_FUNCTIONS,
-        BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS, BUILTIN_STRUCTURES,
-        BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS, CAVES_NOISE_SETTINGS,
-        CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES, DENSITY_FUNCTION_TYPES,
-        END_NOISE_SETTINGS, FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS,
-        FLAT_GENERATOR_PRESETS, FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES,
-        JIGSAW_POOL_BOOTSTRAP_SOURCES, MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS,
-        NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION,
-        ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
+        RandomSpreadType, RandomStateNoiseCache, RootPlacerModel, RuleBasedBlockStateProviderRule,
+        SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
+        SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset,
+        SurfaceRuleSource, TreeDecoratorModel, TreeFoliageAttachmentModel, TreePlacementBlockKind,
+        TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor, WeightedBlockState,
+        WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
+        BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
+        BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
+        BUILTIN_STRUCTURES, BUILTIN_STRUCTURE_SETS, BUILTIN_SURFACE_RULE_PRESETS,
+        CAVES_NOISE_SETTINGS, CAVE_GENERATION_FAMILIES, CONFIGURED_CARVERS, CONFIGURED_FEATURES,
+        DENSITY_FUNCTION_TYPES, END_NOISE_SETTINGS, EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS,
+        FEATURE_BEHAVIOR_MODELS, FEATURE_TYPES, FLAT_DEFAULT_LAYERS, FLAT_GENERATOR_PRESETS,
+        FLOATING_ISLANDS_NOISE_SETTINGS, HEIGHT_PROVIDER_TYPES, JIGSAW_POOL_BOOTSTRAP_SOURCES,
+        MONSTER_ROOM_BOUNDS, NETHER_NOISE_SETTINGS, NORMAL_NOISE_INPUT_FACTOR,
+        NORMAL_NOISE_PARAMETERS, NORMAL_NOISE_TARGET_DEVIATION, ORE_VEINIFIER_CONSTANTS,
+        ORE_VEIN_TYPES, OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET,
         PLACED_FEATURE_BOOTSTRAP_SOURCES, SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES,
         STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
         STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
@@ -32604,12 +32640,10 @@ mod tests {
         let level = temp.levels[0].as_ref().unwrap();
         let coords = [(12.5_f64, -25.0_f64), (-6.0, 42.0), (0.5, 100.25)];
         for (x, y) in coords {
-            let via_perlin_simplex =
-                super::perlin_simplex_noise_sample(&temp, x, y, false);
+            let via_perlin_simplex = super::perlin_simplex_noise_sample(&temp, x, y, false);
             let raw_simplex = super::simplex_noise_sample_2d(level, x, y);
             assert_eq!(
-                via_perlin_simplex,
-                raw_simplex,
+                via_perlin_simplex, raw_simplex,
                 "single-octave PerlinSimplexNoise must equal raw SimplexNoise at ({x}, {y})"
             );
         }
@@ -32649,8 +32683,7 @@ mod tests {
     fn perlin_simplex_noise_three_octave_sample_matches_vanilla_frozen_temperature_usage() {
         // Matches Java Biome.FROZEN_TEMPERATURE_NOISE.getValue(pos.getX() * 0.05, pos.getZ() * 0.05, false).
         let frozen = super::biome_frozen_temperature_noise_snapshot();
-        let s1 =
-            super::perlin_simplex_noise_sample(&frozen, 100.0 * 0.05, -200.0 * 0.05, false);
+        let s1 = super::perlin_simplex_noise_sample(&frozen, 100.0 * 0.05, -200.0 * 0.05, false);
         let s2 = super::perlin_simplex_noise_sample(&frozen, 0.0, 0.0, false);
         assert!((s1 - 0.37075925333633547).abs() < 1e-12);
         // 2D simplex at origin is always 0 for all levels, so multi-octave sum is also 0.
@@ -49594,5 +49627,133 @@ mod tests {
                     Some((_, Tag::List(values))) if values == &vec![Tag::String("minecraft:plains".to_string())]
                 )
         ));
+    }
+
+    // ---------- RandomStateNoiseCache parity tests ----------
+
+    #[test]
+    fn random_state_noise_cache_matches_uncached_and_is_stable_across_calls() {
+        let seed = 12345_i64;
+        let settings = *builtin_noise_generator_settings("minecraft:overworld").unwrap();
+        let noise_id = "minecraft:temperature";
+
+        let uncached = random_state_normal_noise_snapshot(seed, settings, noise_id).unwrap();
+
+        let mut cache = RandomStateNoiseCache::new(seed, settings);
+        let first = cache.get_or_create_noise(noise_id).unwrap().clone();
+        let second = cache.get_or_create_noise(noise_id).unwrap().clone();
+
+        // First call must match uncached computation (same seed, same noise id).
+        assert_eq!(first, uncached);
+        // Repeated calls must return the identical cached value.
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn random_state_noise_cache_unknown_id_returns_none() {
+        let settings = *builtin_noise_generator_settings("minecraft:overworld").unwrap();
+        let mut cache = RandomStateNoiseCache::new(0, settings);
+        assert!(cache
+            .get_or_create_noise("minecraft:nonexistent_noise_xyz")
+            .is_none());
+    }
+
+    // ---------- NoiseGeneratorSettings codec loading tests ----------
+
+    #[test]
+    fn noise_generator_settings_scalar_fields_match_vanilla_json_files() {
+        // Read every noise_settings JSON from the decompiled server data directory and
+        // validate the scalar fields against our hardcoded EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS.
+        // This is the codec-loading parity test: it proves our statics match vanilla JSON.
+        let dir = "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings";
+
+        for entry in EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS {
+            let name = entry.id.strip_prefix("minecraft:").unwrap_or(entry.id);
+            let path = format!("{}/{}.json", dir, name);
+            let raw = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
+            let json: serde_json::Value = serde_json::from_str(&raw)
+                .unwrap_or_else(|e| panic!("invalid JSON in {path}: {e}"));
+
+            let noise = &json["noise"];
+            assert_eq!(
+                noise["min_y"].as_i64().unwrap() as i32,
+                entry.noise.min_y,
+                "{} noise.min_y",
+                entry.id
+            );
+            assert_eq!(
+                noise["height"].as_i64().unwrap() as i32,
+                entry.noise.height,
+                "{} noise.height",
+                entry.id
+            );
+            assert_eq!(
+                noise["size_horizontal"].as_i64().unwrap() as i32,
+                entry.noise.size_horizontal,
+                "{} noise.size_horizontal",
+                entry.id
+            );
+            assert_eq!(
+                noise["size_vertical"].as_i64().unwrap() as i32,
+                entry.noise.size_vertical,
+                "{} noise.size_vertical",
+                entry.id
+            );
+
+            // default_block / default_fluid stored as { "Name": "minecraft:..." }
+            assert_eq!(
+                json["default_block"]["Name"].as_str().unwrap(),
+                entry.default_block,
+                "{} default_block",
+                entry.id
+            );
+            assert_eq!(
+                json["default_fluid"]["Name"].as_str().unwrap(),
+                entry.default_fluid,
+                "{} default_fluid",
+                entry.id
+            );
+
+            assert_eq!(
+                json["sea_level"].as_i64().unwrap() as i32,
+                entry.sea_level,
+                "{} sea_level",
+                entry.id
+            );
+            assert_eq!(
+                json["disable_mob_generation"].as_bool().unwrap(),
+                entry.disable_mob_generation,
+                "{} disable_mob_generation",
+                entry.id
+            );
+            assert_eq!(
+                json["aquifers_enabled"].as_bool().unwrap(),
+                entry.aquifers_enabled,
+                "{} aquifers_enabled",
+                entry.id
+            );
+            assert_eq!(
+                json["ore_veins_enabled"].as_bool().unwrap(),
+                entry.ore_veins_enabled,
+                "{} ore_veins_enabled",
+                entry.id
+            );
+            assert_eq!(
+                json["legacy_random_source"].as_bool().unwrap(),
+                entry.legacy_random_source,
+                "{} legacy_random_source",
+                entry.id
+            );
+            assert_eq!(
+                json["spawn_target"]
+                    .as_array()
+                    .map(|a| a.len())
+                    .unwrap_or(0),
+                entry.spawn_target_len,
+                "{} spawn_target length",
+                entry.id
+            );
+        }
     }
 }

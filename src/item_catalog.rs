@@ -812,8 +812,17 @@ mod tests {
         // A item known by item_protocol_id must also be known by item_static_name and vice versa.
         // We verify this for a set of known items.
         let items = &[
-            "coal", "diamond", "emerald", "stick", "wheat_seeds", "coal_ore",
-            "oak_log", "oak_sapling", "flint", "clay_ball", "glowstone_dust",
+            "coal",
+            "diamond",
+            "emerald",
+            "stick",
+            "wheat_seeds",
+            "coal_ore",
+            "oak_log",
+            "oak_sapling",
+            "flint",
+            "clay_ball",
+            "glowstone_dust",
         ];
         for item in items {
             assert!(

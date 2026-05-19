@@ -265,13 +265,7 @@ pub fn parse_trial_spawner_config_resource(
             1.0,
             0.0,
         )?,
-        ticks_between_spawn: optional_i32_range(
-            object,
-            "ticks_between_spawn",
-            40,
-            0,
-            i32::MAX,
-        )?,
+        ticks_between_spawn: optional_i32_range(object, "ticks_between_spawn", 40, 0, i32::MAX)?,
         spawn_potentials: parse_spawn_potentials(object.get("spawn_potentials"))?,
         loot_tables_to_eject: match object.get("loot_tables_to_eject") {
             Some(value) => parse_weighted_loot_tables(value)?,

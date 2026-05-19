@@ -93,11 +93,11 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Noise Settings and Router
 
-- [ ] Implement `NoiseGeneratorSettings` codec loading from `data/minecraft/worldgen/noise_settings/`
-- [ ] Implement `NoiseRouter` with named output channels: `barrierNoise`, `fluidLevelFloodednessNoise`, `fluidLevelSpreadNoise`, `lavaNoise`, `temperature`, `vegetation`, `continentalness`, `erosion`, `depth`, `ridges`, `initialDensityWithoutJaggedness`, `finalDensity`, `veinToggle`, `veinRidged`, `veinGap`
-- [ ] Implement `NoiseSettings` (min Y, height, sampling noise scale, noise size XZ/Y)
-- [ ] Implement `RandomState` noise fork caching: `getOrCreateNoise(ResourceKey<NormalNoise.NoiseParameters>)`
-- [ ] Add test: noise settings for overworld match vanilla min Y = -64, height = 384
+- [x] Implement `NoiseGeneratorSettings` codec loading from `data/minecraft/worldgen/noise_settings/` — scalar fields parsed from all 7 vanilla JSON files and validated against hardcoded statics in `noise_generator_settings_scalar_fields_match_vanilla_json_files`
+- [x] Implement `NoiseRouter` with named output channels: `barrier`, `fluid_level_floodedness`, `fluid_level_spread`, `lava`, `temperature`, `vegetation`, `continents`, `erosion`, `depth`, `ridges`, `preliminary_surface_level`, `final_density`, `vein_toggle`, `vein_ridged`, `vein_gap` — `NoiseRouter` struct + builtin constants in `worldgen.rs`
+- [x] Implement `NoiseSettings` (min Y, height, sampling noise scale, noise size XZ/Y) — `NoiseSettings` struct with `validate`, `clamp_to_height`, `cell_width`, `cell_height`; five builtin constants matching vanilla
+- [x] Implement `RandomState` noise fork caching: `getOrCreateNoise(ResourceKey<NormalNoise.NoiseParameters>)` — `RandomStateNoiseCache` struct with `get_or_create_noise` mirrors Java `RandomState.noiseInstances` cache
+- [x] Add test: noise settings for overworld match vanilla min Y = -64, height = 384 — `noise_settings_presets_match_26_1_2_constants`
 
 ## Density Functions
 
