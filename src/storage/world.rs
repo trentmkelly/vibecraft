@@ -36,6 +36,190 @@ pub struct LevelVersion {
     pub snapshot: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrimaryLevelData {
+    pub data_version: i32,
+    pub level_data_version: i32,
+    pub version: LevelVersionInfo,
+    pub level_name: String,
+    pub spawn: LevelSpawnData,
+    pub game_type: LevelGameType,
+    pub difficulty: LevelDifficulty,
+    pub day_time: i64,
+    pub time: i64,
+    pub generator_name: String,
+    pub generator_settings: Tag,
+    pub allow_commands: bool,
+    pub hardcore: bool,
+    pub initialized: bool,
+    pub was_modded: bool,
+    pub data_packs: DataPackSelection,
+    pub scheduled_events: Tag,
+    pub server_brands: Vec<String>,
+    pub custom_boss_events: Tag,
+    pub dragon_fight: Tag,
+    pub scoreboard: Tag,
+    pub game_rules: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LevelVersionInfo {
+    pub id: i32,
+    pub name: String,
+    pub series: String,
+    pub snapshot: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelSpawnData {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub angle: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataPackSelection {
+    pub enabled: Vec<String>,
+    pub disabled: Vec<String>,
+}
+
+impl PrimaryLevelData {
+    pub fn from_level_dat(tag: &Tag) -> Option<Self> {
+        let data = level_dat_data_compound(tag)?;
+        let version = compound_tag(data, "Version")?;
+        let data_packs = compound_tag(data, "DataPacks").unwrap_or(&[]);
+
+        Some(Self {
+            data_version: compound_i32(data, "DataVersion")?,
+            level_data_version: compound_i32(data, "version").unwrap_or(19133),
+            version: LevelVersionInfo {
+                id: compound_i32(version, "Id")?,
+                name: compound_string(version, "Name")?.to_string(),
+                series: compound_string(version, "Series")
+                    .unwrap_or(CURRENT_VERSION_SERIES)
+                    .to_string(),
+                snapshot: compound_bool(version, "Snapshot").unwrap_or(false),
+            },
+            level_name: compound_string(data, "LevelName")?.to_string(),
+            spawn: LevelSpawnData {
+                x: compound_i32(data, "SpawnX").unwrap_or_default(),
+                y: compound_i32(data, "SpawnY").unwrap_or_default(),
+                z: compound_i32(data, "SpawnZ").unwrap_or_default(),
+                angle: compound_f32(data, "SpawnAngle").unwrap_or_default(),
+            },
+            game_type: LevelGameType::from_id(compound_i32(data, "GameType")?)?,
+            difficulty: LevelDifficulty::from_id(compound_i8(data, "Difficulty")?)?,
+            day_time: compound_i64(data, "DayTime").unwrap_or_default(),
+            time: compound_i64(data, "Time").unwrap_or_default(),
+            generator_name: compound_string(data, "generatorName")
+                .unwrap_or("default")
+                .to_string(),
+            generator_settings: compound_clone(data, "generatorSettings")
+                .unwrap_or_else(empty_compound_tag),
+            allow_commands: compound_bool(data, "allowCommands").unwrap_or(false),
+            hardcore: compound_bool(data, "hardcore").unwrap_or(false),
+            initialized: compound_bool(data, "initialized").unwrap_or(true),
+            was_modded: compound_bool(data, "WasModded").unwrap_or(false),
+            data_packs: DataPackSelection {
+                enabled: compound_string_list(data_packs, "Enabled"),
+                disabled: compound_string_list(data_packs, "Disabled"),
+            },
+            scheduled_events: compound_clone(data, "ScheduledEvents")
+                .unwrap_or_else(empty_list_tag),
+            server_brands: compound_string_list(data, "ServerBrands"),
+            custom_boss_events: compound_clone(data, "CustomBossEvents")
+                .unwrap_or_else(empty_compound_tag),
+            dragon_fight: compound_clone(data, "DragonFight").unwrap_or_else(empty_compound_tag),
+            scoreboard: compound_clone(data, "scoreboard").unwrap_or_else(empty_compound_tag),
+            game_rules: compound_clone(data, "GameRules").unwrap_or_else(empty_compound_tag),
+        })
+    }
+
+    pub fn to_level_dat(&self) -> Tag {
+        Tag::Compound(vec![(
+            "Data".to_string(),
+            Tag::Compound(vec![
+                ("DataVersion".to_string(), Tag::Int(self.data_version)),
+                ("version".to_string(), Tag::Int(self.level_data_version)),
+                (
+                    "Version".to_string(),
+                    Tag::Compound(vec![
+                        ("Id".to_string(), Tag::Int(self.version.id)),
+                        ("Name".to_string(), Tag::String(self.version.name.clone())),
+                        (
+                            "Series".to_string(),
+                            Tag::String(self.version.series.clone()),
+                        ),
+                        (
+                            "Snapshot".to_string(),
+                            Tag::Byte(i8::from(self.version.snapshot)),
+                        ),
+                    ]),
+                ),
+                (
+                    "LevelName".to_string(),
+                    Tag::String(self.level_name.clone()),
+                ),
+                ("SpawnX".to_string(), Tag::Int(self.spawn.x)),
+                ("SpawnY".to_string(), Tag::Int(self.spawn.y)),
+                ("SpawnZ".to_string(), Tag::Int(self.spawn.z)),
+                ("SpawnAngle".to_string(), Tag::Float(self.spawn.angle)),
+                ("GameType".to_string(), Tag::Int(self.game_type.id())),
+                ("Difficulty".to_string(), Tag::Byte(self.difficulty.id())),
+                ("DayTime".to_string(), Tag::Long(self.day_time)),
+                ("Time".to_string(), Tag::Long(self.time)),
+                (
+                    "generatorName".to_string(),
+                    Tag::String(self.generator_name.clone()),
+                ),
+                (
+                    "generatorSettings".to_string(),
+                    self.generator_settings.clone(),
+                ),
+                (
+                    "allowCommands".to_string(),
+                    Tag::Byte(i8::from(self.allow_commands)),
+                ),
+                ("hardcore".to_string(), Tag::Byte(i8::from(self.hardcore))),
+                (
+                    "initialized".to_string(),
+                    Tag::Byte(i8::from(self.initialized)),
+                ),
+                (
+                    "WasModded".to_string(),
+                    Tag::Byte(i8::from(self.was_modded)),
+                ),
+                (
+                    "DataPacks".to_string(),
+                    Tag::Compound(vec![
+                        (
+                            "Enabled".to_string(),
+                            string_list_tag(self.data_packs.enabled.iter()),
+                        ),
+                        (
+                            "Disabled".to_string(),
+                            string_list_tag(self.data_packs.disabled.iter()),
+                        ),
+                    ]),
+                ),
+                ("ScheduledEvents".to_string(), self.scheduled_events.clone()),
+                (
+                    "ServerBrands".to_string(),
+                    string_list_tag(self.server_brands.iter()),
+                ),
+                (
+                    "CustomBossEvents".to_string(),
+                    self.custom_boss_events.clone(),
+                ),
+                ("DragonFight".to_string(), self.dragon_fight.clone()),
+                ("scoreboard".to_string(), self.scoreboard.clone()),
+                ("GameRules".to_string(), self.game_rules.clone()),
+            ]),
+        )])
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldLayout {
     root: PathBuf,
@@ -1008,12 +1192,31 @@ fn compound_i32(values: &[(String, Tag)], key: &str) -> Option<i32> {
         })
 }
 
+fn compound_i8(values: &[(String, Tag)], key: &str) -> Option<i8> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::Byte(value)) if name == key => Some(*value),
+            (name, Tag::Int(value)) if name == key => i8::try_from(*value).ok(),
+            _ => None,
+        })
+}
+
 fn compound_i64(values: &[(String, Tag)], key: &str) -> Option<i64> {
     values
         .iter()
         .find_map(|(name, value)| match (name.as_str(), value) {
             (name, Tag::Long(value)) if name == key => Some(*value),
             (name, Tag::Int(value)) if name == key => Some(i64::from(*value)),
+            _ => None,
+        })
+}
+
+fn compound_f32(values: &[(String, Tag)], key: &str) -> Option<f32> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::Float(value)) if name == key => Some(*value),
             _ => None,
         })
 }
@@ -1034,6 +1237,42 @@ fn compound_bool(values: &[(String, Tag)], key: &str) -> Option<bool> {
             (name, Tag::Byte(value)) if name == key => Some(*value != 0),
             _ => None,
         })
+}
+
+fn compound_clone(values: &[(String, Tag)], key: &str) -> Option<Tag> {
+    values
+        .iter()
+        .find_map(|(name, value)| (name == key).then(|| value.clone()))
+}
+
+fn compound_string_list(values: &[(String, Tag)], key: &str) -> Vec<String> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::List(values)) if name == key => Some(
+                values
+                    .iter()
+                    .filter_map(|tag| match tag {
+                        Tag::String(value) => Some(value.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+fn string_list_tag<'a>(values: impl Iterator<Item = &'a String>) -> Tag {
+    Tag::List(values.cloned().map(Tag::String).collect())
+}
+
+fn empty_compound_tag() -> Tag {
+    Tag::Compound(Vec::new())
+}
+
+fn empty_list_tag() -> Tag {
+    Tag::List(Vec::new())
 }
 
 fn validate_resource_location_namespace(value: &str) -> std::io::Result<()> {
@@ -1983,6 +2222,90 @@ mod tests {
         assert!(err.to_string().contains("missing DataVersion"));
 
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn primary_level_data_round_trips_vanilla_level_dat_fields() {
+        let data = super::PrimaryLevelData {
+            data_version: crate::storage::datafix::TARGET_DATA_VERSION,
+            level_data_version: 19133,
+            version: super::LevelVersionInfo {
+                id: crate::storage::datafix::TARGET_DATA_VERSION,
+                name: "26.1.2".to_string(),
+                series: "main".to_string(),
+                snapshot: false,
+            },
+            level_name: "Round Trip".to_string(),
+            spawn: super::LevelSpawnData {
+                x: 12,
+                y: 80,
+                z: -9,
+                angle: 45.0,
+            },
+            game_type: super::LevelGameType::Creative,
+            difficulty: super::LevelDifficulty::Hard,
+            day_time: 24000,
+            time: 123456,
+            generator_name: "minecraft:noise".to_string(),
+            generator_settings: crate::storage::nbt::Tag::Compound(vec![(
+                "seed".to_string(),
+                crate::storage::nbt::Tag::Long(99),
+            )]),
+            allow_commands: true,
+            hardcore: true,
+            initialized: true,
+            was_modded: true,
+            data_packs: super::DataPackSelection {
+                enabled: vec!["vanilla".to_string(), "file/example".to_string()],
+                disabled: vec!["file/disabled".to_string()],
+            },
+            scheduled_events: crate::storage::nbt::Tag::List(vec![
+                crate::storage::nbt::Tag::Compound(vec![(
+                    "Name".to_string(),
+                    crate::storage::nbt::Tag::String("minecraft:raid".to_string()),
+                )]),
+            ]),
+            server_brands: vec!["vanilla".to_string(), "rustcraft".to_string()],
+            custom_boss_events: crate::storage::nbt::Tag::Compound(vec![(
+                "minecraft:boss".to_string(),
+                crate::storage::nbt::Tag::Compound(vec![]),
+            )]),
+            dragon_fight: crate::storage::nbt::Tag::Compound(vec![(
+                "DragonKilled".to_string(),
+                crate::storage::nbt::Tag::Byte(1),
+            )]),
+            scoreboard: crate::storage::nbt::Tag::Compound(vec![(
+                "Objectives".to_string(),
+                crate::storage::nbt::Tag::List(vec![]),
+            )]),
+            game_rules: crate::storage::nbt::Tag::Compound(vec![(
+                "doDaylightCycle".to_string(),
+                crate::storage::nbt::Tag::String("true".to_string()),
+            )]),
+        };
+
+        let encoded = data.to_level_dat();
+        let crate::storage::nbt::Tag::Compound(root) = &encoded else {
+            panic!("expected level.dat root compound");
+        };
+        let Some(crate::storage::nbt::Tag::Compound(values)) = root
+            .iter()
+            .find(|(name, _)| name == "Data")
+            .map(|(_, value)| value)
+        else {
+            panic!("expected Data compound");
+        };
+        assert!(values.iter().any(|(name, _)| name == "Version"));
+        assert!(values.iter().any(|(name, _)| name == "DataPacks"));
+        assert!(values.iter().any(|(name, _)| name == "ScheduledEvents"));
+        assert!(values.iter().any(|(name, _)| name == "ServerBrands"));
+        assert!(values.iter().any(|(name, _)| name == "CustomBossEvents"));
+        assert!(values.iter().any(|(name, _)| name == "DragonFight"));
+        assert!(values.iter().any(|(name, _)| name == "scoreboard"));
+        assert!(values.iter().any(|(name, _)| name == "GameRules"));
+
+        let decoded = super::PrimaryLevelData::from_level_dat(&encoded).unwrap();
+        assert_eq!(decoded, data);
     }
 
     #[test]
