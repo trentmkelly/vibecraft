@@ -67,7 +67,7 @@
 
 - [x] Implement `BeaconBlockEntity`: pyramid-tier detection (scan 4 tiers, each layer must be diamond/emerald/gold/iron/netherite), primary effect (tier-dependent options), secondary effect (tier 4 only), fuel slot (payment item), beam color from stained glass above, `ContainerOpenersCounter` for GUI, comparator output (tier 0–4)
 - [x] Implement `BrewingStandBlockEntity`: ingredient slot (0), 3 potion output slots (1–3), fuel slot (4, blaze powder), brew-time countdown (400 ticks), fuel-count decrement, recipe matching (ingredient applies transformation per `PotionBrewing`)
-- [ ] Implement `CrafterBlockEntity`: 9 crafting grid slots each with enabled/disabled flag, on-pulse crafting behavior (craft once per redstone leading-edge), comparator output (occupied non-disabled slots)
+- [x] Implement `CrafterBlockEntity`: 9 crafting grid slots each with enabled/disabled flag, on-pulse crafting behavior (craft once per redstone leading-edge), comparator output (occupied non-disabled slots)
 - [x] Implement `EnchantingTableBlockEntity`: bookshelf power scan (up to 15 bookshelves within range), visual book animation hint in `getUpdateTag()` (book open/close angle, page turn)
 - [x] Implement `JukeboxBlockEntity`: disc `ItemStack`, `isPlaying` flag, `ticksSinceSongStarted`, comparator output (disc = signal from 1–15), `startPlaying()` / `stopPlaying()`, `SongPlayer` dispatch for jukebox song resource
 - [x] Implement `ComparatorBlockEntity`: mode (COMPARE/SUBTRACT), `outputSignal` cached value, compare vs. subtract logic

@@ -420,6 +420,31 @@ pub struct BrewingStandBlockEntity {
     pub ingredient: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrafterRecipe {
+    pub pattern: [Option<&'static str>; 9],
+    pub result: PotItemStack,
+    pub remaining_items: Vec<PotItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CrafterPulseResult {
+    NotTriggered,
+    NoRecipe,
+    Crafted {
+        result: PotItemStack,
+        remaining_items: Vec<PotItemStack>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrafterBlockEntity {
+    pub items: Vec<Option<PotItemStack>>,
+    pub disabled_slots: [bool; 9],
+    pub triggered: bool,
+    pub crafting_ticks_remaining: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FurnaceBlockEntityKind {
     Furnace,
@@ -3113,6 +3138,191 @@ impl BrewingStandBlockEntity {
                 .map(|stack| stack.item_id.clone());
         }
         stand
+    }
+}
+
+impl CrafterRecipe {
+    pub fn matches(&self, crafter: &CrafterBlockEntity) -> bool {
+        self.pattern.iter().enumerate().all(|(slot, expected)| {
+            if crafter.disabled_slots[slot] {
+                expected.is_none()
+            } else {
+                match (expected, crafter.items[slot].as_ref()) {
+                    (Some(expected), Some(stack)) => stack.item_id == *expected && stack.count > 0,
+                    (None, None) => true,
+                    _ => false,
+                }
+            }
+        })
+    }
+}
+
+impl CrafterBlockEntity {
+    pub const CONTAINER_WIDTH: usize = 3;
+    pub const CONTAINER_HEIGHT: usize = 3;
+    pub const CONTAINER_SIZE: usize = 9;
+    pub const DATA_TRIGGERED: usize = 9;
+    pub const NUM_DATA: usize = 10;
+    pub const SLOT_DISABLED: i32 = 1;
+    pub const SLOT_ENABLED: i32 = 0;
+    pub const MAX_STACK_SIZE: i32 = 64;
+    pub const MAX_CRAFTING_TICKS: i32 = 6;
+    pub const CRAFTING_TICK_DELAY: i32 = 4;
+    pub const DISPLAY_NAME: &'static str = "container.crafter";
+
+    pub fn new() -> Self {
+        Self {
+            items: vec![None; Self::CONTAINER_SIZE],
+            disabled_slots: [false; Self::CONTAINER_SIZE],
+            triggered: false,
+            crafting_ticks_remaining: 0,
+        }
+    }
+
+    pub fn set_slot_state(&mut self, slot: usize, enabled: bool) -> bool {
+        if !self.slot_can_be_disabled(slot) {
+            return false;
+        }
+        self.disabled_slots[slot] = !enabled;
+        true
+    }
+
+    pub fn is_slot_disabled(&self, slot: usize) -> bool {
+        self.disabled_slots.get(slot).copied().unwrap_or(false)
+    }
+
+    pub fn set_triggered(&mut self, triggered: bool) {
+        self.triggered = triggered;
+    }
+
+    pub fn set_item(&mut self, slot: usize, stack: Option<PotItemStack>) -> bool {
+        if slot >= Self::CONTAINER_SIZE {
+            return false;
+        }
+        if self.is_slot_disabled(slot) {
+            self.set_slot_state(slot, true);
+        }
+        self.items[slot] = stack.filter(|stack| !stack.is_empty());
+        true
+    }
+
+    pub fn can_place_item(&self, slot: usize, stack: &PotItemStack) -> bool {
+        if slot >= Self::CONTAINER_SIZE || self.is_slot_disabled(slot) || stack.is_empty() {
+            return false;
+        }
+        let Some(slot_stack) = self.items[slot].as_ref() else {
+            return true;
+        };
+        if slot_stack.count >= Self::MAX_STACK_SIZE {
+            return false;
+        }
+        !self.smaller_stack_exists(slot_stack.count, slot_stack, slot)
+    }
+
+    fn smaller_stack_exists(
+        &self,
+        base_size: i32,
+        base_item: &PotItemStack,
+        base_slot: usize,
+    ) -> bool {
+        for slot in (base_slot + 1)..Self::CONTAINER_SIZE {
+            if self.is_slot_disabled(slot) {
+                continue;
+            }
+            match self.items[slot].as_ref() {
+                None => return true,
+                Some(stack) if stack.count < base_size && stack.item_id == base_item.item_id => {
+                    return true
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn slot_can_be_disabled(&self, slot: usize) -> bool {
+        slot < Self::CONTAINER_SIZE && self.items[slot].is_none()
+    }
+
+    pub fn redstone_signal(&self) -> u8 {
+        self.items
+            .iter()
+            .zip(self.disabled_slots)
+            .filter(|(stack, disabled)| stack.is_some() || *disabled)
+            .count() as u8
+    }
+
+    pub fn server_tick(&mut self) -> bool {
+        let next = self.crafting_ticks_remaining - 1;
+        if next >= 0 {
+            self.crafting_ticks_remaining = next;
+            next == 0
+        } else {
+            false
+        }
+    }
+
+    pub fn pulse_craft(&mut self, recipes: &[CrafterRecipe]) -> CrafterPulseResult {
+        if !self.triggered {
+            return CrafterPulseResult::NotTriggered;
+        }
+        let Some(recipe) = recipes.iter().find(|recipe| recipe.matches(self)) else {
+            return CrafterPulseResult::NoRecipe;
+        };
+        self.crafting_ticks_remaining = Self::MAX_CRAFTING_TICKS;
+        for stack in &mut self.items {
+            if stack.is_some() {
+                shrink_stack(stack, 1);
+            }
+        }
+        CrafterPulseResult::Crafted {
+            result: recipe.result.clone(),
+            remaining_items: recipe.remaining_items.clone(),
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "crafting_ticks_remaining".to_string(),
+                Tag::Int(self.crafting_ticks_remaining),
+            ),
+            ("Items".to_string(), container_items_tag(&self.items)),
+            (
+                "disabled_slots".to_string(),
+                Tag::IntArray(
+                    self.disabled_slots
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(slot, disabled)| disabled.then_some(slot as i32))
+                        .collect(),
+                ),
+            ),
+            ("triggered".to_string(), Tag::Int(self.triggered as i32)),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut crafter = Self::new();
+        let Some(entries) = compound_entries(tag) else {
+            return crafter;
+        };
+        load_container_items(entries, &mut crafter.items);
+        crafter.crafting_ticks_remaining =
+            get_int(entries, "crafting_ticks_remaining").unwrap_or(0);
+        if let Some(Tag::IntArray(disabled_slots)) = entries
+            .iter()
+            .find(|(name, _)| name == "disabled_slots")
+            .map(|(_, tag)| tag)
+        {
+            for slot in disabled_slots {
+                if (0..Self::CONTAINER_SIZE as i32).contains(slot) {
+                    crafter.disabled_slots[*slot as usize] = true;
+                }
+            }
+        }
+        crafter.triggered = get_int(entries, "triggered").unwrap_or(0) != 0;
+        crafter
     }
 }
 
@@ -8118,6 +8328,124 @@ mod tests {
             BrewingStandTickResult::Cancelled
         );
         assert_eq!(cancelled.brew_time, 0);
+    }
+
+    #[test]
+    fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_java() {
+        let mut crafter = CrafterBlockEntity::new();
+        assert_eq!(CrafterBlockEntity::CONTAINER_WIDTH, 3);
+        assert_eq!(CrafterBlockEntity::CONTAINER_HEIGHT, 3);
+        assert_eq!(CrafterBlockEntity::NUM_DATA, 10);
+        assert_eq!(crafter.redstone_signal(), 0);
+        assert!(crafter.set_slot_state(8, false));
+        assert!(crafter.is_slot_disabled(8));
+        assert_eq!(crafter.redstone_signal(), 1);
+        assert!(crafter.set_item(
+            8,
+            Some(PotItemStack {
+                item_id: "minecraft:stone".to_string(),
+                count: 1,
+            }),
+        ));
+        assert!(!crafter.is_slot_disabled(8));
+        assert!(crafter.set_item(8, None));
+        assert!(crafter.set_item(
+            0,
+            Some(PotItemStack {
+                item_id: "minecraft:oak_planks".to_string(),
+                count: 2,
+            }),
+        ));
+        assert!(crafter.set_item(
+            1,
+            Some(PotItemStack {
+                item_id: "minecraft:oak_planks".to_string(),
+                count: 1,
+            }),
+        ));
+        assert!(!crafter.can_place_item(
+            0,
+            &PotItemStack {
+                item_id: "minecraft:oak_planks".to_string(),
+                count: 1,
+            },
+        ));
+        assert!(crafter.can_place_item(
+            2,
+            &PotItemStack {
+                item_id: "minecraft:oak_planks".to_string(),
+                count: 1,
+            },
+        ));
+        assert_eq!(crafter.redstone_signal(), 2);
+
+        let recipe = CrafterRecipe {
+            pattern: [
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            result: PotItemStack {
+                item_id: "minecraft:stick".to_string(),
+                count: 4,
+            },
+            remaining_items: vec![PotItemStack {
+                item_id: "minecraft:bowl".to_string(),
+                count: 1,
+            }],
+        };
+        assert_eq!(
+            crafter.pulse_craft(std::slice::from_ref(&recipe)),
+            CrafterPulseResult::NotTriggered
+        );
+        crafter.set_triggered(true);
+        assert_eq!(
+            crafter.pulse_craft(std::slice::from_ref(&recipe)),
+            CrafterPulseResult::Crafted {
+                result: PotItemStack {
+                    item_id: "minecraft:stick".to_string(),
+                    count: 4,
+                },
+                remaining_items: vec![PotItemStack {
+                    item_id: "minecraft:bowl".to_string(),
+                    count: 1,
+                }],
+            }
+        );
+        assert_eq!(
+            crafter.crafting_ticks_remaining,
+            CrafterBlockEntity::MAX_CRAFTING_TICKS
+        );
+        assert_eq!(
+            crafter.items[0],
+            Some(PotItemStack {
+                item_id: "minecraft:oak_planks".to_string(),
+                count: 1,
+            })
+        );
+        assert_eq!(crafter.items[1], None);
+        for _ in 1..CrafterBlockEntity::MAX_CRAFTING_TICKS {
+            assert!(!crafter.server_tick());
+        }
+        assert!(crafter.server_tick());
+        assert_eq!(crafter.crafting_ticks_remaining, 0);
+
+        let saved = crafter.save_additional();
+        let loaded = CrafterBlockEntity::load_additional(&saved);
+        assert_eq!(loaded, crafter);
+
+        let mut no_recipe = CrafterBlockEntity::new();
+        no_recipe.set_triggered(true);
+        assert_eq!(
+            no_recipe.pulse_craft(&[recipe]),
+            CrafterPulseResult::NoRecipe
+        );
     }
 
     #[test]
