@@ -58,7 +58,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode login property-roundtrip test that rewrites `server.properties`, restarts, reconnects the same generated bot, and verifies vanilla-compatible UUID/profile reuse and observed config changes.
 - [ ] Add a Mineflayer offline-mode bind-address test that verifies bots can connect through `localhost`, explicit `server-ip`, randomized ports, and rejected addresses with vanilla-compatible socket or kick behavior.
 - [ ] Add a Mineflayer offline-mode compression-property login test that verifies first join succeeds with `network-compression-threshold=-1`, `0`, small positive values, and the vanilla default while preserving packet ordering.
-- [ ] Implement `prevent-proxy-connections`.
+- [x] Implement `prevent-proxy-connections`.
 - [x] Implement `server-ip`.
 - [ ] Implement mutable `allow-flight`.
 - [ ] Implement mutable `motd`.

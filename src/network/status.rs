@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
+use std::net::{IpAddr, Shutdown, TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -50,7 +50,7 @@ use crate::network::play::{
     SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
-use crate::player_access::{NameAndId, PlayerAccess};
+use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
@@ -974,7 +974,7 @@ fn handle_status_connection(
     }
 
     let protocol = read_var_i32(&mut input)?;
-    let _server_address = read_string(&mut input, 255)?;
+    let server_address = read_string(&mut input, 255)?;
     let mut port_bytes = [0u8; 2];
     input.read_exact(&mut port_bytes)?;
     let _server_port = u16::from_be_bytes(port_bytes);
@@ -991,6 +991,7 @@ fn handle_status_connection(
             world_root,
             world_seed,
             remote_ip,
+            login_host_ip(&server_address),
         );
     }
     if next_state != 1 {
@@ -1054,6 +1055,7 @@ fn handle_login_connection(
     world_root: &Path,
     world_seed: i64,
     remote_ip: &str,
+    login_host_ip: Option<String>,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -1068,7 +1070,13 @@ fn handle_login_connection(
     let mut login = LoginSession::default();
     let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
     if let Some(reason) =
-        login_access_disconnect_reason(properties, player_access, &finished.profile, remote_ip)?
+        login_access_disconnect_reason(
+            properties,
+            player_access,
+            &finished.profile,
+            remote_ip,
+            login_host_ip.as_deref(),
+        )?
     {
         return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
             ClientboundLoginDisconnectPacket {
@@ -1776,10 +1784,21 @@ fn login_access_disconnect_reason(
     player_access: &Arc<Mutex<PlayerAccess>>,
     profile: &NameAndId,
     remote_ip: &str,
+    login_host_ip: Option<&str>,
 ) -> io::Result<Option<&'static str>> {
     let access = player_access
         .lock()
         .map_err(|_| io::Error::other("player access lock poisoned"))?;
+    if let Some(login_host_ip) = login_host_ip {
+        if access.check_proxy_connection(
+            properties.prevent_proxy_connections,
+            login_host_ip,
+            remote_ip,
+        ) == ProxyConnectionDecision::RejectPreventProxyConnections
+        {
+            return Ok(Some("multiplayer.disconnect.unverified_username"));
+        }
+    }
     if access.is_ip_banned(remote_ip) {
         return Ok(Some("multiplayer.disconnect.ip_banned"));
     }
@@ -1793,6 +1812,15 @@ fn login_access_disconnect_reason(
         return Ok(Some("multiplayer.disconnect.not_whitelisted"));
     }
     Ok(None)
+}
+
+fn login_host_ip(server_address: &str) -> Option<String> {
+    let host = server_address
+        .strip_prefix('[')
+        .and_then(|address| address.split_once(']').map(|(host, _)| host))
+        .or_else(|| server_address.split_once(':').map(|(host, _)| host))
+        .unwrap_or(server_address);
+    host.parse::<IpAddr>().ok().map(|address| address.to_string())
 }
 
 fn wait_for_configuration_packet<R: Read>(
@@ -4087,8 +4115,9 @@ mod tests {
         chunk_batch_size, chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
         handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response, load_favicon,
-        newly_visible_chunks, pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt,
-        trim_pattern_nbt, vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
+        login_access_disconnect_reason, login_host_ip, newly_visible_chunks,
+        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
+        vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
         visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
         visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
         write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
@@ -4128,6 +4157,7 @@ mod tests {
     use std::fs;
     use std::io::{self, Cursor, Read, Write};
     use std::path::{Path, PathBuf};
+    use std::sync::{Arc, Mutex};
 
     struct SynchronizedRegistryManifestEntry {
         registry_id: &'static str,
@@ -4302,6 +4332,46 @@ mod tests {
         let json = status_json(&properties, None);
 
         assert!(json.contains("\"players\":{\"max\":37,\"online\":0,\"sample\":[]}"));
+    }
+
+    #[test]
+    fn prevent_proxy_connections_rejects_mismatched_handshake_ip() {
+        let mut properties = test_properties();
+        properties.set("prevent-proxy-connections", "true");
+        let access = Arc::new(Mutex::new(crate::player_access::PlayerAccess::default()));
+        let profile = crate::player_access::NameAndId::create_offline("Steve");
+
+        assert_eq!(
+            login_host_ip("203.0.113.10"),
+            Some("203.0.113.10".to_string())
+        );
+        assert_eq!(
+            login_host_ip("[2001:db8::1]"),
+            Some("2001:db8::1".to_string())
+        );
+        assert_eq!(login_host_ip("localhost"), None);
+        assert_eq!(
+            login_access_disconnect_reason(
+                &properties,
+                &access,
+                &profile,
+                "198.51.100.20",
+                Some("203.0.113.10"),
+            )
+            .unwrap(),
+            Some("multiplayer.disconnect.unverified_username")
+        );
+        assert_eq!(
+            login_access_disconnect_reason(
+                &properties,
+                &access,
+                &profile,
+                "203.0.113.10",
+                Some("203.0.113.10"),
+            )
+            .unwrap(),
+            None
+        );
     }
 
     #[test]
