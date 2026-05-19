@@ -58,17 +58,17 @@
 
 ## Special Crafting Recipes
 
-- [ ] Implement `BannerDuplicateRecipe`: copy banner patterns from source banner to blank banner
-- [ ] Implement `BookCloningRecipe`: duplicate a written book using a blank book, up to `maxBookGeneration - 1` copies
-- [ ] Implement `DecoratedPotRecipe`: combine 4 pottery sherds/bricks → decorated pot with correct side assignment
-- [ ] Implement `DyeRecipe`: apply dye to wool/glass/beds/candles/shulker boxes/terracotta etc., color blending for leather armor
-- [ ] Implement `FireworkRocketRecipe`: combine paper + gunpowder + optional stars → rocket with flight duration 1–3
-- [ ] Implement `FireworkStarRecipe`: combine gunpowder + colors + optional shape/trail/twinkle items → star with encoded effects
-- [ ] Implement `FireworkStarFadeRecipe`: apply fade colors to existing firework star
-- [ ] Implement `MapExtendingRecipe`: surround map with 8 paper → next-zoom-level map
-- [ ] Implement `RepairItemRecipe`: combine two damaged tools/armor of the same type → repaired item with summed durability - 5%
-- [ ] Implement `ShieldDecorationRecipe`: apply banner pattern to shield
-- [ ] Add unit test for each special recipe: verify result components match vanilla for representative inputs
+- [x] Implement `BannerDuplicateRecipe`: copy banner patterns from source banner to blank banner
+- [x] Implement `BookCloningRecipe`: duplicate a written book using a blank book, up to `maxBookGeneration - 1` copies
+- [x] Implement `DecoratedPotRecipe`: combine 4 pottery sherds/bricks → decorated pot with correct side assignment
+- [x] Implement `DyeRecipe`: apply dye to wool/glass/beds/candles/shulker boxes/terracotta etc., color blending for leather armor
+- [x] Implement `FireworkRocketRecipe`: combine paper + gunpowder + optional stars → rocket with flight duration 1–3
+- [x] Implement `FireworkStarRecipe`: combine gunpowder + colors + optional shape/trail/twinkle items → star with encoded effects
+- [x] Implement `FireworkStarFadeRecipe`: apply fade colors to existing firework star
+- [x] Implement `MapExtendingRecipe`: surround map with 8 paper → next-zoom-level map
+- [x] Implement `RepairItemRecipe`: combine two damaged tools/armor of the same type → repaired item with summed durability - 5%
+- [x] Implement `ShieldDecorationRecipe`: apply banner pattern to shield
+- [x] Add unit test for each special recipe: verify result components match vanilla for representative inputs
 
 ## Cooking Recipes
 
@@ -105,7 +105,7 @@
 - [x] Implement recipe manager loading, recipe map indexing, property sets, selectable recipes, placement info, display metadata, and reload invalidation.
 - [x] Implement core recipe interfaces: `Recipe`, `CraftingRecipe`, `NormalCraftingRecipe`, `CustomRecipe`, `SingleItemRecipe`, `AbstractCookingRecipe`, `SmithingRecipe`, and `SelectableRecipe`.
 - [x] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`.
-- [ ] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
+- [x] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
 - [x] Implement cooking recipes: `SmeltingRecipe`, `BlastingRecipe`, `SmokingRecipe`, and `CampfireCookingRecipe`, including cook time, experience, fuel interaction, and recipe book categories.
 - [x] Implement smithing and station recipes: `SimpleSmithingRecipe`, `SmithingTransformRecipe`, `SmithingTrimRecipe`, and `StonecutterRecipe`.
 - [ ] Validate every recipe type with JSON decode tests, crafting matrix tests, result component tests, remainder tests, unlock tests, and client recipe sync tests.

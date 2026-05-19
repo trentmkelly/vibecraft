@@ -904,6 +904,21 @@ pub struct ComponentCraftingStack {
     pub count: u32,
     pub potion_contents: Option<&'static str>,
     pub custom_name: Option<&'static str>,
+    pub banner_color: Option<&'static str>,
+    pub banner_patterns: u8,
+    pub written_book_generation: Option<u8>,
+    pub pot_decorations: Option<PotDecorationsModel>,
+    pub map_scale: Option<u8>,
+    pub exploration_map: bool,
+    pub map_post_processing_scale: bool,
+    pub dye_color: Option<u32>,
+    pub dyed_color: Option<u32>,
+    pub firework_explosion: Option<FireworkExplosionModel>,
+    pub fireworks: Option<FireworksModel>,
+    pub max_damage: Option<u32>,
+    pub damage: Option<u32>,
+    pub curses: Vec<EnchantmentComponent>,
+    pub base_color: Option<&'static str>,
 }
 
 impl ComponentCraftingStack {
@@ -913,8 +928,46 @@ impl ComponentCraftingStack {
             count: 1,
             potion_contents: None,
             custom_name: None,
+            banner_color: None,
+            banner_patterns: 0,
+            written_book_generation: None,
+            pot_decorations: None,
+            map_scale: None,
+            exploration_map: false,
+            map_post_processing_scale: false,
+            dye_color: None,
+            dyed_color: None,
+            firework_explosion: None,
+            fireworks: None,
+            max_damage: None,
+            damage: None,
+            curses: Vec::new(),
+            base_color: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PotDecorationsModel {
+    pub back: &'static str,
+    pub left: &'static str,
+    pub right: &'static str,
+    pub front: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FireworkExplosionModel {
+    pub shape: &'static str,
+    pub colors: Vec<u32>,
+    pub fade_colors: Vec<u32>,
+    pub trail: bool,
+    pub twinkle: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FireworksModel {
+    pub flight_duration: u8,
+    pub explosions: Vec<FireworkExplosionModel>,
 }
 
 pub fn default_crafting_remaining_items(
@@ -1691,6 +1744,7 @@ pub fn imbue_result(
         count: result.count,
         potion_contents: source.potion_contents,
         custom_name: None,
+        ..ComponentCraftingStack::one(result.item)
     }
 }
 
@@ -1704,6 +1758,405 @@ fn transmute_result_count(
     } else {
         base_count
     }
+}
+
+pub fn banner_duplicate_result(
+    result_item: &'static str,
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<(ComponentCraftingStack, Vec<Option<ComponentCraftingStack>>)> {
+    let present = present_stacks(input);
+    if present.len() != 2 {
+        return None;
+    }
+
+    let mut source = None;
+    let mut target = None;
+    let mut color = None;
+    for stack in present {
+        if !is_banner(stack.item) || stack.banner_patterns > 6 {
+            return None;
+        }
+        match color {
+            Some(expected) if stack.banner_color != Some(expected) => return None,
+            None => color = stack.banner_color,
+            _ => {}
+        }
+        if stack.banner_patterns > 0 {
+            if source.replace(stack).is_some() {
+                return None;
+            }
+        } else if target.replace(stack).is_some() {
+            return None;
+        }
+    }
+
+    let source = source?;
+    target?;
+    let mut result = source.clone();
+    result.item = result_item;
+    result.count = 1;
+    let remaining = input
+        .iter()
+        .map(|stack| {
+            let stack = stack.as_ref()?;
+            (stack.banner_patterns > 0).then(|| {
+                let mut copy = stack.clone();
+                copy.count = 1;
+                copy
+            })
+        })
+        .collect();
+    Some((result, remaining))
+}
+
+pub fn book_cloning_result(
+    result_item: &'static str,
+    input: &[Option<ComponentCraftingStack>],
+    min_generation: u8,
+    max_generation: u8,
+) -> Option<(ComponentCraftingStack, Vec<Option<ComponentCraftingStack>>)> {
+    let mut source = None;
+    let mut material_count = 0;
+    for stack in present_stacks(input) {
+        if stack.item == "minecraft:written_book" {
+            let generation = stack.written_book_generation?;
+            if generation < min_generation
+                || generation > max_generation
+                || source.replace(stack).is_some()
+            {
+                return None;
+            }
+        } else if stack.item == "minecraft:writable_book" {
+            material_count += 1;
+        } else {
+            return None;
+        }
+    }
+
+    let source = source?;
+    if material_count == 0 {
+        return None;
+    }
+    let mut result = source.clone();
+    result.item = result_item;
+    result.count = material_count;
+    result.written_book_generation = source
+        .written_book_generation
+        .map(|generation| generation + 1);
+    let mut returned = false;
+    let remaining = input
+        .iter()
+        .map(|stack| {
+            let stack = stack.as_ref()?;
+            if !returned && stack.written_book_generation.is_some() {
+                returned = true;
+                let mut copy = stack.clone();
+                copy.count = 1;
+                Some(copy)
+            } else {
+                None
+            }
+        })
+        .collect();
+    Some((result, remaining))
+}
+
+pub fn decorated_pot_result(
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    if input.len() != 9 || present_stacks(input).len() != 4 {
+        return None;
+    }
+    let back = input[1].as_ref()?;
+    let left = input[3].as_ref()?;
+    let right = input[5].as_ref()?;
+    let front = input[7].as_ref()?;
+    if [back, left, right, front]
+        .iter()
+        .any(|stack| !is_pot_ingredient(stack.item))
+    {
+        return None;
+    }
+    let mut result = ComponentCraftingStack::one("minecraft:decorated_pot");
+    result.pot_decorations = Some(PotDecorationsModel {
+        back: back.item,
+        left: left.item,
+        right: right.item,
+        front: front.item,
+    });
+    Some(result)
+}
+
+pub fn dye_result(
+    result_item: &'static str,
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    if present_stacks(input).len() < 2 {
+        return None;
+    }
+    let mut target = None;
+    let mut dyes = Vec::new();
+    for stack in present_stacks(input) {
+        if let Some(dye) = stack.dye_color {
+            dyes.push(dye);
+        } else if target.replace(stack).is_some() {
+            return None;
+        }
+    }
+    let target = target?;
+    if dyes.is_empty() {
+        return None;
+    }
+    let mut result = transmute_result(&ItemAmount::one(result_item), target, 0, false);
+    result.dyed_color = Some(blend_dyes(target.dyed_color, &dyes));
+    Some(result)
+}
+
+pub fn firework_rocket_result(
+    result_item: &'static str,
+    result_count: u32,
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    if present_stacks(input).len() < 2 {
+        return None;
+    }
+    let mut shell = false;
+    let mut fuel_count = 0;
+    let mut explosions = Vec::new();
+    for stack in present_stacks(input) {
+        if stack.item == "minecraft:paper" {
+            if shell {
+                return None;
+            }
+            shell = true;
+        } else if stack.item == "minecraft:gunpowder" {
+            fuel_count += 1;
+            if fuel_count > 3 {
+                return None;
+            }
+        } else if stack.item == "minecraft:firework_star" {
+            if let Some(explosion) = &stack.firework_explosion {
+                explosions.push(explosion.clone());
+            }
+        } else {
+            return None;
+        }
+    }
+    if !shell || fuel_count == 0 {
+        return None;
+    }
+    let mut result = ComponentCraftingStack::one(result_item);
+    result.count = result_count;
+    result.fireworks = Some(FireworksModel {
+        flight_duration: fuel_count,
+        explosions,
+    });
+    Some(result)
+}
+
+pub fn firework_star_result(
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    if present_stacks(input).len() < 2 {
+        return None;
+    }
+    let mut fuel = false;
+    let mut colors = Vec::new();
+    let mut shape = "small_ball";
+    let mut trail = false;
+    let mut twinkle = false;
+    for stack in present_stacks(input) {
+        match stack.item {
+            "minecraft:gunpowder" if !fuel => fuel = true,
+            "minecraft:diamond" if !trail => trail = true,
+            "minecraft:glowstone_dust" if !twinkle => twinkle = true,
+            "minecraft:fire_charge" if shape == "small_ball" => shape = "large_ball",
+            "minecraft:feather" if shape == "small_ball" => shape = "burst",
+            "minecraft:gold_nugget" if shape == "small_ball" => shape = "star",
+            _ if stack.dye_color.is_some() => colors.push(stack.dye_color.unwrap_or(0xFFFFFF)),
+            _ => return None,
+        }
+    }
+    if !fuel || colors.is_empty() {
+        return None;
+    }
+    let mut result = ComponentCraftingStack::one("minecraft:firework_star");
+    result.firework_explosion = Some(FireworkExplosionModel {
+        shape,
+        colors,
+        fade_colors: Vec::new(),
+        trail,
+        twinkle,
+    });
+    Some(result)
+}
+
+pub fn firework_star_fade_result(
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    if present_stacks(input).len() < 2 {
+        return None;
+    }
+    let mut target = None;
+    let mut fade_colors = Vec::new();
+    for stack in present_stacks(input) {
+        if let Some(dye) = stack.dye_color {
+            fade_colors.push(dye);
+        } else if stack.item == "minecraft:firework_star" && target.replace(stack).is_none() {
+        } else {
+            return None;
+        }
+    }
+    let target = target?;
+    if fade_colors.is_empty() {
+        return None;
+    }
+    let mut result = transmute_result(
+        &ItemAmount::one("minecraft:firework_star"),
+        target,
+        0,
+        false,
+    );
+    let mut explosion = result
+        .firework_explosion
+        .clone()
+        .unwrap_or(FireworkExplosionModel {
+            shape: "small_ball",
+            colors: Vec::new(),
+            fade_colors: Vec::new(),
+            trail: false,
+            twinkle: false,
+        });
+    explosion.fade_colors = fade_colors;
+    result.firework_explosion = Some(explosion);
+    Some(result)
+}
+
+pub fn map_extending_result(
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    if input.len() != 9 {
+        return None;
+    }
+    for (index, stack) in input.iter().enumerate() {
+        let stack = stack.as_ref()?;
+        if index == 4 {
+            if stack.item != "minecraft:filled_map"
+                || stack.exploration_map
+                || stack.map_scale.is_none_or(|scale| scale >= 4)
+            {
+                return None;
+            }
+        } else if stack.item != "minecraft:paper" {
+            return None;
+        }
+    }
+    let mut result = transmute_result(
+        &ItemAmount::one("minecraft:filled_map"),
+        input[4].as_ref()?,
+        0,
+        false,
+    );
+    result.map_post_processing_scale = true;
+    Some(result)
+}
+
+pub fn repair_item_result(
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    let present = present_stacks(input);
+    let [first, second] = present.as_slice() else {
+        return None;
+    };
+    if first.item != second.item || first.count != 1 || second.count != 1 {
+        return None;
+    }
+    let durability = first.max_damage?.max(second.max_damage?);
+    let remaining = (first.max_damage? - first.damage?)
+        + (second.max_damage? - second.damage?)
+        + durability * 5 / 100;
+    let mut result = ComponentCraftingStack::one(first.item);
+    result.max_damage = Some(durability);
+    result.damage = Some(durability.saturating_sub(remaining));
+    result.curses = merge_curses(&first.curses, &second.curses);
+    Some(result)
+}
+
+pub fn shield_decoration_result(
+    input: &[Option<ComponentCraftingStack>],
+) -> Option<ComponentCraftingStack> {
+    let present = present_stacks(input);
+    if present.len() != 2 {
+        return None;
+    }
+    let mut banner = None;
+    let mut shield = None;
+    for stack in present {
+        if is_banner(stack.item) {
+            if banner.replace(stack).is_some() {
+                return None;
+            }
+        } else if stack.item == "minecraft:shield" && stack.banner_patterns == 0 {
+            if shield.replace(stack).is_some() {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+    let banner = banner?;
+    let shield = shield?;
+    let mut result = transmute_result(&ItemAmount::one("minecraft:shield"), shield, 0, false);
+    result.banner_patterns = banner.banner_patterns;
+    result.base_color = banner.banner_color;
+    Some(result)
+}
+
+fn present_stacks(input: &[Option<ComponentCraftingStack>]) -> Vec<&ComponentCraftingStack> {
+    input
+        .iter()
+        .flatten()
+        .filter(|stack| stack.count > 0)
+        .collect()
+}
+
+fn is_banner(item: &str) -> bool {
+    item.ends_with("_banner")
+}
+
+fn is_pot_ingredient(item: &str) -> bool {
+    item == "minecraft:brick" || item.ends_with("_pottery_sherd")
+}
+
+fn blend_dyes(current: Option<u32>, dyes: &[u32]) -> u32 {
+    let mut colors = Vec::new();
+    if let Some(current) = current {
+        colors.push(current);
+    }
+    colors.extend_from_slice(dyes);
+    let len = colors.len() as u32;
+    let red = colors.iter().map(|color| (color >> 16) & 0xFF).sum::<u32>() / len;
+    let green = colors.iter().map(|color| (color >> 8) & 0xFF).sum::<u32>() / len;
+    let blue = colors.iter().map(|color| color & 0xFF).sum::<u32>() / len;
+    (red << 16) | (green << 8) | blue
+}
+
+fn merge_curses(
+    first: &[EnchantmentComponent],
+    second: &[EnchantmentComponent],
+) -> Vec<EnchantmentComponent> {
+    let mut merged = first.to_vec();
+    for enchantment in second {
+        if let Some(existing) = merged
+            .iter_mut()
+            .find(|candidate| candidate.id == enchantment.id)
+        {
+            existing.level = existing.level.max(enchantment.level);
+        } else {
+            merged.push(enchantment.clone());
+        }
+    }
+    merged
 }
 
 fn shaped_matches(
@@ -2137,6 +2590,7 @@ mod tests {
             count: 1,
             potion_contents: None,
             custom_name: Some("Base map"),
+            ..ComponentCraftingStack::one("minecraft:filled_map")
         };
         let copied = transmute_result(&ItemAmount::one("minecraft:filled_map"), &source, 2, true);
         assert_eq!(copied.item, "minecraft:filled_map");
@@ -2188,6 +2642,7 @@ mod tests {
             count: 1,
             potion_contents: Some("minecraft:strong_harming"),
             custom_name: Some("Splashy"),
+            ..ComponentCraftingStack::one("minecraft:lingering_potion")
         };
         let arrows = imbue_result(
             &ItemAmount {
@@ -2200,6 +2655,187 @@ mod tests {
         assert_eq!(arrows.count, 8);
         assert_eq!(arrows.potion_contents, Some("minecraft:strong_harming"));
         assert_eq!(arrows.custom_name, None);
+    }
+
+    #[test]
+    fn special_crafting_recipes_produce_vanilla_components() {
+        let mut patterned_banner = ComponentCraftingStack::one("minecraft:white_banner");
+        patterned_banner.banner_color = Some("white");
+        patterned_banner.banner_patterns = 2;
+        let mut blank_banner = ComponentCraftingStack::one("minecraft:white_banner");
+        blank_banner.banner_color = Some("white");
+        let (banner_copy, banner_remainders) = banner_duplicate_result(
+            "minecraft:white_banner",
+            &[Some(patterned_banner.clone()), Some(blank_banner)],
+        )
+        .expect("one patterned and one blank banner of the same color should copy");
+        assert_eq!(banner_copy.banner_patterns, 2);
+        assert_eq!(
+            banner_remainders[0].as_ref().unwrap().item,
+            "minecraft:white_banner"
+        );
+        assert!(banner_duplicate_result(
+            "minecraft:white_banner",
+            &[
+                Some(patterned_banner.clone()),
+                Some(patterned_banner.clone())
+            ]
+        )
+        .is_none());
+
+        let mut written = ComponentCraftingStack::one("minecraft:written_book");
+        written.written_book_generation = Some(0);
+        let (books, book_remainders) = book_cloning_result(
+            "minecraft:written_book",
+            &[
+                Some(written.clone()),
+                Some(ComponentCraftingStack::one("minecraft:writable_book")),
+                Some(ComponentCraftingStack::one("minecraft:writable_book")),
+            ],
+            0,
+            1,
+        )
+        .expect("generation 0 written book plus blanks should clone");
+        assert_eq!(books.count, 2);
+        assert_eq!(books.written_book_generation, Some(1));
+        assert_eq!(
+            book_remainders[0].as_ref().unwrap().item,
+            "minecraft:written_book"
+        );
+        written.written_book_generation = Some(2);
+        assert!(book_cloning_result(
+            "minecraft:written_book",
+            &[
+                Some(written),
+                Some(ComponentCraftingStack::one("minecraft:writable_book"))
+            ],
+            0,
+            1
+        )
+        .is_none());
+
+        let pot = decorated_pot_result(&[
+            None,
+            Some(ComponentCraftingStack::one(
+                "minecraft:angler_pottery_sherd",
+            )),
+            None,
+            Some(ComponentCraftingStack::one("minecraft:brick")),
+            None,
+            Some(ComponentCraftingStack::one(
+                "minecraft:archer_pottery_sherd",
+            )),
+            None,
+            Some(ComponentCraftingStack::one(
+                "minecraft:arms_up_pottery_sherd",
+            )),
+            None,
+        ])
+        .expect("decorated pot uses back, left, right, front slots");
+        assert_eq!(
+            pot.pot_decorations,
+            Some(PotDecorationsModel {
+                back: "minecraft:angler_pottery_sherd",
+                left: "minecraft:brick",
+                right: "minecraft:archer_pottery_sherd",
+                front: "minecraft:arms_up_pottery_sherd",
+            })
+        );
+
+        let mut leather = ComponentCraftingStack::one("minecraft:leather_helmet");
+        leather.dyed_color = Some(0x0000FF);
+        let mut red_dye = ComponentCraftingStack::one("minecraft:red_dye");
+        red_dye.dye_color = Some(0xFF0000);
+        let dyed = dye_result("minecraft:leather_helmet", &[Some(leather), Some(red_dye)])
+            .expect("leather target plus dye should produce dyed target");
+        assert_eq!(dyed.dyed_color, Some(0x7F007F));
+
+        let mut star = ComponentCraftingStack::one("minecraft:firework_star");
+        star.firework_explosion = Some(FireworkExplosionModel {
+            shape: "star",
+            colors: vec![0xFF0000],
+            fade_colors: Vec::new(),
+            trail: true,
+            twinkle: false,
+        });
+        let rocket = firework_rocket_result(
+            "minecraft:firework_rocket",
+            3,
+            &[
+                Some(ComponentCraftingStack::one("minecraft:paper")),
+                Some(ComponentCraftingStack::one("minecraft:gunpowder")),
+                Some(ComponentCraftingStack::one("minecraft:gunpowder")),
+                Some(star.clone()),
+            ],
+        )
+        .expect("paper plus one to three gunpowder and optional stars should craft rockets");
+        assert_eq!(rocket.count, 3);
+        assert_eq!(rocket.fireworks.as_ref().unwrap().flight_duration, 2);
+        assert_eq!(
+            rocket.fireworks.as_ref().unwrap().explosions,
+            vec![star.firework_explosion.clone().unwrap()]
+        );
+
+        let mut blue_dye = ComponentCraftingStack::one("minecraft:blue_dye");
+        blue_dye.dye_color = Some(0x0000FF);
+        let crafted_star = firework_star_result(&[
+            Some(ComponentCraftingStack::one("minecraft:gunpowder")),
+            Some(blue_dye.clone()),
+            Some(ComponentCraftingStack::one("minecraft:gold_nugget")),
+            Some(ComponentCraftingStack::one("minecraft:diamond")),
+            Some(ComponentCraftingStack::one("minecraft:glowstone_dust")),
+        ])
+        .expect("gunpowder plus dye with optional shape/trail/twinkle should craft a star");
+        let explosion = crafted_star.firework_explosion.as_ref().unwrap();
+        assert_eq!(explosion.shape, "star");
+        assert_eq!(explosion.colors, vec![0x0000FF]);
+        assert!(explosion.trail);
+        assert!(explosion.twinkle);
+
+        let faded = firework_star_fade_result(&[Some(crafted_star), Some(blue_dye)])
+            .expect("firework star plus dyes should set fade colors");
+        assert_eq!(
+            faded.firework_explosion.unwrap().fade_colors,
+            vec![0x0000FF]
+        );
+
+        let mut map = ComponentCraftingStack::one("minecraft:filled_map");
+        map.map_scale = Some(3);
+        let mut map_grid = vec![Some(ComponentCraftingStack::one("minecraft:paper")); 9];
+        map_grid[4] = Some(map);
+        let extended =
+            map_extending_result(&map_grid).expect("scale < 4 non-exploration map should extend");
+        assert!(extended.map_post_processing_scale);
+
+        let mut first_pick = ComponentCraftingStack::one("minecraft:diamond_pickaxe");
+        first_pick.max_damage = Some(100);
+        first_pick.damage = Some(80);
+        first_pick.curses.push(EnchantmentComponent {
+            id: "minecraft:binding_curse",
+            level: 1,
+        });
+        let mut second_pick = ComponentCraftingStack::one("minecraft:diamond_pickaxe");
+        second_pick.max_damage = Some(100);
+        second_pick.damage = Some(90);
+        second_pick.curses.push(EnchantmentComponent {
+            id: "minecraft:vanishing_curse",
+            level: 1,
+        });
+        let repaired = repair_item_result(&[Some(first_pick), Some(second_pick)])
+            .expect("two same damaged single-count items should repair");
+        assert_eq!(repaired.damage, Some(65));
+        assert_eq!(repaired.curses.len(), 2);
+
+        let mut shield_banner = ComponentCraftingStack::one("minecraft:red_banner");
+        shield_banner.banner_color = Some("red");
+        shield_banner.banner_patterns = 3;
+        let decorated_shield = shield_decoration_result(&[
+            Some(shield_banner),
+            Some(ComponentCraftingStack::one("minecraft:shield")),
+        ])
+        .expect("pattern banner plus clear shield should decorate shield");
+        assert_eq!(decorated_shield.banner_patterns, 3);
+        assert_eq!(decorated_shield.base_color, Some("red"));
     }
 
     #[test]
