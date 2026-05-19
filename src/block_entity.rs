@@ -8234,6 +8234,10 @@ impl BlockEntity {
         compound_from_map(&values)
     }
 
+    pub fn data_get_block_nbt(&self) -> Tag {
+        self.save_with_full_metadata()
+    }
+
     pub fn get_update_tag(&self) -> Tag {
         match self.ty {
             BlockEntityTypeId::Chest
@@ -12382,6 +12386,71 @@ mod tests {
             assert_eq!(
                 reloaded.tick_count, 0,
                 "scheduler tick state leaked through chunk reload for {}",
+                info.key
+            );
+        }
+    }
+
+    #[test]
+    fn data_get_block_exposes_full_nbt_for_every_block_entity_type() {
+        for info in BLOCK_ENTITY_TYPES {
+            let block_state = info
+                .valid_blocks
+                .first()
+                .expect("every block entity type has at least one valid block");
+            let probe_pos = BlockPos {
+                x: -12,
+                y: 81,
+                z: 44,
+            };
+            let mut entity = BlockEntity::new(info.id, probe_pos, block_state).unwrap();
+            entity
+                .custom_data
+                .insert("DataProbe".to_string(), Tag::String(info.key.to_string()));
+            entity.components.insert(
+                "minecraft:custom_name".to_string(),
+                Tag::String("\"Data Probe\"".to_string()),
+            );
+
+            let tag = entity.data_get_block_nbt();
+            let entries = compound_entries(&tag).expect("/data get block result is compound");
+
+            assert_eq!(
+                get_string(entries, "id"),
+                Some(info.key),
+                "/data id failed for {}",
+                info.key
+            );
+            assert_eq!(get_int(entries, "x"), Some(probe_pos.x));
+            assert_eq!(get_int(entries, "y"), Some(probe_pos.y));
+            assert_eq!(get_int(entries, "z"), Some(probe_pos.z));
+            assert!(
+                entries.iter().any(|(key, value)| key == "DataProbe"
+                    && value == &Tag::String(info.key.to_string())),
+                "/data custom field missing for {}",
+                info.key
+            );
+            assert!(
+                entries.iter().any(|(key, value)| {
+                    key == "components"
+                        && matches!(value, Tag::Compound(values) if values.iter().any(
+                            |(component_key, component_value)| component_key == "minecraft:custom_name"
+                                && component_value == &Tag::String("\"Data Probe\"".to_string())
+                        ))
+                }),
+                "/data components missing for {}",
+                info.key
+            );
+
+            let loaded = load_static(probe_pos, block_state, &tag).unwrap();
+            assert_eq!(
+                loaded.custom_data, entity.custom_data,
+                "{} custom data",
+                info.key
+            );
+            assert_eq!(
+                loaded.components, entity.components,
+                "{} components",
                 info.key
             );
         }
