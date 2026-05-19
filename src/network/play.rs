@@ -238,6 +238,25 @@ pub struct ServerboundPlayerInputPacket {
 pub struct ServerboundPlayerLoadedPacket;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerboundPlayerCommandAction {
+    StopSleeping,
+    StartSprinting,
+    StopSprinting,
+    StartRidingJump,
+    StopRidingJump,
+    OpenInventory,
+    StartFallFlying,
+    Unknown(i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlayerCommandPacket {
+    pub entity_id: i32,
+    pub action: ServerboundPlayerCommandAction,
+    pub data: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerboundClientCommandAction {
     PerformRespawn,
     RequestStats,
@@ -941,6 +960,7 @@ pub struct PlaySession {
     pub pending_teleports: BTreeSet<i32>,
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
+    pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1020,6 +1040,7 @@ impl PlaySession {
             pending_teleports: BTreeSet::new(),
             last_move: None,
             last_vehicle_move: None,
+            last_player_command: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1212,6 +1233,24 @@ impl PlaySession {
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad player loaded packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_PLAYER_COMMAND_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPlayerCommandPacket::read(&mut input) {
+                    Ok(command) => {
+                        if matches!(command.action, ServerboundPlayerCommandAction::Unknown(_)) {
+                            DispatchOutcome::Disconnect(
+                                "unknown player command action".to_string(),
+                            )
+                        } else {
+                            self.last_player_command = Some(command);
+                            DispatchOutcome::Handled
+                        }
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad player command packet: {err}"))
                     }
                 }
             }
@@ -2117,6 +2156,50 @@ impl ServerboundPlayerLoadedPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         Ok(())
+    }
+}
+
+impl ServerboundPlayerCommandAction {
+    fn from_id(id: i32) -> Self {
+        match id {
+            0 => Self::StopSleeping,
+            1 => Self::StartSprinting,
+            2 => Self::StopSprinting,
+            3 => Self::StartRidingJump,
+            4 => Self::StopRidingJump,
+            5 => Self::OpenInventory,
+            6 => Self::StartFallFlying,
+            _ => Self::Unknown(id),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::StopSleeping => 0,
+            Self::StartSprinting => 1,
+            Self::StopSprinting => 2,
+            Self::StartRidingJump => 3,
+            Self::StopRidingJump => 4,
+            Self::OpenInventory => 5,
+            Self::StartFallFlying => 6,
+            Self::Unknown(value) => value,
+        }
+    }
+}
+
+impl ServerboundPlayerCommandPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            entity_id: read_var_i32(reader)?,
+            action: ServerboundPlayerCommandAction::from_id(read_var_i32(reader)?),
+            data: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.action.to_id())?;
+        write_var_i32(writer, self.data)
     }
 }
 
@@ -4077,6 +4160,37 @@ mod tests {
                     sprint: true,
                 },
             }
+        );
+
+        let mut player_command = Vec::new();
+        ServerboundPlayerCommandPacket {
+            entity_id: 37,
+            action: ServerboundPlayerCommandAction::StartRidingJump,
+            data: 128,
+        }
+        .write(&mut player_command)
+        .unwrap();
+        assert_eq!(player_command, vec![37, 3, 0x80, 0x01]);
+        assert_eq!(
+            ServerboundPlayerCommandPacket::read(&mut cursor(player_command.clone())).unwrap(),
+            ServerboundPlayerCommandPacket {
+                entity_id: 37,
+                action: ServerboundPlayerCommandAction::StartRidingJump,
+                data: 128,
+            }
+        );
+        let mut session = PlaySession::new(1, 0);
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_PLAYER_COMMAND_PACKET_ID, player_command)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_player_command,
+            Some(ServerboundPlayerCommandPacket {
+                entity_id: 37,
+                action: ServerboundPlayerCommandAction::StartRidingJump,
+                data: 128,
+            })
         );
 
         let mut player_loaded = Vec::new();

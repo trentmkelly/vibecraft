@@ -191,7 +191,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundUseItemPacket` (0x37): hand, sequence VarInt, yaw/pitch
 - [ ] `ServerboundPlayerActionPacket` (0x1D): action (start-dig, abort-dig, stop-dig, drop-all, drop-one, release-use, swap-held), block pos, face direction, sequence VarInt
 - [x] `ServerboundSwingPacket` (0x3F): hand VarInt
-- [ ] `ServerboundPlayerCommandPacket` (0x1E): entity ID, action (start-sneaking, stop-sneaking, leave-bed, start-sprinting, stop-sprinting, start-riding-jump, stop-riding-jump, open-inventory, start-fall-flying), jump-boost int
+- [x] `ServerboundPlayerCommandPacket` (0x2A): entity ID VarInt, action enum VarInt (stop-sleeping, start-sprinting, stop-sprinting, start-riding-jump, stop-riding-jump, open-inventory, start-fall-flying), data VarInt
 
 ## Player Movement (Serverbound)
 
