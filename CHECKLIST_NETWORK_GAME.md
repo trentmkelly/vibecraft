@@ -166,8 +166,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundSetTitleTextPacket` (0x60): title component
 - [ ] `ClientboundSetSubtitleTextPacket` (0x5F): subtitle component
-- [ ] `ClientboundSetTitlesAnimationPacket` (0x63): fade-in ticks, stay ticks, fade-out ticks
-- [ ] `ClientboundClearTitlesPacket` (0x0E): reset bool
+- [x] `ClientboundSetTitlesAnimationPacket` (0x73): fade-in ticks int, stay ticks int, fade-out ticks int
+- [x] `ClientboundClearTitlesPacket` (0x0E): reset-times bool
 - [ ] `ClientboundSetActionBarTextPacket` (0x4D): action bar component
 - [ ] `ClientboundTabListPacket` (0x6D): header component, footer component
 

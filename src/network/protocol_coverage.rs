@@ -663,7 +663,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "clear_titles",
         java_class: "ClientboundClearTitlesPacket",
-        field_order: "unparsed",
+        field_order: "reset_times:bool",
     },
     PlayPacketSpec {
         id: 15,
@@ -1371,7 +1371,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_titles_animation",
         java_class: "ClientboundSetTitlesAnimationPacket",
-        field_order: "unparsed",
+        field_order: "fade_in:int, stay:int, fade_out:int",
     },
     PlayPacketSpec {
         id: 116,

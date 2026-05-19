@@ -1079,6 +1079,18 @@ pub enum TitlePacketKind {
     Clear,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundClearTitlesPacket {
+    pub reset_times: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetTitlesAnimationPacket {
+    pub fade_in: i32,
+    pub stay: i32,
+    pub fade_out: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundSoundPacket {
     pub sound_id: i32,
@@ -2604,6 +2616,20 @@ impl ClientboundSetBorderWarningDelayPacket {
 impl ClientboundSetBorderWarningDistancePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.warning_blocks)
+    }
+}
+
+impl ClientboundClearTitlesPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.reset_times)
+    }
+}
+
+impl ClientboundSetTitlesAnimationPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i32(writer, self.fade_in)?;
+        write_i32(writer, self.stay)?;
+        write_i32(writer, self.fade_out)
     }
 }
 
@@ -5742,6 +5768,30 @@ mod tests {
             .write(&mut warning_distance)
             .unwrap();
         assert_eq!(warning_distance, vec![5]);
+
+        let mut clear_titles = Vec::new();
+        ClientboundClearTitlesPacket { reset_times: true }
+            .write(&mut clear_titles)
+            .unwrap();
+        assert_eq!(clear_titles, vec![1]);
+
+        let mut title_times = Vec::new();
+        ClientboundSetTitlesAnimationPacket {
+            fade_in: 10,
+            stay: 70,
+            fade_out: 20,
+        }
+        .write(&mut title_times)
+        .unwrap();
+        assert_eq!(
+            title_times,
+            [
+                10_i32.to_be_bytes(),
+                70_i32.to_be_bytes(),
+                20_i32.to_be_bytes()
+            ]
+            .concat()
+        );
     }
 
     #[test]
