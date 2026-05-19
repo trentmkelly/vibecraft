@@ -4,6 +4,13 @@ import {
   createBlockEntityInteractionsPlan,
   summarizeBlockEntityInteractions,
   planSignEdit,
+  planHangingSignEdit,
+  planBookInteract,
+  planCommandBlockProgram,
+  planSkullAnimation,
+  planBannerPattern,
+  planConduitPulse,
+  planCandleAdjust,
   planChestOpenLoot,
   planFurnaceInsertExtract,
   planLecternPageTurn,
@@ -12,16 +19,40 @@ import {
   planCampfireCook,
   planCauldronFillEmpty,
   planSpawnerEggInsert,
+  planVaultOpen,
+  planTrialSpawnerEggInsert,
+  planCalibratedSculkSensorTest,
+  planChiseledBookshelfUse,
   planBrushableBlockBrush
 } from './block_entity_interactions.mjs'
 
-test('createBlockEntityInteractionsPlan covers all 10 block entity interaction steps', () => {
+test('createBlockEntityInteractionsPlan covers requested parity block entity steps', () => {
   const plan = createBlockEntityInteractionsPlan()
   assert.equal(plan.name, 'mineflayer-block-entity-interactions')
-  assert.equal(plan.steps.length, 10)
-  assert.ok(plan.steps.includes('sign-edit'))
-  assert.ok(plan.steps.includes('chest-open-loot'))
-  assert.ok(plan.steps.includes('brushable-block-brush'))
+  assert.equal(plan.steps.length, 21)
+  assert.deepEqual(plan.steps, [
+    'chest-open-loot',
+    'furnace-insert-extract',
+    'sign-edit',
+    'hanging-sign-edit',
+    'book-interact',
+    'command-block-program',
+    'skull-animation',
+    'banner-pattern',
+    'conduit-pulse',
+    'bell-ring-broadcast',
+    'lectern-page-turn',
+    'note-block-pitch',
+    'campfire-cook',
+    'cauldron-fill-empty',
+    'candle-adjust',
+    'spawner-egg-insert',
+    'vault-open',
+    'trial-spawner-egg-insert',
+    'calibrated-sculk-sensor-test',
+    'chiseled-bookshelf-use',
+    'brushable-block-brush'
+  ])
 })
 
 test('summarizeBlockEntityInteractions returns ok when all steps have evidence', () => {
@@ -31,6 +62,13 @@ test('summarizeBlockEntityInteractions returns ok when all steps have evidence',
     summary: [
       {
         'sign-edit': 'block_entity.sign.edit',
+        'hanging-sign-edit': 'block_entity.hanging_sign.edit',
+        'book-interact': 'block_entity.book.interact',
+        'command-block-program': 'block_entity.command_block.program',
+        'skull-animation': 'block_entity.skull.animate',
+        'banner-pattern': 'block_entity.banner.pattern',
+        'conduit-pulse': 'block_entity.conduit.pulse',
+        'candle-adjust': 'block_entity.candle.adjust',
         'chest-open-loot': 'block_entity.chest.open_loot',
         'furnace-insert-extract': 'block_entity.furnace.insert_extract',
         'lectern-page-turn': 'block_entity.lectern.page_turn',
@@ -39,6 +77,10 @@ test('summarizeBlockEntityInteractions returns ok when all steps have evidence',
         'campfire-cook': 'block_entity.campfire.cook',
         'cauldron-fill-empty': 'block_entity.cauldron.fill_empty',
         'spawner-egg-insert': 'block_entity.spawner.egg_insert',
+        'vault-open': 'block_entity.vault.open',
+        'trial-spawner-egg-insert': 'block_entity.trial_spawner.egg_insert',
+        'calibrated-sculk-sensor-test': 'block_entity.calibrated_sculk_sensor.test',
+        'chiseled-bookshelf-use': 'block_entity.chiseled_bookshelf.use',
         'brushable-block-brush': 'block_entity.brushable.brush'
       }[step],
       {}
@@ -82,5 +124,16 @@ test('all plan functions produce correct action strings', () => {
   assert.equal(planCampfireCook('minecraft:beef', 'minecraft:cooked_beef').action, 'block_entity.campfire.cook')
   assert.equal(planCauldronFillEmpty('water').action, 'block_entity.cauldron.fill_empty')
   assert.equal(planSpawnerEggInsert('minecraft:zombie').action, 'block_entity.spawner.egg_insert')
+  assert.equal(planHangingSignEdit().action, 'block_entity.hanging_sign.edit')
+  assert.equal(planBookInteract('My Book', 3).action, 'block_entity.book.interact')
+  assert.equal(planCommandBlockProgram('say hi').action, 'block_entity.command_block.program')
+  assert.equal(planSkullAnimation('dragon').action, 'block_entity.skull.animate')
+  assert.equal(planBannerPattern(3).action, 'block_entity.banner.pattern')
+  assert.equal(planConduitPulse().action, 'block_entity.conduit.pulse')
+  assert.equal(planCandleAdjust(2).action, 'block_entity.candle.adjust')
+  assert.equal(planVaultOpen().action, 'block_entity.vault.open')
+  assert.equal(planTrialSpawnerEggInsert('minecraft:trial_spawner').action, 'block_entity.trial_spawner.egg_insert')
+  assert.equal(planCalibratedSculkSensorTest().action, 'block_entity.calibrated_sculk_sensor.test')
+  assert.equal(planChiseledBookshelfUse(3, true).action, 'block_entity.chiseled_bookshelf.use')
   assert.equal(planBrushableBlockBrush('minecraft:suspicious_sand').action, 'block_entity.brushable.brush')
 })

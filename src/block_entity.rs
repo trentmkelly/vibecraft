@@ -117,7 +117,17 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
     info(
         BlockEntityTypeId::Chest,
         "chest",
-        &["minecraft:chest", "minecraft:copper_chest"],
+        &[
+            "minecraft:chest",
+            "minecraft:copper_chest",
+            "minecraft:exposed_copper_chest",
+            "minecraft:weathered_copper_chest",
+            "minecraft:oxidized_copper_chest",
+            "minecraft:waxed_copper_chest",
+            "minecraft:waxed_exposed_copper_chest",
+            "minecraft:waxed_weathered_copper_chest",
+            "minecraft:waxed_oxidized_copper_chest",
+        ],
         BlockEntityTickKind::None,
         false,
     ),
@@ -161,8 +171,29 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
         "sign",
         &[
             "minecraft:oak_sign",
-            "minecraft:oak_wall_sign",
+            "minecraft:spruce_sign",
+            "minecraft:birch_sign",
+            "minecraft:acacia_sign",
+            "minecraft:cherry_sign",
+            "minecraft:jungle_sign",
+            "minecraft:dark_oak_sign",
+            "minecraft:pale_oak_sign",
+            "minecraft:mangrove_sign",
             "minecraft:crimson_sign",
+            "minecraft:warped_sign",
+            "minecraft:bamboo_sign",
+            "minecraft:oak_wall_sign",
+            "minecraft:spruce_wall_sign",
+            "minecraft:birch_wall_sign",
+            "minecraft:acacia_wall_sign",
+            "minecraft:cherry_wall_sign",
+            "minecraft:jungle_wall_sign",
+            "minecraft:dark_oak_wall_sign",
+            "minecraft:pale_oak_wall_sign",
+            "minecraft:mangrove_wall_sign",
+            "minecraft:crimson_wall_sign",
+            "minecraft:warped_wall_sign",
+            "minecraft:bamboo_wall_sign",
         ],
         BlockEntityTickKind::Server,
         true,
@@ -172,7 +203,29 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
         "hanging_sign",
         &[
             "minecraft:oak_hanging_sign",
+            "minecraft:spruce_hanging_sign",
+            "minecraft:birch_hanging_sign",
+            "minecraft:acacia_hanging_sign",
+            "minecraft:cherry_hanging_sign",
+            "minecraft:jungle_hanging_sign",
+            "minecraft:dark_oak_hanging_sign",
+            "minecraft:pale_oak_hanging_sign",
+            "minecraft:crimson_hanging_sign",
+            "minecraft:warped_hanging_sign",
+            "minecraft:mangrove_hanging_sign",
+            "minecraft:bamboo_hanging_sign",
             "minecraft:oak_wall_hanging_sign",
+            "minecraft:spruce_wall_hanging_sign",
+            "minecraft:birch_wall_hanging_sign",
+            "minecraft:acacia_wall_hanging_sign",
+            "minecraft:cherry_wall_hanging_sign",
+            "minecraft:jungle_wall_hanging_sign",
+            "minecraft:dark_oak_wall_hanging_sign",
+            "minecraft:pale_oak_wall_hanging_sign",
+            "minecraft:crimson_wall_hanging_sign",
+            "minecraft:warped_wall_hanging_sign",
+            "minecraft:mangrove_wall_hanging_sign",
+            "minecraft:bamboo_wall_hanging_sign",
         ],
         BlockEntityTickKind::Server,
         true,
@@ -230,9 +283,20 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
         BlockEntityTypeId::Skull,
         "skull",
         &[
+            "minecraft:skeleton_wall_skull",
+            "minecraft:creeper_head",
+            "minecraft:creeper_wall_head",
+            "minecraft:dragon_wall_head",
             "minecraft:skeleton_skull",
             "minecraft:player_head",
+            "minecraft:player_wall_head",
             "minecraft:dragon_head",
+            "minecraft:zombie_head",
+            "minecraft:zombie_wall_head",
+            "minecraft:wither_skeleton_skull",
+            "minecraft:wither_skeleton_wall_skull",
+            "minecraft:piglin_head",
+            "minecraft:piglin_wall_head",
         ],
         BlockEntityTickKind::Client,
         false,
@@ -261,7 +325,40 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
     info(
         BlockEntityTypeId::Banner,
         "banner",
-        &["minecraft:white_banner", "minecraft:white_wall_banner"],
+        &[
+            "minecraft:white_banner",
+            "minecraft:orange_banner",
+            "minecraft:magenta_banner",
+            "minecraft:light_blue_banner",
+            "minecraft:yellow_banner",
+            "minecraft:lime_banner",
+            "minecraft:pink_banner",
+            "minecraft:gray_banner",
+            "minecraft:light_gray_banner",
+            "minecraft:cyan_banner",
+            "minecraft:purple_banner",
+            "minecraft:blue_banner",
+            "minecraft:brown_banner",
+            "minecraft:green_banner",
+            "minecraft:red_banner",
+            "minecraft:black_banner",
+            "minecraft:white_wall_banner",
+            "minecraft:orange_wall_banner",
+            "minecraft:magenta_wall_banner",
+            "minecraft:light_blue_wall_banner",
+            "minecraft:yellow_wall_banner",
+            "minecraft:lime_wall_banner",
+            "minecraft:pink_wall_banner",
+            "minecraft:gray_wall_banner",
+            "minecraft:light_gray_wall_banner",
+            "minecraft:cyan_wall_banner",
+            "minecraft:purple_wall_banner",
+            "minecraft:blue_wall_banner",
+            "minecraft:brown_wall_banner",
+            "minecraft:green_wall_banner",
+            "minecraft:red_wall_banner",
+            "minecraft:black_wall_banner",
+        ],
         BlockEntityTickKind::None,
         false,
     ),
@@ -293,14 +390,49 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
     info(
         BlockEntityTypeId::ShulkerBox,
         "shulker_box",
-        &["minecraft:shulker_box", "minecraft:white_shulker_box"],
+        &[
+            "minecraft:shulker_box",
+            "minecraft:black_shulker_box",
+            "minecraft:blue_shulker_box",
+            "minecraft:brown_shulker_box",
+            "minecraft:cyan_shulker_box",
+            "minecraft:gray_shulker_box",
+            "minecraft:green_shulker_box",
+            "minecraft:light_blue_shulker_box",
+            "minecraft:light_gray_shulker_box",
+            "minecraft:lime_shulker_box",
+            "minecraft:magenta_shulker_box",
+            "minecraft:orange_shulker_box",
+            "minecraft:pink_shulker_box",
+            "minecraft:purple_shulker_box",
+            "minecraft:red_shulker_box",
+            "minecraft:white_shulker_box",
+            "minecraft:yellow_shulker_box",
+        ],
         BlockEntityTickKind::Client,
         false,
     ),
     info(
         BlockEntityTypeId::Bed,
         "bed",
-        &["minecraft:red_bed", "minecraft:white_bed"],
+        &[
+            "minecraft:black_bed",
+            "minecraft:blue_bed",
+            "minecraft:brown_bed",
+            "minecraft:cyan_bed",
+            "minecraft:gray_bed",
+            "minecraft:green_bed",
+            "minecraft:light_blue_bed",
+            "minecraft:light_gray_bed",
+            "minecraft:lime_bed",
+            "minecraft:magenta_bed",
+            "minecraft:orange_bed",
+            "minecraft:pink_bed",
+            "minecraft:purple_bed",
+            "minecraft:red_bed",
+            "minecraft:white_bed",
+            "minecraft:yellow_bed",
+        ],
         BlockEntityTickKind::None,
         false,
     ),
@@ -405,7 +537,20 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
     info(
         BlockEntityTypeId::Shelf,
         "shelf",
-        &["minecraft:oak_shelf", "minecraft:bamboo_shelf"],
+        &[
+            "minecraft:acacia_shelf",
+            "minecraft:bamboo_shelf",
+            "minecraft:birch_shelf",
+            "minecraft:cherry_shelf",
+            "minecraft:crimson_shelf",
+            "minecraft:dark_oak_shelf",
+            "minecraft:jungle_shelf",
+            "minecraft:mangrove_shelf",
+            "minecraft:oak_shelf",
+            "minecraft:pale_oak_shelf",
+            "minecraft:spruce_shelf",
+            "minecraft:warped_shelf",
+        ],
         BlockEntityTickKind::None,
         false,
     ),
@@ -506,6 +651,12 @@ pub fn is_valid_block_state(ty: BlockEntityTypeId, block_state: &str) -> bool {
 
 pub fn only_op_can_set_nbt(ty: BlockEntityTypeId) -> bool {
     type_info(ty).op_only_custom_data
+}
+
+pub fn has_block_entity_for_block(registry_id: &str) -> bool {
+    BLOCK_ENTITY_TYPES
+        .iter()
+        .any(|entry| entry.valid_blocks.contains(&registry_id))
 }
 
 impl BlockEntity {
@@ -783,6 +934,38 @@ mod tests {
                 block_state: "minecraft:furnace".to_string()
             })
         );
+    }
+
+    #[test]
+    fn detects_block_entity_support_for_block_states() {
+        assert!(has_block_entity_for_block("minecraft:chest"));
+        assert!(has_block_entity_for_block("minecraft:oak_sign"));
+        assert!(has_block_entity_for_block("minecraft:oak_hanging_sign"));
+        assert!(has_block_entity_for_block("minecraft:lectern"));
+        assert!(has_block_entity_for_block("minecraft:command_block"));
+        assert!(has_block_entity_for_block("minecraft:wither_skeleton_skull"));
+        assert!(has_block_entity_for_block("minecraft:red_banner"));
+        assert!(has_block_entity_for_block("minecraft:conduit"));
+        assert!(has_block_entity_for_block("minecraft:bell"));
+        assert!(has_block_entity_for_block("minecraft:crimson_hanging_sign"));
+        assert!(has_block_entity_for_block("minecraft:brown_banner"));
+        assert!(has_block_entity_for_block("minecraft:waxed_copper_chest"));
+        assert!(has_block_entity_for_block("minecraft:dark_oak_wall_sign"));
+        assert!(has_block_entity_for_block("minecraft:spawner"));
+        assert!(has_block_entity_for_block("minecraft:vault"));
+        assert!(has_block_entity_for_block("minecraft:trial_spawner"));
+        assert!(has_block_entity_for_block("minecraft:calibrated_sculk_sensor"));
+        assert!(has_block_entity_for_block("minecraft:chiseled_bookshelf"));
+        assert!(has_block_entity_for_block("minecraft:suspicious_sand"));
+        assert!(has_block_entity_for_block("minecraft:green_bed"));
+        assert!(has_block_entity_for_block("minecraft:black_shulker_box"));
+        assert!(has_block_entity_for_block("minecraft:crimson_shelf"));
+        assert!(has_block_entity_for_block("minecraft:warped_wall_hanging_sign"));
+        assert!(has_block_entity_for_block("minecraft:campfire"));
+        assert!(!has_block_entity_for_block("minecraft:candle"));
+        assert!(!has_block_entity_for_block("minecraft:cauldron"));
+        assert!(!has_block_entity_for_block("minecraft:stone"));
+        assert!(!has_block_entity_for_block("minecraft:dirt"));
     }
 
     #[test]
