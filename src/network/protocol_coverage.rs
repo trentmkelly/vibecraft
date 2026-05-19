@@ -193,7 +193,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "configuration_acknowledged",
         java_class: "ServerboundConfigurationAcknowledgedPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 17,

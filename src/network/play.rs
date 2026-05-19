@@ -27,6 +27,7 @@ pub const SERVERBOUND_CLIENT_COMMAND_PACKET_ID: i32 = 12;
 pub const SERVERBOUND_CLIENT_TICK_END_PACKET_ID: i32 = 13;
 pub const SERVERBOUND_CLIENT_INFORMATION_PACKET_ID: i32 = 14;
 pub const SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID: i32 = 15;
+pub const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID: i32 = 16;
 pub const SERVERBOUND_CONTAINER_CLICK_PACKET_ID: i32 = 18;
 pub const SERVERBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 19;
 pub const SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID: i32 = 29;
@@ -322,6 +323,9 @@ pub struct ServerboundUseItemOnPacket {
 pub struct ServerboundPongPacket {
     pub id: i32,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundConfigurationAcknowledgedPacket;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerboundClientCommandAction {
@@ -1245,6 +1249,18 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad chunk batch received: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundConfigurationAcknowledgedPacket::read(&mut input) {
+                    Ok(_) => {
+                        self.state = PlayState::Reconfiguring;
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad configuration acknowledged packet: {err}"
+                    )),
                 }
             }
             SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID => {
@@ -2533,6 +2549,17 @@ impl ServerboundPongPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.id.to_be_bytes())
+    }
+}
+
+impl ServerboundConfigurationAcknowledgedPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        expect_empty_payload(reader)?;
+        Ok(Self)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -4638,6 +4665,25 @@ mod tests {
             session.last_pong,
             Some(ServerboundPongPacket { id: 0x01020304 })
         );
+
+        let mut configuration_ack = Vec::new();
+        ServerboundConfigurationAcknowledgedPacket
+            .write(&mut configuration_ack)
+            .unwrap();
+        assert!(configuration_ack.is_empty());
+        assert_eq!(
+            ServerboundConfigurationAcknowledgedPacket::read(&mut cursor(configuration_ack.clone()))
+                .unwrap(),
+            ServerboundConfigurationAcknowledgedPacket
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID,
+                configuration_ack
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.state, PlayState::Reconfiguring);
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
