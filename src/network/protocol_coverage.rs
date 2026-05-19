@@ -894,7 +894,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "level_particles",
         java_class: "ClientboundLevelParticlesPacket",
-        field_order: "unparsed",
+        field_order: "override_limiter:bool, always_show:bool, x/y/z:double, x/y/z_dist:float, max_speed:float, count:int, particle:ParticleTypes.STREAM_CODEC (registry id VarInt + particle-specific payload)",
     },
     PlayPacketSpec {
         id: 48,

@@ -1509,12 +1509,13 @@ pub enum SoundSource {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundParticlePacket {
     pub particle_id: i32,
-    pub long_distance: bool,
+    pub override_limiter: bool,
     pub always_show: bool,
     pub position: Vec3,
     pub offset: Vec3,
     pub max_speed: f32,
     pub count: i32,
+    pub particle_data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3256,6 +3257,21 @@ impl ClientboundSoundPacket {
         write_f32(writer, self.volume)?;
         write_f32(writer, self.pitch)?;
         write_i64(writer, self.seed)
+    }
+}
+
+impl ClientboundParticlePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.override_limiter)?;
+        write_bool(writer, self.always_show)?;
+        write_vec3(writer, self.position)?;
+        write_f32(writer, self.offset.x as f32)?;
+        write_f32(writer, self.offset.y as f32)?;
+        write_f32(writer, self.offset.z as f32)?;
+        write_f32(writer, self.max_speed)?;
+        write_i32(writer, self.count)?;
+        write_var_i32(writer, self.particle_id)?;
+        writer.write_all(&self.particle_data)
     }
 }
 
@@ -6691,12 +6707,13 @@ mod tests {
             }),
             PlayInstruction::Particle(ClientboundParticlePacket {
                 particle_id: 1,
-                long_distance: false,
+                override_limiter: false,
                 always_show: true,
                 position: Vec3::ZERO,
                 offset: Vec3::ZERO,
                 max_speed: 0.0,
                 count: 1,
+                particle_data: Vec::new(),
             }),
             PlayInstruction::MapItemData(ClientboundMapItemDataPacket {
                 map_id: 1,
@@ -7928,6 +7945,38 @@ mod tests {
             stop_sound,
             [vec![3, 4, 31], b"minecraft:block.note_block.harp".to_vec()].concat()
         );
+
+        let mut particle = Vec::new();
+        ClientboundParticlePacket {
+            particle_id: 300,
+            override_limiter: true,
+            always_show: false,
+            position: Vec3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            offset: Vec3 {
+                x: 0.25,
+                y: 0.5,
+                z: 0.75,
+            },
+            max_speed: 1.25,
+            count: 4,
+            particle_data: vec![0xaa, 0xbb],
+        }
+        .write(&mut particle)
+        .unwrap();
+        assert_eq!(&particle[..2], &[1, 0]);
+        assert_eq!(&particle[2..10], &1.0_f64.to_be_bytes());
+        assert_eq!(&particle[10..18], &2.0_f64.to_be_bytes());
+        assert_eq!(&particle[18..26], &3.0_f64.to_be_bytes());
+        assert_eq!(&particle[26..30], &0.25_f32.to_be_bytes());
+        assert_eq!(&particle[30..34], &0.5_f32.to_be_bytes());
+        assert_eq!(&particle[34..38], &0.75_f32.to_be_bytes());
+        assert_eq!(&particle[38..42], &1.25_f32.to_be_bytes());
+        assert_eq!(&particle[42..46], &4_i32.to_be_bytes());
+        assert_eq!(&particle[46..], &[0xac, 0x02, 0xaa, 0xbb]);
 
         let mut cached_delete_chat = Vec::new();
         ClientboundDeleteChatPacket {
