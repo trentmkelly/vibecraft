@@ -112,7 +112,7 @@
 - [ ] Implement NBT binary format, compressed NBT, SNBT where needed, and visitor/traversal utilities.
 - [ ] Implement DataVersion tracking.
 - [ ] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.
-- [ ] Implement region file format `.mca`.
+- [x] Implement region file format `.mca`.
 - [ ] Implement region compression types used by 26.1.2.
 - [ ] Implement chunk serialization for blocks, biomes, heightmaps, block entities, entities, structures, ticks, lights, and post-processing.
 - [ ] Implement player data files.
