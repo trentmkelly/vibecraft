@@ -68,7 +68,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement all 26.1.2 entity metadata types: byte, varint, varlong, float, string, chat component, optional chat, item stack, boolean, rotations, block pos, optional block pos, direction, optional UUID, optional block state ID, optional global pos, nbt, particle, particle list, villager data, optional varint, pose, cat variant, wolf variant, frog variant, optional global position, painting variant, sniffer state, armadillo state, vector3f, quaternionf
 - [ ] Implement entity metadata indexes for every entity type hierarchy (Entity, LivingEntity, Mob, PathfinderMob, Animal, Player, each monster/animal subtype)
 - [ ] `ClientboundUpdateAttributesPacket` (0x72): entity ID, attribute list (ID, base value, modifier list with UUID/amount/operation)
-- [ ] `ClientboundUpdateMobEffectPacket` (0x73): entity ID, effect ID VarInt, amplifier byte, duration VarInt, flags byte (ambient/visible/show-icon/blend)
+- [x] `ClientboundUpdateMobEffectPacket` (0x84): entity ID VarInt, effect registry ID VarInt, amplifier VarInt, duration VarInt, flags byte (ambient/visible/show-icon/blend)
 - [x] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
 - [x] `ClientboundAnimatePacket` (0x02): entity ID VarInt, animation unsigned byte (0=swing-main, 2=wake-up, 3=swing-off, 4=critical, 5=magic-critical)
 - [ ] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)

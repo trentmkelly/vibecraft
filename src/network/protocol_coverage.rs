@@ -1491,7 +1491,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "update_mob_effect",
         java_class: "ClientboundUpdateMobEffectPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, effect:MobEffect registry holder VarInt, amplifier:VarInt, duration_ticks:VarInt, flags:byte",
     },
     PlayPacketSpec {
         id: 133,

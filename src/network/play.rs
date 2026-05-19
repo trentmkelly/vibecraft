@@ -2904,6 +2904,16 @@ impl ClientboundRemoveMobEffectPacket {
     }
 }
 
+impl ClientboundUpdateMobEffectPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.effect_id)?;
+        write_var_i32(writer, self.amplifier)?;
+        write_var_i32(writer, self.duration_ticks)?;
+        writer.write_all(&[self.flags.0])
+    }
+}
+
 impl ClientboundResetScorePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_string(writer, &self.owner, 32767)?;
@@ -6294,6 +6304,18 @@ mod tests {
         .write(&mut remove_effect)
         .unwrap();
         assert_eq!(remove_effect, vec![0x81, 0x01, 5]);
+
+        let mut update_effect = Vec::new();
+        ClientboundUpdateMobEffectPacket {
+            entity_id: 129,
+            effect_id: 5,
+            amplifier: 2,
+            duration_ticks: 600,
+            flags: MobEffectFlags::from_parts(true, false, true, true),
+        }
+        .write(&mut update_effect)
+        .unwrap();
+        assert_eq!(update_effect, vec![0x81, 0x01, 5, 2, 0xd8, 0x04, 0x0d]);
 
         let mut reset_score = Vec::new();
         ClientboundResetScorePacket {
