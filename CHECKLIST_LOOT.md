@@ -24,16 +24,16 @@
 ## Loot Table Core
 
 - [ ] Implement `LootTable` with `LootPool` list and `LootContext.EntityType` discriminator (block/entity/chest/fishing/archaeology/advancement_reward/gift/barter/vault/command/selector/advancement_entity/equipment)
-- [ ] Implement `LootPool`: roll count from `NumberProvider`, bonus rolls, entry list, condition list, function list
-- [ ] Implement all loot entry types: `LootItem` (item entry), `TagEntry` (item tag, expand or random), `LootTableReference` (nested table), `DynamicLoot` (block entity dynamic loot), `GroupEntry`, `AlternativesEntry`, `SequenceEntry`, `EmptyLootItem`
-- [ ] Implement entry weight, quality (luck-scaled), and condition gating
+- [x] Implement `LootPool`: roll count from `NumberProvider`, bonus rolls, entry list, condition list, function list
+- [x] Implement all loot entry types: `LootItem` (item entry), `TagEntry` (item tag, expand or random), `LootTableReference` (nested table), `DynamicLoot` (block entity dynamic loot), `GroupEntry`, `AlternativesEntry`, `SequenceEntry`, `EmptyLootItem`
+- [x] Implement entry weight, quality (luck-scaled), and condition gating
 - [ ] Implement `RandomSequences`: named sequences stored per-level in `data/random_sequences.dat`, used for deterministic loot in structures; `/random sequence` command support
 
 ## Loot Contexts and Parameters
 
 - [ ] Implement `LootParams` with all parameter types: `BLOCK_STATE`, `BLOCK_ENTITY`, `ORIGIN`, `TOOL`, `THIS_ENTITY`, `LAST_DAMAGE_PLAYER`, `KILLER_ENTITY`, `DIRECT_KILLER_ENTITY`, `EXPLOSION_RADIUS`, `DAMAGE_SOURCE`
 - [ ] Implement `LootContext` dynamic parameters: `ENCHANTMENT_LEVEL`, `ENCHANTMENT_ACTIVE`, `ATTACKING_ENTITY`
-- [ ] Implement luck parameter from `LootContext.LUCK` (player luck attribute)
+- [x] Implement luck parameter from `LootContext.LUCK` (player luck attribute)
 
 ## Loot Functions
 
@@ -118,26 +118,26 @@
 - [x] Implement demand mechanics: demand increments after each purchase, decays toward 0 after restocking
 - [ ] Implement `specialPrice` modification from hero-of-the-village effect (discount per level)
 - [x] Implement trade-use XP grant to villager on successful trade
-- [ ] Implement `VillagerProfession` trade-set loading from `data/minecraft/villager_trade/<profession_id>.json`
-- [ ] Implement `data/minecraft/trade_set/` trade-set entries for wandering trader offers
+- [x] Implement `VillagerProfession` trade-set loading from `data/minecraft/villager_trade/<profession_id>.json`
+- [x] Implement `data/minecraft/trade_set/` trade-set entries for wandering trader offers
 - [x] Add Mineflayer villager trading tests: open merchant window, compare offer list, buy items, exhaust demand, restock after work time, zombify/cure discounts, reconnect; verify vanilla-compatible prices and XP
 
 ## XP Rewards and Economy
 
 - [ ] Implement experience orb entity: value-based merge into nearby orb (max orb merge = total XP ≤ 10 per group), pickup range 1 block, pickup lifetime 5 minutes, orb despawn
 - [ ] Implement experience orb spawn rules: from mob kills (by type), from mining/smelting (hardcoded table), from breeding, from trading (villager level XP)
-- [ ] Implement `Player.giveExperiencePoints()` and level threshold calculation
+- [x] Implement `Player.giveExperiencePoints()` and level threshold calculation
 - [x] Add Mineflayer XP reward tests: collect orbs from mining, smelting, breeding, trading, commands, mob kills, advancements; verify level bar updates, orb merge timing, death drops, reconnect persistence
 
 ## Trial Spawner and Vault Rewards
 
-- [ ] Implement trial spawner reward ejection: `TrialSpawnerBlockEntity` WAITING_FOR_REWARD_EJECTION state populates adjacent slots with reward items from configured loot table
-- [ ] Implement vault block: `VaultBlockEntity` per-player unlock tracking (UUID set), key consumption, loot ejection, normal vs. ominous reward tables, cooldown after ejection
+- [x] Implement trial spawner reward ejection: `TrialSpawnerBlockEntity` WAITING_FOR_REWARD_EJECTION state populates adjacent slots with reward items from configured loot table
+- [x] Implement vault block: `VaultBlockEntity` per-player unlock tracking (UUID set), key consumption, loot ejection, normal vs. ominous reward tables, cooldown after ejection
 - [x] Add Mineflayer trial reward tests: enter trial chamber fixture, activate normal/ominous spawners, open vaults with generated profiles, reconnect mid-encounter; compare reward drops, cooldowns, denied-open feedback against vanilla
 
 ## Migrated From Main Checklist: Loot, Trading, Economy, And Rewards
 
-- [ ] Implement loot table parsing and evaluation.
+- [x] Implement loot table parsing and evaluation.
 - [x] Add Mineflayer offline-mode loot-table smoke tests that place deterministic custom datapack loot tables, log in a generated bot, trigger each table through block break, chest open, `/loot`, fishing, entity death, and advancement reward paths, then diff visible results against official `server.jar`.
 - [ ] Implement loot contexts, parameters, predicates, functions, number providers, score providers, NBT providers, and random sequences.
 - [x] Add Mineflayer offline-mode loot-context tests for luck, tool, killer player, origin, damage source, explosion radius, entity properties, scoreboard values, storage NBT, and random sequence IDs by comparing bot-observed drops across vanilla and RustCraft.
@@ -147,5 +147,5 @@
 - [x] Add Mineflayer villager trading tests that open merchant windows, compare offer lists, buy items, exhaust demand, restock after work time, zombify/cure discounts where available, reconnect, and verify vanilla-compatible prices and XP.
 - [ ] Implement experience rewards and orbs.
 - [x] Add Mineflayer XP reward tests that collect orbs from mining, smelting, breeding, trading, commands, mob kills, and advancements, then verify level bar updates, orb merge timing, death drops, and reconnect persistence.
-- [ ] Implement trial spawner, vault, ominous trial, and related reward data.
+- [x] Implement trial spawner, vault, ominous trial, and related reward data.
 - [x] Add Mineflayer trial reward tests that enter a trial chamber fixture, activate normal and ominous spawners, open vaults with generated bot profiles, reconnect mid-encounter, and compare reward drops, cooldowns, and denied-open feedback against vanilla.
