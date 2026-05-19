@@ -264,7 +264,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement legacy ping/status compatibility if still accepted by 26.1.2 clients.
 - [x] Implement compression threshold negotiation and zlib payload handling.
 - [x] Implement AES/CFB8 encryption after login key exchange.
-- [ ] Implement rate limiting and packet flood kicking.
+- [x] Implement rate limiting and packet flood kicking.
 - [ ] Implement local memory connection equivalent if needed for integrated tests.
 - [x] Implement bundled packet packing/unpacking.
 - [x] Implement cookie request/response packets.
