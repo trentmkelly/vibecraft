@@ -91,7 +91,7 @@
 - [x] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
 - [x] Implement `/dialog`.
 - [x] Implement `/effect`.
-- [ ] Implement `/emote`.
+- [x] Implement `/emote`.
 - [x] Implement `/enchant`.
 - [x] Implement `/execute`.
 - [x] Implement `/experience`.
