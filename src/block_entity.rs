@@ -531,6 +531,33 @@ pub enum SculkCatalystEventResult {
     Bloom { pulse_ticks: i32 },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SculkShriekerBlockEntity {
+    pub warning_level: i32,
+    pub vibration_data: VibrationData,
+    pub shrieking_ticks: i32,
+    pub can_summon: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SculkShriekResult {
+    Ignored,
+    Shriek {
+        warning_level: i32,
+    },
+    ReplySound {
+        warning_level: i32,
+        darkness_radius: i32,
+    },
+    SummonWarden {
+        warning_level: i32,
+        attempts: i32,
+        range_xz: i32,
+        range_y: i32,
+        darkness_radius: i32,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SculkSensorTickResult {
     None,
@@ -3664,6 +3691,131 @@ impl SculkCatalystBlockEntity {
             cursors,
             pulse_ticks: get_int(entries, "pulse_ticks").unwrap_or(0).max(0),
         }
+    }
+}
+
+impl SculkShriekerBlockEntity {
+    pub const LISTENER_RADIUS: i32 = 8;
+    pub const WARNING_SOUND_RADIUS: i32 = 10;
+    pub const WARDEN_SPAWN_ATTEMPTS: i32 = 20;
+    pub const WARDEN_SPAWN_RANGE_XZ: i32 = 5;
+    pub const WARDEN_SPAWN_RANGE_Y: i32 = 6;
+    pub const DARKNESS_RADIUS: i32 = 40;
+    pub const SHRIEKING_TICKS: i32 = 90;
+    pub const WARDEN_SUMMON_WARNING_LEVEL: i32 = 4;
+
+    pub fn new(can_summon: bool) -> Self {
+        Self {
+            warning_level: 0,
+            vibration_data: VibrationData::new(),
+            shrieking_ticks: 0,
+            can_summon,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            ("warning_level".to_string(), Tag::Int(self.warning_level)),
+            ("listener".to_string(), self.listener_tag()),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new(false);
+        };
+        Self {
+            warning_level: get_int(entries, "warning_level").unwrap_or(0).clamp(0, 4),
+            vibration_data: entries
+                .iter()
+                .find(|(name, _)| name == "listener")
+                .map(|(_, tag)| vibration_data_from_tag(tag))
+                .unwrap_or_default(),
+            shrieking_ticks: 0,
+            can_summon: false,
+        }
+    }
+
+    pub fn can_receive_vibration(
+        &self,
+        shrieking_block_state: bool,
+        has_player_source: bool,
+    ) -> bool {
+        !shrieking_block_state && has_player_source
+    }
+
+    pub fn try_shriek(
+        &mut self,
+        has_player: bool,
+        can_respond: bool,
+        tracker_warning_level: Option<i32>,
+        warden_spawn_available: bool,
+    ) -> SculkShriekResult {
+        if !has_player || self.shrieking_ticks > 0 {
+            return SculkShriekResult::Ignored;
+        }
+
+        self.warning_level = 0;
+        if can_respond && tracker_warning_level.is_none() {
+            return SculkShriekResult::Ignored;
+        }
+        if let Some(warning_level) = tracker_warning_level {
+            self.warning_level = warning_level.clamp(0, Self::WARDEN_SUMMON_WARNING_LEVEL);
+        }
+        self.start_shrieking();
+        self.try_respond(can_respond, warden_spawn_available)
+    }
+
+    pub fn try_respond(
+        &self,
+        can_respond: bool,
+        warden_spawn_available: bool,
+    ) -> SculkShriekResult {
+        if !can_respond || !self.can_summon || self.warning_level <= 0 {
+            return SculkShriekResult::Shriek {
+                warning_level: self.warning_level,
+            };
+        }
+        if self.warning_level >= Self::WARDEN_SUMMON_WARNING_LEVEL && warden_spawn_available {
+            SculkShriekResult::SummonWarden {
+                warning_level: self.warning_level,
+                attempts: Self::WARDEN_SPAWN_ATTEMPTS,
+                range_xz: Self::WARDEN_SPAWN_RANGE_XZ,
+                range_y: Self::WARDEN_SPAWN_RANGE_Y,
+                darkness_radius: Self::DARKNESS_RADIUS,
+            }
+        } else {
+            SculkShriekResult::ReplySound {
+                warning_level: self.warning_level,
+                darkness_radius: Self::DARKNESS_RADIUS,
+            }
+        }
+    }
+
+    pub fn tick(&mut self) -> SculkShriekResult {
+        if self.shrieking_ticks > 0 {
+            self.shrieking_ticks -= 1;
+        }
+        SculkShriekResult::Ignored
+    }
+
+    fn start_shrieking(&mut self) {
+        self.shrieking_ticks = Self::SHRIEKING_TICKS;
+    }
+
+    fn listener_tag(&self) -> Tag {
+        let mut fields = vec![(
+            "travel_time_in_ticks".to_string(),
+            Tag::Int(self.vibration_data.travel_time_in_ticks),
+        )];
+        if let Some(vibration) = &self.vibration_data.current_vibration {
+            fields.push((
+                "event".to_string(),
+                Tag::String(vibration.event.id.to_string()),
+            ));
+            fields.push(("distance".to_string(), Tag::Float(vibration.distance)));
+        }
+        Tag::Compound(fields)
     }
 }
 
@@ -6825,6 +6977,72 @@ mod tests {
         };
         ignored.tick(BlockPos { x: 0, y: 0, z: 0 });
         assert_eq!(ignored.cursors.len(), 31);
+    }
+
+    #[test]
+    fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
+        assert_eq!(SculkShriekerBlockEntity::LISTENER_RADIUS, 8);
+        assert_eq!(SculkShriekerBlockEntity::WARNING_SOUND_RADIUS, 10);
+        assert_eq!(SculkShriekerBlockEntity::SHRIEKING_TICKS, 90);
+        assert_eq!(SculkShriekerBlockEntity::DARKNESS_RADIUS, 40);
+        assert_eq!(SculkShriekerBlockEntity::WARDEN_SUMMON_WARNING_LEVEL, 4);
+        assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_ATTEMPTS, 20);
+        assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_RANGE_XZ, 5);
+        assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_RANGE_Y, 6);
+
+        let mut shrieker = SculkShriekerBlockEntity::new(true);
+        assert!(shrieker.can_receive_vibration(false, true));
+        assert!(!shrieker.can_receive_vibration(false, false));
+        assert!(!shrieker.can_receive_vibration(true, true));
+        assert_eq!(
+            shrieker.try_shriek(false, true, Some(1), false),
+            SculkShriekResult::Ignored
+        );
+        assert_eq!(
+            shrieker.try_shriek(true, true, None, false),
+            SculkShriekResult::Ignored
+        );
+
+        assert_eq!(
+            shrieker.try_shriek(true, true, Some(3), false),
+            SculkShriekResult::ReplySound {
+                warning_level: 3,
+                darkness_radius: 40,
+            }
+        );
+        assert_eq!(shrieker.warning_level, 3);
+        assert_eq!(shrieker.shrieking_ticks, 90);
+        assert_eq!(
+            shrieker.try_shriek(true, true, Some(4), true),
+            SculkShriekResult::Ignored
+        );
+        assert_eq!(shrieker.tick(), SculkShriekResult::Ignored);
+        assert_eq!(shrieker.shrieking_ticks, 89);
+
+        shrieker.shrieking_ticks = 0;
+        assert_eq!(
+            shrieker.try_shriek(true, true, Some(4), true),
+            SculkShriekResult::SummonWarden {
+                warning_level: 4,
+                attempts: 20,
+                range_xz: 5,
+                range_y: 6,
+                darkness_radius: 40,
+            }
+        );
+
+        let saved = shrieker.save_additional();
+        let loaded = SculkShriekerBlockEntity::load_additional(&saved);
+        assert_eq!(loaded.warning_level, 4);
+        assert_eq!(loaded.shrieking_ticks, 0);
+        assert!(!loaded.can_summon);
+
+        let mut disabled = SculkShriekerBlockEntity::new(false);
+        assert_eq!(
+            disabled.try_shriek(true, false, None, false),
+            SculkShriekResult::Shriek { warning_level: 0 }
+        );
+        assert_eq!(disabled.shrieking_ticks, 90);
     }
 
     #[test]

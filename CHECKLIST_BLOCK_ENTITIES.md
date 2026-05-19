@@ -108,10 +108,10 @@
 - [x] Implement `SculkSensorBlockEntity`: vibration listener phase (LISTENING/TICKING/VIBRATION_DONE), vibration event data (source position, distance, vibration type), last-vibration frequency (output signal), delay-emit countdown, `Listening` and `Vibrating` phases
 - [x] Implement `CalibratedSculkSensorBlockEntity`: filter frequency from comparator input side; only propagate vibration events matching the filter frequency
 - [x] Implement `SculkCatalystBlockEntity`: charge queue on death of nearby mobs (charge proportional to XP), sculk spread emission toward charge targets
-- [ ] Implement `SculkShriekerBlockEntity`: warning level accumulator (0–3), shriek cooldown, darkness-required check, `tryShriek(player)` with warden spawn check at level 3
+- [x] Implement `SculkShriekerBlockEntity`: warning level accumulator, 90 tick shriek schedule, darkness response, `tryShriek(player)` with warden spawn check at warning level 4
 - [ ] Implement `CreakingHeartBlockEntity`: linked creaking entity UUID, active/inactive state per time-of-day, phase tracking for creaking activation/deactivation
 - [x] Add parity test: sculk sensor vibration delay, frequency output for each `GameEvent` type
-- [ ] Add parity test: sculk shrieker warning level accumulation, 10 s cooldown between shrieks, warden spawn at level 3
+- [x] Add parity test: sculk shrieker warning level accumulation, 90 tick shriek schedule, darkness response, warden spawn at warning level 4
 - [ ] Add parity test: beehive occupancy persistence, honey level increment after occupant leaves with nectar
 
 ## Block Entity Tests (Cross-Cutting)
