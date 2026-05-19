@@ -115,9 +115,9 @@
 
 - [x] Implement `MerchantOffer`: input1, input2 (optional), result, `uses`, `maxUses`, `rewardExp`, `specialPrice`, `priceMultiplier`, `demand`, `ignoreDiscount` flag
 - [x] Implement trade price formula: Java `MerchantOffer.getModifiedCostCount`: `clamp(baseCost + max(0, floor(baseCost * demand * priceMultiplier)) + specialPrice, 1, maxStackSize)`
-- [ ] Implement demand mechanics: demand increments after each purchase, decays toward 0 after restocking
+- [x] Implement demand mechanics: demand increments after each purchase, decays toward 0 after restocking
 - [ ] Implement `specialPrice` modification from hero-of-the-village effect (discount per level)
-- [ ] Implement trade-use XP grant to villager on successful trade
+- [x] Implement trade-use XP grant to villager on successful trade
 - [ ] Implement `VillagerProfession` trade-set loading from `data/minecraft/villager_trade/<profession_id>.json`
 - [ ] Implement `data/minecraft/trade_set/` trade-set entries for wandering trader offers
 - [ ] Add Mineflayer villager trading tests: open merchant window, compare offer list, buy items, exhaust demand, restock after work time, zombify/cure discounts, reconnect; verify vanilla-compatible prices and XP

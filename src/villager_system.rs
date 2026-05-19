@@ -575,6 +575,7 @@ mod tests {
 
         assert!(villager.restock(1_000));
         assert!(!villager.offers[0].is_out_of_stock());
+        assert_eq!(villager.offers[0].demand, 1);
         assert_eq!(villager.restock(1_100), false);
 
         villager.trade(0, "player-a");

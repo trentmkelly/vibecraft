@@ -1268,6 +1268,12 @@ mod tests {
         assert!(offer.is_out_of_stock());
         offer.update_demand();
         assert_eq!(offer.demand, 5);
+
+        offer.demand = 6;
+        offer.uses = 1;
+        offer.max_uses = 4;
+        offer.update_demand();
+        assert_eq!(offer.demand, 4);
     }
 
     #[test]
