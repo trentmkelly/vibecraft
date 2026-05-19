@@ -2334,8 +2334,12 @@ pub enum PlayInstruction {
     Animate(ClientboundAnimatePacket),
     Container(ClientboundContainerPacket),
     ContainerSetSlot(ClientboundContainerSetSlotPacket),
-    RecipeBookAdd(ClientboundRecipeBookAddPacket),
+    /// Recipes that were first crafted in the last click; the caller is responsible for
+    /// converting each ID to a full `ClientboundRecipeBookAddPacket` via the recipe registry
+    /// (notification=true, highlight=true).
+    RecipesUnlocked(Vec<&'static str>),
     SetCursorItem(ClientboundSetCursorItemPacket),
+    RecipeBookAdd(ClientboundRecipeBookAddPacket),
     MerchantOffers(ClientboundMerchantOffersPacket),
     Recipes(ClientboundRecipePacket),
     Advancements(ClientboundAdvancementsPacket),
@@ -2763,39 +2767,11 @@ impl PlaySession {
                 ));
             }
         }
-        // Emit recipe-book unlock packets for any recipe first crafted in this click.
-        let unlock_events: Vec<&'static str> = inventory_menu.drain_recipe_unlock_events();
+        // Signal recipe-book unlocks — the caller converts to ClientboundRecipeBookAddPacket
+        // using full display data from the recipe registry.
+        let unlock_events = inventory_menu.drain_recipe_unlock_events();
         if !unlock_events.is_empty() {
-            let entries = unlock_events
-                .into_iter()
-                .enumerate()
-                .map(|(index, _id)| {
-                    RecipeBookAddEntry::new(
-                        RecipeDisplayEntryData {
-                            id: index as i32,
-                            display: RecipeDisplayData::CraftingShapeless {
-                                ingredients: Vec::new(),
-                                result: SlotDisplayData::Empty,
-                                crafting_station: SlotDisplayData::Item {
-                                    item_id: item_protocol_id("minecraft:crafting_table")
-                                        .unwrap_or(0),
-                                },
-                            },
-                            group: None,
-                            category_id: 0,
-                            crafting_requirements: None,
-                        },
-                        true,
-                        true,
-                    )
-                })
-                .collect();
-            instructions.push(PlayInstruction::RecipeBookAdd(
-                ClientboundRecipeBookAddPacket {
-                    entries,
-                    replace: false,
-                },
-            ));
+            instructions.push(PlayInstruction::RecipesUnlocked(unlock_events));
         }
         instructions
     }
