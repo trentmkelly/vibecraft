@@ -126,13 +126,13 @@
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Block Entity Coverage
 
-- [ ] Implement base `BlockEntity`, ticker dispatch, type registry, update tag, update packet, save/load, and chunk attachment behavior.
+- [x] Implement base `BlockEntity`, ticker dispatch, type registry, update tag, update packet, save/load, and chunk attachment behavior.
 - [ ] Implement furnace family block entities: `AbstractFurnaceBlockEntity`, `FurnaceBlockEntity`, `BlastFurnaceBlockEntity`, and `SmokerBlockEntity`, including burn time, cook time, fuel values, recipe matching, XP storage, sided inventory, lit state, and comparator output.
 - [ ] Implement container block entities: `BaseContainerBlockEntity`, `RandomizableContainerBlockEntity`, `ChestBlockEntity`, `TrappedChestBlockEntity`, `BarrelBlockEntity`, `ShulkerBoxBlockEntity`, `DispenserBlockEntity`, `DropperBlockEntity`, `HopperBlockEntity`, and `ShelfBlockEntity`, including loot tables, custom names, locks, viewer counts, lid animation, sided access, and redstone/comparator interactions.
 - [ ] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
 - [ ] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
 - [ ] Implement utility block entities: `BeaconBlockEntity`, `BrewingStandBlockEntity`, `CrafterBlockEntity`, `EnchantingTableBlockEntity`, `JukeboxBlockEntity`, `ComparatorBlockEntity`, `DaylightDetectorBlockEntity`, and `CommandBlockEntity`.
 - [ ] Implement world/system block entities: `SpawnerBlockEntity`, `TrialSpawnerBlockEntity`, `JigsawBlockEntity`, `StructureBlockEntity`, `TheEndGatewayBlockEntity`, `TheEndPortalBlockEntity`, `TestBlockEntity`, and `TestInstanceBlockEntity`.
-- [ ] Implement decorative/lore block entities: `BannerBlockEntity`, `BedBlockEntity`, `BrushableBlockEntity`, `DecoratedPotBlockEntity`, `SkullBlockEntity`, `BellBlockEntity`, and `CopperGolemStatueBlockEntity`.
+- [x] Implement decorative/lore block entities: `BannerBlockEntity`, `BedBlockEntity`, `BrushableBlockEntity`, `DecoratedPotBlockEntity`, `SkullBlockEntity`, `BellBlockEntity`, and `CopperGolemStatueBlockEntity`.
 - [ ] Implement mob/environment block entities: `BeehiveBlockEntity`, `ConduitBlockEntity`, `CampfireBlockEntity`, `SculkSensorBlockEntity`, `CalibratedSculkSensorBlockEntity`, `SculkCatalystBlockEntity`, `SculkShriekerBlockEntity`, and `CreakingHeartBlockEntity`.
 - [ ] For every block entity, add tests for placement, ticking, GUI open/close, save/load, chunk unload/reload, comparator output, network update tag, `/data` command access, and destruction drops.
