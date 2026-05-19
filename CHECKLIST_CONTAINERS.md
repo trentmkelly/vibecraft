@@ -46,7 +46,7 @@
 - [x] Implement quick-craft (drag-split): `Menu.quick_craft` splits carried stack evenly across target slots
 - [x] Implement `ContainerSynchronizer` and `ContainerListener` interfaces used to push updates back to client: `Menu` now tracks listener/synchronizer event sinks, sends Java-style initial data, and broadcasts slot/carried/data changes from the remote shadows
 - [x] Implement `stillValid(player)` check on every tick: `MenuValidity` now models always-valid, block-backed, and block-entity-backed menus; `tick_validity()` returns `CloseMenu` when the expected access target is gone/replaced or the player is outside the vanilla 4-block interaction range
-- [ ] Add parity test: stateId desync detection — client sending old stateId causes vanilla-compatible correction packet
+- [x] Add parity test: stateId desync detection - `network::play::tests::stale_container_state_id_corrections_become_set_slot_packets` verifies stale client state leaves the server state unchanged and converts `SlotCorrection`s into `ContainerSetSlot` packets, including slot `-1` for carried-item correction
 
 ## Player and Crafting Menus
 

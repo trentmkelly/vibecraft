@@ -6,8 +6,10 @@ use std::io::{self, Read, Write};
 use crate::block_entity::BLOCK_ENTITY_TYPES;
 use crate::inventory::Menu;
 use crate::inventory_transactions::{
-    apply_scripted_packet, InventoryTransactionResult, ScriptedContainerClickPacket,
+    apply_scripted_packet, InventoryTransactionResult, ScriptedContainerClickPacket, SlotCorrection,
 };
+use crate::item_catalog::item_protocol_id;
+use crate::item_stack::ItemStack;
 use crate::network::codec::{
     read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
     write_identifier, write_optional, write_string, write_uuid, Uuid,
@@ -7584,6 +7586,41 @@ impl ClientboundContainerSetSlotPacket {
     }
 }
 
+pub fn raw_item_stack_from_item_stack(stack: &ItemStack) -> io::Result<RawItemStack> {
+    if stack.is_empty() {
+        return Ok(RawItemStack::empty());
+    }
+    let item_id = item_protocol_id(stack.item_id()).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unknown item protocol id for {}", stack.item_id()),
+        )
+    })?;
+    Ok(RawItemStack {
+        count: stack.count(),
+        item_id: Some(item_id),
+        components: RawDataComponentPatch::empty(),
+    })
+}
+
+pub fn slot_corrections_to_set_slot_packets(
+    container_id: i32,
+    state_id: i32,
+    corrections: &[SlotCorrection],
+) -> io::Result<Vec<ClientboundContainerSetSlotPacket>> {
+    corrections
+        .iter()
+        .map(|correction| {
+            Ok(ClientboundContainerSetSlotPacket {
+                container_id,
+                state_id,
+                slot: correction.slot as i16,
+                item_stack: raw_item_stack_from_item_stack(&correction.actual)?,
+            })
+        })
+        .collect()
+}
+
 impl ClientboundSetCursorItemPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.item_stack.write_optional_untrusted(writer)
@@ -10941,6 +10978,44 @@ mod tests {
         );
         assert!(!rejected.accepted);
         assert_eq!(session.container_state_id, 1);
+    }
+
+    #[test]
+    fn stale_container_state_id_corrections_become_set_slot_packets() {
+        let mut session = PlaySession::new(7, 0);
+        session.container_state_id = 8;
+        let mut menu = Menu::new(1);
+        menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stone", 2));
+
+        let rejected = session.apply_scripted_container_click(
+            &mut menu,
+            &scripted_container_click(
+                7,
+                0,
+                vec![(0, ItemStack::empty())],
+                ItemStack::new("minecraft:stone", 2),
+            ),
+        );
+        assert!(!rejected.accepted);
+
+        let packets = slot_corrections_to_set_slot_packets(
+            0,
+            rejected.expected_state_id,
+            &rejected.corrections,
+        )
+        .unwrap();
+        assert_eq!(packets.len(), 2);
+        assert_eq!(packets[0].container_id, 0);
+        assert_eq!(packets[0].state_id, 8);
+        assert_eq!(packets[0].slot, 0);
+        assert_eq!(packets[0].item_stack.count, 2);
+        assert_eq!(
+            packets[0].item_stack.item_id,
+            item_protocol_id("minecraft:stone")
+        );
+        assert_eq!(packets[1].slot, -1);
+        assert_eq!(packets[1].item_stack.count, 0);
+        assert_eq!(session.container_state_id, 8);
     }
 
     #[test]
