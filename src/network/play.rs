@@ -987,7 +987,7 @@ pub struct ClientboundSetEquipmentPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EquipmentEntry {
     pub slot: EquipmentSlotKind,
-    pub item_id: Option<i32>,
+    pub item_stack: RawItemStack,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3226,6 +3226,21 @@ impl ClientboundSetEntityLinkPacket {
 }
 
 impl ClientboundSetEquipmentPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity)?;
+        for (index, entry) in self.slots.iter().enumerate() {
+            let slot = entry.slot as u8;
+            let encoded_slot = if index + 1 == self.slots.len() {
+                slot
+            } else {
+                slot | 0x80
+            };
+            writer.write_all(&[encoded_slot])?;
+            entry.item_stack.write_optional_untrusted(writer)?;
+        }
+        Ok(())
+    }
+
     pub fn encoded_slot_bytes(&self) -> Vec<u8> {
         self.slots
             .iter()
@@ -6745,11 +6760,19 @@ mod tests {
                 slots: vec![
                     EquipmentEntry {
                         slot: EquipmentSlotKind::MainHand,
-                        item_id: Some(1),
+                        item_stack: RawItemStack {
+                            count: 1,
+                            item_id: Some(1),
+                            components: RawDataComponentPatch::empty(),
+                        },
                     },
                     EquipmentEntry {
                         slot: EquipmentSlotKind::Head,
-                        item_id: Some(2),
+                        item_stack: RawItemStack {
+                            count: 1,
+                            item_id: Some(2),
+                            components: RawDataComponentPatch::empty(),
+                        },
                     },
                 ],
             }),
@@ -6790,6 +6813,13 @@ mod tests {
             panic!("expected equipment packet");
         };
         assert_eq!(equipment.encoded_slot_bytes(), vec![0x80, 5]);
+        let mut equipment_payload = Vec::new();
+        equipment.write(&mut equipment_payload).unwrap();
+        assert_eq!(
+            equipment_payload,
+            vec![7, 0x80, 1, 1, 0, 0, 5, 1, 2, 0, 0],
+            "entity id, continued main-hand item stack, final head item stack"
+        );
         let PlayInstruction::UpdateMobEffect(effect) = instructions[5] else {
             panic!("expected effect packet");
         };

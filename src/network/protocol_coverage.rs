@@ -1280,7 +1280,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_equipment",
         java_class: "ClientboundSetEquipmentPacket",
-        field_order: "entity:var_int, slots:EquipmentSlot_ItemStack_pairs",
+        field_order: "entity:VarInt, repeated slot byte (high bit continues, low 7 bits EquipmentSlot ordinal) + ItemStack.OPTIONAL_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 103,

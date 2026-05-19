@@ -71,7 +71,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundUpdateMobEffectPacket` (0x84): entity ID VarInt, effect registry ID VarInt, amplifier VarInt, duration VarInt, flags byte (ambient/visible/show-icon/blend)
 - [x] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
 - [x] `ClientboundAnimatePacket` (0x02): entity ID VarInt, animation unsigned byte (0=swing-main, 2=wake-up, 3=swing-off, 4=critical, 5=magic-critical)
-- [ ] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)
+- [x] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)
 
 ## Inventory / Container Packets (Clientbound)
 
