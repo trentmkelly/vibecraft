@@ -2,6 +2,7 @@
 
 use crate::inventory::same_item_same_components;
 use crate::item_stack::ItemStack;
+use crate::recipe_system::RecipeMap;
 
 pub const INVENTORY_SIZE: usize = 36;
 pub const HOTBAR_SIZE: usize = 9;
@@ -678,21 +679,13 @@ impl MerchantContainer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CraftingRecipe {
-    Shapeless {
-        inputs: Vec<(&'static str, i32)>,
-        output: (&'static str, i32),
-    },
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct CraftingGrid {
     width: usize,
     height: usize,
     slots: Vec<ItemStack>,
     result: ItemStack,
-    recipe: Option<CraftingRecipe>,
+    recipe_id: Option<&'static str>,
 }
 
 impl CraftingGrid {
@@ -710,14 +703,14 @@ impl CraftingGrid {
             height,
             slots: vec![ItemStack::empty(); width * height],
             result: ItemStack::empty(),
-            recipe: None,
+            recipe_id: None,
         }
     }
 
-    pub fn set_input(&mut self, slot: usize, stack: ItemStack) {
+    pub fn set_input(&mut self, slot: usize, stack: ItemStack, recipes: &RecipeMap) {
         if let Some(target) = self.slots.get_mut(slot) {
             *target = stack;
-            self.update_result();
+            self.update_result(recipes);
         }
     }
 
@@ -725,7 +718,11 @@ impl CraftingGrid {
         &self.result
     }
 
-    pub fn take_result(&mut self) -> ItemStack {
+    pub fn recipe_id(&self) -> Option<&'static str> {
+        self.recipe_id
+    }
+
+    pub fn take_result(&mut self, recipes: &RecipeMap) -> ItemStack {
         let result = self.result.clone();
         if result.is_empty() {
             return ItemStack::empty();
@@ -735,7 +732,7 @@ impl CraftingGrid {
                 slot.shrink(1);
             }
         }
-        self.update_result();
+        self.update_result(recipes);
         result
     }
 
@@ -747,25 +744,27 @@ impl CraftingGrid {
             .sum()
     }
 
-    fn update_result(&mut self) {
-        let non_empty: Vec<&ItemStack> = self
+    fn update_result(&mut self, recipes: &RecipeMap) {
+        let items = self
             .slots
             .iter()
-            .filter(|stack| !stack.is_empty())
-            .collect();
-        let stick_count: i32 = non_empty
-            .iter()
-            .filter(|stack| stack.item_id() == "minecraft:stick")
-            .map(|stack| stack.count())
-            .sum();
-        if non_empty.len() == 2 && stick_count == 2 {
-            self.recipe = Some(CraftingRecipe::Shapeless {
-                inputs: vec![("minecraft:stick", 2)],
-                output: ("minecraft:torch", 4),
-            });
-            self.result = ItemStack::new("minecraft:torch", 4);
+            .map(|stack| {
+                if stack.is_empty() {
+                    None
+                } else {
+                    Some(stack.item_id())
+                }
+            })
+            .collect::<Vec<_>>();
+        if let Some(holder) = recipes.get_recipe_for("crafting", self.width, self.height, &items) {
+            self.recipe_id = Some(holder.id);
+            self.result = holder
+                .recipe
+                .assemble()
+                .map(|result| ItemStack::new(result.item, result.count as i32))
+                .unwrap_or_else(ItemStack::empty);
         } else {
-            self.recipe = None;
+            self.recipe_id = None;
             self.result = ItemStack::empty();
         }
     }
@@ -929,15 +928,55 @@ mod tests {
 
     #[test]
     fn crafting_grid_updates_result_and_consumes_inputs_after_take() {
+        let recipes = crate::recipe_system::RecipeMap::create(vec![
+            crate::recipe_system::RecipeHolder {
+                id: "minecraft:oak_planks",
+                recipe: crate::recipe_system::RecipeKind::Shapeless {
+                    ingredients: vec![crate::recipe_system::IngredientSpec::Item(
+                        "minecraft:oak_log",
+                    )],
+                    result: crate::recipe_system::ItemAmount {
+                        item: "minecraft:oak_planks",
+                        count: 4,
+                    },
+                },
+            },
+            crate::recipe_system::RecipeHolder {
+                id: "minecraft:torch",
+                recipe: crate::recipe_system::RecipeKind::Shapeless {
+                    ingredients: vec![
+                        crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
+                        crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
+                    ],
+                    result: crate::recipe_system::ItemAmount {
+                        item: "minecraft:torch",
+                        count: 4,
+                    },
+                },
+            },
+        ]);
         let mut grid = CraftingGrid::two_by_two();
-        grid.set_input(0, ItemStack::new("minecraft:stick", 1));
-        grid.set_input(1, ItemStack::new("minecraft:stick", 1));
+        grid.set_input(0, ItemStack::new("minecraft:oak_log", 1), &recipes);
+        assert_eq!(grid.recipe_id(), Some("minecraft:oak_planks"));
+        assert_eq!(grid.result().item_id(), "minecraft:oak_planks");
+        assert_eq!(grid.result().count(), 4);
+        assert_eq!(grid.take_result(&recipes).count(), 4);
+        assert!(grid.result().is_empty());
 
+        grid.set_input(0, ItemStack::new("minecraft:stick", 1), &recipes);
+        grid.set_input(1, ItemStack::new("minecraft:stick", 1), &recipes);
+
+        assert_eq!(grid.recipe_id(), Some("minecraft:torch"));
         assert_eq!(grid.result().item_id(), "minecraft:torch");
         assert_eq!(grid.result().count(), 4);
-        assert_eq!(grid.take_result().count(), 4);
+        assert_eq!(grid.take_result(&recipes).count(), 4);
         assert!(grid.result().is_empty());
         assert_eq!(grid.input_count("minecraft:stick"), 0);
+
+        grid.set_input(0, ItemStack::new("minecraft:stick", 1), &recipes);
+        grid.set_input(3, ItemStack::new("minecraft:oak_log", 1), &recipes);
+        assert!(grid.recipe_id().is_none());
+        assert!(grid.result().is_empty());
 
         let table = CraftingGrid::three_by_three();
         assert_eq!(table.width, 3);

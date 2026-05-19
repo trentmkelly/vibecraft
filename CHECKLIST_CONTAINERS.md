@@ -37,23 +37,49 @@
 
 ## AbstractContainerMenu Infrastructure
 
-- [ ] Implement state-ID counter (`stateId`): incremented on every server-side slot change, sent in `ContainerSetSlot` / `ContainerSetContent` to detect client desync
-- [ ] Implement `Slot` list: ordered slot registration, `Slot.getMaxStackSize()`, `Slot.mayPlace()`, `Slot.mayPickup()`, `Slot.onTake()`, `Slot.set()`, `Slot.isActive()`
-- [ ] Implement carried-item stack (cursor): updated separately from slot contents
-- [ ] Implement remote-slot shadow copies: `remoteSlots` list tracking last-synced client view; `sendAllDataToRemote()`, `sendSlotChange()`
+- [ ] Track per-player state-ID counter: `apply_scripted_packet` in `inventory_transactions.rs` already validates and increments a state ID, but there is no `container_state_id: u32` field in the player session (`network/play.rs`); add one, seed it on login, and thread it through every container-click dispatch
+- [x] Implement `Slot` list: `inventory.rs` has `Slot` with `may_place`, `may_pickup`, `max_stack_size`, `safe_take`, `safe_insert`, and `has_item`; `Menu` holds an ordered `Vec<Slot>`
+- [x] Implement carried-item stack (cursor): `Menu.carried` tracks the cursor item, updated by all click-mode handlers
+- [ ] Implement remote-slot shadow copies: `remoteSlots` list tracking last-synced client view; `sendAllDataToRemote()`, `sendSlotChange()` — needed so corrections only send slots that actually differ
 - [ ] Implement `DataSlot` / `ContainerData` sync: integer data values (cook time, fuel time, enchant cost, etc.) sent via `ContainerSetData`
-- [ ] Implement click validation: `ClickType` handling (PICKUP, QUICK_MOVE, SWAP, CLONE, THROW, QUICK_CRAFT, PICKUP_ALL) with server-side re-validation against current slot state
-- [ ] Implement quick-craft (drag-split): track drag-start, drag-add slots, drag-end; split carried stack across valid target slots
+- [x] Implement click validation: `inventory_transactions.rs` dispatches all seven `ContainerInput` modes (PICKUP, QUICK_MOVE, SWAP, CLONE, THROW, QUICK_CRAFT, PICKUP_ALL) with state-ID re-validation and correction collection
+- [x] Implement quick-craft (drag-split): `Menu.quick_craft` splits carried stack evenly across target slots
 - [ ] Implement `ContainerSynchronizer` and `ContainerListener` interfaces used to push updates back to client
 - [ ] Implement `stillValid(player)` check on every tick (close menu if block/entity no longer accessible)
 - [ ] Add parity test: stateId desync detection — client sending old stateId causes vanilla-compatible correction packet
 
 ## Player and Crafting Menus
 
-- [ ] Implement `InventoryMenu`: 36 main slots, 4 armor slots, 1 offhand slot, 4 crafting input slots, 1 result slot; `RecipeBookMenu` integration; survival vs. creative inventory size difference; `ResultSlot` crafting trigger
+### In-inventory 2×2 crafting — prerequisite chain (must be done in order)
+
+- [x] **Connect `CraftingGrid` to `RecipeMap`**: `player_inventory.rs` now builds `Vec<Option<&'static str>>` from grid slots, calls `RecipeMap::get_recipe_for("crafting", width, height, items)`, stores the matched recipe holder ID, and assembles the result via `holder.recipe.assemble()`; the unit test covers oak log to oak planks, two-stick torch output, empty result after take, and a mixed invalid recipe.
+
+- [ ] **Implement `InventoryMenu` slot layout**: create a struct (or extend `Menu`) that owns a `PlayerInventory` + `CraftingGrid` and presents them as a single `Menu` with the vanilla `InventoryMenu` slot numbering: result=0, crafting grid=1–4, armor (head/chest/legs/feet)=5–8, main storage=9–35, hotbar=36–44, offhand=45. Reads/writes to each slot must delegate to the correct backing store. Mark the result slot (0) `may_place=false`.
+
+- [ ] **Implement `ResultSlot` on-take side effects**: when the player picks up from slot 0, after returning the assembled stack: (a) call `shrink(1)` on every non-empty crafting-grid slot; (b) call `default_crafting_remaining_items` from `recipe_system.rs` to get remainder items (buckets, bottles, etc.) and place each back into the corresponding grid slot; (c) re-run `CraftingGrid::update_result` so the result slot refreshes or clears; (d) queue a recipe-book-unlock event for the matched recipe holder ID (see recipe-book step below).
+
+- [ ] **Thread per-player state ID through the click handler**: add `container_state_id: u32` to the play-session state in `network/play.rs`; seed it to 0 on login; after each call to `apply_scripted_packet` that returns `accepted = true`, increment it.
+
+- [ ] **Route `ServerboundContainerClickPacket` → `apply_scripted_packet`**: in the play-session packet dispatch in `network/play.rs`, convert `ServerboundContainerClickPacket` into `ScriptedContainerClickPacket` and call `apply_scripted_packet` on the player's active `InventoryMenu`. For container-id 0 (player inventory) this is the only menu that needs to exist right now. Send `ContainerSetSlot` for every `SlotCorrection` in the result, and — if any crafting-grid slot (1–4) changed — call `slotsChanged()` on the menu and send an additional `ContainerSetSlot` for slot 0 with the updated result.
+
+- [ ] **Send `ContainerSetContent` on login**: on player join (after sending `LoginPacket`), send `ContainerSetContent` with container-id=0 and all 46 `InventoryMenu` slot stacks so the client sees its inventory immediately.
+
+- [ ] **Zone-aware `quick_move` for `InventoryMenu`**: the generic `Menu::quick_move` distributes items in raw slot order, which is wrong for inventory. Override it in `InventoryMenu`: result (slot 0) → hotbar (36–44), then main storage (9–35); item in hotbar → main storage first; item in storage → hotbar first; armor item → the matching armor slot (5–8) if empty. This matches vanilla `InventoryMenu.quickMoveStack` behaviour.
+
+- [ ] **Recipe-book unlock on first craft**: maintain a `HashSet<String>` of unlocked recipe IDs per player. When `ResultSlot` on-take fires and the matched holder ID is not in the set, add it and send `ClientboundRecipeBookAddPacket` with `notification=true, highlight=true`.
+
+### Remaining menu types (not needed for 2×2 crafting, implement after above is working)
+
 - [ ] Implement `CraftingMenu`: 9 input slots, 1 result slot, `RecipeCraftingHolder` recipe matching update, `RecipeBook` unlock notification
 - [ ] Implement `AbstractCraftingMenu`: shared crafting result logic, `slotsChanged()` triggering `RecipeManager.getResultFor()`, remainder items placed in grid
 - [ ] Implement `RecipeBookMenu`: `RecipeBookType` per menu, recipe book state sync, recipe placement into grid on click
+
+### Tests
+
+- [ ] Unit test: `CraftingGrid::update_result` — one oak log in slot 0 produces 4 oak planks; empty grid produces empty result; wrong arrangement for a shaped recipe produces empty result
+- [ ] Unit test: `InventoryMenu` slot 0 rejects `safe_insert`; `safe_take` from slot 0 shrinks each non-empty grid slot by 1, places remainders back, then re-runs recipe match
+- [ ] Unit test: `InventoryMenu` zone-aware `quick_move` places crafting result into hotbar before storage; shifts a hotbar item into storage when hotbar is full
+- [ ] Parity test (full network round-trip): place one log into grid slot 1 → server sends `ContainerSetSlot` slot 0 with 4 planks → client takes result → server sends `ContainerSetSlot` slot 0 empty and slot 1 empty
 - [ ] Add parity test: 2×2 crafting grid result update on each slot change, recipe unlocking, remainder handling
 
 ## Furnace Menus
