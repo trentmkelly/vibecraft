@@ -77,7 +77,7 @@
 - [ ] Implement command source stack, execution context, result propagation, `/execute` semantics, return values, and function continuation.
 - [ ] Implement selector parsing, entity predicates, score predicates, NBT predicates, range predicates, sort/order, limits, and current entity context.
 - [ ] Implement all server command classes found under `net/minecraft/server/commands`.
-- [ ] Implement `/advancement`.
+- [x] Implement `/advancement`.
 - [ ] Implement `/attribute`.
 - [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
 - [ ] Implement `/bossbar`.
@@ -114,14 +114,14 @@
 - [ ] Implement `/publish`.
 - [ ] Implement `/raid`.
 - [ ] Implement `/random`.
-- [ ] Implement `/recipe`.
+- [x] Implement `/recipe`.
 - [ ] Implement `/reload`.
 - [ ] Implement `/return`.
 - [ ] Implement `/ride`.
 - [ ] Implement `/rotate`.
 - [ ] Implement `/save-all`, `/save-off`, `/save-on`.
 - [ ] Implement `/schedule`.
-- [ ] Implement `/scoreboard`.
+- [x] Implement `/scoreboard`.
 - [ ] Implement `/seed`.
 - [ ] Implement `/serverpack`.
 - [ ] Implement `/setblock`.
@@ -135,7 +135,7 @@
 - [ ] Implement `/summon`.
 - [ ] Implement `/swing`.
 - [ ] Implement `/tag`.
-- [ ] Implement `/team`.
+- [x] Implement `/team`.
 - [ ] Implement `/teleport`.
 - [ ] Add Mineflayer command execution tests for teleporting a bot, validating its observed position correction, success feedback, and permission failures.
 - [ ] Add Mineflayer offline-mode `/list` login-state tests that run `/list` from console and bot during login, after join, after duplicate replacement, and after disconnect to verify player counts and names match vanilla.
