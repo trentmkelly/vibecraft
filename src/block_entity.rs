@@ -1107,6 +1107,26 @@ impl BlockEntity {
         }
     }
 
+    pub fn handle_update_tag(&mut self, tag: &Tag) {
+        let Some(entries) = compound_entries(tag) else {
+            return;
+        };
+
+        self.custom_data.clear();
+        self.components.clear();
+        for (key, value) in entries {
+            match key.as_str() {
+                "id" | "x" | "y" | "z" => {}
+                "components" => {
+                    self.components = map_from_compound(value);
+                }
+                _ => {
+                    self.custom_data.insert(key.clone(), value.clone());
+                }
+            }
+        }
+    }
+
     pub fn tick(&mut self, client_side: bool) -> bool {
         let tick_kind = type_info(self.ty).tick_kind;
         let should_tick = matches!(
@@ -1453,6 +1473,44 @@ mod tests {
 
         let chest = BlockEntity::new(BlockEntityTypeId::Chest, pos(), "minecraft:chest").unwrap();
         assert_eq!(chest.get_update_tag(), Tag::Compound(Vec::new()));
+    }
+
+    #[test]
+    fn handle_update_tag_applies_network_subset_without_metadata() {
+        let mut entity =
+            BlockEntity::new(BlockEntityTypeId::Sign, pos(), "minecraft:oak_sign").unwrap();
+        entity
+            .custom_data
+            .insert("old_text".to_string(), Tag::String("stale".to_string()));
+        entity
+            .components
+            .insert("old_component".to_string(), Tag::Int(1));
+
+        entity.handle_update_tag(&Tag::Compound(vec![
+            ("x".to_string(), Tag::Int(999)),
+            ("id".to_string(), Tag::String("minecraft:chest".to_string())),
+            ("front_text".to_string(), Tag::String("hello".to_string())),
+            (
+                "components".to_string(),
+                Tag::Compound(vec![(
+                    "minecraft:custom_name".to_string(),
+                    Tag::String("Sign".to_string()),
+                )]),
+            ),
+        ]));
+
+        assert_eq!(entity.ty, BlockEntityTypeId::Sign);
+        assert_eq!(entity.pos, pos());
+        assert!(!entity.custom_data.contains_key("old_text"));
+        assert_eq!(
+            entity.custom_data.get("front_text"),
+            Some(&Tag::String("hello".to_string()))
+        );
+        assert!(!entity.components.contains_key("old_component"));
+        assert_eq!(
+            entity.components.get("minecraft:custom_name"),
+            Some(&Tag::String("Sign".to_string()))
+        );
     }
 
     #[test]

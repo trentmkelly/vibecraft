@@ -21,7 +21,7 @@
 - [x] Implement `BlockEntity.getUpdatePacket()` returning a `ClientboundBlockEntityDataPacket` at the correct packet ID: `BlockEntity::get_update_packet()` carries position, type, and update tag, and `network::play::ClientboundBlockEntityDataPacket` serializes the play packet shape
 - [x] Implement `BlockEntity.changed()` marking the containing chunk as dirty for save: `BlockEntity::set_changed()` sets `changed` only after `set_level()`, covered by `changed_flag_only_sets_when_attached_to_level`
 - [x] Implement `BlockEntity.clearRemoved()` / `setRemoved()` lifecycle hooks: `set_removed()` and `clear_removed()` update the removal flag, and ticking refuses removed block entities
-- [ ] Implement `BlockEntity.handleUpdateTag(tag)` applying the network-received subset on the simulated client side
+- [x] Implement `BlockEntity.handleUpdateTag(tag)` applying the network-received subset on the simulated client side: `BlockEntity::handle_update_tag()` replaces custom data/components from the network tag while ignoring metadata fields (`id`, `x`, `y`, `z`); covered by `handle_update_tag_applies_network_subset_without_metadata`
 - [x] Implement `BlockEntityTicker` dispatch: server-tick and client-tick registrations independently null-checked per type: `BlockEntity::tick(client_side)` checks `BlockEntityTypeInfo.tick_kind`, level attachment, and removal state; covered by `ticking_requires_level_side_match_and_not_removed`
 - [ ] Implement `BlockEntityType` registry with `validBlocks` set and version-compatible NBT deserialization via `DataFixer`
 - [ ] Implement `TickingBlockEntity` wrapper used by `ServerLevel` to schedule ticking block entities
