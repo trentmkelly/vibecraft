@@ -556,6 +556,40 @@ pub struct BeehiveBlockEntity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreakingHeartStateModel {
+    Uprooted,
+    Dormant,
+    Awake,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CreakingHeartAction {
+    None,
+    StateChanged(CreakingHeartStateModel),
+    SpawnProtector {
+        attempts: i32,
+        range_xz: i32,
+        range_y: i32,
+    },
+    RemoveProtector,
+    HurtPulse {
+        total_ticks: i32,
+        particle_ticks: i32,
+        resin_clumps: i32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreakingHeartBlockEntity {
+    pub creaking_uuid: Option<String>,
+    pub ticks_existed: i64,
+    pub ticker: i32,
+    pub emitter_ticks: i32,
+    pub output_signal: i32,
+    pub state: CreakingHeartStateModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SculkCatalystEventResult {
     Ignored,
     Bloom { pulse_ticks: i32 },
@@ -3959,6 +3993,178 @@ impl BeehiveBlockEntity {
     }
 }
 
+impl CreakingHeartBlockEntity {
+    pub const PLAYER_DETECTION_RANGE: i32 = 32;
+    pub const CREAKING_ROAMING_RADIUS: i32 = 32;
+    pub const DISTANCE_CREAKING_TOO_FAR: f64 = 34.0;
+    pub const SPAWN_RANGE_XZ: i32 = 16;
+    pub const SPAWN_RANGE_Y: i32 = 8;
+    pub const ATTEMPTS_PER_SPAWN: i32 = 5;
+    pub const UPDATE_TICKS: i32 = 20;
+    pub const UPDATE_TICKS_VARIANCE: i32 = 5;
+    pub const HURT_CALL_TOTAL_TICKS: i32 = 100;
+    pub const NUMBER_OF_HURT_CALLS: i32 = 10;
+    pub const HURT_CALL_INTERVAL: i32 = 10;
+    pub const HURT_CALL_PARTICLE_TICKS: i32 = 50;
+    pub const MAX_RESIN_DEPTH: i32 = 2;
+    pub const MAX_RESIN_COUNT: i32 = 64;
+    pub const TICKS_GRACE_PERIOD: i64 = 30;
+
+    pub fn new() -> Self {
+        Self {
+            creaking_uuid: None,
+            ticks_existed: 0,
+            ticker: 0,
+            emitter_ticks: 0,
+            output_signal: 0,
+            state: CreakingHeartStateModel::Uprooted,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if let Some(uuid) = &self.creaking_uuid {
+            fields.push(("creaking".to_string(), Tag::String(uuid.clone())));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut heart = Self::new();
+        if let Some(entries) = compound_entries(tag) {
+            if let Some(uuid) = get_string(entries, "creaking") {
+                heart.set_creaking_uuid(uuid.to_string());
+            }
+        }
+        heart
+    }
+
+    pub fn set_creaking_uuid(&mut self, uuid: String) {
+        self.creaking_uuid = Some(uuid);
+        self.ticks_existed = 0;
+    }
+
+    pub fn clear_creaking(&mut self) {
+        self.creaking_uuid = None;
+    }
+
+    pub fn server_tick(
+        &mut self,
+        has_required_logs: bool,
+        creaking_active: bool,
+        spawning_monsters: bool,
+        player_nearby: bool,
+        protector_resolved: bool,
+        protector_distance: Option<f64>,
+        protector_persistent: bool,
+        player_stuck_in_protector: bool,
+        next_ticker_offset: i32,
+    ) -> Vec<CreakingHeartAction> {
+        self.ticks_existed += 1;
+        let mut actions = Vec::new();
+        let computed_signal = self.compute_analog_output_signal(protector_distance);
+        if self.output_signal != computed_signal {
+            self.output_signal = computed_signal;
+        }
+
+        if self.emitter_ticks > 0 {
+            self.emitter_ticks -= 1;
+        }
+
+        self.ticker -= 1;
+        if self.ticker >= 0 {
+            return actions;
+        }
+        self.ticker = Self::UPDATE_TICKS
+            + next_ticker_offset.clamp(0, Self::UPDATE_TICKS_VARIANCE.saturating_sub(1));
+
+        let updated_state = self.updated_state(has_required_logs, creaking_active);
+        if updated_state != self.state {
+            self.state = updated_state;
+            actions.push(CreakingHeartAction::StateChanged(updated_state));
+            if updated_state == CreakingHeartStateModel::Uprooted {
+                return actions;
+            }
+        }
+
+        if self.creaking_uuid.is_none() {
+            if self.state == CreakingHeartStateModel::Awake && spawning_monsters && player_nearby {
+                actions.push(CreakingHeartAction::SpawnProtector {
+                    attempts: Self::ATTEMPTS_PER_SPAWN,
+                    range_xz: Self::SPAWN_RANGE_XZ,
+                    range_y: Self::SPAWN_RANGE_Y,
+                });
+            }
+        } else if protector_resolved {
+            let too_far = protector_distance
+                .map(|distance| distance > Self::DISTANCE_CREAKING_TOO_FAR)
+                .unwrap_or(false);
+            if (!creaking_active && !protector_persistent) || too_far || player_stuck_in_protector {
+                self.clear_creaking();
+                actions.push(CreakingHeartAction::RemoveProtector);
+            }
+        } else if self.ticks_existed >= Self::TICKS_GRACE_PERIOD {
+            self.clear_creaking();
+            actions.push(CreakingHeartAction::RemoveProtector);
+        }
+        actions
+    }
+
+    pub fn on_protector_spawned(&mut self, uuid: String) {
+        self.creaking_uuid = Some(uuid);
+    }
+
+    pub fn creaking_hurt(&mut self, state_awake: bool, resin_clumps: i32) -> CreakingHeartAction {
+        if self.creaking_uuid.is_none() || self.emitter_ticks > 0 {
+            return CreakingHeartAction::None;
+        }
+        self.emitter_ticks = Self::HURT_CALL_TOTAL_TICKS;
+        CreakingHeartAction::HurtPulse {
+            total_ticks: Self::HURT_CALL_TOTAL_TICKS,
+            particle_ticks: Self::HURT_CALL_PARTICLE_TICKS,
+            resin_clumps: if state_awake {
+                resin_clumps.clamp(2, 3)
+            } else {
+                0
+            },
+        }
+    }
+
+    pub fn remove_protector(&mut self) -> CreakingHeartAction {
+        if self.creaking_uuid.take().is_some() {
+            CreakingHeartAction::RemoveProtector
+        } else {
+            CreakingHeartAction::None
+        }
+    }
+
+    pub fn compute_analog_output_signal(&self, protector_distance: Option<f64>) -> i32 {
+        if self.creaking_uuid.is_none() {
+            return 0;
+        }
+        let Some(distance) = protector_distance else {
+            return 0;
+        };
+        let scaled_distance = distance.clamp(0.0, f64::from(Self::CREAKING_ROAMING_RADIUS))
+            / f64::from(Self::CREAKING_ROAMING_RADIUS);
+        15 - (scaled_distance * 15.0).floor() as i32
+    }
+
+    fn updated_state(
+        &self,
+        has_required_logs: bool,
+        creaking_active: bool,
+    ) -> CreakingHeartStateModel {
+        if !has_required_logs && self.creaking_uuid.is_none() {
+            CreakingHeartStateModel::Uprooted
+        } else if creaking_active {
+            CreakingHeartStateModel::Awake
+        } else {
+            CreakingHeartStateModel::Dormant
+        }
+    }
+}
+
 impl SculkShriekerBlockEntity {
     pub const LISTENER_RADIUS: i32 = 8;
     pub const WARNING_SOUND_RADIUS: i32 = 10;
@@ -7325,6 +7531,96 @@ mod tests {
         assert!(hive.add_occupant(BeehiveOccupant::bee(0, false), None));
         let sedated = hive.empty_all_living_from_hive(BeeReleaseStatus::Emergency, true);
         assert_eq!(sedated[0].stay_out_of_hive_ticks, 400);
+    }
+
+    #[test]
+    fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
+        assert_eq!(CreakingHeartBlockEntity::PLAYER_DETECTION_RANGE, 32);
+        assert_eq!(CreakingHeartBlockEntity::CREAKING_ROAMING_RADIUS, 32);
+        assert_eq!(CreakingHeartBlockEntity::DISTANCE_CREAKING_TOO_FAR, 34.0);
+        assert_eq!(CreakingHeartBlockEntity::SPAWN_RANGE_XZ, 16);
+        assert_eq!(CreakingHeartBlockEntity::SPAWN_RANGE_Y, 8);
+        assert_eq!(CreakingHeartBlockEntity::ATTEMPTS_PER_SPAWN, 5);
+        assert_eq!(CreakingHeartBlockEntity::UPDATE_TICKS, 20);
+        assert_eq!(CreakingHeartBlockEntity::UPDATE_TICKS_VARIANCE, 5);
+        assert_eq!(CreakingHeartBlockEntity::HURT_CALL_TOTAL_TICKS, 100);
+        assert_eq!(CreakingHeartBlockEntity::HURT_CALL_INTERVAL, 10);
+        assert_eq!(CreakingHeartBlockEntity::HURT_CALL_PARTICLE_TICKS, 50);
+        assert_eq!(CreakingHeartBlockEntity::MAX_RESIN_DEPTH, 2);
+        assert_eq!(CreakingHeartBlockEntity::MAX_RESIN_COUNT, 64);
+        assert_eq!(CreakingHeartBlockEntity::TICKS_GRACE_PERIOD, 30);
+
+        let mut heart = CreakingHeartBlockEntity::new();
+        heart.ticker = -1;
+        let actions = heart.server_tick(true, true, true, true, false, None, false, false, 4);
+        assert_eq!(
+            actions,
+            vec![
+                CreakingHeartAction::StateChanged(CreakingHeartStateModel::Awake),
+                CreakingHeartAction::SpawnProtector {
+                    attempts: 5,
+                    range_xz: 16,
+                    range_y: 8,
+                },
+            ]
+        );
+        assert_eq!(heart.ticker, 24);
+        assert_eq!(heart.state, CreakingHeartStateModel::Awake);
+
+        heart.on_protector_spawned("00000000-0000-0000-0000-000000000001".to_string());
+        assert_eq!(heart.compute_analog_output_signal(Some(0.0)), 15);
+        assert_eq!(heart.compute_analog_output_signal(Some(16.0)), 8);
+        assert_eq!(heart.compute_analog_output_signal(Some(32.0)), 0);
+        assert_eq!(heart.compute_analog_output_signal(Some(64.0)), 0);
+
+        let saved = heart.save_additional();
+        assert_eq!(
+            CreakingHeartBlockEntity::load_additional(&saved).creaking_uuid,
+            heart.creaking_uuid
+        );
+
+        let hurt = heart.creaking_hurt(true, 3);
+        assert_eq!(
+            hurt,
+            CreakingHeartAction::HurtPulse {
+                total_ticks: 100,
+                particle_ticks: 50,
+                resin_clumps: 3,
+            }
+        );
+        assert_eq!(heart.emitter_ticks, 100);
+        assert_eq!(heart.creaking_hurt(true, 2), CreakingHeartAction::None);
+        heart.server_tick(true, true, true, true, true, Some(4.0), false, false, 0);
+        assert_eq!(heart.emitter_ticks, 99);
+
+        heart.ticker = -1;
+        let actions = heart.server_tick(true, false, true, true, true, Some(35.0), false, false, 0);
+        assert!(actions.contains(&CreakingHeartAction::StateChanged(
+            CreakingHeartStateModel::Dormant
+        )));
+        assert!(actions.contains(&CreakingHeartAction::RemoveProtector));
+        assert!(heart.creaking_uuid.is_none());
+
+        heart.state = CreakingHeartStateModel::Dormant;
+        heart.ticker = -1;
+        let actions = heart.server_tick(false, true, true, true, false, None, false, false, 0);
+        assert_eq!(
+            actions,
+            vec![CreakingHeartAction::StateChanged(
+                CreakingHeartStateModel::Uprooted
+            )]
+        );
+
+        let mut unresolved = CreakingHeartBlockEntity::load_additional(&Tag::Compound(vec![(
+            "creaking".to_string(),
+            Tag::String("00000000-0000-0000-0000-000000000002".to_string()),
+        )]));
+        unresolved.ticks_existed = 29;
+        unresolved.ticker = -1;
+        assert!(unresolved
+            .server_tick(true, true, true, true, false, None, false, false, 0)
+            .contains(&CreakingHeartAction::RemoveProtector));
+        assert!(unresolved.creaking_uuid.is_none());
     }
 
     #[test]
