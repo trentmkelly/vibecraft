@@ -178,7 +178,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundSetExperiencePacket` (0x56): experience-progress float, total-experience VarInt, level VarInt
 - [x] `ClientboundSetHealthPacket` (0x58): health float, food VarInt, saturation float
 - [x] `ClientboundGameEventPacket` (0x26): event unsigned byte and float parameter (also covers mode-change event 3 = change game mode)
-- [ ] `ClientboundPlayerLookAtPacket` (0x39): from-anchor VarInt, target entity-or-block, optional entity-anchor
+- [x] `ClientboundPlayerLookAtPacket` (0x47): from-anchor enum VarInt, target X/Y/Z doubles, optional entity ID VarInt and to-anchor enum VarInt
 
 ## Interactions / Block / Entity Actions (Serverbound)
 

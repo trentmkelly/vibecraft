@@ -1139,6 +1139,21 @@ pub struct ClientboundAwardStatsPacket {
     pub stats: Vec<(Identifier, i32)>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundPlayerLookAtPacket {
+    pub from_anchor: EntityAnchor,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub target_entity: Option<(i32, EntityAnchor)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityAnchor {
+    Feet = 0,
+    Eyes = 1,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundResetScorePacket {
     pub owner: String,
@@ -2912,6 +2927,27 @@ impl ClientboundUpdateMobEffectPacket {
         write_var_i32(writer, self.duration_ticks)?;
         writer.write_all(&[self.flags.0])
     }
+}
+
+impl ClientboundPlayerLookAtPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_enum_index(writer, self.from_anchor as usize, EntityAnchor::COUNT)?;
+        write_f64(writer, self.x)?;
+        write_f64(writer, self.y)?;
+        write_f64(writer, self.z)?;
+        match self.target_entity {
+            Some((entity_id, to_anchor)) => {
+                write_bool(writer, true)?;
+                write_var_i32(writer, entity_id)?;
+                write_enum_index(writer, to_anchor as usize, EntityAnchor::COUNT)
+            }
+            None => write_bool(writer, false),
+        }
+    }
+}
+
+impl EntityAnchor {
+    const COUNT: usize = 2;
 }
 
 impl ClientboundResetScorePacket {
@@ -6391,6 +6427,22 @@ mod tests {
         assert_eq!(position_sync[0], 8);
         assert_eq!(position_sync.len(), 58);
         assert_eq!(*position_sync.last().unwrap(), 0);
+
+        let mut look_at = Vec::new();
+        ClientboundPlayerLookAtPacket {
+            from_anchor: EntityAnchor::Eyes,
+            x: 10.0,
+            y: 64.5,
+            z: -7.25,
+            target_entity: Some((33, EntityAnchor::Feet)),
+        }
+        .write(&mut look_at)
+        .unwrap();
+        assert_eq!(look_at[0], 1);
+        assert_eq!(&look_at[1..9], &10.0_f64.to_be_bytes());
+        assert_eq!(&look_at[9..17], &64.5_f64.to_be_bytes());
+        assert_eq!(&look_at[17..25], &(-7.25_f64).to_be_bytes());
+        assert_eq!(&look_at[25..], &[1, 33, 0]);
     }
 
     #[test]

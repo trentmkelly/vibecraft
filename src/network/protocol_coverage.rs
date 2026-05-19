@@ -1063,7 +1063,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_look_at",
         java_class: "ClientboundPlayerLookAtPacket",
-        field_order: "unparsed",
+        field_order: "from_anchor:enum VarInt, x:double, y:double, z:double, at_entity:bool, optional entity:VarInt + to_anchor:enum VarInt",
     },
     PlayPacketSpec {
         id: 72,
