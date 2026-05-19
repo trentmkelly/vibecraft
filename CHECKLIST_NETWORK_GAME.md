@@ -426,7 +426,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add raw 26.1.2 play-readiness race fallback coverage that repeats varied immediate first-action combinations through the next keepalive without retry sleeps while Mineflayer lacks target-protocol play support.
 - [ ] Implement respawn, dimension change, death, and return-to-game packet flows.
 - [x] Implement chunk batch start/finish and adaptive chunk batching.
-- [ ] Implement light update and chunk section serialization.
+- [x] Implement light update and chunk section serialization.
 - [ ] Implement entity spawn, remove, metadata, velocity, teleport, passenger, equipment, attributes, effects, and animation packets.
 - [ ] Implement inventory, container, recipe, advancement, statistics, scoreboard, bossbar, title, sound, particle, map, border, command tree, suggestions, and debug packets.
 
