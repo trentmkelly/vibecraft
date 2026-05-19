@@ -92,7 +92,7 @@
 
 ## Recipe Validation (All Types)
 
-- [ ] For every recipe type: add JSON decode test verifying all fields parse correctly from vanilla data files
+- [x] For every recipe type: add JSON decode test verifying all fields parse correctly from vanilla data files
 - [ ] For every recipe type: add `matches()` test with valid and invalid inputs including edge-case counts and item tags
 - [ ] For every recipe type: add `assemble()` result test verifying output item ID, count, and components
 - [ ] For every recipe type: add `getRemainingItems()` test verifying remainder stacks (bottles, buckets) are returned

@@ -589,25 +589,72 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
             material: parse_field_ingredient(object, "material", id)?,
             result: parse_result(object, id)?,
         },
-        "crafting_dye" => RecipeKind::Special {
-            kind: SpecialRecipeKind::DyedItem,
-            result_hint: Some(parse_result(object, id)?),
-        },
-        "crafting_decorated_pot" => RecipeKind::Special {
-            kind: SpecialRecipeKind::DecoratedPot,
-            result_hint: Some(parse_result(object, id)?),
-        },
-        "crafting_special_bannerduplicate" => special_recipe(SpecialRecipeKind::BannerDuplicate),
-        "crafting_special_bookcloning" => special_recipe(SpecialRecipeKind::BookCloning),
-        "crafting_special_firework_rocket" => special_recipe(SpecialRecipeKind::FireworkRocket),
-        "crafting_special_firework_star" => special_recipe(SpecialRecipeKind::FireworkStar),
+        "crafting_dye" => {
+            parse_field_ingredient(object, "target", id)?;
+            parse_field_ingredient(object, "dye", id)?;
+            RecipeKind::Special {
+                kind: SpecialRecipeKind::DyedItem,
+                result_hint: Some(parse_result(object, id)?),
+            }
+        }
+        "crafting_decorated_pot" => {
+            parse_field_ingredient(object, "back", id)?;
+            parse_field_ingredient(object, "left", id)?;
+            parse_field_ingredient(object, "right", id)?;
+            parse_field_ingredient(object, "front", id)?;
+            RecipeKind::Special {
+                kind: SpecialRecipeKind::DecoratedPot,
+                result_hint: Some(parse_result(object, id)?),
+            }
+        }
+        "crafting_special_bannerduplicate" => {
+            parse_field_ingredient(object, "banner", id)?;
+            parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::BannerDuplicate)
+        }
+        "crafting_special_bookcloning" => {
+            parse_field_ingredient(object, "source", id)?;
+            parse_field_ingredient(object, "material", id)?;
+            parse_result(object, id)?;
+            parse_allowed_generations(object, id)?;
+            special_recipe(SpecialRecipeKind::BookCloning)
+        }
+        "crafting_special_firework_rocket" => {
+            parse_field_ingredient(object, "shell", id)?;
+            parse_field_ingredient(object, "fuel", id)?;
+            parse_field_ingredient(object, "star", id)?;
+            parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::FireworkRocket)
+        }
+        "crafting_special_firework_star" => {
+            parse_shape_ingredients(object, id)?;
+            parse_field_ingredient(object, "trail", id)?;
+            parse_field_ingredient(object, "twinkle", id)?;
+            parse_field_ingredient(object, "fuel", id)?;
+            parse_field_ingredient(object, "dye", id)?;
+            parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::FireworkStar)
+        }
         "crafting_special_firework_star_fade" => {
+            parse_field_ingredient(object, "target", id)?;
+            parse_field_ingredient(object, "dye", id)?;
+            parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::FireworkStarFade)
         }
         "crafting_special_mapcloning" => special_recipe(SpecialRecipeKind::MapCloning),
-        "crafting_special_mapextending" => special_recipe(SpecialRecipeKind::MapExtending),
+        "crafting_special_mapextending" => {
+            parse_field_ingredient(object, "map", id)?;
+            parse_field_ingredient(object, "material", id)?;
+            parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::MapExtending)
+        }
         "crafting_special_repairitem" => special_recipe(SpecialRecipeKind::RepairItem),
-        "crafting_special_shielddecoration" => special_recipe(SpecialRecipeKind::ShieldDecoration),
+        "crafting_special_shielddecoration" => {
+            parse_field_ingredient(object, "banner", id)?;
+            parse_field_ingredient(object, "target", id)?;
+            parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::ShieldDecoration)
+        }
         other => {
             return Err(format!(
                 "recipe {id} has unsupported type minecraft:{other}"
@@ -757,6 +804,56 @@ fn parse_material_count_bound(
         .and_then(|bounds| bounds.get(bound))
         .and_then(serde_json::Value::as_u64)
         .map(|value| value as u32)
+}
+
+fn parse_allowed_generations(
+    object: &serde_json::Map<String, serde_json::Value>,
+    id: &str,
+) -> Result<(), String> {
+    let Some(value) = object.get("allowed_generations") else {
+        return Ok(());
+    };
+    let bounds = value
+        .as_object()
+        .ok_or_else(|| format!("recipe {id} allowed_generations must be an object"))?;
+    for field in ["min", "max"] {
+        if let Some(value) = bounds.get(field) {
+            let Some(bound) = value.as_u64() else {
+                return Err(format!(
+                    "recipe {id} allowed_generations.{field} must be an integer"
+                ));
+            };
+            if bound > 2 {
+                return Err(format!(
+                    "recipe {id} allowed_generations.{field} is outside vanilla 0..=2"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_shape_ingredients(
+    object: &serde_json::Map<String, serde_json::Value>,
+    id: &str,
+) -> Result<Vec<(&'static str, IngredientSpec)>, String> {
+    let shapes = object
+        .get("shapes")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| format!("recipe {id} is missing shapes object"))?;
+    let mut parsed = Vec::with_capacity(shapes.len());
+    for (shape, ingredient) in shapes {
+        match shape.as_str() {
+            "small_ball" | "large_ball" | "star" | "creeper" | "burst" => {
+                parsed.push((
+                    Box::leak(shape.clone().into_boxed_str()) as &'static str,
+                    parse_ingredient(ingredient)?,
+                ));
+            }
+            other => return Err(format!("recipe {id} has unknown firework shape {other}")),
+        }
+    }
+    Ok(parsed)
 }
 
 fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<RecipePropertySet> {
@@ -3390,6 +3487,99 @@ mod tests {
                 item: "minecraft:smooth_stone_slab",
                 count: 2,
             })
+        );
+
+        for (id, raw, serializer) in [
+            (
+                "minecraft:white_banner_duplicate",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/white_banner_duplicate.json"
+                ),
+                "crafting_special_bannerduplicate",
+            ),
+            (
+                "minecraft:book_cloning",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/book_cloning.json"
+                ),
+                "crafting_special_bookcloning",
+            ),
+            (
+                "minecraft:decorated_pot",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/decorated_pot.json"
+                ),
+                "crafting_decorated_pot",
+            ),
+            (
+                "minecraft:leather_helmet_dyed",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/leather_helmet_dyed.json"
+                ),
+                "crafting_dye",
+            ),
+            (
+                "minecraft:firework_rocket",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/firework_rocket.json"
+                ),
+                "crafting_special_firework_rocket",
+            ),
+            (
+                "minecraft:firework_star",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/firework_star.json"
+                ),
+                "crafting_special_firework_star",
+            ),
+            (
+                "minecraft:firework_star_fade",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/firework_star_fade.json"
+                ),
+                "crafting_special_firework_star_fade",
+            ),
+            (
+                "minecraft:map_extending",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/map_extending.json"
+                ),
+                "crafting_special_mapextending",
+            ),
+            (
+                "minecraft:repair_item",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/repair_item.json"
+                ),
+                "crafting_special_repairitem",
+            ),
+            (
+                "minecraft:shield_decoration",
+                include_str!(
+                    "../../decompiled-server-26.1.2/data/minecraft/recipe/shield_decoration.json"
+                ),
+                "crafting_special_shielddecoration",
+            ),
+        ] {
+            let recipe = load_recipe_json(id, raw).expect("special recipe JSON should decode");
+            assert_eq!(recipe.recipe.serializer(), serializer);
+        }
+
+        assert!(
+            load_recipe_json(
+                "minecraft:bad_book_cloning",
+                r#"{"type":"minecraft:crafting_special_bookcloning","source":"minecraft:written_book","result":{"id":"minecraft:written_book"}}"#
+            )
+            .is_err(),
+            "book cloning JSON must decode its material field"
+        );
+        assert!(
+            load_recipe_json(
+                "minecraft:bad_firework_star",
+                r##"{"type":"minecraft:crafting_special_firework_star","shapes":{"huge":"minecraft:stone"},"trail":"minecraft:diamond","twinkle":"minecraft:glowstone_dust","fuel":"minecraft:gunpowder","dye":"#minecraft:dyes","result":{"id":"minecraft:firework_star"}}"##
+            )
+            .is_err(),
+            "firework star JSON must reject unknown shape keys"
         );
     }
 
