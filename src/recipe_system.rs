@@ -461,6 +461,266 @@ impl RecipeManagerModel {
     }
 }
 
+pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, String> {
+    let value: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|err| format!("failed to parse recipe {id} as JSON: {err}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("recipe {id} must be a JSON object"))?;
+    let recipe_type = json_str(object, "type")?
+        .strip_prefix("minecraft:")
+        .unwrap_or(json_str(object, "type")?);
+    let recipe = match recipe_type {
+        "crafting_shaped" => {
+            let key = object
+                .get("key")
+                .and_then(serde_json::Value::as_object)
+                .ok_or_else(|| format!("shaped recipe {id} is missing key object"))?;
+            let pattern_rows = object
+                .get("pattern")
+                .and_then(serde_json::Value::as_array)
+                .ok_or_else(|| format!("shaped recipe {id} is missing pattern array"))?;
+            let height = pattern_rows.len();
+            let width = pattern_rows
+                .first()
+                .and_then(serde_json::Value::as_str)
+                .map(str::len)
+                .ok_or_else(|| format!("shaped recipe {id} has empty pattern"))?;
+            let mut pattern = Vec::with_capacity(width * height);
+            for row in pattern_rows {
+                let row = row
+                    .as_str()
+                    .ok_or_else(|| format!("shaped recipe {id} has non-string pattern row"))?;
+                if row.len() != width {
+                    return Err(format!("shaped recipe {id} has ragged pattern rows"));
+                }
+                for key_char in row.chars() {
+                    if key_char == ' ' {
+                        pattern.push(None);
+                    } else {
+                        let key_name = key_char.to_string();
+                        let ingredient = key
+                            .get(&key_name)
+                            .ok_or_else(|| {
+                                format!("shaped recipe {id} has unmapped key '{key_char}'")
+                            })
+                            .and_then(parse_ingredient)?;
+                        pattern.push(Some(ingredient));
+                    }
+                }
+            }
+            RecipeKind::Shaped {
+                width,
+                height,
+                pattern,
+                result: parse_result(object, id)?,
+            }
+        }
+        "crafting_shapeless" => RecipeKind::Shapeless {
+            ingredients: parse_ingredient_array(object, "ingredients", id)?,
+            result: parse_result(object, id)?,
+        },
+        "smelting" | "blasting" | "smoking" | "campfire_cooking" => RecipeKind::Cooking {
+            kind: match recipe_type {
+                "smelting" => CookingKind::Smelting,
+                "blasting" => CookingKind::Blasting,
+                "smoking" => CookingKind::Smoking,
+                "campfire_cooking" => CookingKind::CampfireCooking,
+                _ => unreachable!(),
+            },
+            ingredient: parse_field_ingredient(object, "ingredient", id)?,
+            result: parse_result(object, id)?,
+            experience_millis: object
+                .get("experience")
+                .and_then(serde_json::Value::as_f64)
+                .map(|value| (value * 1000.0).round() as i32)
+                .unwrap_or(0),
+            cooking_time: object
+                .get("cookingtime")
+                .and_then(serde_json::Value::as_i64)
+                .map(|value| value as i32),
+        },
+        "stonecutting" => RecipeKind::Stonecutting {
+            ingredient: parse_field_ingredient(object, "ingredient", id)?,
+            result: parse_result(object, id)?,
+        },
+        "smithing_transform" => RecipeKind::SmithingTransform {
+            template: parse_optional_field_ingredient(object, "template")?,
+            base: parse_field_ingredient(object, "base", id)?,
+            addition: parse_optional_field_ingredient(object, "addition")?,
+            result: parse_result(object, id)?,
+        },
+        "smithing_trim" => RecipeKind::SmithingTrim {
+            template: parse_field_ingredient(object, "template", id)?,
+            base: parse_field_ingredient(object, "base", id)?,
+            addition: parse_field_ingredient(object, "addition", id)?,
+        },
+        "crafting_transmute" => RecipeKind::Special {
+            kind: SpecialRecipeKind::Transmute,
+            result_hint: Some(parse_result(object, id)?),
+        },
+        "crafting_imbue" => RecipeKind::Special {
+            kind: SpecialRecipeKind::Imbue,
+            result_hint: Some(parse_result(object, id)?),
+        },
+        "crafting_dye" => RecipeKind::Special {
+            kind: SpecialRecipeKind::DyedItem,
+            result_hint: Some(parse_result(object, id)?),
+        },
+        "crafting_decorated_pot" => RecipeKind::Special {
+            kind: SpecialRecipeKind::DecoratedPot,
+            result_hint: Some(parse_result(object, id)?),
+        },
+        "crafting_special_bannerduplicate" => special_recipe(SpecialRecipeKind::BannerDuplicate),
+        "crafting_special_bookcloning" => special_recipe(SpecialRecipeKind::BookCloning),
+        "crafting_special_firework_rocket" => special_recipe(SpecialRecipeKind::FireworkRocket),
+        "crafting_special_firework_star" => special_recipe(SpecialRecipeKind::FireworkStar),
+        "crafting_special_firework_star_fade" => {
+            special_recipe(SpecialRecipeKind::FireworkStarFade)
+        }
+        "crafting_special_mapcloning" => special_recipe(SpecialRecipeKind::MapCloning),
+        "crafting_special_mapextending" => special_recipe(SpecialRecipeKind::MapExtending),
+        "crafting_special_repairitem" => special_recipe(SpecialRecipeKind::RepairItem),
+        "crafting_special_shielddecoration" => special_recipe(SpecialRecipeKind::ShieldDecoration),
+        other => {
+            return Err(format!(
+                "recipe {id} has unsupported type minecraft:{other}"
+            ))
+        }
+    };
+
+    Ok(RecipeHolder { id, recipe })
+}
+
+pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManagerModel, String> {
+    let mut paths = std::fs::read_dir(recipe_dir)
+        .map_err(|err| {
+            format!(
+                "failed to read recipe directory {}: {err}",
+                recipe_dir.display()
+            )
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| {
+            format!(
+                "failed to enumerate recipe directory {}: {err}",
+                recipe_dir.display()
+            )
+        })?;
+    paths.sort_by_key(|entry| entry.path());
+
+    let mut recipes = Vec::new();
+    for entry in paths {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let stem = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .ok_or_else(|| format!("recipe path {} has no UTF-8 file stem", path.display()))?;
+        let recipe_id = Box::leak(format!("minecraft:{stem}").into_boxed_str());
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|err| format!("failed to read recipe file {}: {err}", path.display()))?;
+        recipes.push(load_recipe_json(recipe_id, &raw)?);
+    }
+
+    Ok(RecipeManagerModel::new(recipes))
+}
+
+fn special_recipe(kind: SpecialRecipeKind) -> RecipeKind {
+    RecipeKind::Special {
+        kind,
+        result_hint: None,
+    }
+}
+
+fn json_str<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<&'a str, String> {
+    object
+        .get(field)
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("missing string field {field}"))
+}
+
+fn parse_field_ingredient(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    id: &str,
+) -> Result<IngredientSpec, String> {
+    object
+        .get(field)
+        .ok_or_else(|| format!("recipe {id} is missing ingredient field {field}"))
+        .and_then(parse_ingredient)
+}
+
+fn parse_optional_field_ingredient(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<IngredientSpec, String> {
+    object
+        .get(field)
+        .map(parse_ingredient)
+        .transpose()
+        .map(|ingredient| ingredient.unwrap_or(IngredientSpec::Empty))
+}
+
+fn parse_ingredient(value: &serde_json::Value) -> Result<IngredientSpec, String> {
+    if let Some(item) = value.as_str() {
+        return Ok(IngredientSpec::Item(Box::leak(
+            item.to_string().into_boxed_str(),
+        )));
+    }
+
+    if let Some(items) = value.as_array() {
+        let mut parsed = Vec::with_capacity(items.len());
+        for item in items {
+            let item = item
+                .as_str()
+                .ok_or_else(|| "ingredient array contains non-string entry".to_string())?;
+            parsed.push(Box::leak(item.to_string().into_boxed_str()) as &'static str);
+        }
+        return Ok(IngredientSpec::AnyOf(parsed));
+    }
+
+    Err("ingredient must be a string or string array".to_string())
+}
+
+fn parse_ingredient_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    id: &str,
+) -> Result<Vec<IngredientSpec>, String> {
+    let values = object
+        .get(field)
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("recipe {id} is missing ingredient array {field}"))?;
+    values.iter().map(parse_ingredient).collect()
+}
+
+fn parse_result(
+    object: &serde_json::Map<String, serde_json::Value>,
+    id: &str,
+) -> Result<ItemAmount, String> {
+    let result = object
+        .get("result")
+        .ok_or_else(|| format!("recipe {id} is missing result"))?;
+    let result_object = result
+        .as_object()
+        .ok_or_else(|| format!("recipe {id} result must be an object"))?;
+    let item = json_str(result_object, "id")?;
+    let count = result_object
+        .get("count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(1) as u32;
+    Ok(ItemAmount {
+        item: Box::leak(item.to_string().into_boxed_str()),
+        count,
+    })
+}
+
 fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<RecipePropertySet> {
     let mut furnace = Vec::new();
     let mut blast_furnace = Vec::new();
@@ -1678,6 +1938,58 @@ mod tests {
             vec!["minecraft:diamond_sword"]
         );
         assert!(manager.stonecutter_recipes().is_empty());
+    }
+
+    #[test]
+    fn recipe_json_loader_decodes_representative_vanilla_files() {
+        let shaped = load_recipe_json(
+            "minecraft:crafting_table",
+            include_str!(
+                "../../decompiled-server-26.1.2/data/minecraft/recipe/crafting_table.json"
+            ),
+        )
+        .expect("crafting table recipe should decode");
+        assert_eq!(shaped.recipe.serializer(), "crafting_shaped");
+        assert_eq!(shaped.recipe.recipe_type(), "crafting");
+
+        let smelting = load_recipe_json(
+            "minecraft:iron_ingot_from_smelting_raw_iron",
+            include_str!(
+                "../../decompiled-server-26.1.2/data/minecraft/recipe/iron_ingot_from_smelting_raw_iron.json"
+            ),
+        )
+        .expect("smelting recipe should decode");
+        assert_eq!(smelting.recipe.serializer(), "smelting");
+        assert_eq!(smelting.recipe.cooking_time(), Some(200));
+
+        let stonecutting = load_recipe_json(
+            "minecraft:smooth_stone_slab_from_smooth_stone_stonecutting",
+            include_str!(
+                "../../decompiled-server-26.1.2/data/minecraft/recipe/smooth_stone_slab_from_smooth_stone_stonecutting.json"
+            ),
+        )
+        .expect("stonecutting recipe should decode");
+        assert_eq!(stonecutting.recipe.serializer(), "stonecutting");
+        assert_eq!(
+            stonecutting.recipe.assemble(),
+            Some(ItemAmount {
+                item: "minecraft:smooth_stone_slab",
+                count: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn recipe_manager_loads_all_vanilla_recipe_json_files() {
+        let manager = load_recipe_directory(std::path::Path::new(
+            "../decompiled-server-26.1.2/data/minecraft/recipe",
+        ))
+        .expect("vanilla recipe directory should load");
+        assert_eq!(manager.recipe_map().values().len(), 1515);
+        assert_eq!(manager.recipe_map().by_type("crafting").len(), 1094);
+        assert_eq!(manager.recipe_map().by_type("smelting").len(), 73);
+        assert_eq!(manager.recipe_map().by_type("stonecutting").len(), 275);
+        assert_eq!(manager.stonecutter_recipes().len(), 275);
     }
 
     #[test]
