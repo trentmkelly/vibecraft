@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
+use crate::redstone::{comparator_output, ComparatorMode};
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
 
@@ -188,6 +189,12 @@ pub struct JigsawBlockEntity {
     pub final_state: String,
     pub placement_priority: i32,
     pub selection_priority: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ComparatorBlockEntity {
+    pub mode: ComparatorMode,
+    pub output_signal: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -867,6 +874,44 @@ impl JigsawBlockEntity {
             keep_jigsaws,
             start_pos: block_pos.relative(orientation_front),
         }
+    }
+}
+
+impl ComparatorBlockEntity {
+    pub fn new(mode: ComparatorMode) -> Self {
+        Self {
+            mode,
+            output_signal: 0,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![(
+            "OutputSignal".to_string(),
+            Tag::Int(self.output_signal),
+        )])
+    }
+
+    pub fn load_additional(mode: ComparatorMode, tag: &Tag) -> Self {
+        let output_signal = compound_entries(tag)
+            .and_then(|entries| get_int(entries, "OutputSignal"))
+            .unwrap_or(0);
+        Self {
+            mode,
+            output_signal,
+        }
+    }
+
+    pub fn calculate_output(&self, rear_input: u8, side_input: u8) -> u8 {
+        comparator_output(self.mode, rear_input, side_input)
+    }
+
+    pub fn update_output(&mut self, rear_input: u8, side_input: u8) -> bool {
+        let next = self.calculate_output(rear_input, side_input);
+        let next = i32::from(next);
+        let changed = self.output_signal != next;
+        self.output_signal = next;
+        changed
     }
 }
 
@@ -2925,6 +2970,39 @@ mod tests {
         assert_eq!(defaults.joint, JigsawJointType::Rollable);
         assert_eq!(defaults.placement_priority, 0);
         assert_eq!(defaults.selection_priority, 0);
+    }
+
+    #[test]
+    fn comparator_block_entity_persists_output_and_uses_compare_subtract_logic() {
+        let mut compare = ComparatorBlockEntity::new(ComparatorMode::Compare);
+        assert_eq!(
+            compare.save_additional(),
+            Tag::Compound(vec![("OutputSignal".to_string(), Tag::Int(0))])
+        );
+        assert!(compare.update_output(12, 7));
+        assert_eq!(compare.output_signal, 12);
+        assert!(!compare.update_output(12, 7));
+        assert_eq!(compare.calculate_output(3, 10), 0);
+
+        let saved = compare.save_additional();
+        assert_eq!(
+            ComparatorBlockEntity::load_additional(ComparatorMode::Compare, &saved),
+            compare
+        );
+        assert_eq!(
+            ComparatorBlockEntity::load_additional(
+                ComparatorMode::Subtract,
+                &Tag::Compound(vec![("OutputSignal".to_string(), Tag::Int(99))]),
+            )
+            .output_signal,
+            99
+        );
+
+        let mut subtract = ComparatorBlockEntity::new(ComparatorMode::Subtract);
+        assert!(subtract.update_output(12, 7));
+        assert_eq!(subtract.output_signal, 5);
+        assert!(subtract.update_output(3, 10));
+        assert_eq!(subtract.output_signal, 0);
     }
 
     #[test]
