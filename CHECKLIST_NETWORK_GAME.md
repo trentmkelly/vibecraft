@@ -97,7 +97,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundSelectTradePacket` (0x33): item number VarInt
 - [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
 - [ ] `ServerboundSetCreativeModeSlotPacket` (0x2D): slot short, item
-- [ ] `ServerboundContainerButtonClickPacket` (0x0B): window ID byte, button ID byte
+- [x] `ServerboundContainerButtonClickPacket` (0x11): container ID VarInt, button ID VarInt
 
 ## Recipe / Advancement / Unlock Packets
 

@@ -200,7 +200,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "container_button_click",
         java_class: "ServerboundContainerButtonClickPacket",
-        field_order: "unparsed",
+        field_order: "container_id:CONTAINER_ID, button_id:VarInt",
     },
     PlayPacketSpec {
         id: 18,

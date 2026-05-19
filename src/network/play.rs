@@ -29,6 +29,7 @@ pub const SERVERBOUND_CLIENT_TICK_END_PACKET_ID: i32 = 13;
 pub const SERVERBOUND_CLIENT_INFORMATION_PACKET_ID: i32 = 14;
 pub const SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID: i32 = 15;
 pub const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID: i32 = 16;
+pub const SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID: i32 = 17;
 pub const SERVERBOUND_CONTAINER_CLICK_PACKET_ID: i32 = 18;
 pub const SERVERBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 19;
 pub const SERVERBOUND_JIGSAW_GENERATE_PACKET_ID: i32 = 27;
@@ -368,6 +369,12 @@ pub struct ServerboundRenameItemPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundContainerClosePacket {
     pub container_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundContainerButtonClickPacket {
+    pub container_id: i32,
+    pub button_id: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1093,6 +1100,7 @@ pub struct PlaySession {
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
+    pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1183,6 +1191,7 @@ impl PlaySession {
             last_select_trade: None,
             last_rename_item: None,
             last_container_close: None,
+            last_container_button_click: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1323,6 +1332,18 @@ impl PlaySession {
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!(
                         "bad configuration acknowledged packet: {err}"
+                    )),
+                }
+            }
+            SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundContainerButtonClickPacket::read(&mut input) {
+                    Ok(click) => {
+                        self.last_container_button_click = Some(click);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad container button click packet: {err}"
                     )),
                 }
             }
@@ -2811,6 +2832,20 @@ impl ServerboundContainerClosePacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)
+    }
+}
+
+impl ServerboundContainerButtonClickPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            container_id: read_var_i32(reader)?,
+            button_id: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.button_id)
     }
 }
 
@@ -5087,6 +5122,34 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_container_close, Some(container_close));
+
+        let container_button_click = ServerboundContainerButtonClickPacket {
+            container_id: 128,
+            button_id: 7,
+        };
+        let mut button_click_payload = Vec::new();
+        container_button_click
+            .write(&mut button_click_payload)
+            .unwrap();
+        assert_eq!(button_click_payload, vec![0x80, 0x01, 7]);
+        assert_eq!(
+            ServerboundContainerButtonClickPacket::read(&mut cursor(
+                button_click_payload.clone()
+            ))
+            .unwrap(),
+            container_button_click
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID,
+                button_click_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_container_button_click,
+            Some(container_button_click)
+        );
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
