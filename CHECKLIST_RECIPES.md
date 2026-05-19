@@ -41,9 +41,9 @@
 - [x] Implement `CraftingRecipe`: extends `Recipe<CraftingInput>`, `category()` → `CraftingBookCategory`, `isIncomplete()` check
 - [x] Implement `NormalCraftingRecipe`: marker interface for non-special crafting recipes
 - [x] Implement `CustomRecipe`: base for special single-output recipes with `isSpecial() = true`
-- [ ] Implement `SingleItemRecipe`: stonecutter/smithing base with single item input, serializer, and result count
-- [ ] Implement `AbstractCookingRecipe`: `cookingTime`, `experience`, `category` (CookingBookCategory), ingredient matching
-- [ ] Implement `SmithingRecipe`: template + base + addition input matching, isIncomplete check
+- [x] Implement `SingleItemRecipe`: stonecutter/smithing base with single item input, serializer, and result count
+- [x] Implement `AbstractCookingRecipe`: `cookingTime`, `experience`, `category` (CookingBookCategory), ingredient matching
+- [x] Implement `SmithingRecipe`: template + base + addition input matching, isIncomplete check
 
 ## Grid Crafting
 
@@ -103,7 +103,7 @@
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Recipe Coverage
 
 - [ ] Implement recipe manager loading, recipe map indexing, property sets, selectable recipes, placement info, display metadata, and reload invalidation.
-- [ ] Implement core recipe interfaces: `Recipe`, `CraftingRecipe`, `NormalCraftingRecipe`, `CustomRecipe`, `SingleItemRecipe`, `AbstractCookingRecipe`, `SmithingRecipe`, and `SelectableRecipe`.
+- [x] Implement core recipe interfaces: `Recipe`, `CraftingRecipe`, `NormalCraftingRecipe`, `CustomRecipe`, `SingleItemRecipe`, `AbstractCookingRecipe`, `SmithingRecipe`, and `SelectableRecipe`.
 - [ ] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`.
 - [ ] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
 - [ ] Implement cooking recipes: `SmeltingRecipe`, `BlastingRecipe`, `SmokingRecipe`, and `CampfireCookingRecipe`, including cook time, experience, fuel interaction, and recipe book categories.

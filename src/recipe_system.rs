@@ -1402,6 +1402,58 @@ impl RecipeKind {
         !self.is_special()
     }
 
+    pub fn single_item_input(&self) -> Option<&IngredientSpec> {
+        match self {
+            RecipeKind::Cooking { ingredient, .. }
+            | RecipeKind::Stonecutting { ingredient, .. } => Some(ingredient),
+            _ => None,
+        }
+    }
+
+    pub fn single_item_result(&self) -> Option<&ItemAmount> {
+        match self {
+            RecipeKind::Cooking { result, .. } | RecipeKind::Stonecutting { result, .. } => {
+                Some(result)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn cooking_experience_millis(&self) -> Option<i32> {
+        match self {
+            RecipeKind::Cooking {
+                experience_millis, ..
+            } => Some(*experience_millis),
+            _ => None,
+        }
+    }
+
+    pub fn smithing_placement_info(&self) -> Option<PlacementInfo> {
+        match self {
+            RecipeKind::SmithingTransform {
+                template,
+                base,
+                addition,
+                ..
+            }
+            | RecipeKind::SmithingTrim {
+                template,
+                base,
+                addition,
+            } => Some(PlacementInfo::create_from_optionals(vec![
+                optional_ingredient(template),
+                Some(base.clone()),
+                optional_ingredient(addition),
+            ])),
+            _ => None,
+        }
+    }
+
+    pub fn smithing_is_incomplete(&self) -> Option<bool> {
+        self.smithing_placement_info()
+            .map(|placement| placement.is_impossible_to_place())
+    }
+
     pub fn matches(
         &self,
         grid_width: usize,
@@ -1466,6 +1518,10 @@ impl RecipeKind {
             _ => None,
         }
     }
+}
+
+fn optional_ingredient(ingredient: &IngredientSpec) -> Option<IngredientSpec> {
+    (!ingredient.is_empty()).then(|| ingredient.clone())
 }
 
 fn shaped_matches(
@@ -1868,6 +1924,15 @@ mod tests {
             };
             assert!(recipe.matches(1, 1, &[Some("minecraft:raw_iron")]));
             assert_eq!(recipe.cooking_time(), Some(expected_time));
+            assert_eq!(recipe.cooking_experience_millis(), Some(700));
+            assert_eq!(
+                recipe.single_item_input(),
+                Some(&IngredientSpec::Item("minecraft:raw_iron"))
+            );
+            assert_eq!(
+                recipe.single_item_result(),
+                Some(&ItemAmount::one("minecraft:iron_ingot"))
+            );
             assert_eq!(recipe.serializer(), kind.serializer());
         }
 
@@ -1880,6 +1945,17 @@ mod tests {
         };
         assert!(stonecutting.matches(1, 1, &[Some("minecraft:stone")]));
         assert!(!stonecutting.matches(1, 2, &[Some("minecraft:stone"), Some("minecraft:stone")]));
+        assert_eq!(
+            stonecutting.single_item_input(),
+            Some(&IngredientSpec::Item("minecraft:stone"))
+        );
+        assert_eq!(
+            stonecutting.single_item_result(),
+            Some(&ItemAmount {
+                item: "minecraft:stone_slab",
+                count: 2,
+            })
+        );
 
         let transform = RecipeKind::SmithingTransform {
             template: IngredientSpec::Item("minecraft:netherite_upgrade_smithing_template"),
@@ -1903,6 +1979,9 @@ mod tests {
             ]
         ));
         assert_eq!(transform.serializer(), "smithing_transform");
+        assert_eq!(transform.recipe_type(), "smithing");
+        assert_eq!(transform.recipe_book_category(), "smithing");
+        assert_eq!(transform.smithing_is_incomplete(), Some(false));
         assert!(trim.matches(
             3,
             1,
@@ -1913,7 +1992,24 @@ mod tests {
             ]
         ));
         assert_eq!(trim.serializer(), "smithing_trim");
+        assert_eq!(trim.recipe_type(), "smithing");
+        assert_eq!(trim.recipe_book_category(), "smithing");
+        assert_eq!(trim.smithing_is_incomplete(), Some(false));
         assert_eq!(trim.assemble(), None);
+
+        let incomplete_transform = RecipeKind::SmithingTransform {
+            template: IngredientSpec::Empty,
+            base: IngredientSpec::Item("minecraft:diamond_sword"),
+            addition: IngredientSpec::Item("minecraft:netherite_ingot"),
+            result: ItemAmount::one("minecraft:netherite_sword"),
+        };
+        assert_eq!(
+            incomplete_transform
+                .smithing_placement_info()
+                .unwrap()
+                .slots_to_ingredient_index,
+            vec![PlacementInfo::EMPTY_SLOT, 0, 1]
+        );
     }
 
     #[test]
