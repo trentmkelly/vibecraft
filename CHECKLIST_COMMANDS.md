@@ -44,6 +44,7 @@
 - [x] Implement `/function <id>` command: execute a named function with the invoker's command source stack
 - [ ] Implement function-level return values: `/return` command sets the function result used by `/execute` return predicates
 - [ ] Implement macro functions (26.1.2): `$` prefix lines in `.mcfunction` accept macro arguments, `$(variable)` substitution; `/function <id> with <entity|block|storage>` syntax
+- [x] Implement macro function instantiation for `/function <id> {compound}`: SNBT compound parsing, missing-argument errors, vanilla-style numeric/string argument stringification, and `$(variable)` substitution before queueing commands
 - [ ] Implement function-argument type in Brigadier argument list for `/function` command autocompletion
 - [x] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
 - [x] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property

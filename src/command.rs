@@ -6,7 +6,7 @@ use crate::enchantment_system::{are_compatible, enchantment};
 use crate::entity_category::mob_category;
 use crate::player_access::{BanEntry, NameAndId};
 use crate::runtime::{TickRateController, MAX_TICK_RATE, MIN_TICK_RATE};
-use crate::storage::nbt::Tag;
+use crate::storage::nbt::{parse_snbt, Tag};
 use crate::world_border::{WorldBorder, WORLD_BORDER_MAX_CENTER_COORDINATE, WORLD_BORDER_MAX_SIZE};
 use crate::worldgen::configured_feature;
 
@@ -831,6 +831,11 @@ pub struct CommandFunctionDefinition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstantiatedCommandFunction {
+    pub commands: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandFunctionTag {
     pub id: String,
     pub functions: Vec<String>,
@@ -940,6 +945,120 @@ fn parse_command_function(id: &str, contents: &str) -> Result<CommandFunctionDef
         commands,
         macro_parameters,
     })
+}
+
+pub fn instantiate_command_function(
+    function: &CommandFunctionDefinition,
+    arguments: Option<&str>,
+) -> Result<InstantiatedCommandFunction, String> {
+    if function.macro_parameters.is_empty() {
+        return Ok(InstantiatedCommandFunction {
+            commands: function.commands.clone(),
+        });
+    }
+    let arguments =
+        arguments.ok_or_else(|| format!("Missing macro arguments for function {}", function.id))?;
+    let Tag::Compound(values) = parse_snbt(arguments).map_err(|err| {
+        format!(
+            "Invalid macro arguments for function {}: {err}",
+            function.id
+        )
+    })?
+    else {
+        return Err(format!(
+            "Macro arguments for function {} are not a compound tag",
+            function.id
+        ));
+    };
+    let mut parameter_values = Vec::with_capacity(function.macro_parameters.len());
+    for parameter in &function.macro_parameters {
+        let Some((_, tag)) = values.iter().find(|(name, _)| name == parameter) else {
+            return Err(format!(
+                "Missing macro argument {parameter} for function {}",
+                function.id
+            ));
+        };
+        parameter_values.push(stringify_macro_argument(tag));
+    }
+    let mut commands = Vec::with_capacity(function.commands.len());
+    for command in &function.commands {
+        if command.contains("$(") {
+            commands.push(substitute_function_macro_command(
+                &function.id,
+                command,
+                &function.macro_parameters,
+                &parameter_values,
+            )?);
+        } else {
+            commands.push(command.clone());
+        }
+    }
+    Ok(InstantiatedCommandFunction { commands })
+}
+
+fn stringify_macro_argument(tag: &Tag) -> String {
+    match tag {
+        Tag::Byte(value) => value.to_string(),
+        Tag::Short(value) => value.to_string(),
+        Tag::Int(value) => value.to_string(),
+        Tag::Long(value) => value.to_string(),
+        Tag::Float(value) => format_macro_decimal(f64::from(*value)),
+        Tag::Double(value) => format_macro_decimal(*value),
+        Tag::String(value) => value.clone(),
+        other => other.to_snbt(),
+    }
+}
+
+fn format_macro_decimal(value: f64) -> String {
+    let mut formatted = format!("{value:.15}");
+    while formatted.contains('.') && formatted.ends_with('0') {
+        formatted.pop();
+    }
+    if formatted.ends_with('.') {
+        formatted.pop();
+    }
+    if formatted == "-0" {
+        "0".to_string()
+    } else {
+        formatted
+    }
+}
+
+fn substitute_function_macro_command(
+    id: &str,
+    command: &str,
+    parameters: &[String],
+    parameter_values: &[String],
+) -> Result<String, String> {
+    let mut substituted = String::new();
+    let mut start = 0usize;
+    while let Some(relative_index) = command[start..].find('$') {
+        let index = start + relative_index;
+        if command.as_bytes().get(index + 1) != Some(&b'(') {
+            start = index + 1;
+            continue;
+        }
+        substituted.push_str(&command[start..index]);
+        let Some(relative_end) = command[index + 2..].find(')') else {
+            return Err(format!("Unterminated macro variable in function {id}"));
+        };
+        let end = index + 2 + relative_end;
+        let variable = &command[index + 2..end];
+        let Some(parameter_index) = parameters
+            .iter()
+            .position(|parameter| parameter == variable)
+        else {
+            return Err(format!(
+                "Unknown macro variable {variable} in function {id}"
+            ));
+        };
+        substituted.push_str(&parameter_values[parameter_index]);
+        check_function_line_length(id, &substituted)?;
+        start = end + 1;
+    }
+    substituted.push_str(&command[start..]);
+    check_function_line_length(id, &substituted)?;
+    Ok(substituted)
 }
 
 fn should_concatenate_next_function_line(line: &str) -> bool {
@@ -9030,12 +9149,11 @@ fn function_command(
     }
     let mut queued = 0;
     for function in functions {
-        if !function.macro_parameters.is_empty() && arguments.is_none() {
-            return Err(CommandError::FunctionInstantiationFailure);
-        }
+        let instantiated = instantiate_command_function(&function, arguments.as_deref())
+            .map_err(|_| CommandError::FunctionInstantiationFailure)?;
         state.queued_functions.push(QueuedFunctionCall {
             id: function.id.clone(),
-            commands: function.commands.clone(),
+            commands: instantiated.commands,
             arguments: arguments.clone(),
             source_dimension: state.command_source_dimension.clone(),
             suppressed_output: true,
@@ -12340,15 +12458,15 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, entity_position, entity_ref,
-        execute_builtin_command, load_command_function_tags_from_resources,
-        load_command_functions_from_resources, player_team, players_allied,
-        queue_server_function_tick, team_allows_collision, team_allows_friendly_damage,
-        team_allows_visibility, visible_command_usages, ActiveEffect, AdvancementDefinition,
-        AttributeModifierState, AttributeOperation, AvatarProfile, BiomeEntry, BlockPos,
-        BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession,
-        ChatCommandKind, ChunkPos, CloneFilter, CloneMode, CommandAvailability,
-        CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable, CommandError,
-        CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
+        execute_builtin_command, instantiate_command_function,
+        load_command_function_tags_from_resources, load_command_functions_from_resources,
+        player_team, players_allied, queue_server_function_tick, team_allows_collision,
+        team_allows_friendly_damage, team_allows_visibility, visible_command_usages, ActiveEffect,
+        AdvancementDefinition, AttributeModifierState, AttributeOperation, AvatarProfile,
+        BiomeEntry, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
+        ChaseEvent, ChaseSession, ChatCommandKind, ChunkPos, CloneFilter, CloneMode,
+        CommandAvailability, CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable,
+        CommandError, CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
         CommandItemModifierEvent, CommandItemStack, CommandItemTarget, CommandLocatableEntry,
         CommandLocateResult, CommandLootSource, CommandLootTable, CommandLootTarget,
         CommandPlayerInventory, CommandRaidEvent, CommandRaidState, DamageCommandSource,
@@ -12687,6 +12805,10 @@ mod tests {
             state.queued_functions[2].arguments,
             Some("{name:\"Steve\"}".to_string())
         );
+        assert_eq!(
+            state.queued_functions[2].commands,
+            vec!["say two".to_string()]
+        );
     }
 
     #[test]
@@ -12743,6 +12865,37 @@ mod tests {
             ),
             Err(CommandError::InvalidSyntax)
         );
+    }
+
+    #[test]
+    fn macro_function_instantiation_substitutes_compound_arguments_like_vanilla() {
+        let function = CommandFunctionDefinition {
+            id: "minecraft:macro".to_string(),
+            commands: vec![
+                "say plain".to_string(),
+                "say $(name) $(count) $(ratio) $(payload)".to_string(),
+            ],
+            macro_parameters: vec![
+                "name".to_string(),
+                "count".to_string(),
+                "ratio".to_string(),
+                "payload".to_string(),
+            ],
+        };
+        let instantiated = instantiate_command_function(
+            &function,
+            Some(r#"{name:"Steve",count:7l,ratio:1.500000f,payload:{ok:1b}}"#),
+        )
+        .unwrap();
+        assert_eq!(
+            instantiated.commands,
+            vec![
+                "say plain".to_string(),
+                "say Steve 7 1.5 {ok:1b}".to_string()
+            ]
+        );
+        assert!(instantiate_command_function(&function, Some(r#"{name:"Steve"}"#)).is_err());
+        assert!(instantiate_command_function(&function, None).is_err());
     }
 
     #[test]
