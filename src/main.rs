@@ -28,6 +28,7 @@ mod command_selector;
 mod command_tree;
 mod console;
 mod container_block;
+mod container_menus;
 mod crash;
 mod crash_recovery_tests;
 mod creative_inventory;
