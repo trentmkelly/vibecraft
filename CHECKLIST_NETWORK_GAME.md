@@ -164,12 +164,12 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Title / Action Bar / Tab-List Packets
 
-- [ ] `ClientboundSetTitleTextPacket` (0x60): title component
-- [ ] `ClientboundSetSubtitleTextPacket` (0x5F): subtitle component
+- [x] `ClientboundSetTitleTextPacket` (0x60): title component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
+- [x] `ClientboundSetSubtitleTextPacket` (0x5F): subtitle component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
 - [x] `ClientboundSetTitlesAnimationPacket` (0x73): fade-in ticks int, stay ticks int, fade-out ticks int
 - [x] `ClientboundClearTitlesPacket` (0x0E): reset-times bool
-- [ ] `ClientboundSetActionBarTextPacket` (0x4D): action bar component
-- [ ] `ClientboundTabListPacket` (0x6D): header component, footer component
+- [x] `ClientboundSetActionBarTextPacket` (0x4D): action bar component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
+- [x] `ClientboundTabListPacket` (0x6D): header component, footer component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tags
 
 ## Player Abilities / Stats / Game Mode Packets
 

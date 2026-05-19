@@ -1175,7 +1175,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_action_bar_text",
         java_class: "ClientboundSetActionBarTextPacket",
-        field_order: "unparsed",
+        field_order: "text:ComponentSerialization.TRUSTED_STREAM_CODEC as network NBT tag",
     },
     PlayPacketSpec {
         id: 88,
@@ -1350,7 +1350,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_subtitle_text",
         java_class: "ClientboundSetSubtitleTextPacket",
-        field_order: "unparsed",
+        field_order: "text:ComponentSerialization.TRUSTED_STREAM_CODEC as network NBT tag",
     },
     PlayPacketSpec {
         id: 113,
@@ -1364,7 +1364,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_title_text",
         java_class: "ClientboundSetTitleTextPacket",
-        field_order: "unparsed",
+        field_order: "text:ComponentSerialization.TRUSTED_STREAM_CODEC as network NBT tag",
     },
     PlayPacketSpec {
         id: 115,
@@ -1420,7 +1420,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "tab_list",
         java_class: "ClientboundTabListPacket",
-        field_order: "unparsed",
+        field_order: "header:trusted Component network NBT tag, footer:trusted Component network NBT tag",
     },
     PlayPacketSpec {
         id: 123,

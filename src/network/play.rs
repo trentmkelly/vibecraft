@@ -1172,6 +1172,27 @@ pub struct ClientboundPlayerLookAtPacket {
     pub target_entity: Option<(i32, EntityAnchor)>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetTitleTextPacket {
+    pub text: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetSubtitleTextPacket {
+    pub text: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetActionBarTextPacket {
+    pub text: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundTabListPacket {
+    pub header: Tag,
+    pub footer: Tag,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityAnchor {
     Feet = 0,
@@ -3107,6 +3128,31 @@ impl ClientboundPlayerLookAtPacket {
             }
             None => write_bool(writer, false),
         }
+    }
+}
+
+impl ClientboundSetTitleTextPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundSetSubtitleTextPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundSetActionBarTextPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundTabListPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.header)?;
+        write_network_tag(writer, &self.footer)
     }
 }
 
@@ -6688,6 +6734,45 @@ mod tests {
             &[8, 0, 2],
             "network NBT uses writeAnyTag and must not include a root name"
         );
+
+        let title_tag = Tag::Compound(vec![("text".to_string(), Tag::String("Title".to_string()))]);
+        let mut title = Vec::new();
+        ClientboundSetTitleTextPacket {
+            text: title_tag.clone(),
+        }
+        .write(&mut title)
+        .unwrap();
+        assert_eq!(&title[..4], &[10, 8, 0, 4]);
+
+        let mut subtitle = Vec::new();
+        ClientboundSetSubtitleTextPacket {
+            text: title_tag.clone(),
+        }
+        .write(&mut subtitle)
+        .unwrap();
+        assert_eq!(subtitle, title);
+
+        let mut action_bar = Vec::new();
+        ClientboundSetActionBarTextPacket {
+            text: title_tag.clone(),
+        }
+        .write(&mut action_bar)
+        .unwrap();
+        assert_eq!(action_bar, title);
+
+        let footer_tag = Tag::Compound(vec![(
+            "text".to_string(),
+            Tag::String("Footer".to_string()),
+        )]);
+        let mut tab_list = Vec::new();
+        ClientboundTabListPacket {
+            header: title_tag,
+            footer: footer_tag,
+        }
+        .write(&mut tab_list)
+        .unwrap();
+        assert!(tab_list.starts_with(&title));
+        assert_eq!(tab_list.iter().filter(|byte| **byte == 10).count(), 2);
 
         let mut reset_score = Vec::new();
         ClientboundResetScorePacket {
