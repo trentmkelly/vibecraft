@@ -75,7 +75,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `enable-query` and `query.port`.
 - [x] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
 - [x] Implement `hardcore`.
-- [ ] Implement `use-native-transport` or document the equivalent transport decision.
+- [x] Implement `use-native-transport` or document the equivalent transport decision.
 - [ ] Implement mutable `spawn-protection`.
 - [ ] Implement mutable `op-permission-level`.
 - [ ] Implement `function-permission-level`.
