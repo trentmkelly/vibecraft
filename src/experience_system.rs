@@ -105,11 +105,19 @@ impl ExperienceOrb {
     }
 
     pub fn can_merge(&self, id: i32, value: i32) -> bool {
-        !self.removed && (self.id - id) % 40 == 0 && self.value == value
+        !self.removed
+            && (self.id - id) % 40 == 0
+            && self.value == value
+            && merged_xp_total(self.value, self.count + 1) <= 10
     }
 
     pub fn merge(&mut self, other: &mut ExperienceOrb) -> bool {
-        if other.id == self.id || !self.can_merge(other.id, other.value) {
+        if other.id == self.id
+            || other.removed
+            || (other.id - self.id) % 40 != 0
+            || self.value != other.value
+            || merged_xp_total(self.value, self.count + other.count) > 10
+        {
             return false;
         }
         self.count += other.count;
@@ -186,6 +194,17 @@ pub fn merge_awarded_orb(existing: &mut [ExperienceOrb], id_roll: i32, value: i3
     } else {
         false
     }
+}
+
+pub fn merged_xp_total(value: i32, count: i32) -> i32 {
+    value.saturating_mul(count.max(0))
+}
+
+pub fn orb_pickup_in_range(orb: (f64, f64, f64), player: (f64, f64, f64)) -> bool {
+    let dx = orb.0 - player.0;
+    let dy = orb.1 - player.1;
+    let dz = orb.2 - player.2;
+    dx * dx + dy * dy + dz * dz <= 1.0
 }
 
 pub fn xp_needed_for_next_level(level: i32) -> i32 {
@@ -272,6 +291,73 @@ pub fn reward_amount(source: ExperienceRewardSource, base: i32) -> i32 {
     }
 }
 
+pub fn mob_kill_xp(entity_type: &str, killed_by_player: bool) -> i32 {
+    if !killed_by_player {
+        return 0;
+    }
+    match entity_type {
+        "minecraft:blaze"
+        | "minecraft:elder_guardian"
+        | "minecraft:evoker"
+        | "minecraft:ravager" => 10,
+        "minecraft:ender_dragon" => 12_000,
+        "minecraft:wither" => 50,
+        "minecraft:bat"
+        | "minecraft:iron_golem"
+        | "minecraft:snow_golem"
+        | "minecraft:villager" => 0,
+        _ => 5,
+    }
+}
+
+pub fn block_mining_xp(block: &str, silk_touch: bool, fortune_bonus: i32) -> i32 {
+    if silk_touch {
+        return 0;
+    }
+    let (min, max) = match block {
+        "minecraft:coal_ore" | "minecraft:deepslate_coal_ore" => (0, 2),
+        "minecraft:diamond_ore" | "minecraft:deepslate_diamond_ore" => (3, 7),
+        "minecraft:emerald_ore" | "minecraft:deepslate_emerald_ore" => (3, 7),
+        "minecraft:lapis_ore" | "minecraft:deepslate_lapis_ore" => (2, 5),
+        "minecraft:redstone_ore" | "minecraft:deepslate_redstone_ore" => (1, 5),
+        "minecraft:spawner" => (15, 43),
+        "minecraft:sculk" => (1, 1),
+        "minecraft:sculk_catalyst" | "minecraft:sculk_shrieker" => (5, 5),
+        _ => (0, 0),
+    };
+    if max == min {
+        min
+    } else {
+        (min + fortune_bonus).clamp(min, max)
+    }
+}
+
+pub fn smelting_xp(recipe_id: &str, times_used: i32, experience_per_use: f32) -> i32 {
+    if times_used <= 0 || experience_per_use <= 0.0 {
+        return 0;
+    }
+    let total = times_used as f32 * experience_per_use;
+    let base = total.floor() as i32;
+    let fractional = total - base as f32;
+    if fractional > 0.0 && recipe_id.len() % 2 == 0 {
+        base + 1
+    } else {
+        base
+    }
+}
+
+pub fn breeding_xp() -> i32 {
+    7
+}
+
+pub fn trading_xp(villager_reward_exp: bool) -> i32 {
+    if villager_reward_exp {
+        3
+    } else {
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -298,13 +384,16 @@ mod tests {
 
     #[test]
     fn orb_merge_age_health_and_lifetime_follow_entity_rules() {
-        let mut first = ExperienceOrb::new(80, 7);
-        let mut second = ExperienceOrb::new(120, 7);
-        second.count = 3;
+        let mut first = ExperienceOrb::new(80, 3);
+        let mut second = ExperienceOrb::new(120, 3);
+        second.count = 2;
         second.age = 10;
 
+        assert!(!first.can_merge(120, 7));
         assert!(first.merge(&mut second));
-        assert_eq!(first.count, 4);
+        assert_eq!(first.count, 3);
+        assert_eq!(merged_xp_total(first.value, first.count), 9);
+        assert!(!first.can_merge(160, 3));
         assert_eq!(first.age, 0);
         assert!(second.removed);
         assert!(first.hurt(2));
@@ -316,6 +405,8 @@ mod tests {
         lifetime.age = 5999;
         lifetime.tick_age();
         assert!(lifetime.removed);
+        assert!(orb_pickup_in_range((0.0, 64.0, 0.0), (1.0, 64.0, 0.0)));
+        assert!(!orb_pickup_in_range((0.0, 64.0, 0.0), (1.1, 64.0, 0.0)));
     }
 
     #[test]
@@ -366,5 +457,13 @@ mod tests {
         );
         assert_eq!(reward_amount(ExperienceRewardSource::Mining, -5), 0);
         assert_eq!(reward_amount(ExperienceRewardSource::Command, -5), -5);
+        assert_eq!(mob_kill_xp("minecraft:zombie", true), 5);
+        assert_eq!(mob_kill_xp("minecraft:zombie", false), 0);
+        assert_eq!(mob_kill_xp("minecraft:ender_dragon", true), 12_000);
+        assert_eq!(block_mining_xp("minecraft:diamond_ore", false, 2), 5);
+        assert_eq!(block_mining_xp("minecraft:diamond_ore", true, 2), 0);
+        assert_eq!(smelting_xp("minecraft:iron_ingot", 3, 0.7), 3);
+        assert_eq!(breeding_xp(), 7);
+        assert_eq!(trading_xp(true), 3);
     }
 }

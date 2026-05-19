@@ -131,6 +131,7 @@ impl ExperienceOrbState {
             && other.base.removal_reason.is_none()
             && (other.base.id - self.base.id) % 40 == 0
             && self.value == other.value
+            && self.value.saturating_mul(self.count + other.count) <= 10
     }
 
     pub fn merge(&mut self, other: &mut Self) -> bool {
@@ -672,14 +673,16 @@ mod tests {
         assert_eq!(xp_split_value(149), 149);
         assert_eq!(xp_split_value(2), 1);
 
-        let mut orb = ExperienceOrbState::new(40, 7);
-        let mut matching = ExperienceOrbState::new(80, 7);
+        let mut orb = ExperienceOrbState::new(40, 3);
+        let mut matching = ExperienceOrbState::new(80, 3);
         matching.count = 2;
         assert!(orb.merge(&mut matching));
         assert_eq!(orb.count, 3);
         assert_eq!(matching.base.removal_reason, Some(RemovalReason::Discarded));
+        let mut over_cap = ExperienceOrbState::new(120, 3);
+        assert!(!orb.merge(&mut over_cap));
 
-        assert_eq!(orb.collect(0), Some(7));
+        assert_eq!(orb.collect(0), Some(3));
         assert_eq!(orb.count, 2);
         assert_eq!(orb.collect(2), None);
 

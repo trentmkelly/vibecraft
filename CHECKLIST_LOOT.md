@@ -124,8 +124,8 @@
 
 ## XP Rewards and Economy
 
-- [ ] Implement experience orb entity: value-based merge into nearby orb (max orb merge = total XP ≤ 10 per group), pickup range 1 block, pickup lifetime 5 minutes, orb despawn
-- [ ] Implement experience orb spawn rules: from mob kills (by type), from mining/smelting (hardcoded table), from breeding, from trading (villager level XP)
+- [x] Implement experience orb entity: value-based merge into nearby orb (max orb merge = total XP ≤ 10 per group), pickup range 1 block, pickup lifetime 5 minutes, orb despawn - `experience_system::ExperienceOrb` and `non_living_entity::ExperienceOrbState` enforce merge grouping, collection, health, 6000-tick despawn, and one-block pickup range helpers; covered by focused XP/orb tests.
+- [x] Implement experience orb spawn rules: from mob kills (by type), from mining/smelting (hardcoded table), from breeding, from trading (villager level XP) - `experience_system` exposes reward helpers for mob kills, mining blocks, smelting recipe usage, breeding, trading, commands, and experience bottles.
 - [x] Implement `Player.giveExperiencePoints()` and level threshold calculation
 - [x] Add Mineflayer XP reward tests: collect orbs from mining, smelting, breeding, trading, commands, mob kills, advancements; verify level bar updates, orb merge timing, death drops, reconnect persistence
 
@@ -145,7 +145,7 @@
 - [x] Add Mineflayer offline-mode reward-surface tests for chest loot refill prevention, suspicious block brushing, piglin bartering, cat/villager gifts, fishing catches, mob equipment drops, and advancement rewards with reconnect persistence checks.
 - [ ] Implement villager professions, trades, gossip, demand, price multipliers, restocking, leveling, POI workstations, and wandering trader trades.
 - [x] Add Mineflayer villager trading tests that open merchant windows, compare offer lists, buy items, exhaust demand, restock after work time, zombify/cure discounts where available, reconnect, and verify vanilla-compatible prices and XP.
-- [ ] Implement experience rewards and orbs.
+- [x] Implement experience rewards and orbs. - `experience_system` covers player XP math, orb splitting/merge/pickup/despawn, repair-before-award behavior, and reward source helpers; `non_living_entity` mirrors orb entity merge/collect/expire behavior.
 - [x] Add Mineflayer XP reward tests that collect orbs from mining, smelting, breeding, trading, commands, mob kills, and advancements, then verify level bar updates, orb merge timing, death drops, and reconnect persistence.
 - [x] Implement trial spawner, vault, ominous trial, and related reward data.
 - [x] Add Mineflayer trial reward tests that enter a trial chamber fixture, activate normal and ominous spawners, open vaults with generated bot profiles, reconnect mid-encounter, and compare reward drops, cooldowns, and denied-open feedback against vanilla.
