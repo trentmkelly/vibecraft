@@ -82,29 +82,29 @@
 - [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
 - [x] Implement `/bossbar`.
 - [ ] Implement `/chase`.
-- [ ] Implement `/clear`.
-- [ ] Implement `/clone`.
-- [ ] Implement `/damage`.
+- [x] Implement `/clear`.
+- [x] Implement `/clone`.
+- [x] Implement `/damage`.
 - [ ] Implement `/datapack`.
 - [ ] Implement `/deop` and `/op`.
 - [ ] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.
 - [x] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
 - [ ] Implement `/dialog`.
-- [ ] Implement `/effect`.
+- [x] Implement `/effect`.
 - [ ] Implement `/emote`.
-- [ ] Implement `/enchant`.
+- [x] Implement `/enchant`.
 - [ ] Implement `/execute`.
 - [x] Implement `/experience`.
 - [ ] Implement `/fetchprofile`.
-- [ ] Implement `/fill` and `/fillbiome`.
-- [ ] Implement `/forceload`.
+- [x] Implement `/fill` and `/fillbiome`.
+- [x] Implement `/forceload`.
 - [ ] Implement `/function` and function scheduling.
-- [ ] Implement `/give`.
+- [x] Implement `/give`.
 - [ ] Implement `/help`.
 - [ ] Implement `/item`.
 - [ ] Implement `/jfr`.
-- [ ] Implement `/kick`, `/kill`, `/list`.
-- [ ] Implement `/locate`.
+- [x] Implement `/kick`, `/kill`, `/list`.
+- [x] Implement `/locate`.
 - [ ] Implement `/loot`.
 - [ ] Implement `/msg`, `/teammsg`, `/say`, `/tellraw`.
 - [ ] Implement `/particle`.
