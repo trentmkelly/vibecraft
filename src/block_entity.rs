@@ -440,6 +440,32 @@ pub struct BellBlockEvent {
     pub event_param: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConduitBlockEntity {
+    pub tick_count: i32,
+    pub active_rotation: i32,
+    pub is_active: bool,
+    pub is_hunting: bool,
+    pub effect_blocks: Vec<BlockPos>,
+    pub destroy_target: Option<String>,
+    pub next_ambient_sound_activation: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConduitTarget {
+    pub id: String,
+    pub pos: BlockPos,
+    pub alive: bool,
+    pub enemy: bool,
+    pub in_water_or_rain: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConduitEffectApplication {
+    pub range: i32,
+    pub duration_ticks: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BellTickEffects {
     pub play_resonate_sound: bool,
@@ -2794,6 +2820,175 @@ impl SkullBlockEntity {
     }
 }
 
+impl ConduitBlockEntity {
+    pub const BLOCK_REFRESH_RATE: i64 = 40;
+    pub const EFFECT_DURATION_TICKS: i32 = 260;
+    pub const MIN_ACTIVE_SIZE: usize = 16;
+    pub const MIN_KILL_SIZE: usize = 42;
+    pub const KILL_RANGE: f64 = 8.0;
+    pub const ROTATION_SPEED: f32 = -0.0375;
+
+    pub fn new() -> Self {
+        Self {
+            tick_count: 0,
+            active_rotation: 0,
+            is_active: false,
+            is_hunting: false,
+            effect_blocks: Vec::new(),
+            destroy_target: None,
+            next_ambient_sound_activation: 0,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if let Some(target) = &self.destroy_target {
+            fields.push(("Target".to_string(), Tag::String(target.clone())));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut conduit = Self::new();
+        if let Some(entries) = compound_entries(tag) {
+            conduit.destroy_target = get_string(entries, "Target").map(ToString::to_string);
+        }
+        conduit
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn active_rotation(&self, partial_tick: f32) -> f32 {
+        (self.active_rotation as f32 + partial_tick) * Self::ROTATION_SPEED
+    }
+
+    pub fn effect_range(effect_block_count: usize) -> i32 {
+        (effect_block_count / 7) as i32 * 16
+    }
+
+    pub fn apply_effects(&self) -> Option<ConduitEffectApplication> {
+        self.is_active.then(|| ConduitEffectApplication {
+            range: Self::effect_range(self.effect_blocks.len()),
+            duration_ticks: Self::EFFECT_DURATION_TICKS,
+        })
+    }
+
+    pub fn server_tick(
+        &mut self,
+        game_time: i64,
+        pos: BlockPos,
+        is_water_at: impl Fn(BlockPos) -> bool,
+        block_at: impl Fn(BlockPos) -> &'static str,
+        targets: &[ConduitTarget],
+    ) -> Option<String> {
+        self.tick_count += 1;
+        if game_time % Self::BLOCK_REFRESH_RATE != 0 {
+            if self.is_active {
+                self.active_rotation += 1;
+            }
+            return None;
+        }
+
+        self.is_active = self.update_shape(pos, is_water_at, block_at);
+        self.is_hunting = self.effect_blocks.len() >= Self::MIN_KILL_SIZE;
+        if !self.is_active {
+            self.destroy_target = None;
+            return None;
+        }
+        let target_changed = self.update_destroy_target(pos, targets);
+        if self.is_active {
+            self.active_rotation += 1;
+        }
+        if self.destroy_target.is_some() && self.is_hunting && target_changed {
+            self.destroy_target.clone()
+        } else {
+            None
+        }
+    }
+
+    pub fn update_shape(
+        &mut self,
+        pos: BlockPos,
+        is_water_at: impl Fn(BlockPos) -> bool,
+        block_at: impl Fn(BlockPos) -> &'static str,
+    ) -> bool {
+        self.effect_blocks.clear();
+        for ox in -1..=1 {
+            for oy in -1..=1 {
+                for oz in -1..=1 {
+                    if !is_water_at(offset_pos(pos, ox, oy, oz)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        for ox in -2_i32..=2 {
+            for oy in -2_i32..=2 {
+                for oz in -2_i32..=2 {
+                    let ax = ox.abs();
+                    let ay = oy.abs();
+                    let az = oz.abs();
+                    let frame_position = (ax > 1 || ay > 1 || az > 1)
+                        && ((ox == 0 && (ay == 2 || az == 2))
+                            || (oy == 0 && (ax == 2 || az == 2))
+                            || (oz == 0 && (ax == 2 || ay == 2)));
+                    if frame_position {
+                        let test_pos = offset_pos(pos, ox, oy, oz);
+                        if Self::is_valid_frame_block(block_at(test_pos)) {
+                            self.effect_blocks.push(test_pos);
+                        }
+                    }
+                }
+            }
+        }
+        self.effect_blocks.len() >= Self::MIN_ACTIVE_SIZE
+    }
+
+    pub fn update_destroy_target(&mut self, pos: BlockPos, targets: &[ConduitTarget]) -> bool {
+        if !self.is_hunting {
+            let changed = self.destroy_target.is_some();
+            self.destroy_target = None;
+            return changed;
+        }
+        if let Some(current) = self.destroy_target.as_ref() {
+            if targets.iter().any(|target| {
+                target.id == *current
+                    && target.alive
+                    && target.enemy
+                    && target.in_water_or_rain
+                    && closer_than(pos, target.pos, Self::KILL_RANGE)
+            }) {
+                return false;
+            }
+        }
+        let next = targets
+            .iter()
+            .find(|target| {
+                target.alive
+                    && target.enemy
+                    && target.in_water_or_rain
+                    && closer_than(pos, target.pos, Self::KILL_RANGE)
+            })
+            .map(|target| target.id.clone());
+        let changed = self.destroy_target != next;
+        self.destroy_target = next;
+        changed
+    }
+
+    pub fn is_valid_frame_block(block: &str) -> bool {
+        matches!(
+            block,
+            "minecraft:prismarine"
+                | "minecraft:prismarine_bricks"
+                | "minecraft:sea_lantern"
+                | "minecraft:dark_prismarine"
+        )
+    }
+}
+
 impl BellBlockEntity {
     pub const EVENT_RING: i32 = 1;
     pub const DURATION: i32 = 50;
@@ -3964,6 +4159,21 @@ fn get_bool(entries: &[(String, Tag)], key: &str) -> Option<bool> {
 
 fn block_pos_to_tag(pos: BlockPos) -> Tag {
     Tag::List(vec![Tag::Int(pos.x), Tag::Int(pos.y), Tag::Int(pos.z)])
+}
+
+fn offset_pos(pos: BlockPos, x: i32, y: i32, z: i32) -> BlockPos {
+    BlockPos {
+        x: pos.x + x,
+        y: pos.y + y,
+        z: pos.z + z,
+    }
+}
+
+fn closer_than(left: BlockPos, right: BlockPos, range: f64) -> bool {
+    let dx = f64::from(left.x - right.x);
+    let dy = f64::from(left.y - right.y);
+    let dz = f64::from(left.z - right.z);
+    dx * dx + dy * dy + dz * dz < range * range
 }
 
 fn block_pos_from_tag(tag: &Tag) -> Option<BlockPos> {
@@ -5455,6 +5665,115 @@ mod tests {
                 ),
             ])
         );
+    }
+
+    #[test]
+    fn conduit_block_entity_scans_frame_applies_effects_and_tracks_target() {
+        assert_eq!(ConduitBlockEntity::BLOCK_REFRESH_RATE, 40);
+        assert_eq!(ConduitBlockEntity::MIN_ACTIVE_SIZE, 16);
+        assert_eq!(ConduitBlockEntity::MIN_KILL_SIZE, 42);
+        assert_eq!(ConduitBlockEntity::EFFECT_DURATION_TICKS, 260);
+        assert_eq!(ConduitBlockEntity::KILL_RANGE, 8.0);
+        assert!(ConduitBlockEntity::is_valid_frame_block("minecraft:sea_lantern"));
+        assert!(!ConduitBlockEntity::is_valid_frame_block("minecraft:stone"));
+
+        let origin = BlockPos { x: 10, y: 64, z: 10 };
+        let mut conduit = ConduitBlockEntity::new();
+        assert!(!conduit.update_shape(origin, |_| false, |_| "minecraft:sea_lantern"));
+        assert!(conduit.effect_blocks.is_empty());
+
+        assert!(conduit.update_shape(origin, |_| true, |_| "minecraft:prismarine"));
+        assert_eq!(conduit.effect_blocks.len(), 42);
+        assert_eq!(ConduitBlockEntity::effect_range(conduit.effect_blocks.len()), 96);
+        conduit.is_active = true;
+        assert_eq!(
+            conduit.apply_effects(),
+            Some(ConduitEffectApplication {
+                range: 96,
+                duration_ticks: 260,
+            })
+        );
+
+        let active_frame: Vec<BlockPos> = conduit.effect_blocks.iter().copied().take(16).collect();
+        let active_frame_lookup = |pos: BlockPos| {
+            if active_frame.contains(&pos) {
+                "minecraft:dark_prismarine"
+            } else {
+                "minecraft:air"
+            }
+        };
+        let mut minimum = ConduitBlockEntity::new();
+        assert!(minimum.update_shape(origin, |_| true, active_frame_lookup));
+        assert_eq!(minimum.effect_blocks.len(), 16);
+        assert_eq!(ConduitBlockEntity::effect_range(minimum.effect_blocks.len()), 32);
+        minimum.is_hunting = minimum.effect_blocks.len() >= ConduitBlockEntity::MIN_KILL_SIZE;
+        assert!(!minimum.update_destroy_target(
+            origin,
+            &[ConduitTarget {
+                id: "guardian".to_string(),
+                pos: BlockPos { x: 12, y: 64, z: 10 },
+                alive: true,
+                enemy: true,
+                in_water_or_rain: true,
+            }]
+        ));
+        assert_eq!(minimum.destroy_target, None);
+
+        let targets = vec![
+            ConduitTarget {
+                id: "outside".to_string(),
+                pos: BlockPos { x: 18, y: 64, z: 10 },
+                alive: true,
+                enemy: true,
+                in_water_or_rain: true,
+            },
+            ConduitTarget {
+                id: "guardian".to_string(),
+                pos: BlockPos { x: 17, y: 64, z: 10 },
+                alive: true,
+                enemy: true,
+                in_water_or_rain: true,
+            },
+        ];
+        let mut hunting = ConduitBlockEntity::new();
+        let attacked = hunting.server_tick(40, origin, |_| true, |_| "minecraft:sea_lantern", &targets);
+        assert_eq!(attacked.as_deref(), Some("guardian"));
+        assert!(hunting.is_active);
+        assert!(hunting.is_hunting);
+        assert_eq!(hunting.destroy_target.as_deref(), Some("guardian"));
+        assert_eq!(hunting.active_rotation(0.0), -0.0375);
+
+        assert_eq!(
+            hunting.server_tick(80, origin, |_| true, |_| "minecraft:sea_lantern", &targets),
+            None
+        );
+        let dead_target = [ConduitTarget {
+            id: "guardian".to_string(),
+            pos: BlockPos { x: 17, y: 64, z: 10 },
+            alive: false,
+            enemy: true,
+            in_water_or_rain: true,
+        }];
+        assert_eq!(
+            hunting.server_tick(120, origin, |_| true, |_| "minecraft:sea_lantern", &dead_target),
+            None
+        );
+        assert_eq!(hunting.destroy_target, None);
+
+        hunting.destroy_target = Some("guardian".to_string());
+        let saved = hunting.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![(
+                "Target".to_string(),
+                Tag::String("guardian".to_string())
+            )])
+        );
+        assert_eq!(
+            ConduitBlockEntity::load_additional(&saved).destroy_target,
+            Some("guardian".to_string())
+        );
+        assert_eq!(hunting.get_update_tag(), saved);
     }
 
     #[test]
