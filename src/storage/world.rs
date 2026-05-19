@@ -92,6 +92,19 @@ impl WorldLayout {
         self.root.join("data")
     }
 
+    pub fn dimensions_dir(&self) -> PathBuf {
+        self.root.join("dimensions")
+    }
+
+    pub fn dimension_path(&self, dimension_id: &str) -> std::io::Result<PathBuf> {
+        let (namespace, path) = dimension_id
+            .split_once(':')
+            .unwrap_or(("minecraft", dimension_id));
+        validate_resource_location_namespace(namespace)?;
+        validate_resource_location_path(path)?;
+        Ok(self.dimensions_dir().join(namespace).join(path))
+    }
+
     pub fn player_data_file(&self, uuid: &str) -> PathBuf {
         self.playerdata_dir().join(format!("{uuid}.dat"))
     }
@@ -127,6 +140,7 @@ impl WorldLayout {
             self.stats_dir(),
             self.datapacks_dir(),
             self.data_dir(),
+            self.dimensions_dir(),
         ] {
             fs::create_dir_all(dir)?;
         }
@@ -558,6 +572,40 @@ fn compound_bool(values: &[(String, Tag)], key: &str) -> Option<bool> {
         })
 }
 
+fn validate_resource_location_namespace(value: &str) -> std::io::Result<()> {
+    if value.is_empty()
+        || value
+            .bytes()
+            .any(|byte| !matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-'))
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid resource location namespace",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_resource_location_path(value: &str) -> std::io::Result<()> {
+    if value.is_empty()
+        || value.starts_with('/')
+        || value.split('/').any(|segment| {
+            segment.is_empty()
+                || segment == "."
+                || segment == ".."
+                || segment
+                    .bytes()
+                    .any(|byte| !matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.' | b'-'))
+        })
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid resource location path",
+        ));
+    }
+    Ok(())
+}
+
 fn read_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)> {
     let bytes = fs::read(path)?;
     read_named_tag(&mut bytes.as_slice())
@@ -642,6 +690,10 @@ mod tests {
         );
         assert_eq!(layout.data_dir(), std::path::PathBuf::from("world/data"));
         assert_eq!(
+            layout.dimensions_dir(),
+            std::path::PathBuf::from("world/dimensions")
+        );
+        assert_eq!(
             layout.player_data_file("uuid"),
             std::path::PathBuf::from("world/playerdata/uuid.dat")
         );
@@ -670,8 +722,32 @@ mod tests {
 
         assert!(layout.region_dir().is_dir());
         assert!(layout.entities_dir().is_dir());
+        assert!(layout.dimensions_dir().is_dir());
 
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn dimension_paths_match_26_1_2_identifier_storage_folder() {
+        let layout = WorldLayout::new("world");
+        assert_eq!(
+            layout.dimension_path("minecraft:overworld").unwrap(),
+            std::path::PathBuf::from("world/dimensions/minecraft/overworld")
+        );
+        assert_eq!(
+            layout.dimension_path("minecraft:the_nether").unwrap(),
+            std::path::PathBuf::from("world/dimensions/minecraft/the_nether")
+        );
+        assert_eq!(
+            layout.dimension_path("minecraft:the_end").unwrap(),
+            std::path::PathBuf::from("world/dimensions/minecraft/the_end")
+        );
+        assert_eq!(
+            layout.dimension_path("custom:sky/islands").unwrap(),
+            std::path::PathBuf::from("world/dimensions/custom/sky/islands")
+        );
+        assert!(layout.dimension_path("../escape").is_err());
+        assert!(layout.dimension_path("Bad:overworld").is_err());
     }
 
     #[test]

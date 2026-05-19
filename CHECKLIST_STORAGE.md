@@ -26,7 +26,7 @@
 ## Level Storage and Session Management
 
 - [ ] Implement `LevelStorageSource`: world-folder enumeration, lock-file acquisition (`session.lock`), world-path resolution for dimensions, backup, delete, rename, and validate
-- [ ] Implement `LevelStorageAccess`: per-session interface with `getDimensionPath()`, `readLevelData()`, `saveLevelData()`, `deleteLevel()`, dimension folder layout (`DIM-1/`, `DIM1/`, named dimensions under `dimensions/`)
+- [ ] Implement `LevelStorageAccess`: per-session interface with `getDimensionPath()`, `readLevelData()`, `saveLevelData()`, `deleteLevel()`, dimension folder layout. Note: Java 26.1.2 `DimensionType.getStorageFolder()` resolves every dimension as `dimensions/<namespace>/<path>`; RustCraft now has `WorldLayout::dimension_path()` coverage for that folder rule, but the full per-session access object remains incomplete.
 - [ ] Implement `PrimaryLevelData`: all `level.dat` fields including `DataVersion`, `Version` (id/name/series/snapshot), `LevelName`, `SpawnX/Y/Z/Angle`, `GameType`, `Difficulty`, `DayTime`, `Time`, `generatorName`/`generatorSettings` → `WorldGenSettings` codec, `allowCommands`, `hardcore`, `initialized`, `WasModded`, `DataPacks` (enabled/disabled lists), `ScheduledEvents` (`TimerQueue`), `ServerBrands`, `CustomBossEvents`, `DragonFight`, `scoreboard`, `GameRules`
 - [ ] Implement `DerivedLevelData`: thin view over `PrimaryLevelData` for individual dimensions, inheriting game rules and world properties but with per-dimension spawn/seed
 - [x] Implement `LevelVersion`: extracting `DataVersion`, world series/snapshot from `level.dat` before full load for upgrade check
