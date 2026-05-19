@@ -341,6 +341,39 @@ impl PlayerInventory {
         }
     }
 
+    /// Compute items to drop and destroy on player death, matching Java
+    /// `Player.dropEquipment` + `destroyVanishingCursedItems` + `Inventory.dropAll`.
+    ///
+    /// * `keep_inventory` — `keepInventory` gamerule; when true nothing is dropped.
+    /// * `has_prevent_equipment_drop` — returns true if the given item stack has the
+    ///   Curse of Vanishing (`PREVENT_EQUIPMENT_DROP`) enchantment; those items are
+    ///   destroyed (not returned).
+    ///
+    /// Returns the items to be spawned as item entities.
+    pub fn death_drops<F>(&mut self, keep_inventory: bool, has_prevent_equipment_drop: F) -> Vec<ItemStack>
+    where
+        F: Fn(&ItemStack) -> bool,
+    {
+        if keep_inventory {
+            return Vec::new();
+        }
+        let total = self.container_size();
+        let mut drops = Vec::new();
+        for slot in 0..total {
+            let stack = if let Some(s) = self.stack_mut(slot) { s } else { continue };
+            if stack.is_empty() {
+                continue;
+            }
+            if has_prevent_equipment_drop(stack) {
+                *stack = ItemStack::empty();
+            } else {
+                drops.push(std::mem::replace(stack, ItemStack::empty()));
+            }
+            self.times_changed += 1;
+        }
+        drops
+    }
+
     fn set_changed(&mut self) {
         self.times_changed += 1;
     }
@@ -901,5 +934,30 @@ mod tests {
         let table = CraftingGrid::three_by_three();
         assert_eq!(table.width, 3);
         assert_eq!(table.height, 3);
+    }
+
+    #[test]
+    fn death_drops_clears_all_slots_except_prevent_equipment_drop_and_respects_keep_inventory() {
+        let mut inv = PlayerInventory::new();
+        inv.set(0, ItemStack::new("minecraft:apple", 4));
+        inv.set(1, ItemStack::new("minecraft:diamond_sword", 1)); // "has curse of vanishing"
+        inv.set(36, ItemStack::new("minecraft:leather_boots", 1)); // feet armor slot
+
+        // With keepInventory: nothing drops, nothing destroyed.
+        let drops = inv.death_drops(true, |_| false);
+        assert!(drops.is_empty());
+        assert!(!inv.get(0).is_empty());
+
+        // Without keepInventory: cursed item destroyed, others dropped.
+        let curse_id = "minecraft:diamond_sword";
+        let drops = inv.death_drops(false, |s| s.item_id() == curse_id);
+        let dropped_ids: Vec<_> = drops.iter().map(|s| s.item_id()).collect();
+        assert!(dropped_ids.contains(&"minecraft:apple"));
+        assert!(!dropped_ids.contains(&curse_id)); // destroyed, not dropped
+        assert!(dropped_ids.contains(&"minecraft:leather_boots"));
+        // All slots now empty.
+        for slot in 0..43 {
+            assert!(inv.get(slot).is_empty(), "slot {slot} should be empty after death");
+        }
     }
 }

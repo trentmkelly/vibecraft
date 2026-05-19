@@ -928,3 +928,65 @@ mod tests {
         );
     }
 }
+
+/// Flag bits for `ClientboundPlayerPositionPacket` relative-movement encoding.
+/// Matches Java `net.minecraft.world.entity.Relative` enum bit positions exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RelativeFlag {
+    X = 0,
+    Y = 1,
+    Z = 2,
+    YRot = 3,
+    XRot = 4,
+    DeltaX = 5,
+    DeltaY = 6,
+    DeltaZ = 7,
+    RotateDelta = 8,
+}
+
+/// Pack a slice of `RelativeFlag` values into the integer bitmask used on the wire.
+pub fn pack_relative_flags(flags: &[RelativeFlag]) -> i32 {
+    flags.iter().fold(0i32, |acc, f| acc | (1 << *f as u32))
+}
+
+/// Unpack a wire bitmask into the set of active `RelativeFlag` values.
+pub fn unpack_relative_flags(value: i32) -> Vec<RelativeFlag> {
+    use RelativeFlag::*;
+    [X, Y, Z, YRot, XRot, DeltaX, DeltaY, DeltaZ, RotateDelta]
+        .into_iter()
+        .filter(|f| (value & (1 << *f as u32)) != 0)
+        .collect()
+}
+
+#[cfg(test)]
+mod relative_flag_tests {
+    use super::*;
+
+    #[test]
+    fn relative_flag_pack_unpack_round_trip() {
+        // Bit positions match Java Relative enum exactly.
+        assert_eq!(pack_relative_flags(&[RelativeFlag::X]), 0x01);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::Y]), 0x02);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::Z]), 0x04);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::YRot]), 0x08);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::XRot]), 0x10);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::DeltaX]), 0x20);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::DeltaY]), 0x40);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::DeltaZ]), 0x80);
+        assert_eq!(pack_relative_flags(&[RelativeFlag::RotateDelta]), 0x100);
+
+        // ALL flags packed = 0x1FF (9 bits set).
+        let all: Vec<RelativeFlag> = unpack_relative_flags(0x1FF);
+        assert_eq!(all.len(), 9);
+        assert_eq!(pack_relative_flags(&all), 0x1FF);
+
+        // Round-trip for a typical teleport: relative rotation only.
+        let rot_flags = [RelativeFlag::YRot, RelativeFlag::XRot];
+        let packed = pack_relative_flags(&rot_flags);
+        assert_eq!(packed, 0x18);
+        let unpacked = unpack_relative_flags(packed);
+        assert!(unpacked.contains(&RelativeFlag::YRot));
+        assert!(unpacked.contains(&RelativeFlag::XRot));
+        assert_eq!(unpacked.len(), 2);
+    }
+}

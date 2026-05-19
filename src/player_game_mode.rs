@@ -2,6 +2,37 @@
 
 use crate::block_update::BlockPos;
 
+/// Default survival/adventure block interaction reach.
+/// Matches Java `Player.DEFAULT_BLOCK_INTERACTION_RANGE`.
+pub const DEFAULT_BLOCK_INTERACTION_RANGE: f32 = 4.5;
+/// Default survival/adventure entity interaction reach.
+/// Matches Java `Player.DEFAULT_ENTITY_INTERACTION_RANGE`.
+pub const DEFAULT_ENTITY_INTERACTION_RANGE: f32 = 3.0;
+/// Creative-mode additive modifier applied to entity interaction range.
+/// Matches Java `Player.CREATIVE_ENTITY_INTERACTION_RANGE_MODIFIER_VALUE`.
+pub const CREATIVE_ENTITY_INTERACTION_RANGE_MODIFIER: f32 = 2.0;
+/// Creative-mode additive modifier applied to block interaction range.
+/// Matches Java `ServerPlayer.CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER` (ADD_VALUE 0.5).
+pub const CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER: f32 = 0.5;
+
+/// Server-side entity interaction reach for the given game mode.
+pub fn entity_interaction_range(is_creative: bool) -> f32 {
+    if is_creative {
+        DEFAULT_ENTITY_INTERACTION_RANGE + CREATIVE_ENTITY_INTERACTION_RANGE_MODIFIER
+    } else {
+        DEFAULT_ENTITY_INTERACTION_RANGE
+    }
+}
+
+/// Server-side block interaction reach for the given game mode.
+pub fn block_interaction_range(is_creative: bool) -> f32 {
+    if is_creative {
+        DEFAULT_BLOCK_INTERACTION_RANGE + CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER
+    } else {
+        DEFAULT_BLOCK_INTERACTION_RANGE
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlockBreakAction {
     StartDestroy,
@@ -492,5 +523,18 @@ mod tests {
         // Below 1.0 base speed: efficiency not added
         let hand_speed = player_tool_speed(1.0, 2.0, None, None, false, true);
         assert_eq!(hand_speed, 1.0);
+    }
+
+    #[test]
+    fn interaction_range_constants_match_java_defaults() {
+        assert_eq!(DEFAULT_BLOCK_INTERACTION_RANGE, 4.5);
+        assert_eq!(DEFAULT_ENTITY_INTERACTION_RANGE, 3.0);
+        assert_eq!(CREATIVE_ENTITY_INTERACTION_RANGE_MODIFIER, 2.0);
+        assert_eq!(CREATIVE_BLOCK_INTERACTION_RANGE_MODIFIER, 0.5);
+
+        assert_eq!(entity_interaction_range(false), 3.0);
+        assert_eq!(entity_interaction_range(true), 5.0);
+        assert_eq!(block_interaction_range(false), 4.5);
+        assert_eq!(block_interaction_range(true), 5.0);
     }
 }

@@ -60,11 +60,62 @@ impl PlayerAbilitiesState {
     }
 }
 
+/// Exhaustion cost per metre sprinted on ground (ServerPlayer.checkMovementStatistics).
+pub const SPRINT_EXHAUSTION_PER_METER: f32 = 0.1;
+/// Exhaustion cost per metre walked/crouched on ground (0.0F in vanilla — explicit no-op).
+pub const WALK_EXHAUSTION_PER_METER: f32 = 0.0;
+/// Exhaustion cost per metre swum, walked under/on water (ServerPlayer.checkMovementStatistics).
+pub const SWIM_EXHAUSTION_PER_METER: f32 = 0.01;
+/// Exhaustion cost for a non-sprint jump (ServerPlayer.jumpFromGround).
+pub const JUMP_EXHAUSTION: f32 = 0.05;
+/// Exhaustion cost for a sprint jump (ServerPlayer.jumpFromGround).
+pub const SPRINT_JUMP_EXHAUSTION: f32 = 0.2;
+
+/// Returns the exhaustion for a distance-based movement action.
+/// `exhaustion_per_meter` is the per-metre cost; `distance_cm` is centimetres
+/// (vanilla stats track movement in 1/100-metre units).
+pub fn movement_exhaustion(exhaustion_per_meter: f32, distance_cm: i32) -> f32 {
+    exhaustion_per_meter * distance_cm as f32 * 0.01
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Difficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard,
+}
+
+/// Whether starvation should deal damage given difficulty and current health.
+/// Matches Java FoodData.tick: always on Hard, above 1 HP on Normal, above 10 HP on Easy.
+pub fn starvation_damages(difficulty: Difficulty, health: f32) -> bool {
+    match difficulty {
+        Difficulty::Peaceful => false,
+        Difficulty::Easy => health > 10.0,
+        Difficulty::Normal => health > 1.0,
+        Difficulty::Hard => true,
+    }
+}
+
+/// Outcome produced by one call to `FoodState::tick_food`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FoodTickOutcome {
+    /// No action needed this tick.
+    None,
+    /// Saturation-based fast regeneration: heal `amount` HP and accumulate `exhaustion_cost`.
+    FastHeal { amount: f32, exhaustion_cost: f32 },
+    /// Food-level slow regeneration (food ≥ 18): heal 1 HP and accumulate 6.0 exhaustion.
+    SlowHeal,
+    /// Starvation attempt (food = 0): caller checks `starvation_damages()` and applies 1 damage.
+    StarveAttempt,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FoodState {
     pub food_level: i32,
     pub saturation: f32,
     pub exhaustion: f32,
+    pub tick_timer: i32,
 }
 
 impl Default for FoodState {
@@ -73,27 +124,80 @@ impl Default for FoodState {
             food_level: 20,
             saturation: 5.0,
             exhaustion: 0.0,
+            tick_timer: 0,
         }
     }
 }
 
 impl FoodState {
+    /// Accumulate exhaustion, capped at 40.0.  Drain (saturation / food) happens
+    /// once per tick in `tick_food`, matching Java `FoodData.addExhaustion` + `FoodData.tick`.
     pub fn add_exhaustion(&mut self, amount: f32) {
-        self.exhaustion += amount.max(0.0);
-        while self.exhaustion >= 4.0 {
-            self.exhaustion -= 4.0;
-            if self.saturation > 0.0 {
-                self.saturation = (self.saturation - 1.0).max(0.0);
-            } else {
-                self.food_level = (self.food_level - 1).max(0);
-            }
-        }
+        self.exhaustion = (self.exhaustion + amount.max(0.0)).min(40.0);
     }
 
     pub fn eat(&mut self, nutrition: i32, saturation_modifier: f32) {
         self.food_level = (self.food_level + nutrition).min(20);
         self.saturation = (self.saturation + nutrition as f32 * saturation_modifier * 2.0)
             .min(self.food_level as f32);
+    }
+
+    /// Tick the food system.  Call once per server tick per player.
+    ///
+    /// * `is_hurt` — player health < max health.
+    /// * `natural_regen` — `naturalHealthRegeneration` gamerule is on.
+    /// * `difficulty` — current world difficulty.
+    ///
+    /// Matches Java `FoodData.tick` exactly: drain exhaustion first, then decide regen/starvation.
+    pub fn tick_food(
+        &mut self,
+        is_hurt: bool,
+        natural_regen: bool,
+        difficulty: Difficulty,
+    ) -> FoodTickOutcome {
+        // Step 1: drain exhaustion (one drain per tick when exhaustion > 4.0).
+        if self.exhaustion > 4.0 {
+            self.exhaustion -= 4.0;
+            if self.saturation > 0.0 {
+                self.saturation = (self.saturation - 1.0).max(0.0);
+            } else if difficulty != Difficulty::Peaceful {
+                self.food_level = (self.food_level - 1).max(0);
+            }
+        }
+
+        // Step 2: regen or starvation.
+        if natural_regen && self.saturation > 0.0 && is_hurt && self.food_level >= 20 {
+            self.tick_timer += 1;
+            if self.tick_timer >= 10 {
+                let spent = self.saturation.min(6.0);
+                let heal = spent / 6.0;
+                self.add_exhaustion(spent);
+                self.tick_timer = 0;
+                FoodTickOutcome::FastHeal { amount: heal, exhaustion_cost: spent }
+            } else {
+                FoodTickOutcome::None
+            }
+        } else if natural_regen && self.food_level >= 18 && is_hurt {
+            self.tick_timer += 1;
+            if self.tick_timer >= 80 {
+                self.add_exhaustion(6.0);
+                self.tick_timer = 0;
+                FoodTickOutcome::SlowHeal
+            } else {
+                FoodTickOutcome::None
+            }
+        } else if self.food_level <= 0 {
+            self.tick_timer += 1;
+            if self.tick_timer >= 80 {
+                self.tick_timer = 0;
+                FoodTickOutcome::StarveAttempt
+            } else {
+                FoodTickOutcome::None
+            }
+        } else {
+            self.tick_timer = 0;
+            FoodTickOutcome::None
+        }
     }
 }
 
@@ -114,6 +218,28 @@ impl Default for ExperienceState {
     }
 }
 
+/// XP required to advance from `level` to `level + 1`.
+/// Matches Java `Player.getXpNeededForNextLevel()`.
+pub fn xp_needed_for_next_level(level: i32) -> i32 {
+    if level >= 30 {
+        112 + (level - 30) * 9
+    } else if level >= 15 {
+        37 + (level - 15) * 5
+    } else {
+        7 + level * 2
+    }
+}
+
+/// XP dropped as orbs when a player dies.
+/// Matches Java `Player.getBaseExperienceReward()`: 0 if keepInventory or spectator.
+pub fn player_xp_reward_on_death(level: i32, keep_inventory: bool, is_spectator: bool) -> i32 {
+    if !keep_inventory && !is_spectator {
+        (level * 7).min(100)
+    } else {
+        0
+    }
+}
+
 impl ExperienceState {
     pub fn set_level(&mut self, level: i32) {
         self.level = level.max(0);
@@ -122,6 +248,35 @@ impl ExperienceState {
     pub fn set_progress_points(&mut self, amount: i32, needed_for_next_level: i32) {
         let limit = needed_for_next_level.max(1) as f32;
         self.progress = (amount as f32 / limit).clamp(0.0, 1.0);
+    }
+
+    /// Award or remove XP points, advancing/retreating levels as needed.
+    /// Matches Java `Player.giveExperiencePoints()` exactly including level
+    /// threshold recomputation between level changes.
+    pub fn add_experience(&mut self, points: i32) {
+        self.progress += points as f32 / xp_needed_for_next_level(self.level) as f32;
+        self.total = self.total.saturating_add(points).max(0);
+
+        while self.progress < 0.0 {
+            let needed_before = xp_needed_for_next_level(self.level) as f32;
+            let remaining = self.progress * needed_before;
+            if self.level > 0 {
+                self.level -= 1;
+                self.progress = 1.0 + remaining / xp_needed_for_next_level(self.level) as f32;
+            } else {
+                self.level = 0;
+                self.progress = 0.0;
+                self.total = 0;
+                break;
+            }
+        }
+
+        while self.progress >= 1.0 {
+            let needed_before = xp_needed_for_next_level(self.level) as f32;
+            self.progress = (self.progress - 1.0) * needed_before;
+            self.level = self.level.saturating_add(1);
+            self.progress /= xp_needed_for_next_level(self.level) as f32;
+        }
     }
 }
 
@@ -379,7 +534,11 @@ mod tests {
     #[test]
     fn hunger_saturation_exhaustion_experience_and_tick_stats_follow_server_paths() {
         let mut player = PlayerEntityState::new("Alex", PlayerGameMode::Survival, 0);
+        // add_exhaustion now only accumulates (Java parity); drain happens in tick_food.
+        // Two ticks at 4.0-per-tick: exhaustion 8.5→4.5→0.5, saturation 5.0→4.0→3.0.
         player.food.add_exhaustion(8.5);
+        player.food.tick_food(false, false, Difficulty::Normal);
+        player.food.tick_food(false, false, Difficulty::Normal);
         assert_eq!(player.food.saturation, 3.0);
         assert_eq!(player.food.food_level, 20);
         player.food.eat(4, 0.3);
@@ -521,6 +680,50 @@ mod tests {
                 PlayerInteractionMode::Spectator
             ]
         );
+    }
+
+    #[test]
+    fn xp_threshold_formula_and_add_experience_match_java() {
+        // xp_needed_for_next_level thresholds from Player.getXpNeededForNextLevel()
+        assert_eq!(xp_needed_for_next_level(0), 7);
+        assert_eq!(xp_needed_for_next_level(14), 35);
+        assert_eq!(xp_needed_for_next_level(15), 37);
+        assert_eq!(xp_needed_for_next_level(29), 107); // 37 + (29-15)*5
+        assert_eq!(xp_needed_for_next_level(30), 112);
+        assert_eq!(xp_needed_for_next_level(31), 121);
+
+        // Gaining enough XP to cross a level boundary.
+        let mut xp = ExperienceState::default();
+        xp.add_experience(7); // exactly one level from 0
+        assert_eq!(xp.level, 1);
+        assert_eq!(xp.progress, 0.0);
+        assert_eq!(xp.total, 7);
+
+        // xp_reward_on_death
+        assert_eq!(player_xp_reward_on_death(0, false, false), 0);
+        assert_eq!(player_xp_reward_on_death(1, false, false), 7);
+        assert_eq!(player_xp_reward_on_death(14, false, false), 98);
+        assert_eq!(player_xp_reward_on_death(15, false, false), 100);
+        assert_eq!(player_xp_reward_on_death(100, false, false), 100);
+        assert_eq!(player_xp_reward_on_death(10, true, false), 0);
+        assert_eq!(player_xp_reward_on_death(10, false, true), 0);
+
+        // Taking XP away bottoms out at level 0, progress 0, total 0.
+        let mut xp2 = ExperienceState::default();
+        xp2.add_experience(-50);
+        assert_eq!(xp2.level, 0);
+        assert_eq!(xp2.progress, 0.0);
+        assert_eq!(xp2.total, 0);
+    }
+
+    #[test]
+    fn starvation_damages_matches_java_difficulty_rules() {
+        assert!(!starvation_damages(Difficulty::Peaceful, 1.0));
+        assert!(!starvation_damages(Difficulty::Easy, 10.0));
+        assert!(starvation_damages(Difficulty::Easy, 10.1));
+        assert!(!starvation_damages(Difficulty::Normal, 1.0));
+        assert!(starvation_damages(Difficulty::Normal, 1.1));
+        assert!(starvation_damages(Difficulty::Hard, 0.5));
     }
 
     fn stat_value(player: &PlayerEntityState, stat: &'static str) -> i32 {

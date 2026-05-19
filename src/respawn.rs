@@ -5,6 +5,9 @@ use crate::portal::Dimension;
 
 pub const BAD_RESPAWN_EXPLOSION_POWER: f32 = 5.0;
 pub const MAX_RESPAWN_ANCHOR_CHARGES: u8 = 4;
+/// Ticks of damage invulnerability applied on (re)spawn.
+/// Matches Java `LivingEntity.handleDamageEvent` which sets `invulnerableTime = 20`.
+pub const RESPAWN_INVULNERABILITY_TICKS: i32 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BedPart {
