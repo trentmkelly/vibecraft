@@ -101,10 +101,10 @@
 ## World Border
 
 - [x] Add Mineflayer world-border tests: initialize border (size, center from `ClientboundInitializeBorderPacket`), lerp (new size different from old, lerp time > 0), warning distance/time from packets, damage buffer/amount (border damage outside buffer), movement clamping (cannot move past border), command-driven updates
-- [ ] Implement `WorldBorder` with `WorldBorderPhase`: STATIONARY and LERPING phases, `getLerpSize(fraction)` interpolation, `damagesOutside()` logic
-- [ ] Implement world border damage: `ServerPlayer` teleport check, damage application outside border+buffer each tick
-- [ ] Implement world border warning: visual warning when within warning-blocks of border or when time to reach border < warning-time
-- [ ] Implement border sync packets: send `ClientboundInitializeBorderPacket` on join, send individual update packets on command change
+- [x] Implement `WorldBorder` with `WorldBorderPhase`: STATIONARY and LERPING phases, `getLerpSize(fraction)` interpolation, `damagesOutside()` logic — `world_border.rs` models static/moving extents, lerp progress/target/speed/status, partial-tick bounds, vanilla edge bounds, and outside-buffer damage
+- [x] Implement world border damage: `ServerPlayer` teleport check, damage application outside border+buffer each tick — `WorldBorder::out_of_border_damage`, `clamp_vec3_to_bound`, and `adjusted_respawn` cover damage, movement clamping, and out-of-border respawn adjustment
+- [x] Implement world border warning: visual warning when within warning-blocks of border or when time to reach border < warning-time — `should_show_warning` covers strict warning-block distance and shrinking-border time-to-impact behavior
+- [x] Implement border sync packets: send `ClientboundInitializeBorderPacket` on join, send individual update packets on command change — `WorldBorder::to_init_packet`, size/center/warning packet data, network packet serializers, and `/worldborder` state mutation paths are implemented and covered by packet/command tests
 - [x] Add parity test: world border damage applied at correct rate (0.2 × max(0, distance outside buffer))
 
 ## Enchantment-Driven Gameplay
@@ -158,7 +158,7 @@
 - [x] Add player-entity spawnpoint fallback coverage for bed-style and respawn-anchor-style metadata, save/load round-trip, sync-plan exposure, clearing missing respawn state, and death counter reset behavior while full Mineflayer reconnect parity remains pending.
 - [ ] Implement weather, thunder, rain, lightning, skylight effects, snow/ice behavior, and weather commands.
 - [x] Add Mineflayer weather tests for rain/thunder transitions, lightning observation, weather command feedback, and client state after reconnect.
-- [ ] Implement world border.
+- [x] Implement world border. — detailed world-border rows above are implemented, with command-model, packet, damage, warning, lerp, clamping, and Mineflayer/fallback coverage
 - [x] Add Mineflayer world-border tests for initialize, lerp, warning distance/time, damage buffer/amount, movement clamping, and command-driven updates.
 - [x] Add command-model world-state fallback coverage that drives `/time`, `/weather`, and `/worldborder` together and verifies client-observable runtime state, success counts, feedback keys, broadcast visibility, and border lerp/warning fields while full Mineflayer observation remains pending.
 - [ ] Implement explosions and game events.
