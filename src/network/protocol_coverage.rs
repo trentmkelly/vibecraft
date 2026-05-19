@@ -1084,7 +1084,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "recipe_book_add",
         java_class: "ClientboundRecipeBookAddPacket",
-        field_order: "unparsed",
+        field_order: "entries:list(contents:RecipeDisplayEntry(id:RecipeDisplayId VarInt, display:registry-dispatched RecipeDisplay, group:OptionalVarInt, category:recipe_book_category registry VarInt, crafting_requirements:optional list Ingredient holder-set), flags:byte), replace:bool",
     },
     PlayPacketSpec {
         id: 75,

@@ -1176,6 +1176,103 @@ pub struct ClientboundRecipePacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundRecipeBookAddPacket {
+    pub entries: Vec<RecipeBookAddEntry>,
+    pub replace: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeBookAddEntry {
+    pub contents: RecipeDisplayEntryData,
+    pub flags: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeDisplayEntryData {
+    pub id: i32,
+    pub display: RecipeDisplayData,
+    pub group: Option<i32>,
+    pub category_id: i32,
+    pub crafting_requirements: Option<Vec<RecipeIngredientData>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecipeDisplayData {
+    CraftingShapeless {
+        ingredients: Vec<SlotDisplayData>,
+        result: SlotDisplayData,
+        crafting_station: SlotDisplayData,
+    },
+    CraftingShaped {
+        width: i32,
+        height: i32,
+        ingredients: Vec<SlotDisplayData>,
+        result: SlotDisplayData,
+        crafting_station: SlotDisplayData,
+    },
+    Furnace {
+        ingredient: SlotDisplayData,
+        fuel: SlotDisplayData,
+        result: SlotDisplayData,
+        crafting_station: SlotDisplayData,
+        duration: i32,
+        experience_bits: u32,
+    },
+    Stonecutter {
+        ingredient: SlotDisplayData,
+        result: SlotDisplayData,
+        crafting_station: SlotDisplayData,
+    },
+    Smithing {
+        template: SlotDisplayData,
+        base: SlotDisplayData,
+        addition: SlotDisplayData,
+        result: SlotDisplayData,
+        crafting_station: SlotDisplayData,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SlotDisplayData {
+    Empty,
+    AnyFuel,
+    WithAnyPotion(Box<SlotDisplayData>),
+    OnlyWithComponent {
+        contents: Box<SlotDisplayData>,
+        component_type_id: i32,
+    },
+    Item {
+        item_id: i32,
+    },
+    ItemStack {
+        stack: RawItemStack,
+    },
+    Tag {
+        tag: Identifier,
+    },
+    Dyed {
+        dye: Box<SlotDisplayData>,
+        target: Box<SlotDisplayData>,
+    },
+    SmithingTrim {
+        base: Box<SlotDisplayData>,
+        material: Box<SlotDisplayData>,
+        pattern_id: i32,
+    },
+    WithRemainder {
+        input: Box<SlotDisplayData>,
+        remainder: Box<SlotDisplayData>,
+    },
+    Composite(Vec<SlotDisplayData>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecipeIngredientData {
+    DirectItems(Vec<i32>),
+    Tag(Identifier),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRecipeBookRemovePacket {
     pub recipe_display_ids: Vec<i32>,
 }
@@ -3524,6 +3621,229 @@ impl ClientboundSetEquipmentPacket {
                 }
             })
             .collect()
+    }
+}
+
+impl ClientboundRecipeBookAddPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(writer, &self.entries, |writer, entry| entry.write(writer))?;
+        write_bool(writer, self.replace)
+    }
+}
+
+impl RecipeBookAddEntry {
+    pub const FLAG_NOTIFICATION: u8 = 1;
+    pub const FLAG_HIGHLIGHT: u8 = 2;
+
+    pub fn new(contents: RecipeDisplayEntryData, notification: bool, highlight: bool) -> Self {
+        Self {
+            contents,
+            flags: u8::from(notification) | (u8::from(highlight) << 1),
+        }
+    }
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.contents.write(writer)?;
+        writer.write_all(&[self.flags])
+    }
+}
+
+impl RecipeDisplayEntryData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        self.display.write(writer)?;
+        write_optional_var_i32(writer, self.group)?;
+        write_var_i32(writer, self.category_id)?;
+        write_optional(
+            writer,
+            self.crafting_requirements.as_ref(),
+            |writer, requirements| {
+                write_collection(writer, requirements, |writer, ingredient| {
+                    ingredient.write(writer)
+                })
+            },
+        )
+    }
+}
+
+impl RecipeDisplayData {
+    const CRAFTING_SHAPELESS_TYPE_ID: i32 = 0;
+    const CRAFTING_SHAPED_TYPE_ID: i32 = 1;
+    const FURNACE_TYPE_ID: i32 = 2;
+    const STONECUTTER_TYPE_ID: i32 = 3;
+    const SMITHING_TYPE_ID: i32 = 4;
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::CraftingShapeless {
+                ingredients,
+                result,
+                crafting_station,
+            } => {
+                write_var_i32(writer, Self::CRAFTING_SHAPELESS_TYPE_ID)?;
+                write_collection(writer, ingredients, |writer, ingredient| {
+                    ingredient.write(writer)
+                })?;
+                result.write(writer)?;
+                crafting_station.write(writer)
+            }
+            Self::CraftingShaped {
+                width,
+                height,
+                ingredients,
+                result,
+                crafting_station,
+            } => {
+                if ingredients.len() != (*width as usize).saturating_mul(*height as usize) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "shaped recipe display ingredients must match width * height",
+                    ));
+                }
+                write_var_i32(writer, Self::CRAFTING_SHAPED_TYPE_ID)?;
+                write_var_i32(writer, *width)?;
+                write_var_i32(writer, *height)?;
+                write_collection(writer, ingredients, |writer, ingredient| {
+                    ingredient.write(writer)
+                })?;
+                result.write(writer)?;
+                crafting_station.write(writer)
+            }
+            Self::Furnace {
+                ingredient,
+                fuel,
+                result,
+                crafting_station,
+                duration,
+                experience_bits,
+            } => {
+                write_var_i32(writer, Self::FURNACE_TYPE_ID)?;
+                ingredient.write(writer)?;
+                fuel.write(writer)?;
+                result.write(writer)?;
+                crafting_station.write(writer)?;
+                write_var_i32(writer, *duration)?;
+                writer.write_all(&experience_bits.to_be_bytes())
+            }
+            Self::Stonecutter {
+                ingredient,
+                result,
+                crafting_station,
+            } => {
+                write_var_i32(writer, Self::STONECUTTER_TYPE_ID)?;
+                ingredient.write(writer)?;
+                result.write(writer)?;
+                crafting_station.write(writer)
+            }
+            Self::Smithing {
+                template,
+                base,
+                addition,
+                result,
+                crafting_station,
+            } => {
+                write_var_i32(writer, Self::SMITHING_TYPE_ID)?;
+                template.write(writer)?;
+                base.write(writer)?;
+                addition.write(writer)?;
+                result.write(writer)?;
+                crafting_station.write(writer)
+            }
+        }
+    }
+}
+
+impl SlotDisplayData {
+    const EMPTY_TYPE_ID: i32 = 0;
+    const ANY_FUEL_TYPE_ID: i32 = 1;
+    const WITH_ANY_POTION_TYPE_ID: i32 = 2;
+    const ONLY_WITH_COMPONENT_TYPE_ID: i32 = 3;
+    const ITEM_TYPE_ID: i32 = 4;
+    const ITEM_STACK_TYPE_ID: i32 = 5;
+    const TAG_TYPE_ID: i32 = 6;
+    const DYED_TYPE_ID: i32 = 7;
+    const SMITHING_TRIM_TYPE_ID: i32 = 8;
+    const WITH_REMAINDER_TYPE_ID: i32 = 9;
+    const COMPOSITE_TYPE_ID: i32 = 10;
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Empty => write_var_i32(writer, Self::EMPTY_TYPE_ID),
+            Self::AnyFuel => write_var_i32(writer, Self::ANY_FUEL_TYPE_ID),
+            Self::WithAnyPotion(display) => {
+                write_var_i32(writer, Self::WITH_ANY_POTION_TYPE_ID)?;
+                display.write(writer)
+            }
+            Self::OnlyWithComponent {
+                contents,
+                component_type_id,
+            } => {
+                write_var_i32(writer, Self::ONLY_WITH_COMPONENT_TYPE_ID)?;
+                contents.write(writer)?;
+                write_var_i32(writer, *component_type_id)
+            }
+            Self::Item { item_id } => {
+                write_var_i32(writer, Self::ITEM_TYPE_ID)?;
+                write_var_i32(writer, *item_id)
+            }
+            Self::ItemStack { stack } => {
+                write_var_i32(writer, Self::ITEM_STACK_TYPE_ID)?;
+                stack.write_required_trusted(writer)
+            }
+            Self::Tag { tag } => {
+                write_var_i32(writer, Self::TAG_TYPE_ID)?;
+                write_identifier(writer, tag)
+            }
+            Self::Dyed { dye, target } => {
+                write_var_i32(writer, Self::DYED_TYPE_ID)?;
+                dye.write(writer)?;
+                target.write(writer)
+            }
+            Self::SmithingTrim {
+                base,
+                material,
+                pattern_id,
+            } => {
+                write_var_i32(writer, Self::SMITHING_TRIM_TYPE_ID)?;
+                base.write(writer)?;
+                material.write(writer)?;
+                write_var_i32(writer, *pattern_id)
+            }
+            Self::WithRemainder { input, remainder } => {
+                write_var_i32(writer, Self::WITH_REMAINDER_TYPE_ID)?;
+                input.write(writer)?;
+                remainder.write(writer)
+            }
+            Self::Composite(contents) => {
+                write_var_i32(writer, Self::COMPOSITE_TYPE_ID)?;
+                write_collection(writer, contents, |writer, display| display.write(writer))
+            }
+        }
+    }
+}
+
+impl RecipeIngredientData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::DirectItems(item_ids) => {
+                write_var_i32(writer, item_ids.len() as i32 + 1)?;
+                for item_id in item_ids {
+                    write_var_i32(writer, *item_id)?;
+                }
+                Ok(())
+            }
+            Self::Tag(tag) => {
+                write_var_i32(writer, 0)?;
+                write_identifier(writer, tag)
+            }
+        }
+    }
+}
+
+fn write_optional_var_i32<W: Write>(writer: &mut W, value: Option<i32>) -> io::Result<()> {
+    match value {
+        Some(value) => write_var_i32(writer, value + 1),
+        None => write_var_i32(writer, 0),
     }
 }
 
@@ -7806,6 +8126,40 @@ mod tests {
         assert_eq!(&merchant_offers[30..34], &0.05_f32.to_be_bytes());
         assert_eq!(&merchant_offers[34..38], &9_i32.to_be_bytes());
         assert_eq!(&merchant_offers[38..], &[3, 120, 1, 0]);
+
+        let mut recipe_add = Vec::new();
+        ClientboundRecipeBookAddPacket {
+            entries: vec![RecipeBookAddEntry::new(
+                RecipeDisplayEntryData {
+                    id: 3,
+                    display: RecipeDisplayData::Stonecutter {
+                        ingredient: SlotDisplayData::Item { item_id: 5 },
+                        result: SlotDisplayData::Item { item_id: 6 },
+                        crafting_station: SlotDisplayData::Empty,
+                    },
+                    group: Some(7),
+                    category_id: 10,
+                    crafting_requirements: Some(vec![
+                        RecipeIngredientData::DirectItems(vec![5, 6]),
+                        RecipeIngredientData::Tag(Identifier::parse("minecraft:logs").unwrap()),
+                    ]),
+                },
+                true,
+                true,
+            )],
+            replace: true,
+        }
+        .write(&mut recipe_add)
+        .unwrap();
+        assert_eq!(
+            recipe_add,
+            [
+                vec![1, 3, 3, 4, 5, 4, 6, 0, 8, 10, 1, 2, 3, 5, 6, 0, 14],
+                b"minecraft:logs".to_vec(),
+                vec![3, 1],
+            ]
+            .concat()
+        );
 
         let mut recipe_remove = Vec::new();
         ClientboundRecipeBookRemovePacket {
