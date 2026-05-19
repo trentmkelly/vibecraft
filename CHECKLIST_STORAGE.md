@@ -103,7 +103,7 @@
 ## Generated Data / Report Tooling
 
 - [x] Implement `--report` flag: generate `generated/reports/` containing `registries.json` (all registry IDs), `commands.json` (Brigadier tree), `biomes.json`, `blocks.json`, `items.json`, `tags/` (all tag files): `generated_reports::generate_reports()` writes the vanilla-named report files plus generated tag files, and `main::run()` exits through the report path before EULA gating; covered by `report_generator_writes_vanilla_named_outputs` and `report_flag_generates_reports_and_exits_before_eula_gate`
-- [ ] Add parity test: `--report` output registry IDs and counts match official `server.jar --report` output for vanilla 26.1.2
+- [x] Add parity test: `--report` output registry IDs and counts match official `server.jar --report` output for vanilla 26.1.2
 
 ## Migrated From Main Checklist: World Storage
 
