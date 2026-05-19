@@ -29,16 +29,16 @@ Use the unmodified 26.1.2 client as the authoritative visual/connectability orac
 - [x] Build Mineflayer reusable action fixtures for loot and economy tests: deterministic bot inventory setup, tool/enchantment setup, mob/chest placement, villager offer capture, fishing loop control, item entity collection, and post-reconnect artifact snapshots.
 - [x] Build a packet recorder/replayer for login, status, configuration, and play-state flows.
 - [x] Build golden packet tests for all protocol states.
-- [ ] Build Mineflayer packet-flow smoke tests for offline-mode login, configuration completion, keepalive response, chat, command execution, and disconnect reason.
-- [ ] Build a required Mineflayer offline-mode login gate that runs before every merge touching network, configuration, player management, storage, or tick-loop code.
-- [ ] Build a minimal Mineflayer offline-mode login CI shard that runs before longer parity tests and fails fast on TCP readiness, login timeout, configuration ordering, first spawn, or unexpected disconnects.
-- [ ] Build a Mineflayer offline-mode login debug bundle writer that archives per-failure temp worlds, server logs, bot packet traces, profile UUIDs, and normalized vanilla/RustCraft event diffs.
-- [ ] Build a Mineflayer offline-mode login bisect mode that repeats the reusable login gate across recent commits or feature flags and reports the first failing protocol/configuration milestone.
-- [ ] Build a Mineflayer offline-mode login quarantine report that separates server bugs from Mineflayer/client-version incompatibilities, including captured protocol version, prismarine dependencies, and raw disconnect packets.
-- [ ] Build a Mineflayer offline-mode login flake detector that repeats the minimal login gate under randomized ports and temp directories, then reports timing variance, intermittent kicks, and leaked server processes.
-- [ ] Build a Mineflayer offline-mode login artifact normalizer that redacts temp paths, ports, timestamps, and randomized usernames while preserving UUIDs, packet order, kicked messages, and official-vs-RustCraft diffs.
-- [ ] Build a Mineflayer offline-mode fixture linter that rejects scenarios without explicit version, server properties, expected UUIDs, timeout budget, packet capture policy, and vanilla comparison mode.
-- [ ] Build a Mineflayer offline-mode failure minimizer that can rerun a failing login scenario with one bot, one property file, one temp world, and packet capture still enabled.
+- [x] Build Mineflayer packet-flow smoke tests for offline-mode login, configuration completion, keepalive response, chat, command execution, and disconnect reason.
+- [x] Build a required Mineflayer offline-mode login gate that runs before every merge touching network, configuration, player management, storage, or tick-loop code.
+- [x] Build a minimal Mineflayer offline-mode login CI shard that runs before longer parity tests and fails fast on TCP readiness, login timeout, configuration ordering, first spawn, or unexpected disconnects.
+- [x] Build a Mineflayer offline-mode login debug bundle writer that archives per-failure temp worlds, server logs, bot packet traces, profile UUIDs, and normalized vanilla/RustCraft event diffs.
+- [x] Build a Mineflayer offline-mode login bisect mode that repeats the reusable login gate across recent commits or feature flags and reports the first failing protocol/configuration milestone.
+- [x] Build a Mineflayer offline-mode login quarantine report that separates server bugs from Mineflayer/client-version incompatibilities, including captured protocol version, prismarine dependencies, and raw disconnect packets.
+- [x] Build a Mineflayer offline-mode login flake detector that repeats the minimal login gate under randomized ports and temp directories, then reports timing variance, intermittent kicks, and leaked server processes.
+- [x] Build a Mineflayer offline-mode login artifact normalizer that redacts temp paths, ports, timestamps, and randomized usernames while preserving UUIDs, packet order, kicked messages, and official-vs-RustCraft diffs.
+- [x] Build a Mineflayer offline-mode fixture linter that rejects scenarios without explicit version, server properties, expected UUIDs, timeout budget, packet capture policy, and vanilla comparison mode.
+- [x] Build a Mineflayer offline-mode failure minimizer that can rerun a failing login scenario with one bot, one property file, one temp world, and packet capture still enabled.
 - [ ] Build worldgen comparison tests for deterministic chunks across many seeds and coordinates.
 - [ ] Build command parity tests for syntax, suggestions, success counts, side effects, and error messages.
 - [ ] Build Mineflayer command tests for `/list`, `/tell`, `/msg`, `/me`, `/help`, `/seed`, `/gamemode`, and permission-denied feedback in offline mode.
