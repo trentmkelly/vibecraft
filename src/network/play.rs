@@ -1301,6 +1301,50 @@ pub struct ClientboundAdvancementsPacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundPlayerInfoUpdatePacket {
+    pub actions: Vec<PlayerInfoUpdateAction>,
+    pub entries: Vec<PlayerInfoUpdateEntry>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerInfoUpdateAction {
+    AddPlayer,
+    InitializeChat,
+    UpdateGameMode,
+    UpdateListed,
+    UpdateLatency,
+    UpdateDisplayName,
+    UpdateListOrder,
+    UpdateHat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInfoUpdateEntry {
+    pub profile_id: Uuid,
+    pub profile: Option<PlayerInfoProfile>,
+    pub chat_session_payload: Option<Vec<u8>>,
+    pub game_mode: i32,
+    pub listed: bool,
+    pub latency: i32,
+    pub display_name_payload: Option<Vec<u8>>,
+    pub list_order: i32,
+    pub show_hat: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInfoProfile {
+    pub name: String,
+    pub properties: Vec<GameProfileProperty>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameProfileProperty {
+    pub name: String,
+    pub value: String,
+    pub signature: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdvancementHolderData {
     pub id: Identifier,
     pub value: AdvancementData,
@@ -3917,6 +3961,125 @@ impl ClientboundAdvancementsPacket {
         })?;
         write_bool(writer, self.show_advancements)
     }
+}
+
+impl ClientboundPlayerInfoUpdatePacket {
+    pub fn player_initializing(entries: Vec<PlayerInfoUpdateEntry>) -> Self {
+        Self {
+            actions: vec![
+                PlayerInfoUpdateAction::AddPlayer,
+                PlayerInfoUpdateAction::InitializeChat,
+                PlayerInfoUpdateAction::UpdateGameMode,
+                PlayerInfoUpdateAction::UpdateListed,
+                PlayerInfoUpdateAction::UpdateLatency,
+                PlayerInfoUpdateAction::UpdateDisplayName,
+                PlayerInfoUpdateAction::UpdateListOrder,
+                PlayerInfoUpdateAction::UpdateHat,
+            ],
+            entries,
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[player_info_action_mask(&self.actions)?])?;
+        write_collection(writer, &self.entries, |writer, entry| {
+            write_uuid(writer, entry.profile_id)?;
+            for action in &self.actions {
+                action.write_entry(writer, entry)?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl PlayerInfoUpdateAction {
+    fn ordinal(self) -> u8 {
+        match self {
+            Self::AddPlayer => 0,
+            Self::InitializeChat => 1,
+            Self::UpdateGameMode => 2,
+            Self::UpdateListed => 3,
+            Self::UpdateLatency => 4,
+            Self::UpdateDisplayName => 5,
+            Self::UpdateListOrder => 6,
+            Self::UpdateHat => 7,
+        }
+    }
+
+    fn write_entry<W: Write>(
+        &self,
+        writer: &mut W,
+        entry: &PlayerInfoUpdateEntry,
+    ) -> io::Result<()> {
+        match self {
+            Self::AddPlayer => entry
+                .profile
+                .as_ref()
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "ADD_PLAYER action requires a profile",
+                    )
+                })?
+                .write(writer),
+            Self::InitializeChat => write_optional(
+                writer,
+                entry.chat_session_payload.as_ref(),
+                |writer, payload| writer.write_all(payload),
+            ),
+            Self::UpdateGameMode => write_var_i32(writer, entry.game_mode),
+            Self::UpdateListed => write_bool(writer, entry.listed),
+            Self::UpdateLatency => write_var_i32(writer, entry.latency),
+            Self::UpdateDisplayName => write_optional(
+                writer,
+                entry.display_name_payload.as_ref(),
+                |writer, payload| writer.write_all(payload),
+            ),
+            Self::UpdateListOrder => write_var_i32(writer, entry.list_order),
+            Self::UpdateHat => write_bool(writer, entry.show_hat),
+        }
+    }
+}
+
+impl PlayerInfoProfile {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, 16)?;
+        if self.properties.len() > 16 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "game profile property count exceeds vanilla limit",
+            ));
+        }
+        write_var_i32(writer, self.properties.len() as i32)?;
+        for property in &self.properties {
+            property.write(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl GameProfileProperty {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, 64)?;
+        write_string(writer, &self.value, 32767)?;
+        write_optional(writer, self.signature.as_ref(), |writer, signature| {
+            write_string(writer, signature, 1024)
+        })
+    }
+}
+
+fn player_info_action_mask(actions: &[PlayerInfoUpdateAction]) -> io::Result<u8> {
+    let mut mask = 0u8;
+    for action in actions {
+        let bit = 1u8.checked_shl(action.ordinal() as u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "player info action ordinal exceeds fixed bitset size",
+            )
+        })?;
+        mask |= bit;
+    }
+    Ok(mask)
 }
 
 impl AdvancementHolderData {
@@ -8234,6 +8397,45 @@ mod tests {
         assert_eq!(&merchant_offers[30..34], &0.05_f32.to_be_bytes());
         assert_eq!(&merchant_offers[34..38], &9_i32.to_be_bytes());
         assert_eq!(&merchant_offers[38..], &[3, 120, 1, 0]);
+
+        let mut player_info = Vec::new();
+        ClientboundPlayerInfoUpdatePacket::player_initializing(vec![PlayerInfoUpdateEntry {
+            profile_id: Uuid([7; 16]),
+            profile: Some(PlayerInfoProfile {
+                name: "Steve".to_string(),
+                properties: vec![GameProfileProperty {
+                    name: "textures".to_string(),
+                    value: "abc".to_string(),
+                    signature: Some("sig".to_string()),
+                }],
+            }),
+            chat_session_payload: None,
+            game_mode: 1,
+            listed: true,
+            latency: 20,
+            display_name_payload: None,
+            list_order: 3,
+            show_hat: true,
+        }])
+        .write(&mut player_info)
+        .unwrap();
+        assert_eq!(
+            player_info,
+            [
+                vec![0xff, 1],
+                vec![7; 16],
+                vec![5],
+                b"Steve".to_vec(),
+                vec![1, 8],
+                b"textures".to_vec(),
+                vec![3],
+                b"abc".to_vec(),
+                vec![1, 3],
+                b"sig".to_vec(),
+                vec![0, 1, 1, 20, 0, 3, 1],
+            ]
+            .concat()
+        );
 
         let mut recipe_add = Vec::new();
         ClientboundRecipeBookAddPacket {

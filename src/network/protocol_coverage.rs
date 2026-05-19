@@ -1056,7 +1056,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_info_update",
         java_class: "ClientboundPlayerInfoUpdatePacket",
-        field_order: "unparsed",
+        field_order: "actions:fixed BitSet over Action enum(ADD_PLAYER, INITIALIZE_CHAT, UPDATE_GAME_MODE, UPDATE_LISTED, UPDATE_LATENCY, UPDATE_DISPLAY_NAME, UPDATE_LIST_ORDER, UPDATE_HAT), entries:List(UUID + selected action payloads: profile name/properties, nullable RemoteChatSession.Data, game_mode VarInt, listed bool, latency VarInt, nullable trusted Component, list_order VarInt, show_hat bool)",
     },
     PlayPacketSpec {
         id: 71,

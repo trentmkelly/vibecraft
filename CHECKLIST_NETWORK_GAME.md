@@ -120,7 +120,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundSystemChatPacket` (0x6C): content component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag, overlay bool
 - [x] `ClientboundDisguisedChatPacket` (0x19): content component, chat type bound with registered chat type holder, sender name, optional target name
 - [x] `ClientboundDeleteChatPacket` (0x1F): packed message signature (`VarInt(id + 1)` or full 256-byte signature)
-- [ ] `ClientboundPlayerInfoUpdatePacket` (0x3D): action bitmask, entries list (UUID + per-action data: add-player name/properties, initialize-chat session, update-game-mode, update-listed, update-latency, update-display-name, update-hat, update-list-order)
+- [x] `ClientboundPlayerInfoUpdatePacket` (0x3D): action fixed-bitset, entries list (UUID + per-action data: add-player name/properties, initialize-chat session, update-game-mode, update-listed, update-latency, update-display-name, update-list-order, update-hat)
 - [x] `ClientboundPlayerInfoRemovePacket` (0x45): UUID list
 - [x] `ServerboundChatPacket` (0x09): message string max 256, timestamp epoch millis long, salt long, optional 256-byte signature, last-seen update (offset VarInt + fixed 20-bit acknowledgment bitset + checksum byte)
 - [x] `ServerboundChatCommandPacket` (0x07): command string max 32767
