@@ -20,11 +20,11 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Support `--serverId`.
 - [x] Support `--jfrProfile` with an equivalent profiling story or documented no-op.
 - [x] Support `--pidFile`.
-- [ ] Initialize `server.properties` and `eula.txt` before normal startup.
-- [ ] Refuse startup until `eula=true`.
+- [x] Initialize `server.properties` and `eula.txt` before normal startup.
+- [x] Refuse startup until `eula=true`.
 - [ ] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
-- [ ] Install process-level crash and panic handlers.
-- [ ] Emit crash reports with useful environment, thread, and world state.
+- [x] Install process-level crash and panic handlers.
+- [x] Emit crash reports with useful environment, thread, and world state.
 - [ ] Implement graceful shutdown from console, signal, stop command, and JVM-style shutdown hook equivalents.
 - [ ] Save all worlds, players, scoreboards, advancements, raids, maps, and server state during shutdown.
 - [ ] Add a Mineflayer shutdown/restart test that joins in offline mode, mutates visible player state, stops the server cleanly, restarts, and verifies reconnect plus persisted position, inventory, and stats.

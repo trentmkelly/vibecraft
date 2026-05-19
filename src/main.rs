@@ -309,3 +309,74 @@ fn run(options: CliOptions) -> Result<(), String> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{run, CliOptions};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+
+    static CWD_LOCK: Mutex<()> = Mutex::new(());
+
+    struct CurrentDirGuard {
+        old: PathBuf,
+    }
+
+    impl CurrentDirGuard {
+        fn enter(path: &Path) -> Self {
+            let old = std::env::current_dir().expect("current dir");
+            std::env::set_current_dir(path).expect("set temp current dir");
+            Self { old }
+        }
+    }
+
+    impl Drop for CurrentDirGuard {
+        fn drop(&mut self) {
+            let _ = std::env::set_current_dir(&self.old);
+        }
+    }
+
+    fn temp_workdir(name: &str) -> PathBuf {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-main-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create temp workdir");
+        dir
+    }
+
+    #[test]
+    fn init_settings_creates_properties_and_eula_before_startup() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("init-settings");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        let mut options = CliOptions::default();
+        options.init_settings = true;
+
+        run(options).expect("init settings run");
+
+        let properties = fs::read_to_string("server.properties").expect("server.properties");
+        let eula = fs::read_to_string("eula.txt").expect("eula.txt");
+        let log = fs::read_to_string("logs/latest.log").expect("latest.log");
+
+        assert!(properties.contains("server-port="));
+        assert!(eula.contains("eula=false"));
+        assert!(log.contains("Initialized 'server.properties' and 'eula.txt'"));
+    }
+
+    #[test]
+    fn missing_eula_refuses_startup_after_generating_files() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("eula-refusal");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        run(CliOptions::default()).expect("eula refusal run");
+
+        let log = fs::read_to_string("logs/latest.log").expect("latest.log");
+        assert!(Path::new("server.properties").is_file());
+        assert!(Path::new("eula.txt").is_file());
+        assert!(log.contains("You need to agree to the EULA in order to run the server"));
+        assert!(!Path::new("world").exists());
+    }
+}
