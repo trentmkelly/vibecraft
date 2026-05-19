@@ -348,6 +348,15 @@ pub struct CommandBlockExecution {
     pub output: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandBlockUpdate {
+    pub command: String,
+    pub mode: CommandBlockMode,
+    pub track_output: bool,
+    pub conditional: bool,
+    pub automatic: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JukeboxSongEvent {
     Started,
@@ -2117,6 +2126,40 @@ impl CommandBlockEntity {
 
     pub fn can_use(&self, player_can_use_gamemaster_blocks: bool) -> bool {
         player_can_use_gamemaster_blocks
+    }
+
+    pub fn open_editor_packet(
+        &self,
+        pos: BlockPos,
+        player_can_use_gamemaster_blocks: bool,
+    ) -> Option<ClientboundBlockEntityDataPacket> {
+        self.can_use(player_can_use_gamemaster_blocks)
+            .then(|| ClientboundBlockEntityDataPacket {
+                pos,
+                ty: BlockEntityTypeId::CommandBlock,
+                tag: self.save_additional(),
+            })
+    }
+
+    pub fn apply_client_update(
+        &mut self,
+        update: CommandBlockUpdate,
+        player_can_use_gamemaster_blocks: bool,
+        has_level: bool,
+    ) -> bool {
+        if !self.can_use(player_can_use_gamemaster_blocks) {
+            return false;
+        }
+
+        self.mode = update.mode;
+        self.conditional = update.conditional;
+        self.track_output = update.track_output;
+        if !self.track_output {
+            self.last_output = None;
+        }
+        self.set_automatic(update.automatic, has_level);
+        self.set_command(update.command);
+        true
     }
 
     pub fn command_source_stack(
@@ -9757,6 +9800,61 @@ mod tests {
         assert_eq!(denied_execution.success_count, 0);
         assert_eq!(denied.success_count, 0);
         assert_eq!(denied.last_output.as_deref(), Some("{\"text\":\"denied\"}"));
+    }
+
+    #[test]
+    fn command_block_editor_packet_and_client_update_require_permission() {
+        let mut command = CommandBlockEntity::new(CommandBlockMode::Redstone, false);
+        command.set_command("say old");
+        command.last_output = Some("{\"text\":\"old\"}".to_string());
+
+        assert_eq!(command.open_editor_packet(pos(), false), None);
+        let packet = command
+            .open_editor_packet(pos(), true)
+            .expect("operators can open command block editor data");
+        assert_eq!(packet.pos, pos());
+        assert_eq!(packet.ty, BlockEntityTypeId::CommandBlock);
+        let packet_entries = compound_entries(&packet.tag).unwrap();
+        assert_eq!(
+            get_string(packet_entries, "Command"),
+            Some("say old"),
+            "editor packet carries the current command string"
+        );
+        assert_eq!(
+            get_string(packet_entries, "LastOutput"),
+            Some("{\"text\":\"old\"}")
+        );
+
+        assert!(!command.apply_client_update(
+            CommandBlockUpdate {
+                command: "say denied".to_string(),
+                mode: CommandBlockMode::Auto,
+                track_output: false,
+                conditional: true,
+                automatic: true,
+            },
+            false,
+            true,
+        ));
+        assert_eq!(command.command, "say old");
+
+        assert!(command.apply_client_update(
+            CommandBlockUpdate {
+                command: "say new".to_string(),
+                mode: CommandBlockMode::Auto,
+                track_output: false,
+                conditional: true,
+                automatic: true,
+            },
+            true,
+            true,
+        ));
+        assert_eq!(command.command, "say new");
+        assert_eq!(command.mode, CommandBlockMode::Auto);
+        assert!(command.conditional);
+        assert!(command.automatic);
+        assert!(!command.track_output);
+        assert_eq!(command.last_output, None);
     }
 
     #[test]

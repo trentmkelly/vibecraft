@@ -24,7 +24,7 @@
 - [x] Implement command block modes: SEQUENCE (advances chain), AUTO (always active, runs every tick), REDSTONE (triggered by signal)
 - [x] Implement conditional flag: block only executes if previous chain command succeeded (`successCount > 0`)
 - [x] Implement command block NBT: `Command`, `auto`, `conditionMet`, `LastOutput`, `SuccessCount`, `TrackOutput`
-- [ ] Implement command block interaction: open GUI via `UseOnContext`, read/write command string via `ClientboundBlockEntityDataPacket` for 26.1.2
+- [x] Implement command block interaction: open GUI via `UseOnContext`, read/write command string via `ClientboundBlockEntityDataPacket` for 26.1.2 — command blocks now expose permission-gated editor update packets and apply client command/mode/flag edits, complementing the 26.1.2 set-command-block packet codec
 - [ ] Implement facing-chain execution: a SEQUENCE/CHAIN command block executes the command block it faces after itself
 - [ ] Add parity test: command block chain executes in facing order with conditional flag respected
 - [ ] Add parity test: AUTO command block runs every tick when powered, REDSTONE triggers once per leading edge
