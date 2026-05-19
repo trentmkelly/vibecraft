@@ -30,11 +30,11 @@
 - [x] Add Mineflayer block interaction parity tests: right-click use, sneak-use bypass (sneaking + use item), client prediction rollback (server rejects placement → sends corrective update), block entity update tags sent after right-click, neighbor-shape updates after offline-mode placement
 - [x] Add Mineflayer offline-mode block-entity interaction tests: signs (edit/wax/dye), chests (open/loot), furnaces (insert/extract), lecterns (page turn), bells (ring broadcast), note blocks (pitch), campfires (cook), cauldrons (fill/empty), spawners (spawn egg insert), brushable blocks (brush progress)
 - [x] Add Mineflayer offline-mode block-drop tests: break representative blocks with bare hand (no drop), correct tool (drop), Silk Touch (block itself drops), Fortune level 1/2/3 (bonus count), explosion (0% per-block survival), `doTileDrops=false` gamerule (no drops); compare inventory pickups and world item entities against official `server.jar`
-- [ ] Implement `ServerPlayerGameMode.handleBlockBreakAction()`: start-dig / abort-dig / stop-dig sequence, break progress calculation per tool efficiency and haste/mining-fatigue, instant-break in creative, adventure-mode CanDestroy tag restriction
-- [ ] Implement server-side block-placement validation: block-reach distance check, `canSurvive()` check on target position, entity collision check (cannot place inside entities), spawn-protection check
-- [ ] Implement `Block.use()` / `Block.attack()` dispatch: route right-click to block use handler first, then item use handler, respecting `InteractionResult` (SUCCESS/CONSUME/FAIL/PASS)
+- [x] Implement `ServerPlayerGameMode.handleBlockBreakAction()`: start-dig / abort-dig / stop-dig sequence, break progress calculation per tool efficiency and haste/mining-fatigue, instant-break in creative, adventure-mode CanDestroy tag restriction
+- [x] Implement server-side block-placement validation: block-reach distance check, `canSurvive()` check on target position, entity collision check (cannot place inside entities), spawn-protection check
+- [x] Implement `Block.use()` / `Block.attack()` dispatch: route right-click to block use handler first, then item use handler, respecting `InteractionResult` (SUCCESS/CONSUME/FAIL/PASS)
 - [ ] Implement neighbor notification cascade: when a block changes, call `updateIndirectNeighbourShapes()` and `onNeighborChanged()` for all 6 adjacent blocks and their adjacent blocks (shape-update chain)
-- [ ] Add parity test: break-speed calculation for diamond pickaxe on stone vs. dirt vs. obsidian matches vanilla ticks
+- [x] Add parity test: break-speed calculation for diamond pickaxe on stone vs. dirt vs. obsidian matches vanilla ticks
 - [ ] Add parity test: neighbor update cascade when placing/breaking redstone wire propagates signal changes to all affected comparators and repeaters
 
 ## Combat and Damage
