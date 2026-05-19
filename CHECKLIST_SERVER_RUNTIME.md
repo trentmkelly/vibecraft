@@ -45,7 +45,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 - [x] Parse and write `server.properties` with vanilla defaults.
 - [x] Preserve unknown property keys when rewriting configuration.
-- [ ] Implement `online-mode`.
+- [x] Implement `online-mode`.
 - [ ] Add a Mineflayer offline-mode login test using a generated bot profile and default `server.properties`.
 - [ ] Add a Mineflayer offline-mode login test matrix covering `online-mode=false`, `enforce-secure-profile=false`, default port selection, and generated world directory setup.
 - [ ] Add a Mineflayer offline-mode login test matrix covering `max-players`, `enable-status`, `hide-online-players`, `network-compression-threshold`, `player-idle-timeout`, and `white-list` interactions during first join.
@@ -106,7 +106,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add Mineflayer mutable-property tests that change MOTD, difficulty, gamemode, view-distance, simulation-distance, idle timeout, and whitelist settings at runtime, then verify existing and reconnecting offline-mode bots observe vanilla-compatible state.
 - [ ] Add a Mineflayer offline-mode configuration reload test that edits `server.properties`, runs the vanilla-equivalent reload path where supported, reconnects the bot, and verifies which properties do and do not take effect without restart.
 - [ ] Add a Mineflayer offline-mode secure-profile toggle test that verifies `enforce-secure-profile=false` never blocks generated offline bots and that `true` matches official `server.jar` behavior for unsigned Mineflayer clients.
-- [ ] Implement `enforce-secure-profile`.
+- [x] Implement `enforce-secure-profile`.
 - [x] Implement `log-ips`.
 - [x] Implement mutable `pause-when-empty-seconds`.
 - [ ] Implement `level-seed`, `generate-structures`, `generator-settings`, and `level-type`.
