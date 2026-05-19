@@ -4341,11 +4341,14 @@ mod tests {
 
     #[test]
     fn includes_26_1_2_protocol_in_status_json() {
-        let properties = test_properties();
+        let mut properties = test_properties();
+        properties.set("motd", "RustCraft Test");
         let json = status_json(&properties, None);
         assert!(json.contains("\"name\":\"26.1.2\""));
         assert!(json.contains("\"protocol\":775"));
         assert!(json.contains("\"max\":20"));
+        assert!(json.contains("\"players\":{\"max\":20,\"online\":0,\"sample\":[]}"));
+        assert!(json.contains("\"description\":{\"text\":\"RustCraft Test\"}"));
     }
 
     #[test]

@@ -29,7 +29,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 
 ## Milestone Plan
 
-- [ ] Milestone 1: status ping server with correct MOTD/version/player sample response.
+- [x] Milestone 1: status ping server with correct MOTD/version/player sample response.
 - [ ] Milestone 2: offline-mode login through configuration into a void world.
 - [ ] Milestone 3: chunk serialization and static flat terrain visible to vanilla client.
 - [ ] Milestone 4: player movement, chat, keepalive, disconnect, and save/load.
