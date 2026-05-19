@@ -1554,6 +1554,64 @@ mod tests {
     }
 
     #[test]
+    fn update_tag_subset_is_stable_for_every_type() {
+        for info in BLOCK_ENTITY_TYPES {
+            let block_state = info
+                .valid_blocks
+                .first()
+                .expect("every block entity type has at least one valid block");
+            let mut entity = BlockEntity::new(info.id, pos(), block_state).unwrap();
+            entity
+                .custom_data
+                .insert("CustomInt".to_string(), Tag::Int(42));
+            entity.components.insert(
+                "minecraft:custom_name".to_string(),
+                Tag::String("\"Update Tag\"".to_string()),
+            );
+
+            let tag = entity.get_update_tag();
+            let entries = compound_entries(&tag).expect("update tag is compound");
+
+            assert!(
+                entries
+                    .iter()
+                    .all(|(key, _)| key != "id" && key != "x" && key != "y" && key != "z"),
+                "metadata leaked into update tag for {}",
+                info.key
+            );
+
+            match info.id {
+                BlockEntityTypeId::Chest
+                | BlockEntityTypeId::TrappedChest
+                | BlockEntityTypeId::Barrel
+                | BlockEntityTypeId::Hopper
+                | BlockEntityTypeId::Dispenser
+                | BlockEntityTypeId::Dropper => {
+                    assert!(
+                        entries.is_empty(),
+                        "container inventory data leaked into update tag for {}",
+                        info.key
+                    );
+                }
+                _ => {
+                    assert!(
+                        entries
+                            .iter()
+                            .any(|(key, value)| key == "CustomInt" && *value == Tag::Int(42)),
+                        "custom data missing from update tag for {}",
+                        info.key
+                    );
+                    assert!(
+                        entries.iter().any(|(key, _)| key == "components"),
+                        "components missing from update tag for {}",
+                        info.key
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn wrong_chunk_positions_are_corrected_like_vanilla() {
         let tag = Tag::Compound(vec![
             ("x".to_string(), Tag::Int(34)),
