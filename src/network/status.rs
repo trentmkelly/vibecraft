@@ -49,6 +49,7 @@ use crate::network::play::{
     SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
     SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
+use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
 use crate::registry::Identifier;
@@ -1358,6 +1359,8 @@ fn handle_login_connection(
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
     let mut entity_id_counter: i32 = 1; // player has entity ID 1; start here so first drop = 2
+    let mut rate_limiter =
+        PacketRateLimiter::new(properties.rate_limit_packets_per_second, Instant::now());
     let world_layout = WorldLayout::new(world_root);
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
@@ -1372,6 +1375,23 @@ fn handle_login_connection(
         }
         match read_packet_with_compression(stream, compression) {
             Ok(packet) => {
+                if let PacketRateDecision::Kick { reason } =
+                    rate_limiter.record_packet(Instant::now())
+                {
+                    let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                    write_framed_packet_with_compression(
+                        stream,
+                        compression,
+                        CLIENTBOUND_DISCONNECT_PACKET_ID,
+                        |payload| {
+                            ClientboundDisconnectPacket {
+                                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
+                            }
+                            .write(payload)
+                        },
+                    )?;
+                    return Ok(());
+                }
                 let mut input = Cursor::new(packet);
                 let packet_id = read_var_i32(&mut input)?;
                 if update_play_session_state(packet_id, &mut input, &mut play_state)? {
