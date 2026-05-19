@@ -116,7 +116,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Chat Packets
 
-- [ ] `ClientboundPlayerChatPacket` (0x3A): sender UUID, index VarInt, optional signature, message body (plain/formatted), optional unsigned content, filter mask, chat type bound (type + sender name + optional target name)
+- [x] `ClientboundPlayerChatPacket` (0x3A): global index, sender UUID, message index, optional signature, packed signed body, optional unsigned content, filter mask, chat type bound (type + sender name + optional target name)
 - [x] `ClientboundSystemChatPacket` (0x6C): content component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag, overlay bool
 - [x] `ClientboundDisguisedChatPacket` (0x19): content component, chat type bound with registered chat type holder, sender name, optional target name
 - [x] `ClientboundDeleteChatPacket` (0x1F): packed message signature (`VarInt(id + 1)` or full 256-byte signature)

@@ -1306,6 +1306,46 @@ pub struct ClientboundPlayerInfoUpdatePacket {
     pub entries: Vec<PlayerInfoUpdateEntry>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundPlayerChatPacket {
+    pub global_index: i32,
+    pub sender: Uuid,
+    pub index: i32,
+    pub signature: Option<Vec<u8>>,
+    pub body: SignedMessageBodyPacked,
+    pub unsigned_content_payload: Option<Vec<u8>>,
+    pub filter_mask: FilterMaskData,
+    pub chat_type: BoundChatTypeData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedMessageBodyPacked {
+    pub content: String,
+    pub timestamp_epoch_millis: i64,
+    pub salt: i64,
+    pub last_seen: Vec<MessageSignaturePackedData>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MessageSignaturePackedData {
+    Full(Vec<u8>),
+    Id(i32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FilterMaskData {
+    PassThrough,
+    FullyFiltered,
+    PartiallyFiltered(Vec<u64>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundChatTypeData {
+    pub chat_type_id: i32,
+    pub name_payload: Vec<u8>,
+    pub target_name_payload: Option<Vec<u8>>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerInfoUpdateAction {
     AddPlayer,
@@ -3990,6 +4030,83 @@ impl ClientboundPlayerInfoUpdatePacket {
             Ok(())
         })
     }
+}
+
+impl ClientboundPlayerChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.global_index)?;
+        write_uuid(writer, self.sender)?;
+        write_var_i32(writer, self.index)?;
+        write_optional(writer, self.signature.as_ref(), |writer, signature| {
+            write_message_signature(writer, signature)
+        })?;
+        self.body.write(writer)?;
+        write_optional(
+            writer,
+            self.unsigned_content_payload.as_ref(),
+            |writer, payload| writer.write_all(payload),
+        )?;
+        self.filter_mask.write(writer)?;
+        self.chat_type.write(writer)
+    }
+}
+
+impl SignedMessageBodyPacked {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.content, 256)?;
+        write_i64(writer, self.timestamp_epoch_millis)?;
+        write_i64(writer, self.salt)?;
+        write_collection(writer, &self.last_seen, |writer, signature| {
+            signature.write(writer)
+        })
+    }
+}
+
+impl MessageSignaturePackedData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Full(signature) => {
+                write_var_i32(writer, 0)?;
+                write_message_signature(writer, signature)
+            }
+            Self::Id(id) => write_var_i32(writer, id + 1),
+        }
+    }
+}
+
+impl FilterMaskData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::PassThrough => write_var_i32(writer, 0),
+            Self::FullyFiltered => write_var_i32(writer, 1),
+            Self::PartiallyFiltered(mask) => {
+                write_var_i32(writer, 2)?;
+                write_bitset(writer, mask)
+            }
+        }
+    }
+}
+
+impl BoundChatTypeData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.chat_type_id)?;
+        writer.write_all(&self.name_payload)?;
+        write_optional(
+            writer,
+            self.target_name_payload.as_ref(),
+            |writer, payload| writer.write_all(payload),
+        )
+    }
+}
+
+fn write_message_signature<W: Write>(writer: &mut W, signature: &[u8]) -> io::Result<()> {
+    if signature.len() != 256 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "message signature must be exactly 256 bytes",
+        ));
+    }
+    writer.write_all(signature)
 }
 
 impl PlayerInfoUpdateAction {
@@ -8435,6 +8552,46 @@ mod tests {
                 vec![0, 1, 1, 20, 0, 3, 1],
             ]
             .concat()
+        );
+
+        let mut player_chat = Vec::new();
+        ClientboundPlayerChatPacket {
+            global_index: 1,
+            sender: Uuid([8; 16]),
+            index: 2,
+            signature: Some(vec![9; 256]),
+            body: SignedMessageBodyPacked {
+                content: "hi".to_string(),
+                timestamp_epoch_millis: 1000,
+                salt: -2,
+                last_seen: vec![
+                    MessageSignaturePackedData::Id(2),
+                    MessageSignaturePackedData::Full(vec![7; 256]),
+                ],
+            },
+            unsigned_content_payload: None,
+            filter_mask: FilterMaskData::PartiallyFiltered(vec![5]),
+            chat_type: BoundChatTypeData {
+                chat_type_id: 0,
+                name_payload: vec![0],
+                target_name_payload: None,
+            },
+        }
+        .write(&mut player_chat)
+        .unwrap();
+        assert_eq!(
+            &player_chat[..19],
+            &[vec![1], vec![8; 16], vec![2, 1]].concat()
+        );
+        assert_eq!(&player_chat[19..275], &[9; 256]);
+        assert_eq!(&player_chat[275..278], &[2, b'h', b'i']);
+        assert_eq!(&player_chat[278..286], &1000_i64.to_be_bytes());
+        assert_eq!(&player_chat[286..294], &(-2_i64).to_be_bytes());
+        assert_eq!(&player_chat[294..297], &[2, 3, 0]);
+        assert_eq!(&player_chat[297..553], &[7; 256]);
+        assert_eq!(
+            &player_chat[553..],
+            &[0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0]
         );
 
         let mut recipe_add = Vec::new();

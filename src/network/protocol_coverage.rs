@@ -1021,7 +1021,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_chat",
         java_class: "ClientboundPlayerChatPacket",
-        field_order: "unparsed",
+        field_order: "global_index:VarInt, sender:UUID, index:VarInt, signature:nullable 256-byte MessageSignature, body:SignedMessageBody.Packed(content:utf max 256, timestamp:Instant epoch millis long, salt:long, last_seen:list MessageSignature.Packed), unsigned_content:nullable trusted Component, filter_mask:FilterMask enum VarInt plus optional BitSet, chat_type:Bound(chat_type holder registry VarInt, name trusted Component, target_name optional trusted Component)",
     },
     PlayPacketSpec {
         id: 66,
