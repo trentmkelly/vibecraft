@@ -40,7 +40,7 @@
 - [ ] Track per-player state-ID counter: `apply_scripted_packet` in `inventory_transactions.rs` already validates and increments a state ID, but there is no `container_state_id: u32` field in the player session (`network/play.rs`); add one, seed it on login, and thread it through every container-click dispatch
 - [x] Implement `Slot` list: `inventory.rs` has `Slot` with `may_place`, `may_pickup`, `max_stack_size`, `safe_take`, `safe_insert`, and `has_item`; `Menu` holds an ordered `Vec<Slot>`
 - [x] Implement carried-item stack (cursor): `Menu.carried` tracks the cursor item, updated by all click-mode handlers
-- [ ] Implement remote-slot shadow copies: `remoteSlots` list tracking last-synced client view; `sendAllDataToRemote()`, `sendSlotChange()` — needed so corrections only send slots that actually differ
+- [x] Implement remote-slot shadow copies: `Menu.remote_slots` and `remote_carried` track the last-synced client view; `send_all_data_to_remote()`, `send_slot_change()`, and `send_carried_change()` only report changed slot/carried stacks
 - [ ] Implement `DataSlot` / `ContainerData` sync: integer data values (cook time, fuel time, enchant cost, etc.) sent via `ContainerSetData`
 - [x] Implement click validation: `inventory_transactions.rs` dispatches all seven `ContainerInput` modes (PICKUP, QUICK_MOVE, SWAP, CLONE, THROW, QUICK_CRAFT, PICKUP_ALL) with state-ID re-validation and correction collection
 - [x] Implement quick-craft (drag-split): `Menu.quick_craft` splits carried stack evenly across target slots

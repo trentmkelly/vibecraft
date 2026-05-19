@@ -30,10 +30,24 @@ pub struct Slot {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Menu {
     pub slots: Vec<Slot>,
+    pub remote_slots: Vec<ItemStack>,
     pub carried: ItemStack,
+    pub remote_carried: ItemStack,
     pub hotbar: Vec<ItemStack>,
     pub creative: bool,
     pub dropped: Vec<ItemStack>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SlotChange {
+    pub slot: usize,
+    pub stack: ItemStack,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuDataSync {
+    pub slots: Vec<SlotChange>,
+    pub carried: Option<ItemStack>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,11 +118,56 @@ impl Menu {
     pub fn new(slot_count: usize) -> Self {
         Self {
             slots: vec![Slot::empty(); slot_count],
+            remote_slots: vec![ItemStack::empty(); slot_count],
             carried: ItemStack::empty(),
+            remote_carried: ItemStack::empty(),
             hotbar: vec![ItemStack::empty(); 9],
             creative: false,
             dropped: Vec::new(),
         }
+    }
+
+    pub fn send_all_data_to_remote(&mut self) -> MenuDataSync {
+        let slots = self
+            .slots
+            .iter()
+            .enumerate()
+            .map(|(slot, slot_data)| {
+                self.remote_slots[slot] = slot_data.stack.clone();
+                SlotChange {
+                    slot,
+                    stack: slot_data.stack.clone(),
+                }
+            })
+            .collect();
+        self.remote_carried = self.carried.clone();
+        MenuDataSync {
+            slots,
+            carried: Some(self.carried.clone()),
+        }
+    }
+
+    pub fn send_slot_change(&mut self, slot: usize) -> Option<SlotChange> {
+        let current = self.slots.get(slot)?.stack.clone();
+        let remote = self.remote_slots.get_mut(slot)?;
+        if same_item_same_components(remote, &current) && remote.count() == current.count() {
+            return None;
+        }
+        *remote = current.clone();
+        Some(SlotChange {
+            slot,
+            stack: current,
+        })
+    }
+
+    pub fn send_carried_change(&mut self) -> Option<ItemStack> {
+        if same_item_same_components(&self.remote_carried, &self.carried)
+            && self.remote_carried.count() == self.carried.count()
+        {
+            return None;
+        }
+        self.remote_carried = self.carried.clone();
+        Some(self.carried.clone())
     }
 
     pub fn click_pickup(
@@ -440,5 +499,30 @@ mod tests {
         assert_eq!(menu.slots[1].stack.count(), 64);
         assert!(menu.slots[0].stack.is_empty());
         assert_eq!(menu.slots[2].stack.count(), 1);
+    }
+
+    #[test]
+    fn remote_slot_shadow_copies_only_report_changed_slots_and_carried() {
+        let mut menu = Menu::new(2);
+        menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stick", 2));
+        menu.carried = ItemStack::new("minecraft:apple", 1);
+
+        let full = menu.send_all_data_to_remote();
+        assert_eq!(full.slots.len(), 2);
+        assert_eq!(full.slots[0].stack.item_id(), "minecraft:stick");
+        assert_eq!(full.carried.unwrap().item_id(), "minecraft:apple");
+        assert!(menu.send_slot_change(0).is_none());
+        assert!(menu.send_carried_change().is_none());
+
+        menu.slots[0].stack.grow(1);
+        let change = menu.send_slot_change(0).unwrap();
+        assert_eq!(change.slot, 0);
+        assert_eq!(change.stack.count(), 3);
+        assert!(menu.send_slot_change(0).is_none());
+
+        menu.carried = ItemStack::new("minecraft:diamond", 1);
+        let carried = menu.send_carried_change().unwrap();
+        assert_eq!(carried.item_id(), "minecraft:diamond");
+        assert!(menu.send_carried_change().is_none());
     }
 }
