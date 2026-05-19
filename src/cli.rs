@@ -100,7 +100,7 @@ impl CliOptions {
            --world <name>\n\
            --port <port>\n\
            --serverId <id>\n\
-           --jfrProfile\n\
+           --jfrProfile (accepted; profiling is not implemented by RustCraft)\n\
            --pidFile <path>"
     }
 }
@@ -168,5 +168,11 @@ mod tests {
     fn rejects_unknown_options() {
         let err = CliOptions::parse(["--wat"].into_iter().map(String::from)).unwrap_err();
         assert!(err.contains("Unknown option"));
+    }
+
+    #[test]
+    fn help_documents_jfr_profile_as_noop() {
+        assert!(CliOptions::help()
+            .contains("--jfrProfile (accepted; profiling is not implemented by RustCraft)"));
     }
 }

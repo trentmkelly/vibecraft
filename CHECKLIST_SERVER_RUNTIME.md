@@ -4,22 +4,22 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 ## Migrated From Main Checklist: Bootstrap And Process Lifecycle
 
-- [ ] Implement command-line parsing equivalent to `net.minecraft.server.Main`.
-- [ ] Support `--nogui`.
-- [ ] Support `--initSettings`.
-- [ ] Support `--demo`.
-- [ ] Support `--bonusChest`.
-- [ ] Support `--forceUpgrade`.
-- [ ] Support `--eraseCache`.
-- [ ] Support `--recreateRegionFiles`.
-- [ ] Support `--safeMode`.
-- [ ] Support `--help`.
-- [ ] Support `--universe`.
-- [ ] Support `--world`.
-- [ ] Support `--port`.
-- [ ] Support `--serverId`.
-- [ ] Support `--jfrProfile` with an equivalent profiling story or documented no-op.
-- [ ] Support `--pidFile`.
+- [x] Implement command-line parsing equivalent to `net.minecraft.server.Main`.
+- [x] Support `--nogui`.
+- [x] Support `--initSettings`.
+- [x] Support `--demo`.
+- [x] Support `--bonusChest`.
+- [x] Support `--forceUpgrade`.
+- [x] Support `--eraseCache`.
+- [x] Support `--recreateRegionFiles`.
+- [x] Support `--safeMode`.
+- [x] Support `--help`.
+- [x] Support `--universe`.
+- [x] Support `--world`.
+- [x] Support `--port`.
+- [x] Support `--serverId`.
+- [x] Support `--jfrProfile` with an equivalent profiling story or documented no-op.
+- [x] Support `--pidFile`.
 - [ ] Initialize `server.properties` and `eula.txt` before normal startup.
 - [ ] Refuse startup until `eula=true`.
 - [ ] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
