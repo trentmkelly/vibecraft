@@ -55,9 +55,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
 - [x] `ClientboundTeleportEntityPacket` (0x7D): entity ID, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), relative flags int bitmask, on-ground bool
 - [x] `ClientboundRotateHeadPacket` (0x53): entity ID VarInt, head-yaw byte
-- [ ] `ClientboundMoveEntityPacket.Pos` (0x2E): entity ID, delta X/Y/Z shorts, on-ground bool
-- [ ] `ClientboundMoveEntityPacket.PosRot` (0x2F): entity ID, delta X/Y/Z, yaw/pitch, on-ground bool
-- [ ] `ClientboundMoveEntityPacket.Rot` (0x30): entity ID, yaw/pitch, on-ground bool
+- [x] `ClientboundMoveEntityPacket.Pos` (0x2E): entity ID VarInt, delta X/Y/Z shorts, on-ground bool
+- [x] `ClientboundMoveEntityPacket.PosRot` (0x2F): entity ID VarInt, delta X/Y/Z shorts, yaw/pitch bytes, on-ground bool
+- [x] `ClientboundMoveEntityPacket.Rot` (0x30): entity ID VarInt, yaw/pitch bytes, on-ground bool
 - [x] `ClientboundMoveVehiclePacket` (0x39): position `Vec3.STREAM_CODEC`, yaw float, pitch float
 - [x] `ClientboundSetPassengersPacket` (0x6B): vehicle entity ID VarInt, passenger entity ID VarInt array
 - [x] `ClientboundEntityEventPacket` (0x22): entity ID int, event ID byte (living entity events: 2=hurt, 3=death, 6=tame-fail, 7=tame-success, etc.)

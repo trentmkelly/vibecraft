@@ -2711,6 +2711,31 @@ impl ClientboundMoveEntityPacket {
             has_rotation: true,
         }
     }
+
+    fn write_delta<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i16(writer, self.delta[0])?;
+        write_i16(writer, self.delta[1])?;
+        write_i16(writer, self.delta[2])
+    }
+
+    pub fn write_pos<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        self.write_delta(writer)?;
+        write_bool(writer, self.on_ground)
+    }
+
+    pub fn write_pos_rot<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        self.write_delta(writer)?;
+        writer.write_all(&[self.y_rot, self.x_rot])?;
+        write_bool(writer, self.on_ground)
+    }
+
+    pub fn write_rot<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        writer.write_all(&[self.y_rot, self.x_rot])?;
+        write_bool(writer, self.on_ground)
+    }
 }
 
 impl ClientboundMoveVehiclePacket {
@@ -6103,6 +6128,29 @@ mod tests {
             ClientboundMoveEntityPacket::rot(7, 180.0, 45.0, true).x_rot,
             32
         );
+        let mut move_pos = Vec::new();
+        ClientboundMoveEntityPacket::pos(300, [1, -2, 3], true)
+            .write_pos(&mut move_pos)
+            .unwrap();
+        assert_eq!(
+            move_pos,
+            vec![0xac, 0x02, 0x00, 0x01, 0xff, 0xfe, 0x00, 0x03, 0x01]
+        );
+
+        let mut move_pos_rot = Vec::new();
+        ClientboundMoveEntityPacket::pos_rot(300, [1, 2, 3], 90.0, 45.0, false)
+            .write_pos_rot(&mut move_pos_rot)
+            .unwrap();
+        assert_eq!(
+            move_pos_rot,
+            vec![0xac, 0x02, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x40, 0x20, 0x00]
+        );
+
+        let mut move_rot = Vec::new();
+        ClientboundMoveEntityPacket::rot(300, 180.0, 45.0, true)
+            .write_rot(&mut move_rot)
+            .unwrap();
+        assert_eq!(move_rot, vec![0xac, 0x02, 0x80, 0x20, 0x01]);
         assert_eq!(ClientboundRotateHeadPacket::new(7, 180.0).y_head_rot, 128);
         let motion = ClientboundSetEntityMotionPacket::new(
             7,
