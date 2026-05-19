@@ -314,6 +314,9 @@ pub struct LootRequest {
     pub origin: (f64, f64, f64),
     pub actor: Option<String>,
     pub target_entity: Option<String>,
+    pub killer_entity: Option<String>,
+    pub direct_killer_entity: Option<String>,
+    pub last_damage_player: Option<String>,
     pub block: Option<String>,
     pub tool: Option<String>,
     pub damage_source: Option<String>,
@@ -331,6 +334,9 @@ impl LootRequest {
             origin: (0.0, 0.0, 0.0),
             actor: None,
             target_entity: None,
+            killer_entity: None,
+            direct_killer_entity: None,
+            last_damage_player: None,
             block: None,
             tool: None,
             damage_source: None,
@@ -623,6 +629,15 @@ impl LootBehaviorEngine {
         }
         if let Some(target) = &request.target_entity {
             context.insert_param(LootParamValue::ThisEntity(target.clone()));
+        }
+        if let Some(killer) = &request.killer_entity {
+            context.insert_param(LootParamValue::KillerEntity(killer.clone()));
+        }
+        if let Some(direct_killer) = &request.direct_killer_entity {
+            context.insert_param(LootParamValue::DirectKillerEntity(direct_killer.clone()));
+        }
+        if let Some(last_damage_player) = &request.last_damage_player {
+            context.insert_param(LootParamValue::LastDamagePlayer(last_damage_player.clone()));
         }
         if let Some(damage_source) = &request.damage_source {
             context.insert_param(LootParamValue::DamageSource(damage_source.clone()));
@@ -1144,6 +1159,10 @@ pub enum LootFunction {
         min: i32,
         max: i32,
     },
+    AddLootingBonus {
+        per_level: NumberProvider,
+        limit: Option<i32>,
+    },
     SetItem(String),
     ApplyExplosionDecay,
     Filtered {
@@ -1162,6 +1181,13 @@ impl LootFunction {
             }
             Self::LimitCount { min, max } => {
                 stack.count = stack.count.clamp(*min, *max);
+                Some(stack)
+            }
+            Self::AddLootingBonus { per_level, limit } => {
+                stack.count += per_level.int(context) * context.looting_level.max(0);
+                if let Some(limit) = limit {
+                    stack.count = stack.count.min(*limit);
+                }
                 Some(stack)
             }
             Self::SetItem(item) => {
@@ -1907,6 +1933,65 @@ mod tests {
             LootDelivery::GiveToEntity(
                 "Steve".to_string(),
                 vec![LootStack::new("minecraft:stick", 1)]
+            )
+        );
+    }
+
+    #[test]
+    fn entity_death_context_carries_java_kill_params_and_looting_bonus() {
+        let mut engine = LootBehaviorEngine::new();
+        let mut pool = LootPool::single(LootEntry::Item {
+            item: "minecraft:rotten_flesh".to_string(),
+            weight: 1,
+            quality: 0,
+            conditions: vec![
+                LootCondition::KilledByPlayer,
+                LootCondition::EntityProperty {
+                    key: "this_entity".to_string(),
+                    value: "Zombie".to_string(),
+                },
+                LootCondition::EntityProperty {
+                    key: "killer_entity".to_string(),
+                    value: "Steve".to_string(),
+                },
+                LootCondition::EntityProperty {
+                    key: "direct_killer_entity".to_string(),
+                    value: "Arrow".to_string(),
+                },
+                LootCondition::EntityProperty {
+                    key: "last_damage_player".to_string(),
+                    value: "Steve".to_string(),
+                },
+            ],
+            functions: vec![LootFunction::AddLootingBonus {
+                per_level: NumberProvider::Constant(2.0),
+                limit: Some(5),
+            }],
+        });
+        pool.conditions
+            .push(LootCondition::RandomChanceWithLooting {
+                chance: 0.0,
+                looting_multiplier: 1.0,
+            });
+        engine.insert_table("minecraft:entities/zombie", table_with_pool(pool));
+
+        let mut request = LootRequest::new(LootSurface::EntityDeath, "minecraft:entities/zombie");
+        request.origin = (2.0, 64.0, 3.0);
+        request.target_entity = Some("Zombie".to_string());
+        request.killer_entity = Some("Steve".to_string());
+        request.direct_killer_entity = Some("Arrow".to_string());
+        request.last_damage_player = Some("Steve".to_string());
+        request.damage_source = Some("minecraft:arrow".to_string());
+        request.looting_level = 2;
+
+        let resolution = engine.resolve(request, 11);
+
+        assert_eq!(resolution.param_set, LootParamSet::Entity);
+        assert_eq!(
+            resolution.delivery,
+            LootDelivery::DropAt(
+                (2.0, 64.0, 3.0),
+                vec![LootStack::new("minecraft:rotten_flesh", 5)]
             )
         );
     }

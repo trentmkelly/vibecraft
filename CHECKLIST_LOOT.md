@@ -99,7 +99,7 @@
 ## Block, Entity, Chest, and Special Loot Behaviors
 
 - [ ] Implement block-drop loot: `LootParams` with BLOCK_STATE, BLOCK_ENTITY, TOOL, ORIGIN; `doTileDrops` gamerule gate; Silk Touch tool condition; Fortune bonus functions
-- [ ] Implement entity-kill loot: `LootParams` with THIS_ENTITY, KILLER_ENTITY, DIRECT_KILLER_ENTITY, LAST_DAMAGE_PLAYER; looting enchantment bonus; player-kill condition
+- [x] Implement entity-kill loot: `LootParams` with THIS_ENTITY, KILLER_ENTITY, DIRECT_KILLER_ENTITY, LAST_DAMAGE_PLAYER; looting enchantment bonus; player-kill condition - `LootRequest` maps entity-death target, killer, direct killer, last damage player, damage source, player-kill state, and looting level into `LootContext`; `LootFunction::AddLootingBonus` applies looting count bonuses; covered by `entity_death_context_carries_java_kill_params_and_looting_bonus` and `cargo test -q loot_system`.
 - [x] Implement chest/container loot: one-time realization from loot table; `RandomizableContainerBlockEntity.unpackLootTable()` on first open; seed stored per block entity
 - [ ] Implement fishing loot: `LootParams` with TOOL, ORIGIN; luck-of-the-sea scaling; treasure/fish/junk category tables
 - [x] Implement archaeology loot: `LootParams` with ORIGIN; brushable block table (`suspicious_sand`, `suspicious_gravel` variants per structure)
