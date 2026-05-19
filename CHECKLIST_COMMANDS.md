@@ -167,7 +167,7 @@
 - [x] Implement `/weather`.
 - [x] Implement `/whitelist`.
 - [x] Implement `/worldborder`.
-- [ ] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions.
+- [x] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions. — detailed command-block, command-block-minecart, function/tag, macro-argument, and scheduled-function rows above are now implemented and covered by focused parity tests
 - [x] Validate command parse trees and results against vanilla command dumps and scripted execution tests.
 - [x] Add Mineflayer chat and command tests covering signed/unsigned chat fallback, system messages, command feedback, suggestions, and tab completion in offline mode.
 - [x] Add command-model chat/command fallback coverage for public `/say`, `/me`, private `/tell`, `/teammsg`, `/tellraw`, feedback keys, permission denial, and target routing while full Mineflayer signed/unsigned/system-message coverage remains pending.
