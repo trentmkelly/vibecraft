@@ -291,6 +291,13 @@ pub struct BeaconBlockEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LecternBlockEntity {
+    pub book: Option<PotItemStack>,
+    pub page: i32,
+    pub page_count: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
     pub color: DyeColor,
@@ -1827,6 +1834,108 @@ fn average_argb(left: i32, right: i32) -> i32 {
     let right = right as u32;
     let avg = |shift| (((left >> shift) & 0xFFu32) + ((right >> shift) & 0xFFu32)) / 2u32;
     ((avg(24) << 24) | (avg(16) << 16) | (avg(8) << 8) | avg(0)) as i32
+}
+
+impl LecternBlockEntity {
+    pub const DATA_PAGE: i32 = 0;
+    pub const SLOT_BOOK: usize = 0;
+    pub const NUM_SLOTS: usize = 1;
+    pub const PAGE_CHANGE_IMPULSE_TICKS: i32 = 2;
+    pub const DISPLAY_NAME: &'static str = "container.lectern";
+
+    pub fn new() -> Self {
+        Self {
+            book: None,
+            page: 0,
+            page_count: 0,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = Vec::new();
+        if let Some(book) = self.book.as_ref().filter(|book| !book.is_empty()) {
+            entries.push(("Book".to_string(), book.to_tag()));
+            entries.push(("Page".to_string(), Tag::Int(self.page)));
+        }
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag, page_count: i32) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        let book = entries
+            .iter()
+            .find(|(key, _)| key == "Book")
+            .and_then(|(_, tag)| PotItemStack::from_tag(tag));
+        let mut lectern = Self {
+            book,
+            page: 0,
+            page_count: page_count.max(0),
+        };
+        lectern.page = lectern.clamp_page(get_int(entries, "Page").unwrap_or(0));
+        lectern
+    }
+
+    pub fn has_book(&self) -> bool {
+        self.book.as_ref().is_some_and(|book| {
+            !book.is_empty()
+                && matches!(
+                    book.item_id.as_str(),
+                    "minecraft:written_book" | "minecraft:writable_book"
+                )
+        })
+    }
+
+    pub fn set_book(&mut self, book: Option<PotItemStack>, page_count: i32) {
+        self.book = book.filter(|book| !book.is_empty());
+        self.page = 0;
+        self.page_count = if self.has_book() {
+            page_count.max(0)
+        } else {
+            0
+        };
+    }
+
+    pub fn clear_content(&mut self) {
+        self.book = None;
+        self.page = 0;
+        self.page_count = 0;
+    }
+
+    pub fn set_page(&mut self, page: i32) -> bool {
+        let new_page = self.clamp_page(page);
+        let changed = self.page != new_page;
+        self.page = new_page;
+        changed
+    }
+
+    pub fn remove_book_no_update(&mut self) -> Option<PotItemStack> {
+        let book = self.book.take();
+        self.page = 0;
+        self.page_count = 0;
+        book
+    }
+
+    pub fn get_redstone_signal(&self) -> u8 {
+        if !self.has_book() {
+            return 0;
+        }
+        let progress = if self.page_count > 1 {
+            self.page as f32 / (self.page_count as f32 - 1.0)
+        } else {
+            1.0
+        };
+        (progress * 14.0).floor() as u8 + 1
+    }
+
+    fn clamp_page(&self, page: i32) -> i32 {
+        if self.page_count <= 0 {
+            0
+        } else {
+            page.clamp(0, self.page_count - 1)
+        }
+    }
 }
 
 impl DyeColor {
@@ -4338,6 +4447,69 @@ mod tests {
             BeaconBlockEntity::scan_beam([BeaconBeamBlock::Blocking]),
             Vec::<BeaconBeamSection>::new()
         );
+    }
+
+    #[test]
+    fn lectern_block_entity_tracks_book_pages_and_comparator_signal() {
+        let mut lectern = LecternBlockEntity::new();
+        assert_eq!(lectern.save_additional(), Tag::Compound(Vec::new()));
+        assert!(!lectern.has_book());
+        assert_eq!(lectern.get_redstone_signal(), 0);
+
+        let book = PotItemStack {
+            item_id: "minecraft:written_book".to_string(),
+            count: 1,
+        };
+        lectern.set_book(Some(book.clone()), 5);
+        assert!(lectern.has_book());
+        assert_eq!(lectern.page, 0);
+        assert_eq!(lectern.page_count, 5);
+        assert_eq!(lectern.get_redstone_signal(), 1);
+        assert!(lectern.set_page(2));
+        assert_eq!(lectern.get_redstone_signal(), 8);
+        assert!(lectern.set_page(99));
+        assert_eq!(lectern.page, 4);
+        assert_eq!(lectern.get_redstone_signal(), 15);
+        assert!(!lectern.set_page(4));
+
+        let saved = lectern.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                ("Book".to_string(), book.to_tag()),
+                ("Page".to_string(), Tag::Int(4)),
+            ])
+        );
+        assert_eq!(LecternBlockEntity::load_additional(&saved, 5), lectern);
+        assert_eq!(
+            LecternBlockEntity::load_additional(
+                &Tag::Compound(vec![
+                    ("Book".to_string(), book.to_tag()),
+                    ("Page".to_string(), Tag::Int(-3)),
+                ]),
+                5,
+            )
+            .page,
+            0
+        );
+
+        assert_eq!(lectern.remove_book_no_update(), Some(book));
+        assert!(!lectern.has_book());
+        assert_eq!(lectern.page, 0);
+        assert_eq!(lectern.page_count, 0);
+        assert_eq!(lectern.get_redstone_signal(), 0);
+
+        let mut single_page = LecternBlockEntity::new();
+        single_page.set_book(
+            Some(PotItemStack {
+                item_id: "minecraft:writable_book".to_string(),
+                count: 1,
+            }),
+            1,
+        );
+        assert_eq!(single_page.get_redstone_signal(), 15);
+        single_page.clear_content();
+        assert_eq!(single_page.save_additional(), Tag::Compound(Vec::new()));
     }
 
     #[test]
