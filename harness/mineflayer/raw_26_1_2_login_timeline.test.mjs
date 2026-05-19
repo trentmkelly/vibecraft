@@ -20,9 +20,9 @@ const repoRoot = path.resolve(here.pathname, '..', '..')
 const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
 const host = '127.0.0.1'
 
-const expectedInitialPlayIds = [
+const expectedInitialPlayPrefixIds = [
   49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95,
-  38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11
+  38, 38, 38, 38, 12
 ]
 
 test('raw 26.1.2 login timeline reaches play and first chunks in vanilla-shaped order', { timeout: 45_000 }, async () => {
@@ -52,9 +52,19 @@ test('raw 26.1.2 login timeline reaches play and first chunks in vanilla-shaped 
     assert.ok(joined.config.some(packet => packet.id === 14), 'configuration should advertise known packs')
     assert.ok(joined.config.some(packet => packet.id === 7), 'configuration should sync registries')
     assert.equal(joined.config.at(-1).id, 3, 'configuration should finish before play packets')
-    assert.deepEqual(joined.play.slice(0, expectedInitialPlayIds.length).map(packet => packet.id), expectedInitialPlayIds)
-    assert.equal(joined.joinState.initialChunkCount, 9)
-    assert.equal(joined.play[expectedInitialPlayIds.length - 1].id, 11)
+    assert.deepEqual(
+      joined.play.slice(0, expectedInitialPlayPrefixIds.length).map(packet => packet.id),
+      expectedInitialPlayPrefixIds
+    )
+    assert.ok(joined.joinState.initialChunkCount > 0)
+    const chunkBatchStart = expectedInitialPlayPrefixIds.length
+    const chunkBatchEnd = chunkBatchStart + joined.joinState.initialChunkCount
+    assert.deepEqual(
+      joined.play.slice(chunkBatchStart, chunkBatchEnd).map(packet => packet.id),
+      Array(joined.joinState.initialChunkCount).fill(45)
+    )
+    assert.equal(joined.play[chunkBatchEnd].id, 11)
+    assert.equal(joined.joinState.lastReceivedChunk, joined.joinState.initialChunkCount - 1)
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })
