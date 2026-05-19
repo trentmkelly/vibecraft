@@ -2,11 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   commandScenarioManifest,
+  listLoginStateManifest,
+  listLoginStateScenarios,
   observeCommandFeedback,
   offlineCommandScenarios,
   operatorCommandSmokeManifest,
   operatorCommandSmokeScenarios,
-  runCommandScenario
+  runCommandScenario,
+  summarizeListLoginStateEvidence
 } from './command_scenarios.mjs'
 
 test('offlineCommandScenarios cover required Mineflayer command surface', () => {
@@ -114,4 +117,34 @@ test('operatorCommandSmokeManifest records feedback, permission gates, and recon
   assert.ok(manifest.commands.some(command => command.expectedFeedbackKey === 'commands.op.success'))
   assert.ok(manifest.commands.some(command => command.expectedFeedbackKey === 'commands.effect.give.success.single'))
   assert.ok(manifest.commands.filter(command => command.reconnectVisibleState).length >= 5)
+})
+
+test('listLoginStateManifest covers console and bot list counts across login lifecycle', () => {
+  const manifest = listLoginStateManifest({ primary: 'Steve' })
+  assert.equal(manifest.command, '/list')
+  assert.deepEqual(manifest.scenarios.map(scenario => scenario.name), [
+    'console-during-login',
+    'bot-during-login',
+    'after-join',
+    'after-duplicate-replacement',
+    'after-disconnect'
+  ])
+  assert.deepEqual(manifest.scenarios.map(scenario => scenario.expectedPlayerCount), [0, 0, 1, 1, 0])
+})
+
+test('summarizeListLoginStateEvidence validates player counts and names for every list phase', () => {
+  const scenarios = listLoginStateScenarios({ primary: 'Steve' })
+  const evidence = {
+    timeline: [
+      { name: 'list_command', summary: ['console-during-login', { count: 0, names: [] }] },
+      { name: 'list_command', summary: ['bot-during-login', { count: 0, names: [] }] },
+      { name: 'list_command', summary: ['after-join', { count: 1, names: ['Steve'] }] },
+      { name: 'list_command', summary: ['after-duplicate-replacement', { count: 1, names: ['Steve'] }] },
+      { name: 'list_command', summary: ['after-disconnect', { count: 0, names: [] }] }
+    ]
+  }
+
+  assert.equal(summarizeListLoginStateEvidence(evidence, scenarios).ok, true)
+  evidence.timeline[2].summary[1].names = ['Alex']
+  assert.equal(summarizeListLoginStateEvidence(evidence, scenarios).ok, false)
 })

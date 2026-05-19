@@ -93,6 +93,52 @@ export function operatorCommandSmokeManifest(options = {}) {
   }
 }
 
+export function listLoginStateScenarios(options = {}) {
+  const primary = options.primary ?? 'ListBot'
+  const duplicate = options.duplicate ?? primary
+  return [
+    listScenario('console-during-login', 'console', 'during-login', []),
+    listScenario('bot-during-login', 'bot', 'during-login', []),
+    listScenario('after-join', 'console', 'after-join', [primary]),
+    listScenario('after-duplicate-replacement', 'console', 'after-duplicate-replacement', [duplicate]),
+    listScenario('after-disconnect', 'console', 'after-disconnect', [])
+  ]
+}
+
+export function listLoginStateManifest(options = {}) {
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    command: '/list',
+    scenarios: listLoginStateScenarios(options).map(entry => ({
+      name: entry.name,
+      source: entry.source,
+      phase: entry.phase,
+      expectedPlayerCount: entry.expectedNames.length,
+      expectedNames: entry.expectedNames
+    }))
+  }
+}
+
+export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'list_command')
+    .map(event => [event.summary?.[0], event.summary?.[1] ?? {}]))
+  const steps = Object.fromEntries(scenarios.map(scenario => {
+    const observed = observations.get(scenario.name)
+    const names = observed?.names ?? []
+    const count = observed?.count ?? names.length
+    const ok = count === scenario.expectedNames.length &&
+      scenario.expectedNames.every(name => names.includes(name))
+    return [scenario.name, ok]
+  }))
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
+function listScenario(name, source, phase, expectedNames) {
+  return { name, source, phase, expectedNames }
+}
+
 function scenario(command, expectedFeedbackKey, options = {}) {
   return {
     command,
