@@ -209,7 +209,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundBlockDestructionPacket` (0x06): entity ID, block pos, progress byte (0–9, 10=done)
 - [ ] `ClientboundExplodePacket` (0x1D): pos X/Y/Z, radius, affected blocks list (byte offsets), player velocity X/Y/Z, block interaction VarInt, small explosion particle, large explosion particle, sound
 - [ ] `ClientboundEntityPositionSyncPacket` (0x20): (26.1.2 name for teleport ack; confirm ID VarInt)
-- [ ] `ServerboundAcceptTeleportPacket` (0x00): teleport ID VarInt
+- [x] `ServerboundAcceptTeleportationPacket` (0x00): teleport ID VarInt
 
 ## Resource State Packets
 
