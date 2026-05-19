@@ -22,5 +22,5 @@ Item registry, stacks, components, inventories, creative mode, and crafting inte
 - [ ] Implement shaped, shapeless, smelting, blasting, smoking, campfire cooking, stonecutting, smithing, transmute, map cloning/extending, banner, shield, firework, suspicious stew, book cloning, repair, dyed item, and special recipes.
 - [ ] Implement potion, tipped arrow, lingering potion, splash potion, cauldron, bottle, bucket, and fluid container behavior.
 - [ ] Implement maps, compasses, clocks, recovery compasses, bundles, books, written books, knowledge books, spawn eggs, boats, minecarts, armor trims, smithing templates, shields, elytra, maces, tridents, bows, crossbows, fishing rods, shears, brushes, leads, name tags, music discs, ominous bottles, and trial keys.
-- [ ] Implement creative tabs and creative inventory packet behavior.
+- [x] Implement creative tabs and creative inventory packet behavior.
 - [ ] Validate inventory transactions against vanilla packet traces.
