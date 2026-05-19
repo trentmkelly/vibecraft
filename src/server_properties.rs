@@ -1,3 +1,5 @@
+use crate::game_rules::{GameRuleError, GameRuleSync, GameRules};
+
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
@@ -199,6 +201,15 @@ impl ServerProperties {
         fs::write(path, output)
             .map_err(|err| format!("Failed to write '{}': {err}", path.display()))
     }
+
+    pub fn migrate_legacy_announce_player_achievements(
+        &self,
+        game_rules: &mut GameRules,
+    ) -> Result<Option<GameRuleSync>, GameRuleError> {
+        self.announce_player_achievements
+            .map(|enabled| game_rules.set("show_advancement_messages", &enabled.to_string()))
+            .transpose()
+    }
 }
 
 fn parse_properties(text: &str) -> HashMap<String, String> {
@@ -334,7 +345,9 @@ fn vanilla_defaults() -> BTreeMap<String, String> {
 #[cfg(test)]
 mod tests {
     use super::{parse_properties, ServerProperties};
+    use crate::game_rules::{GameRuleValue, GameRules};
     use std::fs;
+    use std::path::Path;
 
     #[test]
     fn parses_basic_properties_and_skips_comments() {
@@ -493,5 +506,48 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert!(reloaded.white_list);
         assert_eq!(reloaded.pause_when_empty_seconds, 0);
         assert!(reloaded.accepts_transfers);
+    }
+
+    #[test]
+    fn legacy_announce_player_achievements_migrates_to_advancement_gamerule() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "rustcraft-legacy-announce-achievements-{}.properties",
+            std::process::id()
+        ));
+        fs::write(&path, "announce-player-achievements=false\n").unwrap();
+
+        let properties = ServerProperties::load_or_default(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        let mut game_rules = GameRules::new(true);
+        let sync = properties
+            .migrate_legacy_announce_player_achievements(&mut game_rules)
+            .unwrap()
+            .expect("legacy migration sync");
+        assert_eq!(sync.rule, "minecraft:show_advancement_messages");
+        assert_eq!(sync.value, "false");
+        assert_eq!(
+            game_rules.get("show_advancement_messages"),
+            Some(GameRuleValue::Bool(false))
+        );
+    }
+
+    #[test]
+    fn absent_legacy_announce_player_achievements_leaves_gamerule_default() {
+        let properties = ServerProperties::load_or_default(Path::new(
+            "definitely-missing-test-server.properties",
+        ))
+        .unwrap();
+        let mut game_rules = GameRules::new(true);
+
+        assert!(properties
+            .migrate_legacy_announce_player_achievements(&mut game_rules)
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            game_rules.get("show_advancement_messages"),
+            Some(GameRuleValue::Bool(true))
+        );
     }
 }

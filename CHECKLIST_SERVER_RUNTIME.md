@@ -71,7 +71,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `level-name`.
 - [x] Implement `server-port`.
 - [x] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
-- [ ] Implement legacy `announce-player-achievements` migration behavior.
+- [x] Implement legacy `announce-player-achievements` migration behavior.
 - [x] Implement `enable-query` and `query.port`.
 - [x] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
 - [x] Implement `hardcore`.
