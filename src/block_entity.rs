@@ -12930,6 +12930,65 @@ mod tests {
     }
 
     #[test]
+    fn tick_dispatch_advances_scheduler_state_for_every_tickable_block_entity_type() {
+        let tickable: Vec<&BlockEntityTypeInfo> = BLOCK_ENTITY_TYPES
+            .iter()
+            .filter(|info| info.tick_kind != BlockEntityTickKind::None)
+            .collect();
+        assert_eq!(tickable.len(), 32);
+
+        for info in tickable {
+            let block_state = info
+                .valid_blocks
+                .first()
+                .expect("every block entity type has a valid block");
+            let mut entity = BlockEntity::new(info.id, pos(), block_state).unwrap();
+            entity.set_level();
+
+            let server_ticks = matches!(
+                info.tick_kind,
+                BlockEntityTickKind::Server | BlockEntityTickKind::Both
+            );
+            let client_ticks = matches!(
+                info.tick_kind,
+                BlockEntityTickKind::Client | BlockEntityTickKind::Both
+            );
+
+            assert_eq!(
+                entity.tick(false),
+                server_ticks,
+                "{} server tick dispatch",
+                info.key
+            );
+            assert_eq!(
+                entity.tick_count,
+                u64::from(server_ticks),
+                "{} server tick count",
+                info.key
+            );
+            assert_eq!(
+                entity.tick(true),
+                client_ticks,
+                "{} client tick dispatch",
+                info.key
+            );
+            assert_eq!(
+                entity.tick_count,
+                u64::from(server_ticks) + u64::from(client_ticks),
+                "{} client tick count",
+                info.key
+            );
+
+            entity.set_removed();
+            assert!(
+                !entity.tick(false) && !entity.tick(true),
+                "{} removed entity ticked",
+                info.key
+            );
+        }
+    }
+
+    #[test]
     fn ticking_block_entity_wrapper_exposes_scheduler_shape() {
         let mut furnace =
             BlockEntity::new(BlockEntityTypeId::Furnace, pos(), "minecraft:furnace").unwrap();
