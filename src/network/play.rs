@@ -45,6 +45,7 @@ pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
+pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
@@ -351,6 +352,11 @@ pub struct ServerboundSignUpdatePacket {
 pub struct ServerboundSetBeaconPacket {
     pub primary_effect_id: Option<i32>,
     pub secondary_effect_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundSelectTradePacket {
+    pub item: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1073,6 +1079,7 @@ pub struct PlaySession {
     pub last_jigsaw_generate: Option<ServerboundJigsawGeneratePacket>,
     pub last_sign_update: Option<ServerboundSignUpdatePacket>,
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
+    pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1160,6 +1167,7 @@ impl PlaySession {
             last_jigsaw_generate: None,
             last_sign_update: None,
             last_set_beacon: None,
+            last_select_trade: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1450,6 +1458,18 @@ impl PlaySession {
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad set beacon packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_SELECT_TRADE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSelectTradePacket::read(&mut input) {
+                    Ok(select_trade) => {
+                        self.last_select_trade = Some(select_trade);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad select trade packet: {err}"))
                     }
                 }
             }
@@ -2716,6 +2736,18 @@ impl ServerboundSetBeaconPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         Self::write_optional_mob_effect(writer, self.primary_effect_id)?;
         Self::write_optional_mob_effect(writer, self.secondary_effect_id)
+    }
+}
+
+impl ServerboundSelectTradePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            item: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.item)
     }
 }
 
@@ -4939,6 +4971,23 @@ mod tests {
         .write(&mut empty_beacon_payload)
         .unwrap();
         assert_eq!(empty_beacon_payload, vec![0, 0]);
+
+        let mut select_trade_payload = Vec::new();
+        let select_trade = ServerboundSelectTradePacket { item: 128 };
+        select_trade.write(&mut select_trade_payload).unwrap();
+        assert_eq!(select_trade_payload, vec![0x80, 0x01]);
+        assert_eq!(
+            ServerboundSelectTradePacket::read(&mut cursor(select_trade_payload.clone())).unwrap(),
+            select_trade
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_SELECT_TRADE_PACKET_ID,
+                select_trade_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_select_trade, Some(select_trade));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
