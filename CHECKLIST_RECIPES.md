@@ -29,7 +29,7 @@
 - [ ] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)`
 - [ ] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching
 - [x] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index
-- [ ] Implement recipe `PlacementInfo` for client-side ingredient placement hints
+- [x] Implement recipe `PlacementInfo` for client-side ingredient placement hints
 - [ ] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload
 - [ ] Implement `RecipeAccess` interface for looking up recipe holders by ID
 - [ ] Add unit test: recipe manager loads all vanilla JSON files without error, count matches expected recipe count
@@ -82,7 +82,7 @@
 
 ## Smithing and Station Recipes
 
-- [ ] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation)
+- [x] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation)
 - [x] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components
 - [x] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result
 - [x] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately

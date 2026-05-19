@@ -458,6 +458,7 @@ pub fn smithing_trim_result(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IngredientSpec {
+    Empty,
     Item(&'static str),
     AnyOf(Vec<&'static str>),
 }
@@ -465,9 +466,102 @@ pub enum IngredientSpec {
 impl IngredientSpec {
     pub fn matches(&self, item: &'static str) -> bool {
         match self {
+            IngredientSpec::Empty => false,
             IngredientSpec::Item(expected) => *expected == item,
             IngredientSpec::AnyOf(items) => items.contains(&item),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        matches!(self, IngredientSpec::Empty)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacementInfo {
+    pub ingredients: Vec<IngredientSpec>,
+    pub slots_to_ingredient_index: Vec<i32>,
+}
+
+impl PlacementInfo {
+    pub const EMPTY_SLOT: i32 = -1;
+
+    pub fn not_placeable() -> Self {
+        Self {
+            ingredients: Vec::new(),
+            slots_to_ingredient_index: Vec::new(),
+        }
+    }
+
+    pub fn create(ingredient: IngredientSpec) -> Self {
+        if ingredient.is_empty() {
+            Self::not_placeable()
+        } else {
+            Self {
+                ingredients: vec![ingredient],
+                slots_to_ingredient_index: vec![0],
+            }
+        }
+    }
+
+    pub fn create_list(ingredients: Vec<IngredientSpec>) -> Self {
+        if ingredients.iter().any(IngredientSpec::is_empty) {
+            return Self::not_placeable();
+        }
+
+        Self {
+            slots_to_ingredient_index: (0..ingredients.len()).map(|index| index as i32).collect(),
+            ingredients,
+        }
+    }
+
+    pub fn create_from_optionals(ingredients: Vec<Option<IngredientSpec>>) -> Self {
+        let mut present = Vec::with_capacity(ingredients.len());
+        let mut slots = Vec::with_capacity(ingredients.len());
+        for maybe_ingredient in ingredients {
+            if let Some(ingredient) = maybe_ingredient {
+                if ingredient.is_empty() {
+                    return Self::not_placeable();
+                }
+
+                slots.push(present.len() as i32);
+                present.push(ingredient);
+            } else {
+                slots.push(Self::EMPTY_SLOT);
+            }
+        }
+
+        Self {
+            ingredients: present,
+            slots_to_ingredient_index: slots,
+        }
+    }
+
+    pub fn is_impossible_to_place(&self) -> bool {
+        self.slots_to_ingredient_index.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleSmithingRecipeModel {
+    pub show_notification: bool,
+    pub placement_info: PlacementInfo,
+}
+
+impl SimpleSmithingRecipeModel {
+    pub fn new(show_notification: bool, placement_info: PlacementInfo) -> Self {
+        Self {
+            show_notification,
+            placement_info,
+        }
+    }
+
+    pub fn group(&self) -> &'static str {
+        ""
+    }
+
+    pub fn placement_info(&self) -> &PlacementInfo {
+        &self.placement_info
     }
 }
 
@@ -1202,6 +1296,45 @@ mod tests {
             None
         );
         assert_eq!(smithing_trim_result(&base, None, "minecraft:spire"), None);
+    }
+
+    #[test]
+    fn placement_info_matches_vanilla_slot_index_contracts() {
+        let single = PlacementInfo::create(IngredientSpec::Item("minecraft:stone"));
+        assert_eq!(
+            single.ingredients,
+            vec![IngredientSpec::Item("minecraft:stone")]
+        );
+        assert_eq!(single.slots_to_ingredient_index, vec![0]);
+        assert!(!single.is_impossible_to_place());
+
+        let smithing_transform = PlacementInfo::create_from_optionals(vec![
+            None,
+            Some(IngredientSpec::Item("minecraft:diamond_sword")),
+            Some(IngredientSpec::Item("minecraft:netherite_ingot")),
+        ]);
+        assert_eq!(
+            smithing_transform.ingredients,
+            vec![
+                IngredientSpec::Item("minecraft:diamond_sword"),
+                IngredientSpec::Item("minecraft:netherite_ingot"),
+            ]
+        );
+        assert_eq!(
+            smithing_transform.slots_to_ingredient_index,
+            vec![PlacementInfo::EMPTY_SLOT, 0, 1]
+        );
+
+        let impossible = PlacementInfo::create_list(vec![
+            IngredientSpec::Item("minecraft:stick"),
+            IngredientSpec::Empty,
+        ]);
+        assert!(impossible.is_impossible_to_place());
+
+        let simple = SimpleSmithingRecipeModel::new(true, smithing_transform.clone());
+        assert_eq!(simple.group(), "");
+        assert!(simple.show_notification);
+        assert_eq!(simple.placement_info(), &smithing_transform);
     }
 
     #[test]
