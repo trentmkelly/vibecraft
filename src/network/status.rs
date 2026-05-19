@@ -4192,14 +4192,14 @@ fn place_block_in_region(
 ///   45       → offhand          (inventory index 40 = SLOT_OFFHAND)
 fn inventory_internal_slot(container_slot: usize) -> Option<usize> {
     match container_slot {
-        0..=4 => None,           // crafting result + 2×2 grid — no persistent backing
-        5 => Some(39),           // HEAD armor
-        6 => Some(38),           // CHEST armor
-        7 => Some(37),           // LEGS armor
-        8 => Some(36),           // FEET armor
+        0..=4 => None,                  // crafting result + 2×2 grid — no persistent backing
+        5 => Some(39),                  // HEAD armor
+        6 => Some(38),                  // CHEST armor
+        7 => Some(37),                  // LEGS armor
+        8 => Some(36),                  // FEET armor
         9..=35 => Some(container_slot), // main inventory (indices match)
         36..=44 => Some(container_slot - 36), // hotbar → items[0..=8]
-        45 => Some(40),          // offhand (SLOT_OFFHAND)
+        45 => Some(40),                 // offhand (SLOT_OFFHAND)
         _ => None,
     }
 }
@@ -6285,7 +6285,7 @@ mod tests {
         banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt, chat_type_nbt,
         chicken_sound_variant_nbt, chunk_batch_size, chunk_window, cow_sound_variant_nbt,
         day_timeline_nbt, early_game_timeline_nbt, encode_base64, escape_json_string,
-        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
+        handle_legacy_status_connection, instrument_nbt, inventory_internal_slot, jukebox_song_nbt,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
         load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
         login_host_ip, moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt,
@@ -7813,6 +7813,80 @@ mod tests {
             .find_map(|(n, v)| (n == "count").then_some(v))
             .expect("count missing");
         assert!(matches!(count, Tag::Int(5)), "count must be TAG_Int(5)");
+    }
+
+    // ─── inventory_internal_slot ─────────────────────────────────────────────
+
+    #[test]
+    fn inventory_internal_slot_crafting_slots_have_no_backing() {
+        // Java: InventoryMenu — slots 0 (result) and 1-4 (2×2 grid) have no PlayerInventory backing.
+        for container_slot in 0..=4 {
+            assert!(
+                inventory_internal_slot(container_slot).is_none(),
+                "container slot {container_slot} should have no backing"
+            );
+        }
+    }
+
+    #[test]
+    fn inventory_internal_slot_armor_mapping_matches_inventory_menu() {
+        // Java: InventoryMenu adds armor slots HEAD(39)/CHEST(38)/LEGS(37)/FEET(36)
+        // at container indices 5/6/7/8.
+        assert_eq!(
+            inventory_internal_slot(5),
+            Some(39),
+            "container 5 → HEAD (39)"
+        );
+        assert_eq!(
+            inventory_internal_slot(6),
+            Some(38),
+            "container 6 → CHEST (38)"
+        );
+        assert_eq!(
+            inventory_internal_slot(7),
+            Some(37),
+            "container 7 → LEGS (37)"
+        );
+        assert_eq!(
+            inventory_internal_slot(8),
+            Some(36),
+            "container 8 → FEET (36)"
+        );
+    }
+
+    #[test]
+    fn inventory_internal_slot_main_inventory_identity_mapping() {
+        // Java: addStandardInventorySlots maps items[9..=35] directly to container slots 9-35.
+        for slot in 9..=35usize {
+            assert_eq!(
+                inventory_internal_slot(slot),
+                Some(slot),
+                "main inventory: container {slot} → internal {slot}"
+            );
+        }
+    }
+
+    #[test]
+    fn inventory_internal_slot_hotbar_shifted_mapping() {
+        // Java: addStandardInventorySlots maps items[0..=8] to container slots 36-44.
+        for i in 0..=8usize {
+            assert_eq!(
+                inventory_internal_slot(36 + i),
+                Some(i),
+                "hotbar: container {} → internal {}",
+                36 + i,
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn inventory_internal_slot_offhand_is_slot_45() {
+        // Java: InventoryMenu adds the offhand slot (inventory index 40) at container index 45.
+        assert_eq!(
+            inventory_internal_slot(45),
+            Some(crate::player_inventory::SLOT_OFFHAND)
+        );
     }
 
     #[derive(Debug)]
