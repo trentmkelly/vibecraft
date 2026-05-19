@@ -6,16 +6,16 @@ Automated vanilla-client, Mineflayer, oracle, and regression harness work moved 
 
 Use the unmodified 26.1.2 client as the authoritative visual/connectability oracle when Mineflayer is not enough.
 
-- [ ] Start a nested X11 display that can be automated without driving the normal desktop: `Xephyr :2 -screen 1280x720 -resizeable -ac`.
-- [ ] Capture the nested display with `DISPLAY=:2 import -window root /tmp/codex-screens/xephyr.png`.
-- [ ] Send input only to the nested display/window with `DISPLAY=:2 xdotool ...`.
-- [ ] Avoid launching `minecraft-launcher` for automation: it uses existing launcher state/single-instance behavior and may open on the real desktop instead of inside Xephyr.
-- [ ] Launch the installed vanilla client JVM directly by cloning the argv from the already-running `java ... net.minecraft.client.main.Main` process, changing `--gameDir` to a temp directory such as `/tmp/codex-mc-xephyr`, and omitting `--quickPlayPath` if needed.
-- [ ] Keep auth material out of logs/transcripts: read `/proc/<pid>/cmdline` into an argv array and `exec` it directly; do not print the full Java command because it contains `--accessToken`.
-- [ ] Use `GLFW_PLATFORM=x11`, `XDG_SESSION_TYPE=x11`, and `DISPLAY=:2` for the direct client process.
-- [ ] The first successful setup produced a nested `Minecraft 26.1.2` window on `:2`, visible to `DISPLAY=:2 xwininfo -root -tree`, and screenshots worked with ImageMagick `import`.
-- [ ] Turn this into a checked-in script that starts Xephyr if needed, launches the direct vanilla client in an isolated game directory, screenshots the root window, and stores artifacts under `artifacts/vanilla-client/`. References: `RustCraft/harness/mineflayer/vanilla_client_xephyr.mjs`, `RustCraft/harness/mineflayer/vanilla_client_xephyr.test.mjs`.
-- [ ] Add a scriptable connection smoke test that uses the vanilla client in Xephyr to enter Multiplayer, select the saved local server, join, wait for terrain, screenshot, and collect `latest.log`/crash reports. References: `RustCraft/harness/mineflayer/vanilla_client_connection_smoke.mjs`, `RustCraft/harness/mineflayer/vanilla_client_connection_smoke.test.mjs`.
+- [x] Start a nested X11 display that can be automated without driving the normal desktop: `Xephyr :2 -screen 1280x720 -resizeable -ac`.
+- [x] Capture the nested display with `DISPLAY=:2 import -window root /tmp/codex-screens/xephyr.png`.
+- [x] Send input only to the nested display/window with `DISPLAY=:2 xdotool ...`.
+- [x] Avoid launching `minecraft-launcher` for automation: it uses existing launcher state/single-instance behavior and may open on the real desktop instead of inside Xephyr.
+- [x] Launch the installed vanilla client JVM directly by cloning the argv from the already-running `java ... net.minecraft.client.main.Main` process, changing `--gameDir` to a temp directory such as `/tmp/codex-mc-xephyr`, and omitting `--quickPlayPath` if needed.
+- [x] Keep auth material out of logs/transcripts: read `/proc/<pid>/cmdline` into an argv array and `exec` it directly; do not print the full Java command because it contains `--accessToken`.
+- [x] Use `GLFW_PLATFORM=x11`, `XDG_SESSION_TYPE=x11`, and `DISPLAY=:2` for the direct client process.
+- [x] The first successful setup produced a nested `Minecraft 26.1.2` window on `:2`, visible to `DISPLAY=:2 xwininfo -root -tree`, and screenshots worked with ImageMagick `import`.
+- [x] Turn this into a checked-in script that starts Xephyr if needed, launches the direct vanilla client in an isolated game directory, screenshots the root window, and stores artifacts under `artifacts/vanilla-client/`. References: `RustCraft/harness/mineflayer/vanilla_client_xephyr.mjs`, `RustCraft/harness/mineflayer/vanilla_client_xephyr.test.mjs`.
+- [x] Add a scriptable connection smoke test that uses the vanilla client in Xephyr to enter Multiplayer, select the saved local server, join, wait for terrain, screenshot, and collect `latest.log`/crash reports. References: `RustCraft/harness/mineflayer/vanilla_client_connection_smoke.mjs`, `RustCraft/harness/mineflayer/vanilla_client_connection_smoke.test.mjs`.
 
 ## Migrated From Main Checklist: Testing And Parity Harness
 
