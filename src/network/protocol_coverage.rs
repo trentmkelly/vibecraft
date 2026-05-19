@@ -929,7 +929,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "merchant_offers",
         java_class: "ClientboundMerchantOffersPacket",
-        field_order: "unparsed",
+        field_order: "container_id:ContainerId VarInt, offers:List<MerchantOffer(ItemCost A, result ItemStack.STREAM_CODEC, Optional<ItemCost B>, out_of_stock:bool, uses:int, max_uses:int, xp:int, special_price_diff:int, price_multiplier:float, demand:int)>, villager_level:VarInt, villager_xp:VarInt, show_progress:bool, can_restock:bool",
     },
     PlayPacketSpec {
         id: 53,

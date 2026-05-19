@@ -521,10 +521,46 @@ pub struct ServerboundContainerButtonClickPacket {
     pub button_id: i32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundMerchantOffersPacket {
+    pub container_id: i32,
+    pub offers: Vec<MerchantOfferData>,
+    pub villager_level: i32,
+    pub villager_xp: i32,
+    pub show_progress: bool,
+    pub can_restock: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MerchantOfferData {
+    pub base_cost_a: ItemCostData,
+    pub result: RawItemStack,
+    pub cost_b: Option<ItemCostData>,
+    pub out_of_stock: bool,
+    pub uses: i32,
+    pub max_uses: i32,
+    pub xp: i32,
+    pub special_price_diff: i32,
+    pub price_multiplier: f32,
+    pub demand: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemCostData {
+    pub item_id: i32,
+    pub count: i32,
+    pub components: RawDataComponentExactPredicate,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawDataComponentPatch {
     pub added: Vec<(i32, Vec<u8>)>,
     pub removed: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawDataComponentExactPredicate {
+    pub expected_components: Vec<(i32, Vec<u8>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1855,6 +1891,7 @@ pub enum PlayInstruction {
     RotateHead(ClientboundRotateHeadPacket),
     Animate(ClientboundAnimatePacket),
     Container(ClientboundContainerPacket),
+    MerchantOffers(ClientboundMerchantOffersPacket),
     Recipes(ClientboundRecipePacket),
     Advancements(ClientboundAdvancementsPacket),
     AwardStats(ClientboundAwardStatsPacket),
@@ -5019,6 +5056,45 @@ impl ServerboundContainerButtonClickPacket {
     }
 }
 
+impl ClientboundMerchantOffersPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.offers.len() as i32)?;
+        for offer in &self.offers {
+            offer.write(writer)?;
+        }
+        write_var_i32(writer, self.villager_level)?;
+        write_var_i32(writer, self.villager_xp)?;
+        write_bool(writer, self.show_progress)?;
+        write_bool(writer, self.can_restock)
+    }
+}
+
+impl MerchantOfferData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.base_cost_a.write(writer)?;
+        self.result.write_required_trusted(writer)?;
+        write_optional(writer, self.cost_b.as_ref(), |writer, cost| {
+            cost.write(writer)
+        })?;
+        write_bool(writer, self.out_of_stock)?;
+        write_i32(writer, self.uses)?;
+        write_i32(writer, self.max_uses)?;
+        write_i32(writer, self.xp)?;
+        write_i32(writer, self.special_price_diff)?;
+        write_f32(writer, self.price_multiplier)?;
+        write_i32(writer, self.demand)
+    }
+}
+
+impl ItemCostData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.item_id)?;
+        write_var_i32(writer, self.count)?;
+        self.components.write(writer)
+    }
+}
+
 impl RawDataComponentPatch {
     pub fn empty() -> Self {
         Self {
@@ -5052,6 +5128,36 @@ impl RawDataComponentPatch {
         }
         for component_type_id in &self.removed {
             write_var_i32(writer, *component_type_id)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_trusted<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.added.len() as i32)?;
+        write_var_i32(writer, self.removed.len() as i32)?;
+        for (component_type_id, payload) in &self.added {
+            write_var_i32(writer, *component_type_id)?;
+            writer.write_all(payload)?;
+        }
+        for component_type_id in &self.removed {
+            write_var_i32(writer, *component_type_id)?;
+        }
+        Ok(())
+    }
+}
+
+impl RawDataComponentExactPredicate {
+    pub fn empty() -> Self {
+        Self {
+            expected_components: Vec::new(),
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.expected_components.len() as i32)?;
+        for (component_type_id, payload) in &self.expected_components {
+            write_var_i32(writer, *component_type_id)?;
+            writer.write_all(payload)?;
         }
         Ok(())
     }
@@ -5091,6 +5197,24 @@ impl RawItemStack {
         write_var_i32(writer, self.count)?;
         write_var_i32(writer, item_id)?;
         self.components.write_delimited(writer)
+    }
+
+    pub fn write_required_trusted<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.count <= 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "required item stack cannot be empty",
+            ));
+        }
+        let item_id = self.item_id.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "non-empty item stack missing item id",
+            )
+        })?;
+        write_var_i32(writer, self.count)?;
+        write_var_i32(writer, item_id)?;
+        self.components.write_trusted(writer)
     }
 }
 
@@ -7415,6 +7539,53 @@ mod tests {
         .write(&mut cursor_item)
         .unwrap();
         assert_eq!(cursor_item, vec![2, 5, 0, 0]);
+
+        let mut merchant_offers = Vec::new();
+        ClientboundMerchantOffersPacket {
+            container_id: 2,
+            offers: vec![MerchantOfferData {
+                base_cost_a: ItemCostData {
+                    item_id: 5,
+                    count: 3,
+                    components: RawDataComponentExactPredicate::empty(),
+                },
+                result: RawItemStack {
+                    count: 1,
+                    item_id: Some(6),
+                    components: RawDataComponentPatch::empty(),
+                },
+                cost_b: Some(ItemCostData {
+                    item_id: 7,
+                    count: 2,
+                    components: RawDataComponentExactPredicate::empty(),
+                }),
+                out_of_stock: true,
+                uses: 1,
+                max_uses: 12,
+                xp: 4,
+                special_price_diff: -2,
+                price_multiplier: 0.05,
+                demand: 9,
+            }],
+            villager_level: 3,
+            villager_xp: 120,
+            show_progress: true,
+            can_restock: false,
+        }
+        .write(&mut merchant_offers)
+        .unwrap();
+        assert_eq!(
+            &merchant_offers[..13],
+            &[2, 1, 5, 3, 0, 1, 6, 0, 0, 1, 7, 2, 0]
+        );
+        assert_eq!(merchant_offers[13], 1);
+        assert_eq!(&merchant_offers[14..18], &1_i32.to_be_bytes());
+        assert_eq!(&merchant_offers[18..22], &12_i32.to_be_bytes());
+        assert_eq!(&merchant_offers[22..26], &4_i32.to_be_bytes());
+        assert_eq!(&merchant_offers[26..30], &(-2_i32).to_be_bytes());
+        assert_eq!(&merchant_offers[30..34], &0.05_f32.to_be_bytes());
+        assert_eq!(&merchant_offers[34..38], &9_i32.to_be_bytes());
+        assert_eq!(&merchant_offers[38..], &[3, 120, 1, 0]);
 
         let mut recipe_remove = Vec::new();
         ClientboundRecipeBookRemovePacket {
