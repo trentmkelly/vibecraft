@@ -70,7 +70,7 @@
 
 ## Operational Files
 
-- [ ] Implement all operator-facing files: `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json` with vanilla-compatible JSON schemas and field names
+- [x] Implement all operator-facing files: `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json` with vanilla-compatible JSON schemas and field names
 - [x] Implement `session.lock`: written on world open, exclusive lock enforced, released on clean shutdown; startup refuses if lock held by another process
 - [x] Implement `level.dat` + `level.dat_old` rotation: write new `level.dat` atomically (temp file + rename), keep previous as `level.dat_old`
 - [x] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
