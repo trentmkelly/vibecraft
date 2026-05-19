@@ -39,19 +39,19 @@
 
 ## Container Block Entities
 
-- [ ] Implement `BaseContainerBlockEntity`: custom-name `Component` component, lock `LockCode`, loot-table `ResourceKey`, loot-table seed, `unpackLootTable(player)` trigger on first open, `MenuProvider` interface with `createMenu()`
-- [ ] Implement `RandomizableContainerBlockEntity`: loot-table seeded realization (loot table generates once, then replaced with real items)
-- [ ] Implement `ChestBlockEntity`: lid animation via `ChestLidController` (0.1 per tick open/close), double-chest neighbor detection for merged access, `ContainerOpenersCounter` for hopper-blocking, comparator output
-- [ ] Implement `TrappedChestBlockEntity`: emits `min(15, viewerCount)` redstone signal proportional to viewer count
-- [ ] Implement `BarrelBlockEntity`: no lid animation, `ContainerOpenersCounter` for hopper-blocking, comparator output
-- [ ] Implement `ShulkerBoxBlockEntity`: attached color, 4-state animation (CLOSED/OPENING/OPENED/CLOSING) at 0.1/tick, collision forced solid when CLOSED, 27-slot inventory
-- [ ] Implement `DispenserBlockEntity`: 9-slot inventory, comparator output, behavior dispatch on redstone activation
-- [ ] Implement `DropperBlockEntity`: 9-slot inventory, item-drop vs. dispense-into-container behavior difference
-- [ ] Implement `HopperBlockEntity`: 8-tick transfer cooldown, suck-from-above (entity or block slot), push-below, `canPlaceItem()`/`canTakeItem()` sided checks, comparator output
+- [x] Implement `BaseContainerBlockEntity`: custom-name `Component` component, lock `LockCode`, loot-table `ResourceKey`, loot-table seed, `unpackLootTable(player)` trigger on first open, `MenuProvider` interface with `createMenu()`
+- [x] Implement `RandomizableContainerBlockEntity`: loot-table seeded realization (loot table generates once, then replaced with real items)
+- [x] Implement `ChestBlockEntity`: lid animation via `ChestLidController` (0.1 per tick open/close), double-chest neighbor detection for merged access, `ContainerOpenersCounter` for hopper-blocking, comparator output
+- [x] Implement `TrappedChestBlockEntity`: emits `min(15, viewerCount)` redstone signal proportional to viewer count
+- [x] Implement `BarrelBlockEntity`: no lid animation, `ContainerOpenersCounter` for hopper-blocking, comparator output
+- [x] Implement `ShulkerBoxBlockEntity`: attached color, 4-state animation (CLOSED/OPENING/OPENED/CLOSING) at 0.1/tick, collision forced solid when CLOSED, 27-slot inventory
+- [x] Implement `DispenserBlockEntity`: 9-slot inventory, comparator output, behavior dispatch on redstone activation
+- [x] Implement `DropperBlockEntity`: 9-slot inventory, item-drop vs. dispense-into-container behavior difference
+- [x] Implement `HopperBlockEntity`: 8-tick transfer cooldown, suck-from-above (entity or block slot), push-below, `canPlaceItem()`/`canTakeItem()` sided checks, comparator output
 - [x] Implement `ShelfBlockEntity` (new in 26.1.2): per-slot item display, 3-slot shelf storage (`MAX_ITEMS = 3`), comparator output based on filled-slot count
-- [ ] Add parity test: chest loot-table realization (loot generated once, consistent across reconnect), double-chest merged access
-- [ ] Add parity test: hopper 8-tick transfer rate, priority when both push and pull available, container hop chain
-- [ ] Add parity test: trapped chest redstone signal level = viewer count
+- [x] Add parity test: chest loot-table realization (loot generated once, consistent across reconnect), double-chest merged access
+- [x] Add parity test: hopper 8-tick transfer rate, priority when both push and pull available, container hop chain
+- [x] Add parity test: trapped chest redstone signal level = viewer count
 - [ ] Add Mineflayer randomizable-container test: open chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization is idempotent
 
 ## Sign and Text Block Entities
@@ -129,7 +129,7 @@
 
 - [x] Implement base `BlockEntity`, ticker dispatch, type registry, update tag, update packet, save/load, and chunk attachment behavior.
 - [x] Implement furnace family block entities: `AbstractFurnaceBlockEntity`, `FurnaceBlockEntity`, `BlastFurnaceBlockEntity`, and `SmokerBlockEntity`, including burn time, cook time, fuel values, recipe matching, XP storage, sided inventory, lit state, and comparator output.
-- [ ] Implement container block entities: `BaseContainerBlockEntity`, `RandomizableContainerBlockEntity`, `ChestBlockEntity`, `TrappedChestBlockEntity`, `BarrelBlockEntity`, `ShulkerBoxBlockEntity`, `DispenserBlockEntity`, `DropperBlockEntity`, `HopperBlockEntity`, and `ShelfBlockEntity`, including loot tables, custom names, locks, viewer counts, lid animation, sided access, and redstone/comparator interactions.
+- [x] Implement container block entities: `BaseContainerBlockEntity`, `RandomizableContainerBlockEntity`, `ChestBlockEntity`, `TrappedChestBlockEntity`, `BarrelBlockEntity`, `ShulkerBoxBlockEntity`, `DispenserBlockEntity`, `DropperBlockEntity`, `HopperBlockEntity`, and `ShelfBlockEntity`, including loot tables, custom names, locks, viewer counts, lid animation, sided access, and redstone/comparator interactions.
 - [ ] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
 - [ ] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
 - [ ] Implement utility block entities: `BeaconBlockEntity`, `BrewingStandBlockEntity`, `CrafterBlockEntity`, `EnchantingTableBlockEntity`, `JukeboxBlockEntity`, `ComparatorBlockEntity`, `DaylightDetectorBlockEntity`, and `CommandBlockEntity`.
