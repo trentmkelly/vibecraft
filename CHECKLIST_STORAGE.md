@@ -114,7 +114,7 @@
 - [x] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.
 - [x] Implement region file format `.mca`.
 - [x] Implement region compression types used by 26.1.2.
-- [ ] Implement chunk serialization for blocks, biomes, heightmaps, block entities, entities, structures, ticks, lights, and post-processing.
+- [x] Implement chunk serialization for blocks, biomes, heightmaps, block entities, entities, structures, ticks, lights, and post-processing.
 - [x] Implement player data files.
 - [x] Add a Mineflayer playerdata round-trip test that changes position, rotation, inventory, selected slot, health, food, XP, game mode, recipe book, and stats, disconnects, then reconnects in offline mode and verifies persistence.
 - [x] Add raw 26.1.2 playerdata fallback coverage that sends movement, disconnects, restarts, and verifies the reconnect spawn position and rotation are loaded from compressed `playerdata/<uuid>.dat` while Mineflayer lacks target-protocol play support.
