@@ -37,9 +37,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Chunk and Light Packets
 
 - [ ] `ClientboundLevelChunkWithLightPacket` (0x27): chunk X/Z, chunk data (heightmaps, sections, block entities), light data (sky/block light set/empty bitsets, sky/block arrays, trust-edges flag); field order verified against decompiled codec
-- [ ] `ClientboundForgetLevelChunkPacket` (0x1F): chunk X/Z
+- [x] `ClientboundForgetLevelChunkPacket` (0x1F): chunk X/Z
 - [ ] `ClientboundLightUpdatePacket` (0x28): chunk X/Z, light data; separate from chunk-with-light for mid-game updates
-- [ ] `ClientboundChunkBatchStartPacket` (0x0D): no fields
+- [x] `ClientboundChunkBatchStartPacket` (0x0D): no fields
 - [x] `ClientboundChunkBatchFinishedPacket` (0x0C): batch-size int
 - [x] `ServerboundChunkBatchReceivedPacket` (0x09): desired-chunks-per-tick float; adaptive batching feedback
 - [x] `ClientboundSetChunkCacheCenterPacket` (0x50): chunk X/Z VarInts

@@ -4141,7 +4141,8 @@ mod tests {
         handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
         legacy_disconnect_packet, legacy_version0_response, legacy_version1_response, load_favicon,
         login_access_disconnect_reason, login_host_ip, newly_visible_chunks,
-        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
+        packed_chunk_pos, pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt,
+        trim_pattern_nbt,
         vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
         visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
         visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
@@ -4167,6 +4168,7 @@ mod tests {
         DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID, GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID,
         INSTRUMENTS, JUKEBOX_SONGS, POPPY_BLOCK_STATE_ID,
         SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
+        CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID, CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
         STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
@@ -5083,6 +5085,46 @@ mod tests {
         assert!(delta.contains(&(11, -10)));
         assert!(delta.contains(&(11, 0)));
         assert!(delta.contains(&(11, 10)));
+    }
+
+    #[test]
+    fn chunk_batch_start_packet_has_no_payload_after_packet_id() {
+        let mut packet = Vec::new();
+        write_framed_packet(&mut packet, CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, |_| Ok(()))
+            .unwrap();
+
+        let mut cursor = Cursor::new(packet);
+        let frame_len = read_var_i32(&mut cursor).unwrap();
+        assert_eq!(frame_len, 1);
+        assert_eq!(
+            read_var_i32(&mut cursor).unwrap(),
+            CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID
+        );
+        assert_eq!(cursor.position(), cursor.get_ref().len() as u64);
+    }
+
+    #[test]
+    fn forget_level_chunk_packet_uses_packed_chunk_position() {
+        assert_eq!(packed_chunk_pos(4, -2), -8589934588);
+        assert_eq!(packed_chunk_pos(-1, 0), 0xffff_ffff);
+
+        let mut packet = Vec::new();
+        write_framed_packet(&mut packet, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID, |payload| {
+            payload.write_all(&packed_chunk_pos(4, -2).to_be_bytes())
+        })
+        .unwrap();
+
+        let mut cursor = Cursor::new(packet);
+        let frame_len = read_var_i32(&mut cursor).unwrap();
+        assert_eq!(frame_len, 9);
+        assert_eq!(
+            read_var_i32(&mut cursor).unwrap(),
+            CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID
+        );
+        let mut packed = [0; 8];
+        cursor.read_exact(&mut packed).unwrap();
+        assert_eq!(i64::from_be_bytes(packed), packed_chunk_pos(4, -2));
+        assert_eq!(cursor.position(), cursor.get_ref().len() as u64);
     }
 
     fn palette_index_at(words: &[u64], x: usize, y: usize, z: usize) -> u64 {
