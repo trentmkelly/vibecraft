@@ -80,7 +80,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement mutable `op-permission-level`.
 - [x] Implement `function-permission-level`.
 - [x] Implement `max-tick-time`.
-- [ ] Implement `max-chained-neighbor-updates`.
+- [x] Implement `max-chained-neighbor-updates`.
 - [x] Implement `rate-limit`.
 - [x] Implement mutable `view-distance`.
 - [x] Implement mutable `simulation-distance`.

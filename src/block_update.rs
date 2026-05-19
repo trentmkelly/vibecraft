@@ -241,8 +241,17 @@ pub fn plan_chunk_block_updates(
     old_had_block_entity: impl Fn(&str) -> bool,
     new_has_block_entity: impl Fn(&str) -> bool,
 ) -> Vec<BlockUpdateAction> {
+    plan_chunk_block_updates_with_limit(changes, -1, old_had_block_entity, new_has_block_entity)
+}
+
+pub fn plan_chunk_block_updates_with_limit(
+    changes: &[BlockChange],
+    max_chained_updates: i32,
+    old_had_block_entity: impl Fn(&str) -> bool,
+    new_has_block_entity: impl Fn(&str) -> bool,
+) -> Vec<BlockUpdateAction> {
     let mut actions = Vec::new();
-    let mut neighbors = NeighborUpdateQueue::new(-1);
+    let mut neighbors = NeighborUpdateQueue::new(max_chained_updates);
 
     for change in changes {
         actions.push(BlockUpdateAction::QueueLightCheck(change.pos));
@@ -282,8 +291,8 @@ pub fn plan_chunk_block_updates(
 #[cfg(test)]
 mod tests {
     use super::{
-        plan_chunk_block_updates, BlockChange, BlockPos, BlockUpdateAction, Direction,
-        NeighborUpdateQueue, UpdateFlags, UPDATE_ORDER,
+        plan_chunk_block_updates, plan_chunk_block_updates_with_limit, BlockChange, BlockPos,
+        BlockUpdateAction, Direction, NeighborUpdateQueue, UpdateFlags, UPDATE_ORDER,
     };
 
     #[test]
@@ -429,6 +438,31 @@ mod tests {
 
         assert!(queue.executed().is_empty());
         assert_eq!(queue.skipped_first_pos(), Some(source));
+    }
+
+    #[test]
+    fn chunk_block_update_planner_uses_configured_neighbor_chain_limit() {
+        let pos = BlockPos { x: 0, y: 64, z: 0 };
+        let change = BlockChange {
+            pos,
+            old_block: "minecraft:stone",
+            new_block: "minecraft:air",
+            flags: UpdateFlags::NOTIFY_NEIGHBORS,
+        };
+
+        let limited = plan_chunk_block_updates_with_limit(&[change], 0, |_| false, |_| false);
+        assert!(!limited
+            .iter()
+            .any(|action| matches!(action, BlockUpdateAction::NotifyNeighbor { .. })));
+
+        let unlimited = plan_chunk_block_updates_with_limit(&[change], -1, |_| false, |_| false);
+        assert_eq!(
+            unlimited
+                .iter()
+                .filter(|action| matches!(action, BlockUpdateAction::NotifyNeighbor { .. }))
+                .count(),
+            6
+        );
     }
 
     #[test]
