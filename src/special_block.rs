@@ -409,6 +409,56 @@ mod tests {
     }
 
     #[test]
+    fn auto_command_block_runs_each_tick_and_redstone_runs_on_leading_edge() {
+        let auto = CommandBlockState {
+            command: "say auto".to_string(),
+            mode: CommandBlockMode::Auto,
+            powered: false,
+            previously_powered: false,
+            conditional: false,
+            previous_success: true,
+        };
+        assert_eq!(
+            command_block_tick(&auto, true),
+            SpecialBlockAction::ExecuteCommand { success_count: 1 }
+        );
+        assert_eq!(
+            command_block_tick(
+                &CommandBlockState {
+                    powered: true,
+                    previously_powered: true,
+                    ..auto
+                },
+                true,
+            ),
+            SpecialBlockAction::ExecuteCommand { success_count: 1 }
+        );
+
+        let redstone = CommandBlockState {
+            command: "say redstone".to_string(),
+            mode: CommandBlockMode::Redstone,
+            powered: true,
+            previously_powered: false,
+            conditional: false,
+            previous_success: true,
+        };
+        assert_eq!(
+            command_block_tick(&redstone, true),
+            SpecialBlockAction::ExecuteCommand { success_count: 1 }
+        );
+        assert_eq!(
+            command_block_tick(
+                &CommandBlockState {
+                    previously_powered: true,
+                    ..redstone
+                },
+                true,
+            ),
+            SpecialBlockAction::Noop
+        );
+    }
+
+    #[test]
     fn note_bell_campfire_candle_and_cauldron_actions_match_deeper_state_transitions() {
         assert_eq!(
             note_block_signal(30, false, true),
