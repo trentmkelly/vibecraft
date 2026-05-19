@@ -7,6 +7,7 @@ const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
 const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
 const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
 const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
+const summaryOnly = process.env.RUSTCRAFT_RAW_PROBE_OUTPUT === 'summary'
 const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === '1'
 const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
@@ -1069,7 +1070,28 @@ async function main () {
   }
 
   socket.end()
-  console.log(JSON.stringify({ ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies }, null, 2))
+  const result = { ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies }
+  if (summaryOnly) {
+    console.log(JSON.stringify({
+      ok: result.ok,
+      mode: result.mode,
+      host: result.host,
+      port: result.port,
+      login: result.login,
+      compressionThreshold: result.compressionThreshold,
+      playPacketCount: result.play.length,
+      configPacketCount: result.config.length,
+      keepAliveReplies: result.keepAliveReplies,
+      joinState: {
+        profile: result.joinState.profile,
+        position: result.joinState.position,
+        initialChunkCount: result.joinState.initialChunkCount,
+        lastReceivedChunk: result.joinState.lastReceivedChunk
+      }
+    }, null, 2))
+    return
+  }
+  console.log(JSON.stringify(result, null, 2))
 }
 
 function abortSocket (socket, phase, details) {
