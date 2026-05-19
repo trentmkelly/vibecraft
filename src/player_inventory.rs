@@ -489,6 +489,7 @@ pub struct MerchantOffer {
     pub demand: i32,
     pub price_multiplier: f32,
     pub xp: i32,
+    pub ignore_discount: bool,
 }
 
 impl MerchantOffer {
@@ -511,6 +512,7 @@ impl MerchantOffer {
             demand: 0,
             price_multiplier,
             xp,
+            ignore_discount: false,
         }
     }
 
@@ -1238,6 +1240,18 @@ mod tests {
             7,
             0.2,
         );
+        assert_eq!(offer.base_cost_a, ItemCost::new("minecraft:emerald", 5));
+        assert_eq!(offer.cost_b, Some(ItemCost::new("minecraft:book", 1)));
+        assert_eq!(offer.result, ItemStack::new("minecraft:written_book", 1));
+        assert_eq!(offer.uses, 0);
+        assert_eq!(offer.max_uses, 2);
+        assert!(offer.reward_exp);
+        assert_eq!(offer.special_price_diff, 0);
+        assert_eq!(offer.demand, 0);
+        assert_eq!(offer.price_multiplier, 0.2);
+        assert_eq!(offer.xp, 7);
+        assert!(!offer.ignore_discount);
+
         offer.demand = 3;
         offer.special_price_diff = -1;
         assert_eq!(offer.cost_a_count(), 7);
