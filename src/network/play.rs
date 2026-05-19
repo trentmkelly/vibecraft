@@ -2100,34 +2100,32 @@ impl ServerboundPlayerLoadedPacket {
 }
 
 impl ServerboundSwingHand {
-    fn from_id(id: u8) -> Self {
+    fn from_id(id: i32) -> Self {
         match id {
             0 => Self::MainHand,
             1 => Self::OffHand,
-            _ => Self::Unknown(id),
+            _ => Self::Unknown(id as u8),
         }
     }
 
-    fn to_id(self) -> u8 {
+    fn to_id(self) -> i32 {
         match self {
             Self::MainHand => 0,
             Self::OffHand => 1,
-            Self::Unknown(value) => value,
+            Self::Unknown(value) => i32::from(value),
         }
     }
 }
 
 impl ServerboundSwingPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let mut bytes = [0u8; 1];
-        reader.read_exact(&mut bytes)?;
         Ok(Self {
-            hand: ServerboundSwingHand::from_id(bytes[0]),
+            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?),
         })
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_all(&[self.hand.to_id()])
+        write_var_i32(writer, self.hand.to_id())
     }
 }
 
@@ -3935,10 +3933,24 @@ mod tests {
         }
         .write(&mut swing)
         .unwrap();
+        assert_eq!(swing, vec![1]);
         assert_eq!(
             ServerboundSwingPacket::read(&mut cursor(swing)).unwrap(),
             ServerboundSwingPacket {
                 hand: ServerboundSwingHand::OffHand,
+            }
+        );
+        let mut unknown_swing = Vec::new();
+        ServerboundSwingPacket {
+            hand: ServerboundSwingHand::Unknown(128),
+        }
+        .write(&mut unknown_swing)
+        .unwrap();
+        assert_eq!(unknown_swing, vec![0x80, 0x01]);
+        assert_eq!(
+            ServerboundSwingPacket::read(&mut cursor(unknown_swing)).unwrap(),
+            ServerboundSwingPacket {
+                hand: ServerboundSwingHand::Unknown(128),
             }
         );
 
