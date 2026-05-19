@@ -123,7 +123,7 @@
 - [x] For every block entity type: add `getUpdateTag()` / `BlockEntityData` packet field subset test (only expected fields present)
 - [ ] For every tickable block entity: add tick-driven state transition test (e.g., furnace burn progress, spawner delay countdown, campfire cook progress)
 - [ ] For every GUI-bearing block entity: add open-menu / container-id / close test verifying correct `MenuType` and initial slot contents
-- [ ] For every block entity with a comparator output: add signal level test across all boundary states
+- [x] For every block entity with a comparator output: add signal level test across all boundary states
 - [x] For every block entity: add `/data get block` NBT access test via command model or unit test
 - [ ] For every block entity: add destruction drop test (correct tool, Silk Touch, explosion, correct drops including stored items)
 

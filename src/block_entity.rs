@@ -3300,6 +3300,10 @@ impl BrewingStandBlockEntity {
         slot != Self::INGREDIENT_SLOT || stack.item_id == "minecraft:glass_bottle"
     }
 
+    pub fn comparator_output(&self) -> u8 {
+        inventory_comparator_output(&self.items)
+    }
+
     pub fn save_additional(&self) -> Tag {
         Tag::Compound(vec![
             ("BrewTime".to_string(), Tag::Short(self.brew_time as i16)),
@@ -5787,6 +5791,10 @@ impl DecoratedPotBlockEntity {
             decoration_items: self.decorations.ordered(),
             stored_item: self.item.clone().filter(|item| !item.is_empty()),
         }
+    }
+
+    pub fn comparator_output(&self) -> u8 {
+        inventory_comparator_output(std::slice::from_ref(&self.item))
     }
 }
 
@@ -8753,6 +8761,13 @@ mod tests {
         }
     }
 
+    fn stack(item_id: &str, count: i32) -> PotItemStack {
+        PotItemStack {
+            item_id: item_id.to_string(),
+            count,
+        }
+    }
+
     #[test]
     fn block_entity_registry_matches_26_1_2_type_surface() {
         assert_eq!(BLOCK_ENTITY_TYPES.len(), 49);
@@ -9111,6 +9126,141 @@ mod tests {
         assert_eq!(inverted.power, 11);
         assert!(inverted.update_signal(99, 0.0));
         assert_eq!(inverted.power, 0);
+    }
+
+    #[test]
+    fn block_entity_comparator_outputs_cover_boundary_states() {
+        assert_eq!(inventory_comparator_output(&[]), 0);
+        assert_eq!(inventory_comparator_output(&[None]), 0);
+        assert_eq!(
+            inventory_comparator_output(&[Some(stack("minecraft:stone", 1))]),
+            1
+        );
+        assert_eq!(
+            inventory_comparator_output(&[Some(stack("minecraft:stone", 64))]),
+            MAX_SIGNAL
+        );
+
+        let mut furnace = AbstractFurnaceBlockEntity::new(FurnaceBlockEntityKind::Furnace);
+        assert_eq!(furnace.comparator_output(), 0);
+        furnace.set_item(
+            AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+            Some(stack("minecraft:iron_ore", 1)),
+            None,
+        );
+        assert_eq!(furnace.comparator_output(), 1);
+        for slot in 0..AbstractFurnaceBlockEntity::SLOT_COUNT {
+            furnace.set_item(slot, Some(stack("minecraft:stone", 64)), None);
+        }
+        assert_eq!(furnace.comparator_output(), MAX_SIGNAL);
+
+        let mut brewing = BrewingStandBlockEntity::new();
+        assert_eq!(brewing.comparator_output(), 0);
+        brewing.set_item(0, Some(stack("minecraft:potion", 1)));
+        assert_eq!(brewing.comparator_output(), 1);
+        for slot in 0..BrewingStandBlockEntity::CONTAINER_SIZE {
+            brewing.set_item(slot, Some(stack("minecraft:potion", 64)));
+        }
+        assert_eq!(brewing.comparator_output(), MAX_SIGNAL);
+
+        for kind in [
+            ContainerBlockEntityKind::Chest,
+            ContainerBlockEntityKind::TrappedChest,
+            ContainerBlockEntityKind::Barrel,
+            ContainerBlockEntityKind::ShulkerBox,
+            ContainerBlockEntityKind::Dispenser,
+            ContainerBlockEntityKind::Dropper,
+            ContainerBlockEntityKind::Hopper,
+        ] {
+            let mut container = ContainerBlockEntityModel::new(kind);
+            assert_eq!(container.comparator_output(), 0, "{kind:?} empty");
+            container.set_item(0, Some(stack("minecraft:stone", 1)));
+            assert!(container.comparator_output() > 0, "{kind:?} partial");
+            for slot in 0..container.items.len() {
+                container.set_item(slot, Some(stack("minecraft:stone", 64)));
+            }
+            assert_eq!(container.comparator_output(), MAX_SIGNAL, "{kind:?} full");
+        }
+
+        let mut trapped = ContainerBlockEntityModel::new(ContainerBlockEntityKind::TrappedChest);
+        trapped.viewer_count = 0;
+        assert_eq!(trapped.trapped_chest_signal(), 0);
+        trapped.viewer_count = i32::from(MAX_SIGNAL);
+        assert_eq!(trapped.trapped_chest_signal(), MAX_SIGNAL);
+        trapped.viewer_count = i32::from(MAX_SIGNAL) + 1;
+        assert_eq!(trapped.trapped_chest_signal(), MAX_SIGNAL);
+
+        let mut jukebox = JukeboxBlockEntity::new();
+        assert_eq!(jukebox.comparator_output(), 0);
+        assert_eq!(jukebox.redstone_signal(), 0);
+        jukebox.set_the_item(Some(stack("minecraft:music_disc_13", 1)));
+        assert_eq!(jukebox.comparator_output(), 1);
+        assert_eq!(jukebox.redstone_signal(), MAX_SIGNAL);
+        jukebox.set_the_item(Some(stack("minecraft:music_disc_5", 1)));
+        assert_eq!(jukebox.comparator_output(), MAX_SIGNAL);
+
+        let mut shelf = ShelfBlockEntity::new();
+        assert_eq!(shelf.comparator_output(), 0);
+        shelf.set_item_no_update(0, Some(stack("minecraft:book", 1)));
+        assert_eq!(shelf.comparator_output(), 1);
+        for slot in 0..ShelfBlockEntity::MAX_ITEMS {
+            shelf.set_item_no_update(slot, Some(stack("minecraft:book", 1)));
+        }
+        assert_eq!(shelf.comparator_output(), 3);
+
+        let mut beacon = BeaconBlockEntity::new();
+        beacon.levels = -1;
+        assert_eq!(beacon.comparator_output(), 0);
+        beacon.levels = BeaconBlockEntity::MAX_LEVELS;
+        assert_eq!(beacon.comparator_output(), 4);
+        beacon.levels = 99;
+        assert_eq!(beacon.comparator_output(), 4);
+
+        let mut lectern = LecternBlockEntity::new();
+        assert_eq!(lectern.get_redstone_signal(), 0);
+        lectern.set_book(Some(stack("minecraft:written_book", 1)), 4);
+        assert_eq!(lectern.get_redstone_signal(), 1);
+        lectern.set_page(3);
+        assert_eq!(lectern.get_redstone_signal(), MAX_SIGNAL);
+
+        let mut crafter = CrafterBlockEntity::new();
+        assert_eq!(crafter.redstone_signal(), 0);
+        for slot in 0..CrafterBlockEntity::CONTAINER_SIZE {
+            crafter.set_slot_state(slot, false);
+        }
+        assert_eq!(crafter.redstone_signal(), 9);
+
+        let mut pot = DecoratedPotBlockEntity::default();
+        assert_eq!(pot.comparator_output(), 0);
+        pot.item = Some(stack("minecraft:diamond", 1));
+        assert_eq!(pot.comparator_output(), 1);
+        pot.item = Some(stack("minecraft:diamond", 64));
+        assert_eq!(pot.comparator_output(), MAX_SIGNAL);
+
+        let mut statue = CopperGolemStatueBlockEntity::from_block_state(
+            "minecraft:copper_golem_statue",
+            CopperGolemStatuePose::Standing,
+        )
+        .unwrap();
+        assert_eq!(statue.comparator_output(), 1);
+        statue.update_pose();
+        assert_eq!(statue.comparator_output(), 2);
+        statue.update_pose();
+        assert_eq!(statue.comparator_output(), 3);
+        statue.update_pose();
+        assert_eq!(statue.comparator_output(), 4);
+
+        let mut heart = CreakingHeartBlockEntity::new();
+        assert_eq!(heart.compute_analog_output_signal(Some(0.0)), 0);
+        heart.set_creaking_uuid("protector".to_string());
+        assert_eq!(heart.compute_analog_output_signal(None), 0);
+        assert_eq!(heart.compute_analog_output_signal(Some(0.0)), 15);
+        assert_eq!(
+            heart.compute_analog_output_signal(Some(f64::from(
+                CreakingHeartBlockEntity::CREAKING_ROAMING_RADIUS
+            ))),
+            0
+        );
     }
 
     #[test]
