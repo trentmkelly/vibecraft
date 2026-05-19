@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
@@ -12,7 +12,9 @@ use std::time::{Duration, Instant};
 
 use crate::block_metadata::representative_state_definition;
 use crate::console::ConsoleInput;
-use crate::item_catalog::item_protocol_id;
+use crate::item_catalog::{item_protocol_id, item_static_name};
+use crate::item_entity::{self, DroppedItem, DEFAULT_PICKUP_DELAY};
+use crate::item_stack::ItemStack;
 use crate::loot_system::{
     LootCondition, LootContext, LootEntry, LootFunction, LootParamSet, LootPool, LootTable,
     NumberProvider,
@@ -35,19 +37,22 @@ use crate::network::login::{
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
     unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
-    ClientboundLightUpdatePacketData, ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
-    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
-    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
+    ClientboundSetTimePacket, ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, GameMode,
+    RawDataComponentPatch, RawItemStack, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
     CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
     CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
     CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-    CLIENTBOUND_SET_TIME_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
+    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
+    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
     SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
@@ -62,12 +67,15 @@ use crate::network::play::{
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
+use crate::player_inventory::{InventoryAddResult, PlayerInventory};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::chunk::LevelChunk;
 use crate::storage::nbt::Tag;
 use crate::storage::region::{ChunkPos, RegionFile};
 use crate::storage::world::WorldLayout;
+use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomDurations};
+use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
 use crate::worldgen::generate_overworld_chunk_for_preset;
 
 const VERSION_NAME: &str = "26.1.2";
@@ -98,6 +106,19 @@ const CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID: i32 = 45;
 const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 const LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID: u8 = 13;
 const PLAY_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(10);
+/// Java: MinecraftServer runs at 20 TPS = 50ms per tick.
+const SERVER_TICK_DURATION: Duration = Duration::from_millis(50);
+/// Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second).
+const TIME_SYNC_INTERVAL: Duration = Duration::from_secs(1);
+/// Vanilla overworld weather durations (ticks). Java: ServerLevel weather scheduling.
+const DEFAULT_WEATHER_DURATIONS: WeatherRandomDurations = WeatherRandomDurations {
+    rain_delay: 12_000,
+    rain_duration: 6_000,
+    thunder_delay: 18_000,
+    thunder_duration: 3_000,
+};
+/// How often to persist clock/weather state (every 5 minutes at 20 TPS).
+const PERSISTENCE_INTERVAL_TICKS: u64 = 6_000;
 const MIN_CHUNK_BATCH_RADIUS: i32 = 2;
 const MAX_CHUNK_BATCH_RADIUS: i32 = 16;
 const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
@@ -134,6 +155,13 @@ struct PlaySessionState {
     xp_total: i32,
     game_mode: GameMode,
     previous_game_mode: Option<GameMode>,
+    /// All item entities currently on the ground near this player's session.
+    /// Populated at block-break time; consumed by the pickup loop.
+    dropped_items: Vec<DroppedItem>,
+    /// The player's current item inventory, mutated on successful pickups.
+    inventory: PlayerInventory,
+    /// Incremented each time an inventory slot changes; sent in `SetContainerContent`.
+    inventory_state_id: i32,
 }
 
 impl Default for PlaySessionState {
@@ -154,6 +182,9 @@ impl Default for PlaySessionState {
             xp_total: 0,
             game_mode: GameMode::Survival,
             previous_game_mode: None,
+            dropped_items: Vec::new(),
+            inventory: PlayerInventory::new(),
+            inventory_state_id: 0,
         }
     }
 }
@@ -865,6 +896,86 @@ const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     },
 ];
 
+/// Loads clock state from `{world_root}/server_clocks.json`.
+/// Returns `None` on missing or malformed file; caller falls back to `ServerClockManager::default()`.
+/// Java: ServerClockManager.TYPE SavedData — key "world_clocks"
+fn load_server_clock_state(world_root: &Path) -> Option<ServerClockManager> {
+    let path = world_root.join("server_clocks.json");
+    let text = fs::read_to_string(&path).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let clock = |obj: &serde_json::Value| -> Option<crate::world_time::ClockInstance> {
+        Some(crate::world_time::ClockInstance {
+            total_ticks: obj["total_ticks"].as_i64()?,
+            partial_tick: obj["partial_tick"].as_f64()? as f32,
+            rate: obj["rate"].as_f64()? as f32,
+            paused: obj["paused"].as_bool()?,
+        })
+    };
+    Some(ServerClockManager {
+        game_time: v["game_time"].as_i64()?,
+        overworld: clock(&v["overworld"])?,
+        the_end: clock(&v["the_end"])?,
+    })
+}
+
+/// Saves clock state to `{world_root}/server_clocks.json`.
+fn save_server_clock_state(world_root: &Path, manager: &ServerClockManager) {
+    let clock_json = |c: &crate::world_time::ClockInstance| {
+        serde_json::json!({
+            "total_ticks": c.total_ticks,
+            "partial_tick": c.partial_tick,
+            "rate": c.rate,
+            "paused": c.paused,
+        })
+    };
+    let value = serde_json::json!({
+        "game_time": manager.game_time,
+        "overworld": clock_json(&manager.overworld),
+        "the_end": clock_json(&manager.the_end),
+    });
+    let path = world_root.join("server_clocks.json");
+    if let Ok(text) = serde_json::to_string_pretty(&value) {
+        let _ = fs::write(path, text);
+    }
+}
+
+/// Loads weather state from `{world_root}/server_weather.json`.
+fn load_server_weather_state(world_root: &Path) -> Option<WeatherCycle> {
+    let path = world_root.join("server_weather.json");
+    let text = fs::read_to_string(&path).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let data = WeatherData {
+        clear_weather_time: v["clear_weather_time"].as_i64()? as i32,
+        rain_time: v["rain_time"].as_i64()? as i32,
+        thunder_time: v["thunder_time"].as_i64()? as i32,
+        raining: v["raining"].as_bool()?,
+        thundering: v["thundering"].as_bool()?,
+    };
+    let mut cycle = WeatherCycle::new(data);
+    cycle.rain_level = v["rain_level"].as_f64()? as f32;
+    cycle.thunder_level = v["thunder_level"].as_f64()? as f32;
+    cycle.old_rain_level = cycle.rain_level;
+    cycle.old_thunder_level = cycle.thunder_level;
+    Some(cycle)
+}
+
+/// Saves weather state to `{world_root}/server_weather.json`.
+fn save_server_weather_state(world_root: &Path, cycle: &WeatherCycle) {
+    let value = serde_json::json!({
+        "clear_weather_time": cycle.data.clear_weather_time,
+        "rain_time": cycle.data.rain_time,
+        "thunder_time": cycle.data.thunder_time,
+        "raining": cycle.data.raining,
+        "thundering": cycle.data.thundering,
+        "rain_level": cycle.rain_level,
+        "thunder_level": cycle.thunder_level,
+    });
+    let path = world_root.join("server_weather.json");
+    if let Ok(text) = serde_json::to_string_pretty(&value) {
+        let _ = fs::write(path, text);
+    }
+}
+
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
@@ -889,11 +1000,62 @@ pub fn run_status_server(
             PlayerAccess::default()
         }),
     ));
+
+    // Load or initialise shared clock/weather state.
+    // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data.
+    let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
+    let initial_weather = load_server_weather_state(&world_root)
+        .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
+    eprintln!(
+        "[DEBUG clock] Initial state: game_time={} overworld.total_ticks={} overworld.rate={}",
+        initial_clock.game_time, initial_clock.overworld.total_ticks, initial_clock.overworld.rate
+    );
+    let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
+    let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
+
+    // Background tick thread: advances clocks and weather at 20 TPS.
+    // Java: MinecraftServer.tickChildren() — clockManager.tick() + advanceWeatherCycle()
+    {
+        let clock_t = Arc::clone(&clock);
+        let weather_t = Arc::clone(&weather);
+        let world_root_t = Arc::clone(&world_root);
+        thread::spawn(move || {
+            let mut scheduled = ScheduledTimeChanges::default();
+            let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
+            let mut tick_count: u64 = 0;
+            loop {
+                let now = Instant::now();
+                if now < next_tick {
+                    thread::sleep(next_tick - now);
+                }
+                next_tick += SERVER_TICK_DURATION;
+                tick_count += 1;
+
+                // advance_time=true: no per-world gamerule access yet; always advance.
+                clock_t.lock().unwrap().tick(true, &mut scheduled);
+
+                // Advance weather. can_have_weather=true for overworld.
+                weather_t
+                    .lock()
+                    .unwrap()
+                    .advance(true, true, DEFAULT_WEATHER_DURATIONS);
+
+                // Persist every ~5 minutes.
+                if tick_count % PERSISTENCE_INTERVAL_TICKS == 0 {
+                    save_server_clock_state(&world_root_t, &clock_t.lock().unwrap());
+                    save_server_weather_state(&world_root_t, &weather_t.lock().unwrap());
+                }
+            }
+        });
+    }
+
     println!("Status listener bound to {address}");
 
     loop {
         if should_stop(console_input, &player_access) {
             println!("Status listener stopping");
+            save_server_clock_state(&world_root, &clock.lock().unwrap());
+            save_server_weather_state(&world_root, &weather.lock().unwrap());
             break;
         }
         match listener.accept() {
@@ -903,6 +1065,8 @@ pub fn run_status_server(
                 let active_logins = active_logins.clone();
                 let world_root = Arc::clone(&world_root);
                 let player_access = Arc::clone(&player_access);
+                let clock = Arc::clone(&clock);
+                let weather = Arc::clone(&weather);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_for_log = if properties.log_ips {
                     remote_ip.clone()
@@ -919,6 +1083,8 @@ pub fn run_status_server(
                         &world_root,
                         world_seed,
                         &remote_ip,
+                        &clock,
+                        &weather,
                     ) {
                         eprintln!("status connection error from {remote_for_log}: {err}");
                     }
@@ -973,6 +1139,8 @@ fn handle_status_connection(
     world_root: &Path,
     world_seed: i64,
     remote_ip: &str,
+    clock: &Arc<Mutex<ServerClockManager>>,
+    weather: &Arc<Mutex<WeatherCycle>>,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
@@ -1011,6 +1179,8 @@ fn handle_status_connection(
             world_seed,
             remote_ip,
             login_host_ip(&server_address),
+            clock,
+            weather,
         );
     }
     if next_state != 1 {
@@ -1075,6 +1245,8 @@ fn handle_login_connection(
     world_seed: i64,
     remote_ip: &str,
     login_host_ip: Option<String>,
+    clock: &Arc<Mutex<ServerClockManager>>,
+    weather: &Arc<Mutex<WeatherCycle>>,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -1389,6 +1561,28 @@ fn handle_login_connection(
     )?;
 
     let mut play_state = load_play_session_state(world_root, &finished.profile.uuid, properties);
+
+    // Snapshot current clock and weather state for the join packet.
+    // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
+    let (join_game_time, join_clock_data) = {
+        let cm = clock.lock().unwrap();
+        cm.full_sync_data(true)
+    };
+    let (join_rain_level, join_thunder_level) = {
+        let wc = weather.lock().unwrap();
+        (wc.rain_level, wc.thunder_level)
+    };
+    eprintln!(
+        "[DEBUG clock] Join snapshot: game_time={} clocks={:?} rain={:.3} thunder={:.3}",
+        join_game_time,
+        join_clock_data
+            .iter()
+            .map(|(id, s)| format!("id={}(ticks={},rate={})", id, s.total_ticks, s.rate))
+            .collect::<Vec<_>>(),
+        join_rain_level,
+        join_thunder_level
+    );
+
     write_minimal_play_join(
         stream,
         compression,
@@ -1397,6 +1591,10 @@ fn handle_login_connection(
         &finished.profile,
         &play_state,
         world_root,
+        join_game_time,
+        join_clock_data,
+        join_rain_level,
+        join_thunder_level,
     )?;
     let mut current_chunk_x = chunk_coordinate(play_state.x);
     let mut current_chunk_z = chunk_coordinate(play_state.z);
@@ -1405,10 +1603,20 @@ fn handle_login_connection(
     stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
+    // Track last sent weather levels so we can detect changes and notify the client.
+    // Java: ServerLevel.advanceWeatherCycle() broadcasts RainLevelChange/ThunderLevelChange
+    let mut last_sent_rain_level = join_rain_level;
+    let mut last_sent_thunder_level = join_thunder_level;
+    let mut last_time_sync = Instant::now();
+    let mut time_sync_count: u64 = 0;
     let mut entity_id_counter: i32 = 1; // player has entity ID 1; start here so first drop = 2
     let mut rate_limiter =
         PacketRateLimiter::new(properties.rate_limit_packets_per_second, Instant::now());
     let world_layout = WorldLayout::new(world_root);
+    // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
+    // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
+    let mut last_item_tick = Instant::now();
+    const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
             keep_alive_id = keep_alive_id.wrapping_add(1);
@@ -1420,6 +1628,76 @@ fn handle_login_connection(
             )?;
             last_keep_alive = Instant::now();
         }
+
+        // Time heartbeat: empty clock map, just the current game_time.
+        // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
+        if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
+            let game_time = clock.lock().unwrap().heartbeat_game_time();
+            time_sync_count += 1;
+            if time_sync_count <= 3 {
+                eprintln!("[DEBUG clock] Heartbeat #{time_sync_count}: game_time={game_time}");
+            }
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_SET_TIME_PACKET_ID,
+                |payload| {
+                    ClientboundSetTimePacket {
+                        game_time,
+                        clock_updates: BTreeMap::new(),
+                    }
+                    .write(payload)
+                },
+            )?;
+            last_time_sync = Instant::now();
+        }
+
+        // Hook A: Item entity age tick — ~20 Hz wall-clock.
+        // Mirrors ItemEntity.tick(): decrement pickupDelay, increment age, expire at LIFETIME.
+        // Java: ServerLevel.tick() → entity.tick() for every tracked ItemEntity.
+        if last_item_tick.elapsed() >= ITEM_TICK_INTERVAL {
+            last_item_tick = Instant::now();
+            let expired = item_entity::tick(&mut play_state.dropped_items);
+            if !expired.is_empty() {
+                write_framed_packet_with_compression(
+                    stream,
+                    compression,
+                    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+                    |p| {
+                        write_var_i32(p, expired.len() as i32)?;
+                        for id in &expired {
+                            write_var_i32(p, *id)?;
+                        }
+                        Ok(())
+                    },
+                )?;
+            }
+        }
+
+        // Detect weather level changes and broadcast to client.
+        // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
+        {
+            let (cur_rain, cur_thunder) = {
+                let wc = weather.lock().unwrap();
+                (wc.rain_level, wc.thunder_level)
+            };
+            if (cur_rain - last_sent_rain_level).abs() > f32::EPSILON {
+                write_game_event(stream, compression, 7, cur_rain)?;
+                // Also send StopRaining(2) or StartRaining(1) on boundary crossings.
+                // Java: WeatherGameEvent::StopRaining/StartRaining at rain_level 0.2 threshold
+                if last_sent_rain_level > 0.2 && cur_rain <= 0.2 {
+                    write_game_event(stream, compression, 2, 0.0)?;
+                } else if last_sent_rain_level <= 0.2 && cur_rain > 0.2 {
+                    write_game_event(stream, compression, 1, 0.0)?;
+                }
+                last_sent_rain_level = cur_rain;
+            }
+            if (cur_thunder - last_sent_thunder_level).abs() > f32::EPSILON {
+                write_game_event(stream, compression, 8, cur_thunder)?;
+                last_sent_thunder_level = cur_thunder;
+            }
+        }
+
         match read_packet_with_compression(stream, compression) {
             Ok(packet) => {
                 if let PacketRateDecision::Kick { reason } =
@@ -1469,6 +1747,17 @@ fn handle_login_connection(
                             &chunks_to_send,
                             true,
                             world_root,
+                        )?;
+                    }
+                    // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
+                    // Spectators cannot pick up items.
+                    // Java: Player.aiStep() — inflate AABB, iterate nearby entities, call playerTouch.
+                    if play_state.game_mode != GameMode::Spectator {
+                        process_item_pickups(
+                            stream,
+                            compression,
+                            &mut play_state,
+                            &finished.profile.uuid,
                         )?;
                     }
                     continue;
@@ -1555,7 +1844,13 @@ fn handle_login_connection(
                             let drop_x = bx as f64 + 0.5;
                             let drop_y = by as f64 + 0.5;
                             let drop_z = bz as f64 + 0.5;
-                            for (item_id, count) in drops {
+                            for (item_name, count) in drops {
+                                // Resolve the protocol ID for the network packet.
+                                // item_static_name already confirmed the item is known, so
+                                // this unwrap is safe — unknown items were filtered out above.
+                                let Some(item_pid) = item_protocol_id(item_name) else {
+                                    continue;
+                                };
                                 entity_id_counter = entity_id_counter.wrapping_add(1);
                                 let eid = entity_id_counter;
                                 write_framed_packet_with_compression(
@@ -1588,12 +1883,26 @@ fn handle_login_connection(
                                         p.write_all(&[8u8])?;
                                         write_var_i32(p, 7)?;
                                         write_var_i32(p, count)?;
-                                        write_var_i32(p, item_id)?;
+                                        write_var_i32(p, item_pid)?;
                                         write_var_i32(p, 0)?;
                                         write_var_i32(p, 0)?;
                                         p.write_all(&[0xFFu8])
                                     },
                                 )?;
+                                // Register the entity server-side so the pickup loop can
+                                // detect when the player walks over it.
+                                // Java: Block.popResource() → ItemEntity constructor
+                                play_state.dropped_items.push(DroppedItem {
+                                    entity_id: eid,
+                                    item: item_name,
+                                    count,
+                                    x: drop_x,
+                                    y: drop_y,
+                                    z: drop_z,
+                                    pickup_delay: DEFAULT_PICKUP_DELAY,
+                                    age: 0,
+                                    target_uuid: None,
+                                });
                             }
                         }
                     }
@@ -1713,6 +2022,125 @@ fn update_play_session_state<R: Read>(
         }
         _ => Ok(false),
     }
+}
+
+/// Checks whether the player is currently standing over any dropped item entities and,
+/// if so, transfers them into the player's inventory and sends the relevant packets.
+///
+/// Java: `Player.aiStep()` — inflated AABB sweep → `ItemEntity.playerTouch()` →
+///       `player.getInventory().add(itemStack)` → `player.take(this, count)`.
+///
+/// Sends per pickup:
+///   1. `ClientboundTakeItemEntityPacket`      — triggers the client-side pickup animation/sound.
+///   2. `ClientboundRemoveEntitiesPacket`       — removes the entity when fully consumed.
+///   3. `ClientboundSetPlayerInventoryPacket`   — one packet per changed slot to sync inventory.
+fn process_item_pickups(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    player_uuid: &str,
+) -> io::Result<()> {
+    // Snapshot which slots exist before any mutation so we can send only dirty ones.
+    // Java: Inventory.add() mutates slots; we detect changes via PlayerInventory.times_changed().
+    let times_changed_before = state.inventory.times_changed();
+
+    let mut entities_to_remove: Vec<i32> = Vec::new();
+
+    for entity in &mut state.dropped_items {
+        if !entity.can_be_picked_up_by(player_uuid) {
+            continue;
+        }
+        if !item_entity::in_pickup_range(
+            state.x, state.y, state.z,
+            entity.x, entity.y, entity.z,
+        ) {
+            continue;
+        }
+
+        let original_count = entity.count;
+        let stack = ItemStack::new(entity.item, entity.count);
+        let (picked_up, new_count) = match state.inventory.add(stack) {
+            InventoryAddResult::FullyAdded => (original_count, 0),
+            InventoryAddResult::PartiallyAdded { remaining } => {
+                (original_count - remaining, remaining)
+            }
+            // Inventory rejected the item (e.g. full) — skip this entity entirely.
+            InventoryAddResult::Rejected | InventoryAddResult::Dropped { .. } => continue,
+        };
+
+        entity.count = new_count;
+
+        // 1. TakeItemEntity — triggers the client-side pickup animation and sound.
+        //    Java: player.take(this, orgCount) → sends TakeItemEntityPacket to all trackers.
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
+            |p| {
+                ClientboundTakeItemEntityPacket {
+                    item_entity_id: entity.entity_id,
+                    collector_entity_id: 1, // player always has entity ID 1 in single-session setup
+                    amount: picked_up,
+                }
+                .write(p)
+            },
+        )?;
+
+        // 2. RemoveEntities — only once the entire stack has been consumed.
+        //    Java: if (itemStack.isEmpty()) this.discard() → RemoveEntitiesPacket.
+        if new_count <= 0 {
+            entities_to_remove.push(entity.entity_id);
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+                |p| {
+                    write_var_i32(p, 1)?;
+                    write_var_i32(p, entity.entity_id)
+                },
+            )?;
+        }
+    }
+
+    // Remove fully-consumed entities from the server-side list.
+    state.dropped_items.retain(|e| e.count > 0);
+
+    // 3. SetPlayerInventory — sync every slot that changed during this pickup pass.
+    //    Java: ContainerListener.slotChanged() → ClientboundSetPlayerInventoryPacket.
+    //    We send all player slots whenever the inventory was mutated to keep things simple;
+    //    a diff-based optimisation can narrow this down later.
+    if state.inventory.times_changed() != times_changed_before {
+        state.inventory_state_id = state.inventory_state_id.wrapping_add(1);
+        // Player inventory slots 0–35 (main + hotbar), 36–39 (armour), 40 (offhand).
+        for slot in 0_usize..=40 {
+            let stack = state.inventory.get(slot);
+            let raw = if stack.is_empty() {
+                RawItemStack::empty()
+            } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+                RawItemStack {
+                    count: stack.count(),
+                    item_id: Some(pid),
+                    components: RawDataComponentPatch::empty(),
+                }
+            } else {
+                RawItemStack::empty()
+            };
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+                |p| {
+                    ClientboundSetPlayerInventoryPacket {
+                        slot: slot as i32,
+                        contents: raw.clone(),
+                    }
+                    .write(p)
+                },
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 fn load_play_session_state(
@@ -1872,6 +2300,10 @@ fn play_session_state_from_nbt(tag: &Tag, default_game_mode: GameMode) -> Option
         xp_total,
         game_mode,
         previous_game_mode,
+        // Dropped items are session-local and not persisted to NBT.
+        dropped_items: Vec::new(),
+        inventory: PlayerInventory::new(),
+        inventory_state_id: 0,
     })
 }
 
@@ -2111,6 +2543,10 @@ fn write_minimal_play_join(
     profile: &NameAndId,
     play_state: &PlaySessionState,
     world_root: &Path,
+    clock_game_time: i64,
+    clock_data: Vec<(i32, ClockNetworkState)>,
+    rain_level: f32,
+    thunder_level: f32,
 ) -> io::Result<()> {
     let center_chunk_x = chunk_coordinate(play_state.x);
     let center_chunk_z = chunk_coordinate(play_state.z);
@@ -2206,15 +2642,32 @@ fn write_minimal_play_join(
         CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
         |payload| write_var_i32(payload, 0),
     )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_TIME_PACKET_ID,
-        |payload| {
-            payload.write_all(&0_i64.to_be_bytes())?;
-            write_var_i32(payload, 0)
-        },
-    )?;
+    // Full clock sync so the client's Timeline system can start rendering the sky.
+    // Java: ServerClockManager.createFullSyncPacket() — sent during ServerLevel.sendLevelInfo()
+    {
+        let packet = ClientboundSetTimePacket {
+            game_time: clock_game_time,
+            clock_updates: clock_data.iter().cloned().collect(),
+        };
+        let mut packet_bytes: Vec<u8> = Vec::new();
+        packet.write(&mut packet_bytes)?;
+        eprintln!(
+            "[DEBUG clock] SetTimePacket on join: game_time={} entries={} bytes={}",
+            clock_game_time,
+            clock_data.len(),
+            packet_bytes
+                .iter()
+                .map(|b| format!("{b:02X}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_TIME_PACKET_ID,
+            |payload| payload.write_all(&packet_bytes),
+        )?;
+    }
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -2255,33 +2708,13 @@ fn write_minimal_play_join(
         CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
         |payload| write_var_i32(payload, properties.view_distance as i32),
     )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_GAME_EVENT_PACKET_ID,
-        |payload| {
-            payload.write_all(&[2])?;
-            payload.write_all(&0.0f32.to_be_bytes())
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_GAME_EVENT_PACKET_ID,
-        |payload| {
-            payload.write_all(&[7])?;
-            payload.write_all(&0.0f32.to_be_bytes())
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_GAME_EVENT_PACKET_ID,
-        |payload| {
-            payload.write_all(&[8])?;
-            payload.write_all(&0.0f32.to_be_bytes())
-        },
-    )?;
+    // Type 2 = StopRaining (used to initialise client weather state even when not raining).
+    // Java: ServerLevel.sendLevelInfo() sends BeginRaining/StopRaining on join.
+    write_game_event(stream, compression, 2, 0.0)?;
+    // Types 7 and 8: current rain/thunder levels.
+    // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
+    write_game_event(stream, compression, 7, rain_level)?;
+    write_game_event(stream, compression, 8, thunder_level)?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -3452,9 +3885,14 @@ fn block_loot_table(block_name: &str) -> Option<LootTable> {
     })
 }
 
-/// Evaluates the loot table for `block_name` and returns (item_protocol_id, count) pairs.
+/// Evaluates the loot table for `block_name` and returns `(item_name, count)` pairs.
+///
+/// `item_name` is the canonical `&'static str` registry name (e.g. `"minecraft:coal"`), which
+/// can be passed directly to `ItemStack::new` and stored in `DroppedItem`.  Items whose
+/// registry name is not in the item catalog are silently dropped.
+///
 /// `seed` should be derived from block position for deterministic but varied drops.
-fn evaluate_block_loot(block_name: &str, seed: u64) -> Vec<(i32, i32)> {
+fn evaluate_block_loot(block_name: &str, seed: u64) -> Vec<(&'static str, i32)> {
     let Some(table) = block_loot_table(block_name) else {
         return Vec::new();
     };
@@ -3466,8 +3904,8 @@ fn evaluate_block_loot(block_name: &str, seed: u64) -> Vec<(i32, i32)> {
             if stack.count <= 0 {
                 return None;
             }
-            let id = item_protocol_id(&stack.item)?;
-            Some((id, stack.count))
+            let name = item_static_name(&stack.item)?;
+            Some((name, stack.count))
         })
         .collect()
 }
@@ -3867,6 +4305,9 @@ fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io::Res
 /// Java: net/minecraft/resources/RegistryDataLoader.java:125,160 — WORLD_CLOCK is a
 /// datapack-loaded registry that must be synced to clients during the configuration phase.
 fn write_world_clock_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    eprintln!(
+        "[DEBUG clock] Sending minecraft:world_clock registry (2 entries: overworld=0, the_end=1)"
+    );
     write_identifier(writer, &Identifier::parse("minecraft:world_clock").unwrap())?;
     write_var_i32(writer, 2)?; // minecraft:overworld (ID 0) and minecraft:the_end (ID 1)
     for name in ["overworld", "the_end"] {
@@ -3878,6 +4319,7 @@ fn write_world_clock_registry_packet<W: Write>(writer: &mut W) -> io::Result<()>
         // WorldClock is a zero-field record; its NBT codec encodes as an empty compound.
         write_network_nbt(writer, &Tag::Compound(vec![]))?;
     }
+    eprintln!("[DEBUG clock] minecraft:world_clock registry sent OK");
     Ok(())
 }
 
@@ -4704,6 +5146,25 @@ fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
 
 fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {
     writer.write_all(&[u8::from(value)])
+}
+
+/// Writes a ClientboundGameEventPacket with the given type and float parameter.
+/// Java: ClientboundGameEventPacket — byte event type, float param
+fn write_game_event(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    event_type: u8,
+    param: f32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[event_type])?;
+            payload.write_all(&param.to_be_bytes())
+        },
+    )
 }
 
 fn write_framed_packet<W, F>(writer: &mut W, packet_id: i32, write_body: F) -> io::Result<()>

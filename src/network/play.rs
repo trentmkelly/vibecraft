@@ -136,6 +136,8 @@ pub const CLIENTBOUND_SET_HEALTH_PACKET_ID: i32 = 104;
 pub const CLIENTBOUND_SET_HELD_SLOT_PACKET_ID: i32 = 105;
 pub const CLIENTBOUND_SET_OBJECTIVE_PACKET_ID: i32 = 106;
 pub const CLIENTBOUND_SET_PASSENGERS_PACKET_ID: i32 = 107;
+/// Java: `net/minecraft/network/protocol/game/ClientboundSetPlayerInventoryPacket`
+pub const CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID: i32 = 108;
 pub const CLIENTBOUND_SET_PLAYER_TEAM_PACKET_ID: i32 = 109;
 pub const CLIENTBOUND_SET_SCORE_PACKET_ID: i32 = 110;
 pub const CLIENTBOUND_SET_SUBTITLE_TEXT_PACKET_ID: i32 = 112;
@@ -147,6 +149,8 @@ pub const CLIENTBOUND_SOUND_PACKET_ID: i32 = 117;
 pub const CLIENTBOUND_START_CONFIGURATION_PACKET_ID: i32 = 118;
 pub const CLIENTBOUND_DISCONNECT_PACKET_ID: i32 = 32;
 pub const CLIENTBOUND_ENTITY_POSITION_SYNC_PACKET_ID: i32 = 35;
+/// Java: `net/minecraft/network/protocol/game/ClientboundTakeItemEntityPacket`
+pub const CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID: i32 = 124;
 pub const CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID: i32 = 125;
 pub const CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID: i32 = 130;
 pub const CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID: i32 = 131;
@@ -920,6 +924,32 @@ pub struct ClientboundAddEntityPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRemoveEntitiesPacket {
     pub entity_ids: Vec<i32>,
+}
+
+/// Triggers the item-pickup animation and sound on all clients tracking the item.
+///
+/// Java: `net/minecraft/network/protocol/game/ClientboundTakeItemEntityPacket`
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundTakeItemEntityPacket {
+    /// Entity ID of the item entity being collected.
+    pub item_entity_id: i32,
+    /// Entity ID of the collecting player.
+    pub collector_entity_id: i32,
+    /// Number of items absorbed in this pickup event.
+    pub amount: i32,
+}
+
+/// Synchronises a single player-inventory slot to the client.
+/// Uses the player's own inventory numbering:
+///   0–35  main inventory (hotbar at 0–8, storage at 9–35)
+///   36–39 armour (boots/leggings/chestplate/helmet)
+///   40    offhand
+///
+/// Java: `net/minecraft/network/protocol/game/ClientboundSetPlayerInventoryPacket`
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetPlayerInventoryPacket {
+    pub slot: i32,
+    pub contents: RawItemStack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3535,6 +3565,21 @@ impl ClientboundRemoveEntitiesPacket {
             write_var_i32(writer, *id)?;
         }
         Ok(())
+    }
+}
+
+impl ClientboundTakeItemEntityPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.item_entity_id)?;
+        write_var_i32(writer, self.collector_entity_id)?;
+        write_var_i32(writer, self.amount)
+    }
+}
+
+impl ClientboundSetPlayerInventoryPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.slot)?;
+        self.contents.write_optional_untrusted(writer)
     }
 }
 

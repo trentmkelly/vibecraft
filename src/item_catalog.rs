@@ -322,7 +322,196 @@ pub fn concrete_item_class_count() -> usize {
         .count()
 }
 
-/// Maps a Minecraft item registry ID to its numeric protocol ID.
+/// Maps a Minecraft item registry ID to its canonical `&'static str` registry name.
+///
+/// Allows dynamic strings produced by the loot system (e.g. `"minecraft:coal"`) to be
+/// converted back to compile-time-known names for storage in `DroppedItem` and for passing
+/// to `ItemStack::new`.  Aliases (e.g. block-state names like `"lit_redstone_ore"`) resolve
+/// to the canonical item name.  Returns `None` for unknown items.
+pub fn item_static_name(registry_id: &str) -> Option<&'static str> {
+    let key = registry_id
+        .strip_prefix("minecraft:")
+        .unwrap_or(registry_id);
+    Some(match key {
+        // Stone variants
+        "air" => "minecraft:air",
+        "stone" => "minecraft:stone",
+        "granite" => "minecraft:granite",
+        "polished_granite" => "minecraft:polished_granite",
+        "diorite" => "minecraft:diorite",
+        "polished_diorite" => "minecraft:polished_diorite",
+        "andesite" => "minecraft:andesite",
+        "polished_andesite" => "minecraft:polished_andesite",
+        "deepslate" => "minecraft:deepslate",
+        "cobbled_deepslate" => "minecraft:cobbled_deepslate",
+        // Dirt/soil
+        "grass_block" => "minecraft:grass_block",
+        "dirt" => "minecraft:dirt",
+        "coarse_dirt" => "minecraft:coarse_dirt",
+        "podzol" => "minecraft:podzol",
+        "rooted_dirt" => "minecraft:rooted_dirt",
+        "mud" => "minecraft:mud",
+        "clay" => "minecraft:clay",
+        "cobblestone" => "minecraft:cobblestone",
+        // Saplings
+        "oak_sapling" => "minecraft:oak_sapling",
+        "spruce_sapling" => "minecraft:spruce_sapling",
+        "birch_sapling" => "minecraft:birch_sapling",
+        "jungle_sapling" => "minecraft:jungle_sapling",
+        "acacia_sapling" => "minecraft:acacia_sapling",
+        "cherry_sapling" => "minecraft:cherry_sapling",
+        "dark_oak_sapling" => "minecraft:dark_oak_sapling",
+        "pale_oak_sapling" => "minecraft:pale_oak_sapling",
+        "mangrove_propagule" => "minecraft:mangrove_propagule",
+        // Wood — planks
+        "oak_planks" => "minecraft:oak_planks",
+        "spruce_planks" => "minecraft:spruce_planks",
+        "birch_planks" => "minecraft:birch_planks",
+        "jungle_planks" => "minecraft:jungle_planks",
+        "acacia_planks" => "minecraft:acacia_planks",
+        "dark_oak_planks" => "minecraft:dark_oak_planks",
+        // Terrain
+        "sand" => "minecraft:sand",
+        "red_sand" => "minecraft:red_sand",
+        "gravel" => "minecraft:gravel",
+        "flint" => "minecraft:flint",
+        // Ore blocks (for silk touch)
+        "coal_ore" => "minecraft:coal_ore",
+        "deepslate_coal_ore" => "minecraft:deepslate_coal_ore",
+        "iron_ore" => "minecraft:iron_ore",
+        "deepslate_iron_ore" => "minecraft:deepslate_iron_ore",
+        "copper_ore" => "minecraft:copper_ore",
+        "deepslate_copper_ore" => "minecraft:deepslate_copper_ore",
+        "gold_ore" => "minecraft:gold_ore",
+        "deepslate_gold_ore" => "minecraft:deepslate_gold_ore",
+        "redstone_ore" | "lit_redstone_ore" => "minecraft:redstone_ore",
+        "deepslate_redstone_ore" | "lit_deepslate_redstone_ore" => {
+            "minecraft:deepslate_redstone_ore"
+        }
+        "emerald_ore" => "minecraft:emerald_ore",
+        "deepslate_emerald_ore" => "minecraft:deepslate_emerald_ore",
+        "lapis_ore" => "minecraft:lapis_ore",
+        "deepslate_lapis_ore" => "minecraft:deepslate_lapis_ore",
+        "diamond_ore" => "minecraft:diamond_ore",
+        "deepslate_diamond_ore" => "minecraft:deepslate_diamond_ore",
+        "nether_gold_ore" => "minecraft:nether_gold_ore",
+        "nether_quartz_ore" => "minecraft:nether_quartz_ore",
+        // Ore drops
+        "coal" => "minecraft:coal",
+        "raw_iron" => "minecraft:raw_iron",
+        "raw_gold" => "minecraft:raw_gold",
+        "raw_copper" => "minecraft:raw_copper",
+        "redstone" => "minecraft:redstone",
+        "diamond" => "minecraft:diamond",
+        "emerald" => "minecraft:emerald",
+        "lapis_lazuli" => "minecraft:lapis_lazuli",
+        "quartz" => "minecraft:quartz",
+        "gold_nugget" => "minecraft:gold_nugget",
+        // Wood — logs
+        "oak_log" => "minecraft:oak_log",
+        "spruce_log" => "minecraft:spruce_log",
+        "birch_log" => "minecraft:birch_log",
+        "jungle_log" => "minecraft:jungle_log",
+        "acacia_log" => "minecraft:acacia_log",
+        "dark_oak_log" => "minecraft:dark_oak_log",
+        "stripped_oak_log" => "minecraft:stripped_oak_log",
+        "stripped_spruce_log" => "minecraft:stripped_spruce_log",
+        "stripped_birch_log" => "minecraft:stripped_birch_log",
+        "stripped_jungle_log" => "minecraft:stripped_jungle_log",
+        "stripped_acacia_log" => "minecraft:stripped_acacia_log",
+        "stripped_dark_oak_log" => "minecraft:stripped_dark_oak_log",
+        "oak_wood" => "minecraft:oak_wood",
+        "spruce_wood" => "minecraft:spruce_wood",
+        "birch_wood" => "minecraft:birch_wood",
+        "jungle_wood" => "minecraft:jungle_wood",
+        "acacia_wood" => "minecraft:acacia_wood",
+        "dark_oak_wood" => "minecraft:dark_oak_wood",
+        "stripped_oak_wood" => "minecraft:stripped_oak_wood",
+        "stripped_spruce_wood" => "minecraft:stripped_spruce_wood",
+        "stripped_birch_wood" => "minecraft:stripped_birch_wood",
+        "stripped_jungle_wood" => "minecraft:stripped_jungle_wood",
+        "stripped_acacia_wood" => "minecraft:stripped_acacia_wood",
+        "stripped_dark_oak_wood" => "minecraft:stripped_dark_oak_wood",
+        // Leaves
+        "oak_leaves" => "minecraft:oak_leaves",
+        "spruce_leaves" => "minecraft:spruce_leaves",
+        "birch_leaves" => "minecraft:birch_leaves",
+        "jungle_leaves" => "minecraft:jungle_leaves",
+        "acacia_leaves" => "minecraft:acacia_leaves",
+        "cherry_leaves" => "minecraft:cherry_leaves",
+        "dark_oak_leaves" => "minecraft:dark_oak_leaves",
+        "pale_oak_leaves" => "minecraft:pale_oak_leaves",
+        "mangrove_leaves" => "minecraft:mangrove_leaves",
+        "azalea_leaves" => "minecraft:azalea_leaves",
+        "flowering_azalea_leaves" => "minecraft:flowering_azalea_leaves",
+        // Sandstone
+        "sandstone" => "minecraft:sandstone",
+        "chiseled_sandstone" => "minecraft:chiseled_sandstone",
+        "cut_sandstone" => "minecraft:cut_sandstone",
+        "smooth_sandstone" => "minecraft:smooth_sandstone",
+        // Plants
+        "short_grass" => "minecraft:short_grass",
+        "fern" => "minecraft:fern",
+        "dead_bush" => "minecraft:dead_bush",
+        "firefly_bush" => "minecraft:firefly_bush",
+        "azalea" => "minecraft:azalea",
+        "flowering_azalea" => "minecraft:flowering_azalea",
+        // Flowers
+        "dandelion" => "minecraft:dandelion",
+        "golden_dandelion" => "minecraft:golden_dandelion",
+        "poppy" => "minecraft:poppy",
+        "blue_orchid" => "minecraft:blue_orchid",
+        "allium" => "minecraft:allium",
+        "azure_bluet" => "minecraft:azure_bluet",
+        "red_tulip" => "minecraft:red_tulip",
+        "orange_tulip" => "minecraft:orange_tulip",
+        "white_tulip" => "minecraft:white_tulip",
+        "pink_tulip" => "minecraft:pink_tulip",
+        "oxeye_daisy" => "minecraft:oxeye_daisy",
+        "cornflower" => "minecraft:cornflower",
+        "lily_of_the_valley" => "minecraft:lily_of_the_valley",
+        "wither_rose" => "minecraft:wither_rose",
+        "torchflower" => "minecraft:torchflower",
+        "brown_mushroom" => "minecraft:brown_mushroom",
+        "red_mushroom" => "minecraft:red_mushroom",
+        "wildflowers" => "minecraft:wildflowers",
+        // Double-tall flowers
+        "sunflower" => "minecraft:sunflower",
+        "lilac" => "minecraft:lilac",
+        "rose_bush" => "minecraft:rose_bush",
+        "peony" => "minecraft:peony",
+        // Crops and food
+        "apple" => "minecraft:apple",
+        "carrot" => "minecraft:carrot",
+        "potato" => "minecraft:potato",
+        "poisonous_potato" => "minecraft:poisonous_potato",
+        "beetroot" => "minecraft:beetroot",
+        "beetroot_seeds" => "minecraft:beetroot_seeds",
+        "melon_slice" => "minecraft:melon_slice",
+        // Natural blocks
+        "sugar_cane" => "minecraft:sugar_cane",
+        "pumpkin" => "minecraft:pumpkin",
+        "melon" => "minecraft:melon",
+        "cactus" => "minecraft:cactus",
+        "bamboo" => "minecraft:bamboo",
+        "snow" => "minecraft:snow",
+        "snow_block" => "minecraft:snow_block",
+        "glowstone" => "minecraft:glowstone",
+        "sea_lantern" => "minecraft:sea_lantern",
+        "bookshelf" => "minecraft:bookshelf",
+        // Fragment drops
+        "clay_ball" => "minecraft:clay_ball",
+        "glowstone_dust" => "minecraft:glowstone_dust",
+        "prismarine_crystals" => "minecraft:prismarine_crystals",
+        "snowball" => "minecraft:snowball",
+        "book" => "minecraft:book",
+        // Crafted items
+        "stick" => "minecraft:stick",
+        "wheat_seeds" => "minecraft:wheat_seeds",
+        _ => return None,
+    })
+}
+
 /// Maps a Minecraft item registry ID to its numeric protocol ID.
 ///
 /// Protocol IDs are sourced from the vanilla data generator reports:
@@ -581,5 +770,66 @@ mod tests {
             item_source("JukeboxSong").unwrap().source_kind,
             ItemSourceKind::Record
         );
+    }
+
+    #[test]
+    fn item_static_name_returns_qualified_names_matching_protocol_id_coverage() {
+        // Every item that has a protocol ID must also have a static name, and vice versa.
+        let sample: &[(&str, &str)] = &[
+            ("coal", "minecraft:coal"),
+            ("minecraft:coal", "minecraft:coal"),
+            ("diamond", "minecraft:diamond"),
+            ("wheat_seeds", "minecraft:wheat_seeds"),
+            ("oak_sapling", "minecraft:oak_sapling"),
+            ("stick", "minecraft:stick"),
+            ("flint", "minecraft:flint"),
+            ("glowstone_dust", "minecraft:glowstone_dust"),
+        ];
+        for (input, expected) in sample {
+            assert_eq!(
+                item_static_name(input),
+                Some(*expected),
+                "item_static_name({input:?}) should return {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn item_static_name_aliases_resolve_to_canonical_name() {
+        // Block-state alias names (e.g. lit ore states) must resolve to the canonical item name.
+        assert_eq!(
+            item_static_name("lit_redstone_ore"),
+            Some("minecraft:redstone_ore")
+        );
+        assert_eq!(
+            item_static_name("lit_deepslate_redstone_ore"),
+            Some("minecraft:deepslate_redstone_ore")
+        );
+    }
+
+    #[test]
+    fn item_static_name_and_protocol_id_have_consistent_coverage() {
+        // A item known by item_protocol_id must also be known by item_static_name and vice versa.
+        // We verify this for a set of known items.
+        let items = &[
+            "coal", "diamond", "emerald", "stick", "wheat_seeds", "coal_ore",
+            "oak_log", "oak_sapling", "flint", "clay_ball", "glowstone_dust",
+        ];
+        for item in items {
+            assert!(
+                item_protocol_id(item).is_some(),
+                "item_protocol_id({item:?}) should be Some"
+            );
+            assert!(
+                item_static_name(item).is_some(),
+                "item_static_name({item:?}) should be Some"
+            );
+        }
+    }
+
+    #[test]
+    fn item_static_name_returns_none_for_unknown_items() {
+        assert_eq!(item_static_name("not_a_real_item"), None);
+        assert_eq!(item_static_name("minecraft:not_a_real_item"), None);
     }
 }

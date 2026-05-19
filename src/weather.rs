@@ -344,13 +344,14 @@ pub struct MobSunburnContext {
 
 /// Returns true if the mob should catch fire this tick due to sunlight.
 ///
-/// Source: vanilla `Monster.isSunBurnTick()` and mob-specific overrides.
-/// Day time in vanilla is when day_cycle_time is between 0 and 12000 or 23000-24000.
+/// Uses `environment_attributes::monsters_burn` for exact vanilla day/night boundaries
+/// (tick 12542 onset, tick 23460 end) instead of the former approximation.
+/// Java: Monster.isSunBurnTick() + EnvironmentAttributes.MONSTERS_BURN Timeline track
 pub fn mob_should_burn_in_sunlight(ctx: MobSunburnContext) -> bool {
     if ctx.raining {
         return false;
     }
-    if !is_daytime(ctx.day_cycle_time) {
+    if !crate::environment_attributes::monsters_burn(ctx.day_cycle_time) {
         return false;
     }
     if ctx.wearing_helmet {
@@ -369,12 +370,12 @@ pub fn mob_should_burn_in_sunlight(ctx: MobSunburnContext) -> bool {
     true
 }
 
-/// Returns true when the in-game time corresponds to daytime.
+/// Returns true when the in-game time corresponds to daytime (monsters would burn).
 ///
-/// Vanilla daytime: day_cycle_time < 13000 (dawn) or > 23000 (pre-dawn).
+/// Delegates to `environment_attributes::monsters_burn` for exact vanilla boundaries.
+/// Java: Level.isDay() — used for phantom/bat spawning, etc.
 pub fn is_daytime(day_cycle_time: i64) -> bool {
-    // In vanilla: isDay() = dayTime < 13000L
-    day_cycle_time < 13_000
+    crate::environment_attributes::monsters_burn(day_cycle_time)
 }
 
 /// Returns true when a mob of the given kind is sun-sensitive.
@@ -633,11 +634,14 @@ mod tests {
             ..clear_day_exposed
         }));
 
-        // Daytime check boundaries
+        // Daytime check boundaries — exact vanilla values from EnvironmentAttributes.MONSTERS_BURN.
+        // Java: Timelines.java:157 BooleanModifier.OR: addKeyframe(12542, false).addKeyframe(23460, true)
         assert!(is_daytime(0));
-        assert!(is_daytime(12_999));
-        assert!(!is_daytime(13_000));
-        assert!(!is_daytime(18_000));
+        assert!(is_daytime(12_541)); // last daytime tick
+        assert!(!is_daytime(12_542)); // first night tick
+        assert!(!is_daytime(18_000)); // midnight
+        assert!(!is_daytime(23_459)); // last night tick
+        assert!(is_daytime(23_460)); // first dawn tick
     }
 
     #[test]

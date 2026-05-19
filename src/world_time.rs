@@ -85,7 +85,11 @@ impl ClockInstance {
         ClockNetworkState {
             total_ticks: self.total_ticks,
             partial_tick: self.partial_tick,
-            rate: if self.paused || !advance_time { 0.0 } else { self.rate },
+            rate: if self.paused || !advance_time {
+                0.0
+            } else {
+                self.rate
+            },
         }
     }
 }
@@ -111,7 +115,10 @@ impl Default for ServerClockManager {
         Self {
             game_time: 0,
             // Start at noon of day 1 (tick 6000) so first-join sky is not midnight black.
-            overworld: ClockInstance { total_ticks: 6_000, ..ClockInstance::default() },
+            overworld: ClockInstance {
+                total_ticks: 6_000,
+                ..ClockInstance::default()
+            },
             the_end: ClockInstance::default(),
         }
     }
@@ -124,7 +131,11 @@ impl ServerClockManager {
     /// advance but game_time still increments and scheduled functions still fire.
     ///
     /// Java: ServerClockManager.tick(), MinecraftServer.tickChildren()
-    pub fn tick(&mut self, advance_time: bool, scheduled: &mut ScheduledTimeChanges) -> Vec<TimeEvent> {
+    pub fn tick(
+        &mut self,
+        advance_time: bool,
+        scheduled: &mut ScheduledTimeChanges,
+    ) -> Vec<TimeEvent> {
         self.game_time += 1;
         if advance_time {
             self.overworld.tick();
@@ -145,8 +156,14 @@ impl ServerClockManager {
         (
             self.game_time,
             vec![
-                (OVERWORLD_CLOCK_ID, self.overworld.pack_network_state(advance_time)),
-                (THE_END_CLOCK_ID, self.the_end.pack_network_state(advance_time)),
+                (
+                    OVERWORLD_CLOCK_ID,
+                    self.overworld.pack_network_state(advance_time),
+                ),
+                (
+                    THE_END_CLOCK_ID,
+                    self.the_end.pack_network_state(advance_time),
+                ),
             ],
         )
     }
@@ -462,13 +479,17 @@ mod tests {
 
         assert_eq!(
             manager.tick(true, &mut scheduled),
-            vec![TimeEvent::ScheduledFunction("minecraft:tick_one".to_string())]
+            vec![TimeEvent::ScheduledFunction(
+                "minecraft:tick_one".to_string()
+            )]
         );
         assert_eq!(manager.game_time, 1);
         assert!(manager.tick(true, &mut scheduled).is_empty());
         assert_eq!(
             manager.tick(true, &mut scheduled),
-            vec![TimeEvent::ScheduledFunction("minecraft:tick_three".to_string())]
+            vec![TimeEvent::ScheduledFunction(
+                "minecraft:tick_three".to_string()
+            )]
         );
         assert_eq!(manager.game_time, 3);
 
@@ -483,7 +504,10 @@ mod tests {
     fn clock_instance_moon_phase_and_wake_marker_follow_vanilla_clock_cycle() {
         let mut manager = ServerClockManager {
             game_time: 0,
-            overworld: ClockInstance { total_ticks: 23_000, ..ClockInstance::default() },
+            overworld: ClockInstance {
+                total_ticks: 23_000,
+                ..ClockInstance::default()
+            },
             ..ServerClockManager::default()
         };
         manager.tick(true, &mut ScheduledTimeChanges::default());
@@ -547,7 +571,10 @@ mod tests {
     fn sleep_skip_wakes_players_resets_insomnia_and_optionally_clears_weather() {
         let mut manager = ServerClockManager {
             game_time: 0,
-            overworld: ClockInstance { total_ticks: 13_000, ..ClockInstance::default() },
+            overworld: ClockInstance {
+                total_ticks: 13_000,
+                ..ClockInstance::default()
+            },
             ..ServerClockManager::default()
         };
         let mut players = vec![
@@ -567,7 +594,15 @@ mod tests {
         let mut status = SleepStatus::default();
         status.update(&players);
 
-        let events = apply_sleep_skip(&mut manager, &mut status, &mut players, 100, true, true, true);
+        let events = apply_sleep_skip(
+            &mut manager,
+            &mut status,
+            &mut players,
+            100,
+            true,
+            true,
+            true,
+        );
 
         assert_eq!(
             events,
@@ -647,7 +682,10 @@ mod tests {
         // Day 0, time 13000 (night) → skip to 24000 (start of day 1)
         let mut manager = ServerClockManager {
             game_time: 0,
-            overworld: ClockInstance { total_ticks: 13_000, ..ClockInstance::default() },
+            overworld: ClockInstance {
+                total_ticks: 13_000,
+                ..ClockInstance::default()
+            },
             ..ServerClockManager::default()
         };
         let event = manager.move_overworld_to_wake_up_marker(true).unwrap();
@@ -657,7 +695,10 @@ mod tests {
         // Day 1, time 37000 → skip to 48000 (start of day 2)
         let mut manager2 = ServerClockManager {
             game_time: 0,
-            overworld: ClockInstance { total_ticks: 37_000, ..ClockInstance::default() },
+            overworld: ClockInstance {
+                total_ticks: 37_000,
+                ..ClockInstance::default()
+            },
             ..ServerClockManager::default()
         };
         let event2 = manager2.move_overworld_to_wake_up_marker(true).unwrap();
@@ -667,7 +708,10 @@ mod tests {
         // Time exactly 0 (already at day start) → skip to 24000
         let mut manager3 = ServerClockManager {
             game_time: 0,
-            overworld: ClockInstance { total_ticks: 0, ..ClockInstance::default() },
+            overworld: ClockInstance {
+                total_ticks: 0,
+                ..ClockInstance::default()
+            },
             ..ServerClockManager::default()
         };
         let event3 = manager3.move_overworld_to_wake_up_marker(true).unwrap();
@@ -688,7 +732,10 @@ mod tests {
         assert_eq!(clock.partial_tick, 0.0);
 
         // rate=0.5: two ticks needed for one total_tick increment
-        let mut slow_clock = ClockInstance { rate: 0.5, ..ClockInstance::default() };
+        let mut slow_clock = ClockInstance {
+            rate: 0.5,
+            ..ClockInstance::default()
+        };
         slow_clock.tick();
         assert_eq!(slow_clock.total_ticks, 0);
         assert!((slow_clock.partial_tick - 0.5).abs() < f32::EPSILON);
@@ -697,7 +744,10 @@ mod tests {
         assert_eq!(slow_clock.partial_tick, 0.0);
 
         // paused: no change
-        let mut paused = ClockInstance { paused: true, ..ClockInstance::default() };
+        let mut paused = ClockInstance {
+            paused: true,
+            ..ClockInstance::default()
+        };
         paused.tick();
         assert_eq!(paused.total_ticks, 0);
     }
@@ -705,14 +755,22 @@ mod tests {
     #[test]
     fn clock_instance_pack_network_state_zeroes_rate_when_paused_or_frozen() {
         // Java: ClockInstance.packNetworkState — rate=0 when paused or !advanceTime
-        let clock = ClockInstance { total_ticks: 100, partial_tick: 0.25, rate: 2.0, paused: false };
+        let clock = ClockInstance {
+            total_ticks: 100,
+            partial_tick: 0.25,
+            rate: 2.0,
+            paused: false,
+        };
         let state = clock.pack_network_state(true);
         assert_eq!(state.rate, 2.0);
 
         let state_frozen = clock.pack_network_state(false);
         assert_eq!(state_frozen.rate, 0.0);
 
-        let paused_clock = ClockInstance { paused: true, ..clock.clone() };
+        let paused_clock = ClockInstance {
+            paused: true,
+            ..clock.clone()
+        };
         let state_paused = paused_clock.pack_network_state(true);
         assert_eq!(state_paused.rate, 0.0);
     }
