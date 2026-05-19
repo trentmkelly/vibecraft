@@ -79,6 +79,7 @@ pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
 pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
 
+pub const CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID: i32 = 0;
 pub const CLIENTBOUND_LOGIN_PACKET_ID: i32 = 49;
 pub const CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 pub const CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
@@ -8853,6 +8854,10 @@ mod tests {
             Some("chunk_batch_received")
         );
         assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID),
+            Some("bundle")
+        );
+        assert_eq!(
             registry.clientbound_name(CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID),
             Some("chunk_batch_finished")
         );
@@ -13328,7 +13333,8 @@ mod tests {
             carried_item: HashedStack::empty(),
         };
         carried = ItemStack::new("minecraft:oak_log", 1);
-        let instructions = handle_container_click(&place_log, &mut state_id, &mut inventory_menu, &mut carried);
+        let instructions =
+            handle_container_click(&place_log, &mut state_id, &mut inventory_menu, &mut carried);
 
         // Slot 1 now holds the log; slot 0 shows the result (4 planks).
         assert_eq!(state_id, 1);
@@ -13345,16 +13351,22 @@ mod tests {
             Some(ItemStack::new("minecraft:oak_planks", 4))
         );
         // Server must send ContainerSetSlot for slot 0 (result) and slot 1 (log placed).
-        assert!(instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 0 && p.item_stack.count == 4
-        )), "expected ContainerSetSlot slot=0 count=4 planks");
-        assert!(instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 1 && p.item_stack.count == 1
-        )), "expected ContainerSetSlot slot=1 count=1 log");
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::ContainerSetSlot(p)
+                    if p.slot == 0 && p.item_stack.count == 4
+            )),
+            "expected ContainerSetSlot slot=0 count=4 planks"
+        );
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::ContainerSetSlot(p)
+                    if p.slot == 1 && p.item_stack.count == 1
+            )),
+            "expected ContainerSetSlot slot=1 count=1 log"
+        );
 
         // Step 2: take result from slot 0.
         let take_result = ServerboundContainerClickPacket {
@@ -13366,7 +13378,12 @@ mod tests {
             changed_slots: BTreeMap::new(),
             carried_item: HashedStack::empty(),
         };
-        let instructions = handle_container_click(&take_result, &mut state_id, &mut inventory_menu, &mut carried);
+        let instructions = handle_container_click(
+            &take_result,
+            &mut state_id,
+            &mut inventory_menu,
+            &mut carried,
+        );
 
         assert_eq!(state_id, 2);
         assert_eq!(
@@ -13384,26 +13401,38 @@ mod tests {
             Some(ItemStack::empty()),
             "result slot should be empty"
         );
-        assert!(instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 0 && p.item_stack.count == 0
-        )), "expected ContainerSetSlot slot=0 count=0 (empty result)");
-        assert!(instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 1 && p.item_stack.count == 0
-        )), "expected ContainerSetSlot slot=1 count=0 (log consumed)");
-        assert!(instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::SetCursorItem(p)
-                if p.item_stack.count == 4
-                    && p.item_stack.item_id == item_protocol_id("minecraft:oak_planks")
-        )), "expected SetCursorItem with 4 oak planks");
-        assert!(instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::RecipesUnlocked(ids) if ids.contains(&"minecraft:oak_planks")
-        )), "expected RecipesUnlocked with oak_planks on first craft");
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::ContainerSetSlot(p)
+                    if p.slot == 0 && p.item_stack.count == 0
+            )),
+            "expected ContainerSetSlot slot=0 count=0 (empty result)"
+        );
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::ContainerSetSlot(p)
+                    if p.slot == 1 && p.item_stack.count == 0
+            )),
+            "expected ContainerSetSlot slot=1 count=0 (log consumed)"
+        );
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::SetCursorItem(p)
+                    if p.item_stack.count == 4
+                        && p.item_stack.item_id == item_protocol_id("minecraft:oak_planks")
+            )),
+            "expected SetCursorItem with 4 oak planks"
+        );
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::RecipesUnlocked(ids) if ids.contains(&"minecraft:oak_planks")
+            )),
+            "expected RecipesUnlocked with oak_planks on first craft"
+        );
     }
 
     /// Parity test: result slot updates after each grid change; stale state ID is rejected with
@@ -13446,8 +13475,12 @@ mod tests {
             changed_slots: BTreeMap::new(),
             carried_item: HashedStack::empty(),
         };
-        let corrections =
-            handle_container_click(&stale_click, &mut state_id, &mut inventory_menu, &mut carried);
+        let corrections = handle_container_click(
+            &stale_click,
+            &mut state_id,
+            &mut inventory_menu,
+            &mut carried,
+        );
         assert_eq!(state_id, 1, "stale click must not advance state ID");
         let set_slot_count = corrections
             .iter()
@@ -13473,8 +13506,16 @@ mod tests {
             handle_container_click(&take1, &mut state_id, &mut inventory_menu, &mut carried);
         assert_eq!(state_id, 2);
         assert_eq!(carried, ItemStack::new("minecraft:oak_planks", 4));
-        assert_eq!(inventory_menu.get_slot(1), Some(ItemStack::empty()), "log must be consumed");
-        assert_eq!(inventory_menu.get_slot(0), Some(ItemStack::empty()), "result must clear");
+        assert_eq!(
+            inventory_menu.get_slot(1),
+            Some(ItemStack::empty()),
+            "log must be consumed"
+        );
+        assert_eq!(
+            inventory_menu.get_slot(0),
+            Some(ItemStack::empty()),
+            "result must clear"
+        );
         assert!(
             take1_instrs.iter().any(|i| matches!(
                 i,
@@ -13507,7 +13548,9 @@ mod tests {
         let take2_instrs =
             handle_container_click(&take2, &mut state_id, &mut inventory_menu, &mut carried2);
         assert!(
-            !take2_instrs.iter().any(|i| matches!(i, PlayInstruction::RecipesUnlocked(_))),
+            !take2_instrs
+                .iter()
+                .any(|i| matches!(i, PlayInstruction::RecipesUnlocked(_))),
             "second craft of the same recipe must NOT emit another RecipesUnlocked"
         );
     }

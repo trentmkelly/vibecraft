@@ -32,7 +32,9 @@ impl LogLevel {
             "info" => Ok(LogLevel::Info),
             "debug" => Ok(LogLevel::Debug),
             "trace" => Ok(LogLevel::Trace),
-            _ => Err(format!("Unknown log level: {s:?}. Expected info, debug, or trace.")),
+            _ => Err(format!(
+                "Unknown log level: {s:?}. Expected info, debug, or trace."
+            )),
         }
     }
 }
@@ -267,7 +269,13 @@ fn hex_dump(bytes: &[u8]) -> String {
         // ASCII sidebar: printable bytes verbatim, others replaced with '.'.
         let ascii_col: String = chunk
             .iter()
-            .map(|&b| if (0x20..0x7f).contains(&b) { b as char } else { '.' })
+            .map(|&b| {
+                if (0x20..0x7f).contains(&b) {
+                    b as char
+                } else {
+                    '.'
+                }
+            })
             .collect();
 
         out.push_str(&format!("  {offset:04x}  {hex_col} |{ascii_col}|\n"));
@@ -359,7 +367,7 @@ fn civil_from_days(days_since_unix_epoch: i64) -> (i64, i64, i64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{hex_dump, Logger, LogLevel};
+    use super::{hex_dump, LogLevel, Logger};
     use flate2::read::GzDecoder;
     use std::fs;
     use std::io::Read;
@@ -419,7 +427,10 @@ mod tests {
     #[test]
     fn debug_is_filtered_when_level_is_info() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-logs-debug-filter-{}", std::process::id()));
+        dir.push(format!(
+            "rustcraft-logs-debug-filter-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&dir);
 
         let logger = Logger::open_with_level(&dir, LogLevel::Info).unwrap();
@@ -429,14 +440,20 @@ mod tests {
         let contents = fs::read_to_string(logger.latest_log()).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        assert!(!contents.contains("should not appear"), "debug message leaked through Info filter");
+        assert!(
+            !contents.contains("should not appear"),
+            "debug message leaked through Info filter"
+        );
         assert!(contents.contains("should appear"));
     }
 
     #[test]
     fn trace_is_filtered_when_level_is_debug() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-logs-trace-filter-{}", std::process::id()));
+        dir.push(format!(
+            "rustcraft-logs-trace-filter-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&dir);
 
         let logger = Logger::open_with_level(&dir, LogLevel::Debug).unwrap();
@@ -446,7 +463,10 @@ mod tests {
         let contents = fs::read_to_string(logger.latest_log()).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        assert!(!contents.contains("trace should not appear"), "trace message leaked through Debug filter");
+        assert!(
+            !contents.contains("trace should not appear"),
+            "trace message leaked through Debug filter"
+        );
         assert!(contents.contains("debug should appear"));
     }
 
@@ -466,7 +486,10 @@ mod tests {
         let contents = fs::read_to_string(logger.latest_log()).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        assert!(contents.contains("SEND 0x26 (4 bytes)"), "missing SEND header; got:\n{contents}");
+        assert!(
+            contents.contains("SEND 0x26 (4 bytes)"),
+            "missing SEND header; got:\n{contents}"
+        );
         assert!(contents.contains("0000"), "missing offset column");
         assert!(contents.contains("01 02 ab ff"), "missing hex bytes");
         assert!(contents.contains("|...."), "missing ASCII sidebar");
@@ -475,7 +498,10 @@ mod tests {
     #[test]
     fn packet_send_is_suppressed_below_trace_level() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-logs-packet-send-filter-{}", std::process::id()));
+        dir.push(format!(
+            "rustcraft-logs-packet-send-filter-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&dir);
 
         let logger = Logger::open_with_level(&dir, LogLevel::Info).unwrap();
@@ -484,7 +510,10 @@ mod tests {
         let contents = fs::read_to_string(logger.latest_log()).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        assert!(!contents.contains("SEND"), "packet_send leaked through Info filter");
+        assert!(
+            !contents.contains("SEND"),
+            "packet_send leaked through Info filter"
+        );
     }
 
     #[test]

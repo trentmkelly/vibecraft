@@ -3,8 +3,8 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use crate::biome::{
-    biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
-    ClimateParameterPoint,
+    biome_source_from_stem_id, climate_target, select_biome_from_source, select_end_biome, span,
+    BiomeSourceModel, ClimateParameterPoint, ClimateTarget,
 };
 pub use crate::random_source::RandomAlgorithm;
 
@@ -186,6 +186,126 @@ pub struct NoiseRouter {
     pub vein_toggle: DensityFunction,
     pub vein_ridged: DensityFunction,
     pub vein_gap: DensityFunction,
+}
+
+/// Samples climate parameters from density functions at quart-block coordinates.
+///
+/// Mirrors Java's `Climate.Sampler` record. The six density functions correspond to
+/// `NoiseRouter` fields: temperature, vegetation (= humidity), continents
+/// (= continentalness), erosion, depth, and ridges (= weirdness).
+///
+/// `sample()` converts quart coords to block coords (`coord * 4`), evaluates each
+/// function, casts to `f32`, and calls `climate_target()` — exactly matching Java.
+/// Source: decompiled-server-26.1.2/net/minecraft/world/level/biome/Climate.java
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClimateSampler {
+    pub temperature: DensityFunction,
+    pub humidity: DensityFunction,
+    pub continentalness: DensityFunction,
+    pub erosion: DensityFunction,
+    pub depth: DensityFunction,
+    pub weirdness: DensityFunction,
+    pub seed: i64,
+    pub settings: NoiseGeneratorSettings,
+}
+
+impl ClimateSampler {
+    /// Constructs a sampler from a `NoiseRouter` by mapping router fields to the six
+    /// climate dimensions. Field mapping:
+    /// - `temperature` → `router.temperature`
+    /// - `humidity`    → `router.vegetation`
+    /// - `continentalness` → `router.continents`
+    /// - `erosion`     → `router.erosion`
+    /// - `depth`       → `router.depth`
+    /// - `weirdness`   → `router.ridges`
+    pub fn from_noise_router(
+        router: &NoiseRouter,
+        seed: i64,
+        settings: NoiseGeneratorSettings,
+    ) -> Self {
+        Self {
+            temperature: router.temperature,
+            humidity: router.vegetation,
+            continentalness: router.continents,
+            erosion: router.erosion,
+            depth: router.depth,
+            weirdness: router.ridges,
+            seed,
+            settings,
+        }
+    }
+
+    /// Samples climate at quart-block coordinates. Converts quart → block (`× 4`),
+    /// evaluates each density function, casts to `f32`, and calls `climate_target()`.
+    /// Mirrors Java's `Sampler.sample(quartX, quartY, quartZ)`.
+    pub fn sample(&self, quart_x: i32, quart_y: i32, quart_z: i32) -> ClimateTarget {
+        let bx = quart_x * 4;
+        let by = quart_y * 4;
+        let bz = quart_z * 4;
+        let eval =
+            |f: DensityFunction| f.compute_with_noise(self.seed, self.settings, bx, by, bz) as f32;
+        climate_target(
+            eval(self.temperature),
+            eval(self.humidity),
+            eval(self.continentalness),
+            eval(self.erosion),
+            eval(self.depth),
+            eval(self.weirdness),
+        )
+    }
+}
+
+/// Returns the biome at quart-block coordinates for any biome source type.
+///
+/// Mirrors Java's `BiomeSource.getNoiseBiome(quartX, quartY, quartZ, sampler)`:
+/// - `Fixed`: always the fixed biome.
+/// - `Checkerboard`: index from `(quartX >> (scale+2)) + (quartZ >> (scale+2))`.
+/// - `MultiNoisePreset`: samples climate via the sampler, finds nearest preset entry.
+/// - `TheEnd`: evaluates the sampler's erosion function at the chunk-centre offset
+///   position used by `TheEndBiomeSource`, as per Java.
+///
+/// Source: decompiled-server-26.1.2/net/minecraft/world/level/biome/…BiomeSource.java
+pub fn get_biome(
+    source: &BiomeSourceModel,
+    quart_x: i32,
+    quart_y: i32,
+    quart_z: i32,
+    sampler: &ClimateSampler,
+) -> Option<&'static str> {
+    match source {
+        BiomeSourceModel::Fixed { biome } => Some(*biome),
+        BiomeSourceModel::Checkerboard { biomes, scale } => {
+            let bit_shift = scale + 2;
+            let index =
+                ((quart_x >> bit_shift) + (quart_z >> bit_shift)).rem_euclid(biomes.len() as i32);
+            Some(biomes[index as usize])
+        }
+        BiomeSourceModel::MultiNoisePreset { .. } => {
+            let climate = sampler.sample(quart_x, quart_y, quart_z);
+            select_biome_from_source(source, quart_x, quart_y, quart_z, climate, 0.0)
+        }
+        BiomeSourceModel::TheEnd => {
+            // Java uses the erosion density function evaluated at the *chunk-centre offset*
+            // position: weirdBlockX = (chunkX * 2 + 1) * 8, weirdBlockZ = (chunkZ * 2 + 1) * 8.
+            // select_end_biome handles the central island check itself, so we only need
+            // to compute the erosion at the offset coords for the outer end.
+            let block_x = quart_x * 4;
+            let block_y = quart_y * 4;
+            let block_z = quart_z * 4;
+            let chunk_x = block_x.div_euclid(16);
+            let chunk_z = block_z.div_euclid(16);
+            let weird_block_x = (chunk_x * 2 + 1) * 8;
+            let weird_block_z = (chunk_z * 2 + 1) * 8;
+            let erosion_value = sampler.erosion.compute_with_noise(
+                sampler.seed,
+                sampler.settings,
+                weird_block_x,
+                block_y,
+                weird_block_z,
+            );
+            Some(select_end_biome(quart_x, quart_y, quart_z, erosion_value))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -7205,8 +7325,7 @@ pub const PRELIM_OW_SLIDE_DENSITY: DensityFunction = DensityFunction::Binary {
     argument2: &OVERWORLD_SLIDE_BOTTOM_OFFSET_DENSITY,
 };
 // add(slide, constant(-0.390625))
-pub const PRELIM_FINAL_SLIDE_OFFSET_DENSITY: DensityFunction =
-    DensityFunction::Constant(-0.390625);
+pub const PRELIM_FINAL_SLIDE_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(-0.390625);
 pub const PRELIM_OW_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Add,
     argument1: &PRELIM_OW_SLIDE_DENSITY,
@@ -7455,8 +7574,7 @@ pub const PRELIM_AMP_TOP_SLIDE_DENSITY: DensityFunction = DensityFunction::Binar
 // lerp(bottomFactor, 0.4, topSlide) = add(mul(bottomFactor, add(topSlide, -0.4)), 0.4)
 pub const PRELIM_AMP_SLIDE_BOTTOM_NEG_TARGET_DENSITY: DensityFunction =
     DensityFunction::Constant(-0.4);
-pub const PRELIM_AMP_SLIDE_BOTTOM_OFFSET_DENSITY: DensityFunction =
-    DensityFunction::Constant(0.4);
+pub const PRELIM_AMP_SLIDE_BOTTOM_OFFSET_DENSITY: DensityFunction = DensityFunction::Constant(0.4);
 pub const PRELIM_AMP_SLIDE_BOTTOM_INNER_ADJUSTED_DENSITY: DensityFunction =
     DensityFunction::Binary {
         kind: BinaryDensityFunction::Add,
@@ -35230,6 +35348,34 @@ mod tests {
     }
 
     #[test]
+    fn overworld_chunk_at_origin_has_correct_section_count_and_heightmaps() {
+        // Mirrors Java's ChunkStatus parity expectation: overworld (0,0) produced by the
+        // noise generator must have 24 sections (minY=-64, height=384, 384/16=24) and
+        // the WORLD_SURFACE_WG and OCEAN_FLOOR_WG heightmaps required for worldgen.
+        // Source: decompiled-server-26.1.2/net/minecraft/world/level/levelgen/Heightmap.java
+        let preset = super::resolve_world_preset("normal").unwrap();
+        let chunk = super::generate_chunk_for_stem(ChunkPos { x: 0, z: 0 }, &preset.overworld)
+            .expect("overworld chunk generation must not fail at (0,0)");
+
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let expected_sections =
+            (settings.noise_settings.height / 16) as usize;
+        assert_eq!(
+            chunk.sections.len(),
+            expected_sections,
+            "expected {expected_sections} sections for height={}", settings.noise_settings.height
+        );
+        assert!(
+            chunk.heightmaps.contains_key("WORLD_SURFACE_WG"),
+            "WORLD_SURFACE_WG heightmap must be present"
+        );
+        assert!(
+            chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"),
+            "OCEAN_FLOOR_WG heightmap must be present"
+        );
+    }
+
+    #[test]
     fn noise_preview_trees_follow_biome_generation_settings() {
         let settings = super::builtin_noise_generator_settings("overworld").unwrap();
         let terrain_heights = [settings.sea_level + 8; 16 * 16];
@@ -50594,10 +50740,64 @@ mod tests {
         check_field!(router.erosion, "erosion");
         check_field!(router.depth, "depth");
         check_field!(router.ridges, "ridges");
-        check_field!(router.preliminary_surface_level, "preliminary_surface_level");
+        check_field!(
+            router.preliminary_surface_level,
+            "preliminary_surface_level"
+        );
         check_field!(router.final_density, "final_density");
         check_field!(router.vein_toggle, "vein_toggle");
         check_field!(router.vein_ridged, "vein_ridged");
         check_field!(router.vein_gap, "vein_gap");
+    }
+
+    /// Parity test: ClimateSampler evaluates all six climate density functions at overworld
+    /// block (0, 64, 0) with seed 0, then finds the nearest biome from the overworld parameter
+    /// list. The expected biome is derived by calling `find_value_bruteforce()` on the sampled
+    /// target — the R-tree `find_value_index()` must agree, verifying both the sampler wiring
+    /// and the R-tree search correctness at a concrete position.
+    ///
+    /// The overworld parameter list JSON files contain only `{"preset":"minecraft:overworld"}`,
+    /// so the parameter list is the one generated by `OverworldBiomeBuilder`.
+    #[test]
+    fn overworld_climate_sampler_and_rtree_agree_at_seed_0_block_0_64_0() {
+        use super::{ClimateSampler, OVERWORLD_NOISE_ROUTER};
+        use crate::biome::{overworld_biome_parameters, ClimateBiomeEntry, ClimateParameterList};
+
+        let seed = 0_i64;
+        let settings = *builtin_noise_generator_settings("minecraft:overworld")
+            .expect("overworld noise_generator_settings must exist");
+
+        // Block (0, 64, 0) → quart (0, 16, 0).
+        let sampler = ClimateSampler::from_noise_router(&OVERWORLD_NOISE_ROUTER, seed, settings);
+        let climate = sampler.sample(0, 16, 0);
+
+        // All six climate values must be finite (density functions resolved correctly).
+        assert!(
+            crate::biome::unquantize_coord(climate.temperature).is_finite(),
+            "temperature at seed 0 (0,64,0) must be finite"
+        );
+        assert!(
+            crate::biome::unquantize_coord(climate.continentalness).is_finite(),
+            "continentalness at seed 0 (0,64,0) must be finite"
+        );
+
+        // Build a ClimateParameterList from the overworld parameters and check that
+        // brute-force and R-tree search agree on the nearest biome.
+        let params = overworld_biome_parameters();
+        let list = ClimateParameterList::new(params.to_vec())
+            .expect("overworld parameter list is non-empty");
+        let bruteforce_biome = list.find_value_bruteforce(climate);
+        let rtree_biome = list.find_value_index(climate);
+        assert_eq!(
+            bruteforce_biome, rtree_biome,
+            "R-tree and brute-force must agree on biome at seed 0 block (0,64,0): \
+             brute={bruteforce_biome} rtree={rtree_biome}"
+        );
+
+        // The biome must be a valid registered overworld biome.
+        assert!(
+            bruteforce_biome.starts_with("minecraft:"),
+            "expected a namespaced biome id, got {bruteforce_biome}"
+        );
     }
 }

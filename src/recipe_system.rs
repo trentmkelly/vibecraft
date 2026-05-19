@@ -479,7 +479,152 @@ impl RecipeManagerModel {
     }
 }
 
-pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, String> {
+/// Resolved item tag map: maps a tag ID (e.g. `minecraft:oak_logs`) to the flat,
+/// deduplicated list of item IDs it contains.
+///
+/// Tags are loaded from `data/minecraft/tags/item/*.json` and resolved recursively
+/// so that a tag referencing another tag (e.g. `#minecraft:logs_that_burn`) is
+/// fully expanded to concrete item IDs before being stored.
+///
+/// All item ID strings are interned via `Box::leak` and stored as `&'static str` to
+/// match the convention used throughout the rest of the recipe system.
+#[derive(Debug, Default, Clone)]
+pub struct ItemTagMap {
+    /// Maps tag ID → flat, deduplicated list of resolved item IDs.
+    tags: std::collections::HashMap<String, Vec<&'static str>>,
+}
+
+impl ItemTagMap {
+    /// Returns the resolved item list for the given tag ID (e.g. `"minecraft:oak_logs"`).
+    /// Returns an empty slice if the tag is unknown.
+    pub fn resolve(&self, tag_id: &str) -> &[&'static str] {
+        self.tags.get(tag_id).map(Vec::as_slice).unwrap_or(&[])
+    }
+}
+
+/// Loads and recursively resolves all item tags from a directory of tag JSON files.
+///
+/// Each file is expected to be named `<tag_stem>.json` and contain a JSON object of
+/// the form `{"values": [...]}` where each value is either a plain item ID like
+/// `"minecraft:oak_log"` or a tag reference like `"#minecraft:another_tag"`.
+///
+/// The tag namespace is derived from the filename stem: `oak_logs.json` →
+/// `minecraft:oak_logs`.  Circular tag references are silently broken (the cycle
+/// is excluded from the resolved list rather than causing infinite recursion).
+///
+/// If the directory does not exist or cannot be read, an empty `ItemTagMap` is
+/// returned — this is treated as a non-fatal situation so that the recipe loader
+/// can still parse recipes that use only direct item IDs.
+pub fn load_item_tag_directory(tag_dir: &std::path::Path) -> ItemTagMap {
+    // Raw tag data: tag_id → list of values (each value is either a plain item ID
+    // or a tag reference starting with '#').
+    let mut raw: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+
+    let entries = match std::fs::read_dir(tag_dir) {
+        Ok(e) => e,
+        Err(_) => {
+            // Tag directory missing — degrade gracefully.
+            return ItemTagMap::default();
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let stem = match path.file_stem().and_then(|s| s.to_str()) {
+            Some(s) => s.to_string(),
+            None => continue,
+        };
+        let tag_id = format!("minecraft:{stem}");
+
+        let contents = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let value: serde_json::Value = match serde_json::from_str(&contents) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let Some(values_array) = value
+            .as_object()
+            .and_then(|o| o.get("values"))
+            .and_then(serde_json::Value::as_array)
+        else {
+            continue;
+        };
+
+        let mut values: Vec<String> = Vec::with_capacity(values_array.len());
+        for v in values_array {
+            if let Some(s) = v.as_str() {
+                values.push(s.to_string());
+            }
+        }
+        raw.insert(tag_id, values);
+    }
+
+    // Resolve all tags recursively.  We compute the final resolved list for each
+    // tag by depth-first traversal, tracking the current path to break cycles.
+    let tag_ids: Vec<String> = raw.keys().cloned().collect();
+    let mut resolved: std::collections::HashMap<String, Vec<&'static str>> =
+        std::collections::HashMap::new();
+
+    for tag_id in &tag_ids {
+        resolve_tag(tag_id, &raw, &mut resolved, &mut std::collections::HashSet::new());
+    }
+
+    ItemTagMap { tags: resolved }
+}
+
+/// Recursively resolves a single tag into a flat, deduplicated list of item IDs.
+///
+/// `visiting` tracks the tags currently on the call stack so that circular
+/// references are detected and skipped rather than causing infinite recursion.
+fn resolve_tag(
+    tag_id: &str,
+    raw: &std::collections::HashMap<String, Vec<String>>,
+    resolved: &mut std::collections::HashMap<String, Vec<&'static str>>,
+    visiting: &mut std::collections::HashSet<String>,
+) -> Vec<&'static str> {
+    // If already resolved, return the cached result.
+    if let Some(items) = resolved.get(tag_id) {
+        return items.clone();
+    }
+
+    // Cycle detected — return an empty list and let the caller skip this entry.
+    if !visiting.insert(tag_id.to_string()) {
+        return Vec::new();
+    }
+
+    let mut items: Vec<&'static str> = Vec::new();
+
+    if let Some(raw_values) = raw.get(tag_id) {
+        for value in raw_values.clone() {
+            if let Some(ref_tag_id) = value.strip_prefix('#') {
+                // This value is a reference to another tag; resolve it recursively.
+                let inner = resolve_tag(ref_tag_id, raw, resolved, visiting);
+                for item in inner {
+                    push_unique(&mut items, item);
+                }
+            } else {
+                // Plain item ID — intern the string and store it.
+                let interned: &'static str = Box::leak(value.into_boxed_str());
+                push_unique(&mut items, interned);
+            }
+        }
+    }
+
+    visiting.remove(tag_id);
+    resolved.insert(tag_id.to_string(), items.clone());
+    items
+}
+
+pub fn load_recipe_json(
+    id: &'static str,
+    raw: &str,
+    tags: &ItemTagMap,
+) -> Result<RecipeHolder, String> {
     let value: serde_json::Value = serde_json::from_str(raw)
         .map_err(|err| format!("failed to parse recipe {id} as JSON: {err}"))?;
     let object = value
@@ -522,7 +667,7 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
                             .ok_or_else(|| {
                                 format!("shaped recipe {id} has unmapped key '{key_char}'")
                             })
-                            .and_then(parse_ingredient)?;
+                            .and_then(|v| parse_ingredient(v, tags))?;
                         pattern.push(Some(ingredient));
                     }
                 }
@@ -535,7 +680,7 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
             }
         }
         "crafting_shapeless" => RecipeKind::Shapeless {
-            ingredients: parse_ingredient_array(object, "ingredients", id)?,
+            ingredients: parse_ingredient_array(object, "ingredients", id, tags)?,
             result: parse_result(object, id)?,
         },
         "smelting" | "blasting" | "smoking" | "campfire_cooking" => RecipeKind::Cooking {
@@ -546,7 +691,7 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
                 "campfire_cooking" => CookingKind::CampfireCooking,
                 _ => unreachable!(),
             },
-            ingredient: parse_field_ingredient(object, "ingredient", id)?,
+            ingredient: parse_field_ingredient(object, "ingredient", id, tags)?,
             result: parse_result(object, id)?,
             experience_millis: object
                 .get("experience")
@@ -559,23 +704,23 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
                 .map(|value| value as i32),
         },
         "stonecutting" => RecipeKind::Stonecutting {
-            ingredient: parse_field_ingredient(object, "ingredient", id)?,
+            ingredient: parse_field_ingredient(object, "ingredient", id, tags)?,
             result: parse_result(object, id)?,
         },
         "smithing_transform" => RecipeKind::SmithingTransform {
-            template: parse_optional_field_ingredient(object, "template")?,
-            base: parse_field_ingredient(object, "base", id)?,
-            addition: parse_optional_field_ingredient(object, "addition")?,
+            template: parse_optional_field_ingredient(object, "template", tags)?,
+            base: parse_field_ingredient(object, "base", id, tags)?,
+            addition: parse_optional_field_ingredient(object, "addition", tags)?,
             result: parse_result(object, id)?,
         },
         "smithing_trim" => RecipeKind::SmithingTrim {
-            template: parse_field_ingredient(object, "template", id)?,
-            base: parse_field_ingredient(object, "base", id)?,
-            addition: parse_field_ingredient(object, "addition", id)?,
+            template: parse_field_ingredient(object, "template", id, tags)?,
+            base: parse_field_ingredient(object, "base", id, tags)?,
+            addition: parse_field_ingredient(object, "addition", id, tags)?,
         },
         "crafting_transmute" => RecipeKind::Transmute {
-            input: parse_field_ingredient(object, "input", id)?,
-            material: parse_field_ingredient(object, "material", id)?,
+            input: parse_field_ingredient(object, "input", id, tags)?,
+            material: parse_field_ingredient(object, "material", id, tags)?,
             min_material_count: parse_material_count_bound(object, "min").unwrap_or(1),
             max_material_count: parse_material_count_bound(object, "max").unwrap_or(1),
             result: parse_result(object, id)?,
@@ -585,73 +730,73 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
                 .unwrap_or(false),
         },
         "crafting_imbue" => RecipeKind::Imbue {
-            source: parse_field_ingredient(object, "source", id)?,
-            material: parse_field_ingredient(object, "material", id)?,
+            source: parse_field_ingredient(object, "source", id, tags)?,
+            material: parse_field_ingredient(object, "material", id, tags)?,
             result: parse_result(object, id)?,
         },
         "crafting_dye" => {
-            parse_field_ingredient(object, "target", id)?;
-            parse_field_ingredient(object, "dye", id)?;
+            parse_field_ingredient(object, "target", id, tags)?;
+            parse_field_ingredient(object, "dye", id, tags)?;
             RecipeKind::Special {
                 kind: SpecialRecipeKind::DyedItem,
                 result_hint: Some(parse_result(object, id)?),
             }
         }
         "crafting_decorated_pot" => {
-            parse_field_ingredient(object, "back", id)?;
-            parse_field_ingredient(object, "left", id)?;
-            parse_field_ingredient(object, "right", id)?;
-            parse_field_ingredient(object, "front", id)?;
+            parse_field_ingredient(object, "back", id, tags)?;
+            parse_field_ingredient(object, "left", id, tags)?;
+            parse_field_ingredient(object, "right", id, tags)?;
+            parse_field_ingredient(object, "front", id, tags)?;
             RecipeKind::Special {
                 kind: SpecialRecipeKind::DecoratedPot,
                 result_hint: Some(parse_result(object, id)?),
             }
         }
         "crafting_special_bannerduplicate" => {
-            parse_field_ingredient(object, "banner", id)?;
+            parse_field_ingredient(object, "banner", id, tags)?;
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::BannerDuplicate)
         }
         "crafting_special_bookcloning" => {
-            parse_field_ingredient(object, "source", id)?;
-            parse_field_ingredient(object, "material", id)?;
+            parse_field_ingredient(object, "source", id, tags)?;
+            parse_field_ingredient(object, "material", id, tags)?;
             parse_result(object, id)?;
             parse_allowed_generations(object, id)?;
             special_recipe(SpecialRecipeKind::BookCloning)
         }
         "crafting_special_firework_rocket" => {
-            parse_field_ingredient(object, "shell", id)?;
-            parse_field_ingredient(object, "fuel", id)?;
-            parse_field_ingredient(object, "star", id)?;
+            parse_field_ingredient(object, "shell", id, tags)?;
+            parse_field_ingredient(object, "fuel", id, tags)?;
+            parse_field_ingredient(object, "star", id, tags)?;
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::FireworkRocket)
         }
         "crafting_special_firework_star" => {
-            parse_shape_ingredients(object, id)?;
-            parse_field_ingredient(object, "trail", id)?;
-            parse_field_ingredient(object, "twinkle", id)?;
-            parse_field_ingredient(object, "fuel", id)?;
-            parse_field_ingredient(object, "dye", id)?;
+            parse_shape_ingredients(object, id, tags)?;
+            parse_field_ingredient(object, "trail", id, tags)?;
+            parse_field_ingredient(object, "twinkle", id, tags)?;
+            parse_field_ingredient(object, "fuel", id, tags)?;
+            parse_field_ingredient(object, "dye", id, tags)?;
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::FireworkStar)
         }
         "crafting_special_firework_star_fade" => {
-            parse_field_ingredient(object, "target", id)?;
-            parse_field_ingredient(object, "dye", id)?;
+            parse_field_ingredient(object, "target", id, tags)?;
+            parse_field_ingredient(object, "dye", id, tags)?;
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::FireworkStarFade)
         }
         "crafting_special_mapcloning" => special_recipe(SpecialRecipeKind::MapCloning),
         "crafting_special_mapextending" => {
-            parse_field_ingredient(object, "map", id)?;
-            parse_field_ingredient(object, "material", id)?;
+            parse_field_ingredient(object, "map", id, tags)?;
+            parse_field_ingredient(object, "material", id, tags)?;
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::MapExtending)
         }
         "crafting_special_repairitem" => special_recipe(SpecialRecipeKind::RepairItem),
         "crafting_special_shielddecoration" => {
-            parse_field_ingredient(object, "banner", id)?;
-            parse_field_ingredient(object, "target", id)?;
+            parse_field_ingredient(object, "banner", id, tags)?;
+            parse_field_ingredient(object, "target", id, tags)?;
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::ShieldDecoration)
         }
@@ -666,6 +811,16 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
 }
 
 pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManagerModel, String> {
+    // Item tags live at `<namespace>/tags/item/` relative to the recipe directory's
+    // parent namespace directory.  Given `data/minecraft/recipe/` the tags are at
+    // `data/minecraft/tags/item/`.
+    let tag_dir = recipe_dir
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join("tags")
+        .join("item");
+    let tags = load_item_tag_directory(&tag_dir);
+
     let mut paths = std::fs::read_dir(recipe_dir)
         .map_err(|err| {
             format!(
@@ -695,7 +850,7 @@ pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManag
         let recipe_id = Box::leak(format!("minecraft:{stem}").into_boxed_str());
         let raw = std::fs::read_to_string(&path)
             .map_err(|err| format!("failed to read recipe file {}: {err}", path.display()))?;
-        recipes.push(load_recipe_json(recipe_id, &raw)?);
+        recipes.push(load_recipe_json(recipe_id, &raw, &tags)?);
     }
 
     Ok(RecipeManagerModel::new(recipes))
@@ -722,38 +877,59 @@ fn parse_field_ingredient(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
     id: &str,
+    tags: &ItemTagMap,
 ) -> Result<IngredientSpec, String> {
     object
         .get(field)
         .ok_or_else(|| format!("recipe {id} is missing ingredient field {field}"))
-        .and_then(parse_ingredient)
+        .and_then(|v| parse_ingredient(v, tags))
 }
 
 fn parse_optional_field_ingredient(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
+    tags: &ItemTagMap,
 ) -> Result<IngredientSpec, String> {
     object
         .get(field)
-        .map(parse_ingredient)
+        .map(|v| parse_ingredient(v, tags))
         .transpose()
         .map(|ingredient| ingredient.unwrap_or(IngredientSpec::Empty))
 }
 
-fn parse_ingredient(value: &serde_json::Value) -> Result<IngredientSpec, String> {
+/// Parses a single ingredient value, resolving tag references (strings starting
+/// with `#`) through the provided `ItemTagMap`.
+///
+/// A tag reference like `"#minecraft:oak_logs"` becomes
+/// `IngredientSpec::AnyOf([oak_log, oak_wood, ...])`.  An unknown tag resolves
+/// to an empty `AnyOf`, which will never match any item and causes the recipe to
+/// be un-craftable — this is intentional: we'd rather have a recipe that never
+/// fires than silently accept the wrong items.
+///
+/// A plain string like `"minecraft:stick"` becomes `IngredientSpec::Item(...)`.
+/// An array of strings or tag references produces a merged `AnyOf` list.
+fn parse_ingredient(value: &serde_json::Value, tags: &ItemTagMap) -> Result<IngredientSpec, String> {
     if let Some(item) = value.as_str() {
-        return Ok(IngredientSpec::Item(Box::leak(
-            item.to_string().into_boxed_str(),
-        )));
+        return resolve_ingredient_string(item, tags);
     }
 
     if let Some(items) = value.as_array() {
-        let mut parsed = Vec::with_capacity(items.len());
+        // An array may contain plain item IDs or tag references; collect all
+        // resolved items into a single flat AnyOf list.
+        let mut parsed: Vec<&'static str> = Vec::new();
         for item in items {
-            let item = item
+            let s = item
                 .as_str()
                 .ok_or_else(|| "ingredient array contains non-string entry".to_string())?;
-            parsed.push(Box::leak(item.to_string().into_boxed_str()) as &'static str);
+            match resolve_ingredient_string(s, tags)? {
+                IngredientSpec::Item(id) => push_unique(&mut parsed, id),
+                IngredientSpec::AnyOf(ids) => {
+                    for id in ids {
+                        push_unique(&mut parsed, id);
+                    }
+                }
+                IngredientSpec::Empty => {}
+            }
         }
         return Ok(IngredientSpec::AnyOf(parsed));
     }
@@ -761,16 +937,32 @@ fn parse_ingredient(value: &serde_json::Value) -> Result<IngredientSpec, String>
     Err("ingredient must be a string or string array".to_string())
 }
 
+/// Resolves a single ingredient string: either a tag reference (`#minecraft:...`)
+/// or a plain item ID (`minecraft:stick`).
+fn resolve_ingredient_string(s: &str, tags: &ItemTagMap) -> Result<IngredientSpec, String> {
+    if let Some(tag_id) = s.strip_prefix('#') {
+        // Tag reference — resolve through the tag map.
+        let resolved = tags.resolve(tag_id);
+        Ok(IngredientSpec::AnyOf(resolved.to_vec()))
+    } else {
+        // Plain item ID — intern and return.
+        Ok(IngredientSpec::Item(Box::leak(
+            s.to_string().into_boxed_str(),
+        )))
+    }
+}
+
 fn parse_ingredient_array(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
     id: &str,
+    tags: &ItemTagMap,
 ) -> Result<Vec<IngredientSpec>, String> {
     let values = object
         .get(field)
         .and_then(serde_json::Value::as_array)
         .ok_or_else(|| format!("recipe {id} is missing ingredient array {field}"))?;
-    values.iter().map(parse_ingredient).collect()
+    values.iter().map(|v| parse_ingredient(v, tags)).collect()
 }
 
 fn parse_result(
@@ -836,6 +1028,7 @@ fn parse_allowed_generations(
 fn parse_shape_ingredients(
     object: &serde_json::Map<String, serde_json::Value>,
     id: &str,
+    tags: &ItemTagMap,
 ) -> Result<Vec<(&'static str, IngredientSpec)>, String> {
     let shapes = object
         .get("shapes")
@@ -847,7 +1040,7 @@ fn parse_shape_ingredients(
             "small_ball" | "large_ball" | "star" | "creeper" | "burst" => {
                 parsed.push((
                     Box::leak(shape.clone().into_boxed_str()) as &'static str,
-                    parse_ingredient(ingredient)?,
+                    parse_ingredient(ingredient, tags)?,
                 ));
             }
             other => return Err(format!("recipe {id} has unknown firework shape {other}")),
@@ -3779,11 +3972,16 @@ mod tests {
 
     #[test]
     fn recipe_json_loader_decodes_representative_vanilla_files() {
+        // Use an empty tag map for these unit tests; they exercise recipe parsing
+        // for ingredient types that are direct item IDs, not tag references.
+        let no_tags = ItemTagMap::default();
+
         let shaped = load_recipe_json(
             "minecraft:crafting_table",
             include_str!(
                 "../../decompiled-server-26.1.2/data/minecraft/recipe/crafting_table.json"
             ),
+            &no_tags,
         )
         .expect("crafting table recipe should decode");
         assert_eq!(shaped.recipe.serializer(), "crafting_shaped");
@@ -3794,6 +3992,7 @@ mod tests {
             include_str!(
                 "../../decompiled-server-26.1.2/data/minecraft/recipe/iron_ingot_from_smelting_raw_iron.json"
             ),
+            &no_tags,
         )
         .expect("smelting recipe should decode");
         assert_eq!(smelting.recipe.serializer(), "smelting");
@@ -3804,6 +4003,7 @@ mod tests {
             include_str!(
                 "../../decompiled-server-26.1.2/data/minecraft/recipe/smooth_stone_slab_from_smooth_stone_stonecutting.json"
             ),
+            &no_tags,
         )
         .expect("stonecutting recipe should decode");
         assert_eq!(stonecutting.recipe.serializer(), "stonecutting");
@@ -3887,14 +4087,16 @@ mod tests {
                 "crafting_special_shielddecoration",
             ),
         ] {
-            let recipe = load_recipe_json(id, raw).expect("special recipe JSON should decode");
+            let recipe =
+                load_recipe_json(id, raw, &no_tags).expect("special recipe JSON should decode");
             assert_eq!(recipe.recipe.serializer(), serializer);
         }
 
         assert!(
             load_recipe_json(
                 "minecraft:bad_book_cloning",
-                r#"{"type":"minecraft:crafting_special_bookcloning","source":"minecraft:written_book","result":{"id":"minecraft:written_book"}}"#
+                r#"{"type":"minecraft:crafting_special_bookcloning","source":"minecraft:written_book","result":{"id":"minecraft:written_book"}}"#,
+                &no_tags,
             )
             .is_err(),
             "book cloning JSON must decode its material field"
@@ -3902,7 +4104,8 @@ mod tests {
         assert!(
             load_recipe_json(
                 "minecraft:bad_firework_star",
-                r##"{"type":"minecraft:crafting_special_firework_star","shapes":{"huge":"minecraft:stone"},"trail":"minecraft:diamond","twinkle":"minecraft:glowstone_dust","fuel":"minecraft:gunpowder","dye":"#minecraft:dyes","result":{"id":"minecraft:firework_star"}}"##
+                r##"{"type":"minecraft:crafting_special_firework_star","shapes":{"huge":"minecraft:stone"},"trail":"minecraft:diamond","twinkle":"minecraft:glowstone_dust","fuel":"minecraft:gunpowder","dye":"#minecraft:dyes","result":{"id":"minecraft:firework_star"}}"##,
+                &no_tags,
             )
             .is_err(),
             "firework star JSON must reject unknown shape keys"
@@ -3911,10 +4114,10 @@ mod tests {
 
     #[test]
     fn recipe_manager_loads_all_vanilla_recipe_json_files() {
-        let manager = load_recipe_directory(std::path::Path::new(
-            "../decompiled-server-26.1.2/data/minecraft/recipe",
-        ))
-        .expect("vanilla recipe directory should load");
+        let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../decompiled-server-26.1.2/data/minecraft/recipe");
+        let manager = load_recipe_directory(&recipe_dir)
+            .expect("vanilla recipe directory should load");
         assert_eq!(manager.recipe_map().values().len(), 1515);
         assert_eq!(manager.recipe_map().by_type("crafting").len(), 1094);
         assert_eq!(manager.recipe_map().by_type("smelting").len(), 73);
@@ -3974,5 +4177,106 @@ mod tests {
             assert!(!recipe.matches(3, 3, &[None; 9]));
             assert_eq!(recipe.assemble(), None);
         }
+    }
+
+    #[test]
+    fn item_tag_map_resolves_tags_recursively() {
+        // Load the real vanilla tag data so we test the full resolution chain:
+        //   minecraft:logs → minecraft:logs_that_burn → minecraft:oak_logs → minecraft:oak_log
+        let tag_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../decompiled-server-26.1.2/data/minecraft/tags/item");
+        let tags = load_item_tag_directory(&tag_dir);
+
+        // A simple leaf tag: oak_logs resolves to the four concrete oak log variants.
+        let oak_logs = tags.resolve("minecraft:oak_logs");
+        assert!(
+            oak_logs.contains(&"minecraft:oak_log"),
+            "minecraft:oak_logs should contain minecraft:oak_log; got {oak_logs:?}"
+        );
+        assert!(
+            oak_logs.contains(&"minecraft:oak_wood"),
+            "minecraft:oak_logs should contain minecraft:oak_wood"
+        );
+        assert!(
+            oak_logs.contains(&"minecraft:stripped_oak_log"),
+            "minecraft:oak_logs should contain minecraft:stripped_oak_log"
+        );
+        assert!(
+            oak_logs.contains(&"minecraft:stripped_oak_wood"),
+            "minecraft:oak_logs should contain minecraft:stripped_oak_wood"
+        );
+
+        // A multi-level tag: logs → logs_that_burn → oak_logs → oak_log
+        let logs = tags.resolve("minecraft:logs");
+        assert!(
+            logs.contains(&"minecraft:oak_log"),
+            "minecraft:logs should contain minecraft:oak_log via recursive resolution; got {logs:?}"
+        );
+        assert!(
+            logs.contains(&"minecraft:spruce_log"),
+            "minecraft:logs should contain minecraft:spruce_log"
+        );
+
+        // An unknown tag should return an empty slice without panicking.
+        let unknown = tags.resolve("minecraft:does_not_exist");
+        assert!(unknown.is_empty(), "unknown tag should resolve to empty slice");
+    }
+
+    #[test]
+    fn recipe_manager_loads_vanilla_recipes_with_tag_ingredients() {
+        // This is the integration test that proves crafting actually works end-to-end.
+        // load_recipe_directory loads tags automatically from ../tags/item/ relative
+        // to the recipe directory.
+        let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../decompiled-server-26.1.2/data/minecraft/recipe");
+        let manager = load_recipe_directory(&recipe_dir)
+            .expect("vanilla recipe directory should load");
+
+        // oak_planks: type=crafting_shapeless, ingredient=#minecraft:oak_logs
+        // Any oak log variant in slot 0 of a 1×1 grid should match.
+        let oak_planks_from_log = manager.recipe_map().get_recipe_for(
+            "crafting",
+            1,
+            1,
+            &[Some("minecraft:oak_log")],
+        );
+        assert!(
+            oak_planks_from_log.is_some(),
+            "should find oak_planks recipe for minecraft:oak_log (tag #minecraft:oak_logs)"
+        );
+        assert_eq!(
+            oak_planks_from_log.unwrap().recipe.assemble().unwrap().item,
+            "minecraft:oak_planks"
+        );
+
+        // Stripped oak log is also in #minecraft:oak_logs — it should match too.
+        let oak_planks_from_stripped = manager.recipe_map().get_recipe_for(
+            "crafting",
+            1,
+            1,
+            &[Some("minecraft:stripped_oak_log")],
+        );
+        assert!(
+            oak_planks_from_stripped.is_some(),
+            "should find oak_planks recipe for minecraft:stripped_oak_log"
+        );
+
+        // crafting_table: shaped 2×2, each slot = minecraft:oak_planks (direct item ID)
+        let crafting_table = manager.recipe_map().get_recipe_for(
+            "crafting",
+            2,
+            2,
+            &[
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+            ],
+        );
+        assert!(
+            crafting_table.is_some(),
+            "should find crafting_table recipe for 2×2 oak_planks"
+        );
+        assert_eq!(crafting_table.unwrap().id, "minecraft:crafting_table");
     }
 }

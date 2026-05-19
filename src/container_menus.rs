@@ -24,7 +24,9 @@
 
 use crate::inventory::same_item_same_components;
 use crate::item_stack::ItemStack;
-use crate::player_inventory::{ItemCost, MerchantOffer, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE};
+use crate::player_inventory::{
+    ItemCost, MerchantOffer, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE,
+};
 use crate::recipe_system::{FuelValues, RecipeMap};
 
 /// Number of vanilla "main storage" slots (3 rows of 9, excluding the hotbar).
@@ -94,7 +96,10 @@ fn is_dye_item(item_id: &str) -> bool {
     item_id.ends_with("_dye")
         || matches!(
             item_id,
-            "minecraft:bone_meal" | "minecraft:lapis_lazuli" | "minecraft:cocoa_beans" | "minecraft:ink_sac"
+            "minecraft:bone_meal"
+                | "minecraft:lapis_lazuli"
+                | "minecraft:cocoa_beans"
+                | "minecraft:ink_sac"
         )
 }
 
@@ -358,7 +363,12 @@ impl CraftingMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -394,9 +404,7 @@ impl CraftingMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -416,13 +424,31 @@ impl CraftingMenu {
             if self.move_into_range(&mut moving, Self::GRID_START, Self::GRID_END, false, player) {
                 true
             } else if slot < Self::HOTBAR_START {
-                self.move_into_range(&mut moving, Self::HOTBAR_START, Self::HOTBAR_END, false, player)
+                self.move_into_range(
+                    &mut moving,
+                    Self::HOTBAR_START,
+                    Self::HOTBAR_END,
+                    false,
+                    player,
+                )
             } else {
-                self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_START, false, player)
+                self.move_into_range(
+                    &mut moving,
+                    Self::INV_START,
+                    Self::HOTBAR_START,
+                    false,
+                    player,
+                )
             }
         } else {
             // Grid slot → player inventory.
-            self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, false, player)
+            self.move_into_range(
+                &mut moving,
+                Self::INV_START,
+                Self::HOTBAR_END,
+                false,
+                player,
+            )
         };
 
         if !moving.is_empty() {
@@ -575,7 +601,12 @@ impl AbstractFurnaceMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -633,9 +664,7 @@ impl AbstractFurnaceMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -649,13 +678,7 @@ impl AbstractFurnaceMenu {
         }
 
         let moved = match slot {
-            2 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            2 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0 | 1 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -710,14 +733,10 @@ impl AbstractFurnaceMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.input = w.new_stack,
@@ -817,7 +836,12 @@ impl ChestMenu {
         }
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= self.slot_count() {
             return false;
         }
@@ -846,9 +870,7 @@ impl ChestMenu {
         if slot >= self.slot_count() {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -883,14 +905,10 @@ impl ChestMenu {
         let inv_start = self.inv_start();
         let chest_size = self.chest_size();
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             if w.slot < chest_size {
                 self.slots[w.slot] = w.new_stack;
@@ -934,7 +952,12 @@ impl HopperMenu {
         }
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -963,9 +986,7 @@ impl HopperMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -973,7 +994,13 @@ impl HopperMenu {
         self.set_slot(slot, ItemStack::empty(), player);
 
         let moved = if slot < Self::HOPPER_SIZE {
-            self.move_into_range(&mut moving, Self::HOPPER_SIZE, Self::SLOT_COUNT, true, player)
+            self.move_into_range(
+                &mut moving,
+                Self::HOPPER_SIZE,
+                Self::SLOT_COUNT,
+                true,
+                player,
+            )
         } else {
             self.move_into_range(&mut moving, 0, Self::HOPPER_SIZE, false, player)
         };
@@ -995,14 +1022,10 @@ impl HopperMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             if w.slot < Self::HOPPER_SIZE {
                 self.slots[w.slot] = w.new_stack;
@@ -1052,7 +1075,12 @@ impl DispenserMenu {
         }
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -1081,9 +1109,7 @@ impl DispenserMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -1112,14 +1138,10 @@ impl DispenserMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             if w.slot < Self::GRID_SIZE {
                 self.slots[w.slot] = w.new_stack;
@@ -1169,7 +1191,12 @@ impl ShulkerBoxMenu {
         }
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -1213,9 +1240,7 @@ impl ShulkerBoxMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -1250,14 +1275,10 @@ impl ShulkerBoxMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             if w.slot < Self::CONTAINER_SIZE {
                 self.slots[w.slot] = w.new_stack;
@@ -1338,7 +1359,12 @@ impl AnvilMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -1369,8 +1395,7 @@ impl AnvilMenu {
     }
 
     pub fn set_item_name(&mut self, name: Option<String>) {
-        self.item_name = name
-            .map(|n| n.chars().take(Self::MAX_NAME_LENGTH).collect::<String>());
+        self.item_name = name.map(|n| n.chars().take(Self::MAX_NAME_LENGTH).collect::<String>());
     }
 
     pub fn item_name(&self) -> Option<&str> {
@@ -1427,9 +1452,7 @@ impl AnvilMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -1440,13 +1463,7 @@ impl AnvilMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            2 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            2 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0 | 1 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -1479,14 +1496,10 @@ impl AnvilMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.input_left = w.new_stack,
@@ -1551,7 +1564,12 @@ impl SmithingMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -1587,9 +1605,7 @@ impl SmithingMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -1600,13 +1616,7 @@ impl SmithingMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            3 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            3 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0..=2 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -1636,14 +1646,10 @@ impl SmithingMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.template = w.new_stack,
@@ -1701,7 +1707,12 @@ impl StonecutterMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -1737,9 +1748,7 @@ impl StonecutterMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -1750,13 +1759,7 @@ impl StonecutterMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            1 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            1 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -1805,14 +1808,10 @@ impl StonecutterMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.input = w.new_stack,
@@ -1880,7 +1879,12 @@ impl GrindstoneMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -1906,9 +1910,7 @@ impl GrindstoneMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -1919,13 +1921,7 @@ impl GrindstoneMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            2 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            2 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0 | 1 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -1975,14 +1971,10 @@ impl GrindstoneMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.input_left = w.new_stack,
@@ -2041,7 +2033,12 @@ impl EnchantmentMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -2085,22 +2082,16 @@ impl EnchantmentMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
         let mut moving = original.clone();
         self.set_slot(slot, ItemStack::empty(), player);
         let moved = match slot {
-            0 | 1 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            0 | 1 => {
+                self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player)
+            }
             _ if moving.item_id() == "minecraft:lapis_lazuli" => {
                 self.move_into_range(&mut moving, 1, 2, true, player)
             }
@@ -2133,14 +2124,10 @@ impl EnchantmentMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.item = w.new_stack,
@@ -2204,7 +2191,12 @@ impl BrewingStandMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -2254,9 +2246,7 @@ impl BrewingStandMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -2265,13 +2255,7 @@ impl BrewingStandMenu {
 
         let moved = if slot <= 4 {
             // Brewing slot → player inventory.
-            self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            )
+            self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player)
         } else {
             // Player → brewing slots in fuel/ingredient/potion order.
             if BREWING_FUEL_ITEMS.contains(&moving.item_id()) {
@@ -2322,14 +2306,10 @@ impl BrewingStandMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0..=2 => self.potions[w.slot] = w.new_stack,
@@ -2389,7 +2369,12 @@ impl CartographyTableMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -2425,9 +2410,7 @@ impl CartographyTableMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -2438,13 +2421,7 @@ impl CartographyTableMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            2 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            2 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0 | 1 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -2494,14 +2471,10 @@ impl CartographyTableMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.map = w.new_stack,
@@ -2566,7 +2539,12 @@ impl LoomMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -2605,9 +2583,7 @@ impl LoomMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -2618,13 +2594,7 @@ impl LoomMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            3 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            3 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0..=2 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -2676,14 +2646,10 @@ impl LoomMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.banner = w.new_stack,
@@ -2833,7 +2799,12 @@ impl BeaconMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -2874,9 +2845,7 @@ impl BeaconMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -2884,17 +2853,8 @@ impl BeaconMenu {
         self.set_slot(slot, ItemStack::empty(), player);
 
         let moved = if slot == 0 {
-            self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            )
-        } else if self.payment.is_empty()
-            && self.may_place(0, &moving)
-            && moving.count() == 1
-        {
+            self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player)
+        } else if self.payment.is_empty() && self.may_place(0, &moving) && moving.count() == 1 {
             self.move_into_range(&mut moving, 0, 1, false, player)
         } else if slot < Self::INV_START + PLAYER_MAIN_STORAGE {
             self.move_into_range(
@@ -2932,14 +2892,10 @@ impl BeaconMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.payment = w.new_stack,
@@ -3040,7 +2996,12 @@ impl CrafterMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -3076,9 +3037,7 @@ impl CrafterMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -3109,14 +3068,10 @@ impl CrafterMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0..=8 => self.grid[w.slot] = w.new_stack,
@@ -3209,7 +3164,12 @@ impl HorseInventoryMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= self.slot_count() {
             return false;
         }
@@ -3260,9 +3220,7 @@ impl HorseInventoryMenu {
         if slot >= self.slot_count() {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -3280,7 +3238,9 @@ impl HorseInventoryMenu {
             self.move_into_range(&mut moving, 1, 2, false, player)
         } else if self.may_place(0, &moving) && self.saddle.is_empty() {
             self.move_into_range(&mut moving, 0, 1, false, player)
-        } else if chest_size > 0 && self.move_into_range(&mut moving, 2, player_start, false, player) {
+        } else if chest_size > 0
+            && self.move_into_range(&mut moving, 2, player_start, false, player)
+        {
             true
         } else {
             // Bounce between main storage and hotbar.
@@ -3311,14 +3271,10 @@ impl HorseInventoryMenu {
     ) -> bool {
         let player_start = self.layout.player_start();
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.saddle = w.new_stack,
@@ -3368,7 +3324,12 @@ impl NautilusInventoryMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -3401,22 +3362,14 @@ impl NautilusInventoryMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
         let mut moving = original.clone();
         self.set_slot(slot, ItemStack::empty(), player);
         let moved = if slot < Self::INV_START {
-            self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            )
+            self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player)
         } else if self.may_place(1, &moving) && self.armor.is_empty() {
             self.move_into_range(&mut moving, 1, 2, false, player)
         } else if self.may_place(0, &moving) && self.saddle.is_empty() {
@@ -3456,14 +3409,10 @@ impl NautilusInventoryMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.saddle = w.new_stack,
@@ -3543,7 +3492,12 @@ impl MerchantMenu {
         })
     }
 
-    pub fn set_slot(&mut self, slot: usize, stack: ItemStack, player: &mut PlayerInventory) -> bool {
+    pub fn set_slot(
+        &mut self,
+        slot: usize,
+        stack: ItemStack,
+        player: &mut PlayerInventory,
+    ) -> bool {
         if slot >= Self::SLOT_COUNT {
             return false;
         }
@@ -3577,9 +3531,7 @@ impl MerchantMenu {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
-        let original = self
-            .get_slot(slot, player)
-            .unwrap_or_else(ItemStack::empty);
+        let original = self.get_slot(slot, player).unwrap_or_else(ItemStack::empty);
         if original.is_empty() {
             return ItemStack::empty();
         }
@@ -3590,13 +3542,7 @@ impl MerchantMenu {
             self.set_slot(slot, ItemStack::empty(), player);
         }
         let moved = match slot {
-            2 => self.move_into_range(
-                &mut moving,
-                Self::INV_START,
-                Self::HOTBAR_END,
-                true,
-                player,
-            ),
+            2 => self.move_into_range(&mut moving, Self::INV_START, Self::HOTBAR_END, true, player),
             0 | 1 => self.move_into_range(
                 &mut moving,
                 Self::INV_START,
@@ -3642,14 +3588,10 @@ impl MerchantMenu {
         player: &mut PlayerInventory,
     ) -> bool {
         let snapshot = self.all_slots(player);
-        let (leftover, writes, moved) = plan_move_item_stack_to(
-            stack.clone(),
-            start,
-            end,
-            reverse,
-            &snapshot,
-            |s, st| self.may_place(s, st),
-        );
+        let (leftover, writes, moved) =
+            plan_move_item_stack_to(stack.clone(), start, end, reverse, &snapshot, |s, st| {
+                self.may_place(s, st)
+            });
         for w in writes {
             match w.slot {
                 0 => self.payment_a = w.new_stack,
@@ -3759,8 +3701,7 @@ impl MerchantMenu {
                 continue;
             }
             let max_stack_size = inventory_item.max_stack_size() as i32;
-            let move_count =
-                (max_stack_size - current_payment.count()).min(inventory_item.count());
+            let move_count = (max_stack_size - current_payment.count()).min(inventory_item.count());
             if move_count <= 0 {
                 // Payment slot already full — nothing left to merge into it.
                 break;
@@ -3799,9 +3740,7 @@ impl Default for MerchantMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::recipe_system::{
-        IngredientSpec, ItemAmount, RecipeHolder, RecipeKind, RecipeMap,
-    };
+    use crate::recipe_system::{IngredientSpec, ItemAmount, RecipeHolder, RecipeKind, RecipeMap};
 
     fn empty_recipes() -> RecipeMap {
         RecipeMap::create(Vec::new())
@@ -3887,7 +3826,10 @@ mod tests {
         );
 
         menu.set_slot(0, ItemStack::new("minecraft:raw_iron", 1), &mut player);
-        assert_eq!(menu.get_slot(0, &player).unwrap().item_id(), "minecraft:raw_iron");
+        assert_eq!(
+            menu.get_slot(0, &player).unwrap().item_id(),
+            "minecraft:raw_iron"
+        );
 
         // Result slot rejects direct placement via set_slot.
         assert!(!menu.set_slot(2, ItemStack::new("minecraft:iron_ingot", 1), &mut player));
@@ -3910,12 +3852,18 @@ mod tests {
         menu.set_slot(3, ItemStack::new("minecraft:raw_iron", 1), &mut player);
         let pre = menu.quick_move(3, &recipes, &mut player);
         assert_eq!(pre.item_id(), "minecraft:raw_iron");
-        assert_eq!(menu.get_slot(0, &player).unwrap().item_id(), "minecraft:raw_iron");
+        assert_eq!(
+            menu.get_slot(0, &player).unwrap().item_id(),
+            "minecraft:raw_iron"
+        );
 
         // Coal goes to fuel.
         menu.set_slot(3, ItemStack::new("minecraft:coal", 1), &mut player);
         menu.quick_move(3, &recipes, &mut player);
-        assert_eq!(menu.get_slot(1, &player).unwrap().item_id(), "minecraft:coal");
+        assert_eq!(
+            menu.get_slot(1, &player).unwrap().item_id(),
+            "minecraft:coal"
+        );
     }
 
     // -------- ChestMenu --------
@@ -3945,7 +3893,10 @@ mod tests {
         let menu_hotbar_8 = chest_size + PLAYER_MAIN_STORAGE + 8;
         let back = menu.quick_move(menu_hotbar_8, &mut player);
         assert_eq!(back.item_id(), "minecraft:apple");
-        assert_eq!(menu.get_slot(0, &player).unwrap().item_id(), "minecraft:apple");
+        assert_eq!(
+            menu.get_slot(0, &player).unwrap().item_id(),
+            "minecraft:apple"
+        );
     }
 
     // -------- HopperMenu --------
@@ -4012,9 +3963,17 @@ mod tests {
         let mut player = PlayerInventory::new();
         assert_eq!(SmithingMenu::SLOT_COUNT, 40);
         assert!(!menu.may_place(3, &ItemStack::new("minecraft:apple", 1)));
-        menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
+        menu.set_slot(
+            0,
+            ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1),
+            &mut player,
+        );
         menu.set_slot(1, ItemStack::new("minecraft:diamond_sword", 1), &mut player);
-        menu.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), &mut player);
+        menu.set_slot(
+            2,
+            ItemStack::new("minecraft:netherite_ingot", 1),
+            &mut player,
+        );
         let all = menu.all_slots(&player);
         assert_eq!(all.len(), 40);
     }
@@ -4060,7 +4019,11 @@ mod tests {
         assert!(!menu.may_place(1, &ItemStack::new("minecraft:apple", 1)));
         assert_eq!(menu.max_stack_size(0), 1);
 
-        menu.set_slot(0, ItemStack::new("minecraft:diamond_sword", 64), &mut player);
+        menu.set_slot(
+            0,
+            ItemStack::new("minecraft:diamond_sword", 64),
+            &mut player,
+        );
         assert_eq!(menu.get_slot(0, &player).unwrap().count(), 1);
     }
 
@@ -4370,7 +4333,10 @@ mod tests {
         menu.set_slot(0, hotbar_content.clone(), &mut player);
         player.set(4, chest_item.clone());
 
-        assert_eq!(menu.get_slot(0, &player).unwrap().item_id(), "minecraft:emerald");
+        assert_eq!(
+            menu.get_slot(0, &player).unwrap().item_id(),
+            "minecraft:emerald"
+        );
         assert_eq!(player.get(4).item_id(), "minecraft:diamond");
     }
 
@@ -4384,7 +4350,11 @@ mod tests {
         let target_slots = [0usize, 1, 2, 3];
         let each = carry / target_slots.len();
         for &slot in &target_slots {
-            menu.set_slot(slot, ItemStack::new("minecraft:diamond", each as i32), &mut player);
+            menu.set_slot(
+                slot,
+                ItemStack::new("minecraft:diamond", each as i32),
+                &mut player,
+            );
         }
         for &slot in &target_slots {
             assert_eq!(menu.get_slot(slot, &player).unwrap().count(), 2);
@@ -4414,7 +4384,8 @@ mod tests {
         let mut player = PlayerInventory::new();
         menu.set_slot(0, ItemStack::new("minecraft:diamond", 3), &mut player);
         menu.set_slot(1, ItemStack::new("minecraft:diamond", 5), &mut player);
-        let total = 2 + menu.get_slot(0, &player).unwrap().count()
+        let total = 2
+            + menu.get_slot(0, &player).unwrap().count()
             + menu.get_slot(1, &player).unwrap().count();
         assert_eq!(total, 10);
     }
@@ -4514,15 +4485,24 @@ mod tests {
     #[test]
     fn every_menu_reports_correct_slot_count_for_full_resync() {
         let player = PlayerInventory::new();
-        assert_eq!(CraftingMenu::new(empty_recipes()).all_slots(&player).len(), 46);
+        assert_eq!(
+            CraftingMenu::new(empty_recipes()).all_slots(&player).len(),
+            46
+        );
         assert_eq!(
             AbstractFurnaceMenu::new(FurnaceKind::Furnace, FuelValues::vanilla())
                 .all_slots(&player)
                 .len(),
             39
         );
-        assert_eq!(ChestMenu::new(3).all_slots(&player).len(), 27 + PLAYER_SLOTS);
-        assert_eq!(ChestMenu::new(6).all_slots(&player).len(), 54 + PLAYER_SLOTS);
+        assert_eq!(
+            ChestMenu::new(3).all_slots(&player).len(),
+            27 + PLAYER_SLOTS
+        );
+        assert_eq!(
+            ChestMenu::new(6).all_slots(&player).len(),
+            54 + PLAYER_SLOTS
+        );
         assert_eq!(HopperMenu::new().all_slots(&player).len(), 41);
         assert_eq!(DispenserMenu::new().all_slots(&player).len(), 45);
         assert_eq!(ShulkerBoxMenu::new().all_slots(&player).len(), 63);

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use crate::block_metadata::representative_state_definition;
 use crate::console::ConsoleInput;
 use crate::item_catalog::{item_protocol_id, item_static_name};
-use crate::item_entity::{self, DroppedItem, DEFAULT_PICKUP_DELAY};
+use crate::item_entity::{self, DroppedItem, WorldItemEntities, DEFAULT_PICKUP_DELAY};
 use crate::item_stack::ItemStack;
 use crate::loot_system::{
     LootCondition, LootContext, LootEntry, LootFunction, LootParamSet, LootPool, LootTable,
@@ -39,11 +39,11 @@ use crate::network::play::{
     block_state_name_network_id, build_recipe_book_add, handle_container_click,
     unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
-    ClientboundSetTimePacket,
-    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, GameMode, PlayInstruction,
-    RawDataComponentPatch, RawItemStack, ServerboundContainerClickPacket, ServerboundSwingHand,
-    ServerboundUseItemOnPacket, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+    ClientboundSetTimePacket, ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d,
+    GameMode, PlayInstruction, RawDataComponentPatch, RawItemStack,
+    ServerboundContainerClickPacket, ServerboundSwingHand, ServerboundUseItemOnPacket,
+    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
     CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
     CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
@@ -160,9 +160,6 @@ struct PlaySessionState {
     xp_total: i32,
     game_mode: GameMode,
     previous_game_mode: Option<GameMode>,
-    /// All item entities currently on the ground near this player's session.
-    /// Populated at block-break time; consumed by the pickup loop.
-    dropped_items: Vec<DroppedItem>,
     /// Player inventory + 2×2 crafting grid. The state ID (incremented on each accepted
     /// container click or broadcast) is tracked separately in `container_state_id`.
     inventory_menu: InventoryMenu,
@@ -192,7 +189,6 @@ impl Default for PlaySessionState {
             xp_total: 0,
             game_mode: GameMode::Survival,
             previous_game_mode: None,
-            dropped_items: Vec::new(),
             inventory_menu: InventoryMenu::new(PlayerInventory::new(), RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
@@ -987,6 +983,95 @@ fn save_server_weather_state(world_root: &Path, cycle: &WeatherCycle) {
     }
 }
 
+/// Loads item entity state from `{world_root}/item_entities.json`.
+///
+/// Field names mirror Java's entity NBT format (`Pos`, `Motion`, `Age`, `PickupDelay`,
+/// `Item`) so the file is human-readable and structurally close to the canonical
+/// `entities/` region files used by the Java server.
+///
+/// Returns a default empty store if the file does not exist or cannot be parsed.
+fn load_world_item_entities(world_root: &Path) -> WorldItemEntities {
+    let path = world_root.join("item_entities.json");
+    let Some(text) = fs::read_to_string(&path).ok() else {
+        return WorldItemEntities::new();
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return WorldItemEntities::new();
+    };
+    let next_entity_id = v["NextEntityId"].as_i64().unwrap_or(1) as i32;
+    let entities = v["Entities"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| {
+                    let network_id = e["EntityNetworkId"].as_i64()? as i32;
+                    let pos = e["Pos"].as_array()?;
+                    let motion = e["Motion"].as_array()?;
+                    let item_obj = e["Item"].as_object()?;
+                    let item_name = item_static_name(item_obj.get("id")?.as_str()?)?;
+                    let count = item_obj.get("count")?.as_i64()? as i32;
+                    let age = e["Age"].as_i64().unwrap_or(0) as i32;
+                    let pickup_delay = e["PickupDelay"].as_i64().unwrap_or(0) as i32;
+                    let target_uuid = e["Owner"].as_str().map(|s| s.to_string());
+                    Some(DroppedItem {
+                        entity_id: network_id,
+                        item: item_name,
+                        count,
+                        x: pos.first()?.as_f64()?,
+                        y: pos.get(1)?.as_f64()?,
+                        z: pos.get(2)?.as_f64()?,
+                        vel_x: motion.first()?.as_f64()?,
+                        vel_y: motion.get(1)?.as_f64()?,
+                        vel_z: motion.get(2)?.as_f64()?,
+                        age,
+                        pickup_delay,
+                        target_uuid,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    WorldItemEntities::restore(entities, next_entity_id)
+}
+
+/// Saves item entity state to `{world_root}/item_entities.json`.
+///
+/// Java: `EntityStorage.storeEntities()` / `ItemEntity.addAdditionalSaveData()`.
+/// Field names match the canonical Java NBT names where applicable so the file is
+/// recognisable to anyone familiar with the Java entity format.
+fn save_world_item_entities(world_root: &Path, store: &WorldItemEntities) {
+    let entities: Vec<serde_json::Value> = store
+        .entities
+        .iter()
+        .map(|e| {
+            let mut obj = serde_json::json!({
+                "EntityNetworkId": e.entity_id,
+                "id": "minecraft:item",
+                "Pos": [e.x, e.y, e.z],
+                "Motion": [e.vel_x, e.vel_y, e.vel_z],
+                "Age": e.age,
+                "PickupDelay": e.pickup_delay,
+                "Item": {
+                    "id": e.item,
+                    "count": e.count,
+                },
+            });
+            if let Some(owner) = &e.target_uuid {
+                obj["Owner"] = serde_json::Value::String(owner.clone());
+            }
+            obj
+        })
+        .collect();
+    let value = serde_json::json!({
+        "NextEntityId": store.next_entity_id(),
+        "Entities": entities,
+    });
+    let path = world_root.join("item_entities.json");
+    if let Ok(text) = serde_json::to_string_pretty(&value) {
+        let _ = fs::write(path, text);
+    }
+}
+
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
@@ -1012,13 +1097,19 @@ pub fn run_status_server(
         }),
     ));
 
-    // Load or initialise shared clock/weather state.
-    // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data.
+    // Load or initialise shared clock/weather/item-entity state.
+    // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data,
+    //       EntityStorage loads entities from per-chunk region files under <world>/entities/.
     let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
     let initial_weather = load_server_weather_state(&world_root)
         .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
     let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
     let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
+    // World-level item entity store.  Shared across all player sessions and persisted to
+    // item_entities.json so items survive both player disconnects and server restarts.
+    // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
+    let world_items: Arc<Mutex<WorldItemEntities>> =
+        Arc::new(Mutex::new(load_world_item_entities(&world_root)));
 
     // Load vanilla recipes once at startup and share via Arc.
     // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
@@ -1036,6 +1127,7 @@ pub fn run_status_server(
         let clock_t = Arc::clone(&clock);
         let weather_t = Arc::clone(&weather);
         let world_root_t = Arc::clone(&world_root);
+        let world_items_t = Arc::clone(&world_items);
         thread::spawn(move || {
             let mut scheduled = ScheduledTimeChanges::default();
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
@@ -1058,9 +1150,11 @@ pub fn run_status_server(
                     .advance(true, true, DEFAULT_WEATHER_DURATIONS);
 
                 // Persist every ~5 minutes.
+                // Java: MinecraftServer.saveEverything() — entities flushed via EntityStorage.
                 if tick_count % PERSISTENCE_INTERVAL_TICKS == 0 {
                     save_server_clock_state(&world_root_t, &clock_t.lock().unwrap());
                     save_server_weather_state(&world_root_t, &weather_t.lock().unwrap());
+                    save_world_item_entities(&world_root_t, &world_items_t.lock().unwrap());
                 }
             }
         });
@@ -1073,6 +1167,7 @@ pub fn run_status_server(
             println!("Status listener stopping");
             save_server_clock_state(&world_root, &clock.lock().unwrap());
             save_server_weather_state(&world_root, &weather.lock().unwrap());
+            save_world_item_entities(&world_root, &world_items.lock().unwrap());
             break;
         }
         match listener.accept() {
@@ -1085,6 +1180,7 @@ pub fn run_status_server(
                 let clock = Arc::clone(&clock);
                 let weather = Arc::clone(&weather);
                 let recipe_manager = Arc::clone(&recipe_manager);
+                let world_items = Arc::clone(&world_items);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_for_log = if properties.log_ips {
                     remote_ip.clone()
@@ -1104,6 +1200,7 @@ pub fn run_status_server(
                         &clock,
                         &weather,
                         &recipe_manager,
+                        &world_items,
                     ) {
                         eprintln!("status connection error from {remote_for_log}: {err}");
                     }
@@ -1161,6 +1258,7 @@ fn handle_status_connection(
     clock: &Arc<Mutex<ServerClockManager>>,
     weather: &Arc<Mutex<WeatherCycle>>,
     recipe_manager: &RecipeManagerModel,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
@@ -1202,6 +1300,7 @@ fn handle_status_connection(
             clock,
             weather,
             recipe_manager,
+            world_items,
         );
     }
     if next_state != 1 {
@@ -1269,6 +1368,7 @@ fn handle_login_connection(
     clock: &Arc<Mutex<ServerClockManager>>,
     weather: &Arc<Mutex<WeatherCycle>>,
     recipe_manager: &RecipeManagerModel,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -1634,10 +1734,23 @@ fn handle_login_connection(
     let mut last_sent_rain_level = join_rain_level;
     let mut last_sent_thunder_level = join_thunder_level;
     let mut last_time_sync = Instant::now();
-    let mut entity_id_counter: i32 = 1; // player has entity ID 1; start here so first drop = 2
     let mut rate_limiter =
         PacketRateLimiter::new(properties.rate_limit_packets_per_second, Instant::now());
     let world_layout = WorldLayout::new(world_root);
+
+    // On login: re-send ADD_ENTITY + SET_ENTITY_DATA bundles for every item entity that
+    // is already on the ground.  This mirrors Java's ServerEntity.addPairing() called during
+    // ChunkMap.updatePlayerMobTypeMap() when a player enters tracking range of an entity.
+    // Without this, items dropped before a disconnect are invisible after reconnecting.
+    {
+        let items = world_items.lock().unwrap();
+        for item in &items.entities {
+            if let Some(item_pid) = item_protocol_id(item.item) {
+                write_item_entity_spawn_packets(stream, compression, item, item_pid)?;
+            }
+        }
+    }
+
     // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
     // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
     let mut last_item_tick = Instant::now();
@@ -1674,24 +1787,50 @@ fn handle_login_connection(
         }
 
         // Hook A: Item entity age tick — ~20 Hz wall-clock.
-        // Mirrors ItemEntity.tick(): decrement pickupDelay, increment age, expire at LIFETIME.
-        // Java: ServerLevel.tick() → entity.tick() for every tracked ItemEntity.
+        // Mirrors ItemEntity.tick(): apply drag, decrement pickupDelay, increment age,
+        // expire at LIFETIME, and merge nearby same-type stacks.
+        // Java: ServerLevel.tick() → entity.tick() → mergeWithNeighbours() for every ItemEntity.
         if last_item_tick.elapsed() >= ITEM_TICK_INTERVAL {
             last_item_tick = Instant::now();
-            let expired = item_entity::tick(&mut play_state.dropped_items);
-            if !expired.is_empty() {
+            let result = {
+                let mut items = world_items.lock().unwrap();
+                item_entity::tick(&mut items.entities)
+            };
+            if !result.removed.is_empty() {
                 write_framed_packet_with_compression(
                     stream,
                     compression,
                     CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
                     |p| {
-                        write_var_i32(p, expired.len() as i32)?;
-                        for id in &expired {
+                        write_var_i32(p, result.removed.len() as i32)?;
+                        for id in &result.removed {
                             write_var_i32(p, *id)?;
                         }
                         Ok(())
                     },
                 )?;
+            }
+            // Notify the client of any count changes caused by stack merges.
+            // Note: count-update SET_ENTITY_DATA is NOT bundled — bundles are only needed
+            // for the initial ADD_ENTITY + SET_ENTITY_DATA spawn pair.
+            for (entity_id, item_name, new_count) in &result.count_updates {
+                if let Some(item_pid) = item_protocol_id(item_name) {
+                    write_framed_packet_with_compression(
+                        stream,
+                        compression,
+                        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+                        |p| {
+                            write_var_i32(p, *entity_id)?;
+                            p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
+                            write_var_i32(p, 7)?; // serializer 7: ITEM_STACK
+                            write_var_i32(p, *new_count)?;
+                            write_var_i32(p, item_pid)?;
+                            write_var_i32(p, 0)?; // component add count
+                            write_var_i32(p, 0)?; // component remove count
+                            p.write_all(&[0xFFu8]) // end of metadata
+                        },
+                    )?;
+                }
             }
         }
 
@@ -1724,8 +1863,12 @@ fn handle_login_connection(
                 if let PacketRateDecision::Kick { reason } =
                     rate_limiter.record_packet(Instant::now())
                 {
+                    // Java: InventoryMenu.removed() clears the crafting grid and returns
+                    // items to inventory before the player state is persisted.
+                    play_state.inventory_menu.clear_crafting_to_inventory();
                     let _ =
                         save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                    save_world_item_entities(world_root, &world_items.lock().unwrap());
                     write_framed_packet_with_compression(
                         stream,
                         compression,
@@ -1779,6 +1922,7 @@ fn handle_login_connection(
                             compression,
                             &mut play_state,
                             &finished.profile.uuid,
+                            world_items,
                         )?;
                     }
                     continue;
@@ -1896,7 +2040,10 @@ fn handle_login_connection(
                         };
                         let block_name =
                             break_block_in_region(&world_layout, chunk_pos, bx, by, bz);
-                        crate::log::log_debug(&format!("block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}", play_state.game_mode));
+                        crate::log::log_debug(&format!(
+                            "block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}",
+                            play_state.game_mode
+                        ));
                         if play_state.game_mode != GameMode::Creative {
                             let loot_seed = (bx as u64).wrapping_mul(0x9E37_79B9)
                                 ^ (by as u64).wrapping_mul(0x6C62_272E)
@@ -1912,8 +2059,7 @@ fn handle_login_connection(
                                 let Some(item_pid) = item_protocol_id(item_name) else {
                                     continue;
                                 };
-                                entity_id_counter = entity_id_counter.wrapping_add(1);
-                                let eid = entity_id_counter;
+                                let eid = world_items.lock().unwrap().alloc_entity_id();
                                 // Java: ItemEntity constructor sets initial velocity
                                 // (random*0.2-0.1, 0.2, random*0.2-0.1) — the y=0.2 upward
                                 // component produces the characteristic item "pop" animation
@@ -1921,68 +2067,22 @@ fn handle_login_connection(
                                 let vel_x = pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1;
                                 let vel_y = 0.2_f64;
                                 let vel_z = pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1;
-                                if crate::log::global_level() >= crate::log::LogLevel::Trace {
-                                    crate::log::log_trace(&format!(
-                                        "sending ADD_ENTITY eid={eid} item={item_name} \
-                                         pos=({drop_x},{drop_y},{drop_z}) \
-                                         vel=({vel_x:.4},{vel_y:.4},{vel_z:.4})"
-                                    ));
-                                }
-                                write_framed_packet_with_compression(
-                                    stream,
-                                    compression,
-                                    CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-                                    |p| {
-                                        write_var_i32(p, eid)?;
-                                        let uuid_hi =
-                                            (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
-                                        let uuid_lo =
-                                            (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
-                                        p.write_all(&uuid_hi.to_be_bytes())?;
-                                        p.write_all(&uuid_lo.to_be_bytes())?;
-                                        write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
-                                        p.write_all(&drop_x.to_be_bytes())?;
-                                        p.write_all(&drop_y.to_be_bytes())?;
-                                        p.write_all(&drop_z.to_be_bytes())?;
-                                        write_lp_vec3(p, vel_x, vel_y, vel_z)?;
-                                        p.write_all(&[0u8, 0u8, 0u8])?;
-                                        write_var_i32(p, 0)
-                                    },
-                                )?;
-                                if crate::log::global_level() >= crate::log::LogLevel::Trace {
-                                    crate::log::log_trace(&format!(
-                                        "sending SET_ENTITY_DATA eid={eid} item={item_name} count={count} pid={item_pid}"
-                                    ));
-                                }
-                                write_framed_packet_with_compression(
-                                    stream,
-                                    compression,
-                                    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-                                    |p| {
-                                        write_var_i32(p, eid)?;
-                                        p.write_all(&[8u8])?;
-                                        write_var_i32(p, 7)?;
-                                        write_var_i32(p, count)?;
-                                        write_var_i32(p, item_pid)?;
-                                        write_var_i32(p, 0)?;
-                                        write_var_i32(p, 0)?;
-                                        p.write_all(&[0xFFu8])
-                                    },
-                                )?;
-                                // Register the entity server-side so the pickup loop can
-                                // detect when the player walks over it.
-                                // Java: Block.popResource() → ItemEntity constructor
-                                play_state.dropped_items.push(DroppedItem {
+                                let item = DroppedItem {
                                     entity_id: eid,
                                     item: item_name,
                                     count,
                                     x: drop_x,
                                     y: drop_y,
                                     z: drop_z,
+                                    vel_x,
+                                    vel_y,
+                                    vel_z,
                                     pickup_delay: DEFAULT_PICKUP_DELAY,
                                     age: 0,
                                     target_uuid: None,
-                                });
+                                };
+                                write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
+                                world_items.lock().unwrap().entities.push(item);
                             }
                         }
                     }
@@ -1993,7 +2093,7 @@ fn handle_login_connection(
                             stream,
                             compression,
                             &mut play_state,
-                            &mut entity_id_counter,
+                            world_items,
                             action == 3,
                         )?;
                     }
@@ -2072,7 +2172,9 @@ fn handle_login_connection(
                 ) {
                     continue;
                 }
+                play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                save_world_item_entities(world_root, &world_items.lock().unwrap());
                 write_framed_packet_with_compression(
                     stream,
                     compression,
@@ -2099,7 +2201,9 @@ fn handle_login_connection(
                     io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
                 ) =>
             {
+                play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                save_world_item_entities(world_root, &world_items.lock().unwrap());
                 return Ok(());
             }
             Err(err) => return Err(err),
@@ -2333,34 +2437,55 @@ fn process_item_pickups(
     compression: CompressionState,
     state: &mut PlaySessionState,
     player_uuid: &str,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
     // Snapshot which slots exist before any mutation so we can send only dirty ones.
     // Java: Inventory.add() mutates slots; we detect changes via PlayerInventory.times_changed().
     let times_changed_before = state.inventory_menu.player_inventory().times_changed();
 
-    let mut entities_to_remove: Vec<i32> = Vec::new();
-
-    for entity in &mut state.dropped_items {
-        if !entity.can_be_picked_up_by(player_uuid) {
-            continue;
-        }
-        if !item_entity::in_pickup_range(state.x, state.y, state.z, entity.x, entity.y, entity.z) {
-            continue;
-        }
-
-        let original_count = entity.count;
-        let stack = ItemStack::new(entity.item, entity.count);
-        let (picked_up, new_count) = match state.inventory_menu.player_inventory_mut().add(stack) {
-            InventoryAddResult::FullyAdded => (original_count, 0),
-            InventoryAddResult::PartiallyAdded { remaining } => {
-                (original_count - remaining, remaining)
+    // Phase 1: Under the lock, compute all pickups, mutate entity counts and inventory,
+    // then remove fully-consumed entities.  Packet sends are deferred to Phase 2 so the
+    // Mutex is not held during network I/O.
+    struct PickupEvent {
+        entity_id: i32,
+        picked_up: i32,
+        fully_consumed: bool,
+    }
+    let mut events: Vec<PickupEvent> = Vec::new();
+    {
+        let mut items = world_items.lock().unwrap();
+        let (px, py, pz) = (state.x, state.y, state.z);
+        for entity in items.entities.iter_mut() {
+            if !entity.can_be_picked_up_by(player_uuid) {
+                continue;
             }
-            // Inventory rejected the item (e.g. full) — skip this entity entirely.
-            InventoryAddResult::Rejected | InventoryAddResult::Dropped { .. } => continue,
-        };
+            if !item_entity::in_pickup_range(px, py, pz, entity.x, entity.y, entity.z) {
+                continue;
+            }
+            let original_count = entity.count;
+            let stack = ItemStack::new(entity.item, entity.count);
+            let (picked_up, new_count) =
+                match state.inventory_menu.player_inventory_mut().add(stack) {
+                    InventoryAddResult::FullyAdded => (original_count, 0),
+                    InventoryAddResult::PartiallyAdded { remaining } => {
+                        (original_count - remaining, remaining)
+                    }
+                    // Inventory rejected the item (e.g. full) — skip.
+                    InventoryAddResult::Rejected | InventoryAddResult::Dropped { .. } => continue,
+                };
+            entity.count = new_count;
+            events.push(PickupEvent {
+                entity_id: entity.entity_id,
+                picked_up,
+                fully_consumed: new_count <= 0,
+            });
+        }
+        // Remove fully-consumed entities from the world store.
+        items.entities.retain(|e| e.count > 0);
+    }
 
-        entity.count = new_count;
-
+    // Phase 2: Send packets — lock is released, safe to block on network I/O.
+    for event in &events {
         // 1. TakeItemEntity — triggers the client-side pickup animation and sound.
         //    Java: player.take(this, orgCount) → sends TakeItemEntityPacket to all trackers.
         write_framed_packet_with_compression(
@@ -2369,32 +2494,27 @@ fn process_item_pickups(
             CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
             |p| {
                 ClientboundTakeItemEntityPacket {
-                    item_entity_id: entity.entity_id,
+                    item_entity_id: event.entity_id,
                     collector_entity_id: 1, // player always has entity ID 1 in single-session setup
-                    amount: picked_up,
+                    amount: event.picked_up,
                 }
                 .write(p)
             },
         )?;
-
         // 2. RemoveEntities — only once the entire stack has been consumed.
         //    Java: if (itemStack.isEmpty()) this.discard() → RemoveEntitiesPacket.
-        if new_count <= 0 {
-            entities_to_remove.push(entity.entity_id);
+        if event.fully_consumed {
             write_framed_packet_with_compression(
                 stream,
                 compression,
                 CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
                 |p| {
                     write_var_i32(p, 1)?;
-                    write_var_i32(p, entity.entity_id)
+                    write_var_i32(p, event.entity_id)
                 },
             )?;
         }
     }
-
-    // Remove fully-consumed entities from the server-side list.
-    state.dropped_items.retain(|e| e.count > 0);
 
     // 3. SetPlayerInventory — sync every slot that changed during this pickup pass.
     //    Java: ContainerListener.slotChanged() → ClientboundSetPlayerInventoryPacket.
@@ -2644,8 +2764,6 @@ fn play_session_state_from_nbt(
         xp_total,
         game_mode,
         previous_game_mode,
-        // Dropped items are session-local and not persisted to NBT.
-        dropped_items: Vec::new(),
         inventory_menu: InventoryMenu::new(inventory, recipes.clone()),
         carried_item: ItemStack::empty(),
         container_state_id: 0,
@@ -4435,6 +4553,49 @@ fn pseudo_rand_f32(seed: i32, index: u32) -> f32 {
     (x >> 33) as f32 / u32::MAX as f32
 }
 
+/// Sends a bundle-wrapped `ADD_ENTITY + SET_ENTITY_DATA` pair for a single item entity.
+///
+/// The two packets are enclosed in `ClientboundBundlePacket` delimiters so the client
+/// processes them atomically in one game tick — without this, `ADD_ENTITY` may be
+/// rendered for one tick with no item stack, making the entity invisible.
+///
+/// Java: `ServerEntity.addPairing()` — wraps `ADD_ENTITY + SET_ENTITY_DATA` in
+///       `ClientboundBundlePacket` for any entity that needs metadata at spawn.
+fn write_item_entity_spawn_packets<W: Write>(
+    stream: &mut W,
+    compression: CompressionState,
+    item: &DroppedItem,
+    item_pid: i32,
+) -> io::Result<()> {
+    let eid = item.entity_id;
+    let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
+    let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
+    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, |_| Ok(()))?;
+    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_ADD_ENTITY_PACKET_ID, |p| {
+        write_var_i32(p, eid)?;
+        p.write_all(&uuid_hi.to_be_bytes())?;
+        p.write_all(&uuid_lo.to_be_bytes())?;
+        write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
+        p.write_all(&item.x.to_be_bytes())?;
+        p.write_all(&item.y.to_be_bytes())?;
+        p.write_all(&item.z.to_be_bytes())?;
+        write_lp_vec3(p, item.vel_x, item.vel_y, item.vel_z)?;
+        p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
+        write_var_i32(p, 0)
+    })?;
+    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, |p| {
+        write_var_i32(p, eid)?;
+        p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
+        write_var_i32(p, 7)?; // serializer 7: EntityDataSerializers.ITEM_STACK
+        write_var_i32(p, item.count)?;
+        write_var_i32(p, item_pid)?;
+        write_var_i32(p, 0)?; // component add count
+        write_var_i32(p, 0)?; // component remove count
+        p.write_all(&[0xFFu8]) // end of metadata
+    })?;
+    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, |_| Ok(()))
+}
+
 /// Handles `DROP_ITEM` (action 4, Q) and `DROP_ALL_ITEMS` (action 3, Ctrl+Q) from
 /// `ServerboundPlayerActionPacket`.
 ///
@@ -4449,7 +4610,7 @@ fn handle_drop_item(
     stream: &mut TcpStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
-    entity_id_counter: &mut i32,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
     drop_all: bool,
 ) -> io::Result<()> {
     // Java: ServerGamePacketListenerImpl — spectators cannot drop items.
@@ -4527,68 +4688,37 @@ fn handle_drop_item(
     let cos_pitch = pitch_rad.cos();
     let sin_yaw = yaw_rad.sin();
     let cos_yaw = yaw_rad.cos();
-    let r0 = pseudo_rand_f32(*entity_id_counter, 0) as f64;
-    let r1 = pseudo_rand_f32(*entity_id_counter, 1) as f64;
-    let r2 = pseudo_rand_f32(*entity_id_counter, 2) as f64;
-    let r3 = pseudo_rand_f32(*entity_id_counter, 3) as f64;
+    let eid = world_items.lock().unwrap().alloc_entity_id();
+    // Java: LivingEntity.drop() scatter randomness uses the counter value before the entity
+    // ID is assigned (i.e., eid - 1), matching ItemEntity constructor random offsets.
+    let r0 = pseudo_rand_f32(eid.wrapping_sub(1), 0) as f64;
+    let r1 = pseudo_rand_f32(eid.wrapping_sub(1), 1) as f64;
+    let r2 = pseudo_rand_f32(eid.wrapping_sub(1), 2) as f64;
+    let r3 = pseudo_rand_f32(eid.wrapping_sub(1), 3) as f64;
     let scatter_dir = r0 * std::f64::consts::TAU;
     let scatter_mag = 0.02 * r1;
     let vel_x = -sin_yaw * cos_pitch * 0.3 + scatter_dir.cos() * scatter_mag;
     let vel_y = -sin_pitch * 0.3 + 0.1 + (r2 - r3) * 0.1;
     let vel_z = cos_yaw * cos_pitch * 0.3 + scatter_dir.sin() * scatter_mag;
 
-    *entity_id_counter = entity_id_counter.wrapping_add(1);
-    let eid = *entity_id_counter;
-
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-        |p| {
-            write_var_i32(p, eid)?;
-            let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
-            let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
-            p.write_all(&uuid_hi.to_be_bytes())?;
-            p.write_all(&uuid_lo.to_be_bytes())?;
-            write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
-            p.write_all(&drop_x.to_be_bytes())?;
-            p.write_all(&drop_y.to_be_bytes())?;
-            p.write_all(&drop_z.to_be_bytes())?;
-            write_lp_vec3(p, vel_x, vel_y, vel_z)?;
-            p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
-            write_var_i32(p, 0)
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-        |p| {
-            write_var_i32(p, eid)?;
-            p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
-            write_var_i32(p, 7)?; // serializer 7: EntityDataSerializers.ITEM_STACK
-            write_var_i32(p, removed.count())?;
-            write_var_i32(p, item_pid)?;
-            write_var_i32(p, 0)?; // component add count
-            write_var_i32(p, 0)?; // component remove count
-            p.write_all(&[0xFFu8]) // end of metadata
-        },
-    )?;
-
-    // Register server-side so the pickup loop can detect proximity.
-    // Java: ItemEntity.setPickUpDelay(40) — 2-second delay before anyone can pick it up,
-    // including the player who dropped it.
-    state.dropped_items.push(DroppedItem {
+    let item = DroppedItem {
         entity_id: eid,
         item: removed.item_id(),
         count: removed.count(),
         x: drop_x,
         y: drop_y,
         z: drop_z,
+        vel_x,
+        vel_y,
+        vel_z,
+        // Java: ItemEntity.setPickUpDelay(40) — 2-second delay before anyone can pick it up,
+        // including the player who dropped it.
         pickup_delay: 40,
         age: 0,
         target_uuid: None,
-    });
+    };
+    write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
+    world_items.lock().unwrap().entities.push(item);
 
     Ok(())
 }
@@ -6691,7 +6821,7 @@ mod tests {
         packed_chunk_pos, pig_sound_variant_nbt, play_session_state_from_nbt,
         play_session_state_to_nbt, pseudo_rand_f32, read_code_of_conducts, read_packet,
         status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
-        vanilla_baseline_biome_nbt, villager_schedule_timeline_nbt,
+        vanilla_baseline_biome_nbt, var_int_encoded_len, villager_schedule_timeline_nbt,
         visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
         visible_spawn_terrain_block_count, visible_spawn_terrain_height,
         wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
@@ -6707,8 +6837,7 @@ mod tests {
         write_vanilla_frog_variant_registry_packet, write_vanilla_instrument_registry_packet,
         write_vanilla_jukebox_song_registry_packet, write_vanilla_painting_variant_registry_packet,
         write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
-        var_int_encoded_len, write_vanilla_timeline_registry_packet,
-        write_vanilla_trim_pattern_registry_packet,
+        write_vanilla_timeline_registry_packet, write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
@@ -8078,7 +8207,6 @@ mod tests {
             xp_total: 0,
             game_mode: GameMode::Survival,
             previous_game_mode: None,
-            dropped_items: Vec::new(),
             inventory_menu: InventoryMenu::new(inventory, RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,

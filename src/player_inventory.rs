@@ -889,6 +889,23 @@ impl CraftingGrid {
         result
     }
 
+    /// Drains every non-empty input slot and returns the items.  The grid's result
+    /// and recipe ID are cleared.  Mirrors `InventoryMenu.removed()` + `clearContainer()`
+    /// in Java, which is called when the player disconnects.
+    pub fn take_all_inputs(&mut self) -> Vec<ItemStack> {
+        let mut out = Vec::new();
+        for slot in &mut self.slots {
+            if !slot.is_empty() {
+                out.push(std::mem::replace(slot, ItemStack::empty()));
+            }
+        }
+        if !out.is_empty() {
+            self.result = ItemStack::empty();
+            self.recipe_id = None;
+        }
+        out
+    }
+
     pub fn input_count(&self, item_id: &'static str) -> i32 {
         self.slots
             .iter()
@@ -1019,9 +1036,28 @@ impl InventoryMenu {
         &mut self.player
     }
 
+    /// Returns all items currently in the 2×2 crafting grid back to the player's
+    /// main inventory.  Items that do not fit are pushed to the player inventory's
+    /// `dropped` list so callers can spawn them as world entities.
+    ///
+    /// Java equivalent: `InventoryMenu.removed(player)` → `clearContainer(player, craftSlots)`
+    /// → `Inventory.placeItemBackInInventory(item)` (for a non-dead player).
+    pub fn clear_crafting_to_inventory(&mut self) {
+        for item in self.crafting.take_all_inputs() {
+            // Use `add` rather than `place_item_back_in_inventory` so that items
+            // which cannot fit don't silently pollute `dropped` — the caller can
+            // inspect `player_inventory().dropped()` separately if needed.
+            let _ = self.player.add(item);
+        }
+    }
+
     /// Consume this `InventoryMenu` and return the underlying `PlayerInventory`.
-    /// Used when saving player state to NBT.
-    pub fn into_player_inventory(self) -> PlayerInventory {
+    ///
+    /// Before transferring ownership, any items remaining in the 2×2 crafting grid are
+    /// moved back into the player's inventory (mirroring `InventoryMenu.removed()` in Java).
+    /// Items that cannot fit are appended to `PlayerInventory::dropped()`.
+    pub fn into_player_inventory(mut self) -> PlayerInventory {
+        self.clear_crafting_to_inventory();
         self.player
     }
 

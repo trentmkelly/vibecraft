@@ -208,12 +208,9 @@ mod tests {
             ("Debug", LogLevel::Debug),
             ("TRACE", LogLevel::Trace),
         ] {
-            let options = CliOptions::parse(
-                ["--log-level", flag_val]
-                    .into_iter()
-                    .map(String::from),
-            )
-            .unwrap_or_else(|e| panic!("parse failed for {flag_val:?}: {e}"));
+            let options =
+                CliOptions::parse(["--log-level", flag_val].into_iter().map(String::from))
+                    .unwrap_or_else(|e| panic!("parse failed for {flag_val:?}: {e}"));
             assert_eq!(
                 options.log_level.as_ref(),
                 Some(expected),
@@ -230,10 +227,8 @@ mod tests {
 
     #[test]
     fn log_level_flag_rejects_unknown_value() {
-        let err = CliOptions::parse(
-            ["--log-level", "verbose"].into_iter().map(String::from),
-        )
-        .unwrap_err();
+        let err = CliOptions::parse(["--log-level", "verbose"].into_iter().map(String::from))
+            .unwrap_err();
         assert!(
             err.contains("verbose"),
             "error message should mention the bad value; got: {err}"
