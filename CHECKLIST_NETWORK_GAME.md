@@ -111,7 +111,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Commands / Suggestions Packets
 
 - [ ] `ClientboundCommandsPacket` (0x0F): root node, full command tree with argument/literal/redirect nodes and permission flags
-- [ ] `ClientboundCommandSuggestionsPacket` (0x10): transaction ID VarInt, range start/length, suggestions list (text, optional tooltip)
+- [x] `ClientboundCommandSuggestionsPacket` (0x10): transaction ID VarInt, range start/length, suggestions list (text, optional tooltip component via trusted network NBT tag)
 - [x] `ServerboundCommandSuggestionPacket` (0x0F): transaction ID VarInt, command UTF-8 string capped at 32500 chars
 
 ## Chat Packets

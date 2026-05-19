@@ -670,7 +670,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "command_suggestions",
         java_class: "ClientboundCommandSuggestionsPacket",
-        field_order: "unparsed",
+        field_order: "id:VarInt, start:VarInt, length:VarInt, suggestions:List<Entry(text:String, tooltip:Optional<trusted Component network NBT tag>)>",
     },
     PlayPacketSpec {
         id: 16,

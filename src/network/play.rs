@@ -1381,12 +1381,18 @@ pub struct ClientboundCommandsPacket {
     pub node_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundCommandSuggestionsPacket {
     pub transaction_id: i32,
     pub start: i32,
     pub length: i32,
-    pub matches: Vec<String>,
+    pub suggestions: Vec<CommandSuggestionEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandSuggestionEntry {
+    pub text: String,
+    pub tooltip: Option<Tag>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3041,6 +3047,26 @@ impl ClientboundRecipeBookSettingsPacket {
         self.furnace.write(writer)?;
         self.blast_furnace.write(writer)?;
         self.smoker.write(writer)
+    }
+}
+
+impl ClientboundCommandSuggestionsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.transaction_id)?;
+        write_var_i32(writer, self.start)?;
+        write_var_i32(writer, self.length)?;
+        write_var_i32(writer, self.suggestions.len() as i32)?;
+        for suggestion in &self.suggestions {
+            write_string(writer, &suggestion.text, 32767)?;
+            match &suggestion.tooltip {
+                Some(tooltip) => {
+                    write_bool(writer, true)?;
+                    write_network_tag(writer, tooltip)?;
+                }
+                None => write_bool(writer, false)?,
+            }
+        }
+        Ok(())
     }
 }
 
@@ -6120,7 +6146,10 @@ mod tests {
                 transaction_id: 4,
                 start: 0,
                 length: 2,
-                matches: vec!["help".to_string()],
+                suggestions: vec![CommandSuggestionEntry {
+                    text: "help".to_string(),
+                    tooltip: None,
+                }],
             }),
             PlayInstruction::Debug(ClientboundDebugPacket {
                 kind: DebugPacketKind::Sample,
@@ -6641,6 +6670,33 @@ mod tests {
         .write(&mut recipe_settings)
         .unwrap();
         assert_eq!(recipe_settings, vec![1, 0, 0, 1, 0, 0, 1, 1]);
+
+        let mut command_suggestions = Vec::new();
+        ClientboundCommandSuggestionsPacket {
+            transaction_id: 4,
+            start: 1,
+            length: 2,
+            suggestions: vec![
+                CommandSuggestionEntry {
+                    text: "help".to_string(),
+                    tooltip: None,
+                },
+                CommandSuggestionEntry {
+                    text: "hello".to_string(),
+                    tooltip: Some(Tag::Compound(vec![(
+                        "text".to_string(),
+                        Tag::String("tooltip".to_string()),
+                    )])),
+                },
+            ],
+        }
+        .write(&mut command_suggestions)
+        .unwrap();
+        assert_eq!(&command_suggestions[..6], &[4, 1, 2, 2, 4, b'h']);
+        assert!(command_suggestions.ends_with(&[0]));
+        assert!(command_suggestions
+            .windows(4)
+            .any(|window| window == [1, 10, 8, 0]));
 
         let mut debug_sample = Vec::new();
         ClientboundDebugSamplePacket {
