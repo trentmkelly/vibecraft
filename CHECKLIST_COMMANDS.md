@@ -100,7 +100,7 @@
 - [x] Implement `/forceload`.
 - [x] Implement `/function` and function scheduling.
 - [x] Implement `/give`.
-- [ ] Implement `/help`.
+- [x] Implement `/help`.
 - [ ] Implement `/item`.
 - [ ] Implement `/jfr`.
 - [x] Implement `/kick`, `/kill`, `/list`.
