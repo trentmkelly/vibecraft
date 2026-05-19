@@ -1153,6 +1153,28 @@ fn push_fuel(entries: &mut Vec<(&'static str, i32)>, item: &'static str, ticks: 
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FurnaceRecipeUsage {
+    pub recipe_id: &'static str,
+    pub times_used: i32,
+    pub experience_millis: i32,
+}
+
+pub fn furnace_experience_to_award(usage: &FurnaceRecipeUsage, fraction_roll: f32) -> i32 {
+    if usage.times_used <= 0 || usage.experience_millis <= 0 {
+        return 0;
+    }
+
+    let total_millis = usage.times_used * usage.experience_millis;
+    let whole = total_millis / 1000;
+    let fraction = (total_millis % 1000) as f32 / 1000.0;
+    if fraction != 0.0 && fraction_roll < fraction {
+        whole + 1
+    } else {
+        whole
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialRecipeKind {
     Transmute,
@@ -1797,6 +1819,41 @@ mod tests {
         let faster = FuelValues::vanilla_with_base_unit(100);
         assert_eq!(faster.burn_duration(Some("minecraft:coal")), 800);
         assert_eq!(faster.burn_duration(Some("minecraft:white_carpet")), 34);
+    }
+
+    #[test]
+    fn cooking_recipe_experience_and_fuel_interaction_follow_furnace_rules() {
+        let recipe = RecipeKind::Cooking {
+            kind: CookingKind::Smelting,
+            ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+            result: ItemAmount::one("minecraft:iron_ingot"),
+            experience_millis: 700,
+            cooking_time: None,
+        };
+        let fuels = FuelValues::vanilla();
+
+        assert_eq!(recipe.cooking_time(), Some(200));
+        assert!(recipe.matches(1, 1, &[Some("minecraft:raw_iron")]));
+        assert_eq!(fuels.burn_duration(Some("minecraft:coal")), 1_600);
+        assert_eq!(fuels.burn_duration(Some("minecraft:stick")), 100);
+
+        let usage = FurnaceRecipeUsage {
+            recipe_id: "minecraft:iron_ingot_from_smelting_raw_iron",
+            times_used: 3,
+            experience_millis: 700,
+        };
+        assert_eq!(furnace_experience_to_award(&usage, 0.05), 3);
+        assert_eq!(furnace_experience_to_award(&usage, 0.95), 2);
+        assert_eq!(
+            furnace_experience_to_award(
+                &FurnaceRecipeUsage {
+                    times_used: 0,
+                    ..usage
+                },
+                0.0
+            ),
+            0
+        );
     }
 
     #[test]
