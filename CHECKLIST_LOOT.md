@@ -27,7 +27,7 @@
 - [x] Implement `LootPool`: roll count from `NumberProvider`, bonus rolls, entry list, condition list, function list
 - [x] Implement all loot entry types: `LootItem` (item entry), `TagEntry` (item tag, expand or random), `LootTableReference` (nested table), `DynamicLoot` (block entity dynamic loot), `GroupEntry`, `AlternativesEntry`, `SequenceEntry`, `EmptyLootItem`
 - [x] Implement entry weight, quality (luck-scaled), and condition gating
-- [ ] Implement `RandomSequences`: named sequences stored per-level in `data/random_sequences.dat`, used for deterministic loot in structures; `/random sequence` command support
+- [x] Implement `RandomSequences`: named sequences stored per-level in `data/random_sequences.dat`, used for deterministic loot in structures; `/random sequence` command support
 
 ## Loot Contexts and Parameters
 
@@ -100,9 +100,9 @@
 
 - [ ] Implement block-drop loot: `LootParams` with BLOCK_STATE, BLOCK_ENTITY, TOOL, ORIGIN; `doTileDrops` gamerule gate; Silk Touch tool condition; Fortune bonus functions
 - [ ] Implement entity-kill loot: `LootParams` with THIS_ENTITY, KILLER_ENTITY, DIRECT_KILLER_ENTITY, LAST_DAMAGE_PLAYER; looting enchantment bonus; player-kill condition
-- [ ] Implement chest/container loot: one-time realization from loot table; `RandomizableContainerBlockEntity.unpackLootTable()` on first open; seed stored per block entity
+- [x] Implement chest/container loot: one-time realization from loot table; `RandomizableContainerBlockEntity.unpackLootTable()` on first open; seed stored per block entity
 - [ ] Implement fishing loot: `LootParams` with TOOL, ORIGIN; luck-of-the-sea scaling; treasure/fish/junk category tables
-- [ ] Implement archaeology loot: `LootParams` with ORIGIN; brushable block table (`suspicious_sand`, `suspicious_gravel` variants per structure)
+- [x] Implement archaeology loot: `LootParams` with ORIGIN; brushable block table (`suspicious_sand`, `suspicious_gravel` variants per structure)
 - [ ] Implement advancement reward loot: `LootParams` with THIS_ENTITY; XP and item rewards from advancement JSON
 - [ ] Implement mob-gift loot: cat morning gift (`cat/morning_gift`), villager trades, wandering trader
 - [ ] Implement piglin bartering: `gameplay/piglin_bartering` table
@@ -116,7 +116,7 @@
 - [x] Implement `MerchantOffer`: input1, input2 (optional), result, `uses`, `maxUses`, `rewardExp`, `specialPrice`, `priceMultiplier`, `demand`, `ignoreDiscount` flag
 - [x] Implement trade price formula: Java `MerchantOffer.getModifiedCostCount`: `clamp(baseCost + max(0, floor(baseCost * demand * priceMultiplier)) + specialPrice, 1, maxStackSize)`
 - [x] Implement demand mechanics: demand increments after each purchase, decays toward 0 after restocking
-- [ ] Implement `specialPrice` modification from hero-of-the-village effect (discount per level)
+- [x] Implement `specialPrice` modification from hero-of-the-village effect (discount per level)
 - [x] Implement trade-use XP grant to villager on successful trade
 - [x] Implement `VillagerProfession` trade-set loading from `data/minecraft/villager_trade/<profession_id>.json`
 - [x] Implement `data/minecraft/trade_set/` trade-set entries for wandering trader offers
