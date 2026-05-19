@@ -50,7 +50,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Entity Lifecycle Packets
 
 - [ ] `ClientboundAddEntityPacket` (0x01): entity ID, UUID, type, pos X/Y/Z, pitch, yaw, head-yaw, data (varies by type), velocity X/Y/Z; verify type-specific `data` field encoding
-- [ ] `ClientboundAddExperienceOrbPacket` (0x02): entity ID, position, count short
+- [x] `ClientboundAddExperienceOrbPacket`: not present in 26.1.2 Java `GamePacketTypes`; experience orbs spawn through `ClientboundAddEntityPacket`
 - [x] `ClientboundRemoveEntitiesPacket` (0x4D): VarInt entity ID list (`FriendlyByteBuf.writeIntIdList`)
 - [x] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
 - [x] `ClientboundTeleportEntityPacket` (0x7D): entity ID, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), relative flags int bitmask, on-ground bool
@@ -154,7 +154,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundSoundPacket` (0x65): sound holder (registered ID VarInt or inline sound event), source VarInt, pos X/Y/Z fixed-point, volume, pitch, seed long
 - [ ] `ClientboundSoundEntityPacket` (0x66): same but entity ID instead of position
 - [x] `ClientboundStopSoundPacket` (0x77): flags byte, optional sound source enum, optional sound identifier
-- [ ] `ClientboundNamedSoundEffectPacket`: deprecated alias handled by `ClientboundSoundPacket`
+- [x] `ClientboundNamedSoundEffectPacket`: not present in 26.1.2 Java `GamePacketTypes`; handled by `ClientboundSoundPacket`
 - [ ] `ClientboundLevelParticlesPacket` (0x29): particle type VarInt, long distance bool, pos X/Y/Z, offset X/Y/Z, max speed, count, particle data (varies by type); verify all ~100 particle type data shapes
 - [x] `ClientboundLevelEventPacket` (0x2E): event int, pos BlockPos, data int, global bool
 
