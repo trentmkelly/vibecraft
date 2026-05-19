@@ -1333,14 +1333,14 @@ pub fn parse_biome_json(id: &str, json: &str) -> Result<BiomeData, String> {
                     .get("weight")
                     .and_then(|v| v.as_i64())
                     .ok_or("spawner entry missing 'weight'")? as i32;
-                let min_count = e
-                    .get("minCount")
-                    .and_then(|v| v.as_i64())
-                    .ok_or("spawner entry missing 'minCount'")? as i32;
-                let max_count = e
-                    .get("maxCount")
-                    .and_then(|v| v.as_i64())
-                    .ok_or("spawner entry missing 'maxCount'")? as i32;
+                let min_count =
+                    e.get("minCount")
+                        .and_then(|v| v.as_i64())
+                        .ok_or("spawner entry missing 'minCount'")? as i32;
+                let max_count =
+                    e.get("maxCount")
+                        .and_then(|v| v.as_i64())
+                        .ok_or("spawner entry missing 'maxCount'")? as i32;
                 data_list.push(SpawnerData {
                     entity_type,
                     weight,
@@ -1366,7 +1366,13 @@ pub fn parse_biome_json(id: &str, json: &str) -> Result<BiomeData, String> {
                 .get("charge")
                 .and_then(|v| v.as_f64())
                 .ok_or("spawn cost missing 'charge'")?;
-            spawn_costs.insert(entity_type.clone(), SpawnCost { energy_budget, charge });
+            spawn_costs.insert(
+                entity_type.clone(),
+                SpawnCost {
+                    energy_budget,
+                    charge,
+                },
+            );
         }
     }
 
@@ -3112,8 +3118,14 @@ mod tests {
 
         assert_eq!(biome.id, "minecraft:plains");
         assert!(biome.has_precipitation);
-        assert!((biome.temperature - 0.8).abs() < 1e-4, "temperature should be 0.8");
-        assert!((biome.downfall - 0.4).abs() < 1e-4, "downfall should be 0.4");
+        assert!(
+            (biome.temperature - 0.8).abs() < 1e-4,
+            "temperature should be 0.8"
+        );
+        assert!(
+            (biome.downfall - 0.4).abs() < 1e-4,
+            "downfall should be 0.4"
+        );
 
         // --- BiomeGenerationSettings ---
 
@@ -3170,7 +3182,11 @@ mod tests {
             .spawners
             .get(&MobCategory::Monster)
             .expect("monster spawner category must be present");
-        assert_eq!(monsters.len(), 9, "monster spawner list should have 9 entries");
+        assert_eq!(
+            monsters.len(),
+            9,
+            "monster spawner list should have 9 entries"
+        );
         let spider = monsters
             .iter()
             .find(|e| e.entity_type == "minecraft:spider")
@@ -3180,6 +3196,9 @@ mod tests {
         assert_eq!(spider.max_count, 4);
 
         // spawn_costs: empty for plains.
-        assert!(mob.spawn_costs.is_empty(), "plains spawn_costs should be empty");
+        assert!(
+            mob.spawn_costs.is_empty(),
+            "plains spawn_costs should be empty"
+        );
     }
 }

@@ -84,12 +84,12 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Chunk Status Pipeline
 
-- [ ] Implement chunk status pipeline in vanilla order (from `ChunkStatus`): EMPTY → STRUCTURE_STARTS → STRUCTURE_REFERENCES → BIOMES → NOISE → SURFACE → CARVERS → FEATURES → INITIALIZE_LIGHT → LIGHT → SPAWN → FULL
-- [ ] Implement each status with correct region dependency sizes (e.g., FEATURES needs 8-radius neighbor chunks, SURFACE needs 0)
-- [ ] Implement `ChunkStatusTasks` task bodies for each status
-- [ ] Implement `ChunkGenerator` generator methods invoked per status: `createBiomes()`, `fillFromNoise()`, `buildSurface()`, `applyCarvers()`, `applyBiomeDecoration()`, `createStructures()`, `createReferences()`, `spawnOriginalMobs()`
-- [ ] Route live join-time chunk batch through generated `LevelChunk` output and `ClientboundLevelChunkWithLightPacket::from_chunk` serializer (replacing the current synthetic chunk writer)
-- [ ] Add parity test: chunk at overworld (0,0) reaches FULL status with correct section count and heightmap entries
+- [x] Implement chunk status pipeline in vanilla order (from `ChunkStatus`): EMPTY → STRUCTURE_STARTS → STRUCTURE_REFERENCES → BIOMES → NOISE → SURFACE → CARVERS → FEATURES → INITIALIZE_LIGHT → LIGHT → SPAWN → FULL
+- [x] Implement each status with correct region dependency sizes (e.g., FEATURES needs 8-radius neighbor chunks, SURFACE needs 0)
+- [x] Implement `ChunkStatusTasks` task bodies for each status
+- [x] Implement `ChunkGenerator` generator methods invoked per status: `createBiomes()`, `fillFromNoise()`, `buildSurface()`, `applyCarvers()`, `applyBiomeDecoration()`, `createStructures()`, `createReferences()`, `spawnOriginalMobs()`
+- [x] Route live join-time chunk batch through generated `LevelChunk` output and `ClientboundLevelChunkWithLightPacket::from_chunk` serializer (replacing the current synthetic chunk writer)
+- [x] Add parity test: chunk at overworld (0,0) reaches FULL status with correct section count and heightmap entries
 
 ## Noise Settings and Router
 

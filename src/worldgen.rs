@@ -35358,12 +35358,12 @@ mod tests {
             .expect("overworld chunk generation must not fail at (0,0)");
 
         let settings = super::builtin_noise_generator_settings("overworld").unwrap();
-        let expected_sections =
-            (settings.noise_settings.height / 16) as usize;
+        let expected_sections = (settings.noise.height / 16) as usize;
         assert_eq!(
             chunk.sections.len(),
             expected_sections,
-            "expected {expected_sections} sections for height={}", settings.noise_settings.height
+            "expected {expected_sections} sections for height={}",
+            settings.noise.height
         );
         assert!(
             chunk.heightmaps.contains_key("WORLD_SURFACE_WG"),
