@@ -41,12 +41,12 @@
 - [ ] Implement function tags from `data/*/tags/function/*.json`: ordered list of function IDs, `#minecraft:tick` and `#minecraft:load` special tags
 - [ ] Implement `#minecraft:tick` invocation: call all tagged functions every server tick
 - [ ] Implement `#minecraft:load` invocation: call all tagged functions on world load and datapack reload
-- [ ] Implement `/function <id>` command: execute a named function with the invoker's command source stack
+- [x] Implement `/function <id>` command: execute a named function with the invoker's command source stack
 - [ ] Implement function-level return values: `/return` command sets the function result used by `/execute` return predicates
 - [ ] Implement macro functions (26.1.2): `$` prefix lines in `.mcfunction` accept macro arguments, `$(variable)` substitution; `/function <id> with <entity|block|storage>` syntax
 - [ ] Implement function-argument type in Brigadier argument list for `/function` command autocompletion
-- [ ] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
-- [ ] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
+- [x] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
+- [x] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
 - [ ] Implement nested function execution depth limit (vanilla limit: 32 nesting levels) with error on overflow
 - [ ] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
 - [ ] Add parity test: macro function variable substitution with entity/storage/block NBT source
