@@ -95,6 +95,12 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 - [x] Implement `NoiseGeneratorSettings` codec loading from `data/minecraft/worldgen/noise_settings/` — scalar fields parsed from all 7 vanilla JSON files and validated against hardcoded statics in `noise_generator_settings_scalar_fields_match_vanilla_json_files`
 - [x] Implement `NoiseRouter` with named output channels: `barrier`, `fluid_level_floodedness`, `fluid_level_spread`, `lava`, `temperature`, `vegetation`, `continents`, `erosion`, `depth`, `ridges`, `preliminary_surface_level`, `final_density`, `vein_toggle`, `vein_ridged`, `vein_gap` — `NoiseRouter` struct + builtin constants in `worldgen.rs`
+- [x] Audit and fix `OVERWORLD_NOISE_ROUTER` (and `LARGE_BIOMES_NOISE_ROUTER`, `AMPLIFIED_NOISE_ROUTER`) fields against Java `NoiseRouterData.overworld()`:
+  - [x] `barrier`/`fluid_level_floodedness`/`fluid_level_spread` noise scales confirmed correct (`noise(data, yScale)` → `xzScale=1.0`)
+  - [x] `vein_toggle`: was bare `Noise`, fixed to `Interpolated(rangeChoice(y, -60, 51, noise(ore_veininess, 1.5, 1.5), constant(0)))` matching Java `yLimitedInterpolatable`
+  - [x] `vein_ridged`: was unregistered Reference, replaced with inline `add(constant(-0.08F), max(abs(veinA), abs(veinB)))` tree matching Java `overworld()` inline computation; `veinA`/`veinB` are both `yLimitedInterpolatable`-wrapped noise
+  - [x] `preliminary_surface_level`: was unregistered Reference, replaced with full `FindTopSurface` tree (cache2d offset/factor → remap upper bound → clamp → slideOverworld density) for all three variants (overworld, large_biomes, amplified); amplified uses different slide parameters (topGradient 304→320, bottomTarget 0.4)
+- [x] Add parity test: `overworld_noise_router_all_fields_finite_at_canonical_position` — all 15 router fields evaluate to finite values at seed=12345, (0,64,0), catching any unregistered Reference that would silently return 0.0
 - [x] Implement `NoiseSettings` (min Y, height, sampling noise scale, noise size XZ/Y) — `NoiseSettings` struct with `validate`, `clamp_to_height`, `cell_width`, `cell_height`; five builtin constants matching vanilla
 - [x] Implement `RandomState` noise fork caching: `getOrCreateNoise(ResourceKey<NormalNoise.NoiseParameters>)` — `RandomStateNoiseCache` struct with `get_or_create_noise` mirrors Java `RandomState.noiseInstances` cache
 - [x] Add test: noise settings for overworld match vanilla min Y = -64, height = 384 — `noise_settings_presets_match_26_1_2_constants`
