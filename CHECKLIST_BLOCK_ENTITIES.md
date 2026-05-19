@@ -17,12 +17,12 @@
 
 ## Base Block Entity Infrastructure
 
-- [ ] Implement `BlockEntity.getUpdateTag()` returning only the NBT subset sent in `BlockEntityData` network packets (not the full save NBT)
-- [ ] Implement `BlockEntity.getUpdatePacket()` returning a `ClientboundBlockEntityDataPacket` at the correct packet ID
-- [ ] Implement `BlockEntity.changed()` marking the containing chunk as dirty for save
-- [ ] Implement `BlockEntity.clearRemoved()` / `setRemoved()` lifecycle hooks
+- [x] Implement `BlockEntity.getUpdateTag()` returning only the NBT subset sent in `BlockEntityData` network packets (not the full save NBT): `BlockEntity::get_update_tag()` returns empty update tags for container block entities and save-without-metadata tags for visible update entities; covered by `update_packets_use_position_type_and_update_tag`
+- [x] Implement `BlockEntity.getUpdatePacket()` returning a `ClientboundBlockEntityDataPacket` at the correct packet ID: `BlockEntity::get_update_packet()` carries position, type, and update tag, and `network::play::ClientboundBlockEntityDataPacket` serializes the play packet shape
+- [x] Implement `BlockEntity.changed()` marking the containing chunk as dirty for save: `BlockEntity::set_changed()` sets `changed` only after `set_level()`, covered by `changed_flag_only_sets_when_attached_to_level`
+- [x] Implement `BlockEntity.clearRemoved()` / `setRemoved()` lifecycle hooks: `set_removed()` and `clear_removed()` update the removal flag, and ticking refuses removed block entities
 - [ ] Implement `BlockEntity.handleUpdateTag(tag)` applying the network-received subset on the simulated client side
-- [ ] Implement `BlockEntityTicker` dispatch: server-tick and client-tick registrations independently null-checked per type
+- [x] Implement `BlockEntityTicker` dispatch: server-tick and client-tick registrations independently null-checked per type: `BlockEntity::tick(client_side)` checks `BlockEntityTypeInfo.tick_kind`, level attachment, and removal state; covered by `ticking_requires_level_side_match_and_not_removed`
 - [ ] Implement `BlockEntityType` registry with `validBlocks` set and version-compatible NBT deserialization via `DataFixer`
 - [ ] Implement `TickingBlockEntity` wrapper used by `ServerLevel` to schedule ticking block entities
 - [ ] Add unit test: save NBT → load NBT round-trip preserves all fields for every block entity type
