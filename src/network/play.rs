@@ -41,6 +41,7 @@ pub const SERVERBOUND_PLAYER_COMMAND_PACKET_ID: i32 = 42;
 pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
+pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
@@ -315,6 +316,11 @@ pub struct ServerboundUseItemOnPacket {
     pub hand: ServerboundSwingHand,
     pub block_hit: BlockHitResultPacketData,
     pub sequence: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPongPacket {
+    pub id: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1025,6 +1031,7 @@ pub struct PlaySession {
     pub last_player_action: Option<ServerboundPlayerActionPacket>,
     pub last_use_item: Option<ServerboundUseItemPacket>,
     pub last_use_item_on: Option<ServerboundUseItemOnPacket>,
+    pub last_pong: Option<ServerboundPongPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1108,6 +1115,7 @@ impl PlaySession {
             last_player_action: None,
             last_use_item: None,
             last_use_item_on: None,
+            last_pong: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1337,6 +1345,16 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad player action packet: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_PONG_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPongPacket::read(&mut input) {
+                    Ok(pong) => {
+                        self.last_pong = Some(pong);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad pong packet: {err}")),
                 }
             }
             SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
@@ -2501,6 +2519,20 @@ impl ServerboundUseItemOnPacket {
         write_var_i32(writer, self.hand.to_id())?;
         self.block_hit.write(writer)?;
         write_var_i32(writer, self.sequence)
+    }
+}
+
+impl ServerboundPongPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = [0u8; 4];
+        reader.read_exact(&mut bytes)?;
+        Ok(Self {
+            id: i32::from_be_bytes(bytes),
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.id.to_be_bytes())
     }
 }
 
@@ -4588,6 +4620,24 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_use_item_on, Some(use_item_on));
+
+        let mut pong = Vec::new();
+        ServerboundPongPacket { id: 0x01020304 }
+            .write(&mut pong)
+            .unwrap();
+        assert_eq!(pong, vec![1, 2, 3, 4]);
+        assert_eq!(
+            ServerboundPongPacket::read(&mut cursor(pong.clone())).unwrap(),
+            ServerboundPongPacket { id: 0x01020304 }
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_PONG_PACKET_ID, pong)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_pong,
+            Some(ServerboundPongPacket { id: 0x01020304 })
+        );
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {

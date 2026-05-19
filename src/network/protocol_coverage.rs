@@ -396,7 +396,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "pong",
         java_class: "ServerboundPongPacket",
-        field_order: "unparsed",
+        field_order: "id:i32_be",
     },
     PlayPacketSpec {
         id: 46,
