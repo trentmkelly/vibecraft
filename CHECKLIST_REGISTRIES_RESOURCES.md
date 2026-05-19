@@ -49,7 +49,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/test_instance`.
 - [x] Implement `data/minecraft/timeline`.
 - [ ] Implement `data/minecraft/trade_set`.
-- [ ] Implement `data/minecraft/trial_spawner`.
+- [x] Implement `data/minecraft/trial_spawner`.
 - [x] Implement `data/minecraft/trim_material`.
 - [x] Implement `data/minecraft/trim_pattern`.
 - [ ] Implement `data/minecraft/villager_trade`.
