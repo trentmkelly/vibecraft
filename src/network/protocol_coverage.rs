@@ -908,7 +908,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "login",
         java_class: "ClientboundLoginPacket",
-        field_order: "unparsed",
+        field_order: "player_id:int, hardcore:bool, levels:Collection<ResourceKey<Level>>, max_players:VarInt, chunk_radius:VarInt, simulation_distance:VarInt, reduced_debug_info:bool, show_death_screen:bool, do_limited_crafting:bool, common_spawn_info, enforces_secure_chat:bool",
     },
     PlayPacketSpec {
         id: 50,
@@ -1140,7 +1140,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "respawn",
         java_class: "ClientboundRespawnPacket",
-        field_order: "unparsed",
+        field_order: "common_spawn_info(dimension_type:DimensionType.STREAM_CODEC, dimension:ResourceKey<Level>, seed:long, game_type:byte, previous_game_type:nullable byte, is_debug:bool, is_flat:bool, last_death_location:Optional<GlobalPos>, portal_cooldown:VarInt, sea_level:VarInt), data_to_keep:byte",
     },
     PlayPacketSpec {
         id: 83,

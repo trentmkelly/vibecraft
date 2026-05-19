@@ -2040,6 +2040,66 @@ impl Default for CommonPlayerSpawnInfo {
     }
 }
 
+impl CommonPlayerSpawnInfo {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, dimension_type_registry_id(&self.dimension_type)?)?;
+        write_identifier(writer, &self.dimension)?;
+        write_i64(writer, self.seed)?;
+        writer.write_all(&[self.game_mode as u8])?;
+        writer.write_all(&[match self.previous_game_mode {
+            Some(GameMode::Survival) => 0,
+            Some(GameMode::Creative) => 1,
+            Some(GameMode::Adventure) => 2,
+            Some(GameMode::Spectator) => 3,
+            None => 255,
+        }])?;
+        write_bool(writer, self.is_debug)?;
+        write_bool(writer, self.is_flat)?;
+        write_optional(
+            writer,
+            self.last_death_location.as_ref(),
+            |writer, (dimension, pos)| {
+                write_identifier(writer, dimension)?;
+                write_block_position(writer, pos[0], pos[1], pos[2])
+            },
+        )?;
+        write_var_i32(writer, self.portal_cooldown)?;
+        write_var_i32(writer, self.sea_level)
+    }
+}
+
+fn dimension_type_registry_id(dimension_type: &Identifier) -> io::Result<i32> {
+    match (dimension_type.namespace(), dimension_type.path()) {
+        ("minecraft", "overworld") => Ok(0),
+        ("minecraft", "overworld_caves") => Ok(1),
+        ("minecraft", "the_end") => Ok(2),
+        ("minecraft", "the_nether") => Ok(3),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unsupported dimension type {dimension_type} in play packet"),
+        )),
+    }
+}
+
+impl ClientboundLoginPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i32(writer, self.player_id)?;
+        write_bool(writer, self.hardcore)?;
+        write_var_i32(writer, self.levels.len() as i32)?;
+        for level in &self.levels {
+            write_identifier(writer, level)?;
+        }
+        write_var_i32(writer, self.max_players)?;
+        write_var_i32(writer, self.chunk_radius)?;
+        write_var_i32(writer, self.simulation_distance)?;
+        write_bool(writer, self.reduced_debug_info)?;
+        write_bool(writer, self.show_death_screen)?;
+        write_bool(writer, self.do_limited_crafting)?;
+        self.spawn_info.write(writer)?;
+        write_bool(writer, self.enforces_secure_chat)
+    }
+}
+
 impl PlaySession {
     pub fn new(entity_id: i32, selected_slot: i16) -> Self {
         Self {
@@ -5929,6 +5989,13 @@ impl RespawnDataToKeep {
     }
 }
 
+impl ClientboundRespawnPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.spawn_info.write(writer)?;
+        writer.write_all(&[self.data_to_keep.bits])
+    }
+}
+
 impl ServerboundSetCarriedItemPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut bytes = [0u8; 2];
@@ -8593,6 +8660,91 @@ mod tests {
                 PlayInstruction::PlayerPosition { teleport_id: 0 }
             ]
         );
+    }
+
+    #[test]
+    fn login_and_respawn_packets_write_common_spawn_info_in_vanilla_order() {
+        let spawn_info = CommonPlayerSpawnInfo {
+            dimension_type: Identifier::parse("minecraft:the_nether").unwrap(),
+            dimension: Identifier::parse("minecraft:the_nether").unwrap(),
+            seed: -7,
+            game_mode: GameMode::Creative,
+            previous_game_mode: Some(GameMode::Survival),
+            is_debug: false,
+            is_flat: true,
+            last_death_location: Some((
+                Identifier::parse("minecraft:overworld").unwrap(),
+                [1, 64, -2],
+            )),
+            portal_cooldown: 20,
+            sea_level: 32,
+        };
+        let login = ClientboundLoginPacket {
+            player_id: 42,
+            hardcore: true,
+            levels: vec![
+                Identifier::parse("minecraft:overworld").unwrap(),
+                Identifier::parse("minecraft:the_nether").unwrap(),
+            ],
+            max_players: 20,
+            chunk_radius: 10,
+            simulation_distance: 8,
+            reduced_debug_info: false,
+            show_death_screen: true,
+            do_limited_crafting: false,
+            spawn_info: spawn_info.clone(),
+            enforces_secure_chat: true,
+        };
+
+        let mut login_payload = Vec::new();
+        login.write(&mut login_payload).unwrap();
+        assert_eq!(&login_payload[..5], &[0, 0, 0, 42, 1]);
+        let mut input = cursor(login_payload);
+        assert_eq!(read_i32(&mut input).unwrap(), 42);
+        assert!(read_bool(&mut input).unwrap());
+        assert_eq!(read_var_i32(&mut input).unwrap(), 2);
+        assert_eq!(
+            read_identifier(&mut input).unwrap(),
+            Identifier::parse("minecraft:overworld").unwrap()
+        );
+        assert_eq!(
+            read_identifier(&mut input).unwrap(),
+            Identifier::parse("minecraft:the_nether").unwrap()
+        );
+        assert_eq!(read_var_i32(&mut input).unwrap(), 20);
+        assert_eq!(read_var_i32(&mut input).unwrap(), 10);
+        assert_eq!(read_var_i32(&mut input).unwrap(), 8);
+        assert!(!read_bool(&mut input).unwrap());
+        assert!(read_bool(&mut input).unwrap());
+        assert!(!read_bool(&mut input).unwrap());
+        assert_eq!(read_var_i32(&mut input).unwrap(), 3);
+        assert_eq!(
+            read_identifier(&mut input).unwrap(),
+            Identifier::parse("minecraft:the_nether").unwrap()
+        );
+        assert_eq!(read_i64(&mut input).unwrap(), -7);
+        assert_eq!(read_u8(&mut input).unwrap(), 1);
+        assert_eq!(read_u8(&mut input).unwrap(), 0);
+        assert!(!read_bool(&mut input).unwrap());
+        assert!(read_bool(&mut input).unwrap());
+        assert!(read_bool(&mut input).unwrap());
+        assert_eq!(
+            read_identifier(&mut input).unwrap(),
+            Identifier::parse("minecraft:overworld").unwrap()
+        );
+        assert_eq!(read_block_position(&mut input).unwrap(), (1, 64, -2));
+        assert_eq!(read_var_i32(&mut input).unwrap(), 20);
+        assert_eq!(read_var_i32(&mut input).unwrap(), 32);
+        assert!(read_bool(&mut input).unwrap());
+
+        let mut respawn_payload = Vec::new();
+        ClientboundRespawnPacket {
+            spawn_info,
+            data_to_keep: RespawnDataToKeep::KEEP_ALL_DATA,
+        }
+        .write(&mut respawn_payload)
+        .unwrap();
+        assert_eq!(*respawn_payload.last().unwrap(), 3);
     }
 
     #[test]

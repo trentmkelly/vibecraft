@@ -27,8 +27,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Join / Respawn / World State Packets
 
-- [ ] `ClientboundLoginPacket` (0x2B): entity ID, is-hardcore, game-type, previous-game-type, levels, registry-holder, dimension-type, dimension, seed, max-players, chunk-radius, simulation-distance, reduced-debug-info, enable-respawn-screen, do-limited-crafting, portal-cooldown, sea-level, enforces-secure-chat; verify all 19+ fields in exact order
-- [ ] `ClientboundRespawnPacket` (0x45): common player spawn info, data-to-keep flags; exact flag bitmask for KEEP_ALL_DATA, KEEP_METADATA
+- [x] `ClientboundLoginPacket` (0x2B): entity ID, is-hardcore, levels, max-players, chunk-radius, simulation-distance, reduced-debug-info, enable-respawn-screen, do-limited-crafting, common player spawn info (dimension type, dimension, seed, game-type, previous-game-type, debug/flat flags, last death location, portal cooldown, sea level), enforces-secure-chat; verified field order against Java
+- [x] `ClientboundRespawnPacket` (0x45): common player spawn info, data-to-keep flags; exact flag bitmask for KEEP_ALL_DATA, KEEP_ATTRIBUTE_MODIFIERS, KEEP_ENTITY_DATA
 - [x] `ClientboundChangeDifficultyPacket` (0x0B): difficulty byte, difficulty-locked bool
 - [x] `ClientboundSetDefaultSpawnPositionPacket` (0x52): BlockPos, angle float
 - [x] `ClientboundSetTimePacket` (0x62): game-time long, day-time long, tick-day-time bool
