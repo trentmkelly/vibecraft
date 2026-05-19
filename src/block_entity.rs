@@ -357,6 +357,20 @@ pub struct CommandBlockUpdate {
     pub automatic: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandBlockChainEntry {
+    pub pos: BlockPos,
+    pub facing: Direction,
+    pub block: CommandBlockEntity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandBlockChainStep {
+    pub pos: BlockPos,
+    pub command: String,
+    pub success_count: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JukeboxSongEvent {
     Started,
@@ -2260,6 +2274,53 @@ impl CommandBlockEntity {
             output,
         })
     }
+}
+
+pub fn execute_command_block_chain(
+    entries: &mut [CommandBlockChainEntry],
+    start_pos: BlockPos,
+    context: CommandBlockExecutionContext,
+) -> Vec<CommandBlockChainStep> {
+    let mut steps = Vec::new();
+    let mut current_pos = start_pos;
+    let mut previous_success = context.previous_success;
+
+    for _ in 0..entries.len() {
+        let Some(index) = entries.iter().position(|entry| entry.pos == current_pos) else {
+            break;
+        };
+        let next_pos = entries[index].pos.relative(entries[index].facing);
+        let entry = &mut entries[index];
+        let mut step_context = context.clone();
+        step_context.pos = entry.pos;
+        step_context.previous_success = previous_success;
+
+        let success_count = if entry
+            .block
+            .execute_from_context(step_context, None)
+            .is_some()
+        {
+            entry.block.success_count
+        } else {
+            0
+        };
+        previous_success = success_count > 0;
+        steps.push(CommandBlockChainStep {
+            pos: entry.pos,
+            command: entry.block.command.clone(),
+            success_count,
+        });
+
+        current_pos = next_pos;
+        if !entries
+            .iter()
+            .any(|entry| entry.pos == current_pos && entry.block.mode == CommandBlockMode::Sequence)
+        {
+            break;
+        }
+    }
+
+    steps
 }
 
 impl JukeboxBlockEntity {
@@ -9855,6 +9916,96 @@ mod tests {
         assert!(command.automatic);
         assert!(!command.track_output);
         assert_eq!(command.last_output, None);
+    }
+
+    #[test]
+    fn command_block_chain_executes_facing_order_and_respects_conditional_flag() {
+        let mut root = CommandBlockEntity::new(CommandBlockMode::Redstone, false);
+        root.set_command("say root");
+        root.powered = true;
+
+        let mut chain_one = CommandBlockEntity::new(CommandBlockMode::Sequence, false);
+        chain_one.set_command("say first");
+        chain_one.powered = true;
+
+        let mut chain_two = CommandBlockEntity::new(CommandBlockMode::Sequence, true);
+        chain_two.set_command("say second");
+        chain_two.powered = true;
+
+        let mut entries = vec![
+            CommandBlockChainEntry {
+                pos: BlockPos { x: 0, y: 64, z: 0 },
+                facing: Direction::East,
+                block: root,
+            },
+            CommandBlockChainEntry {
+                pos: BlockPos { x: 1, y: 64, z: 0 },
+                facing: Direction::East,
+                block: chain_one,
+            },
+            CommandBlockChainEntry {
+                pos: BlockPos { x: 2, y: 64, z: 0 },
+                facing: Direction::East,
+                block: chain_two,
+            },
+        ];
+
+        let steps = execute_command_block_chain(
+            &mut entries,
+            BlockPos { x: 0, y: 64, z: 0 },
+            CommandBlockExecutionContext {
+                pos: BlockPos { x: 0, y: 64, z: 0 },
+                level: "minecraft:overworld".to_string(),
+                game_time: 200,
+                command_blocks_enabled: true,
+                has_permission: true,
+                previous_success: true,
+            },
+        );
+        assert_eq!(
+            steps,
+            vec![
+                CommandBlockChainStep {
+                    pos: BlockPos { x: 0, y: 64, z: 0 },
+                    command: "say root".to_string(),
+                    success_count: 1,
+                },
+                CommandBlockChainStep {
+                    pos: BlockPos { x: 1, y: 64, z: 0 },
+                    command: "say first".to_string(),
+                    success_count: 1,
+                },
+                CommandBlockChainStep {
+                    pos: BlockPos { x: 2, y: 64, z: 0 },
+                    command: "say second".to_string(),
+                    success_count: 1,
+                },
+            ]
+        );
+
+        entries[1].block.command.clear();
+        entries[0].block.last_execution = CommandBlockEntity::NO_LAST_EXECUTION;
+        entries[1].block.last_execution = CommandBlockEntity::NO_LAST_EXECUTION;
+        entries[2].block.last_execution = CommandBlockEntity::NO_LAST_EXECUTION;
+        let conditional_steps = execute_command_block_chain(
+            &mut entries,
+            BlockPos { x: 0, y: 64, z: 0 },
+            CommandBlockExecutionContext {
+                pos: BlockPos { x: 0, y: 64, z: 0 },
+                level: "minecraft:overworld".to_string(),
+                game_time: 201,
+                command_blocks_enabled: true,
+                has_permission: true,
+                previous_success: true,
+            },
+        );
+        assert_eq!(
+            conditional_steps
+                .iter()
+                .map(|step| step.success_count)
+                .collect::<Vec<_>>(),
+            vec![1, 0, 0]
+        );
     }
 
     #[test]

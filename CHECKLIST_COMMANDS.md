@@ -25,8 +25,8 @@
 - [x] Implement conditional flag: block only executes if previous chain command succeeded (`successCount > 0`)
 - [x] Implement command block NBT: `Command`, `auto`, `conditionMet`, `LastOutput`, `SuccessCount`, `TrackOutput`
 - [x] Implement command block interaction: open GUI via `UseOnContext`, read/write command string via `ClientboundBlockEntityDataPacket` for 26.1.2 — command blocks now expose permission-gated editor update packets and apply client command/mode/flag edits, complementing the 26.1.2 set-command-block packet codec
-- [ ] Implement facing-chain execution: a SEQUENCE/CHAIN command block executes the command block it faces after itself
-- [ ] Add parity test: command block chain executes in facing order with conditional flag respected
+- [x] Implement facing-chain execution: a SEQUENCE/CHAIN command block executes the command block it faces after itself — `execute_command_block_chain` walks command blocks by facing direction, executes contiguous sequence blocks, and propagates prior success into conditional gates
+- [x] Add parity test: command block chain executes in facing order with conditional flag respected — `command_block_chain_executes_facing_order_and_respects_conditional_flag` covers ordered east-facing chains and conditional failure after a zero-success predecessor
 - [ ] Add parity test: AUTO command block runs every tick when powered, REDSTONE triggers once per leading edge
 
 ## Command Block Minecart
