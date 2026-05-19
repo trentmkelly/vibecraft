@@ -43,7 +43,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/loot_table`.
 - [x] Implement `data/minecraft/painting_variant`.
 - [x] Implement `data/minecraft/recipe`.
-- [ ] Implement `data/minecraft/structure`.
+- [x] Implement `data/minecraft/structure`.
 - [x] Implement `data/minecraft/tags`.
 - [x] Implement `data/minecraft/test_environment`.
 - [x] Implement `data/minecraft/test_instance`.

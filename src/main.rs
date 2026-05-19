@@ -111,6 +111,7 @@ mod special_block;
 mod statistics;
 mod status_effect;
 mod storage;
+mod structure_resources;
 mod trial_system;
 mod vehicle_entity;
 mod vibration;
