@@ -688,6 +688,23 @@ pub struct CraftingGrid {
     recipe_id: Option<&'static str>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InventoryMenuSlot {
+    Result,
+    CraftingInput(usize),
+    Armor(EquipmentSlot),
+    Storage(usize),
+    Hotbar(usize),
+    Offhand,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InventoryMenu {
+    player: PlayerInventory,
+    crafting: CraftingGrid,
+    recipes: RecipeMap,
+}
+
 impl CraftingGrid {
     pub fn two_by_two() -> Self {
         Self::new(2, 2)
@@ -716,6 +733,10 @@ impl CraftingGrid {
 
     pub fn result(&self) -> &ItemStack {
         &self.result
+    }
+
+    pub fn input(&self, slot: usize) -> Option<&ItemStack> {
+        self.slots.get(slot)
     }
 
     pub fn recipe_id(&self) -> Option<&'static str> {
@@ -770,9 +791,154 @@ impl CraftingGrid {
     }
 }
 
+impl InventoryMenuSlot {
+    pub fn from_vanilla_slot(slot: usize) -> Option<Self> {
+        match slot {
+            0 => Some(Self::Result),
+            1..=4 => Some(Self::CraftingInput(slot - 1)),
+            5 => Some(Self::Armor(EquipmentSlot::Head)),
+            6 => Some(Self::Armor(EquipmentSlot::Chest)),
+            7 => Some(Self::Armor(EquipmentSlot::Legs)),
+            8 => Some(Self::Armor(EquipmentSlot::Feet)),
+            9..=35 => Some(Self::Storage(slot)),
+            36..=44 => Some(Self::Hotbar(slot - 36)),
+            45 => Some(Self::Offhand),
+            _ => None,
+        }
+    }
+
+    pub fn may_place(self) -> bool {
+        !matches!(self, Self::Result)
+    }
+
+    fn player_slot(self) -> Option<usize> {
+        match self {
+            Self::Armor(EquipmentSlot::Head) => Some(39),
+            Self::Armor(EquipmentSlot::Chest) => Some(38),
+            Self::Armor(EquipmentSlot::Legs) => Some(37),
+            Self::Armor(EquipmentSlot::Feet) => Some(36),
+            Self::Armor(_) => None,
+            Self::Storage(slot) => Some(slot),
+            Self::Hotbar(slot) => Some(slot),
+            Self::Offhand => Some(SLOT_OFFHAND),
+            _ => None,
+        }
+    }
+}
+
+impl InventoryMenu {
+    pub const SLOT_COUNT: usize = 46;
+
+    pub fn new(player: PlayerInventory, recipes: RecipeMap) -> Self {
+        Self {
+            player,
+            crafting: CraftingGrid::two_by_two(),
+            recipes,
+        }
+    }
+
+    pub fn player_inventory(&self) -> &PlayerInventory {
+        &self.player
+    }
+
+    pub fn crafting_grid(&self) -> &CraftingGrid {
+        &self.crafting
+    }
+
+    pub fn get_slot(&self, slot: usize) -> Option<ItemStack> {
+        match InventoryMenuSlot::from_vanilla_slot(slot)? {
+            InventoryMenuSlot::Result => Some(self.crafting.result().clone()),
+            InventoryMenuSlot::CraftingInput(index) => self.crafting.input(index).cloned(),
+            mapped => mapped
+                .player_slot()
+                .map(|slot| self.player.get(slot).clone()),
+        }
+    }
+
+    pub fn set_slot(&mut self, slot: usize, stack: ItemStack) -> bool {
+        match InventoryMenuSlot::from_vanilla_slot(slot) {
+            Some(InventoryMenuSlot::Result) | None => false,
+            Some(InventoryMenuSlot::CraftingInput(index)) => {
+                self.crafting.set_input(index, stack, &self.recipes);
+                true
+            }
+            Some(mapped) => {
+                if let Some(player_slot) = mapped.player_slot() {
+                    self.player.set(player_slot, stack);
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    pub fn may_place(&self, slot: usize) -> bool {
+        InventoryMenuSlot::from_vanilla_slot(slot).is_some_and(InventoryMenuSlot::may_place)
+    }
+
+    pub fn all_slots(&self) -> Vec<ItemStack> {
+        (0..Self::SLOT_COUNT)
+            .map(|slot| self.get_slot(slot).unwrap_or_else(ItemStack::empty))
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn crafting_test_recipes() -> crate::recipe_system::RecipeMap {
+        crate::recipe_system::RecipeMap::create(vec![
+            crate::recipe_system::RecipeHolder {
+                id: "minecraft:oak_planks",
+                recipe: crate::recipe_system::RecipeKind::Shapeless {
+                    ingredients: vec![crate::recipe_system::IngredientSpec::Item(
+                        "minecraft:oak_log",
+                    )],
+                    result: crate::recipe_system::ItemAmount {
+                        item: "minecraft:oak_planks",
+                        count: 4,
+                    },
+                },
+            },
+            crate::recipe_system::RecipeHolder {
+                id: "minecraft:crafting_table",
+                recipe: crate::recipe_system::RecipeKind::Shaped {
+                    width: 2,
+                    height: 2,
+                    pattern: vec![
+                        Some(crate::recipe_system::IngredientSpec::Item(
+                            "minecraft:oak_planks",
+                        )),
+                        Some(crate::recipe_system::IngredientSpec::Item(
+                            "minecraft:oak_planks",
+                        )),
+                        Some(crate::recipe_system::IngredientSpec::Item(
+                            "minecraft:oak_planks",
+                        )),
+                        Some(crate::recipe_system::IngredientSpec::Item(
+                            "minecraft:oak_planks",
+                        )),
+                    ],
+                    result: crate::recipe_system::ItemAmount::one("minecraft:crafting_table"),
+                },
+            },
+            crate::recipe_system::RecipeHolder {
+                id: "minecraft:torch",
+                recipe: crate::recipe_system::RecipeKind::Shapeless {
+                    ingredients: vec![
+                        crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
+                        crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
+                    ],
+                    result: crate::recipe_system::ItemAmount {
+                        item: "minecraft:torch",
+                        count: 4,
+                    },
+                },
+            },
+        ])
+    }
 
     #[test]
     fn player_inventory_uses_vanilla_slot_mapping_and_hotbar_validation() {
@@ -928,33 +1094,7 @@ mod tests {
 
     #[test]
     fn crafting_grid_updates_result_and_consumes_inputs_after_take() {
-        let recipes = crate::recipe_system::RecipeMap::create(vec![
-            crate::recipe_system::RecipeHolder {
-                id: "minecraft:oak_planks",
-                recipe: crate::recipe_system::RecipeKind::Shapeless {
-                    ingredients: vec![crate::recipe_system::IngredientSpec::Item(
-                        "minecraft:oak_log",
-                    )],
-                    result: crate::recipe_system::ItemAmount {
-                        item: "minecraft:oak_planks",
-                        count: 4,
-                    },
-                },
-            },
-            crate::recipe_system::RecipeHolder {
-                id: "minecraft:torch",
-                recipe: crate::recipe_system::RecipeKind::Shapeless {
-                    ingredients: vec![
-                        crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
-                        crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
-                    ],
-                    result: crate::recipe_system::ItemAmount {
-                        item: "minecraft:torch",
-                        count: 4,
-                    },
-                },
-            },
-        ]);
+        let recipes = crafting_test_recipes();
         let mut grid = CraftingGrid::two_by_two();
         grid.set_input(0, ItemStack::new("minecraft:oak_log", 1), &recipes);
         assert_eq!(grid.recipe_id(), Some("minecraft:oak_planks"));
@@ -978,9 +1118,66 @@ mod tests {
         assert!(grid.recipe_id().is_none());
         assert!(grid.result().is_empty());
 
+        let mut wrong_shaped = CraftingGrid::two_by_two();
+        wrong_shaped.set_input(0, ItemStack::new("minecraft:oak_planks", 1), &recipes);
+        wrong_shaped.set_input(1, ItemStack::new("minecraft:oak_planks", 1), &recipes);
+        wrong_shaped.set_input(2, ItemStack::new("minecraft:oak_planks", 1), &recipes);
+        assert!(wrong_shaped.recipe_id().is_none());
+        assert!(wrong_shaped.result().is_empty());
+
         let table = CraftingGrid::three_by_three();
         assert_eq!(table.width, 3);
         assert_eq!(table.height, 3);
+    }
+
+    #[test]
+    fn inventory_menu_maps_vanilla_slots_to_backing_inventory_and_crafting_grid() {
+        let mut player = PlayerInventory::new();
+        player.set(0, ItemStack::new("minecraft:stick", 9));
+        player.set(9, ItemStack::new("minecraft:cobblestone", 8));
+        player.set(36, ItemStack::new("minecraft:leather_boots", 1));
+        player.set(37, ItemStack::new("minecraft:iron_leggings", 1));
+        player.set(38, ItemStack::new("minecraft:iron_chestplate", 1));
+        player.set(39, ItemStack::new("minecraft:iron_helmet", 1));
+        player.set(SLOT_OFFHAND, ItemStack::new("minecraft:shield", 1));
+
+        let mut menu = InventoryMenu::new(player, crafting_test_recipes());
+        assert_eq!(InventoryMenu::SLOT_COUNT, 46);
+        assert!(!menu.may_place(0));
+        assert!(menu.may_place(1));
+        assert_eq!(menu.get_slot(36).unwrap().item_id(), "minecraft:stick");
+        assert_eq!(menu.get_slot(9).unwrap().item_id(), "minecraft:cobblestone");
+        assert_eq!(menu.get_slot(5).unwrap().item_id(), "minecraft:iron_helmet");
+        assert_eq!(
+            menu.get_slot(6).unwrap().item_id(),
+            "minecraft:iron_chestplate"
+        );
+        assert_eq!(
+            menu.get_slot(7).unwrap().item_id(),
+            "minecraft:iron_leggings"
+        );
+        assert_eq!(
+            menu.get_slot(8).unwrap().item_id(),
+            "minecraft:leather_boots"
+        );
+        assert_eq!(menu.get_slot(45).unwrap().item_id(), "minecraft:shield");
+
+        assert!(!menu.set_slot(0, ItemStack::new("minecraft:diamond", 1)));
+        assert!(menu.get_slot(0).unwrap().is_empty());
+        assert!(menu.set_slot(1, ItemStack::new("minecraft:oak_log", 1)));
+        assert_eq!(menu.get_slot(0).unwrap().item_id(), "minecraft:oak_planks");
+        assert_eq!(menu.get_slot(0).unwrap().count(), 4);
+        assert_eq!(
+            menu.crafting_grid().recipe_id(),
+            Some("minecraft:oak_planks")
+        );
+
+        assert!(menu.set_slot(36, ItemStack::new("minecraft:apple", 2)));
+        assert_eq!(
+            menu.player_inventory().get(0),
+            &ItemStack::new("minecraft:apple", 2)
+        );
+        assert_eq!(menu.all_slots().len(), 46);
     }
 
     #[test]

@@ -54,7 +54,7 @@
 
 - [x] **Connect `CraftingGrid` to `RecipeMap`**: `player_inventory.rs` now builds `Vec<Option<&'static str>>` from grid slots, calls `RecipeMap::get_recipe_for("crafting", width, height, items)`, stores the matched recipe holder ID, and assembles the result via `holder.recipe.assemble()`; the unit test covers oak log to oak planks, two-stick torch output, empty result after take, and a mixed invalid recipe.
 
-- [ ] **Implement `InventoryMenu` slot layout**: create a struct (or extend `Menu`) that owns a `PlayerInventory` + `CraftingGrid` and presents them as a single `Menu` with the vanilla `InventoryMenu` slot numbering: result=0, crafting grid=1–4, armor (head/chest/legs/feet)=5–8, main storage=9–35, hotbar=36–44, offhand=45. Reads/writes to each slot must delegate to the correct backing store. Mark the result slot (0) `may_place=false`.
+- [x] **Implement `InventoryMenu` slot layout**: `player_inventory::InventoryMenu` owns a `PlayerInventory` + `CraftingGrid` and exposes vanilla `InventoryMenu` slots: result=0, crafting grid=1-4, armor head/chest/legs/feet=5-8, main storage=9-35, hotbar=36-44, offhand=45. Reads/writes delegate to the backing inventory or grid, and slot 0 rejects placement.
 
 - [ ] **Implement `ResultSlot` on-take side effects**: when the player picks up from slot 0, after returning the assembled stack: (a) call `shrink(1)` on every non-empty crafting-grid slot; (b) call `default_crafting_remaining_items` from `recipe_system.rs` to get remainder items (buckets, bottles, etc.) and place each back into the corresponding grid slot; (c) re-run `CraftingGrid::update_result` so the result slot refreshes or clears; (d) queue a recipe-book-unlock event for the matched recipe holder ID (see recipe-book step below).
 
@@ -76,7 +76,7 @@
 
 ### Tests
 
-- [ ] Unit test: `CraftingGrid::update_result` — one oak log in slot 0 produces 4 oak planks; empty grid produces empty result; wrong arrangement for a shaped recipe produces empty result
+- [x] Unit test: `CraftingGrid::update_result` - `crafting_grid_updates_result_and_consumes_inputs_after_take` covers one oak log producing 4 oak planks, empty result after taking output, two-stick shapeless matching, and an incomplete shaped crafting-table pattern producing no result
 - [ ] Unit test: `InventoryMenu` slot 0 rejects `safe_insert`; `safe_take` from slot 0 shrinks each non-empty grid slot by 1, places remainders back, then re-runs recipe match
 - [ ] Unit test: `InventoryMenu` zone-aware `quick_move` places crafting result into hotbar before storage; shifts a hotbar item into storage when hotbar is full
 - [ ] Parity test (full network round-trip): place one log into grid slot 1 → server sends `ContainerSetSlot` slot 0 with 4 planks → client takes result → server sends `ContainerSetSlot` slot 0 empty and slot 1 empty
