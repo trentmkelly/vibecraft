@@ -2679,114 +2679,15 @@ impl PlaySession {
         let Some(packet) = self.last_container_click.take() else {
             return Vec::new();
         };
-        // Only container 0 (the player's own inventory) is handled here.
         if packet.container_id != 0 {
             return Vec::new();
         }
-        // State-ID guard — reject stale packets without touching server state.
-        if packet.state_id != self.container_state_id {
-            return slot_corrections_from_inventory_menu(
-                inventory_menu,
-                carried,
-                self.container_state_id,
-            );
-        }
-
-        let before_slots = inventory_menu.all_slots();
-        let before_carried = carried.clone();
-        let slot_idx = usize::try_from(packet.slot_num).ok();
-
-        // Shift-click (QuickMove) is handled entirely by InventoryMenu::quick_move because it
-        // requires zone-aware logic that spans the whole menu.
-        if packet.container_input == ContainerInput::QuickMove {
-            if let Some(slot) = slot_idx {
-                inventory_menu.quick_move(slot);
-            }
-            self.container_state_id += 1;
-        } else {
-            // Build a flat Menu snapshot from the current InventoryMenu state, then run the
-            // generic click logic through apply_scripted_packet.
-            let mut snapshot = inventory_menu_to_flat_menu(inventory_menu, carried);
-            let dry_run = apply_scripted_packet(
-                &mut snapshot.clone(),
-                self.container_state_id,
-                &ScriptedContainerClickPacket {
-                    container_id: 0,
-                    state_id: packet.state_id,
-                    slot: packet.slot_num as i32,
-                    button: packet.button_num as i32,
-                    mode: play_container_input_to_inventory(packet.container_input),
-                    changed_slots: Vec::new(),
-                    carried: ItemStack::empty(),
-                },
-            );
-            let scripted = ScriptedContainerClickPacket {
-                container_id: 0,
-                state_id: packet.state_id,
-                slot: packet.slot_num as i32,
-                button: packet.button_num as i32,
-                mode: play_container_input_to_inventory(packet.container_input),
-                // Omit client-provided changed_slots — we validate purely from server state.
-                changed_slots: Vec::new(),
-                carried: dry_run.carried,
-            };
-            let result = apply_scripted_packet(&mut snapshot, self.container_state_id, &scripted);
-            if result.accepted {
-                self.container_state_id = result.next_state_id;
-                // ResultSlot pickup: slot 0 was non-empty and the snapshot now shows it empty.
-                let result_taken = slot_idx == Some(0)
-                    && matches!(
-                        result.action,
-                        crate::inventory::InventoryAction::PickedUp { slot: 0, .. }
-                    );
-                if result_taken {
-                    // take_result: consume crafting inputs, apply remainders, refresh result slot,
-                    // record recipe-book unlock events. Java: ResultSlot.onTake.
-                    let taken = inventory_menu.take_result();
-                    *carried = taken;
-                } else {
-                    // Apply the snapshot's slot changes back to InventoryMenu (slots 1-45).
-                    // Slot 0 (result) is read-only via set_slot, so skip it; it is refreshed
-                    // automatically when crafting input slots change.
-                    for (i, slot) in snapshot.slots.iter().enumerate().skip(1) {
-                        inventory_menu.set_slot(i, slot.stack.clone());
-                    }
-                    *carried = snapshot.carried.clone();
-                }
-            }
-        }
-
-        // Emit ContainerSetSlot for every slot that changed.
-        let mut instructions: Vec<PlayInstruction> = Vec::new();
-        let after_slots = inventory_menu.all_slots();
-        for (i, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
-            if before != after {
-                if let Ok(raw) = raw_item_stack_from_item_stack(after) {
-                    instructions.push(PlayInstruction::ContainerSetSlot(
-                        ClientboundContainerSetSlotPacket {
-                            container_id: 0,
-                            state_id: self.container_state_id,
-                            slot: i as i16,
-                            item_stack: raw,
-                        },
-                    ));
-                }
-            }
-        }
-        if *carried != before_carried {
-            if let Ok(raw) = raw_item_stack_from_item_stack(carried) {
-                instructions.push(PlayInstruction::SetCursorItem(
-                    ClientboundSetCursorItemPacket { item_stack: raw },
-                ));
-            }
-        }
-        // Signal recipe-book unlocks — the caller converts to ClientboundRecipeBookAddPacket
-        // using full display data from the recipe registry.
-        let unlock_events = inventory_menu.drain_recipe_unlock_events();
-        if !unlock_events.is_empty() {
-            instructions.push(PlayInstruction::RecipesUnlocked(unlock_events));
-        }
-        instructions
+        handle_container_click(
+            &packet,
+            &mut self.container_state_id,
+            inventory_menu,
+            carried,
+        )
     }
 
     /// Build a `ClientboundContainerPacket` (ContainerSetContent) from the current
@@ -7833,6 +7734,375 @@ pub fn slot_corrections_from_inventory_menu(
         ));
     }
     instructions
+}
+
+/// Process one container click packet against the player's `InventoryMenu`.
+///
+/// This is the core click-processing logic extracted from
+/// `PlaySession::process_pending_container_click` so the game-loop in
+/// `network/status.rs` can call it directly without holding a `PlaySession`.
+///
+/// Matches Java: `ServerGamePacketListenerImpl.handleContainerClick` +
+///               `AbstractContainerMenu.clicked`.
+pub fn handle_container_click(
+    packet: &ServerboundContainerClickPacket,
+    container_state_id: &mut i32,
+    inventory_menu: &mut InventoryMenu,
+    carried: &mut ItemStack,
+) -> Vec<PlayInstruction> {
+    use crate::inventory::InventoryAction;
+
+    // State-ID guard — reject stale packets and return full corrections.
+    if packet.state_id != *container_state_id {
+        return slot_corrections_from_inventory_menu(inventory_menu, carried, *container_state_id);
+    }
+
+    let before_slots = inventory_menu.all_slots();
+    let before_carried = carried.clone();
+    let slot_idx = usize::try_from(packet.slot_num).ok();
+
+    if packet.container_input == ContainerInput::QuickMove {
+        if let Some(slot) = slot_idx {
+            inventory_menu.quick_move(slot);
+        }
+        *container_state_id += 1;
+    } else {
+        let mut snapshot = inventory_menu_to_flat_menu(inventory_menu, carried);
+        let dry_run = apply_scripted_packet(
+            &mut snapshot.clone(),
+            *container_state_id,
+            &ScriptedContainerClickPacket {
+                container_id: 0,
+                state_id: packet.state_id,
+                slot: packet.slot_num as i32,
+                button: packet.button_num as i32,
+                mode: play_container_input_to_inventory(packet.container_input),
+                changed_slots: Vec::new(),
+                carried: ItemStack::empty(),
+            },
+        );
+        let scripted = ScriptedContainerClickPacket {
+            container_id: 0,
+            state_id: packet.state_id,
+            slot: packet.slot_num as i32,
+            button: packet.button_num as i32,
+            mode: play_container_input_to_inventory(packet.container_input),
+            changed_slots: Vec::new(),
+            carried: dry_run.carried,
+        };
+        let result = apply_scripted_packet(&mut snapshot, *container_state_id, &scripted);
+        if result.accepted {
+            *container_state_id = result.next_state_id;
+            let result_taken = slot_idx == Some(0)
+                && matches!(result.action, InventoryAction::PickedUp { slot: 0, .. });
+            if result_taken {
+                let taken = inventory_menu.take_result();
+                *carried = taken;
+            } else {
+                for (i, slot) in snapshot.slots.iter().enumerate().skip(1) {
+                    inventory_menu.set_slot(i, slot.stack.clone());
+                }
+                *carried = snapshot.carried.clone();
+            }
+        }
+    }
+
+    let mut instructions: Vec<PlayInstruction> = Vec::new();
+    let after_slots = inventory_menu.all_slots();
+    for (i, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
+        if before != after {
+            if let Ok(raw) = raw_item_stack_from_item_stack(after) {
+                instructions.push(PlayInstruction::ContainerSetSlot(
+                    ClientboundContainerSetSlotPacket {
+                        container_id: 0,
+                        state_id: *container_state_id,
+                        slot: i as i16,
+                        item_stack: raw,
+                    },
+                ));
+            }
+        }
+    }
+    if *carried != before_carried {
+        if let Ok(raw) = raw_item_stack_from_item_stack(carried) {
+            instructions.push(PlayInstruction::SetCursorItem(
+                ClientboundSetCursorItemPacket { item_stack: raw },
+            ));
+        }
+    }
+    let unlock_events = inventory_menu.drain_recipe_unlock_events();
+    if !unlock_events.is_empty() {
+        instructions.push(PlayInstruction::RecipesUnlocked(unlock_events));
+    }
+    instructions
+}
+
+/// Build a `ClientboundRecipeBookAddPacket` announcing newly-unlocked recipes.
+///
+/// Called by the server runtime when `PlayInstruction::RecipesUnlocked` is emitted.
+/// Uses sequential recipe index as the display ID.
+/// Java: `RecipeManager` assigns `RecipeDisplay` IDs during server reload.
+pub fn build_recipe_book_add(
+    recipe_ids: &[&str],
+    recipe_map: &crate::recipe_system::RecipeMap,
+) -> Option<ClientboundRecipeBookAddPacket> {
+    use crate::recipe_system::{CookingKind, IngredientSpec, RecipeKind};
+
+    fn ingredient_to_slot(spec: &IngredientSpec) -> SlotDisplayData {
+        match spec {
+            IngredientSpec::Empty => SlotDisplayData::Empty,
+            IngredientSpec::Item(name) => {
+                if let Some(pid) = item_protocol_id(name) {
+                    SlotDisplayData::Item { item_id: pid }
+                } else {
+                    SlotDisplayData::Empty
+                }
+            }
+            IngredientSpec::AnyOf(names) => {
+                let items: Vec<SlotDisplayData> = names
+                    .iter()
+                    .filter_map(|name| {
+                        item_protocol_id(name).map(|pid| SlotDisplayData::Item { item_id: pid })
+                    })
+                    .collect();
+                if items.is_empty() {
+                    SlotDisplayData::Empty
+                } else if items.len() == 1 {
+                    items.into_iter().next().unwrap()
+                } else {
+                    SlotDisplayData::Composite(items)
+                }
+            }
+        }
+    }
+
+    fn item_amount_to_slot(item: &str, count: u32) -> SlotDisplayData {
+        let Some(pid) = item_protocol_id(item) else {
+            return SlotDisplayData::Empty;
+        };
+        if count == 1 {
+            SlotDisplayData::Item { item_id: pid }
+        } else {
+            SlotDisplayData::ItemStack {
+                stack: RawItemStack {
+                    count: count as i32,
+                    item_id: Some(pid),
+                    components: RawDataComponentPatch::empty(),
+                },
+            }
+        }
+    }
+
+    fn ingredient_to_req(spec: &IngredientSpec) -> Option<RecipeIngredientData> {
+        match spec {
+            IngredientSpec::Empty => None,
+            IngredientSpec::Item(name) => {
+                item_protocol_id(name).map(|pid| RecipeIngredientData::DirectItems(vec![pid]))
+            }
+            IngredientSpec::AnyOf(names) => {
+                let pids: Vec<i32> = names.iter().filter_map(|n| item_protocol_id(n)).collect();
+                if pids.is_empty() {
+                    None
+                } else {
+                    Some(RecipeIngredientData::DirectItems(pids))
+                }
+            }
+        }
+    }
+
+    let crafting_station_id = item_protocol_id("minecraft:crafting_table")
+        .map(|pid| SlotDisplayData::Item { item_id: pid })
+        .unwrap_or(SlotDisplayData::Empty);
+
+    let all_holders = recipe_map.values();
+    let mut entries: Vec<RecipeBookAddEntry> = Vec::new();
+
+    for recipe_id in recipe_ids {
+        let Some(holder) = recipe_map.by_key(recipe_id) else {
+            continue;
+        };
+        // Use the recipe's position in the global list as its stable display ID.
+        // Java: RecipeManager assigns RecipeDisplay IDs sequentially during server reload.
+        let display_id = all_holders
+            .iter()
+            .position(|h| h.id == holder.id)
+            .unwrap_or(0) as i32;
+
+        let display = match &holder.recipe {
+            RecipeKind::Shapeless {
+                ingredients,
+                result,
+            } => {
+                let ing_slots: Vec<SlotDisplayData> =
+                    ingredients.iter().map(ingredient_to_slot).collect();
+                let req_slots: Vec<RecipeIngredientData> =
+                    ingredients.iter().filter_map(ingredient_to_req).collect();
+                Some((
+                    RecipeDisplayData::CraftingShapeless {
+                        ingredients: ing_slots,
+                        result: item_amount_to_slot(result.item, result.count),
+                        crafting_station: crafting_station_id.clone(),
+                    },
+                    if req_slots.is_empty() {
+                        None
+                    } else {
+                        Some(req_slots)
+                    },
+                    3i32, // category_id: 3 = misc
+                ))
+            }
+            RecipeKind::Shaped {
+                width,
+                height,
+                pattern,
+                result,
+            } => {
+                let ing_slots: Vec<SlotDisplayData> = pattern
+                    .iter()
+                    .map(|opt| {
+                        opt.as_ref()
+                            .map_or(SlotDisplayData::Empty, ingredient_to_slot)
+                    })
+                    .collect();
+                let req_slots: Vec<RecipeIngredientData> = pattern
+                    .iter()
+                    .filter_map(|opt| opt.as_ref().and_then(ingredient_to_req))
+                    .collect();
+                Some((
+                    RecipeDisplayData::CraftingShaped {
+                        width: *width as i32,
+                        height: *height as i32,
+                        ingredients: ing_slots,
+                        result: item_amount_to_slot(result.item, result.count),
+                        crafting_station: crafting_station_id.clone(),
+                    },
+                    if req_slots.is_empty() {
+                        None
+                    } else {
+                        Some(req_slots)
+                    },
+                    3i32,
+                ))
+            }
+            RecipeKind::Cooking {
+                kind,
+                ingredient,
+                result,
+                experience_millis,
+                cooking_time,
+            } => {
+                let station_name = match kind {
+                    CookingKind::Smelting => "minecraft:furnace",
+                    CookingKind::Blasting => "minecraft:blast_furnace",
+                    CookingKind::Smoking => "minecraft:smoker",
+                    CookingKind::CampfireCooking => "minecraft:campfire",
+                };
+                let station = item_protocol_id(station_name)
+                    .map(|pid| SlotDisplayData::Item { item_id: pid })
+                    .unwrap_or(SlotDisplayData::Empty);
+                let default_time = match kind {
+                    CookingKind::Smelting => 200,
+                    _ => 100,
+                };
+                Some((
+                    RecipeDisplayData::Furnace {
+                        ingredient: ingredient_to_slot(ingredient),
+                        fuel: SlotDisplayData::AnyFuel,
+                        result: item_amount_to_slot(result.item, result.count),
+                        crafting_station: station,
+                        duration: cooking_time.unwrap_or(default_time),
+                        experience_bits: experience_millis.unsigned_abs(),
+                    },
+                    None,
+                    3i32,
+                ))
+            }
+            RecipeKind::Stonecutting { ingredient, result } => {
+                let station = item_protocol_id("minecraft:stonecutter")
+                    .map(|pid| SlotDisplayData::Item { item_id: pid })
+                    .unwrap_or(SlotDisplayData::Empty);
+                let req = ingredient_to_req(ingredient);
+                Some((
+                    RecipeDisplayData::Stonecutter {
+                        ingredient: ingredient_to_slot(ingredient),
+                        result: item_amount_to_slot(result.item, result.count),
+                        crafting_station: station,
+                    },
+                    req.map(|r| vec![r]),
+                    3i32,
+                ))
+            }
+            RecipeKind::SmithingTransform {
+                template,
+                base,
+                addition,
+                result,
+            } => {
+                let station = item_protocol_id("minecraft:smithing_table")
+                    .map(|pid| SlotDisplayData::Item { item_id: pid })
+                    .unwrap_or(SlotDisplayData::Empty);
+                Some((
+                    RecipeDisplayData::Smithing {
+                        template: ingredient_to_slot(template),
+                        base: ingredient_to_slot(base),
+                        addition: ingredient_to_slot(addition),
+                        result: item_amount_to_slot(result.item, result.count),
+                        crafting_station: station,
+                    },
+                    None,
+                    3i32,
+                ))
+            }
+            RecipeKind::SmithingTrim {
+                template,
+                base,
+                addition,
+            } => {
+                let station = item_protocol_id("minecraft:smithing_table")
+                    .map(|pid| SlotDisplayData::Item { item_id: pid })
+                    .unwrap_or(SlotDisplayData::Empty);
+                Some((
+                    RecipeDisplayData::Smithing {
+                        template: ingredient_to_slot(template),
+                        base: ingredient_to_slot(base),
+                        addition: ingredient_to_slot(addition),
+                        result: SlotDisplayData::Empty, // trim result depends on armor type
+                        crafting_station: station,
+                    },
+                    None,
+                    3i32,
+                ))
+            }
+            // Special/transmute/imbue recipes — omit from recipe book for now.
+            // Java: These use dedicated server-side logic, not generic RecipeDisplay.
+            RecipeKind::Special { .. }
+            | RecipeKind::Transmute { .. }
+            | RecipeKind::Imbue { .. } => None,
+        };
+
+        if let Some((display_data, crafting_requirements, category_id)) = display {
+            entries.push(RecipeBookAddEntry::new(
+                RecipeDisplayEntryData {
+                    id: display_id,
+                    display: display_data,
+                    group: None,
+                    category_id,
+                    crafting_requirements,
+                },
+                true, // notification
+                true, // highlight
+            ));
+        }
+    }
+
+    if entries.is_empty() {
+        None
+    } else {
+        Some(ClientboundRecipeBookAddPacket {
+            entries,
+            replace: false,
+        })
+    }
 }
 
 impl ClientboundSetCursorItemPacket {

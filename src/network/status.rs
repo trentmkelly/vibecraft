@@ -36,18 +36,21 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    block_state_name_network_id, unpack_block_position, ClientboundLevelChunkPacketData,
-    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
-    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
-    CommonPlayerSpawnInfo, Direction3d, GameMode, RawDataComponentPatch, RawItemStack,
-    ServerboundSwingHand, ServerboundUseItemOnPacket, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+    block_state_name_network_id, build_recipe_book_add, handle_container_click,
+    unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
+    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
+    ClientboundSetTimePacket,
+    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, GameMode, PlayInstruction,
+    RawDataComponentPatch, RawItemStack, ServerboundContainerClickPacket, ServerboundSwingHand,
+    ServerboundUseItemOnPacket, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
     CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
     CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
     CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
@@ -68,7 +71,8 @@ use crate::network::play::{
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
-use crate::player_inventory::{InventoryAddResult, PlayerInventory, SLOT_OFFHAND};
+use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory, SLOT_OFFHAND};
+use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::chunk::LevelChunk;
@@ -159,10 +163,15 @@ struct PlaySessionState {
     /// All item entities currently on the ground near this player's session.
     /// Populated at block-break time; consumed by the pickup loop.
     dropped_items: Vec<DroppedItem>,
-    /// The player's current item inventory, mutated on successful pickups.
-    inventory: PlayerInventory,
-    /// Incremented each time an inventory slot changes; sent in `SetContainerContent`.
-    inventory_state_id: i32,
+    /// Player inventory + 2×2 crafting grid. The state ID (incremented on each accepted
+    /// container click or broadcast) is tracked separately in `container_state_id`.
+    inventory_menu: InventoryMenu,
+    /// Item currently held on the cursor (not in any slot).
+    carried_item: ItemStack,
+    /// Monotonically-increasing state ID matching `AbstractContainerMenu.stateId` in Java.
+    /// Sent in every `ContainerSetSlot` and `ContainerSetContent` packet; validated by the
+    /// server when a `ServerboundContainerClickPacket` arrives.
+    container_state_id: i32,
 }
 
 impl Default for PlaySessionState {
@@ -184,8 +193,9 @@ impl Default for PlaySessionState {
             game_mode: GameMode::Survival,
             previous_game_mode: None,
             dropped_items: Vec::new(),
-            inventory: PlayerInventory::new(),
-            inventory_state_id: 0,
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), RecipeMap::default()),
+            carried_item: ItemStack::empty(),
+            container_state_id: 0,
         }
     }
 }
@@ -1010,6 +1020,16 @@ pub fn run_status_server(
     let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
     let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
 
+    // Load vanilla recipes once at startup and share via Arc.
+    // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
+    let recipe_manager: Arc<RecipeManagerModel> = Arc::new(
+        load_recipe_directory(Path::new("decompiled-server-26.1.2/data/minecraft/recipe"))
+            .unwrap_or_else(|err| {
+                eprintln!("warning: failed to load recipes: {err}");
+                RecipeManagerModel::default()
+            }),
+    );
+
     // Background tick thread: advances clocks and weather at 20 TPS.
     // Java: MinecraftServer.tickChildren() — clockManager.tick() + advanceWeatherCycle()
     {
@@ -1064,6 +1084,7 @@ pub fn run_status_server(
                 let player_access = Arc::clone(&player_access);
                 let clock = Arc::clone(&clock);
                 let weather = Arc::clone(&weather);
+                let recipe_manager = Arc::clone(&recipe_manager);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_for_log = if properties.log_ips {
                     remote_ip.clone()
@@ -1082,6 +1103,7 @@ pub fn run_status_server(
                         &remote_ip,
                         &clock,
                         &weather,
+                        &recipe_manager,
                     ) {
                         eprintln!("status connection error from {remote_for_log}: {err}");
                     }
@@ -1138,6 +1160,7 @@ fn handle_status_connection(
     remote_ip: &str,
     clock: &Arc<Mutex<ServerClockManager>>,
     weather: &Arc<Mutex<WeatherCycle>>,
+    recipe_manager: &RecipeManagerModel,
 ) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
@@ -1178,6 +1201,7 @@ fn handle_status_connection(
             login_host_ip(&server_address),
             clock,
             weather,
+            recipe_manager,
         );
     }
     if next_state != 1 {
@@ -1244,6 +1268,7 @@ fn handle_login_connection(
     login_host_ip: Option<String>,
     clock: &Arc<Mutex<ServerClockManager>>,
     weather: &Arc<Mutex<WeatherCycle>>,
+    recipe_manager: &RecipeManagerModel,
 ) -> io::Result<()> {
     let packet = read_packet(stream)?;
     let mut input = Cursor::new(packet);
@@ -1566,7 +1591,12 @@ fn handle_login_connection(
         "finish configuration",
     )?;
 
-    let mut play_state = load_play_session_state(world_root, &finished.profile.uuid, properties);
+    let mut play_state = load_play_session_state(
+        world_root,
+        &finished.profile.uuid,
+        properties,
+        recipe_manager.recipe_map(),
+    );
 
     // Snapshot current clock and weather state for the join packet.
     // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
@@ -1812,6 +1842,24 @@ fn handle_login_connection(
                         || (action == 0 && play_state.game_mode == GameMode::Creative)
                         || is_instabreak;
                     if should_break {
+                        // Packet ordering rationale:
+                        //
+                        // Java defers BlockChangedAck to the start of the next server tick
+                        // (~50 ms later via ServerGamePacketListenerImpl.ackBlockChangesUpTo).
+                        // In that window the entity is already spawned, physics-ticked, and
+                        // rendering on the client.  Any block-prediction rollback triggered by
+                        // the delayed ack therefore never touches the stable entity.
+                        //
+                        // Our server is synchronous — all packets go out in one TCP write.
+                        // Testing confirms that sending BlockChangedAck AFTER the entity (Java's
+                        // final wire order) causes the client to process the ack and AddEntity in
+                        // the same packet loop, triggering prediction rollback while the entity
+                        // has just been registered but hasn't been physics-ticked yet — the
+                        // rollback culls it (always invisible).
+                        //
+                        // Sending BlockChangedAck FIRST lets the client commit its block-
+                        // prediction state before AddEntity arrives, so the entity spawns into
+                        // confirmed-AIR and renders correctly.
                         write_framed_packet_with_compression(
                             stream,
                             compression,
@@ -1847,14 +1895,18 @@ fn handle_login_connection(
                             let drop_y = by as f64 + 0.5;
                             let drop_z = bz as f64 + 0.5;
                             for (item_name, count) in drops {
-                                // Resolve the protocol ID for the network packet.
-                                // item_static_name already confirmed the item is known, so
-                                // this unwrap is safe — unknown items were filtered out above.
                                 let Some(item_pid) = item_protocol_id(item_name) else {
                                     continue;
                                 };
                                 entity_id_counter = entity_id_counter.wrapping_add(1);
                                 let eid = entity_id_counter;
+                                // Java: ItemEntity constructor sets initial velocity
+                                // (random*0.2-0.1, 0.2, random*0.2-0.1) — the y=0.2 upward
+                                // component produces the characteristic item "pop" animation
+                                // and ensures the entity is visible on spawn.
+                                let vel_x = pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1;
+                                let vel_y = 0.2_f64;
+                                let vel_z = pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1;
                                 write_framed_packet_with_compression(
                                     stream,
                                     compression,
@@ -1871,7 +1923,7 @@ fn handle_login_connection(
                                         p.write_all(&drop_x.to_be_bytes())?;
                                         p.write_all(&drop_y.to_be_bytes())?;
                                         p.write_all(&drop_z.to_be_bytes())?;
-                                        p.write_all(&[0u8])?;
+                                        write_lp_vec3(p, vel_x, vel_y, vel_z)?;
                                         p.write_all(&[0u8, 0u8, 0u8])?;
                                         write_var_i32(p, 0)
                                     },
@@ -1908,6 +1960,65 @@ fn handle_login_connection(
                             }
                         }
                     }
+                    // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
+                    //        ServerboundPlayerActionPacket.Action.DROP_ITEM = 4.
+                    if action == 3 || action == 4 {
+                        handle_drop_item(
+                            stream,
+                            compression,
+                            &mut play_state,
+                            &mut entity_id_counter,
+                            action == 3,
+                        )?;
+                    }
+                    continue;
+                }
+                if packet_id == SERVERBOUND_CONTAINER_CLICK_PACKET_ID {
+                    // Only handle player inventory (container_id 0) for now.
+                    // Java: ServerGamePacketListenerImpl.handleContainerClick()
+                    if let Ok(click) = ServerboundContainerClickPacket::read(&mut input) {
+                        if click.container_id == 0 {
+                            let instructions = handle_container_click(
+                                &click,
+                                &mut play_state.container_state_id,
+                                &mut play_state.inventory_menu,
+                                &mut play_state.carried_item,
+                            );
+                            for instruction in instructions {
+                                match instruction {
+                                    PlayInstruction::ContainerSetSlot(pkt) => {
+                                        write_framed_packet_with_compression(
+                                            stream,
+                                            compression,
+                                            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+                                            |p| pkt.write(p),
+                                        )?;
+                                    }
+                                    PlayInstruction::SetCursorItem(pkt) => {
+                                        write_framed_packet_with_compression(
+                                            stream,
+                                            compression,
+                                            CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+                                            |p| pkt.write(p),
+                                        )?;
+                                    }
+                                    PlayInstruction::RecipesUnlocked(ids) => {
+                                        if let Some(pkt) =
+                                            build_recipe_book_add(&ids, recipe_manager.recipe_map())
+                                        {
+                                            write_framed_packet_with_compression(
+                                                stream,
+                                                compression,
+                                                CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+                                                |p| pkt.write(p),
+                                            )?;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
                     continue;
                 }
                 if matches!(
@@ -1921,7 +2032,6 @@ fn handle_login_connection(
                         | SERVERBOUND_CLIENT_COMMAND_PACKET_ID
                         | SERVERBOUND_CLIENT_INFORMATION_PACKET_ID
                         | SERVERBOUND_CLIENT_TICK_END_PACKET_ID
-                        | SERVERBOUND_CONTAINER_CLICK_PACKET_ID
                         | SERVERBOUND_CONTAINER_CLOSE_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID
@@ -2061,7 +2171,11 @@ fn handle_use_item_on(
             );
         }
     };
-    let held_item = state.inventory.get(held_slot).clone();
+    let held_item = state
+        .inventory_menu
+        .player_inventory()
+        .get(held_slot)
+        .clone();
     if held_item.is_empty() {
         return write_framed_packet_with_compression(
             stream,
@@ -2145,8 +2259,11 @@ fn handle_use_item_on(
     // Survival and adventure modes consume one item from the player's hand.
     // Java: ItemStack.consume(1, player) called by BlockItem after a successful place.
     if state.game_mode != GameMode::Creative {
-        state.inventory.remove(held_slot, 1);
-        let stack = state.inventory.get(held_slot);
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .remove(held_slot, 1);
+        let stack = state.inventory_menu.player_inventory().get(held_slot);
         let raw = if stack.is_empty() {
             RawItemStack::empty()
         } else if let Some(pid) = item_protocol_id(stack.item_id()) {
@@ -2193,7 +2310,7 @@ fn process_item_pickups(
 ) -> io::Result<()> {
     // Snapshot which slots exist before any mutation so we can send only dirty ones.
     // Java: Inventory.add() mutates slots; we detect changes via PlayerInventory.times_changed().
-    let times_changed_before = state.inventory.times_changed();
+    let times_changed_before = state.inventory_menu.player_inventory().times_changed();
 
     let mut entities_to_remove: Vec<i32> = Vec::new();
 
@@ -2207,7 +2324,7 @@ fn process_item_pickups(
 
         let original_count = entity.count;
         let stack = ItemStack::new(entity.item, entity.count);
-        let (picked_up, new_count) = match state.inventory.add(stack) {
+        let (picked_up, new_count) = match state.inventory_menu.player_inventory_mut().add(stack) {
             InventoryAddResult::FullyAdded => (original_count, 0),
             InventoryAddResult::PartiallyAdded { remaining } => {
                 (original_count - remaining, remaining)
@@ -2257,11 +2374,11 @@ fn process_item_pickups(
     //    Java: ContainerListener.slotChanged() → ClientboundSetPlayerInventoryPacket.
     //    We send all player slots whenever the inventory was mutated to keep things simple;
     //    a diff-based optimisation can narrow this down later.
-    if state.inventory.times_changed() != times_changed_before {
-        state.inventory_state_id = state.inventory_state_id.wrapping_add(1);
+    if state.inventory_menu.player_inventory().times_changed() != times_changed_before {
+        state.container_state_id = state.container_state_id.wrapping_add(1);
         // Player inventory slots 0–35 (main + hotbar), 36–39 (armour), 40 (offhand).
         for slot in 0_usize..=40 {
-            let stack = state.inventory.get(slot);
+            let stack = state.inventory_menu.player_inventory().get(slot);
             let raw = if stack.is_empty() {
                 RawItemStack::empty()
             } else if let Some(pid) = item_protocol_id(stack.item_id()) {
@@ -2295,13 +2412,14 @@ fn load_play_session_state(
     world_root: &Path,
     uuid: &str,
     properties: &ServerProperties,
+    recipes: &RecipeMap,
 ) -> PlaySessionState {
     let layout = WorldLayout::new(world_root);
     let default_game_mode = game_mode_from_name(&properties.game_mode);
     let mut state = layout
         .load_player_data(uuid)
         .ok()
-        .and_then(|tag| play_session_state_from_nbt(&tag, default_game_mode))
+        .and_then(|tag| play_session_state_from_nbt(&tag, default_game_mode, recipes))
         .unwrap_or_else(|| PlaySessionState {
             game_mode: default_game_mode,
             ..PlaySessionState::default()
@@ -2379,7 +2497,8 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
     // entries, matching vanilla's player NBT format.
     // Java: ServerPlayer.addAdditionalSaveData() → Inventory.save()
     let inventory_items: Vec<Tag> = state
-        .inventory
+        .inventory_menu
+        .player_inventory()
         .saved_items()
         .into_iter()
         .map(|(slot, stack)| {
@@ -2394,7 +2513,11 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
     Tag::Compound(values)
 }
 
-fn play_session_state_from_nbt(tag: &Tag, default_game_mode: GameMode) -> Option<PlaySessionState> {
+fn play_session_state_from_nbt(
+    tag: &Tag,
+    default_game_mode: GameMode,
+    recipes: &RecipeMap,
+) -> Option<PlaySessionState> {
     let compound = match tag {
         Tag::Compound(values) => values,
         _ => return None,
@@ -2497,8 +2620,9 @@ fn play_session_state_from_nbt(tag: &Tag, default_game_mode: GameMode) -> Option
         previous_game_mode,
         // Dropped items are session-local and not persisted to NBT.
         dropped_items: Vec::new(),
-        inventory,
-        inventory_state_id: 0,
+        inventory_menu: InventoryMenu::new(inventory, recipes.clone()),
+        carried_item: ItemStack::empty(),
+        container_state_id: 0,
     })
 }
 
@@ -2823,26 +2947,40 @@ fn write_minimal_play_join(
         CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
         |payload| {
             payload.write_all(&[0])?; // container ID = player inventory (InventoryMenu.CONTAINER_ID)
-            write_var_i32(payload, play_state.inventory_state_id)?;
-            write_var_i32(payload, 46)?;
-            for container_slot in 0..46usize {
-                let raw = inventory_internal_slot(container_slot)
-                    .and_then(|inv_slot| {
-                        let stack = play_state.inventory.get(inv_slot);
-                        if stack.is_empty() {
-                            None
-                        } else {
-                            item_protocol_id(stack.item_id()).map(|pid| RawItemStack {
-                                count: stack.count(),
-                                item_id: Some(pid),
-                                components: RawDataComponentPatch::empty(),
-                            })
-                        }
-                    })
-                    .unwrap_or_else(RawItemStack::empty);
+            write_var_i32(payload, play_state.container_state_id)?;
+            // Emit all 46 InventoryMenu slots (result + crafting grid + armour + storage + hotbar + offhand).
+            // Java: AbstractContainerMenu.sendAllDataToRemote() iterates containerSlots[0..size].
+            let slots = play_state.inventory_menu.all_slots();
+            write_var_i32(payload, slots.len() as i32)?;
+            for stack in &slots {
+                let raw = if stack.is_empty() {
+                    RawItemStack::empty()
+                } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+                    RawItemStack {
+                        count: stack.count(),
+                        item_id: Some(pid),
+                        components: RawDataComponentPatch::empty(),
+                    }
+                } else {
+                    RawItemStack::empty()
+                };
                 raw.write_optional_untrusted(payload)?;
             }
-            RawItemStack::empty().write_optional_untrusted(payload) // carried item
+            // Carried (cursor) item.
+            // Java: ServerPlayer.containerMenu.setRemoteCarried(carried)
+            let carried = &play_state.carried_item;
+            let raw_carried = if carried.is_empty() {
+                RawItemStack::empty()
+            } else if let Some(pid) = item_protocol_id(carried.item_id()) {
+                RawItemStack {
+                    count: carried.count(),
+                    item_id: Some(pid),
+                    components: RawDataComponentPatch::empty(),
+                }
+            } else {
+                RawItemStack::empty()
+            };
+            raw_carried.write_optional_untrusted(payload)
         },
     )?;
     write_framed_packet_with_compression(
@@ -4177,8 +4315,6 @@ fn place_block_in_region(
     true
 }
 
-/// Returns the (dx, dy, dz) unit offset for a face direction.
-/// Java: Direction.getNormal()
 /// Maps a `ContainerSetContent` container slot index (0-45) for container 0 (the player
 /// inventory) to the corresponding `PlayerInventory` internal slot index, or `None` for
 /// crafting/result slots which have no persistent inventory backing.
@@ -4213,6 +4349,222 @@ fn direction_offset(dir: Direction3d) -> (i32, i32, i32) {
         Direction3d::West => (-1, 0, 0),
         Direction3d::East => (1, 0, 0),
     }
+}
+
+/// Encodes a velocity vector using the LP (Loss-Precision) Vec3 format used in
+/// `ClientboundAddEntityPacket`.
+///
+/// Java: `LpVec3.write` — zero vector writes a single `0` byte; non-zero writes
+/// 1 + 1 + 4 bytes (plus an optional VarInt for large-magnitude vectors).
+fn write_lp_vec3<W: Write>(writer: &mut W, vx: f64, vy: f64, vz: f64) -> io::Result<()> {
+    fn sanitize(v: f64) -> f64 {
+        if v.is_nan() {
+            0.0
+        } else {
+            v.clamp(-1.7179869183e10, 1.7179869183e10)
+        }
+    }
+    // Java: Math.round((value * 0.5 + 0.5) * 32766.0)
+    fn pack(v: f64) -> i64 {
+        ((v * 0.5 + 0.5) * 32766.0 + 0.5).floor() as i64
+    }
+    let x = sanitize(vx);
+    let y = sanitize(vy);
+    let z = sanitize(vz);
+    // Java: Mth.absMax(a, Mth.absMax(b, c))
+    let chessboard = x.abs().max(y.abs()).max(z.abs());
+    if chessboard < 3.051944088384301e-5 {
+        return writer.write_all(&[0u8]);
+    }
+    let scale = chessboard.ceil() as i64;
+    let is_partial = (scale & 3) != scale;
+    let markers = if is_partial { (scale & 3) | 4 } else { scale };
+    let xn = pack(x / scale as f64) << 3;
+    let yn = pack(y / scale as f64) << 18;
+    let zn = pack(z / scale as f64) << 33;
+    let buffer = markers | xn | yn | zn;
+    writer.write_all(&[buffer as u8, (buffer >> 8) as u8])?;
+    writer.write_all(&((buffer >> 16) as i32).to_be_bytes())?;
+    if is_partial {
+        write_var_i32(writer, (scale >> 2) as i32)?;
+    }
+    Ok(())
+}
+
+/// Returns a pseudo-random `f32` in `[0, 1)` from a 64-bit seed and a per-call index.
+///
+/// Used to reproduce Java's `Random.nextFloat()` scatter calls in `createItemStackToDrop`
+/// without keeping a persistent RNG in game state.  The exact values don't need to match
+/// Java's — they only affect cosmetic velocity scatter — but they must be uncorrelated
+/// across different indices.
+fn pseudo_rand_f32(seed: i32, index: u32) -> f32 {
+    let mut x = (seed as u64)
+        .wrapping_mul(0x517CC1B727220A95)
+        .wrapping_add((index as u64).wrapping_mul(0x6C62272E07BB0142));
+    x ^= x >> 30;
+    x = x.wrapping_mul(0xBF58476D1CE4E5B9);
+    x ^= x >> 27;
+    x = x.wrapping_mul(0x94D049BB133111EB);
+    x ^= x >> 31;
+    (x >> 33) as f32 / u32::MAX as f32
+}
+
+/// Handles `DROP_ITEM` (action 4, Q) and `DROP_ALL_ITEMS` (action 3, Ctrl+Q) from
+/// `ServerboundPlayerActionPacket`.
+///
+/// Java: `ServerGamePacketListenerImpl.handlePlayerAction` → `ServerPlayer.drop(boolean)` →
+///       `Inventory.removeFromSelected` → `LivingEntity.createItemStackToDrop`.
+///
+/// Sends:
+///   1. `ClientboundSetPlayerInventoryPacket` — updates the now-depleted held slot.
+///   2. `ClientboundAddEntityPacket`          — spawns the item entity at eye height.
+///   3. `ClientboundSetEntityDataPacket`      — sets the item stack metadata (index 8).
+fn handle_drop_item(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    entity_id_counter: &mut i32,
+    drop_all: bool,
+) -> io::Result<()> {
+    // Java: ServerGamePacketListenerImpl — spectators cannot drop items.
+    if state.game_mode == GameMode::Spectator {
+        return Ok(());
+    }
+
+    let held_slot = state.selected_slot as usize;
+
+    // Java: Inventory.removeFromSelected(all) — remove 1 or the full stack count.
+    let count_to_remove = {
+        let stack = state.inventory_menu.player_inventory().get(held_slot);
+        if stack.is_empty() {
+            return Ok(());
+        }
+        if drop_all {
+            stack.count()
+        } else {
+            1
+        }
+    };
+    let removed = state
+        .inventory_menu
+        .player_inventory_mut()
+        .remove(held_slot, count_to_remove);
+    if removed.is_empty() {
+        return Ok(());
+    }
+
+    // Update the client's held slot after removal.
+    // Java: ServerPlayer.drop() → containerMenu.setRemoteSlot()
+    let raw_after = {
+        let stack = state.inventory_menu.player_inventory().get(held_slot);
+        if stack.is_empty() {
+            RawItemStack::empty()
+        } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+            RawItemStack {
+                count: stack.count(),
+                item_id: Some(pid),
+                components: RawDataComponentPatch::empty(),
+            }
+        } else {
+            RawItemStack::empty()
+        }
+    };
+    state.container_state_id = state.container_state_id.wrapping_add(1);
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+        |p| {
+            ClientboundSetPlayerInventoryPacket {
+                slot: held_slot as i32,
+                contents: raw_after,
+            }
+            .write(p)
+        },
+    )?;
+
+    let Some(item_pid) = item_protocol_id(removed.item_id()) else {
+        return Ok(());
+    };
+
+    // Java: LivingEntity.createItemStackToDrop — spawn at eye height minus 0.3.
+    // Player eye height is 1.62 (EntityType.java: sized(0.6, 1.8).eyeHeight(1.62)).
+    let drop_x = state.x;
+    let drop_y = state.y + 1.62 - 0.3; // getEyeY() - 0.3F
+    let drop_z = state.z;
+
+    // Java: LivingEntity.createItemStackToDrop — directional velocity based on view angles.
+    // xRot = pitch, yRot = yaw (both stored in degrees in play_state).
+    let pitch_rad = (state.pitch as f64) * (std::f64::consts::PI / 180.0);
+    let yaw_rad = (state.yaw as f64) * (std::f64::consts::PI / 180.0);
+    let sin_pitch = pitch_rad.sin();
+    let cos_pitch = pitch_rad.cos();
+    let sin_yaw = yaw_rad.sin();
+    let cos_yaw = yaw_rad.cos();
+    let r0 = pseudo_rand_f32(*entity_id_counter, 0) as f64;
+    let r1 = pseudo_rand_f32(*entity_id_counter, 1) as f64;
+    let r2 = pseudo_rand_f32(*entity_id_counter, 2) as f64;
+    let r3 = pseudo_rand_f32(*entity_id_counter, 3) as f64;
+    let scatter_dir = r0 * std::f64::consts::TAU;
+    let scatter_mag = 0.02 * r1;
+    let vel_x = -sin_yaw * cos_pitch * 0.3 + scatter_dir.cos() * scatter_mag;
+    let vel_y = -sin_pitch * 0.3 + 0.1 + (r2 - r3) * 0.1;
+    let vel_z = cos_yaw * cos_pitch * 0.3 + scatter_dir.sin() * scatter_mag;
+
+    *entity_id_counter = entity_id_counter.wrapping_add(1);
+    let eid = *entity_id_counter;
+
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+        |p| {
+            write_var_i32(p, eid)?;
+            let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
+            let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
+            p.write_all(&uuid_hi.to_be_bytes())?;
+            p.write_all(&uuid_lo.to_be_bytes())?;
+            write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
+            p.write_all(&drop_x.to_be_bytes())?;
+            p.write_all(&drop_y.to_be_bytes())?;
+            p.write_all(&drop_z.to_be_bytes())?;
+            write_lp_vec3(p, vel_x, vel_y, vel_z)?;
+            p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
+            write_var_i32(p, 0)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+        |p| {
+            write_var_i32(p, eid)?;
+            p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
+            write_var_i32(p, 7)?; // serializer 7: EntityDataSerializers.ITEM_STACK
+            write_var_i32(p, removed.count())?;
+            write_var_i32(p, item_pid)?;
+            write_var_i32(p, 0)?; // component add count
+            write_var_i32(p, 0)?; // component remove count
+            p.write_all(&[0xFFu8]) // end of metadata
+        },
+    )?;
+
+    // Register server-side so the pickup loop can detect proximity.
+    // Java: ItemEntity.setPickUpDelay(40) — 2-second delay before anyone can pick it up,
+    // including the player who dropped it.
+    state.dropped_items.push(DroppedItem {
+        entity_id: eid,
+        item: removed.item_id(),
+        count: removed.count(),
+        x: drop_x,
+        y: drop_y,
+        z: drop_z,
+        pickup_delay: 40,
+        age: 0,
+        target_uuid: None,
+    });
+
+    Ok(())
 }
 
 fn visual_terrain_block_at(bx: i32, by: i32, bz: i32) -> Option<&'static str> {
@@ -6290,13 +6642,13 @@ mod tests {
         load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
         login_host_ip, moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt,
         packed_chunk_pos, pig_sound_variant_nbt, play_session_state_from_nbt,
-        play_session_state_to_nbt, read_code_of_conducts, read_packet, status_json,
-        strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
+        play_session_state_to_nbt, pseudo_rand_f32, read_code_of_conducts, read_packet,
+        status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
         vanilla_baseline_biome_nbt, villager_schedule_timeline_nbt,
         visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
         visible_spawn_terrain_block_count, visible_spawn_terrain_height,
         wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
-        write_legacy_string, write_minimal_biome_registry_packet,
+        write_legacy_string, write_lp_vec3, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_minimal_update_tags_packet,
         write_status_pong_packet, write_vanilla_banner_pattern_registry_packet,
@@ -6328,7 +6680,8 @@ mod tests {
     use crate::network::common::{ServerLinkLabel, ServerLinkType};
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::{read_var_i32, write_var_i32};
-    use crate::player_inventory::PlayerInventory;
+    use crate::player_inventory::{InventoryMenu, PlayerInventory};
+    use crate::recipe_system::RecipeMap;
     use crate::registry::Identifier;
     use crate::server_properties::ServerProperties;
     use crate::storage::nbt::Tag;
@@ -7678,8 +8031,9 @@ mod tests {
             game_mode: GameMode::Survival,
             previous_game_mode: None,
             dropped_items: Vec::new(),
-            inventory,
-            inventory_state_id: 0,
+            inventory_menu: InventoryMenu::new(inventory, RecipeMap::default()),
+            carried_item: ItemStack::empty(),
+            container_state_id: 0,
         }
     }
 
@@ -7689,9 +8043,14 @@ mod tests {
         // deserialise back without error.
         let state = session_state_with_inventory(&[]);
         let tag = play_session_state_to_nbt(&state);
-        let restored = play_session_state_from_nbt(&tag, GameMode::Survival).unwrap();
+        let restored =
+            play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
         assert!(
-            restored.inventory.saved_items().is_empty(),
+            restored
+                .inventory_menu
+                .player_inventory()
+                .saved_items()
+                .is_empty(),
             "expected empty inventory after round-trip"
         );
     }
@@ -7707,9 +8066,10 @@ mod tests {
         ];
         let state = session_state_with_inventory(original_items);
         let tag = play_session_state_to_nbt(&state);
-        let restored = play_session_state_from_nbt(&tag, GameMode::Survival).unwrap();
+        let restored =
+            play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
 
-        let saved = restored.inventory.saved_items();
+        let saved = restored.inventory_menu.player_inventory().saved_items();
         assert_eq!(saved.len(), 3, "expected exactly 3 items after round-trip");
 
         for (id, count, slot) in original_items {
@@ -7766,8 +8126,9 @@ mod tests {
                 ]),
             ),
         ]);
-        let restored = play_session_state_from_nbt(&tag, GameMode::Survival).unwrap();
-        let saved = restored.inventory.saved_items();
+        let restored =
+            play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
+        let saved = restored.inventory_menu.player_inventory().saved_items();
         assert_eq!(saved.len(), 1, "only the in-range slot should survive");
         assert_eq!(saved[0].0, 0);
         assert_eq!(saved[0].1.item_id(), "minecraft:dirt");
@@ -7795,7 +8156,8 @@ mod tests {
             ("playerGameType".to_string(), Tag::Int(99)),
         ]);
 
-        let restored = play_session_state_from_nbt(&tag, GameMode::Creative).unwrap();
+        let restored =
+            play_session_state_from_nbt(&tag, GameMode::Creative, &RecipeMap::default()).unwrap();
         assert_eq!(restored.health, 20.0);
         assert_eq!(restored.food_level, 20);
         assert_eq!(restored.food_saturation, 20.0);
@@ -7846,6 +8208,74 @@ mod tests {
             .find_map(|(n, v)| (n == "count").then_some(v))
             .expect("count missing");
         assert!(matches!(count, Tag::Int(5)), "count must be TAG_Int(5)");
+    }
+
+    // ─── write_lp_vec3 ───────────────────────────────────────────────────────
+
+    #[test]
+    fn write_lp_vec3_zero_writes_single_zero_byte() {
+        // Java: LpVec3.write — chessboard length below threshold → single 0x00 byte.
+        let mut buf = Vec::new();
+        write_lp_vec3(&mut buf, 0.0, 0.0, 0.0).unwrap();
+        assert_eq!(buf, &[0u8]);
+    }
+
+    #[test]
+    fn write_lp_vec3_nonzero_writes_six_bytes_for_unit_scale() {
+        // For velocity magnitude ≤ 1.0 the scale is 1 and isPartial=false → exactly 6 bytes.
+        let mut buf = Vec::new();
+        write_lp_vec3(&mut buf, 0.3, 0.1, -0.3).unwrap();
+        assert_eq!(
+            buf.len(),
+            6,
+            "scale=1 non-zero velocity should encode to 6 bytes"
+        );
+    }
+
+    #[test]
+    fn write_lp_vec3_round_trips_through_java_decode() {
+        // Verify the encoded x/y/z can be recovered within float precision.
+        // Java unpack: (value & 0x7FFF).min(32766) * 2.0 / 32766.0 - 1.0
+        // where value is extracted from the buffer at the appropriate bit offset.
+        fn pack(v: f64) -> i64 {
+            ((v * 0.5 + 0.5) * 32766.0 + 0.5).floor() as i64
+        }
+        fn unpack(v: i64) -> f64 {
+            (v & 0x7FFF).min(32766) as f64 * 2.0 / 32766.0 - 1.0
+        }
+        let vx = 0.3_f64;
+        let vy = 0.15_f64;
+        let vz = -0.25_f64;
+        let scale = 1_i64;
+        assert!((unpack(pack(vx / scale as f64)) * scale as f64 - vx).abs() < 0.001);
+        assert!((unpack(pack(vy / scale as f64)) * scale as f64 - vy).abs() < 0.001);
+        assert!((unpack(pack(vz / scale as f64)) * scale as f64 - vz).abs() < 0.001);
+    }
+
+    #[test]
+    fn pseudo_rand_f32_produces_values_in_unit_interval() {
+        for seed in [-100_i32, 0, 1, 42, i32::MAX, i32::MIN] {
+            for index in 0..4_u32 {
+                let v = pseudo_rand_f32(seed, index);
+                assert!(
+                    (0.0..1.0).contains(&v),
+                    "pseudo_rand_f32({seed}, {index}) = {v} out of [0, 1)"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pseudo_rand_f32_differs_across_indices() {
+        let seed = 12345_i32;
+        let v0 = pseudo_rand_f32(seed, 0);
+        let v1 = pseudo_rand_f32(seed, 1);
+        let v2 = pseudo_rand_f32(seed, 2);
+        let v3 = pseudo_rand_f32(seed, 3);
+        // All four values should be distinct (probability of collision is ~2^-23).
+        assert_ne!(v0, v1);
+        assert_ne!(v1, v2);
+        assert_ne!(v2, v3);
     }
 
     // ─── inventory_internal_slot ─────────────────────────────────────────────

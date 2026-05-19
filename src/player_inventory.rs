@@ -890,6 +890,18 @@ impl InventoryMenu {
         &self.player
     }
 
+    /// Mutable access to the underlying `PlayerInventory` for operations that bypass the
+    /// crafting grid (block placement consumption, item pickup, serialisation).
+    pub fn player_inventory_mut(&mut self) -> &mut PlayerInventory {
+        &mut self.player
+    }
+
+    /// Consume this `InventoryMenu` and return the underlying `PlayerInventory`.
+    /// Used when saving player state to NBT.
+    pub fn into_player_inventory(self) -> PlayerInventory {
+        self.player
+    }
+
     pub fn crafting_grid(&self) -> &CraftingGrid {
         &self.crafting
     }
