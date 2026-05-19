@@ -45,7 +45,7 @@
 - [ ] Implement function-level return values: `/return` command sets the function result used by `/execute` return predicates
 - [ ] Implement macro functions (26.1.2): `$` prefix lines in `.mcfunction` accept macro arguments, `$(variable)` substitution; `/function <id> with <entity|block|storage>` syntax
 - [x] Implement macro function instantiation for `/function <id> {compound}`: SNBT compound parsing, missing-argument errors, vanilla-style numeric/string argument stringification, and `$(variable)` substitution before queueing commands
-- [ ] Implement function-argument type in Brigadier argument list for `/function` command autocompletion
+- [x] Implement function-argument type in Brigadier argument list for `/function` command autocompletion: `command_tree::ArgumentParser::Function` validates function/tag resource IDs, `vanilla_like_tree()` exposes `/function <name>`, and `CommandTree::function_suggestions()` suggests known function IDs plus `#tag` IDs; covered by `function_argument_suggestions_use_function_and_tag_ids` plus the existing command-parity suggestion suite
 - [x] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
 - [x] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
 - [x] Implement function execution quota/fork limiting using `maxCommandChainLength` / `max_command_sequence_length`, `maxCommandForkCount` / `max_command_forks`, and vanilla queue overflow behavior

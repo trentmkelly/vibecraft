@@ -15,6 +15,7 @@ pub enum ArgumentParser {
     GreedyString,
     Integer,
     EntitySelector,
+    Function,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,6 +190,37 @@ impl CommandTree {
     }
 
     pub fn suggestions(&self, input: &str, permission_level: u8) -> Vec<String> {
+        self.suggestions_with_dynamic_values(input, permission_level, &[])
+    }
+
+    pub fn function_suggestions(
+        &self,
+        input: &str,
+        permission_level: u8,
+        functions: &[String],
+        tags: &[String],
+    ) -> Vec<String> {
+        let function_values = functions
+            .iter()
+            .cloned()
+            .chain(tags.iter().map(|tag| format!("#{tag}")))
+            .collect::<Vec<_>>();
+        self.suggestions_with_dynamic_values(
+            input,
+            permission_level,
+            &[ArgumentSuggestionValues {
+                parser: ArgumentParser::Function,
+                values: function_values,
+            }],
+        )
+    }
+
+    fn suggestions_with_dynamic_values(
+        &self,
+        input: &str,
+        permission_level: u8,
+        dynamic_values: &[ArgumentSuggestionValues],
+    ) -> Vec<String> {
         let trailing_space = input.ends_with(' ');
         let mut tokens: Vec<&str> = input.split_whitespace().collect();
         let prefix = if trailing_space {
@@ -217,13 +249,27 @@ impl CommandTree {
             .filter(|child| permission_level >= self.nodes[**child].requirement_level)
             .filter_map(|child| match self.nodes[*child].kind {
                 CommandNodeKind::Literal(name) if name.starts_with(prefix) => {
-                    Some(name.to_string())
+                    Some(vec![name.to_string()])
                 }
-                CommandNodeKind::Argument { name, .. } if prefix.is_empty() => {
-                    Some(format!("<{name}>"))
+                CommandNodeKind::Argument { name, parser, .. } => {
+                    let dynamic = dynamic_values.iter().find(|values| values.parser == parser);
+                    match dynamic {
+                        Some(values) => {
+                            let suggestions = values
+                                .values
+                                .iter()
+                                .filter(|value| value.starts_with(prefix))
+                                .cloned()
+                                .collect::<Vec<_>>();
+                            (!suggestions.is_empty()).then_some(suggestions)
+                        }
+                        None if prefix.is_empty() => Some(vec![format!("<{name}>")]),
+                        None => None,
+                    }
                 }
                 _ => None,
             })
+            .flatten()
             .collect()
     }
 
@@ -253,6 +299,12 @@ impl CommandTree {
             }
         })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ArgumentSuggestionValues {
+    parser: ArgumentParser,
+    values: Vec<String>,
 }
 
 pub fn vanilla_like_tree() -> CommandTree {
@@ -293,6 +345,17 @@ pub fn vanilla_like_tree() -> CommandTree {
         2,
         true,
     );
+    let function = tree.add_child(tree.root, CommandNodeKind::Literal("function"), 2, false);
+    tree.add_child(
+        function,
+        CommandNodeKind::Argument {
+            name: "name",
+            parser: ArgumentParser::Function,
+            signed: false,
+        },
+        2,
+        true,
+    );
     let setidletimeout = tree.add_child(
         tree.root,
         CommandNodeKind::Literal("setidletimeout"),
@@ -320,7 +383,35 @@ fn argument_matches(parser: ArgumentParser, value: &str) -> bool {
         ArgumentParser::EntitySelector => {
             value.starts_with('@') || value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         }
+        ArgumentParser::Function => {
+            let value = value.strip_prefix('#').unwrap_or(value);
+            value
+                .split_once(':')
+                .map(|(namespace, path)| {
+                    valid_resource_namespace(namespace) && valid_resource_path(path)
+                })
+                .unwrap_or_else(|| valid_resource_path(value))
+        }
     }
+}
+
+fn valid_resource_namespace(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
+}
+
+fn valid_resource_path(value: &str) -> bool {
+    !value.is_empty()
+        && value.chars().all(|ch| {
+            ch.is_ascii_lowercase()
+                || ch.is_ascii_digit()
+                || ch == '_'
+                || ch == '-'
+                || ch == '/'
+                || ch == '.'
+        })
 }
 
 fn break_if_greedy(_parser: ArgumentParser) {}
@@ -350,6 +441,7 @@ mod tests {
         let tree = vanilla_like_tree();
         assert_eq!(tree.suggestions("ga", 2), vec!["gamemode".to_string()]);
         assert_eq!(tree.suggestions("gamemode ", 2), vec!["<mode>".to_string()]);
+        assert_eq!(tree.suggestions("function ", 2), vec!["<name>".to_string()]);
         assert!(!tree
             .suggestions("", 2)
             .contains(&"setidletimeout".to_string()));
@@ -357,6 +449,38 @@ mod tests {
             .suggestions("set", 3)
             .contains(&"setidletimeout".to_string()));
         assert!(tree.suggestions("set", 2).is_empty());
+    }
+
+    #[test]
+    fn function_argument_suggestions_use_function_and_tag_ids() {
+        let tree = vanilla_like_tree();
+        let functions = vec![
+            "minecraft:tick/foo".to_string(),
+            "minecraft:load/init".to_string(),
+            "custom:setup".to_string(),
+        ];
+        let tags = vec![
+            "minecraft:tick".to_string(),
+            "custom:hooks/load".to_string(),
+        ];
+
+        assert_eq!(
+            tree.function_suggestions("function minecraft:t", 2, &functions, &tags),
+            vec!["minecraft:tick/foo".to_string()]
+        );
+        assert_eq!(
+            tree.function_suggestions("function #custom", 2, &functions, &tags),
+            vec!["#custom:hooks/load".to_string()]
+        );
+        assert!(
+            tree.parse("function minecraft:tick/foo", 2)
+                .unwrap()
+                .executable
+        );
+        assert_eq!(
+            tree.parse("function Bad", 2),
+            Err(ParseError::InvalidArgument("name"))
+        );
     }
 
     #[test]
