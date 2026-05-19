@@ -93,8 +93,8 @@
 ## Number and Score Providers
 
 - [x] Implement all number providers: `ConstantValue`, `UniformGenerator` (min–max), `BinomialDistributionGenerator` (n, p), `ScoreboardValue` (entity selector + objective → score), `StorageValue` (NBT path from storage), `EnchantmentLevelProvider` - `loot_system::NumberProvider` covers constant, uniform, binomial, score, storage, and enchantment-level values, including score/storage maps and dynamic enchantment level lookup.
-- [ ] Implement score providers: `ContextScoreboardNameProvider`, `FixedScoreboardNameProvider`
-- [ ] Implement NBT providers: `ContextNbtProvider` (from entity/block entity), `StorageNbtProvider`
+- [x] Implement score providers: `ContextScoreboardNameProvider`, `FixedScoreboardNameProvider` - `loot_system::ScoreProvider` resolves context-backed scoreboard names and fixed names; covered by `score_and_nbt_providers_resolve_context_and_storage_values` and `cargo test -q loot_system`.
+- [x] Implement NBT providers: `ContextNbtProvider` (from entity/block entity), `StorageNbtProvider` - `loot_system::NbtProvider` resolves context and storage NBT paths from loot context maps; covered by `score_and_nbt_providers_resolve_context_and_storage_values` and `cargo test -q loot_system`.
 
 ## Block, Entity, Chest, and Special Loot Behaviors
 

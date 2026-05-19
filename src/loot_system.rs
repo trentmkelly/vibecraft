@@ -983,6 +983,44 @@ pub enum NumberProvider {
     EnchantmentLevel { scale: f32 },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScoreProvider {
+    Context { target: String },
+    Fixed { name: String },
+}
+
+impl ScoreProvider {
+    pub fn scoreboard_name(&self, context: &LootContext) -> Option<String> {
+        match self {
+            Self::Context { target } => context.entity_properties.get(target).cloned(),
+            Self::Fixed { name } => Some(name.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NbtProvider {
+    Context { target: String, path: String },
+    Storage { key: String, path: String },
+}
+
+impl NbtProvider {
+    pub fn get<'a>(&self, context: &'a LootContext) -> Option<&'a str> {
+        match self {
+            Self::Context { target, path } => context
+                .context_nbt
+                .get(target)
+                .and_then(|values| values.get(path))
+                .map(String::as_str),
+            Self::Storage { key, path } => context
+                .storage_nbt
+                .get(key)
+                .and_then(|values| values.get(path))
+                .map(String::as_str),
+        }
+    }
+}
+
 impl NumberProvider {
     pub fn int(&self, context: &mut LootContext) -> i32 {
         self.float(context).floor() as i32
@@ -1181,6 +1219,8 @@ pub struct LootContext {
     pub tool: Option<String>,
     pub scores: HashMap<String, i32>,
     pub storage_numbers: HashMap<String, f32>,
+    pub context_nbt: HashMap<String, HashMap<String, String>>,
+    pub storage_nbt: HashMap<String, HashMap<String, String>>,
     pub entity_properties: HashMap<String, String>,
     pub condition_references: HashSet<String>,
     pub tables: HashMap<String, LootTable>,
@@ -1211,6 +1251,8 @@ impl LootContext {
             tool: None,
             scores: HashMap::new(),
             storage_numbers: HashMap::new(),
+            context_nbt: HashMap::new(),
+            storage_nbt: HashMap::new(),
             entity_properties: HashMap::new(),
             condition_references: HashSet::new(),
             tables: HashMap::new(),
@@ -1241,6 +1283,8 @@ impl LootContext {
             tool: self.tool.clone(),
             scores: self.scores.clone(),
             storage_numbers: self.storage_numbers.clone(),
+            context_nbt: self.context_nbt.clone(),
+            storage_nbt: self.storage_nbt.clone(),
             entity_properties: self.entity_properties.clone(),
             condition_references: self.condition_references.clone(),
             tables: HashMap::new(),
@@ -1483,6 +1527,53 @@ mod tests {
                 .get(&LootDynamicParamKey::AttackingEntity),
             Some(LootDynamicParamValue::AttackingEntity(entity)) if entity == "Steve"
         ));
+    }
+
+    #[test]
+    fn score_and_nbt_providers_resolve_context_and_storage_values() {
+        let mut context = LootContext::new(LootParamSet::AllParams, 9);
+        context
+            .entity_properties
+            .insert("this_entity".to_string(), "Zombie".to_string());
+        context.context_nbt.insert(
+            "this_entity".to_string(),
+            HashMap::from([("CustomName".to_string(), "\"Dinnerbone\"".to_string())]),
+        );
+        context.storage_nbt.insert(
+            "minecraft:loot_state".to_string(),
+            HashMap::from([("bonus".to_string(), "enabled".to_string())]),
+        );
+
+        assert_eq!(
+            ScoreProvider::Context {
+                target: "this_entity".to_string()
+            }
+            .scoreboard_name(&context),
+            Some("Zombie".to_string())
+        );
+        assert_eq!(
+            ScoreProvider::Fixed {
+                name: "global_counter".to_string()
+            }
+            .scoreboard_name(&context),
+            Some("global_counter".to_string())
+        );
+        assert_eq!(
+            NbtProvider::Context {
+                target: "this_entity".to_string(),
+                path: "CustomName".to_string(),
+            }
+            .get(&context),
+            Some("\"Dinnerbone\"")
+        );
+        assert_eq!(
+            NbtProvider::Storage {
+                key: "minecraft:loot_state".to_string(),
+                path: "bonus".to_string(),
+            }
+            .get(&context),
+            Some("enabled")
+        );
     }
 
     #[test]
