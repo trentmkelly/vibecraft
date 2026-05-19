@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildDatapackReloadEvidence,
+  buildFeatureFlagDatapackMismatchEvidence,
   createDatapackScenarioPlan,
   summarizeDatapackEvidence
 } from './datapack_scenarios.mjs'
@@ -44,4 +46,62 @@ test('summarizeDatapackEvidence passes complete evidence and fails closed on mis
   assert.equal(incomplete.ok, false)
   assert.ok(incomplete.scenarios.find(result => result.name === 'datapack-reload').missing.includes('run-reload-command'))
   assert.ok(incomplete.scenarios.find(result => result.name === 'feature-flag-datapack-mismatch').missing.includes('offline-login-attempt'))
+})
+
+test('buildDatapackReloadEvidence captures before/after reload survival and disconnect parity', () => {
+  const evidence = buildDatapackReloadEvidence({
+    beforeReload: { joined: true, registryHash: 'a', tagHash: 'a' },
+    afterReload: { joined: true, reloadCommandSent: true, registryHash: 'a', tagHash: 'b' },
+    official: { afterReload: { joined: true } }
+  })
+
+  assert.equal(evidence['join-before-reload'], true)
+  assert.equal(evidence['run-reload-command'], true)
+  assert.equal(evidence['registry-tag-resync-observed'], true)
+  assert.equal(evidence['bot-survives-where-vanilla-survives'], true)
+  assert.equal(evidence['disconnect-reason-recorded-when-vanilla-kicks'], true)
+
+  const kickEvidence = buildDatapackReloadEvidence({
+    beforeReload: { joined: true, registryHash: 'a', tagHash: 'a' },
+    afterReload: { joined: false, reloadCommandSent: true, registryHash: 'b', tagHash: 'a', disconnectReason: 'Registry reload failed' },
+    official: { afterReload: { joined: false } }
+  })
+  assert.equal(kickEvidence['disconnect-reason-recorded-when-vanilla-kicks'], true)
+})
+
+test('buildFeatureFlagDatapackMismatchEvidence compares offline login outcome with vanilla', () => {
+  const matchingKick = buildFeatureFlagDatapackMismatchEvidence({
+    attempt: {
+      changedEnabledFeatures: true,
+      changedDatapackRegistryContents: true,
+      offlineLoginAttempted: true,
+      joined: false,
+      disconnectReason: 'Feature flags are not compatible'
+    },
+    official: {
+      joined: false,
+      disconnectReason: 'Feature flags are not compatible'
+    }
+  })
+
+  assert.equal(matchingKick['changed-enabled-features'], true)
+  assert.equal(matchingKick['changed-datapack-registry-contents'], true)
+  assert.equal(matchingKick['offline-login-attempt'], true)
+  assert.equal(matchingKick['vanilla-compatible-success-or-disconnect'], true)
+  assert.equal(matchingKick['disconnect-component-parity'], true)
+
+  const mismatch = buildFeatureFlagDatapackMismatchEvidence({
+    attempt: {
+      changedEnabledFeatures: true,
+      changedDatapackRegistryContents: true,
+      offlineLoginAttempted: true,
+      joined: true
+    },
+    official: {
+      joined: false,
+      disconnectReason: 'Feature flags are not compatible'
+    }
+  })
+  assert.equal(mismatch['vanilla-compatible-success-or-disconnect'], false)
+  assert.equal(mismatch['disconnect-component-parity'], false)
 })

@@ -54,6 +54,57 @@ export function summarizeRegistryEvidence(evidence, plan = createRegistryScenari
   }
 }
 
+export function buildRegistrySyncEvidence({ officialTranscript, rustCraftTranscript }) {
+  return {
+    'captures-configuration-packets': hasConfigurationPackets(officialTranscript) && hasConfigurationPackets(rustCraftTranscript),
+    'compares-registry-ids': sameJson(
+      rustCraftTranscript.registries?.map(entry => entry.registry),
+      officialTranscript.registries?.map(entry => entry.registry)
+    ),
+    'compares-tag-contents': sameJson(
+      tagSummary(rustCraftTranscript.tags),
+      tagSummary(officialTranscript.tags)
+    ),
+    'compares-known-packs': sameJson(
+      rustCraftTranscript.knownPacks,
+      officialTranscript.knownPacks
+    ),
+    'compares-enabled-feature-order': sameJson(
+      enabledFeatures(rustCraftTranscript),
+      enabledFeatures(officialTranscript)
+    ),
+    'official-server-oracle': officialTranscript.source === 'official-server.jar' || Boolean(officialTranscript.officialOracle)
+  }
+}
+
+export function buildRegistryLoginDiffEvidence({ officialTranscript, rustCraftTranscript, rustCraftPlayStateEntered }) {
+  const diffs = compactRegistryDiff(
+    transcriptPackets(officialTranscript),
+    transcriptPackets(rustCraftTranscript)
+  )
+  return {
+    'same-bot-against-rustcraft-and-official': officialTranscript.username === rustCraftTranscript.username,
+    'compact-registry-diff-on-play-state-failure': rustCraftPlayStateEntered || diffs.length > 0,
+    'configuration-diff-on-play-state-failure': rustCraftPlayStateEntered || Boolean(rustCraftTranscript.disconnectReason || diffs.length > 0),
+    diffs
+  }
+}
+
+export function buildRegistrySizeGuardEvidence({ transcript, parserErrors = [], compressionThreshold, expectedCompressionThreshold }) {
+  const payloadBytes = transcript.configurationBytes ?? transcript.rawConfigurationBytes ?? 0
+  const registryBytes = transcript.registryBytes ?? payloadBytes
+  const tagBytes = transcript.tagBytes ?? payloadBytes
+  return {
+    'large-registry-payload': registryBytes > 0,
+    'large-tag-payload': tagBytes > 0,
+    'configuration-completes': transcript.finishConfigurationPacketId === 3 || transcript.configurationComplete === true,
+    'no-mineflayer-parser-errors': parserErrors.length === 0,
+    'no-truncated-packets': !transcript.truncatedPackets,
+    'no-compression-regression': compressionThreshold === expectedCompressionThreshold,
+    payloadBytes
+  }
+}
+
 export function compactRegistryDiff(officialPackets, rustCraftPackets) {
   const official = registrySummary(officialPackets)
   const rustCraft = registrySummary(rustCraftPackets)
@@ -79,6 +130,44 @@ function registrySummary(packets) {
     }
   }
   return summary
+}
+
+function transcriptPackets(transcript) {
+  return (transcript.registries ?? []).map(registry => ({
+    name: 'registry_data',
+    registryId: registry.registry,
+    keys: registry.elementIds ?? [],
+    tags: tagsForRegistry(transcript.tags, registry.registry),
+    knownPacks: transcript.knownPacks ?? [],
+    enabledFeatures: enabledFeatures(transcript)
+  }))
+}
+
+function hasConfigurationPackets(transcript) {
+  return Array.isArray(transcript.registries) && transcript.registries.length > 0 &&
+    Array.isArray(transcript.knownPacks)
+}
+
+function tagSummary(tags = []) {
+  return tags.map(registry => ({
+    registry: registry.registry,
+    tags: (registry.tags ?? []).map(tag => ({
+      tag: tag.tag,
+      entries: tag.entries
+    }))
+  }))
+}
+
+function tagsForRegistry(tags = [], registryId) {
+  return tags.find(entry => entry.registry === registryId)?.tags ?? []
+}
+
+function enabledFeatures(transcript) {
+  return transcript.enabledFeatures ?? transcript.features ?? ['minecraft:vanilla']
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

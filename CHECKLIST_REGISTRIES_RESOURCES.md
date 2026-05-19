@@ -12,16 +12,16 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement datapack-driven dynamic registries.
 - [x] Implement registry sync during configuration state.
 - [x] Implement exact registry IDs and element ordering expected by clients.
-- [ ] Add a Mineflayer registry-sync test that captures configuration packets during offline-mode login and compares registry IDs, tag contents, known packs, and enabled feature order against official `server.jar`.
-- [ ] Add a Mineflayer registry-login-diff test that runs the same offline-mode bot against RustCraft and official `server.jar`, then emits a compact registry/configuration diff whenever play-state entry fails.
-- [ ] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions.
+- [x] Add a Mineflayer registry-sync test that captures configuration packets during offline-mode login and compares registry IDs, tag contents, known packs, and enabled feature order against official `server.jar`.
+- [x] Add a Mineflayer registry-login-diff test that runs the same offline-mode bot against RustCraft and official `server.jar`, then emits a compact registry/configuration diff whenever play-state entry fails.
+- [x] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions.
 - [x] Implement codecs for JSON/NBT/network forms of registry-backed values.
 - [x] Implement feature flag registry and enabled-feature negotiation.
 - [x] Implement default enabled feature set for 26.1.2.
 - [x] Implement tag loading, replacement, optional entries, and error reporting.
 - [x] Implement reloadable server registries and resource reload dependency ordering.
-- [ ] Add a Mineflayer datapack reload test that joins before and after `/reload`, verifies the bot survives registry/tag resync where vanilla does, and records any disconnect reason when vanilla kicks.
-- [ ] Add a Mineflayer feature-flag/datapack mismatch test that attempts offline-mode login with changed enabled features or datapack registry contents and verifies vanilla-compatible configuration success or disconnect behavior.
+- [x] Add a Mineflayer datapack reload test that joins before and after `/reload`, verifies the bot survives registry/tag resync where vanilla does, and records any disconnect reason when vanilla kicks.
+- [x] Add a Mineflayer feature-flag/datapack mismatch test that attempts offline-mode login with changed enabled features or datapack registry contents and verifies vanilla-compatible configuration success or disconnect behavior.
 
 ## Migrated From Main Checklist: Resource Packs And Data Packs
 
