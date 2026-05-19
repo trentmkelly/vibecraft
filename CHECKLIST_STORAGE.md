@@ -77,8 +77,8 @@
 - [ ] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
 - [ ] Implement POI region files: `<dim>/poi/*.mca` with POI type and occupation counts
 - [ ] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
-- [ ] Implement advancements: `advancements/<uuid>.json`
-- [ ] Implement stats: `stats/<uuid>.json`
+- [x] Implement advancements: `advancements/<uuid>.json`
+- [x] Implement stats: `stats/<uuid>.json`
 - [x] Implement server icon: `server-icon.png` (64×64 PNG, base64-encoded for status response)
 - [ ] Implement crash reports: `crash-reports/crash-<timestamp>-server.txt`
 - [ ] Implement logs rotation: `logs/latest.log` + `logs/<date>-<n>.log.gz`
@@ -146,8 +146,8 @@
 - [ ] Add a Mineflayer offline-mode playerdata-corruption login test that starts with truncated, wrong-compression, wrong-UUID, and wrong-dimension playerdata files, then verifies fallback spawn, warnings, and recovery match vanilla.
 - [x] Add storage-level playerdata corruption coverage for vanilla `PlayerDataStorage` behavior: gzip playerdata saves rotate `<uuid>.dat_old`, corrupt `<uuid>.dat` is copied to `<uuid>_corrupted_<timestamp>.dat`, and load falls back to `.dat_old`.
 - [x] Add raw 26.1.2 playerdata-corruption fallback coverage that creates primary and `.dat_old` playerdata through real joins, corrupts the primary `.dat`, restarts, verifies first spawn position is loaded from `.dat_old`, and confirms a `_corrupted_*.dat` copy is created while Mineflayer lacks target-protocol play support.
-- [ ] Implement advancements files.
-- [ ] Implement stats files.
+- [x] Implement advancements files.
+- [x] Implement stats files.
 - [ ] Implement scoreboard save data.
 - [ ] Implement raids save data.
 - [ ] Implement map item save data.
