@@ -102,8 +102,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Recipe / Advancement / Unlock Packets
 
 - [ ] `ClientboundRecipeBookAddPacket` (0x3C): recipe entries list (holder, display, forced-notification), replace flag
-- [ ] `ClientboundRecipeBookRemovePacket` (0x3D): recipe IDs list
-- [ ] `ClientboundRecipeBookSettingsPacket` (0x3E): recipe book open/filter flags per book type
+- [x] `ClientboundRecipeBookRemovePacket` (0x3D): recipe IDs list
+- [x] `ClientboundRecipeBookSettingsPacket` (0x3E): recipe book open/filter flags per book type
 - [ ] `ClientboundUpdateAdvancementsPacket` (0x74): reset/clear flag, added advancements map (ID → AdvancementHolder), removed advancement IDs, progress map (ID → criterion done-date map)
 - [x] `ServerboundRecipeBookChangeSettingsPacket` (0x2E): book type enum VarInt, is-open bool, is-filter-active bool
 - [x] `ServerboundRecipeBookSeenRecipePacket` (0x2F): recipe display ID VarInt index
@@ -224,9 +224,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Debug / Misc Packets
 
-- [ ] `ClientboundDebugSamplePacket` (0x17): sample array longs, sample type VarInt
+- [x] `ClientboundDebugSamplePacket` (0x17): sample array longs, sample type VarInt
 - [ ] `ClientboundCustomPayloadPacket` (0x15) — `minecraft:brand` and other channels
-- [ ] `ClientboundStartConfigurationPacket` (0x69): triggers switch from play back to configuration state
+- [x] `ClientboundStartConfigurationPacket` (0x69): triggers switch from play back to configuration state
 - [x] `ServerboundConfigurationAcknowledgedPacket` (0x10): empty terminal payload; triggers play→configuration ack
 - [x] `ClientboundPingPacket` (0x3D): ID int
 - [x] `ServerboundPongPacket` (0x2D): ID int

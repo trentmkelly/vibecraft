@@ -775,7 +775,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "debug_sample",
         java_class: "ClientboundDebugSamplePacket",
-        field_order: "unparsed",
+        field_order: "sample:long_array(VarInt length + i64 entries), debug_sample_type:enum VarInt",
     },
     PlayPacketSpec {
         id: 31,
@@ -1091,14 +1091,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "recipe_book_remove",
         java_class: "ClientboundRecipeBookRemovePacket",
-        field_order: "unparsed",
+        field_order: "recipes:list RecipeDisplayId(index:VarInt)",
     },
     PlayPacketSpec {
         id: 76,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "recipe_book_settings",
         java_class: "ClientboundRecipeBookSettingsPacket",
-        field_order: "unparsed",
+        field_order: "crafting(open:bool, filtering:bool), furnace(open:bool, filtering:bool), blast_furnace(open:bool, filtering:bool), smoker(open:bool, filtering:bool)",
     },
     PlayPacketSpec {
         id: 77,
@@ -1392,7 +1392,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "start_configuration",
         java_class: "ClientboundStartConfigurationPacket",
-        field_order: "unparsed",
+        field_order: "unit/no fields; terminal play packet",
     },
     PlayPacketSpec {
         id: 119,

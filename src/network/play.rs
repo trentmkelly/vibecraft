@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
 use crate::network::codec::{
-    read_identifier, read_string, read_uuid, write_bitset, write_collection, write_identifier,
-    write_string, write_uuid, Uuid,
+    read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
+    write_identifier, write_string, write_uuid, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
@@ -1092,6 +1092,25 @@ pub struct ClientboundRecipePacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundRecipeBookRemovePacket {
+    pub recipe_display_ids: Vec<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecipeBookTypeSettings {
+    pub open: bool,
+    pub filtering: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundRecipeBookSettingsPacket {
+    pub crafting: RecipeBookTypeSettings,
+    pub furnace: RecipeBookTypeSettings,
+    pub blast_furnace: RecipeBookTypeSettings,
+    pub smoker: RecipeBookTypeSettings,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundAdvancementsPacket {
     pub reset: bool,
     pub added: Vec<Identifier>,
@@ -1102,6 +1121,20 @@ pub struct ClientboundAdvancementsPacket {
 pub struct ClientboundAwardStatsPacket {
     pub stats: Vec<(Identifier, i32)>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundDebugSamplePacket {
+    pub sample: Vec<i64>,
+    pub sample_type: RemoteDebugSampleType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteDebugSampleType {
+    TickTime = 0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundStartConfigurationPacket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundGameRuleValuesPacket {
@@ -2726,6 +2759,61 @@ impl ClientboundSetEquipmentPacket {
                 }
             })
             .collect()
+    }
+}
+
+impl ClientboundRecipeBookRemovePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(
+            writer,
+            &self.recipe_display_ids,
+            |writer, recipe_display_id| write_var_i32(writer, *recipe_display_id),
+        )
+    }
+}
+
+impl RecipeBookTypeSettings {
+    pub const CLOSED_UNFILTERED: Self = Self {
+        open: false,
+        filtering: false,
+    };
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.open)?;
+        write_bool(writer, self.filtering)
+    }
+}
+
+impl ClientboundRecipeBookSettingsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.crafting.write(writer)?;
+        self.furnace.write(writer)?;
+        self.blast_furnace.write(writer)?;
+        self.smoker.write(writer)
+    }
+}
+
+impl ClientboundDebugSamplePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.sample.len() as i32)?;
+        for value in &self.sample {
+            write_i64(writer, *value)?;
+        }
+        write_enum_index(
+            writer,
+            self.sample_type as usize,
+            RemoteDebugSampleType::COUNT,
+        )
+    }
+}
+
+impl RemoteDebugSampleType {
+    const COUNT: usize = 1;
+}
+
+impl ClientboundStartConfigurationPacket {
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -6048,6 +6136,52 @@ mod tests {
         assert_eq!(player_info_remove[0], 2);
         assert_eq!(&player_info_remove[1..17], &[1; 16]);
         assert_eq!(&player_info_remove[17..33], &[2; 16]);
+
+        let mut recipe_remove = Vec::new();
+        ClientboundRecipeBookRemovePacket {
+            recipe_display_ids: vec![1, 128],
+        }
+        .write(&mut recipe_remove)
+        .unwrap();
+        assert_eq!(recipe_remove, vec![2, 1, 0x80, 0x01]);
+
+        let mut recipe_settings = Vec::new();
+        ClientboundRecipeBookSettingsPacket {
+            crafting: RecipeBookTypeSettings {
+                open: true,
+                filtering: false,
+            },
+            furnace: RecipeBookTypeSettings {
+                open: false,
+                filtering: true,
+            },
+            blast_furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+            smoker: RecipeBookTypeSettings {
+                open: true,
+                filtering: true,
+            },
+        }
+        .write(&mut recipe_settings)
+        .unwrap();
+        assert_eq!(recipe_settings, vec![1, 0, 0, 1, 0, 0, 1, 1]);
+
+        let mut debug_sample = Vec::new();
+        ClientboundDebugSamplePacket {
+            sample: vec![10, -20],
+            sample_type: RemoteDebugSampleType::TickTime,
+        }
+        .write(&mut debug_sample)
+        .unwrap();
+        assert_eq!(debug_sample[0], 2);
+        assert_eq!(&debug_sample[1..9], &10_i64.to_be_bytes());
+        assert_eq!(&debug_sample[9..17], &(-20_i64).to_be_bytes());
+        assert_eq!(debug_sample[17], 0);
+
+        let mut start_configuration = Vec::new();
+        ClientboundStartConfigurationPacket
+            .write(&mut start_configuration)
+            .unwrap();
+        assert!(start_configuration.is_empty());
     }
 
     #[test]
