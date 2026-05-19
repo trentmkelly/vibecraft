@@ -1497,21 +1497,31 @@ pub struct ClientboundParticlePacket {
     pub count: i32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundMapItemDataPacket {
     pub map_id: i32,
     pub scale: u8,
     pub locked: bool,
-    pub decorations: usize,
+    pub decorations: Option<Vec<MapDecorationData>>,
     pub color_patch: Option<MapPatch>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapDecorationData {
+    pub decoration_type_id: i32,
+    pub x: i8,
+    pub y: i8,
+    pub rotation: i8,
+    pub name: Option<Tag>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapPatch {
     pub width: u8,
     pub height: u8,
     pub start_x: u8,
     pub start_y: u8,
+    pub colors: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -5861,6 +5871,46 @@ impl ClientboundBossEventPacket {
     }
 }
 
+impl ClientboundMapItemDataPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.map_id)?;
+        writer.write_all(&[self.scale])?;
+        write_bool(writer, self.locked)?;
+        write_optional(writer, self.decorations.as_ref(), |writer, decorations| {
+            write_var_i32(writer, decorations.len() as i32)?;
+            for decoration in decorations {
+                decoration.write(writer)?;
+            }
+            Ok(())
+        })?;
+        match &self.color_patch {
+            Some(patch) => patch.write(writer),
+            None => writer.write_all(&[0]),
+        }
+    }
+}
+
+impl MapDecorationData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.decoration_type_id)?;
+        writer.write_all(&[self.x as u8, self.y as u8, self.rotation as u8])?;
+        write_optional(writer, self.name.as_ref(), |writer, name| {
+            write_network_tag(writer, name)
+        })
+    }
+}
+
+impl MapPatch {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.width == 0 {
+            return writer.write_all(&[0]);
+        }
+        writer.write_all(&[self.width, self.height, self.start_x, self.start_y])?;
+        write_var_i32(writer, self.colors.len() as i32)?;
+        writer.write_all(&self.colors)
+    }
+}
+
 impl BossEventFlags {
     pub fn bits(self) -> u8 {
         (if self.darken_screen { 1 } else { 0 })
@@ -6545,12 +6595,19 @@ mod tests {
                 map_id: 1,
                 scale: 2,
                 locked: false,
-                decorations: 1,
+                decorations: Some(vec![MapDecorationData {
+                    decoration_type_id: 0,
+                    x: 1,
+                    y: 2,
+                    rotation: 3,
+                    name: None,
+                }]),
                 color_patch: Some(MapPatch {
                     width: 1,
                     height: 1,
                     start_x: 0,
                     start_y: 0,
+                    colors: vec![5],
                 }),
             }),
             PlayInstruction::WorldBorder(ClientboundWorldBorderPacket {
@@ -7488,6 +7545,47 @@ mod tests {
         .write(&mut boss_style)
         .unwrap();
         assert_eq!(&boss_style[16..], &[4, 2, 4]);
+
+        let mut map_item = Vec::new();
+        ClientboundMapItemDataPacket {
+            map_id: 300,
+            scale: 2,
+            locked: true,
+            decorations: Some(vec![MapDecorationData {
+                decoration_type_id: 7,
+                x: -1,
+                y: 2,
+                rotation: 19,
+                name: Some(Tag::Compound(vec![(
+                    "text".to_string(),
+                    Tag::String("Home".to_string()),
+                )])),
+            }]),
+            color_patch: Some(MapPatch {
+                width: 2,
+                height: 1,
+                start_x: 4,
+                start_y: 5,
+                colors: vec![6, 7],
+            }),
+        }
+        .write(&mut map_item)
+        .unwrap();
+        assert_eq!(&map_item[..10], &[0xac, 0x02, 2, 1, 1, 1, 7, 0xff, 2, 19]);
+        assert!(map_item.windows(2).any(|window| window == [1, 10]));
+        assert_eq!(&map_item[map_item.len() - 7..], &[2, 1, 4, 5, 2, 6, 7]);
+
+        let mut map_no_patch = Vec::new();
+        ClientboundMapItemDataPacket {
+            map_id: 1,
+            scale: 0,
+            locked: false,
+            decorations: None,
+            color_patch: None,
+        }
+        .write(&mut map_no_patch)
+        .unwrap();
+        assert_eq!(map_no_patch, vec![1, 0, 0, 0, 0]);
 
         let mut pack_pop = Vec::new();
         ClientboundResourcePackPopPacket {

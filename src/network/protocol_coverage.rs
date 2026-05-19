@@ -922,7 +922,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "map_item_data",
         java_class: "ClientboundMapItemDataPacket",
-        field_order: "unparsed",
+        field_order: "mapId:VarInt, scale:byte, locked:bool, decorations:Optional<List(type:Holder<MapDecorationType> registry VarInt, x:byte, y:byte, rot:byte, name:Optional<Component network NBT tag>)>, colorPatch:width byte (0 absent) then height/startX/startY bytes and colors byte array",
     },
     PlayPacketSpec {
         id: 52,

@@ -45,7 +45,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundSetChunkCacheCenterPacket` (0x50): chunk X/Z VarInts
 - [x] `ClientboundSetChunkCacheRadiusPacket` (0x51): view-distance VarInt
 - [x] `ClientboundSetSimulationDistancePacket` (0x61): simulation-distance VarInt
-- [ ] `ClientboundMapItemDataPacket` (0x2D): map ID, scale, locked, optional tracking-position/decorations array, color patch or full color array; exact codec verified
+- [x] `ClientboundMapItemDataPacket` (0x2D): map ID, scale, locked, optional tracking-position/decorations array, color patch or full color array; exact codec verified
 
 ## Entity Lifecycle Packets
 
@@ -160,7 +160,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Map Packets
 
-- [ ] `ClientboundMapItemDataPacket` (0x2D): map ID, scale byte, locked bool, optional decorations list (type/entity UUID/x/z/rot/optional label), optional patch (dirty x/z/width/height/colors bytes) or full 128×128 colors
+- [x] `ClientboundMapItemDataPacket` (0x2D): map ID, scale byte, locked bool, optional decorations list (type/x/y/rot/optional label), optional patch (dirty x/y/width/height/colors bytes) or full 128x128 colors
 
 ## Title / Action Bar / Tab-List Packets
 
