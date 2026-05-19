@@ -38,6 +38,7 @@ mod dispenser_cauldron;
 mod enchantment_system;
 mod entity_behavior_tests;
 mod entity_category;
+mod entity_metadata;
 mod entity_physics;
 mod entity_validation;
 mod entity_variants;
