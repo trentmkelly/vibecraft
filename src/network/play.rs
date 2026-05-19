@@ -3,11 +3,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
-use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::codec::{
     read_identifier, read_string, read_uuid, write_bitset, write_collection, write_identifier,
     write_string, write_uuid, Uuid,
 };
+use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
@@ -229,6 +229,45 @@ pub struct ServerboundChangeDifficultyPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundChatAckPacket {
     pub offset: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MessageSignature(pub [u8; MessageSignature::BYTES]);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LastSeenMessagesUpdate {
+    pub offset: i32,
+    pub acknowledged: Vec<u8>,
+    pub checksum: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArgumentSignature {
+    pub name: String,
+    pub signature: MessageSignature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundChatPacket {
+    pub message: String,
+    pub timestamp_epoch_millis: i64,
+    pub salt: i64,
+    pub signature: Option<MessageSignature>,
+    pub last_seen_messages: LastSeenMessagesUpdate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundChatCommandPacket {
+    pub command: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundChatCommandSignedPacket {
+    pub command: String,
+    pub timestamp_epoch_millis: i64,
+    pub salt: i64,
+    pub argument_signatures: Vec<ArgumentSignature>,
+    pub last_seen_messages: LastSeenMessagesUpdate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1254,6 +1293,9 @@ pub struct PlaySession {
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
     pub last_chat_ack: Option<ServerboundChatAckPacket>,
+    pub last_chat: Option<ServerboundChatPacket>,
+    pub last_chat_command: Option<ServerboundChatCommandPacket>,
+    pub last_signed_chat_command: Option<ServerboundChatCommandSignedPacket>,
     pub last_chat_session_update: Option<ServerboundChatSessionUpdatePacket>,
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub last_player_action: Option<ServerboundPlayerActionPacket>,
@@ -1358,6 +1400,9 @@ impl PlaySession {
             last_move: None,
             last_vehicle_move: None,
             last_chat_ack: None,
+            last_chat: None,
+            last_chat_command: None,
+            last_signed_chat_command: None,
             last_chat_session_update: None,
             last_player_command: None,
             last_player_action: None,
@@ -1488,6 +1533,40 @@ impl PlaySession {
                         DispatchOutcome::Handled
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad chat ack packet: {err}")),
+                }
+            }
+            SERVERBOUND_CHAT_COMMAND_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChatCommandPacket::read(&mut input) {
+                    Ok(command) => {
+                        self.last_chat_command = Some(command);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad chat command packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChatCommandSignedPacket::read(&mut input) {
+                    Ok(command) => {
+                        self.last_signed_chat_command = Some(command);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad signed chat command packet: {err}"
+                    )),
+                }
+            }
+            SERVERBOUND_CHAT_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChatPacket::read(&mut input) {
+                    Ok(chat) => {
+                        self.last_chat = Some(chat);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad chat packet: {err}")),
                 }
             }
             SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID => {
@@ -1708,9 +1787,7 @@ impl PlaySession {
                 match ServerboundPlayerCommandPacket::read(&mut input) {
                     Ok(command) => {
                         if matches!(command.action, ServerboundPlayerCommandAction::Unknown(_)) {
-                            DispatchOutcome::Disconnect(
-                                "unknown player command action".to_string(),
-                            )
+                            DispatchOutcome::Disconnect("unknown player command action".to_string())
                         } else {
                             self.last_player_command = Some(command);
                             DispatchOutcome::Handled
@@ -2140,6 +2217,27 @@ fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
 
 fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {
     writer.write_all(&[u8::from(value)])
+}
+
+fn read_nullable_signature<R: Read>(reader: &mut R) -> io::Result<Option<MessageSignature>> {
+    if read_bool(reader)? {
+        Ok(Some(MessageSignature::read(reader)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn write_nullable_signature<W: Write>(
+    writer: &mut W,
+    signature: Option<&MessageSignature>,
+) -> io::Result<()> {
+    match signature {
+        Some(signature) => {
+            write_bool(writer, true)?;
+            signature.write(writer)
+        }
+        None => write_bool(writer, false),
+    }
 }
 
 const BLOCK_POS_PACKED_HORIZONTAL_LENGTH: i64 = 26;
@@ -2700,6 +2798,138 @@ impl ServerboundChatAckPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.offset)
+    }
+}
+
+impl MessageSignature {
+    pub const BYTES: usize = 256;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = [0u8; Self::BYTES];
+        reader.read_exact(&mut bytes)?;
+        Ok(Self(bytes))
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.0)
+    }
+}
+
+impl LastSeenMessagesUpdate {
+    pub const ACKNOWLEDGED_BITS: usize = 20;
+    pub const ACKNOWLEDGED_BYTES: usize = 3;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let offset = read_var_i32(reader)?;
+        let mut acknowledged = vec![0; Self::ACKNOWLEDGED_BYTES];
+        reader.read_exact(&mut acknowledged)?;
+        Ok(Self {
+            offset,
+            acknowledged,
+            checksum: read_u8(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.acknowledged.len() != Self::ACKNOWLEDGED_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "last-seen acknowledged bitset must be 3 bytes",
+            ));
+        }
+        if self.acknowledged[2] & !0x0f != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "last-seen acknowledged bitset exceeds 20 bits",
+            ));
+        }
+        write_var_i32(writer, self.offset)?;
+        writer.write_all(&self.acknowledged)?;
+        writer.write_all(&[self.checksum])
+    }
+}
+
+impl ArgumentSignature {
+    pub const MAX_ARGUMENT_NAME_CHARS: usize = 16;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            name: read_string(reader, Self::MAX_ARGUMENT_NAME_CHARS)?,
+            signature: MessageSignature::read(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, Self::MAX_ARGUMENT_NAME_CHARS)?;
+        self.signature.write(writer)
+    }
+}
+
+impl ServerboundChatPacket {
+    pub const MAX_MESSAGE_CHARS: usize = 256;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            message: read_string(reader, Self::MAX_MESSAGE_CHARS)?,
+            timestamp_epoch_millis: read_i64(reader)?,
+            salt: read_i64(reader)?,
+            signature: read_nullable_signature(reader)?,
+            last_seen_messages: LastSeenMessagesUpdate::read(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.message, Self::MAX_MESSAGE_CHARS)?;
+        write_i64(writer, self.timestamp_epoch_millis)?;
+        write_i64(writer, self.salt)?;
+        write_nullable_signature(writer, self.signature.as_ref())?;
+        self.last_seen_messages.write(writer)
+    }
+}
+
+impl ServerboundChatCommandPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            command: read_string(reader, 32767)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.command, 32767)
+    }
+}
+
+impl ServerboundChatCommandSignedPacket {
+    pub const MAX_ARGUMENT_SIGNATURES: usize = 8;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            command: read_string(reader, 32767)?,
+            timestamp_epoch_millis: read_i64(reader)?,
+            salt: read_i64(reader)?,
+            argument_signatures: read_limited_collection(
+                reader,
+                Self::MAX_ARGUMENT_SIGNATURES,
+                ArgumentSignature::read,
+            )?,
+            last_seen_messages: LastSeenMessagesUpdate::read(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.argument_signatures.len() > Self::MAX_ARGUMENT_SIGNATURES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "too many argument signatures",
+            ));
+        }
+        write_string(writer, &self.command, 32767)?;
+        write_i64(writer, self.timestamp_epoch_millis)?;
+        write_i64(writer, self.salt)?;
+        write_collection(writer, &self.argument_signatures, |writer, entry| {
+            entry.write(writer)
+        })?;
+        self.last_seen_messages.write(writer)
     }
 }
 
@@ -3573,11 +3803,7 @@ fn write_lp_vec3<W: Write>(writer: &mut W, value: Vec3) -> io::Result<()> {
 
     let scale = chessboard_length.ceil() as u64;
     let is_partial = (scale & 3) != scale;
-    let markers = if is_partial {
-        (scale & 3) | 4
-    } else {
-        scale
-    };
+    let markers = if is_partial { (scale & 3) | 4 } else { scale };
     let buffer = markers
         | (pack_lp_vec3_component(x / scale as f64) << 3)
         | (pack_lp_vec3_component(y / scale as f64) << 18)
@@ -4198,6 +4424,29 @@ fn write_length_prefixed_bytes<W: Write>(
     }
     write_var_i32(writer, payload.len() as i32)?;
     writer.write_all(payload)
+}
+
+fn read_limited_collection<R, T, F>(
+    reader: &mut R,
+    max_len: usize,
+    mut read: F,
+) -> io::Result<Vec<T>>
+where
+    R: Read,
+    F: FnMut(&mut R) -> io::Result<T>,
+{
+    let len = read_var_i32(reader)?;
+    if len < 0 || len as usize > max_len {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "collection length exceeds packet limit",
+        ));
+    }
+    let mut values = Vec::with_capacity(len as usize);
+    for _ in 0..len {
+        values.push(read(reader)?);
+    }
+    Ok(values)
 }
 
 fn read_f64<R: Read>(reader: &mut R) -> io::Result<f64> {
@@ -5348,6 +5597,18 @@ mod tests {
             DispatchOutcome::Disconnect(_)
         ));
         assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CHAT_COMMAND_PACKET_ID, vec![1])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID, vec![1])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CHAT_PACKET_ID, Vec::new())),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
             session.handle_decoded(decoded(
                 SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID,
                 vec![0; 24]
@@ -5375,7 +5636,10 @@ mod tests {
             DispatchOutcome::Disconnect(_)
         ));
         assert!(matches!(
-            session.handle_decoded(decoded(SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID, vec![0; 8])),
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
+                vec![0; 8]
+            )),
             DispatchOutcome::Disconnect(_)
         ));
     }
@@ -5502,9 +5766,11 @@ mod tests {
         let mut status_only = Vec::new();
         movement.write_status_only(&mut status_only).unwrap();
         assert_eq!(status_only, vec![3]);
-        let decoded_status =
-            ServerboundMovePlayerPacket::read_shape(&mut cursor(status_only), MoveShape::StatusOnly)
-                .unwrap();
+        let decoded_status = ServerboundMovePlayerPacket::read_shape(
+            &mut cursor(status_only),
+            MoveShape::StatusOnly,
+        )
+        .unwrap();
         assert!(decoded_status.on_ground);
         assert!(decoded_status.horizontal_collision);
         assert!(!decoded_status.has_position);
@@ -5739,7 +6005,10 @@ mod tests {
         );
         let mut session = PlaySession::new(1, 0);
         assert_eq!(
-            session.handle_decoded(decoded(SERVERBOUND_PLAYER_COMMAND_PACKET_ID, player_command)),
+            session.handle_decoded(decoded(
+                SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
+                player_command
+            )),
             DispatchOutcome::Handled
         );
         assert_eq!(
@@ -5910,8 +6179,10 @@ mod tests {
             .unwrap();
         assert!(configuration_ack.is_empty());
         assert_eq!(
-            ServerboundConfigurationAcknowledgedPacket::read(&mut cursor(configuration_ack.clone()))
-                .unwrap(),
+            ServerboundConfigurationAcknowledgedPacket::read(&mut cursor(
+                configuration_ack.clone()
+            ))
+            .unwrap(),
             ServerboundConfigurationAcknowledgedPacket
         );
         assert_eq!(
@@ -5984,7 +6255,10 @@ mod tests {
             set_beacon
         );
         assert_eq!(
-            session.handle_decoded(decoded(SERVERBOUND_SET_BEACON_PACKET_ID, set_beacon_payload)),
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_BEACON_PACKET_ID,
+                set_beacon_payload
+            )),
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_set_beacon, Some(set_beacon));
@@ -6033,9 +6307,7 @@ mod tests {
 
         let container_close = ServerboundContainerClosePacket { container_id: 128 };
         let mut container_close_payload = Vec::new();
-        container_close
-            .write(&mut container_close_payload)
-            .unwrap();
+        container_close.write(&mut container_close_payload).unwrap();
         assert_eq!(container_close_payload, vec![0x80, 0x01]);
         assert_eq!(
             ServerboundContainerClosePacket::read(&mut cursor(container_close_payload.clone()))
@@ -6061,10 +6333,8 @@ mod tests {
             .unwrap();
         assert_eq!(button_click_payload, vec![0x80, 0x01, 7]);
         assert_eq!(
-            ServerboundContainerButtonClickPacket::read(&mut cursor(
-                button_click_payload.clone()
-            ))
-            .unwrap(),
+            ServerboundContainerButtonClickPacket::read(&mut cursor(button_click_payload.clone()))
+                .unwrap(),
             container_button_click
         );
         assert_eq!(
@@ -6089,8 +6359,8 @@ mod tests {
         assert_eq!(
             edit_book_payload,
             vec![
-                1, 2, 8, b'p', b'a', b'g', b'e', b' ', b'o', b'n', b'e', 8, b'p', b'a',
-                b'g', b'e', b' ', b't', b'w', b'o', 1, 5, b'T', b'i', b't', b'l', b'e'
+                1, 2, 8, b'p', b'a', b'g', b'e', b' ', b'o', b'n', b'e', 8, b'p', b'a', b'g', b'e',
+                b' ', b't', b'w', b'o', 1, 5, b'T', b'i', b't', b'l', b'e'
             ]
         );
         assert_eq!(
@@ -6161,6 +6431,119 @@ mod tests {
         );
         assert_eq!(session.last_chat_ack, Some(chat_ack));
 
+        let last_seen = LastSeenMessagesUpdate {
+            offset: 2,
+            acknowledged: vec![0b1010_0001, 0, 0b0000_1000],
+            checksum: 5,
+        };
+        let chat = ServerboundChatPacket {
+            message: "hi".to_string(),
+            timestamp_epoch_millis: 100,
+            salt: -7,
+            signature: Some(MessageSignature([7; MessageSignature::BYTES])),
+            last_seen_messages: last_seen.clone(),
+        };
+        let mut chat_payload = Vec::new();
+        chat.write(&mut chat_payload).unwrap();
+        assert_eq!(&chat_payload[..2], &[2, b'h']);
+        assert_eq!(chat_payload[2], b'i');
+        assert_eq!(&chat_payload[3..11], &100_i64.to_be_bytes());
+        assert_eq!(&chat_payload[11..19], &(-7_i64).to_be_bytes());
+        assert_eq!(chat_payload[19], 1);
+        assert_eq!(&chat_payload[276..], &[2, 0b1010_0001, 0, 0b0000_1000, 5]);
+        assert_eq!(
+            ServerboundChatPacket::read(&mut cursor(chat_payload.clone())).unwrap(),
+            chat
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_CHAT_PACKET_ID, chat_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_chat, Some(chat));
+
+        let chat_command = ServerboundChatCommandPacket {
+            command: "seed".to_string(),
+        };
+        let mut chat_command_payload = Vec::new();
+        chat_command.write(&mut chat_command_payload).unwrap();
+        assert_eq!(chat_command_payload, vec![4, b's', b'e', b'e', b'd']);
+        assert_eq!(
+            ServerboundChatCommandPacket::read(&mut cursor(chat_command_payload.clone())).unwrap(),
+            chat_command
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CHAT_COMMAND_PACKET_ID,
+                chat_command_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_chat_command, Some(chat_command));
+
+        let signed_command = ServerboundChatCommandSignedPacket {
+            command: "msg Notch hello".to_string(),
+            timestamp_epoch_millis: 101,
+            salt: 9,
+            argument_signatures: vec![ArgumentSignature {
+                name: "message".to_string(),
+                signature: MessageSignature([8; MessageSignature::BYTES]),
+            }],
+            last_seen_messages: last_seen,
+        };
+        let mut signed_command_payload = Vec::new();
+        signed_command.write(&mut signed_command_payload).unwrap();
+        assert_eq!(signed_command_payload[0], 15);
+        assert_eq!(&signed_command_payload[16..24], &101_i64.to_be_bytes());
+        assert_eq!(&signed_command_payload[24..32], &9_i64.to_be_bytes());
+        assert_eq!(signed_command_payload[32], 1);
+        assert_eq!(
+            &signed_command_payload[33..41],
+            &[7, b'm', b'e', b's', b's', b'a', b'g', b'e']
+        );
+        assert_eq!(
+            &signed_command_payload[signed_command_payload.len() - 5..],
+            &[2, 0b1010_0001, 0, 0b0000_1000, 5]
+        );
+        assert_eq!(
+            ServerboundChatCommandSignedPacket::read(&mut cursor(signed_command_payload.clone()))
+                .unwrap(),
+            signed_command
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+                signed_command_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_signed_chat_command, Some(signed_command));
+        assert!(LastSeenMessagesUpdate {
+            offset: 0,
+            acknowledged: vec![0, 0, 0x10],
+            checksum: 0,
+        }
+        .write(&mut Vec::new())
+        .is_err());
+        assert!(ServerboundChatCommandSignedPacket {
+            command: String::new(),
+            timestamp_epoch_millis: 0,
+            salt: 0,
+            argument_signatures: vec![
+                ArgumentSignature {
+                    name: String::new(),
+                    signature: MessageSignature([0; MessageSignature::BYTES]),
+                };
+                9
+            ],
+            last_seen_messages: LastSeenMessagesUpdate {
+                offset: 0,
+                acknowledged: vec![0, 0, 0],
+                checksum: 0,
+            },
+        }
+        .write(&mut Vec::new())
+        .is_err());
+
         let chat_session_update = ServerboundChatSessionUpdatePacket {
             session_id: Uuid([4; 16]),
             expires_at_epoch_millis: 1_234_567_890,
@@ -6187,10 +6570,7 @@ mod tests {
             )),
             DispatchOutcome::Handled
         );
-        assert_eq!(
-            session.last_chat_session_update,
-            Some(chat_session_update)
-        );
+        assert_eq!(session.last_chat_session_update, Some(chat_session_update));
         assert!(ServerboundChatSessionUpdatePacket {
             session_id: Uuid([0; 16]),
             expires_at_epoch_millis: 0,
@@ -6241,7 +6621,10 @@ mod tests {
         let mut command_block_payload = Vec::new();
         command_block.write(&mut command_block_payload).unwrap();
         assert_eq!(command_block_payload.len(), 17);
-        assert_eq!(&command_block_payload[8..], &[6, b's', b'a', b'y', b' ', b'h', b'i', 2, 5]);
+        assert_eq!(
+            &command_block_payload[8..],
+            &[6, b's', b'a', b'y', b' ', b'h', b'i', 2, 5]
+        );
         assert_eq!(
             ServerboundSetCommandBlockPacket::read(&mut cursor(command_block_payload.clone()))
                 .unwrap(),
@@ -6255,12 +6638,10 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_set_command_block, Some(command_block));
-        assert!(
-            ServerboundSetCommandBlockPacket::read(&mut cursor(vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0
-            ]))
-            .is_err()
-        );
+        assert!(ServerboundSetCommandBlockPacket::read(&mut cursor(vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0
+        ]))
+        .is_err());
 
         let structure_block = ServerboundSetStructureBlockPacket {
             x: -12,
@@ -6286,16 +6667,14 @@ mod tests {
         assert_eq!(
             &structure_block_payload[8..],
             &[
-                2, 1, 10, b'd', b'e', b'm', b'o', b':', b'h', b'o', b'u', b's', b'e',
-                0xfe, 3, 4, 5, 6, 7, 2, 3, 8, b'm', b'e', b't', b'a', b'd', b'a',
-                b't', b'a', 0x3f, 0x40, 0, 0, 0x80, 0x01, 13
+                2, 1, 10, b'd', b'e', b'm', b'o', b':', b'h', b'o', b'u', b's', b'e', 0xfe, 3, 4,
+                5, 6, 7, 2, 3, 8, b'm', b'e', b't', b'a', b'd', b'a', b't', b'a', 0x3f, 0x40, 0, 0,
+                0x80, 0x01, 13
             ]
         );
         assert_eq!(
-            ServerboundSetStructureBlockPacket::read(&mut cursor(
-                structure_block_payload.clone()
-            ))
-            .unwrap(),
+            ServerboundSetStructureBlockPacket::read(&mut cursor(structure_block_payload.clone()))
+                .unwrap(),
             structure_block
         );
         assert_eq!(
@@ -6305,10 +6684,7 @@ mod tests {
             )),
             DispatchOutcome::Handled
         );
-        assert_eq!(
-            session.last_set_structure_block,
-            Some(structure_block)
-        );
+        assert_eq!(session.last_set_structure_block, Some(structure_block));
 
         let clamped_structure = ServerboundSetStructureBlockPacket::read(&mut cursor(vec![
             0, 0, 0, 0, 0, 0, 0, 0, // BlockPos
@@ -6322,7 +6698,10 @@ mod tests {
         .unwrap();
         assert_eq!(clamped_structure.offset, [-48, 48, -1]);
         assert_eq!(clamped_structure.size, [0, 48, 10]);
-        assert_eq!(clamped_structure.rotation, StructureRotation::Counterclockwise90);
+        assert_eq!(
+            clamped_structure.rotation,
+            StructureRotation::Counterclockwise90
+        );
         assert_eq!(clamped_structure.integrity, 1.0);
         assert!(clamped_structure.ignore_entities);
         assert!(clamped_structure.strict);
@@ -6356,10 +6735,7 @@ mod tests {
             )),
             DispatchOutcome::Handled
         );
-        assert_eq!(
-            session.last_set_command_minecart,
-            Some(command_minecart)
-        );
+        assert_eq!(session.last_set_command_minecart, Some(command_minecart));
 
         let command_suggestion = ServerboundCommandSuggestionPacket {
             id: 128,
@@ -6377,8 +6753,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            ServerboundCommandSuggestionPacket::read(&mut cursor(command_suggestion_payload.clone()))
-                .unwrap(),
+            ServerboundCommandSuggestionPacket::read(&mut cursor(
+                command_suggestion_payload.clone()
+            ))
+            .unwrap(),
             command_suggestion
         );
         assert_eq!(
@@ -6397,9 +6775,7 @@ mod tests {
             include_data: true,
         };
         let mut pick_block_payload = Vec::new();
-        pick_item_from_block
-            .write(&mut pick_block_payload)
-            .unwrap();
+        pick_item_from_block.write(&mut pick_block_payload).unwrap();
         assert_eq!(pick_block_payload.len(), 9);
         assert_eq!(pick_block_payload[8], 1);
         assert_eq!(

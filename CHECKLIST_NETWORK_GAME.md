@@ -122,9 +122,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundDeleteChatPacket` (0x18): message signature bytes
 - [ ] `ClientboundPlayerInfoUpdatePacket` (0x3D): action bitmask, entries list (UUID + per-action data: add-player name/properties, initialize-chat session, update-game-mode, update-listed, update-latency, update-display-name, update-hat, update-list-order)
 - [ ] `ClientboundPlayerInfoRemovePacket` (0x3C): UUID list
-- [ ] `ServerboundChatPacket` (0x06): message string, timestamp long, salt long, optional signature, last-seen messages (acknowledgment array + offset)
-- [ ] `ServerboundChatCommandPacket` (0x04): command string, timestamp, salt, argument signatures, last-seen messages
-- [ ] `ServerboundChatCommandSignedPacket` (0x05): same as signed variant
+- [x] `ServerboundChatPacket` (0x09): message string max 256, timestamp epoch millis long, salt long, optional 256-byte signature, last-seen update (offset VarInt + fixed 20-bit acknowledgment bitset + checksum byte)
+- [x] `ServerboundChatCommandPacket` (0x07): command string max 32767
+- [x] `ServerboundChatCommandSignedPacket` (0x08): command string max 32767, timestamp epoch millis long, salt long, argument signatures capped at 8 entries with 16-char names and 256-byte signatures, last-seen update
 - [x] `ServerboundChatSessionUpdatePacket` (0x0A): chat session UUID, profile public key data (expires-at epoch millis, public key byte array capped at 512 bytes, signature byte array capped at 4096 bytes)
 - [x] `ServerboundChatAckPacket` (0x06): message acknowledgement offset VarInt
 
