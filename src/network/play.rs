@@ -13555,6 +13555,62 @@ mod tests {
         );
     }
 
+    /// Regression test for the pickup→crafting state-ID desync bug.
+    ///
+    /// When a player picks up a ground item, the server advances `container_state_id` and
+    /// sends a `ContainerSetContent` carrying the new value.  If instead a `SetPlayerInventory`
+    /// packet were sent (which carries no state_id), the client would still hold the old
+    /// state_id, causing the very next `ContainerClick` to be treated as stale and rejected,
+    /// leaving the crafting result slot empty even though the ingredients are in the grid.
+    ///
+    /// This test simulates that scenario at the `handle_container_click` level by manually
+    /// advancing `state_id` (mimicking what `process_item_pickups` does when it sends
+    /// `ContainerSetContent`) before the player places an ingredient.  The click must be
+    /// accepted and the result slot must populate with planks.
+    #[test]
+    fn crafting_after_pickup_state_id_advanced_externally() {
+        let recipes = network_crafting_test_recipes();
+        let mut inventory_menu = InventoryMenu::new(
+            crate::player_inventory::PlayerInventory::new(),
+            recipes.clone(),
+        );
+        let mut carried = ItemStack::new("minecraft:oak_log", 1);
+
+        // Simulate the state_id that the server advances when it sends ContainerSetContent
+        // after a ground-item pickup.  The client receives this packet and knows state_id=1.
+        let mut state_id: i32 = 1;
+
+        // Player now places the log into crafting slot 1 using the updated state_id.
+        let place_log = ServerboundContainerClickPacket {
+            container_id: 0,
+            state_id: 1, // client echoes back the state_id it learned from ContainerSetContent
+            slot_num: 1,
+            button_num: 0,
+            container_input: ContainerInput::Pickup,
+            changed_slots: BTreeMap::new(),
+            carried_item: HashedStack::empty(),
+        };
+        let instructions =
+            handle_container_click(&place_log, &mut state_id, &mut inventory_menu, &mut carried);
+
+        assert!(
+            carried.is_empty(),
+            "log must have moved from cursor to grid"
+        );
+        assert_eq!(
+            inventory_menu.get_slot(0),
+            Some(ItemStack::new("minecraft:oak_planks", 4)),
+            "result slot must show 4 planks immediately after placing the log"
+        );
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::ContainerSetSlot(p) if p.slot == 0 && p.item_stack.count == 4
+            )),
+            "server must send ContainerSetSlot for result slot with 4 planks"
+        );
+    }
+
     #[test]
     fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
         assert!(ServerboundClientCommandPacket::read(&mut cursor(Vec::<u8>::new())).is_err());

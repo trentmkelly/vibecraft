@@ -37,27 +37,27 @@ use crate::network::login::{
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
     block_state_name_network_id, build_recipe_book_add, handle_container_click,
-    unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
-    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
-    ClientboundSetTimePacket, ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d,
-    GameMode, PlayInstruction, RawDataComponentPatch, RawItemStack,
-    ServerboundContainerClickPacket, ServerboundSwingHand, ServerboundUseItemOnPacket,
-    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
-    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
-    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
-    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
-    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    unpack_block_position, ClientboundContainerSetSlotPacket, ClientboundLevelChunkPacketData,
+    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
+    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
+    CommonPlayerSpawnInfo, Direction3d, GameMode, PlayInstruction, RawDataComponentPatch,
+    RawItemStack, ServerboundContainerClickPacket, ServerboundSwingHand,
+    ServerboundUseItemOnPacket, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+    CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
+    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
     SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
@@ -2145,7 +2145,12 @@ fn handle_login_connection(
                                     age: 0,
                                     target_uuid: None,
                                 };
-                                write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
+                                write_item_entity_spawn_packets(
+                                    stream,
+                                    compression,
+                                    &item,
+                                    item_pid,
+                                )?;
                                 world_items.lock().unwrap().entities.push(item);
                             }
                         }
@@ -2580,39 +2585,47 @@ fn process_item_pickups(
         }
     }
 
-    // 3. SetPlayerInventory — sync every slot that changed during this pickup pass.
-    //    Java: ContainerListener.slotChanged() → ClientboundSetPlayerInventoryPacket.
-    //    We send all player slots whenever the inventory was mutated to keep things simple;
-    //    a diff-based optimisation can narrow this down later.
+    // 3. ContainerSetContent — re-sync all 46 InventoryMenu slots so the client sees the
+    //    newly picked-up items AND receives the updated container_state_id it must echo in
+    //    its next ContainerClick.  Using SetPlayerInventory here would be wrong: that packet
+    //    carries no state_id, so incrementing container_state_id on the server while sending
+    //    it leaves the client tracking the old value, causing every subsequent crafting click
+    //    to be rejected as stale and the crafting result slot to remain empty.
+    //
+    //    Java: AbstractContainerMenu.broadcastChanges() → synchronizer.sendSlotChange()
+    //          → ClientboundContainerSetSlotPacket(containerId, incrementStateId(), slot, item).
+    //    We send the full ContainerSetContent (equivalent to broadcastFullState) rather than
+    //    per-slot ContainerSetSlot packets for simplicity.
     if state.inventory_menu.player_inventory().times_changed() != times_changed_before {
         state.container_state_id = state.container_state_id.wrapping_add(1);
-        // Player inventory slots 0–35 (main + hotbar), 36–39 (armour), 40 (offhand).
-        for slot in 0_usize..=40 {
-            let stack = state.inventory_menu.player_inventory().get(slot);
-            let raw = if stack.is_empty() {
-                RawItemStack::empty()
-            } else if let Some(pid) = item_protocol_id(stack.item_id()) {
-                RawItemStack {
-                    count: stack.count(),
-                    item_id: Some(pid),
-                    components: RawDataComponentPatch::empty(),
+        let new_state_id = state.container_state_id;
+        let slots = state.inventory_menu.all_slots();
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+            |payload| {
+                payload.write_all(&[0])?; // container ID 0 = player inventory menu
+                write_var_i32(payload, new_state_id)?;
+                write_var_i32(payload, slots.len() as i32)?;
+                for stack in &slots {
+                    let raw = if stack.is_empty() {
+                        RawItemStack::empty()
+                    } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+                        RawItemStack {
+                            count: stack.count(),
+                            item_id: Some(pid),
+                            components: RawDataComponentPatch::empty(),
+                        }
+                    } else {
+                        RawItemStack::empty()
+                    };
+                    raw.write_optional_untrusted(payload)?;
                 }
-            } else {
-                RawItemStack::empty()
-            };
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-                |p| {
-                    ClientboundSetPlayerInventoryPacket {
-                        slot: slot as i32,
-                        contents: raw.clone(),
-                    }
-                    .write(p)
-                },
-            )?;
-        }
+                // Cursor item — always empty immediately after a ground pickup.
+                RawItemStack::empty().write_optional_untrusted(payload)
+            },
+        )?;
     }
 
     Ok(())
@@ -2695,7 +2708,10 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             "Dimension".to_string(),
             Tag::String("minecraft:overworld".to_string()),
         ),
-        ("seenCredits".to_string(), Tag::Byte(i8::from(state.seen_credits))),
+        (
+            "seenCredits".to_string(),
+            Tag::Byte(i8::from(state.seen_credits)),
+        ),
         (
             "recipeBook".to_string(),
             Tag::Compound(vec![
@@ -2726,11 +2742,20 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
                     "mayBuild".to_string(),
                     Tag::Byte(i8::from(state.abilities.may_build)),
                 ),
-                ("flySpeed".to_string(), Tag::Float(state.abilities.fly_speed)),
-                ("walkSpeed".to_string(), Tag::Float(state.abilities.walk_speed)),
+                (
+                    "flySpeed".to_string(),
+                    Tag::Float(state.abilities.fly_speed),
+                ),
+                (
+                    "walkSpeed".to_string(),
+                    Tag::Float(state.abilities.walk_speed),
+                ),
             ]),
         ),
-        ("EnderItems".to_string(), Tag::List(state.ender_items.clone())),
+        (
+            "EnderItems".to_string(),
+            Tag::List(state.ender_items.clone()),
+        ),
         (
             "active_effects".to_string(),
             Tag::List(state.active_effects.clone()),
@@ -2891,21 +2916,21 @@ fn play_session_state_from_nbt(
         }),
         _ => None,
     };
-    let seen_credits = matches!(compound_tag(compound, "seenCredits"), Some(Tag::Byte(value)) if *value != 0);
-    let entered_nether_position =
-        match compound_tag(compound, "enteredNetherPosition") {
-            Some(Tag::Compound(fields)) => match (
-                compound_tag(fields, "x"),
-                compound_tag(fields, "y"),
-                compound_tag(fields, "z"),
-            ) {
-                (Some(Tag::Double(x)), Some(Tag::Double(y)), Some(Tag::Double(z))) => {
-                    Some((*x, *y, *z))
-                }
-                _ => None,
-            },
+    let seen_credits =
+        matches!(compound_tag(compound, "seenCredits"), Some(Tag::Byte(value)) if *value != 0);
+    let entered_nether_position = match compound_tag(compound, "enteredNetherPosition") {
+        Some(Tag::Compound(fields)) => match (
+            compound_tag(fields, "x"),
+            compound_tag(fields, "y"),
+            compound_tag(fields, "z"),
+        ) {
+            (Some(Tag::Double(x)), Some(Tag::Double(y)), Some(Tag::Double(z))) => {
+                Some((*x, *y, *z))
+            }
             _ => None,
-        };
+        },
+        _ => None,
+    };
     let last_death_location = match compound_tag(compound, "LastDeathLocation") {
         Some(Tag::Compound(fields)) => match (
             compound_tag(fields, "dimension"),
@@ -4822,30 +4847,50 @@ fn write_item_entity_spawn_packets<W: Write>(
     let eid = item.entity_id;
     let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
     let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
-    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, |_| Ok(()))?;
-    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_ADD_ENTITY_PACKET_ID, |p| {
-        write_var_i32(p, eid)?;
-        p.write_all(&uuid_hi.to_be_bytes())?;
-        p.write_all(&uuid_lo.to_be_bytes())?;
-        write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
-        p.write_all(&item.x.to_be_bytes())?;
-        p.write_all(&item.y.to_be_bytes())?;
-        p.write_all(&item.z.to_be_bytes())?;
-        write_lp_vec3(p, item.vel_x, item.vel_y, item.vel_z)?;
-        p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
-        write_var_i32(p, 0)
-    })?;
-    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, |p| {
-        write_var_i32(p, eid)?;
-        p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
-        write_var_i32(p, 7)?; // serializer 7: EntityDataSerializers.ITEM_STACK
-        write_var_i32(p, item.count)?;
-        write_var_i32(p, item_pid)?;
-        write_var_i32(p, 0)?; // component add count
-        write_var_i32(p, 0)?; // component remove count
-        p.write_all(&[0xFFu8]) // end of metadata
-    })?;
-    write_framed_packet_with_compression(stream, compression, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, |_| Ok(()))
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        |_| Ok(()),
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+        |p| {
+            write_var_i32(p, eid)?;
+            p.write_all(&uuid_hi.to_be_bytes())?;
+            p.write_all(&uuid_lo.to_be_bytes())?;
+            write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
+            p.write_all(&item.x.to_be_bytes())?;
+            p.write_all(&item.y.to_be_bytes())?;
+            p.write_all(&item.z.to_be_bytes())?;
+            write_lp_vec3(p, item.vel_x, item.vel_y, item.vel_z)?;
+            p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
+            write_var_i32(p, 0)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+        |p| {
+            write_var_i32(p, eid)?;
+            p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
+            write_var_i32(p, 7)?; // serializer 7: EntityDataSerializers.ITEM_STACK
+            write_var_i32(p, item.count)?;
+            write_var_i32(p, item_pid)?;
+            write_var_i32(p, 0)?; // component add count
+            write_var_i32(p, 0)?; // component remove count
+            p.write_all(&[0xFFu8]) // end of metadata
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        |_| Ok(()),
+    )
 }
 
 /// Handles `DROP_ITEM` (action 4, Q) and `DROP_ALL_ITEMS` (action 3, Ctrl+Q) from
@@ -4908,15 +4953,24 @@ fn handle_drop_item(
             RawItemStack::empty()
         }
     };
+    // Use ContainerSetSlot (container_id=0, with state_id) rather than SetPlayerInventory
+    // so the client learns the new state_id and won't reject subsequent ContainerClick packets.
+    // Java: ServerPlayer.drop() → containerMenu.setRemoteSlot() + broadcastChanges()
+    //       → ClientboundContainerSetSlotPacket(containerId, incrementStateId(), slot, item).
+    // The hotbar slot in the InventoryMenu is at index 36 + held_slot (menu layout: result=0,
+    // crafting=1-4, armour=5-8, storage=9-35, hotbar=36-44, offhand=45).
     state.container_state_id = state.container_state_id.wrapping_add(1);
+    let new_state_id = state.container_state_id;
     write_framed_packet_with_compression(
         stream,
         compression,
-        CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+        CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
         |p| {
-            ClientboundSetPlayerInventoryPacket {
-                slot: held_slot as i32,
-                contents: raw_after,
+            ClientboundContainerSetSlotPacket {
+                container_id: 0,
+                state_id: new_state_id,
+                slot: (36 + held_slot) as i16,
+                item_stack: raw_after,
             }
             .write(p)
         },
@@ -7072,11 +7126,10 @@ mod tests {
         login_host_ip, moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt,
         packed_chunk_pos, pig_sound_variant_nbt, play_session_state_from_nbt,
         play_session_state_to_nbt, pseudo_rand_f32, read_code_of_conducts, read_packet,
-        status_json, strip_minecraft_formatting, PlayerGlobalPosData, PlayerNbtAbilities,
-        PlayerSpawnData, trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
-        var_int_encoded_len, villager_schedule_timeline_nbt, visible_spawn_surface_feature_id,
-        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
-        visible_spawn_terrain_height,
+        status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
+        vanilla_baseline_biome_nbt, var_int_encoded_len, villager_schedule_timeline_nbt,
+        visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
+        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
         wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
         write_legacy_string, write_lp_vec3, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
@@ -7095,8 +7148,9 @@ mod tests {
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
         write_visible_spawn_terrain_block_state_container, write_world_clock_registry_packet,
-        CompressionState, GameMode, ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
-        BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
+        CompressionState, GameMode, PlayerGlobalPosData, PlayerNbtAbilities, PlayerSpawnData,
+        ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
+        BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
         DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
         GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS, MAX_PACKET_SIZE,
@@ -8635,7 +8689,10 @@ mod tests {
         });
         state.root_vehicle = Some(Tag::Compound(vec![(
             "Entity".to_string(),
-            Tag::Compound(vec![("id".to_string(), Tag::String("minecraft:boat".to_string()))]),
+            Tag::Compound(vec![(
+                "id".to_string(),
+                Tag::String("minecraft:boat".to_string()),
+            )]),
         )]));
         state.active_effects = vec![Tag::Compound(vec![
             ("id".to_string(), Tag::String("minecraft:speed".to_string())),
@@ -8643,7 +8700,10 @@ mod tests {
         ])];
         state.ender_items = vec![Tag::Compound(vec![
             ("Slot".to_string(), Tag::Byte(0)),
-            ("id".to_string(), Tag::String("minecraft:diamond".to_string())),
+            (
+                "id".to_string(),
+                Tag::String("minecraft:diamond".to_string()),
+            ),
             ("count".to_string(), Tag::Int(2)),
         ])];
         state.abilities = PlayerNbtAbilities {
@@ -8688,7 +8748,10 @@ mod tests {
             "abilities",
             "active_effects",
         ] {
-            assert!(field_value(&tag, field).is_some(), "{field} missing from player NBT");
+            assert!(
+                field_value(&tag, field).is_some(),
+                "{field} missing from player NBT"
+            );
         }
 
         let restored =
@@ -8699,7 +8762,10 @@ mod tests {
         assert_eq!(restored.previous_game_mode, Some(GameMode::Adventure));
         assert_eq!(restored.spawn, state.spawn);
         assert!(restored.seen_credits);
-        assert_eq!(restored.entered_nether_position, state.entered_nether_position);
+        assert_eq!(
+            restored.entered_nether_position,
+            state.entered_nether_position
+        );
         assert_eq!(restored.last_death_location, state.last_death_location);
         assert_eq!(restored.root_vehicle, state.root_vehicle);
         assert_eq!(restored.active_effects, state.active_effects);
