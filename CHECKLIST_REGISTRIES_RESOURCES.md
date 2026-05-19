@@ -54,5 +54,5 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/trim_pattern`.
 - [x] Implement `data/minecraft/villager_trade`.
 - [x] Implement `data/minecraft/world_clock`.
-- [ ] Implement `data/minecraft/worldgen`.
+- [x] Implement `data/minecraft/worldgen`.
 - [x] Implement reload failure rollback and user-facing error reporting.

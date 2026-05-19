@@ -123,6 +123,7 @@ mod world_border;
 mod world_time;
 mod worldgen;
 mod worldgen_comparison;
+mod worldgen_resources;
 
 use std::env;
 use std::path::PathBuf;
