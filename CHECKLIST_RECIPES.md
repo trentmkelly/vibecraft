@@ -28,7 +28,7 @@
 - [ ] Implement `RecipeManager` loading from datapack `data/*/recipe/*.json` files with `RecipeSerializer` dispatch
 - [ ] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)`
 - [ ] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching
-- [ ] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index
+- [x] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index
 - [ ] Implement recipe `PlacementInfo` for client-side ingredient placement hints
 - [ ] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload
 - [ ] Implement `RecipeAccess` interface for looking up recipe holders by ID
@@ -85,10 +85,10 @@
 - [ ] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation)
 - [ ] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components
 - [ ] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result
-- [ ] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately
+- [x] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately
 - [ ] Add unit test: smithing transform preserves enchantments and custom name
 - [ ] Add unit test: smithing trim applies correct material and pattern components
-- [ ] Add unit test: stonecutter lists all valid outputs for smooth stone input
+- [x] Add unit test: stonecutter lists all valid outputs for smooth stone input
 
 ## Recipe Validation (All Types)
 

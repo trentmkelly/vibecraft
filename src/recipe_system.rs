@@ -361,6 +361,30 @@ pub struct SelectableSingleInputRecipe {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StonecutterSelection {
+    pub recipe_id: &'static str,
+    pub input: IngredientSpec,
+    pub result: ItemAmount,
+}
+
+impl StonecutterSelection {
+    pub fn matches_input(&self, input: &'static str) -> bool {
+        self.input.matches(input)
+    }
+}
+
+pub fn stonecutter_recipes_for_input(
+    recipes: &[StonecutterSelection],
+    input: &'static str,
+) -> Vec<StonecutterSelection> {
+    recipes
+        .iter()
+        .filter(|recipe| recipe.matches_input(input))
+        .cloned()
+        .collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemAmount {
     pub item: &'static str,
     pub count: u32,
@@ -1020,6 +1044,56 @@ mod tests {
         ));
         assert_eq!(trim.serializer(), "smithing_trim");
         assert_eq!(trim.assemble(), None);
+    }
+
+    #[test]
+    fn stonecutter_selectable_recipes_filter_all_outputs_for_input() {
+        let recipes = vec![
+            StonecutterSelection {
+                recipe_id: "minecraft:smooth_stone_slab_from_smooth_stone_stonecutting",
+                input: IngredientSpec::Item("minecraft:smooth_stone"),
+                result: ItemAmount {
+                    item: "minecraft:smooth_stone_slab",
+                    count: 2,
+                },
+            },
+            StonecutterSelection {
+                recipe_id: "minecraft:stone_slab_from_stone_stonecutting",
+                input: IngredientSpec::Item("minecraft:stone"),
+                result: ItemAmount {
+                    item: "minecraft:stone_slab",
+                    count: 2,
+                },
+            },
+            StonecutterSelection {
+                recipe_id: "minecraft:stone_bricks_from_stone_stonecutting",
+                input: IngredientSpec::AnyOf(vec!["minecraft:stone"]),
+                result: ItemAmount::one("minecraft:stone_bricks"),
+            },
+        ];
+
+        let selected = stonecutter_recipes_for_input(&recipes, "minecraft:smooth_stone");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(
+            selected[0].recipe_id,
+            "minecraft:smooth_stone_slab_from_smooth_stone_stonecutting"
+        );
+        assert_eq!(
+            selected[0].result,
+            ItemAmount {
+                item: "minecraft:smooth_stone_slab",
+                count: 2,
+            }
+        );
+
+        let stone_outputs = stonecutter_recipes_for_input(&recipes, "minecraft:stone");
+        assert_eq!(stone_outputs.len(), 2);
+        assert!(stone_outputs
+            .iter()
+            .any(|recipe| recipe.recipe_id == "minecraft:stone_slab_from_stone_stonecutting"));
+        assert!(stone_outputs
+            .iter()
+            .any(|recipe| recipe.recipe_id == "minecraft:stone_bricks_from_stone_stonecutting"));
     }
 
     #[test]
