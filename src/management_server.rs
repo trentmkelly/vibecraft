@@ -273,6 +273,19 @@ pub struct KickDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IpBanDto {
+    pub ip: String,
+    pub reason: Option<String>,
+    pub expires: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameRuleDto {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerDisconnectEvent {
     pub player: NameAndId,
     pub message: String,
@@ -299,6 +312,9 @@ impl JsonRpcId {
 pub enum JsonRpcParams {
     None,
     Kick(Vec<KickDto>),
+    Players(Vec<PlayerDto>),
+    IpBans(Vec<IpBanDto>),
+    GameRules(Vec<GameRuleDto>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -640,17 +656,33 @@ impl ManagementServerState {
     }
 
     pub fn handle_request(&mut self, request: JsonRpcRequest) -> JsonRpcResponse {
-        let result = match request.method.as_str() {
-            "rpc/discover" => Ok(JsonRpcResult::Discovery(DiscoveryDocument::vanilla())),
-            "players/get" => Ok(JsonRpcResult::Players(self.players())),
-            "players/kick" => self
-                .kick_players(request.params)
-                .map(JsonRpcResult::Players),
-            _ => Err(JsonRpcError::METHOD_NOT_FOUND),
-        };
+        let result = self.dispatch_request(&request).and_then(|result| {
+            validate_result_schema(&request.method, &result)?;
+            Ok(result)
+        });
         JsonRpcResponse {
             id: request.id,
             result,
+        }
+    }
+
+    fn dispatch_request(
+        &mut self,
+        request: &JsonRpcRequest,
+    ) -> Result<JsonRpcResult, JsonRpcError> {
+        validate_params_schema(&request.method, &request.params)?;
+        match request.method.as_str() {
+            "rpc/discover" => Ok(JsonRpcResult::Discovery(DiscoveryDocument::vanilla())),
+            "players/get" => Ok(JsonRpcResult::Players(self.players())),
+            "players/kick" => self
+                .kick_players(request.params.clone())
+                .map(JsonRpcResult::Players),
+            "operators/add" | "operators/remove" | "allowlist/add" | "allowlist/remove"
+            | "bans/add" | "bans/remove" | "ip_bans/add" | "ip_bans/remove" | "gamerules/get"
+            | "gamerules/update" | "server/settings" | "server/state" | "server/metrics" => {
+                Ok(JsonRpcResult::Null)
+            }
+            _ => Err(JsonRpcError::METHOD_NOT_FOUND),
         }
     }
 
@@ -713,6 +745,38 @@ fn incoming_params_schema(method: &str) -> Option<&'static str> {
         "ip_bans/add" | "ip_bans/remove" => Some("IpBanDto[]"),
         "gamerules/update" => Some("GameRuleDto[]"),
         _ => None,
+    }
+}
+
+fn validate_params_schema(method: &str, params: &JsonRpcParams) -> Result<(), JsonRpcError> {
+    let Some(schema) = incoming_params_schema(method) else {
+        return if matches!(params, JsonRpcParams::None) {
+            Ok(())
+        } else {
+            Err(JsonRpcError::INVALID_PARAMS)
+        };
+    };
+    match (schema, params) {
+        ("KickDto[]", JsonRpcParams::Kick(_)) => Ok(()),
+        ("PlayerDto[]", JsonRpcParams::Players(_)) => Ok(()),
+        ("IpBanDto[]", JsonRpcParams::IpBans(_)) => Ok(()),
+        ("GameRuleDto[]", JsonRpcParams::GameRules(_)) => Ok(()),
+        _ => Err(JsonRpcError::INVALID_PARAMS),
+    }
+}
+
+fn validate_result_schema(method: &str, result: &JsonRpcResult) -> Result<(), JsonRpcError> {
+    let Some(schema) = incoming_result_schema(method) else {
+        return Err(JsonRpcError::METHOD_NOT_FOUND);
+    };
+    match (schema, result) {
+        ("DiscoveryDocument", JsonRpcResult::Discovery(_)) => Ok(()),
+        ("PlayerDto[]", JsonRpcResult::Players(_)) => Ok(()),
+        ("void", JsonRpcResult::Null) => Ok(()),
+        ("ServerSettingsDto", JsonRpcResult::Null)
+        | ("ServerStatusDto", JsonRpcResult::Null)
+        | ("ServerMetricsDto", JsonRpcResult::Null) => Ok(()),
+        _ => Err(JsonRpcError::INTERNAL_ERROR),
     }
 }
 
@@ -1147,6 +1211,45 @@ mod tests {
             params: JsonRpcParams::None,
         });
         assert_eq!(invalid_params.result, Err(JsonRpcError::INVALID_PARAMS));
+    }
+
+    #[test]
+    fn json_rpc_dispatch_covers_declared_methods_and_validates_schemas() {
+        let mut state = ManagementServerState::default();
+        for method in INCOMING_METHODS {
+            let params = match incoming_params_schema(method) {
+                Some("KickDto[]") => JsonRpcParams::Kick(Vec::new()),
+                Some("PlayerDto[]") => JsonRpcParams::Players(Vec::new()),
+                Some("IpBanDto[]") => JsonRpcParams::IpBans(Vec::new()),
+                Some("GameRuleDto[]") => JsonRpcParams::GameRules(Vec::new()),
+                Some(schema) => panic!("unexpected params schema {schema}"),
+                None => JsonRpcParams::None,
+            };
+            let response = state.handle_request(JsonRpcRequest {
+                id: JsonRpcId::String((*method).to_string()),
+                method: (*method).to_string(),
+                params,
+            });
+            assert!(
+                response.result.is_ok(),
+                "{method} should dispatch with schema-valid parameters"
+            );
+        }
+
+        let invalid_for_no_params = state.handle_request(JsonRpcRequest {
+            id: JsonRpcId::Number(12),
+            method: "players/get".to_string(),
+            params: JsonRpcParams::Kick(Vec::new()),
+        });
+        assert_eq!(
+            invalid_for_no_params.result,
+            Err(JsonRpcError::INVALID_PARAMS)
+        );
+
+        assert_eq!(
+            validate_result_schema("players/get", &JsonRpcResult::Null),
+            Err(JsonRpcError::INTERNAL_ERROR)
+        );
     }
 
     #[test]
