@@ -17,9 +17,9 @@ Item registry, stacks, components, inventories, creative mode, and crafting inte
 - [ ] Add a Mineflayer offline-mode login-inventory baseline test that verifies a fresh generated profile receives the vanilla empty inventory, selected slot, carried item, recipe book, and cursor state before any scripted action.
 - [x] Add raw 26.1.2 login-inventory baseline fallback coverage that verifies a fresh generated offline profile receives `set_container_content` for the empty 46-slot player inventory, empty carried cursor item, selected hotbar slot 0, and initial chunk visibility while Mineflayer lacks target-protocol play support.
 - [ ] Add Mineflayer offline-mode window lifecycle tests that open, click, close, reopen, disconnect mid-window, and reconnect for player inventory, chest, furnace, crafting table, anvil, and villager/trader-style menus.
-- [ ] Implement recipe types, recipe book, unlocks, display data, and recipe serialization.
+- [x] Implement recipe types, recipe book, unlocks, display data, and recipe serialization.
 - [ ] Add a Mineflayer crafting/recipe-book test that unlocks recipes, crafts in 2x2 and 3x3 grids, opens a workstation, and verifies recipe sync and result slots against vanilla.
-- [ ] Implement shaped, shapeless, smelting, blasting, smoking, campfire cooking, stonecutting, smithing, transmute, map cloning/extending, banner, shield, firework, suspicious stew, book cloning, repair, dyed item, and special recipes.
+- [x] Implement shaped, shapeless, smelting, blasting, smoking, campfire cooking, stonecutting, smithing, transmute, map cloning/extending, banner, shield, firework, suspicious stew, book cloning, repair, dyed item, and special recipes.
 - [ ] Implement potion, tipped arrow, lingering potion, splash potion, cauldron, bottle, bucket, and fluid container behavior.
 - [ ] Implement maps, compasses, clocks, recovery compasses, bundles, books, written books, knowledge books, spawn eggs, boats, minecarts, armor trims, smithing templates, shields, elytra, maces, tridents, bows, crossbows, fishing rods, shears, brushes, leads, name tags, music discs, ominous bottles, and trial keys.
 - [x] Implement creative tabs and creative inventory packet behavior.
