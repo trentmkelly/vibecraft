@@ -1740,6 +1740,23 @@ impl RecipeKind {
         }
     }
 
+    pub fn get_remaining_items(
+        &self,
+        input: &[Option<CraftingStack>],
+    ) -> Vec<Option<CraftingStack>> {
+        match self {
+            RecipeKind::Shaped { .. }
+            | RecipeKind::Shapeless { .. }
+            | RecipeKind::Transmute { .. }
+            | RecipeKind::Imbue { .. }
+            | RecipeKind::Special { .. } => default_crafting_remaining_items(input),
+            RecipeKind::Cooking { .. }
+            | RecipeKind::Stonecutting { .. }
+            | RecipeKind::SmithingTransform { .. }
+            | RecipeKind::SmithingTrim { .. } => vec![None; input.len()],
+        }
+    }
+
     pub fn cooking_time(&self) -> Option<i32> {
         match self {
             RecipeKind::Cooking {
@@ -2351,6 +2368,10 @@ fn shapeless_matches(ingredients: &[IngredientSpec], items: &[Option<&'static st
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::advancement_system::{
+        PlayerAdvancementSet, PlayerRecipeUnlocks, RecipeDefinition as AdvancementRecipeDefinition,
+        RecipeUnlockedCriterion,
+    };
 
     fn ids(entries: &[RegistryEntry]) -> Vec<&'static str> {
         entries.iter().map(|entry| entry.id).collect()
@@ -3103,6 +3124,311 @@ mod tests {
             ),
             0
         );
+    }
+
+    #[test]
+    fn every_recipe_kind_has_matches_assemble_remaining_and_unlock_coverage() {
+        let cases: Vec<(
+            &str,
+            RecipeKind,
+            usize,
+            usize,
+            Vec<Option<&'static str>>,
+            bool,
+            Option<ItemAmount>,
+        )> = vec![
+            (
+                "minecraft:crafting_table",
+                RecipeKind::Shaped {
+                    width: 2,
+                    height: 2,
+                    pattern: vec![
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                    ],
+                    result: ItemAmount::one("minecraft:crafting_table"),
+                },
+                2,
+                2,
+                vec![
+                    Some("minecraft:oak_planks"),
+                    Some("minecraft:oak_planks"),
+                    Some("minecraft:oak_planks"),
+                    Some("minecraft:oak_planks"),
+                ],
+                true,
+                Some(ItemAmount::one("minecraft:crafting_table")),
+            ),
+            (
+                "minecraft:firework_star",
+                RecipeKind::Shapeless {
+                    ingredients: vec![
+                        IngredientSpec::Item("minecraft:gunpowder"),
+                        IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
+                    ],
+                    result: ItemAmount::one("minecraft:firework_star"),
+                },
+                2,
+                1,
+                vec![Some("minecraft:blue_dye"), Some("minecraft:gunpowder")],
+                true,
+                Some(ItemAmount::one("minecraft:firework_star")),
+            ),
+            (
+                "minecraft:iron_ingot_from_smelting_raw_iron",
+                RecipeKind::Cooking {
+                    kind: CookingKind::Smelting,
+                    ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                    result: ItemAmount::one("minecraft:iron_ingot"),
+                    experience_millis: 700,
+                    cooking_time: None,
+                },
+                1,
+                1,
+                vec![Some("minecraft:raw_iron")],
+                true,
+                Some(ItemAmount::one("minecraft:iron_ingot")),
+            ),
+            (
+                "minecraft:iron_ingot_from_blasting_raw_iron",
+                RecipeKind::Cooking {
+                    kind: CookingKind::Blasting,
+                    ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                    result: ItemAmount::one("minecraft:iron_ingot"),
+                    experience_millis: 700,
+                    cooking_time: None,
+                },
+                1,
+                1,
+                vec![Some("minecraft:raw_iron")],
+                true,
+                Some(ItemAmount::one("minecraft:iron_ingot")),
+            ),
+            (
+                "minecraft:cooked_beef_from_smoking",
+                RecipeKind::Cooking {
+                    kind: CookingKind::Smoking,
+                    ingredient: IngredientSpec::Item("minecraft:beef"),
+                    result: ItemAmount::one("minecraft:cooked_beef"),
+                    experience_millis: 350,
+                    cooking_time: None,
+                },
+                1,
+                1,
+                vec![Some("minecraft:beef")],
+                true,
+                Some(ItemAmount::one("minecraft:cooked_beef")),
+            ),
+            (
+                "minecraft:cooked_cod_from_campfire_cooking",
+                RecipeKind::Cooking {
+                    kind: CookingKind::CampfireCooking,
+                    ingredient: IngredientSpec::Item("minecraft:cod"),
+                    result: ItemAmount::one("minecraft:cooked_cod"),
+                    experience_millis: 350,
+                    cooking_time: None,
+                },
+                1,
+                1,
+                vec![Some("minecraft:cod")],
+                true,
+                Some(ItemAmount::one("minecraft:cooked_cod")),
+            ),
+            (
+                "minecraft:stone_slab_from_stone_stonecutting",
+                RecipeKind::Stonecutting {
+                    ingredient: IngredientSpec::Item("minecraft:stone"),
+                    result: ItemAmount {
+                        item: "minecraft:stone_slab",
+                        count: 2,
+                    },
+                },
+                1,
+                1,
+                vec![Some("minecraft:stone")],
+                true,
+                Some(ItemAmount {
+                    item: "minecraft:stone_slab",
+                    count: 2,
+                }),
+            ),
+            (
+                "minecraft:filled_map_copy",
+                RecipeKind::Transmute {
+                    input: IngredientSpec::Item("minecraft:filled_map"),
+                    material: IngredientSpec::Item("minecraft:map"),
+                    min_material_count: 1,
+                    max_material_count: 8,
+                    result: ItemAmount::one("minecraft:filled_map"),
+                    add_material_count_to_result: true,
+                },
+                2,
+                1,
+                vec![Some("minecraft:filled_map"), Some("minecraft:map")],
+                true,
+                Some(ItemAmount::one("minecraft:filled_map")),
+            ),
+            (
+                "minecraft:tipped_arrow",
+                RecipeKind::Imbue {
+                    source: IngredientSpec::Item("minecraft:lingering_potion"),
+                    material: IngredientSpec::Item("minecraft:arrow"),
+                    result: ItemAmount {
+                        item: "minecraft:tipped_arrow",
+                        count: 8,
+                    },
+                },
+                3,
+                3,
+                vec![
+                    Some("minecraft:arrow"),
+                    Some("minecraft:arrow"),
+                    Some("minecraft:arrow"),
+                    Some("minecraft:arrow"),
+                    Some("minecraft:lingering_potion"),
+                    Some("minecraft:arrow"),
+                    Some("minecraft:arrow"),
+                    Some("minecraft:arrow"),
+                    Some("minecraft:arrow"),
+                ],
+                true,
+                Some(ItemAmount {
+                    item: "minecraft:tipped_arrow",
+                    count: 8,
+                }),
+            ),
+            (
+                "minecraft:netherite_sword_smithing",
+                RecipeKind::SmithingTransform {
+                    template: IngredientSpec::Item("minecraft:netherite_upgrade_smithing_template"),
+                    base: IngredientSpec::Item("minecraft:diamond_sword"),
+                    addition: IngredientSpec::Item("minecraft:netherite_ingot"),
+                    result: ItemAmount::one("minecraft:netherite_sword"),
+                },
+                3,
+                1,
+                vec![
+                    Some("minecraft:netherite_upgrade_smithing_template"),
+                    Some("minecraft:diamond_sword"),
+                    Some("minecraft:netherite_ingot"),
+                ],
+                true,
+                Some(ItemAmount::one("minecraft:netherite_sword")),
+            ),
+            (
+                "minecraft:spire_armor_trim_smithing",
+                RecipeKind::SmithingTrim {
+                    template: IngredientSpec::Item("minecraft:spire_armor_trim_smithing_template"),
+                    base: IngredientSpec::Item("minecraft:iron_chestplate"),
+                    addition: IngredientSpec::Item("minecraft:amethyst_shard"),
+                },
+                3,
+                1,
+                vec![
+                    Some("minecraft:spire_armor_trim_smithing_template"),
+                    Some("minecraft:iron_chestplate"),
+                    Some("minecraft:amethyst_shard"),
+                ],
+                true,
+                None,
+            ),
+            (
+                "minecraft:repair_item",
+                RecipeKind::Special {
+                    kind: SpecialRecipeKind::RepairItem,
+                    result_hint: None,
+                },
+                2,
+                1,
+                vec![
+                    Some("minecraft:diamond_pickaxe"),
+                    Some("minecraft:diamond_pickaxe"),
+                ],
+                false,
+                None,
+            ),
+        ];
+
+        let mut unlocks = PlayerRecipeUnlocks::default();
+        let mut advancements = PlayerAdvancementSet::default();
+        let advancement = crate::advancement_system::AdvancementDefinition::all_of(
+            "minecraft:recipes/root",
+            None,
+            &["has_the_recipe"],
+            crate::advancement_system::AdvancementRewards::default(),
+            None,
+        )
+        .unwrap();
+
+        for (
+            index,
+            (id, recipe, grid_width, grid_height, valid_input, should_match, expected_result),
+        ) in cases.into_iter().enumerate()
+        {
+            assert_eq!(
+                recipe.matches(grid_width, grid_height, &valid_input),
+                should_match,
+                "{id} valid-input match result"
+            );
+            let mut invalid_input = valid_input.clone();
+            if let Some(first) = invalid_input.first_mut() {
+                *first = Some("minecraft:bedrock");
+            }
+            assert!(
+                !recipe.matches(grid_width, grid_height, &invalid_input),
+                "{id} invalid-input should not match"
+            );
+            assert_eq!(recipe.assemble(), expected_result, "{id} assemble result");
+
+            let remaining_input = valid_input
+                .iter()
+                .map(|item| item.map(CraftingStack::one))
+                .collect::<Vec<_>>();
+            let remaining = recipe.get_remaining_items(&remaining_input);
+            assert_eq!(remaining.len(), remaining_input.len(), "{id} remaining len");
+            if recipe.recipe_type() == "crafting" {
+                let remainder_recipe = RecipeKind::Shapeless {
+                    ingredients: vec![IngredientSpec::Item("minecraft:water_bucket")],
+                    result: ItemAmount::one("minecraft:packed_ice"),
+                };
+                assert_eq!(
+                    remainder_recipe
+                        .get_remaining_items(&[Some(CraftingStack::one("minecraft:water_bucket"))]),
+                    vec![Some(CraftingStack::one("minecraft:bucket"))]
+                );
+            } else {
+                assert!(remaining.iter().all(Option::is_none), "{id} no remainders");
+            }
+
+            let recipe_definition = AdvancementRecipeDefinition {
+                id: crate::registry::Identifier::parse(id).unwrap(),
+                special: recipe.is_special(),
+                show_notification: recipe.show_notification(),
+            };
+            let triggers = vec![RecipeUnlockedCriterion {
+                advancement: advancement.id.clone(),
+                criterion: "has_the_recipe".to_string(),
+                recipe: recipe_definition.id.clone(),
+            }];
+            let events = unlocks.unlock_recipes(
+                &[recipe_definition.clone()],
+                std::slice::from_ref(&advancement),
+                &triggers,
+                &mut advancements,
+                1_700_000_000 + index as u64,
+            );
+            if recipe.is_special() {
+                assert!(events.is_empty(), "{id} special recipes do not unlock");
+                assert!(!unlocks.contains(&recipe_definition.id));
+            } else {
+                assert_eq!(events.len(), 1, "{id} unlock event");
+                assert!(unlocks.contains(&recipe_definition.id));
+                assert_eq!(events[0].recipe, recipe_definition.id);
+                assert_eq!(events[0].show_notification, recipe.show_notification());
+            }
+        }
     }
 
     #[test]

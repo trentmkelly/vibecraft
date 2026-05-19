@@ -93,10 +93,10 @@
 ## Recipe Validation (All Types)
 
 - [x] For every recipe type: add JSON decode test verifying all fields parse correctly from vanilla data files
-- [ ] For every recipe type: add `matches()` test with valid and invalid inputs including edge-case counts and item tags
-- [ ] For every recipe type: add `assemble()` result test verifying output item ID, count, and components
-- [ ] For every recipe type: add `getRemainingItems()` test verifying remainder stacks (bottles, buckets) are returned
-- [ ] For every recipe type: add recipe-book-unlock test verifying `RecipeHolder` is marked unlocked after crafting
+- [x] For every recipe type: add `matches()` test with valid and invalid inputs including edge-case counts and item tags
+- [x] For every recipe type: add `assemble()` result test verifying output item ID, count, and components
+- [x] For every recipe type: add `getRemainingItems()` test verifying remainder stacks (bottles, buckets) are returned
+- [x] For every recipe type: add recipe-book-unlock test verifying `RecipeHolder` is marked unlocked after crafting
 - [ ] For every recipe type: add client-recipe-sync test verifying the recipe packet payload matches the format expected by the 26.1.2 client
 - [ ] Add Mineflayer crafting/recipe-book test: unlock recipes, craft in 2×2 and 3×3 grids, open a workstation, verify recipe sync and result slots against vanilla
 
