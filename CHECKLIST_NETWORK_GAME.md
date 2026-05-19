@@ -396,7 +396,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement protocol transition from handshake to login.
 - [ ] Implement login start, encryption request/response, compression, login success, and disconnect.
 - [ ] Implement online-mode authentication against Mojang/Yggdrasil services.
-- [ ] Implement offline-mode UUID derivation.
+- [x] Implement offline-mode UUID derivation.
 - [ ] Implement secure profile enforcement.
 - [ ] Implement profile key validation and signed chat session setup.
 - [ ] Implement configuration registry data sync.
