@@ -168,4 +168,4 @@
 - [ ] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths.
 - [ ] Implement loot storage classes: loot tables, pools, parameters, contexts, validation context, built-in table IDs, container component manipulation, and validation reporting.
 - [ ] Implement a datafix strategy covering schemas and fixes for blocks, block entities, entities, items, chunks, POIs, options, advancements, stats, scoreboards, structures, text components, villager data, worldgen settings, and versioned renames.
-- [ ] If a full DataFixerUpper-compatible pipeline is deferred, add explicit blockers preventing unsafe loading of worlds requiring unsupported migrations.
+- [x] If a full DataFixerUpper-compatible pipeline is deferred, add explicit blockers preventing unsafe loading of worlds requiring unsupported migrations.
