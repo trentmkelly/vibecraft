@@ -261,7 +261,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement VarInt and VarLong exactly.
 - [x] Implement string, identifier, UUID, optional, collection, enum, bitset, NBT, component, and registry-aware byte buffer codecs.
 - [ ] Implement packet size limits and malformed packet disconnect behavior.
-- [ ] Implement legacy ping/status compatibility if still accepted by 26.1.2 clients.
+- [x] Implement legacy ping/status compatibility if still accepted by 26.1.2 clients.
 - [x] Implement compression threshold negotiation and zlib payload handling.
 - [x] Implement AES/CFB8 encryption after login key exchange.
 - [x] Implement rate limiting and packet flood kicking.
