@@ -164,6 +164,32 @@ pub struct TheEndGatewayBlockEntity {
     pub exact_teleport: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawJointType {
+    Rollable,
+    Aligned,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawGenerationPlan {
+    pub pool: String,
+    pub target: String,
+    pub levels: i32,
+    pub keep_jigsaws: bool,
+    pub start_pos: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawBlockEntity {
+    pub name: String,
+    pub target: String,
+    pub pool: String,
+    pub joint: JigsawJointType,
+    pub final_state: String,
+    pub placement_priority: i32,
+    pub selection_priority: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
@@ -738,6 +764,109 @@ impl TheEndGatewayBlockEntity {
 
     pub fn get_update_tag(&self) -> Tag {
         self.save_additional()
+    }
+}
+
+impl JigsawJointType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Rollable => "rollable",
+            Self::Aligned => "aligned",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "rollable" => Some(Self::Rollable),
+            "aligned" => Some(Self::Aligned),
+            _ => None,
+        }
+    }
+}
+
+impl JigsawBlockEntity {
+    pub const EMPTY_ID: &'static str = "minecraft:empty";
+    pub const DEFAULT_FINAL_STATE: &'static str = "minecraft:air";
+
+    pub fn new() -> Self {
+        Self {
+            name: Self::EMPTY_ID.to_string(),
+            target: Self::EMPTY_ID.to_string(),
+            pool: Self::EMPTY_ID.to_string(),
+            joint: JigsawJointType::Rollable,
+            final_state: Self::DEFAULT_FINAL_STATE.to_string(),
+            placement_priority: 0,
+            selection_priority: 0,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            ("name".to_string(), Tag::String(self.name.clone())),
+            ("target".to_string(), Tag::String(self.target.clone())),
+            ("pool".to_string(), Tag::String(self.pool.clone())),
+            (
+                "final_state".to_string(),
+                Tag::String(self.final_state.clone()),
+            ),
+            (
+                "joint".to_string(),
+                Tag::String(self.joint.as_str().to_string()),
+            ),
+            (
+                "placement_priority".to_string(),
+                Tag::Int(self.placement_priority),
+            ),
+            (
+                "selection_priority".to_string(),
+                Tag::Int(self.selection_priority),
+            ),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        Self {
+            name: get_string(entries, "name")
+                .unwrap_or(Self::EMPTY_ID)
+                .to_string(),
+            target: get_string(entries, "target")
+                .unwrap_or(Self::EMPTY_ID)
+                .to_string(),
+            pool: get_string(entries, "pool")
+                .unwrap_or(Self::EMPTY_ID)
+                .to_string(),
+            final_state: get_string(entries, "final_state")
+                .unwrap_or(Self::DEFAULT_FINAL_STATE)
+                .to_string(),
+            joint: get_string(entries, "joint")
+                .and_then(JigsawJointType::from_str)
+                .unwrap_or(JigsawJointType::Rollable),
+            placement_priority: get_int(entries, "placement_priority").unwrap_or(0),
+            selection_priority: get_int(entries, "selection_priority").unwrap_or(0),
+        }
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn generation_plan(
+        &self,
+        block_pos: BlockPos,
+        orientation_front: Direction,
+        levels: i32,
+        keep_jigsaws: bool,
+    ) -> JigsawGenerationPlan {
+        JigsawGenerationPlan {
+            pool: self.pool.clone(),
+            target: self.target.clone(),
+            levels,
+            keep_jigsaws,
+            start_pos: block_pos.relative(orientation_front),
+        }
     }
 }
 
@@ -2728,6 +2857,74 @@ mod tests {
         assert!(attention.portal_tick());
         assert_eq!(attention.age, 2400);
         assert_eq!(attention.teleport_cooldown, 40);
+    }
+
+    #[test]
+    fn jigsaw_block_entity_saves_priorities_joint_and_generation_plan_like_java() {
+        let mut jigsaw = JigsawBlockEntity::new();
+        assert_eq!(jigsaw.name, JigsawBlockEntity::EMPTY_ID);
+        assert_eq!(jigsaw.target, JigsawBlockEntity::EMPTY_ID);
+        assert_eq!(jigsaw.pool, JigsawBlockEntity::EMPTY_ID);
+        assert_eq!(jigsaw.final_state, JigsawBlockEntity::DEFAULT_FINAL_STATE);
+        assert_eq!(jigsaw.joint, JigsawJointType::Rollable);
+
+        jigsaw.name = "minecraft:house/start".to_string();
+        jigsaw.target = "minecraft:house/door".to_string();
+        jigsaw.pool = "minecraft:village/plains/houses".to_string();
+        jigsaw.final_state = "minecraft:oak_planks".to_string();
+        jigsaw.joint = JigsawJointType::Aligned;
+        jigsaw.placement_priority = 7;
+        jigsaw.selection_priority = -3;
+
+        let saved = jigsaw.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                (
+                    "name".to_string(),
+                    Tag::String("minecraft:house/start".to_string())
+                ),
+                (
+                    "target".to_string(),
+                    Tag::String("minecraft:house/door".to_string())
+                ),
+                (
+                    "pool".to_string(),
+                    Tag::String("minecraft:village/plains/houses".to_string())
+                ),
+                (
+                    "final_state".to_string(),
+                    Tag::String("minecraft:oak_planks".to_string())
+                ),
+                ("joint".to_string(), Tag::String("aligned".to_string())),
+                ("placement_priority".to_string(), Tag::Int(7)),
+                ("selection_priority".to_string(), Tag::Int(-3)),
+            ])
+        );
+        assert_eq!(JigsawBlockEntity::load_additional(&saved), jigsaw);
+        assert_eq!(jigsaw.get_update_tag(), saved);
+
+        let plan =
+            jigsaw.generation_plan(BlockPos { x: 4, y: 70, z: 8 }, Direction::North, 5, true);
+        assert_eq!(
+            plan,
+            JigsawGenerationPlan {
+                pool: "minecraft:village/plains/houses".to_string(),
+                target: "minecraft:house/door".to_string(),
+                levels: 5,
+                keep_jigsaws: true,
+                start_pos: BlockPos { x: 4, y: 70, z: 7 },
+            }
+        );
+
+        let defaults = JigsawBlockEntity::load_additional(&Tag::Compound(vec![(
+            "joint".to_string(),
+            Tag::String("unknown".to_string()),
+        )]));
+        assert_eq!(defaults.name, JigsawBlockEntity::EMPTY_ID);
+        assert_eq!(defaults.joint, JigsawJointType::Rollable);
+        assert_eq!(defaults.placement_priority, 0);
+        assert_eq!(defaults.selection_priority, 0);
     }
 
     #[test]
