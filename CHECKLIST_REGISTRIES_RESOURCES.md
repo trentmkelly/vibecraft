@@ -48,11 +48,11 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement `data/minecraft/test_environment`.
 - [x] Implement `data/minecraft/test_instance`.
 - [x] Implement `data/minecraft/timeline`.
-- [ ] Implement `data/minecraft/trade_set`.
+- [x] Implement `data/minecraft/trade_set`.
 - [x] Implement `data/minecraft/trial_spawner`.
 - [x] Implement `data/minecraft/trim_material`.
 - [x] Implement `data/minecraft/trim_pattern`.
-- [ ] Implement `data/minecraft/villager_trade`.
+- [x] Implement `data/minecraft/villager_trade`.
 - [x] Implement `data/minecraft/world_clock`.
 - [ ] Implement `data/minecraft/worldgen`.
 - [x] Implement reload failure rollback and user-facing error reporting.
