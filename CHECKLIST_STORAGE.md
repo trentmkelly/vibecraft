@@ -162,7 +162,7 @@
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Storage, NBT, And Datafix Coverage
 
-- [ ] Implement every NBT tag type: end, byte, short, int, long, float, double, byte array, string, list, compound, int array, and long array.
+- [x] Implement every NBT tag type: end, byte, short, int, long, float, double, byte array, string, list, compound, int array, and long array.
 - [ ] Implement NBT IO, size accounting, recursion/depth limits, streaming visitors, field selectors, SNBT parser, SNBT printer, text component visitor, and error reporting.
 - [ ] Implement `LevelStorageSource`, `LevelStorageAccess`, `PrimaryLevelData`, `DerivedLevelData`, `ServerLevelData`, `WorldData`, `LevelSummary`, `LevelVersion`, and session locking.
 - [ ] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths.
