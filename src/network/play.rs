@@ -2949,6 +2949,18 @@ impl ClientboundAddEntityPacket {
             data,
         }
     }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_uuid(writer, self.uuid)?;
+        write_var_i32(writer, self.entity_type)?;
+        write_f64(writer, self.position.x)?;
+        write_f64(writer, self.position.y)?;
+        write_f64(writer, self.position.z)?;
+        write_lp_vec3(writer, self.movement)?;
+        writer.write_all(&[self.x_rot, self.y_rot, self.y_head_rot])?;
+        write_var_i32(writer, self.data)
+    }
 }
 
 impl ClientboundRemoveEntitiesPacket {
@@ -6930,6 +6942,32 @@ mod tests {
         let mut motion_payload = Vec::new();
         motion.write(&mut motion_payload).unwrap();
         assert_eq!(motion_payload, vec![7, 0]);
+
+        let add_entity = ClientboundAddEntityPacket::new(
+            300,
+            Uuid([4; 16]),
+            5,
+            Vec3 {
+                x: 1.25,
+                y: 64.0,
+                z: -2.5,
+            },
+            Vec3::ZERO,
+            (90.0, 45.0),
+            180.0,
+            123,
+        );
+        let mut add_entity_payload = Vec::new();
+        add_entity.write(&mut add_entity_payload).unwrap();
+        assert_eq!(
+            &add_entity_payload[..19],
+            &[vec![0xac, 0x02], vec![4; 16], vec![5]].concat()
+        );
+        assert_eq!(&add_entity_payload[19..27], &1.25_f64.to_be_bytes());
+        assert_eq!(&add_entity_payload[27..35], &64.0_f64.to_be_bytes());
+        assert_eq!(&add_entity_payload[35..43], &(-2.5_f64).to_be_bytes());
+        assert_eq!(&add_entity_payload[43..], &[0, 64, 32, 128, 123]);
+
         let move_vehicle = ClientboundMoveVehiclePacket {
             position: Vec3 {
                 x: 1.0,

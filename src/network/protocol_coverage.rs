@@ -572,7 +572,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         wire_name: "add_entity",
         java_class: "ClientboundAddEntityPacket",
         field_order:
-            "id:var_int, uuid:UUID, type:EntityType.STREAM_CODEC, x:f64, y:f64, z:f64, movement:Vec3.LP_STREAM_CODEC, x_rot:byte, y_rot:byte, y_head_rot:byte, data:var_int",
+            "id:VarInt, uuid:UUID, type:EntityType registry VarInt, x:double, y:double, z:double, movement:Vec3.LP_STREAM_CODEC, xRot:byte, yRot:byte, yHeadRot:byte, data:VarInt",
     },
     PlayPacketSpec {
         id: 2,

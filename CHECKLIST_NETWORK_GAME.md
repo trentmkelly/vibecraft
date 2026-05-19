@@ -49,7 +49,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Entity Lifecycle Packets
 
-- [ ] `ClientboundAddEntityPacket` (0x01): entity ID, UUID, type, pos X/Y/Z, pitch, yaw, head-yaw, data (varies by type), velocity X/Y/Z; verify type-specific `data` field encoding
+- [x] `ClientboundAddEntityPacket` (0x01): entity ID, UUID, type, pos X/Y/Z, pitch, yaw, head-yaw, data (varies by type), velocity X/Y/Z; verify type-specific `data` field encoding
 - [x] `ClientboundAddExperienceOrbPacket`: not present in 26.1.2 Java `GamePacketTypes`; experience orbs spawn through `ClientboundAddEntityPacket`
 - [x] `ClientboundRemoveEntitiesPacket` (0x4D): VarInt entity ID list (`FriendlyByteBuf.writeIntIdList`)
 - [x] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
