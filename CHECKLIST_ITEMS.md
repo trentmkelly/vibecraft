@@ -4,11 +4,11 @@ Item registry, stacks, components, inventories, creative mode, and crafting inte
 
 ## Migrated From Main Checklist: Items, Inventories, And Crafting
 
-- [ ] Implement all 101 top-level item classes represented under `net/minecraft/world/item`.
-- [ ] Implement item registry IDs, components, max stack size, rarity, durability, repairability, use animation, cooldowns, food, equipment slots, enchantability, and tooltip behavior.
-- [ ] Implement `ItemStack` and data component model.
-- [ ] Implement inventory slots, carried item, cursor behavior, click actions, drag splitting, quick move, hotbar swap, drop, clone, and creative actions.
-- [ ] Implement player inventory, armor, offhand, ender chest, containers, horse inventories, villager trading inventories, merchant offers, and crafting grids.
+- [x] Implement all 101 top-level item classes represented under `net/minecraft/world/item`.
+- [x] Implement item registry IDs, components, max stack size, rarity, durability, repairability, use animation, cooldowns, food, equipment slots, enchantability, and tooltip behavior.
+- [x] Implement `ItemStack` and data component model.
+- [x] Implement inventory slots, carried item, cursor behavior, click actions, drag splitting, quick move, hotbar swap, drop, clone, and creative actions.
+- [x] Implement player inventory, armor, offhand, ender chest, containers, horse inventories, villager trading inventories, merchant offers, and crafting grids.
 - [x] Add Mineflayer equipment and inventory sync tests for armor, offhand, selected hotbar slot, item pickup, item drop, respawn retention rules, and disconnect/reconnect persistence.
 - [x] Add raw 26.1.2 selected-inventory-slot sync fallback coverage that sends `serverbound/minecraft:set_carried_item`, persists the selected hotbar slot through disconnect/restart, and verifies reconnect emits the saved held-slot packet while armor/offhand/item-entity coverage waits on Mineflayer target-protocol support.
 - [x] Add a Mineflayer offline-mode inventory-login-persistence test that gives a bot items, disconnects before and after explicit save, reconnects, and verifies vanilla-compatible inventory restore timing.
@@ -20,7 +20,7 @@ Item registry, stacks, components, inventories, creative mode, and crafting inte
 - [x] Implement recipe types, recipe book, unlocks, display data, and recipe serialization.
 - [x] Add a Mineflayer crafting/recipe-book test that unlocks recipes, crafts in 2x2 and 3x3 grids, opens a workstation, and verifies recipe sync and result slots against vanilla.
 - [x] Implement shaped, shapeless, smelting, blasting, smoking, campfire cooking, stonecutting, smithing, transmute, map cloning/extending, banner, shield, firework, suspicious stew, book cloning, repair, dyed item, and special recipes.
-- [ ] Implement potion, tipped arrow, lingering potion, splash potion, cauldron, bottle, bucket, and fluid container behavior.
-- [ ] Implement maps, compasses, clocks, recovery compasses, bundles, books, written books, knowledge books, spawn eggs, boats, minecarts, armor trims, smithing templates, shields, elytra, maces, tridents, bows, crossbows, fishing rods, shears, brushes, leads, name tags, music discs, ominous bottles, and trial keys.
+- [x] Implement potion, tipped arrow, lingering potion, splash potion, cauldron, bottle, bucket, and fluid container behavior.
+- [x] Implement maps, compasses, clocks, recovery compasses, bundles, books, written books, knowledge books, spawn eggs, boats, minecarts, armor trims, smithing templates, shields, elytra, maces, tridents, bows, crossbows, fishing rods, shears, brushes, leads, name tags, music discs, ominous bottles, and trial keys.
 - [x] Implement creative tabs and creative inventory packet behavior.
 - [x] Validate inventory transactions against vanilla packet traces.
