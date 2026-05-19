@@ -157,6 +157,14 @@ pub struct BedBlockEntity {
 pub struct EndPortalBlockEntity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TheEndGatewayBlockEntity {
+    pub age: i64,
+    pub teleport_cooldown: i32,
+    pub exit_portal: Option<BlockPos>,
+    pub exact_teleport: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
     pub color: DyeColor,
@@ -625,6 +633,111 @@ impl BedBlockEntity {
 impl EndPortalBlockEntity {
     pub fn save_additional(&self) -> Tag {
         Tag::Compound(Vec::new())
+    }
+}
+
+impl TheEndGatewayBlockEntity {
+    pub const SPAWN_TIME: i64 = 200;
+    pub const COOLDOWN_TIME: i32 = 40;
+    pub const ATTENTION_INTERVAL: i64 = 2400;
+    pub const EVENT_COOLDOWN: i32 = 1;
+    pub const GATEWAY_HEIGHT_ABOVE_SURFACE: i32 = 10;
+
+    pub fn new() -> Self {
+        Self {
+            age: 0,
+            teleport_cooldown: 0,
+            exit_portal: None,
+            exact_teleport: false,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = vec![("Age".to_string(), Tag::Long(self.age))];
+        if let Some(exit_portal) = self.exit_portal {
+            fields.push(("exit_portal".to_string(), block_pos_to_tag(exit_portal)));
+        }
+        if self.exact_teleport {
+            fields.push(("ExactTeleport".to_string(), Tag::Byte(1)));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        Self {
+            age: entries
+                .iter()
+                .find(|(name, _)| name == "Age")
+                .map(|(_, tag)| tag_long_or_zero(tag))
+                .unwrap_or(0),
+            teleport_cooldown: 0,
+            exit_portal: entries
+                .iter()
+                .find(|(name, _)| name == "exit_portal")
+                .and_then(|(_, tag)| block_pos_from_tag(tag)),
+            exact_teleport: get_bool(entries, "ExactTeleport").unwrap_or(false),
+        }
+    }
+
+    pub fn beam_animation_tick(&mut self) {
+        self.age += 1;
+        if self.is_cooling_down() {
+            self.teleport_cooldown -= 1;
+        }
+    }
+
+    pub fn portal_tick(&mut self) -> bool {
+        let was_spawning = self.is_spawning();
+        let was_cooling_down = self.is_cooling_down();
+        self.age += 1;
+        if was_cooling_down {
+            self.teleport_cooldown -= 1;
+        } else if self.age % Self::ATTENTION_INTERVAL == 0 {
+            self.trigger_cooldown();
+        }
+        was_spawning != self.is_spawning() || was_cooling_down != self.is_cooling_down()
+    }
+
+    pub fn is_spawning(&self) -> bool {
+        self.age < Self::SPAWN_TIME
+    }
+
+    pub fn is_cooling_down(&self) -> bool {
+        self.teleport_cooldown > 0
+    }
+
+    pub fn spawn_percent(&self, partial_tick: f32) -> f32 {
+        ((self.age as f32 + partial_tick) / Self::SPAWN_TIME as f32).clamp(0.0, 1.0)
+    }
+
+    pub fn cooldown_percent(&self, partial_tick: f32) -> f32 {
+        1.0 - ((self.teleport_cooldown as f32 - partial_tick) / Self::COOLDOWN_TIME as f32)
+            .clamp(0.0, 1.0)
+    }
+
+    pub fn trigger_cooldown(&mut self) {
+        self.teleport_cooldown = Self::COOLDOWN_TIME;
+    }
+
+    pub fn trigger_event(&mut self, event: i32) -> bool {
+        if event == Self::EVENT_COOLDOWN {
+            self.trigger_cooldown();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn set_exit_position(&mut self, exit_portal: BlockPos, exact_teleport: bool) {
+        self.exit_portal = Some(exit_portal);
+        self.exact_teleport = exact_teleport;
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
     }
 }
 
@@ -2310,6 +2423,28 @@ fn get_byte(entries: &[(String, Tag)], key: &str) -> Option<i8> {
     })
 }
 
+fn get_bool(entries: &[(String, Tag)], key: &str) -> Option<bool> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::Byte(value) if name == key => Some(*value != 0),
+        _ => None,
+    })
+}
+
+fn block_pos_to_tag(pos: BlockPos) -> Tag {
+    Tag::List(vec![Tag::Int(pos.x), Tag::Int(pos.y), Tag::Int(pos.z)])
+}
+
+fn block_pos_from_tag(tag: &Tag) -> Option<BlockPos> {
+    match tag {
+        Tag::List(values) if values.len() == 3 => Some(BlockPos {
+            x: tag_int_or_zero(&values[0]),
+            y: tag_int_or_zero(&values[1]),
+            z: tag_int_or_zero(&values[2]),
+        }),
+        _ => None,
+    }
+}
+
 fn tag_int_or_zero(tag: &Tag) -> i32 {
     match tag {
         Tag::Byte(value) => *value as i32,
@@ -2532,6 +2667,67 @@ mod tests {
                 ("z".to_string(), Tag::Int(pos().z)),
             ])
         );
+    }
+
+    #[test]
+    fn end_gateway_block_entity_saves_ticks_cooldown_and_exit_like_java() {
+        let mut gateway = TheEndGatewayBlockEntity::new();
+        assert!(gateway.is_spawning());
+        assert!(!gateway.is_cooling_down());
+        assert_eq!(gateway.spawn_percent(0.0), 0.0);
+        assert_eq!(TheEndGatewayBlockEntity::SPAWN_TIME, 200);
+        assert_eq!(TheEndGatewayBlockEntity::COOLDOWN_TIME, 40);
+        assert_eq!(TheEndGatewayBlockEntity::ATTENTION_INTERVAL, 2400);
+        assert_eq!(TheEndGatewayBlockEntity::GATEWAY_HEIGHT_ABOVE_SURFACE, 10);
+
+        gateway.age = 199;
+        assert_eq!(gateway.spawn_percent(0.5), 0.9975);
+        assert!(gateway.portal_tick());
+        assert_eq!(gateway.age, 200);
+        assert!(!gateway.is_spawning());
+
+        gateway.set_exit_position(
+            BlockPos {
+                x: 12,
+                y: 80,
+                z: -7,
+            },
+            true,
+        );
+        let saved = gateway.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                ("Age".to_string(), Tag::Long(200)),
+                (
+                    "exit_portal".to_string(),
+                    Tag::List(vec![Tag::Int(12), Tag::Int(80), Tag::Int(-7)])
+                ),
+                ("ExactTeleport".to_string(), Tag::Byte(1)),
+            ])
+        );
+        assert_eq!(TheEndGatewayBlockEntity::load_additional(&saved), gateway);
+        assert_eq!(gateway.get_update_tag(), saved);
+
+        gateway.trigger_cooldown();
+        assert!(gateway.is_cooling_down());
+        assert_eq!(gateway.teleport_cooldown, 40);
+        assert_eq!(gateway.cooldown_percent(0.0), 0.0);
+        gateway.beam_animation_tick();
+        assert_eq!(gateway.age, 201);
+        assert_eq!(gateway.teleport_cooldown, 39);
+        assert!((gateway.cooldown_percent(0.0) - 0.025).abs() < f32::EPSILON * 4.0);
+        assert!(gateway.trigger_event(TheEndGatewayBlockEntity::EVENT_COOLDOWN));
+        assert_eq!(gateway.teleport_cooldown, 40);
+        assert!(!gateway.trigger_event(99));
+
+        let mut attention = TheEndGatewayBlockEntity {
+            age: 2399,
+            ..TheEndGatewayBlockEntity::new()
+        };
+        assert!(attention.portal_tick());
+        assert_eq!(attention.age, 2400);
+        assert_eq!(attention.teleport_cooldown, 40);
     }
 
     #[test]
