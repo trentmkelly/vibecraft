@@ -79,26 +79,26 @@
 - [ ] Implement all server command classes found under `net/minecraft/server/commands`.
 - [x] Implement `/advancement`.
 - [x] Implement `/attribute`.
-- [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
+- [x] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
 - [x] Implement `/bossbar`.
 - [ ] Implement `/chase`.
 - [x] Implement `/clear`.
 - [x] Implement `/clone`.
 - [x] Implement `/damage`.
 - [ ] Implement `/datapack`.
-- [ ] Implement `/deop` and `/op`.
+- [x] Implement `/deop` and `/op`.
 - [ ] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.
 - [x] Implement `/defaultgamemode`, `/difficulty`, `/gamemode`, `/gamerule`.
 - [ ] Implement `/dialog`.
 - [x] Implement `/effect`.
 - [ ] Implement `/emote`.
 - [x] Implement `/enchant`.
-- [ ] Implement `/execute`.
+- [x] Implement `/execute`.
 - [x] Implement `/experience`.
 - [ ] Implement `/fetchprofile`.
 - [x] Implement `/fill` and `/fillbiome`.
 - [x] Implement `/forceload`.
-- [ ] Implement `/function` and function scheduling.
+- [x] Implement `/function` and function scheduling.
 - [x] Implement `/give`.
 - [ ] Implement `/help`.
 - [ ] Implement `/item`.
@@ -123,14 +123,14 @@
 - [x] Implement `/schedule`.
 - [x] Implement `/scoreboard`.
 - [x] Implement `/seed`.
-- [ ] Implement `/serverpack`.
+- [x] Implement `/serverpack`.
 - [x] Implement `/setblock`.
 - [ ] Implement `/setidletimeout`.
-- [ ] Implement `/spawnpoint`, `/setworldspawn`.
+- [x] Implement `/spawnpoint`, `/setworldspawn`.
 - [ ] Implement `/spawn_armor_trims`.
 - [x] Implement `/spectate`.
 - [x] Implement `/spreadplayers`.
-- [ ] Implement `/stop`.
+- [x] Implement `/stop`.
 - [x] Implement `/stopwatch`.
 - [x] Implement `/summon`.
 - [ ] Implement `/swing`.
@@ -158,13 +158,13 @@
 - [ ] Implement `/tick`.
 - [x] Implement `/time`.
 - [x] Implement `/title`.
-- [ ] Implement `/transfer`.
+- [x] Implement `/transfer`.
 - [x] Implement `/trigger`.
-- [ ] Implement `/version`.
-- [ ] Implement `/warden_spawn_tracker`.
-- [ ] Implement `/waypoint`.
+- [x] Implement `/version`.
+- [x] Implement `/warden_spawn_tracker`.
+- [x] Implement `/waypoint`.
 - [x] Implement `/weather`.
-- [ ] Implement `/whitelist`.
+- [x] Implement `/whitelist`.
 - [x] Implement `/worldborder`.
 - [ ] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions.
 - [ ] Validate command parse trees and results against vanilla command dumps and scripted execution tests.
