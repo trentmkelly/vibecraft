@@ -4,7 +4,7 @@ Global game-state systems moved out of the top-level checklist.
 
 ## Migrated From Main Checklist: Game Rules, Scoreboards, Teams, Stats, And Advancements
 
-- [ ] Implement every vanilla gamerule with correct default, type, command sync, and runtime effects.
+- [x] Implement every vanilla gamerule with correct default, type, command sync, and runtime effects.
 - [ ] Add Mineflayer gamerule tests that toggle `keepInventory`, `doImmediateRespawn`, `sendCommandFeedback`, `doDaylightCycle`, and `mobGriefing`, then verify client-observable behavior.
 - [x] Add command-model gamerule fallback coverage for toggling `keepInventory`, `doImmediateRespawn`, `sendCommandFeedback`, `doDaylightCycle`, and `mobGriefing`, verifying command feedback, sync payload names/values, and stored runtime values while full Mineflayer client-observable behavior remains pending.
 - [ ] Add Mineflayer stats/advancement tests that perform movement, mining, crafting, death, and recipe unlock actions in offline mode, then verify client updates and saved JSON files after reconnect.
