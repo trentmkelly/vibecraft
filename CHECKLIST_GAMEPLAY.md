@@ -164,6 +164,6 @@
 - [x] Implement explosions and game events.
 - [x] Implement vibrations, sculk sensors, calibrated sculk sensors, wardens, allays, and event listeners.
 - [ ] Implement raids, patrols, hero of the village, bad omen/raid omen/trial omen, and village raid state.
-- [ ] Implement maps, banners on maps, markers, frames, and map decorations.
-- [ ] Implement waypoints and timelines introduced in this version.
-- [ ] Implement dialogs, server links, notifications, and code-of-conduct flow.
+- [x] Implement maps, banners on maps, markers, frames, and map decorations.
+- [x] Implement waypoints and timelines introduced in this version.
+- [x] Implement dialogs, server links, notifications, and code-of-conduct flow.
