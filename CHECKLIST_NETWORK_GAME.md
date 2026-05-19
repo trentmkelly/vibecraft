@@ -400,8 +400,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement secure profile enforcement.
 - [ ] Implement profile key validation and signed chat session setup.
 - [ ] Implement configuration registry data sync.
-- [ ] Implement enabled feature sync.
-- [ ] Implement known-packs negotiation.
+- [x] Implement enabled feature sync.
+- [x] Implement known-packs negotiation.
 - [ ] Implement code of conduct packet behavior.
 - [ ] Implement resource pack push/pop/status flow.
 - [ ] Implement server links and dialog packets.
