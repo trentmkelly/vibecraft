@@ -118,7 +118,7 @@
 ## Block Entity Tests (Cross-Cutting)
 
 - [x] For every block entity type: add placement + immediate chunk-unload/reload round-trip test verifying NBT field identity
-- [ ] For every block entity type: add `getUpdateTag()` / `BlockEntityData` packet field subset test (only expected fields present)
+- [x] For every block entity type: add `getUpdateTag()` / `BlockEntityData` packet field subset test (only expected fields present)
 - [ ] For every tickable block entity: add tick-driven state transition test (e.g., furnace burn progress, spawner delay countdown, campfire cook progress)
 - [ ] For every GUI-bearing block entity: add open-menu / container-id / close test verifying correct `MenuType` and initial slot contents
 - [ ] For every block entity with a comparator output: add signal level test across all boundary states
