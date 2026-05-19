@@ -66,7 +66,7 @@
 - [x] Implement `DataVersion` tracking: embed `DataVersion` int in all saved files, detect version mismatch on load — `storage::datafix` exposes shared tag validation, NBT world/player/saved-data/chunk/entity paths stamp or reject `DataVersion`, advancement/stat JSON sidecars are stamped and checked, and storage tests cover missing/unsupported versions
 - [x] Implement upgrade CLI path: `--forceUpgrade` flag triggers DataFixer pass on all chunks and entities — startup now loads `level.dat`, plans/refuses unsupported `DataVersion`s, rewrites current-version chunk and entity region payloads through the storage codecs, supports `--eraseCache`, and logs the upgrade step/count report
 - [ ] Add parity test: a vanilla 1.20.x world loaded by the rebuilt server upgrades without data loss for representative blocks/entities/players
-- [ ] Add parity test: `--eraseCache` removes only the cache data without corrupting world content
+- [x] Add parity test: `--eraseCache` removes only the cache data without corrupting world content — `erase_cache_removes_only_cache_directories_without_world_content_loss` covers cache and `data/caches` deletion while preserving `level.dat`, playerdata, non-cache `data/` files, and region chunk NBT
 
 ## Operational Files
 

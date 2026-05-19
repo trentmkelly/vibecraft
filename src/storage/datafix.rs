@@ -420,4 +420,81 @@ mod tests {
         .unwrap_err();
         assert!(err.contains("Unsupported world DataVersion"));
     }
+
+    #[test]
+    fn erase_cache_removes_only_cache_directories_without_world_content_loss() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-erase-cache-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        let level = crate::storage::nbt::Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            crate::storage::nbt::Tag::Int(TARGET_DATA_VERSION),
+        )]);
+        layout.save_level_dat(&level).unwrap();
+
+        let pos = ChunkPos { x: 1, z: 1 };
+        let chunk = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        crate::storage::region::RegionFile::open(&layout.region_dir(), pos.region())
+            .unwrap()
+            .write_chunk_nbt(pos, "", &chunk)
+            .unwrap();
+        layout
+            .save_player_data(
+                "00000000-0000-0000-0000-000000000006",
+                &crate::storage::nbt::Tag::Compound(Vec::new()),
+            )
+            .unwrap();
+
+        fs::create_dir_all(layout.root().join("cache")).unwrap();
+        fs::write(layout.root().join("cache").join("biome.bin"), b"cache").unwrap();
+        fs::create_dir_all(layout.root().join("data").join("caches")).unwrap();
+        fs::write(
+            layout.root().join("data").join("caches").join("noise.bin"),
+            b"cache",
+        )
+        .unwrap();
+        fs::write(
+            layout.root().join("data").join("scoreboard.dat"),
+            b"content",
+        )
+        .unwrap();
+
+        let report = run_world_upgrade(
+            &layout,
+            TARGET_DATA_VERSION,
+            WorldUpgradeOptions {
+                force_upgrade: false,
+                erase_cache: true,
+                recreate_region_files: false,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(report.chunk_count, 0);
+        assert_eq!(report.entity_chunk_count, 0);
+        assert!(!layout.root().join("cache").exists());
+        assert!(!layout.root().join("data").join("caches").exists());
+        assert_eq!(layout.load_level_dat().unwrap(), level);
+        assert!(layout
+            .playerdata_dir()
+            .join("00000000-0000-0000-0000-000000000006.dat")
+            .is_file());
+        assert_eq!(
+            fs::read(layout.root().join("data").join("scoreboard.dat")).unwrap(),
+            b"content"
+        );
+        assert_eq!(
+            crate::storage::region::RegionFile::open(&layout.region_dir(), pos.region())
+                .unwrap()
+                .read_chunk_nbt(pos)
+                .unwrap()
+                .unwrap()
+                .1,
+            chunk
+        );
+
+        let _ = fs::remove_dir_all(&path);
+    }
 }
