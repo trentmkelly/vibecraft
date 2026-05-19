@@ -19,16 +19,16 @@ Use the unmodified 26.1.2 client as the authoritative visual/connectability orac
 
 ## Migrated From Main Checklist: Testing And Parity Harness
 
-- [ ] Build an integration harness that starts official `server.jar` and the rebuilt server with the same seed/config.
-- [ ] Build a reusable Mineflayer test runner that starts RustCraft in a temp world, waits for readiness, connects bots, captures logs, and tears down cleanly.
-- [ ] Build a Mineflayer parity mode that runs the same bot script against RustCraft and the official `server.jar` and diffs observable events.
-- [ ] Build Mineflayer scenario fixtures for deterministic offline-mode profiles, temp `server.properties`, eula setup, seeded worlds, and per-test log capture.
-- [ ] Build Mineflayer assertion helpers for offline-mode login phases, vanilla UUID derivation, packet/event ordering, kicked-message normalization, and official-vs-RustCraft diff output.
-- [ ] Build a shared Mineflayer offline-mode login helper that returns a fully observed session object containing bot profile, UUID, event timeline, packet trace, server log slice, temp paths, and cleanup handles.
-- [ ] Build Mineflayer helpers for scripted offline-mode bot actions: wait for spawn, assert held item, issue command, place/break block, open window, force reconnect, and capture vanilla comparison traces.
-- [ ] Build Mineflayer reusable action fixtures for loot and economy tests: deterministic bot inventory setup, tool/enchantment setup, mob/chest placement, villager offer capture, fishing loop control, item entity collection, and post-reconnect artifact snapshots.
-- [ ] Build a packet recorder/replayer for login, status, configuration, and play-state flows.
-- [ ] Build golden packet tests for all protocol states.
+- [x] Build an integration harness that starts official `server.jar` and the rebuilt server with the same seed/config.
+- [x] Build a reusable Mineflayer test runner that starts RustCraft in a temp world, waits for readiness, connects bots, captures logs, and tears down cleanly.
+- [x] Build a Mineflayer parity mode that runs the same bot script against RustCraft and the official `server.jar` and diffs observable events.
+- [x] Build Mineflayer scenario fixtures for deterministic offline-mode profiles, temp `server.properties`, eula setup, seeded worlds, and per-test log capture.
+- [x] Build Mineflayer assertion helpers for offline-mode login phases, vanilla UUID derivation, packet/event ordering, kicked-message normalization, and official-vs-RustCraft diff output.
+- [x] Build a shared Mineflayer offline-mode login helper that returns a fully observed session object containing bot profile, UUID, event timeline, packet trace, server log slice, temp paths, and cleanup handles.
+- [x] Build Mineflayer helpers for scripted offline-mode bot actions: wait for spawn, assert held item, issue command, place/break block, open window, force reconnect, and capture vanilla comparison traces.
+- [x] Build Mineflayer reusable action fixtures for loot and economy tests: deterministic bot inventory setup, tool/enchantment setup, mob/chest placement, villager offer capture, fishing loop control, item entity collection, and post-reconnect artifact snapshots.
+- [x] Build a packet recorder/replayer for login, status, configuration, and play-state flows.
+- [x] Build golden packet tests for all protocol states.
 - [ ] Build Mineflayer packet-flow smoke tests for offline-mode login, configuration completion, keepalive response, chat, command execution, and disconnect reason.
 - [ ] Build a required Mineflayer offline-mode login gate that runs before every merge touching network, configuration, player management, storage, or tick-loop code.
 - [ ] Build a minimal Mineflayer offline-mode login CI shard that runs before longer parity tests and fails fast on TCP readiness, login timeout, configuration ordering, first spawn, or unexpected disconnects.
