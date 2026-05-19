@@ -109,7 +109,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `enforce-secure-profile`.
 - [x] Implement `log-ips`.
 - [x] Implement mutable `pause-when-empty-seconds`.
-- [ ] Implement `level-seed`, `generate-structures`, `generator-settings`, and `level-type`.
+- [x] Implement `level-seed`, `generate-structures`, `generator-settings`, and `level-type`.
 - [x] Implement mutable `accepts-transfers`.
 
 ## Migrated From Main Checklist: Core Runtime Model

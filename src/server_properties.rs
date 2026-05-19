@@ -395,6 +395,10 @@ entity-broadcast-range-percentage=5
 management-server-port=24454
 rcon.port=24455
 query.port=24456
+level-seed=8675309
+generate-structures=false
+generator-settings={\"layers\":[{\"block\":\"minecraft:grass_block\",\"height\":1}]}
+level-type=minecraft:flat
 announce-player-achievements=true
 broadcast-console-to-ops=false
 bug-report-link=https://bugs.example.invalid/rustcraft
@@ -428,6 +432,13 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(properties.management_server_port, 24454);
         assert_eq!(properties.rcon_port, 24455);
         assert_eq!(properties.query_port, 24456);
+        assert_eq!(properties.level_seed, "8675309");
+        assert!(!properties.generate_structures);
+        assert_eq!(
+            properties.generator_settings,
+            "{\"layers\":[{\"block\":\"minecraft:grass_block\",\"height\":1}]}"
+        );
+        assert_eq!(properties.level_type, "minecraft:flat");
         assert_eq!(properties.announce_player_achievements, Some(true));
         assert!(!properties.broadcast_console_to_ops);
         assert_eq!(
