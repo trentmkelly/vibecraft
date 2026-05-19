@@ -11715,6 +11715,52 @@ mod tests {
     }
 
     #[test]
+    fn placement_then_chunk_unload_reload_preserves_block_entity_nbt_for_every_type() {
+        for info in BLOCK_ENTITY_TYPES {
+            let block_state = info
+                .valid_blocks
+                .first()
+                .expect("every block entity type has at least one valid block");
+            let placed_pos = BlockPos {
+                x: 18,
+                y: 73,
+                z: -29,
+            };
+            let mut placed = BlockEntity::new(info.id, placed_pos, block_state).unwrap();
+            placed.set_level();
+            placed.set_changed();
+            placed.tick_count = 99;
+            placed
+                .custom_data
+                .insert("ChunkUnloadProbe".to_string(), Tag::Long(123_456));
+            placed.components.insert(
+                "minecraft:custom_name".to_string(),
+                Tag::String(format!("\"{}\"", info.key)),
+            );
+
+            let saved_at_unload = placed.save_with_full_metadata();
+            let reloaded = load_static(placed_pos, block_state, &saved_at_unload).unwrap();
+            let saved_after_reload = reloaded.save_with_full_metadata();
+
+            assert_eq!(
+                saved_after_reload, saved_at_unload,
+                "chunk unload/reload NBT identity failed for {}",
+                info.key
+            );
+            assert!(
+                !reloaded.has_level && !reloaded.changed && !reloaded.removed,
+                "runtime placement flags leaked through chunk reload for {}",
+                info.key
+            );
+            assert_eq!(
+                reloaded.tick_count, 0,
+                "scheduler tick state leaked through chunk reload for {}",
+                info.key
+            );
+        }
+    }
+
+    #[test]
     fn update_tag_subset_is_stable_for_every_type() {
         for info in BLOCK_ENTITY_TYPES {
             let block_state = info
