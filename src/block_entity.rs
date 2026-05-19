@@ -257,6 +257,24 @@ pub struct BellBlockEntity {
     pub resonation_ticks: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrushResult {
+    CoolingDown,
+    InProgress { dusted: i32 },
+    Completed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrushableBlockEntity {
+    pub brush_count: i32,
+    pub brush_count_resets_at_tick: u64,
+    pub cooldown_ends_at_tick: u64,
+    pub item: Option<PotItemStack>,
+    pub hit_direction: Option<Direction>,
+    pub loot_table: Option<String>,
+    pub loot_table_seed: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockEntityError {
     UnknownType(String),
@@ -1279,6 +1297,159 @@ impl BellBlockEntity {
     }
 }
 
+impl BrushableBlockEntity {
+    pub const BRUSH_COOLDOWN_TICKS: u64 = 10;
+    pub const BRUSH_RESET_TICKS: u64 = 40;
+    pub const REQUIRED_BRUSHES_TO_BREAK: i32 = 10;
+    pub const RETRACTION_SPEED: i32 = 2;
+    pub const RETRACTION_TICKS: u64 = 4;
+
+    pub fn new() -> Self {
+        Self {
+            brush_count: 0,
+            brush_count_resets_at_tick: 0,
+            cooldown_ends_at_tick: 0,
+            item: None,
+            hit_direction: None,
+            loot_table: None,
+            loot_table_seed: 0,
+        }
+    }
+
+    pub fn set_loot_table(&mut self, loot_table: impl Into<String>, seed: i64) {
+        self.loot_table = Some(loot_table.into());
+        self.loot_table_seed = seed;
+        self.item = None;
+    }
+
+    pub fn unpack_loot_table(&mut self, generated_item: Option<PotItemStack>) -> bool {
+        if self.loot_table.take().is_some() {
+            self.loot_table_seed = 0;
+            self.item = generated_item;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn brush(
+        &mut self,
+        game_time: u64,
+        direction: Direction,
+        generated_loot_item: Option<PotItemStack>,
+    ) -> BrushResult {
+        if self.hit_direction.is_none() {
+            self.hit_direction = Some(direction);
+        }
+        self.brush_count_resets_at_tick = game_time + Self::BRUSH_RESET_TICKS;
+        if game_time < self.cooldown_ends_at_tick {
+            return BrushResult::CoolingDown;
+        }
+
+        self.cooldown_ends_at_tick = game_time + Self::BRUSH_COOLDOWN_TICKS;
+        self.unpack_loot_table(generated_loot_item);
+        self.brush_count += 1;
+        if self.brush_count >= Self::REQUIRED_BRUSHES_TO_BREAK {
+            self.brush_count = Self::REQUIRED_BRUSHES_TO_BREAK;
+            return BrushResult::Completed;
+        }
+
+        BrushResult::InProgress {
+            dusted: self.completion_state(),
+        }
+    }
+
+    pub fn check_reset(&mut self, game_time: u64) -> Option<i32> {
+        if self.brush_count != 0 && game_time >= self.brush_count_resets_at_tick {
+            let previous = self.completion_state();
+            self.brush_count = (self.brush_count - Self::RETRACTION_SPEED).max(0);
+            let current = self.completion_state();
+            if self.brush_count == 0 {
+                self.hit_direction = None;
+                self.brush_count_resets_at_tick = 0;
+                self.cooldown_ends_at_tick = 0;
+            } else {
+                self.brush_count_resets_at_tick = game_time + Self::RETRACTION_TICKS;
+            }
+            return (previous != current).then_some(current);
+        }
+
+        None
+    }
+
+    pub fn completion_state(&self) -> i32 {
+        if self.brush_count == 0 {
+            0
+        } else if self.brush_count < 3 {
+            1
+        } else if self.brush_count < 6 {
+            2
+        } else {
+            3
+        }
+    }
+
+    pub fn drop_content(&mut self) -> Option<(PotItemStack, Direction)> {
+        let item = self.item.take()?;
+        Some((item, self.hit_direction.unwrap_or(Direction::Up)))
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if let Some(loot_table) = &self.loot_table {
+            fields.push(("LootTable".to_string(), Tag::String(loot_table.clone())));
+            if self.loot_table_seed != 0 {
+                fields.push(("LootTableSeed".to_string(), Tag::Long(self.loot_table_seed)));
+            }
+        } else if let Some(item) = &self.item {
+            fields.push(("item".to_string(), item.to_tag()));
+        }
+        if let Some(direction) = self.hit_direction {
+            fields.push((
+                "hit_direction".to_string(),
+                Tag::String(direction_name(direction).to_string()),
+            ));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut brushable = Self::new();
+        let Some(entries) = compound_entries(tag) else {
+            return brushable;
+        };
+        brushable.loot_table = get_string(entries, "LootTable").map(ToString::to_string);
+        brushable.loot_table_seed = entries
+            .iter()
+            .find(|(name, _)| name == "LootTableSeed")
+            .map(|(_, tag)| tag_long_or_zero(tag))
+            .unwrap_or(0);
+        if brushable.loot_table.is_none() {
+            brushable.item = entries
+                .iter()
+                .find(|(name, _)| name == "item")
+                .and_then(|(_, tag)| PotItemStack::from_tag(tag));
+        }
+        brushable.hit_direction =
+            get_string(entries, "hit_direction").and_then(direction_from_name);
+        brushable
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        let mut fields = Vec::new();
+        if let Some(direction) = self.hit_direction {
+            fields.push((
+                "hit_direction".to_string(),
+                Tag::String(direction_name(direction).to_string()),
+            ));
+        }
+        if let Some(item) = &self.item {
+            fields.push(("item".to_string(), item.to_tag()));
+        }
+        Tag::Compound(fields)
+    }
+}
+
 // Source: decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BlockEntityType.java
 pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
     info(
@@ -2136,6 +2307,39 @@ fn tag_int_or_zero(tag: &Tag) -> i32 {
     }
 }
 
+fn tag_long_or_zero(tag: &Tag) -> i64 {
+    match tag {
+        Tag::Byte(value) => *value as i64,
+        Tag::Short(value) => *value as i64,
+        Tag::Int(value) => *value as i64,
+        Tag::Long(value) => *value,
+        _ => 0,
+    }
+}
+
+fn direction_name(direction: Direction) -> &'static str {
+    match direction {
+        Direction::Down => "down",
+        Direction::Up => "up",
+        Direction::North => "north",
+        Direction::South => "south",
+        Direction::West => "west",
+        Direction::East => "east",
+    }
+}
+
+fn direction_from_name(value: &str) -> Option<Direction> {
+    match value {
+        "down" => Some(Direction::Down),
+        "up" => Some(Direction::Up),
+        "north" => Some(Direction::North),
+        "south" => Some(Direction::South),
+        "west" => Some(Direction::West),
+        "east" => Some(Direction::East),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2563,6 +2767,115 @@ mod tests {
         );
         assert!(!pot.trigger_event(99, DecoratedPotWobbleStyle::Positive.id(), 43));
         assert!(!pot.trigger_event(DecoratedPotBlockEntity::EVENT_POT_WOBBLES, 99, 43));
+    }
+
+    #[test]
+    fn brushable_block_entity_brushes_resets_loot_and_update_tag_like_java() {
+        assert_eq!(BrushableBlockEntity::BRUSH_COOLDOWN_TICKS, 10);
+        assert_eq!(BrushableBlockEntity::BRUSH_RESET_TICKS, 40);
+        assert_eq!(BrushableBlockEntity::REQUIRED_BRUSHES_TO_BREAK, 10);
+
+        let mut brushable = BrushableBlockEntity::new();
+        brushable.set_loot_table("minecraft:archaeology/desert_pyramid", 99);
+        assert_eq!(
+            brushable.save_additional(),
+            Tag::Compound(vec![
+                (
+                    "LootTable".to_string(),
+                    Tag::String("minecraft:archaeology/desert_pyramid".to_string())
+                ),
+                ("LootTableSeed".to_string(), Tag::Long(99)),
+            ])
+        );
+
+        let generated_item = PotItemStack {
+            item_id: "minecraft:diamond".to_string(),
+            count: 1,
+        };
+        assert_eq!(
+            brushable.brush(100, Direction::North, Some(generated_item.clone())),
+            BrushResult::InProgress { dusted: 1 }
+        );
+        assert_eq!(brushable.hit_direction, Some(Direction::North));
+        assert_eq!(brushable.brush_count, 1);
+        assert_eq!(brushable.brush_count_resets_at_tick, 140);
+        assert_eq!(brushable.cooldown_ends_at_tick, 110);
+        assert_eq!(brushable.item, Some(generated_item.clone()));
+        assert_eq!(brushable.loot_table, None);
+        assert_eq!(
+            brushable.get_update_tag(),
+            Tag::Compound(vec![
+                (
+                    "hit_direction".to_string(),
+                    Tag::String("north".to_string())
+                ),
+                ("item".to_string(), generated_item.to_tag()),
+            ])
+        );
+        assert_eq!(
+            brushable.brush(105, Direction::South, None),
+            BrushResult::CoolingDown
+        );
+        assert_eq!(brushable.hit_direction, Some(Direction::North));
+
+        assert_eq!(
+            brushable.brush(110, Direction::South, None),
+            BrushResult::InProgress { dusted: 1 }
+        );
+        assert_eq!(
+            brushable.brush(120, Direction::South, None),
+            BrushResult::InProgress { dusted: 2 }
+        );
+        assert_eq!(
+            brushable.brush(130, Direction::South, None),
+            BrushResult::InProgress { dusted: 2 }
+        );
+        assert_eq!(
+            brushable.brush(140, Direction::South, None),
+            BrushResult::InProgress { dusted: 2 }
+        );
+        assert_eq!(
+            brushable.brush(150, Direction::South, None),
+            BrushResult::InProgress { dusted: 3 }
+        );
+        assert_eq!(brushable.brush_count, 6);
+
+        assert_eq!(brushable.check_reset(189), None);
+        assert_eq!(brushable.check_reset(190), Some(2));
+        assert_eq!(brushable.brush_count, 4);
+        assert_eq!(brushable.brush_count_resets_at_tick, 194);
+        assert_eq!(brushable.check_reset(194), Some(1));
+        assert_eq!(brushable.brush_count, 2);
+        assert_eq!(brushable.check_reset(198), Some(0));
+        assert_eq!(brushable.brush_count, 0);
+        assert_eq!(brushable.hit_direction, None);
+        assert_eq!(brushable.cooldown_ends_at_tick, 0);
+
+        brushable.hit_direction = Some(Direction::East);
+        brushable.item = Some(generated_item.clone());
+        let saved_item = brushable.save_additional();
+        assert_eq!(
+            BrushableBlockEntity::load_additional(&saved_item),
+            brushable
+        );
+        assert_eq!(
+            brushable.drop_content(),
+            Some((generated_item, Direction::East))
+        );
+        assert_eq!(brushable.item, None);
+
+        let mut completing = BrushableBlockEntity::new();
+        for step in 0..9 {
+            assert!(matches!(
+                completing.brush(step * 10, Direction::Up, None),
+                BrushResult::InProgress { .. }
+            ));
+        }
+        assert_eq!(
+            completing.brush(90, Direction::Up, None),
+            BrushResult::Completed
+        );
+        assert_eq!(completing.brush_count, 10);
     }
 
     #[test]

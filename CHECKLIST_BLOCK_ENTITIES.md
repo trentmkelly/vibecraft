@@ -92,7 +92,7 @@
 
 - [x] Implement `BannerBlockEntity`: banner color, `BannerPatternLayers` list (up to 6 `BannerPatternLayer` each with pattern holder + `DyeColor`), serialization for both save NBT and `getUpdateTag()` network subset
 - [x] Implement `BedBlockEntity`: empty placeholder (no data), required only for `BlockEntityType` registration and color variant
-- [ ] Implement `BrushableBlockEntity`: brush-progress animation (0–10), loot-table seeded item, loot-table seed, brush-item durability tracking, FULL/HIT/RESET state, `unpackLootTable()` on first brush
+- [x] Implement `BrushableBlockEntity`: brush-progress animation (0–10), loot-table seeded item, loot-table seed, brush-item durability tracking, FULL/HIT/RESET state, `unpackLootTable()` on first brush
 - [x] Implement `DecoratedPotBlockEntity`: `PotDecorations` (4 sides: back/left/right/front, each a sherd or brick), loot-table content, 1-slot item storage, wobble animation (type + ticks)
 - [x] Implement `SkullBlockEntity`: owner profile component data, note-block sound data, custom-name component data, update tag, component stripping, and powered animation state
 - [x] Implement `BellBlockEntity`: ringing-direction last value, resonating state, `ring(level, direction, entity)` trigger, bell-sound dispatch, entity highlighting on ring
