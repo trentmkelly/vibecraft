@@ -56,6 +56,7 @@ pub const SERVERBOUND_RESOURCE_PACK_PACKET_ID: i32 = 49;
 pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
+pub const SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID: i32 = 55;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
@@ -365,6 +366,13 @@ pub struct ServerboundSignUpdatePacket {
 pub struct ServerboundSetBeaconPacket {
     pub primary_effect_id: Option<i32>,
     pub secondary_effect_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetCommandMinecartPacket {
+    pub entity_id: i32,
+    pub command: String,
+    pub track_output: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1149,6 +1157,7 @@ pub struct PlaySession {
     pub last_jigsaw_generate: Option<ServerboundJigsawGeneratePacket>,
     pub last_sign_update: Option<ServerboundSignUpdatePacket>,
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
+    pub last_set_command_minecart: Option<ServerboundSetCommandMinecartPacket>,
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
@@ -1247,6 +1256,7 @@ impl PlaySession {
             last_jigsaw_generate: None,
             last_sign_update: None,
             last_set_beacon: None,
+            last_set_command_minecart: None,
             last_select_trade: None,
             last_rename_item: None,
             last_command_suggestion: None,
@@ -1666,6 +1676,18 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad set beacon packet: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSetCommandMinecartPacket::read(&mut input) {
+                    Ok(command) => {
+                        self.last_set_command_minecart = Some(command);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad set command minecart packet: {err}"
+                    )),
                 }
             }
             SERVERBOUND_SELECT_TRADE_PACKET_ID => {
@@ -2955,6 +2977,22 @@ impl ServerboundSetBeaconPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         Self::write_optional_mob_effect(writer, self.primary_effect_id)?;
         Self::write_optional_mob_effect(writer, self.secondary_effect_id)
+    }
+}
+
+impl ServerboundSetCommandMinecartPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            entity_id: read_var_i32(reader)?,
+            command: read_string(reader, 32767)?,
+            track_output: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_string(writer, &self.command, 32767)?;
+        write_bool(writer, self.track_output)
     }
 }
 
@@ -4721,6 +4759,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_RESOURCE_PACK_PACKET_ID, vec![0; 16])),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID, vec![1])),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5462,6 +5504,38 @@ mod tests {
         assert_eq!(
             session.last_resource_pack_response,
             Some(resource_pack_response)
+        );
+
+        let command_minecart = ServerboundSetCommandMinecartPacket {
+            entity_id: 128,
+            command: "say hi".to_string(),
+            track_output: true,
+        };
+        let mut command_minecart_payload = Vec::new();
+        command_minecart
+            .write(&mut command_minecart_payload)
+            .unwrap();
+        assert_eq!(
+            command_minecart_payload,
+            vec![0x80, 0x01, 6, b's', b'a', b'y', b' ', b'h', b'i', 1]
+        );
+        assert_eq!(
+            ServerboundSetCommandMinecartPacket::read(&mut cursor(
+                command_minecart_payload.clone()
+            ))
+            .unwrap(),
+            command_minecart
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID,
+                command_minecart_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_set_command_minecart,
+            Some(command_minecart)
         );
 
         let command_suggestion = ServerboundCommandSuggestionPacket {

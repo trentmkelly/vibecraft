@@ -235,7 +235,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundJigsawGeneratePacket` (0x1B): block pos, levels VarInt, keep-jigsaws bool
 - [ ] `ServerboundSetStructureBlockPacket` (0x2F): block pos, update type, mode, offset, size, mirror, rotation, name, metadata, integrity, seed, flags
 - [ ] `ServerboundSetCommandBlockPacket` (0x29): block pos, command, mode VarInt, flags byte
-- [ ] `ServerboundSetCommandMinecartPacket` (0x2A): entity ID, command, track-output bool
+- [x] `ServerboundSetCommandMinecartPacket` (0x37): entity ID VarInt, command UTF-8 string, track-output bool
 - [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
 
 ## Protocol Coverage Requirements

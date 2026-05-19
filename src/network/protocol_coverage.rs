@@ -466,7 +466,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_command_minecart",
         java_class: "ServerboundSetCommandMinecartPacket",
-        field_order: "unparsed",
+        field_order: "entity:VarInt, command:utf8 max 32767, track_output:bool",
     },
     PlayPacketSpec {
         id: 56,
