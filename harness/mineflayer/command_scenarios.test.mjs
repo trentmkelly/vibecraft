@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  commandBeforeReadyManifest,
+  commandBeforeReadyScenarios,
   commandScenarioManifest,
   commandPermissionReloadManifest,
   commandPermissionReloadScenario,
@@ -13,6 +15,7 @@ import {
   operatorCommandSmokeManifest,
   operatorCommandSmokeScenarios,
   runCommandScenario,
+  summarizeCommandBeforeReadyEvidence,
   summarizeCommandPermissionReloadEvidence,
   summarizeLoginGatedCommandEvidence,
   summarizeListLoginStateEvidence,
@@ -251,4 +254,36 @@ test('summarizeCommandPermissionReloadEvidence requires reload persistence and d
   assert.equal(summarizeCommandPermissionReloadEvidence(evidence, scenario).ok, true)
   evidence.timeline[3].summary[1].persisted = false
   assert.equal(summarizeCommandPermissionReloadEvidence(evidence, scenario).ok, false)
+})
+
+test('commandBeforeReadyManifest covers login, configuration, and pre-loaded play boundaries', () => {
+  const manifest = commandBeforeReadyManifest({ primary: 'Steve' })
+
+  assert.equal(manifest.readinessBoundary, 'play-state-ready')
+  assert.deepEqual(manifest.scenarios.map(scenario => scenario.phase), [
+    'login',
+    'configuration',
+    'configuration',
+    'play-before-loaded'
+  ])
+  assert.ok(manifest.scenarios.some(scenario => scenario.expectedBehavior === 'disconnect'))
+  assert.ok(manifest.scenarios.every(scenario => scenario.command.startsWith('/')))
+})
+
+test('summarizeCommandBeforeReadyEvidence requires pre-ready handling and post-ready acceptance', () => {
+  const scenarios = commandBeforeReadyScenarios({ primary: 'Steve' })
+  const evidence = {
+    timeline: scenarios.map(scenario => ({
+      name: 'command_before_ready',
+      summary: [scenario.phase, scenario.command, {
+        beforeReady: true,
+        behavior: scenario.expectedBehavior === 'queue-or-reject' ? 'reject' : scenario.expectedBehavior,
+        postReadyAccepted: true
+      }]
+    }))
+  }
+
+  assert.equal(summarizeCommandBeforeReadyEvidence(evidence, scenarios).ok, true)
+  evidence.timeline[0].summary[2].postReadyAccepted = false
+  assert.equal(summarizeCommandBeforeReadyEvidence(evidence, scenarios).ok, false)
 })

@@ -62,7 +62,7 @@
 - [x] Add Mineflayer offline-mode operator command smoke tests for `/op`, `/deop`, `/whitelist`, `/ban`, `/pardon`, `/gamemode`, `/tp`, `/give`, and `/effect`; verify feedback, permission gates, and reconnect-visible state
 - [x] Add Mineflayer offline-mode login-gated command tests: attempt `/list`, `/tell`, `/gamemode`, and `/tp` immediately after join; verify commands only run after vanilla play-state readiness boundary
 - [x] Add Mineflayer offline-mode command permission reload tests: edit `ops.json`, run `/op` and `/deop`, reconnect bots, verify command-tree deltas and denied feedback match vanilla
-- [ ] Add Mineflayer offline-mode command-before-ready tests: attempt chat commands during login/configuration/play transition boundaries; verify vanilla-compatible rejection, queuing, or disconnect behavior
+- [x] Add Mineflayer offline-mode command-before-ready tests: attempt chat commands during login/configuration/play transition boundaries; verify vanilla-compatible rejection, queuing, or disconnect behavior
 - [ ] Add Mineflayer offline-mode command-result consistency tests: run commands from console, op bot, non-op bot, command block, and function context; compare success count, feedback visibility, and player-observed side effects
 - [ ] Add Mineflayer chat and command tests: signed/unsigned chat fallback, system messages, command feedback, suggestions, and tab completion in offline mode
 
@@ -152,7 +152,7 @@
 - [x] Add play-session command-readiness fallback coverage that rejects chat command, signed chat command, chat, and command-suggestion packets while waiting for `player_loaded`, then accepts command suggestions after the loaded transition while live Mineflayer command execution remains incomplete.
 - [x] Add Mineflayer offline-mode command permission reload tests that edit `ops.json`, run `/op` and `/deop`, reconnect bots, and verify command tree deltas plus denied feedback match vanilla.
 - [x] Add player-access reload fallback coverage proving hot-edited `ops.json`, `whitelist.json`, and `banned-players.json` are reflected by the same `PlayerAccess::load_from_dir` path used by console `reload`/`whitelist reload`, while live Mineflayer command-tree delta coverage remains pending.
-- [ ] Add Mineflayer offline-mode command-before-ready tests that attempt chat commands during login/configuration/play transition boundaries and verify vanilla-compatible rejection, queuing, or disconnect behavior.
+- [x] Add Mineflayer offline-mode command-before-ready tests that attempt chat commands during login/configuration/play transition boundaries and verify vanilla-compatible rejection, queuing, or disconnect behavior.
 - [x] Add raw 26.1.2 command-before-ready fallback coverage that sends command-suggestion and chat-shaped packets during login/configuration before play readiness and verifies vanilla-compatible rejection/close behavior while Mineflayer lacks target-protocol play support.
 - [ ] Add Mineflayer offline-mode command-result consistency tests that run commands from console, op bot, non-op bot, command block, and function context, then compare success count, feedback visibility, and player-observed side effects.
 - [x] Add command-model command-result fallback coverage for non-op denial, op self-target side effects, repeated no-op success counts, console explicit-target execution, feedback keys, and admin broadcast flags while live bot command execution remains incomplete.

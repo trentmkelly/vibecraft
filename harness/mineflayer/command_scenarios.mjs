@@ -245,6 +245,43 @@ export function summarizeCommandPermissionReloadEvidence(evidence, scenario = co
   return { ok: Object.values(steps).every(Boolean), steps }
 }
 
+export function commandBeforeReadyScenarios(options = {}) {
+  const primary = options.primary ?? 'EarlyBot'
+  return [
+    beforeReadyScenario('login', `/tell ${primary} early`, 'reject'),
+    beforeReadyScenario('configuration', '/list', 'reject'),
+    beforeReadyScenario('configuration', `/tp ${primary} 0 80 0`, 'disconnect'),
+    beforeReadyScenario('play-before-loaded', '/help list', 'queue-or-reject')
+  ]
+}
+
+export function commandBeforeReadyManifest(options = {}) {
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    readinessBoundary: 'play-state-ready',
+    scenarios: commandBeforeReadyScenarios(options).map(entry => ({
+      phase: entry.phase,
+      command: entry.command,
+      expectedBehavior: entry.expectedBehavior
+    }))
+  }
+}
+
+export function summarizeCommandBeforeReadyEvidence(evidence, scenarios = commandBeforeReadyScenarios()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'command_before_ready')
+    .map(event => [`${event.summary?.[0]}:${event.summary?.[1]}`, event.summary?.[2] ?? {}]))
+  const steps = Object.fromEntries(scenarios.map(scenario => {
+    const observed = observations.get(`${scenario.phase}:${scenario.command}`)
+    const ok = observed?.beforeReady === true &&
+      observed?.postReadyAccepted === true &&
+      behaviorMatches(observed?.behavior, scenario.expectedBehavior)
+    return [`${scenario.phase}:${scenario.command}`, ok]
+  }))
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')
@@ -262,6 +299,17 @@ export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginS
 
 function listScenario(name, source, phase, expectedNames) {
   return { name, source, phase, expectedNames }
+}
+
+function beforeReadyScenario(phase, command, expectedBehavior) {
+  return { phase, command, expectedBehavior }
+}
+
+function behaviorMatches(observed, expected) {
+  if (expected === 'queue-or-reject') {
+    return observed === 'queued' || observed === 'reject'
+  }
+  return observed === expected
 }
 
 function gatedScenario(command, expectedFeedbackKey, options = {}) {
