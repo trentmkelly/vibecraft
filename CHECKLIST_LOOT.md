@@ -23,7 +23,7 @@
 
 ## Loot Table Core
 
-- [ ] Implement `LootTable` with `LootPool` list and `LootContext.EntityType` discriminator (block/entity/chest/fishing/archaeology/advancement_reward/gift/barter/vault/command/selector/advancement_entity/equipment)
+- [x] Implement `LootTable` with `LootPool` list and `LootContext.EntityType` discriminator (block/entity/chest/fishing/archaeology/advancement_reward/gift/barter/vault/command/selector/advancement_entity/equipment) - `loot_system::LootTable` evaluates pool lists and table functions, while `LootContextEntityType`/`LootSurface::entity_type()` cover the named Java context surfaces including vault, selector, advancement-entity, and equipment.
 - [x] Implement `LootPool`: roll count from `NumberProvider`, bonus rolls, entry list, condition list, function list
 - [x] Implement all loot entry types: `LootItem` (item entry), `TagEntry` (item tag, expand or random), `LootTableReference` (nested table), `DynamicLoot` (block entity dynamic loot), `GroupEntry`, `AlternativesEntry`, `SequenceEntry`, `EmptyLootItem`
 - [x] Implement entry weight, quality (luck-scaled), and condition gating
@@ -31,8 +31,8 @@
 
 ## Loot Contexts and Parameters
 
-- [ ] Implement `LootParams` with all parameter types: `BLOCK_STATE`, `BLOCK_ENTITY`, `ORIGIN`, `TOOL`, `THIS_ENTITY`, `LAST_DAMAGE_PLAYER`, `KILLER_ENTITY`, `DIRECT_KILLER_ENTITY`, `EXPLOSION_RADIUS`, `DAMAGE_SOURCE`
-- [ ] Implement `LootContext` dynamic parameters: `ENCHANTMENT_LEVEL`, `ENCHANTMENT_ACTIVE`, `ATTACKING_ENTITY`
+- [x] Implement `LootParams` with all parameter types: `BLOCK_STATE`, `BLOCK_ENTITY`, `ORIGIN`, `TOOL`, `THIS_ENTITY`, `LAST_DAMAGE_PLAYER`, `KILLER_ENTITY`, `DIRECT_KILLER_ENTITY`, `EXPLOSION_RADIUS`, `DAMAGE_SOURCE` - `loot_system::LootParams` stores typed `LootParamValue` entries for the full named parameter surface and `LootBehaviorEngine` maps request fields into the evaluator context.
+- [x] Implement `LootContext` dynamic parameters: `ENCHANTMENT_LEVEL`, `ENCHANTMENT_ACTIVE`, `ATTACKING_ENTITY` - `LootContext` now tracks typed dynamic params plus evaluator fields for enchantment level/active state and attacking entity; covered by `context_entity_types_params_and_dynamic_params_cover_java_surface`.
 - [x] Implement luck parameter from `LootContext.LUCK` (player luck attribute)
 
 ## Loot Functions
@@ -92,7 +92,7 @@
 
 ## Number and Score Providers
 
-- [ ] Implement all number providers: `ConstantValue`, `UniformGenerator` (min–max), `BinomialDistributionGenerator` (n, p), `ScoreboardValue` (entity selector + objective → score), `StorageValue` (NBT path from storage), `EnchantmentLevelProvider`
+- [x] Implement all number providers: `ConstantValue`, `UniformGenerator` (min–max), `BinomialDistributionGenerator` (n, p), `ScoreboardValue` (entity selector + objective → score), `StorageValue` (NBT path from storage), `EnchantmentLevelProvider` - `loot_system::NumberProvider` covers constant, uniform, binomial, score, storage, and enchantment-level values, including score/storage maps and dynamic enchantment level lookup.
 - [ ] Implement score providers: `ContextScoreboardNameProvider`, `FixedScoreboardNameProvider`
 - [ ] Implement NBT providers: `ContextNbtProvider` (from entity/block entity), `StorageNbtProvider`
 

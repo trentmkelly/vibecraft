@@ -280,6 +280,24 @@ impl RandomSourceKind {
     }
 }
 
+pub fn random_source_next_i32(random: &mut RandomSourceKind, bound: i32) -> i32 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_i32_bound(bound),
+        RandomSourceKind::Xoroshiro(random) => random.next_i32_bound(bound),
+    }
+}
+
+pub fn random_source_next_bool(random: &mut RandomSourceKind) -> bool {
+    random_source_next_i32(random, 2) == 0
+}
+
+pub fn random_source_next_f64(random: &mut RandomSourceKind) -> f64 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_f64(),
+        RandomSourceKind::Xoroshiro(random) => random.next_f64(),
+    }
+}
+
 pub fn random_state_seed_factories(
     seed: i64,
     algorithm: RandomAlgorithm,

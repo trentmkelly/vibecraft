@@ -120,7 +120,136 @@ pub enum LootParamSet {
     AdvancementReward,
     Gift,
     Barter,
+    Vault,
     Command,
+    Selector,
+    AdvancementEntity,
+    Equipment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LootContextEntityType {
+    Block,
+    Entity,
+    Chest,
+    Fishing,
+    Archaeology,
+    AdvancementReward,
+    Gift,
+    Barter,
+    Vault,
+    Command,
+    Selector,
+    AdvancementEntity,
+    Equipment,
+}
+
+impl LootContextEntityType {
+    pub fn param_set(self) -> LootParamSet {
+        match self {
+            Self::Block => LootParamSet::Block,
+            Self::Entity => LootParamSet::Entity,
+            Self::Chest => LootParamSet::Chest,
+            Self::Fishing => LootParamSet::Fishing,
+            Self::Archaeology => LootParamSet::Archaeology,
+            Self::AdvancementReward => LootParamSet::AdvancementReward,
+            Self::Gift => LootParamSet::Gift,
+            Self::Barter => LootParamSet::Barter,
+            Self::Vault => LootParamSet::Vault,
+            Self::Command => LootParamSet::Command,
+            Self::Selector => LootParamSet::Selector,
+            Self::AdvancementEntity => LootParamSet::AdvancementEntity,
+            Self::Equipment => LootParamSet::Equipment,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LootParamValue {
+    BlockState(String),
+    BlockEntity(String),
+    Origin(f64, f64, f64),
+    Tool(String),
+    ThisEntity(String),
+    LastDamagePlayer(String),
+    KillerEntity(String),
+    DirectKillerEntity(String),
+    ExplosionRadius(f32),
+    DamageSource(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LootParamKey {
+    BlockState,
+    BlockEntity,
+    Origin,
+    Tool,
+    ThisEntity,
+    LastDamagePlayer,
+    KillerEntity,
+    DirectKillerEntity,
+    ExplosionRadius,
+    DamageSource,
+}
+
+impl LootParamValue {
+    pub fn key(&self) -> LootParamKey {
+        match self {
+            Self::BlockState(_) => LootParamKey::BlockState,
+            Self::BlockEntity(_) => LootParamKey::BlockEntity,
+            Self::Origin(..) => LootParamKey::Origin,
+            Self::Tool(_) => LootParamKey::Tool,
+            Self::ThisEntity(_) => LootParamKey::ThisEntity,
+            Self::LastDamagePlayer(_) => LootParamKey::LastDamagePlayer,
+            Self::KillerEntity(_) => LootParamKey::KillerEntity,
+            Self::DirectKillerEntity(_) => LootParamKey::DirectKillerEntity,
+            Self::ExplosionRadius(_) => LootParamKey::ExplosionRadius,
+            Self::DamageSource(_) => LootParamKey::DamageSource,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LootParams {
+    values: HashMap<LootParamKey, LootParamValue>,
+}
+
+impl LootParams {
+    pub fn insert(&mut self, value: LootParamValue) {
+        self.values.insert(value.key(), value);
+    }
+
+    pub fn get(&self, key: LootParamKey) -> Option<&LootParamValue> {
+        self.values.get(&key)
+    }
+
+    pub fn keys(&self) -> HashSet<LootParamKey> {
+        self.values.keys().copied().collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LootDynamicParamValue {
+    EnchantmentLevel(i32),
+    EnchantmentActive(bool),
+    AttackingEntity(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LootDynamicParamKey {
+    EnchantmentLevel,
+    EnchantmentActive,
+    AttackingEntity,
+}
+
+impl LootDynamicParamValue {
+    pub fn key(&self) -> LootDynamicParamKey {
+        match self {
+            Self::EnchantmentLevel(_) => LootDynamicParamKey::EnchantmentLevel,
+            Self::EnchantmentActive(_) => LootDynamicParamKey::EnchantmentActive,
+            Self::AttackingEntity(_) => LootDynamicParamKey::AttackingEntity,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,7 +262,11 @@ pub enum LootSurface {
     AdvancementReward,
     Gift,
     PiglinBarter,
+    Vault,
     Command,
+    Selector,
+    AdvancementEntity,
+    Equipment,
 }
 
 impl LootSurface {
@@ -147,7 +280,29 @@ impl LootSurface {
             Self::AdvancementReward => LootParamSet::AdvancementReward,
             Self::Gift => LootParamSet::Gift,
             Self::PiglinBarter => LootParamSet::Barter,
+            Self::Vault => LootParamSet::Vault,
             Self::Command => LootParamSet::Command,
+            Self::Selector => LootParamSet::Selector,
+            Self::AdvancementEntity => LootParamSet::AdvancementEntity,
+            Self::Equipment => LootParamSet::Equipment,
+        }
+    }
+
+    pub fn entity_type(self) -> LootContextEntityType {
+        match self {
+            Self::BlockBreak => LootContextEntityType::Block,
+            Self::EntityDeath => LootContextEntityType::Entity,
+            Self::ChestOpen => LootContextEntityType::Chest,
+            Self::FishingRetrieve => LootContextEntityType::Fishing,
+            Self::ArchaeologyBrush => LootContextEntityType::Archaeology,
+            Self::AdvancementReward => LootContextEntityType::AdvancementReward,
+            Self::Gift => LootContextEntityType::Gift,
+            Self::PiglinBarter => LootContextEntityType::Barter,
+            Self::Vault => LootContextEntityType::Vault,
+            Self::Command => LootContextEntityType::Command,
+            Self::Selector => LootContextEntityType::Selector,
+            Self::AdvancementEntity => LootContextEntityType::AdvancementEntity,
+            Self::Equipment => LootContextEntityType::Equipment,
         }
     }
 }
@@ -411,6 +566,9 @@ impl LootBehaviorEngine {
                     table.evaluate(&mut context),
                 )
             }
+            LootSurface::Vault => {
+                LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
+            }
             LootSurface::Command if request.actor.is_some() => LootDelivery::GiveToEntity(
                 request.actor.clone().unwrap(),
                 table.evaluate(&mut context),
@@ -421,7 +579,10 @@ impl LootBehaviorEngine {
             LootSurface::BlockBreak
             | LootSurface::EntityDeath
             | LootSurface::FishingRetrieve
-            | LootSurface::ArchaeologyBrush => {
+            | LootSurface::ArchaeologyBrush
+            | LootSurface::Selector
+            | LootSurface::AdvancementEntity
+            | LootSurface::Equipment => {
                 LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
             }
         };
@@ -437,26 +598,34 @@ impl LootBehaviorEngine {
 
     fn context_for(&self, request: &LootRequest, seed: u64) -> LootContext {
         let mut context = LootContext::new(request.surface.param_set(), seed);
+        context.entity_type = request.surface.entity_type();
         context.luck = request.luck;
         context.looting_level = request.looting_level;
         context.killed_by_player = request.killed_by_player;
-        context.explosion_radius = request.explosion_radius;
-        context.block = request.block.clone();
-        context.tool = request.tool.clone();
+        context.insert_param(LootParamValue::Origin(
+            request.origin.0,
+            request.origin.1,
+            request.origin.2,
+        ));
+        if let Some(radius) = request.explosion_radius {
+            context.insert_param(LootParamValue::ExplosionRadius(radius));
+        }
+        if let Some(block) = &request.block {
+            context.insert_param(LootParamValue::BlockState(block.clone()));
+        }
+        if let Some(tool) = &request.tool {
+            context.insert_param(LootParamValue::Tool(tool.clone()));
+        }
         if let Some(actor) = &request.actor {
             context
                 .entity_properties
                 .insert("actor".to_string(), actor.clone());
         }
         if let Some(target) = &request.target_entity {
-            context
-                .entity_properties
-                .insert("this_entity".to_string(), target.clone());
+            context.insert_param(LootParamValue::ThisEntity(target.clone()));
         }
         if let Some(damage_source) = &request.damage_source {
-            context
-                .entity_properties
-                .insert("damage_source".to_string(), damage_source.clone());
+            context.insert_param(LootParamValue::DamageSource(damage_source.clone()));
         }
         context
     }
@@ -811,6 +980,7 @@ pub enum NumberProvider {
     Binomial { n: i32, p: f32 },
     Score { name: String, scale: f32 },
     Storage { key: String, scale: f32 },
+    EnchantmentLevel { scale: f32 },
 }
 
 impl NumberProvider {
@@ -837,6 +1007,7 @@ impl NumberProvider {
             Self::Storage { key, scale } => {
                 context.storage_numbers.get(key).copied().unwrap_or(0.0) * *scale
             }
+            Self::EnchantmentLevel { scale } => context.enchantment_level as f32 * *scale,
         }
     }
 
@@ -846,6 +1017,7 @@ impl NumberProvider {
             Self::Uniform { min, .. } => *min,
             Self::Binomial { .. } => 0.0,
             Self::Score { .. } | Self::Storage { .. } => f32::MIN,
+            Self::EnchantmentLevel { .. } => 0.0,
         }
     }
 }
@@ -994,9 +1166,14 @@ impl LootFunction {
 #[derive(Debug, Clone)]
 pub struct LootContext {
     pub param_set: LootParamSet,
+    pub entity_type: LootContextEntityType,
+    pub params: LootParams,
+    pub dynamic_params: HashMap<LootDynamicParamKey, LootDynamicParamValue>,
     pub random: DeterministicRandom,
     pub luck: f32,
     pub looting_level: i32,
+    pub enchantment_level: i32,
+    pub enchantment_active: bool,
     pub killed_by_player: bool,
     pub explosion_radius: Option<f32>,
     pub game_time: i64,
@@ -1019,9 +1196,14 @@ impl LootContext {
     pub fn new(param_set: LootParamSet, seed: u64) -> Self {
         Self {
             param_set,
+            entity_type: entity_type_for_param_set(param_set),
+            params: LootParams::default(),
+            dynamic_params: HashMap::new(),
             random: DeterministicRandom::new(seed),
             luck: 0.0,
             looting_level: 0,
+            enchantment_level: 0,
+            enchantment_active: false,
             killed_by_player: false,
             explosion_radius: None,
             game_time: 0,
@@ -1044,9 +1226,14 @@ impl LootContext {
     fn clone_for_condition(&self) -> Self {
         Self {
             param_set: self.param_set,
+            entity_type: self.entity_type,
+            params: self.params.clone(),
+            dynamic_params: self.dynamic_params.clone(),
             random: self.random,
             luck: self.luck,
             looting_level: self.looting_level,
+            enchantment_level: self.enchantment_level,
+            enchantment_active: self.enchantment_active,
             killed_by_player: self.killed_by_player,
             explosion_radius: self.explosion_radius,
             game_time: self.game_time,
@@ -1080,6 +1267,75 @@ impl LootContext {
 
     fn use_random_sequence(&mut self, sequence: &str) {
         self.random = DeterministicRandom::new(hash_seed(self.base_seed, sequence));
+    }
+
+    pub fn insert_param(&mut self, value: LootParamValue) {
+        match &value {
+            LootParamValue::BlockState(block) => self.block = Some(block.clone()),
+            LootParamValue::Origin(x, y, z) => {
+                self.entity_properties
+                    .insert("origin".to_string(), format!("{x},{y},{z}"));
+            }
+            LootParamValue::Tool(tool) => self.tool = Some(tool.clone()),
+            LootParamValue::ThisEntity(entity) => {
+                self.entity_properties
+                    .insert("this_entity".to_string(), entity.clone());
+            }
+            LootParamValue::LastDamagePlayer(player) => {
+                self.killed_by_player = true;
+                self.entity_properties
+                    .insert("last_damage_player".to_string(), player.clone());
+            }
+            LootParamValue::KillerEntity(entity) => {
+                self.entity_properties
+                    .insert("killer_entity".to_string(), entity.clone());
+            }
+            LootParamValue::DirectKillerEntity(entity) => {
+                self.entity_properties
+                    .insert("direct_killer_entity".to_string(), entity.clone());
+            }
+            LootParamValue::ExplosionRadius(radius) => self.explosion_radius = Some(*radius),
+            LootParamValue::DamageSource(source) => {
+                self.entity_properties
+                    .insert("damage_source".to_string(), source.clone());
+            }
+            LootParamValue::BlockEntity(entity) => {
+                self.entity_properties
+                    .insert("block_entity".to_string(), entity.clone());
+            }
+        }
+        self.params.insert(value);
+    }
+
+    pub fn insert_dynamic_param(&mut self, value: LootDynamicParamValue) {
+        match &value {
+            LootDynamicParamValue::EnchantmentLevel(level) => self.enchantment_level = *level,
+            LootDynamicParamValue::EnchantmentActive(active) => self.enchantment_active = *active,
+            LootDynamicParamValue::AttackingEntity(entity) => {
+                self.entity_properties
+                    .insert("attacking_entity".to_string(), entity.clone());
+            }
+        }
+        self.dynamic_params.insert(value.key(), value);
+    }
+}
+
+fn entity_type_for_param_set(param_set: LootParamSet) -> LootContextEntityType {
+    match param_set {
+        LootParamSet::Block => LootContextEntityType::Block,
+        LootParamSet::Entity => LootContextEntityType::Entity,
+        LootParamSet::Chest => LootContextEntityType::Chest,
+        LootParamSet::Fishing => LootContextEntityType::Fishing,
+        LootParamSet::Archaeology => LootContextEntityType::Archaeology,
+        LootParamSet::AdvancementReward => LootContextEntityType::AdvancementReward,
+        LootParamSet::Gift => LootContextEntityType::Gift,
+        LootParamSet::Barter => LootContextEntityType::Barter,
+        LootParamSet::Vault => LootContextEntityType::Vault,
+        LootParamSet::Command => LootContextEntityType::Command,
+        LootParamSet::Selector => LootContextEntityType::Selector,
+        LootParamSet::AdvancementEntity => LootContextEntityType::AdvancementEntity,
+        LootParamSet::Equipment => LootContextEntityType::Equipment,
+        LootParamSet::Empty | LootParamSet::AllParams => LootContextEntityType::Command,
     }
 }
 
@@ -1154,6 +1410,79 @@ mod tests {
             pools: vec![pool],
             functions: Vec::new(),
         }
+    }
+
+    #[test]
+    fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
+        let entity_types = [
+            LootContextEntityType::Block,
+            LootContextEntityType::Entity,
+            LootContextEntityType::Chest,
+            LootContextEntityType::Fishing,
+            LootContextEntityType::Archaeology,
+            LootContextEntityType::AdvancementReward,
+            LootContextEntityType::Gift,
+            LootContextEntityType::Barter,
+            LootContextEntityType::Vault,
+            LootContextEntityType::Command,
+            LootContextEntityType::Selector,
+            LootContextEntityType::AdvancementEntity,
+            LootContextEntityType::Equipment,
+        ];
+        assert_eq!(entity_types.len(), 13);
+        assert_eq!(
+            LootSurface::Vault.entity_type(),
+            LootContextEntityType::Vault
+        );
+        assert_eq!(
+            LootContextEntityType::Equipment.param_set(),
+            LootParamSet::Equipment
+        );
+
+        let mut params = LootParams::default();
+        for value in [
+            LootParamValue::BlockState("minecraft:stone".to_string()),
+            LootParamValue::BlockEntity("Chest".to_string()),
+            LootParamValue::Origin(1.0, 64.0, 2.0),
+            LootParamValue::Tool("minecraft:diamond_pickaxe".to_string()),
+            LootParamValue::ThisEntity("Zombie".to_string()),
+            LootParamValue::LastDamagePlayer("Steve".to_string()),
+            LootParamValue::KillerEntity("Steve".to_string()),
+            LootParamValue::DirectKillerEntity("Arrow".to_string()),
+            LootParamValue::ExplosionRadius(2.0),
+            LootParamValue::DamageSource("minecraft:player_attack".to_string()),
+        ] {
+            params.insert(value);
+        }
+        assert_eq!(params.keys().len(), 10);
+        assert!(matches!(
+            params.get(LootParamKey::DamageSource),
+            Some(LootParamValue::DamageSource(id)) if id == "minecraft:player_attack"
+        ));
+
+        let mut context = LootContext::new(LootParamSet::Entity, 4);
+        context.insert_param(LootParamValue::ThisEntity("Zombie".to_string()));
+        context.insert_param(LootParamValue::LastDamagePlayer("Steve".to_string()));
+        context.insert_param(LootParamValue::ExplosionRadius(3.0));
+        context.insert_dynamic_param(LootDynamicParamValue::EnchantmentLevel(5));
+        context.insert_dynamic_param(LootDynamicParamValue::EnchantmentActive(true));
+        context.insert_dynamic_param(LootDynamicParamValue::AttackingEntity("Steve".to_string()));
+
+        assert_eq!(context.params.keys().len(), 3);
+        assert_eq!(context.enchantment_level, 5);
+        assert!(context.enchantment_active);
+        assert!(context.killed_by_player);
+        assert_eq!(context.explosion_radius, Some(3.0));
+        assert_eq!(
+            NumberProvider::EnchantmentLevel { scale: 2.0 }.float(&mut context),
+            10.0
+        );
+        assert!(matches!(
+            context
+                .dynamic_params
+                .get(&LootDynamicParamKey::AttackingEntity),
+            Some(LootDynamicParamValue::AttackingEntity(entity)) if entity == "Steve"
+        ));
     }
 
     #[test]
