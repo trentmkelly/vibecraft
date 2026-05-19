@@ -64,7 +64,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Entity Metadata Packets
 
-- [ ] `ClientboundSetEntityDataPacket` (0x54): entity ID, packed metadata list (index byte, type VarInt, value encoded by type)
+- [x] `ClientboundSetEntityDataPacket` (0x54): entity ID, packed metadata list (index byte, type VarInt, value encoded by type)
 - [ ] Implement all 26.1.2 entity metadata types: byte, varint, varlong, float, string, chat component, optional chat, item stack, boolean, rotations, block pos, optional block pos, direction, optional UUID, optional block state ID, optional global pos, nbt, particle, particle list, villager data, optional varint, pose, cat variant, wolf variant, frog variant, optional global position, painting variant, sniffer state, armadillo state, vector3f, quaternionf
 - [ ] Implement entity metadata indexes for every entity type hierarchy (Entity, LivingEntity, Mob, PathfinderMob, Animal, Player, each monster/animal subtype)
 - [x] `ClientboundUpdateAttributesPacket` (0x72): entity ID, attribute registry holder ID, base value, modifier list with identifier/amount/operation

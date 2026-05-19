@@ -2973,6 +2973,24 @@ impl ClientboundRemoveEntitiesPacket {
     }
 }
 
+impl ClientboundSetEntityDataPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        for item in &self.packed_items {
+            item.write(writer)?;
+        }
+        writer.write_all(&[0xff])
+    }
+}
+
+impl EntityDataValue {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.index])?;
+        write_var_i32(writer, self.serializer_id)?;
+        writer.write_all(&self.encoded_payload)
+    }
+}
+
 impl ClientboundMoveEntityPacket {
     pub fn pos(id: i32, delta: [i16; 3], on_ground: bool) -> Self {
         Self {
@@ -6854,7 +6872,12 @@ mod tests {
         .instructions();
 
         assert!(matches!(instructions[0], PlayInstruction::AddEntity(_)));
-        assert!(matches!(instructions[1], PlayInstruction::SetEntityData(_)));
+        let PlayInstruction::SetEntityData(metadata) = &instructions[1] else {
+            panic!("expected set entity data instruction");
+        };
+        let mut metadata_payload = Vec::new();
+        metadata.write(&mut metadata_payload).unwrap();
+        assert_eq!(metadata_payload, vec![7, 0, 0, 0x20, 0xff]);
         assert!(matches!(
             instructions[2],
             PlayInstruction::SetEntityMotion(_)

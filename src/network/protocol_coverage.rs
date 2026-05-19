@@ -1259,7 +1259,8 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_entity_data",
         java_class: "ClientboundSetEntityDataPacket",
-        field_order: "id:var_int, packed_items:data_value_list",
+        field_order:
+            "id:var_int, packed_items:(index:u8, serializer_id:var_int, serializer payload)*, eof:0xff",
     },
     PlayPacketSpec {
         id: 100,
