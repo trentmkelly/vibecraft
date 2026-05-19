@@ -88,7 +88,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Inventory / Container Packets (Serverbound)
 
-- [ ] `ServerboundContainerClickPacket` (0x0C): window ID byte, state ID VarInt, slot short, button byte, click type VarInt, changed slots map, carried item
+- [x] `ServerboundContainerClickPacket` (0x12): container ID VarInt, state ID VarInt, slot short, button byte, container input VarInt id mapper, changed slots map capped at 128 entries, carried `HashedStack`
 - [x] `ServerboundContainerClosePacket` (0x13): container ID VarInt
 - [x] `ServerboundSetCarriedItemPacket` (0x35): slot short
 - [x] `ServerboundPickItemFromBlockPacket` (0x24): block pos, include-data bool; `ServerboundPickItemFromEntityPacket` (0x25): entity ID VarInt, include-data bool
@@ -96,7 +96,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
 - [x] `ServerboundSelectTradePacket` (0x33): item number VarInt
 - [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
-- [ ] `ServerboundSetCreativeModeSlotPacket` (0x2D): slot short, item
+- [x] `ServerboundSetCreativeModeSlotPacket` (0x38): slot short, `ItemStack.OPTIONAL_UNTRUSTED_STREAM_CODEC` with count VarInt, optional item registry ID, and delimited data component patch framing
 - [x] `ServerboundContainerButtonClickPacket` (0x11): container ID VarInt, button ID VarInt
 
 ## Recipe / Advancement / Unlock Packets

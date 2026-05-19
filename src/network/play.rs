@@ -61,6 +61,7 @@ pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
 pub const SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID: i32 = 54;
 pub const SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID: i32 = 55;
+pub const SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID: i32 = 56;
 pub const SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID: i32 = 59;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
@@ -517,6 +518,60 @@ pub struct ServerboundContainerClosePacket {
 pub struct ServerboundContainerButtonClickPacket {
     pub container_id: i32,
     pub button_id: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawDataComponentPatch {
+    pub added: Vec<(i32, Vec<u8>)>,
+    pub removed: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawItemStack {
+    pub count: i32,
+    pub item_id: Option<i32>,
+    pub components: RawDataComponentPatch,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashedPatchMap {
+    pub added_component_hashes: Vec<(i32, i32)>,
+    pub removed_components: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashedStack {
+    pub item_id: Option<i32>,
+    pub count: i32,
+    pub components: HashedPatchMap,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerInput {
+    Pickup,
+    QuickMove,
+    Swap,
+    Clone,
+    Throw,
+    QuickCraft,
+    PickupAll,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundContainerClickPacket {
+    pub container_id: i32,
+    pub state_id: i32,
+    pub slot_num: i16,
+    pub button_num: i8,
+    pub container_input: ContainerInput,
+    pub changed_slots: BTreeMap<i32, HashedStack>,
+    pub carried_item: HashedStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetCreativeModeSlotPacket {
+    pub slot_num: i16,
+    pub item_stack: RawItemStack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1316,6 +1371,8 @@ pub struct PlaySession {
     pub last_resource_pack_response: Option<ServerboundResourcePackPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
+    pub last_container_click: Option<ServerboundContainerClickPacket>,
+    pub last_set_creative_mode_slot: Option<ServerboundSetCreativeModeSlotPacket>,
     pub last_pick_item_from_block: Option<ServerboundPickItemFromBlockPacket>,
     pub last_pick_item_from_entity: Option<ServerboundPickItemFromEntityPacket>,
     pub last_recipe_book_change_settings: Option<ServerboundRecipeBookChangeSettingsPacket>,
@@ -1423,6 +1480,8 @@ impl PlaySession {
             last_resource_pack_response: None,
             last_container_close: None,
             last_container_button_click: None,
+            last_container_click: None,
+            last_set_creative_mode_slot: None,
             last_pick_item_from_block: None,
             last_pick_item_from_entity: None,
             last_recipe_book_change_settings: None,
@@ -1648,6 +1707,18 @@ impl PlaySession {
                     Err(err) => DispatchOutcome::Disconnect(format!(
                         "bad container button click packet: {err}"
                     )),
+                }
+            }
+            SERVERBOUND_CONTAINER_CLICK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundContainerClickPacket::read(&mut input) {
+                    Ok(click) => {
+                        self.last_container_click = Some(click);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad container click packet: {err}"))
+                    }
                 }
             }
             SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
@@ -1923,6 +1994,18 @@ impl PlaySession {
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!(
                         "bad set command minecart packet: {err}"
+                    )),
+                }
+            }
+            SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSetCreativeModeSlotPacket::read(&mut input) {
+                    Ok(slot) => {
+                        self.last_set_creative_mode_slot = Some(slot);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad set creative mode slot packet: {err}"
                     )),
                 }
             }
@@ -3667,6 +3750,257 @@ impl ServerboundContainerButtonClickPacket {
     }
 }
 
+impl RawDataComponentPatch {
+    pub fn empty() -> Self {
+        Self {
+            added: Vec::new(),
+            removed: Vec::new(),
+        }
+    }
+
+    pub fn read_delimited<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let added_count = read_limited_len(reader, 65536, "data component add count")?;
+        let removed_count = read_limited_len(reader, 65536, "data component remove count")?;
+        let mut added = Vec::with_capacity(added_count);
+        for _ in 0..added_count {
+            let component_type_id = read_var_i32(reader)?;
+            let payload = read_length_prefixed_bytes(reader, i32::MAX as usize)?;
+            added.push((component_type_id, payload));
+        }
+        let mut removed = Vec::with_capacity(removed_count);
+        for _ in 0..removed_count {
+            removed.push(read_var_i32(reader)?);
+        }
+        Ok(Self { added, removed })
+    }
+
+    pub fn write_delimited<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.added.len() as i32)?;
+        write_var_i32(writer, self.removed.len() as i32)?;
+        for (component_type_id, payload) in &self.added {
+            write_var_i32(writer, *component_type_id)?;
+            write_length_prefixed_bytes(writer, payload, i32::MAX as usize)?;
+        }
+        for component_type_id in &self.removed {
+            write_var_i32(writer, *component_type_id)?;
+        }
+        Ok(())
+    }
+}
+
+impl RawItemStack {
+    pub fn empty() -> Self {
+        Self {
+            count: 0,
+            item_id: None,
+            components: RawDataComponentPatch::empty(),
+        }
+    }
+
+    pub fn read_optional_untrusted<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let count = read_var_i32(reader)?;
+        if count <= 0 {
+            return Ok(Self::empty());
+        }
+        Ok(Self {
+            count,
+            item_id: Some(read_var_i32(reader)?),
+            components: RawDataComponentPatch::read_delimited(reader)?,
+        })
+    }
+
+    pub fn write_optional_untrusted<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.count <= 0 {
+            return write_var_i32(writer, 0);
+        }
+        let item_id = self.item_id.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "non-empty item stack missing item id",
+            )
+        })?;
+        write_var_i32(writer, self.count)?;
+        write_var_i32(writer, item_id)?;
+        self.components.write_delimited(writer)
+    }
+}
+
+impl HashedPatchMap {
+    pub const MAX_HASHED_COMPONENTS: usize = 256;
+
+    pub fn empty() -> Self {
+        Self {
+            added_component_hashes: Vec::new(),
+            removed_components: Vec::new(),
+        }
+    }
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let added_len = read_limited_len(
+            reader,
+            Self::MAX_HASHED_COMPONENTS,
+            "hashed patch add count",
+        )?;
+        let mut added_component_hashes = Vec::with_capacity(added_len);
+        for _ in 0..added_len {
+            added_component_hashes.push((read_var_i32(reader)?, read_i32(reader)?));
+        }
+        let removed_len = read_limited_len(
+            reader,
+            Self::MAX_HASHED_COMPONENTS,
+            "hashed patch remove count",
+        )?;
+        let mut removed_components = Vec::with_capacity(removed_len);
+        for _ in 0..removed_len {
+            removed_components.push(read_var_i32(reader)?);
+        }
+        Ok(Self {
+            added_component_hashes,
+            removed_components,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.added_component_hashes.len() > Self::MAX_HASHED_COMPONENTS
+            || self.removed_components.len() > Self::MAX_HASHED_COMPONENTS
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "too many hashed patch components",
+            ));
+        }
+        write_var_i32(writer, self.added_component_hashes.len() as i32)?;
+        for (component_type_id, hash) in &self.added_component_hashes {
+            write_var_i32(writer, *component_type_id)?;
+            write_i32(writer, *hash)?;
+        }
+        write_var_i32(writer, self.removed_components.len() as i32)?;
+        for component_type_id in &self.removed_components {
+            write_var_i32(writer, *component_type_id)?;
+        }
+        Ok(())
+    }
+}
+
+impl HashedStack {
+    pub fn empty() -> Self {
+        Self {
+            item_id: None,
+            count: 0,
+            components: HashedPatchMap::empty(),
+        }
+    }
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        if !read_bool(reader)? {
+            return Ok(Self::empty());
+        }
+        Ok(Self {
+            item_id: Some(read_var_i32(reader)?),
+            count: read_var_i32(reader)?,
+            components: HashedPatchMap::read(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self.item_id {
+            Some(item_id) => {
+                write_bool(writer, true)?;
+                write_var_i32(writer, item_id)?;
+                write_var_i32(writer, self.count)?;
+                self.components.write(writer)
+            }
+            None => write_bool(writer, false),
+        }
+    }
+}
+
+impl ContainerInput {
+    fn from_wire_id(id: i32) -> Self {
+        match id {
+            1 => Self::QuickMove,
+            2 => Self::Swap,
+            3 => Self::Clone,
+            4 => Self::Throw,
+            5 => Self::QuickCraft,
+            6 => Self::PickupAll,
+            _ => Self::Pickup,
+        }
+    }
+
+    fn to_wire_id(self) -> i32 {
+        match self {
+            Self::Pickup => 0,
+            Self::QuickMove => 1,
+            Self::Swap => 2,
+            Self::Clone => 3,
+            Self::Throw => 4,
+            Self::QuickCraft => 5,
+            Self::PickupAll => 6,
+        }
+    }
+}
+
+impl ServerboundContainerClickPacket {
+    pub const MAX_CHANGED_SLOTS: usize = 128;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let container_id = read_var_i32(reader)?;
+        let state_id = read_var_i32(reader)?;
+        let slot_num = read_i16(reader)?;
+        let button_num = read_i8(reader)?;
+        let container_input = ContainerInput::from_wire_id(read_var_i32(reader)?);
+        let changed_len = read_limited_len(reader, Self::MAX_CHANGED_SLOTS, "changed slot count")?;
+        let mut changed_slots = BTreeMap::new();
+        for _ in 0..changed_len {
+            changed_slots.insert(read_i16(reader)? as i32, HashedStack::read(reader)?);
+        }
+        Ok(Self {
+            container_id,
+            state_id,
+            slot_num,
+            button_num,
+            container_input,
+            changed_slots,
+            carried_item: HashedStack::read(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.changed_slots.len() > Self::MAX_CHANGED_SLOTS {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "too many changed slots",
+            ));
+        }
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.state_id)?;
+        write_i16(writer, self.slot_num)?;
+        write_i8(writer, self.button_num)?;
+        write_var_i32(writer, self.container_input.to_wire_id())?;
+        write_var_i32(writer, self.changed_slots.len() as i32)?;
+        for (slot, stack) in &self.changed_slots {
+            write_i16(writer, *slot as i16)?;
+            stack.write(writer)?;
+        }
+        self.carried_item.write(writer)
+    }
+}
+
+impl ServerboundSetCreativeModeSlotPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            slot_num: read_i16(reader)?,
+            item_stack: RawItemStack::read_optional_untrusted(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i16(writer, self.slot_num)?;
+        self.item_stack.write_optional_untrusted(writer)
+    }
+}
+
 impl ServerboundCommandSuggestionPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
@@ -4359,6 +4693,14 @@ fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
     Ok(byte[0])
 }
 
+fn read_i8<R: Read>(reader: &mut R) -> io::Result<i8> {
+    Ok(read_u8(reader)? as i8)
+}
+
+fn write_i8<W: Write>(writer: &mut W, value: i8) -> io::Result<()> {
+    writer.write_all(&[value as u8])
+}
+
 fn read_clamped_i8<R: Read>(reader: &mut R, min: i8, max: i8) -> io::Result<i8> {
     Ok((read_u8(reader)? as i8).clamp(min, max))
 }
@@ -4385,6 +4727,26 @@ fn read_f32<R: Read>(reader: &mut R) -> io::Result<f32> {
 }
 
 fn write_f32<W: Write>(writer: &mut W, value: f32) -> io::Result<()> {
+    writer.write_all(&value.to_be_bytes())
+}
+
+fn read_i16<R: Read>(reader: &mut R) -> io::Result<i16> {
+    let mut bytes = [0u8; 2];
+    reader.read_exact(&mut bytes)?;
+    Ok(i16::from_be_bytes(bytes))
+}
+
+fn write_i16<W: Write>(writer: &mut W, value: i16) -> io::Result<()> {
+    writer.write_all(&value.to_be_bytes())
+}
+
+fn read_i32<R: Read>(reader: &mut R) -> io::Result<i32> {
+    let mut bytes = [0u8; 4];
+    reader.read_exact(&mut bytes)?;
+    Ok(i32::from_be_bytes(bytes))
+}
+
+fn write_i32<W: Write>(writer: &mut W, value: i32) -> io::Result<()> {
     writer.write_all(&value.to_be_bytes())
 }
 
@@ -4447,6 +4809,18 @@ where
         values.push(read(reader)?);
     }
     Ok(values)
+}
+
+fn read_limited_len<R: Read>(
+    reader: &mut R,
+    max_len: usize,
+    description: &'static str,
+) -> io::Result<usize> {
+    let len = read_var_i32(reader)?;
+    if len < 0 || len as usize > max_len {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, description));
+    }
+    Ok(len as usize)
 }
 
 fn read_f64<R: Read>(reader: &mut R) -> io::Result<f64> {
@@ -5609,6 +5983,17 @@ mod tests {
             DispatchOutcome::Disconnect(_)
         ));
         assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_CONTAINER_CLICK_PACKET_ID, vec![1, 2])),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID,
+                vec![0]
+            )),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
             session.handle_decoded(decoded(
                 SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID,
                 vec![0; 24]
@@ -6348,6 +6733,94 @@ mod tests {
             session.last_container_button_click,
             Some(container_button_click)
         );
+
+        let creative_slot = ServerboundSetCreativeModeSlotPacket {
+            slot_num: -1,
+            item_stack: RawItemStack {
+                count: 3,
+                item_id: Some(42),
+                components: RawDataComponentPatch {
+                    added: vec![(7, vec![0xaa, 0xbb])],
+                    removed: vec![9],
+                },
+            },
+        };
+        let mut creative_slot_payload = Vec::new();
+        creative_slot.write(&mut creative_slot_payload).unwrap();
+        assert_eq!(
+            creative_slot_payload,
+            vec![0xff, 0xff, 3, 42, 1, 1, 7, 2, 0xaa, 0xbb, 9]
+        );
+        assert_eq!(
+            ServerboundSetCreativeModeSlotPacket::read(&mut cursor(creative_slot_payload.clone()))
+                .unwrap(),
+            creative_slot
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID,
+                creative_slot_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_set_creative_mode_slot, Some(creative_slot));
+
+        let mut changed_slots = BTreeMap::new();
+        changed_slots.insert(
+            5,
+            HashedStack {
+                item_id: Some(42),
+                count: 3,
+                components: HashedPatchMap {
+                    added_component_hashes: vec![(7, 0x01020304)],
+                    removed_components: vec![9],
+                },
+            },
+        );
+        let container_click = ServerboundContainerClickPacket {
+            container_id: 1,
+            state_id: 2,
+            slot_num: -1,
+            button_num: -2,
+            container_input: ContainerInput::Throw,
+            changed_slots,
+            carried_item: HashedStack::empty(),
+        };
+        let mut container_click_payload = Vec::new();
+        container_click.write(&mut container_click_payload).unwrap();
+        assert_eq!(
+            container_click_payload,
+            vec![1, 2, 0xff, 0xff, 0xfe, 4, 1, 0, 5, 1, 42, 3, 1, 7, 1, 2, 3, 4, 1, 9, 0]
+        );
+        assert_eq!(
+            ServerboundContainerClickPacket::read(&mut cursor(container_click_payload.clone()))
+                .unwrap(),
+            container_click
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
+                container_click_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_container_click, Some(container_click));
+        let mut too_many_changed_slots = vec![1, 2, 0, 0, 0, 0];
+        write_var_i32(&mut too_many_changed_slots, 129).unwrap();
+        assert!(
+            ServerboundContainerClickPacket::read(&mut cursor(too_many_changed_slots)).is_err()
+        );
+        assert!(ServerboundContainerClickPacket {
+            container_id: 0,
+            state_id: 0,
+            slot_num: 0,
+            button_num: 0,
+            container_input: ContainerInput::Pickup,
+            changed_slots: (0..129).map(|slot| (slot, HashedStack::empty())).collect(),
+            carried_item: HashedStack::empty(),
+        }
+        .write(&mut Vec::new())
+        .is_err());
 
         let edit_book = ServerboundEditBookPacket {
             slot: 1,

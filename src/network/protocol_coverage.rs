@@ -207,7 +207,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "container_click",
         java_class: "ServerboundContainerClickPacket",
-        field_order: "unparsed",
+        field_order: "container_id:CONTAINER_ID VarInt, state_id:VarInt, slot_num:i16, button_num:i8, container_input:VarInt id mapper, changed_slots:map max 128 of slot i16 to HashedStack, carried_item:HashedStack",
     },
     PlayPacketSpec {
         id: 19,
@@ -473,7 +473,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_creative_mode_slot",
         java_class: "ServerboundSetCreativeModeSlotPacket",
-        field_order: "unparsed",
+        field_order: "slot_num:i16, item_stack:validated ItemStack.OPTIONAL_UNTRUSTED_STREAM_CODEC encoded as count VarInt, optional item registry id, delimited data component patch",
     },
     PlayPacketSpec {
         id: 57,
