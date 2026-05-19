@@ -1194,6 +1194,19 @@ pub struct ClientboundSystemChatPacket {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundDisguisedChatPacket {
+    pub message: Tag,
+    pub chat_type: ChatTypeBound,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChatTypeBound {
+    pub chat_type_id: i32,
+    pub name: Tag,
+    pub target_name: Option<Tag>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundTabListPacket {
     pub header: Tag,
     pub footer: Tag,
@@ -3242,6 +3255,23 @@ impl ClientboundSystemChatPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_network_tag(writer, &self.content)?;
         write_bool(writer, self.overlay)
+    }
+}
+
+impl ClientboundDisguisedChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.message)?;
+        self.chat_type.write(writer)
+    }
+}
+
+impl ChatTypeBound {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.chat_type_id + 1)?;
+        write_network_tag(writer, &self.name)?;
+        write_optional(writer, self.target_name.as_ref(), |writer, target_name| {
+            write_network_tag(writer, target_name)
+        })
     }
 }
 
@@ -6953,6 +6983,24 @@ mod tests {
         .unwrap();
         assert!(system_chat.starts_with(&title));
         assert_eq!(*system_chat.last().unwrap(), 1);
+
+        let mut disguised_chat = Vec::new();
+        ClientboundDisguisedChatPacket {
+            message: title_tag.clone(),
+            chat_type: ChatTypeBound {
+                chat_type_id: 0,
+                name: Tag::Compound(vec![("text".to_string(), Tag::String("Steve".to_string()))]),
+                target_name: Some(Tag::Compound(vec![(
+                    "text".to_string(),
+                    Tag::String("Alex".to_string()),
+                )])),
+            },
+        }
+        .write(&mut disguised_chat)
+        .unwrap();
+        assert!(disguised_chat.starts_with(&title));
+        assert!(disguised_chat.windows(3).any(|window| window == [0, 1, 10]));
+        assert!(disguised_chat.ends_with(&[0]));
 
         let footer_tag = Tag::Compound(vec![(
             "text".to_string(),

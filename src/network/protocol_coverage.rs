@@ -796,7 +796,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "disguised_chat",
         java_class: "ClientboundDisguisedChatPacket",
-        field_order: "unparsed",
+        field_order: "message:ComponentSerialization.TRUSTED_STREAM_CODEC as network NBT tag, chatType:ChatType.Bound(chatType:Holder<ChatType> id+1, name:trusted Component network NBT tag, targetName:Optional<trusted Component network NBT tag>)",
     },
     PlayPacketSpec {
         id: 34,
