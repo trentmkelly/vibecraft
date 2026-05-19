@@ -321,6 +321,38 @@ pub const CAMEL_METADATA: &[EntityMetadataField] = &[
     field("Camel", 20, "LAST_POSE_CHANGE_TICK", "LONG"),
 ];
 
+pub const ABSTRACT_FISH_METADATA: &[EntityMetadataField] =
+    &[field("AbstractFish", 16, "FROM_BUCKET", "BOOLEAN")];
+
+pub const PUFFERFISH_METADATA: &[EntityMetadataField] =
+    &[field("Pufferfish", 17, "PUFF_STATE", "INT")];
+
+pub const SALMON_METADATA: &[EntityMetadataField] = &[field("Salmon", 17, "DATA_TYPE", "INT")];
+
+pub const TROPICAL_FISH_METADATA: &[EntityMetadataField] =
+    &[field("TropicalFish", 17, "DATA_ID_TYPE_VARIANT", "INT")];
+
+pub const TADPOLE_METADATA: &[EntityMetadataField] =
+    &[field("Tadpole", 17, "AGE_LOCKED", "BOOLEAN")];
+
+pub const GLOW_SQUID_METADATA: &[EntityMetadataField] =
+    &[field("GlowSquid", 18, "DATA_DARK_TICKS_REMAINING", "INT")];
+
+pub const DOLPHIN_METADATA: &[EntityMetadataField] = &[
+    field("Dolphin", 18, "GOT_FISH", "BOOLEAN"),
+    field("Dolphin", 19, "MOISTNESS_LEVEL", "INT"),
+];
+
+pub const ABSTRACT_NAUTILUS_METADATA: &[EntityMetadataField] =
+    &[field("AbstractNautilus", 20, "DASH", "BOOLEAN")];
+
+pub const ZOMBIE_NAUTILUS_METADATA: &[EntityMetadataField] = &[field(
+    "ZombieNautilus",
+    21,
+    "DATA_VARIANT_ID",
+    "ZOMBIE_NAUTILUS_VARIANT",
+)];
+
 pub const AREA_EFFECT_CLOUD_METADATA: &[EntityMetadataField] = &[
     field("AreaEffectCloud", 8, "DATA_RADIUS", "FLOAT"),
     field("AreaEffectCloud", 9, "DATA_WAITING", "BOOLEAN"),
@@ -581,6 +613,33 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
     class("Mule", Some("AbstractChestedHorse"), &[]),
     class("Camel", Some("AbstractHorse"), CAMEL_METADATA),
     class("CamelHusk", Some("Camel"), &[]),
+    class("WaterAnimal", Some("PathfinderMob"), &[]),
+    class("AbstractFish", Some("WaterAnimal"), ABSTRACT_FISH_METADATA),
+    class("AbstractSchoolingFish", Some("AbstractFish"), &[]),
+    class("Cod", Some("AbstractSchoolingFish"), &[]),
+    class("Pufferfish", Some("AbstractFish"), PUFFERFISH_METADATA),
+    class("Salmon", Some("AbstractSchoolingFish"), SALMON_METADATA),
+    class(
+        "TropicalFish",
+        Some("AbstractSchoolingFish"),
+        TROPICAL_FISH_METADATA,
+    ),
+    class("Tadpole", Some("AbstractFish"), TADPOLE_METADATA),
+    class("AgeableWaterCreature", Some("Animal"), &[]),
+    class("Squid", Some("AgeableWaterCreature"), &[]),
+    class("GlowSquid", Some("Squid"), GLOW_SQUID_METADATA),
+    class("Dolphin", Some("AgeableWaterCreature"), DOLPHIN_METADATA),
+    class(
+        "AbstractNautilus",
+        Some("TamableAnimal"),
+        ABSTRACT_NAUTILUS_METADATA,
+    ),
+    class("Nautilus", Some("AbstractNautilus"), &[]),
+    class(
+        "ZombieNautilus",
+        Some("AbstractNautilus"),
+        ZOMBIE_NAUTILUS_METADATA,
+    ),
     class(
         "AreaEffectCloud",
         Some("Entity"),
@@ -870,6 +929,35 @@ mod tests {
         assert_eq!(camel[18].accessor, "DATA_ID_FLAGS");
         assert_eq!(camel[19].accessor, "DASH");
         assert_eq!(camel[20].serializer, "LONG");
+    }
+
+    #[test]
+    fn aquatic_entity_metadata_follows_water_and_animal_branches() {
+        let cod = inherited_metadata_fields("Cod").unwrap();
+        assert_eq!(cod[15].accessor, "DATA_MOB_FLAGS_ID");
+        assert_eq!(cod[16].accessor, "FROM_BUCKET");
+
+        let pufferfish = inherited_metadata_fields("Pufferfish").unwrap();
+        assert_eq!(pufferfish[16].accessor, "FROM_BUCKET");
+        assert_eq!(pufferfish[17].accessor, "PUFF_STATE");
+
+        let tropical_fish = inherited_metadata_fields("TropicalFish").unwrap();
+        assert_eq!(tropical_fish[17].accessor, "DATA_ID_TYPE_VARIANT");
+
+        let tadpole = inherited_metadata_fields("Tadpole").unwrap();
+        assert_eq!(tadpole[17].accessor, "AGE_LOCKED");
+
+        let glow_squid = inherited_metadata_fields("GlowSquid").unwrap();
+        assert_eq!(glow_squid[16].accessor, "DATA_BABY_ID");
+        assert_eq!(glow_squid[18].accessor, "DATA_DARK_TICKS_REMAINING");
+
+        let dolphin = inherited_metadata_fields("Dolphin").unwrap();
+        assert_eq!(dolphin[18].accessor, "GOT_FISH");
+        assert_eq!(dolphin[19].accessor, "MOISTNESS_LEVEL");
+
+        let zombie_nautilus = inherited_metadata_fields("ZombieNautilus").unwrap();
+        assert_eq!(zombie_nautilus[20].accessor, "DASH");
+        assert_eq!(zombie_nautilus[21].serializer, "ZOMBIE_NAUTILUS_VARIANT");
     }
 
     #[test]
