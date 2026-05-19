@@ -68,9 +68,9 @@
 
 ## Command Parse Tree Validation
 
-- [ ] Validate command parse tree dump against vanilla `/brigadier dump` or equivalent: all root literals, argument types, redirects, and permission-level gates match
-- [ ] Validate signed argument metadata: which commands require signed arguments in online mode matches vanilla
-- [ ] Validate tab-completion ordering: alphabetical or vanilla-order for all command literals and subcommands
+- [x] Validate command parse tree dump against vanilla `/brigadier dump` or equivalent: all root literals, argument types, redirects, and permission-level gates match
+- [x] Validate signed argument metadata: which commands require signed arguments in online mode matches vanilla
+- [x] Validate tab-completion ordering: alphabetical or vanilla-order for all command literals and subcommands
 
 ## Migrated From Main Checklist: Commands And Functions
 
@@ -168,6 +168,6 @@
 - [x] Implement `/whitelist`.
 - [x] Implement `/worldborder`.
 - [ ] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions.
-- [ ] Validate command parse trees and results against vanilla command dumps and scripted execution tests.
+- [x] Validate command parse trees and results against vanilla command dumps and scripted execution tests.
 - [x] Add Mineflayer chat and command tests covering signed/unsigned chat fallback, system messages, command feedback, suggestions, and tab completion in offline mode.
 - [x] Add command-model chat/command fallback coverage for public `/say`, `/me`, private `/tell`, `/teammsg`, `/tellraw`, feedback keys, permission denial, and target routing while full Mineflayer signed/unsigned/system-message coverage remains pending.
