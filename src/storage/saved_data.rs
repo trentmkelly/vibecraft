@@ -207,6 +207,26 @@ impl CommandStorage {
         Ok(())
     }
 
+    pub fn data_get_storage(&mut self, id: &ResourceLocation) -> io::Result<Tag> {
+        self.get(id)
+    }
+
+    pub fn data_merge_storage(&mut self, id: ResourceLocation, nbt: Tag) -> io::Result<bool> {
+        if nbt_depth_exceeds(&nbt, 512) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "NBT path data is too deep",
+            ));
+        }
+        let old = self.get(&id)?;
+        let merged = merge_compound_tags(old.clone(), nbt)?;
+        if old == merged {
+            return Ok(false);
+        }
+        self.set(id, merged)?;
+        Ok(true)
+    }
+
     pub fn keys(&mut self) -> io::Result<Vec<ResourceLocation>> {
         let mut keys = Vec::new();
         for namespace in self.namespaces.clone() {
@@ -322,6 +342,50 @@ fn read_saved_data_file(path: &Path) -> io::Result<(String, Tag)> {
 
 fn is_empty_compound(tag: &Tag) -> bool {
     matches!(tag, Tag::Compound(values) if values.is_empty())
+}
+
+fn merge_compound_tags(mut old: Tag, incoming: Tag) -> io::Result<Tag> {
+    let (Tag::Compound(old_values), Tag::Compound(incoming_values)) = (&mut old, incoming) else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "data merge storage requires compound NBT",
+        ));
+    };
+    merge_compound_values(old_values, incoming_values);
+    Ok(old)
+}
+
+fn merge_compound_values(old: &mut Vec<(String, Tag)>, incoming: Vec<(String, Tag)>) {
+    for (name, value) in incoming {
+        match (
+            old.iter_mut().find(|(old_name, _)| old_name == &name),
+            value,
+        ) {
+            (Some((_, Tag::Compound(old_child))), Tag::Compound(incoming_child)) => {
+                merge_compound_values(old_child, incoming_child);
+            }
+            (Some((_, old_value)), incoming_value) => {
+                *old_value = incoming_value;
+            }
+            (None, incoming_value) => old.push((name, incoming_value)),
+        }
+    }
+}
+
+fn nbt_depth_exceeds(tag: &Tag, max_depth: usize) -> bool {
+    fn walk(tag: &Tag, depth: usize, max_depth: usize) -> bool {
+        if depth > max_depth {
+            return true;
+        }
+        match tag {
+            Tag::List(values) => values.iter().any(|child| walk(child, depth + 1, max_depth)),
+            Tag::Compound(values) => values
+                .iter()
+                .any(|(_, child)| walk(child, depth + 1, max_depth)),
+            _ => false,
+        }
+    }
+    walk(tag, 0, max_depth)
 }
 
 fn absolutize_for_check(path: &Path) -> io::Result<PathBuf> {
@@ -464,6 +528,76 @@ mod tests {
                 data_dir.join("minecraft").join("command_storage.dat"),
             ]
         );
+        let _ = fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn command_storage_data_merge_then_get_matches_java_storage_accessor() {
+        let data_dir = temp_data_dir("command-storage-data-commands");
+        let mut storage = CommandStorage::new(SavedDataStorage::new(&data_dir));
+        let id = ResourceLocation::parse("minecraft:test").unwrap();
+
+        let changed = storage
+            .data_merge_storage(
+                id.clone(),
+                Tag::Compound(vec![
+                    (
+                        "outer".to_string(),
+                        Tag::Compound(vec![("a".to_string(), Tag::Int(1))]),
+                    ),
+                    ("name".to_string(), Tag::String("first".to_string())),
+                ]),
+            )
+            .unwrap();
+        assert!(changed);
+        assert_eq!(
+            storage.data_get_storage(&id).unwrap(),
+            Tag::Compound(vec![
+                (
+                    "outer".to_string(),
+                    Tag::Compound(vec![("a".to_string(), Tag::Int(1))])
+                ),
+                ("name".to_string(), Tag::String("first".to_string())),
+            ])
+        );
+
+        let changed = storage
+            .data_merge_storage(
+                id.clone(),
+                Tag::Compound(vec![
+                    (
+                        "outer".to_string(),
+                        Tag::Compound(vec![("b".to_string(), Tag::Int(2))]),
+                    ),
+                    ("name".to_string(), Tag::String("second".to_string())),
+                ]),
+            )
+            .unwrap();
+        assert!(changed);
+        assert_eq!(
+            storage.data_get_storage(&id).unwrap(),
+            Tag::Compound(vec![
+                (
+                    "outer".to_string(),
+                    Tag::Compound(vec![
+                        ("a".to_string(), Tag::Int(1)),
+                        ("b".to_string(), Tag::Int(2)),
+                    ])
+                ),
+                ("name".to_string(), Tag::String("second".to_string())),
+            ])
+        );
+
+        assert!(!storage
+            .data_merge_storage(
+                id.clone(),
+                Tag::Compound(vec![(
+                    "outer".to_string(),
+                    Tag::Compound(vec![("b".to_string(), Tag::Int(2))])
+                )]),
+            )
+            .unwrap());
+        assert!(storage.data_merge_storage(id, Tag::Int(3)).is_err());
         let _ = fs::remove_dir_all(&data_dir);
     }
 
