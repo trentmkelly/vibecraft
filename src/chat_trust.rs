@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::network::codec::Uuid;
+use crate::server_properties::ServerProperties;
 
 pub const SIGNATURE_CACHE_SIZE: usize = 20;
 pub const CHAT_CHAIN_BROKEN: &str = "multiplayer.disconnect.chat_validation_failed";
@@ -78,6 +79,42 @@ pub enum TextFilterResult {
     FullyFiltered,
     PartiallyFiltered { raw: String, mask: Vec<bool> },
     ServiceUnavailableFallback(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextFilterConfig {
+    Disabled,
+    Legacy(LegacyTextFilterConfig),
+    PlayerSafety(PlayerSafetyTextFilterConfig),
+    UnsupportedVersion(u32),
+    Invalid(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegacyTextFilterConfig {
+    pub api_server: String,
+    pub api_key: String,
+    pub rule_id: i32,
+    pub server_id: String,
+    pub room_id: String,
+    pub hashes_to_drop: i32,
+    pub max_concurrent_requests: u32,
+    pub chat_endpoint: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerSafetyTextFilterConfig {
+    pub api_server: String,
+    pub api_path: String,
+    pub scope: String,
+    pub server_id: String,
+    pub application_id: String,
+    pub tenant_id: String,
+    pub room_id: String,
+    pub certificate_path: String,
+    pub hashes_to_drop: i32,
+    pub max_concurrent_requests: u32,
+    pub connection_read_timeout_ms: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -224,6 +261,105 @@ pub fn apply_text_filter(
     } else {
         TextFilterResult::PassThrough(raw)
     }
+}
+
+pub fn text_filter_config_from_properties(properties: &ServerProperties) -> TextFilterConfig {
+    let config = properties.text_filtering_config.trim();
+    if config.is_empty() {
+        return TextFilterConfig::Disabled;
+    }
+    match properties.text_filtering_version {
+        0 => parse_legacy_text_filter_config(config),
+        1 => parse_player_safety_text_filter_config(config),
+        version => TextFilterConfig::UnsupportedVersion(version),
+    }
+}
+
+fn parse_legacy_text_filter_config(config: &str) -> TextFilterConfig {
+    let parsed = match serde_json::from_str::<serde_json::Value>(config) {
+        Ok(parsed) => parsed,
+        Err(err) => return TextFilterConfig::Invalid(err.to_string()),
+    };
+    let Some(api_server) = json_string(&parsed, "apiServer") else {
+        return TextFilterConfig::Invalid("missing apiServer".to_string());
+    };
+    let Some(api_key) = json_string(&parsed, "apiKey") else {
+        return TextFilterConfig::Invalid("missing apiKey".to_string());
+    };
+    if api_key.is_empty() {
+        return TextFilterConfig::Invalid("missing apiKey".to_string());
+    }
+    let endpoints = parsed.get("endpoints");
+    TextFilterConfig::Legacy(LegacyTextFilterConfig {
+        api_server,
+        api_key,
+        rule_id: json_i32(&parsed, "ruleId", 1),
+        server_id: json_string(&parsed, "serverId").unwrap_or_default(),
+        room_id: json_string(&parsed, "roomId").unwrap_or_else(|| "Java:Chat".to_string()),
+        hashes_to_drop: json_i32(&parsed, "hashesToDrop", -1),
+        max_concurrent_requests: json_u32(&parsed, "maxConcurrentRequests", 7),
+        chat_endpoint: endpoints
+            .and_then(|value| value.get("chat"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("v1/chat")
+            .to_string(),
+    })
+}
+
+fn parse_player_safety_text_filter_config(config: &str) -> TextFilterConfig {
+    let parsed = match serde_json::from_str::<serde_json::Value>(config) {
+        Ok(parsed) => parsed,
+        Err(err) => return TextFilterConfig::Invalid(err.to_string()),
+    };
+    let required = [
+        "apiServer",
+        "apiPath",
+        "scope",
+        "applicationId",
+        "tenantId",
+        "certificatePath",
+    ];
+    for key in required {
+        if json_string(&parsed, key).is_none() {
+            return TextFilterConfig::Invalid(format!("missing {key}"));
+        }
+    }
+    TextFilterConfig::PlayerSafety(PlayerSafetyTextFilterConfig {
+        api_server: json_string(&parsed, "apiServer").unwrap(),
+        api_path: json_string(&parsed, "apiPath").unwrap(),
+        scope: json_string(&parsed, "scope").unwrap(),
+        server_id: json_string(&parsed, "serverId").unwrap_or_default(),
+        application_id: json_string(&parsed, "applicationId").unwrap(),
+        tenant_id: json_string(&parsed, "tenantId").unwrap(),
+        room_id: json_string(&parsed, "roomId").unwrap_or_else(|| "Java:Chat".to_string()),
+        certificate_path: json_string(&parsed, "certificatePath").unwrap(),
+        hashes_to_drop: json_i32(&parsed, "hashesToDrop", -1),
+        max_concurrent_requests: json_u32(&parsed, "maxConcurrentRequests", 7),
+        connection_read_timeout_ms: json_u32(&parsed, "connectionReadTimeoutMs", 2000),
+    })
+}
+
+fn json_string(value: &serde_json::Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+fn json_i32(value: &serde_json::Value, key: &str, default: i32) -> i32 {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok())
+        .unwrap_or(default)
+}
+
+fn json_u32(value: &serde_json::Value, key: &str, default: u32) -> u32 {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .unwrap_or(default)
 }
 
 pub fn report_metadata_for_message(
@@ -455,6 +591,57 @@ mod tests {
         assert_eq!(
             apply_text_filter("hello", Some(vec![true]), false),
             TextFilterResult::ServiceUnavailableFallback("hello".to_string())
+        );
+    }
+
+    #[test]
+    fn text_filter_config_uses_server_properties_version_dispatch() {
+        let mut properties = ServerProperties::load_or_default(std::path::Path::new(
+            "definitely-missing-test-server.properties",
+        ))
+        .unwrap();
+        assert_eq!(
+            text_filter_config_from_properties(&properties),
+            TextFilterConfig::Disabled
+        );
+
+        properties.set(
+            "text-filtering-config",
+            r#"{"apiServer":"https://filter.example","apiKey":"secret","ruleId":2,"serverId":"srv","roomId":"room","hashesToDrop":1,"maxConcurrentRequests":3,"endpoints":{"chat":"v2/chat"}}"#,
+        );
+        properties.set("text-filtering-version", "0");
+        assert_eq!(
+            text_filter_config_from_properties(&properties),
+            TextFilterConfig::Legacy(LegacyTextFilterConfig {
+                api_server: "https://filter.example".to_string(),
+                api_key: "secret".to_string(),
+                rule_id: 2,
+                server_id: "srv".to_string(),
+                room_id: "room".to_string(),
+                hashes_to_drop: 1,
+                max_concurrent_requests: 3,
+                chat_endpoint: "v2/chat".to_string(),
+            })
+        );
+
+        properties.set(
+            "text-filtering-config",
+            r#"{"apiServer":"https://safety.example","apiPath":"/chat","scope":"scope","applicationId":"app","tenantId":"tenant","certificatePath":"cert.pem","connectionReadTimeoutMs":5000}"#,
+        );
+        properties.set("text-filtering-version", "1");
+        match text_filter_config_from_properties(&properties) {
+            TextFilterConfig::PlayerSafety(config) => {
+                assert_eq!(config.api_path, "/chat");
+                assert_eq!(config.room_id, "Java:Chat");
+                assert_eq!(config.connection_read_timeout_ms, 5000);
+            }
+            other => panic!("unexpected config: {other:?}"),
+        }
+
+        properties.set("text-filtering-version", "2");
+        assert_eq!(
+            text_filter_config_from_properties(&properties),
+            TextFilterConfig::UnsupportedVersion(2)
         );
     }
 

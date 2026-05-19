@@ -96,7 +96,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement mutable `enable-status`.
 - [x] Implement mutable `hide-online-players`.
 - [x] Implement mutable `entity-broadcast-range-percentage`.
-- [ ] Implement `text-filtering-config` and `text-filtering-version`.
+- [x] Implement `text-filtering-config` and `text-filtering-version`.
 - [x] Implement server resource pack fields: id, URL, SHA-1, legacy hash, required flag, prompt component.
 - [x] Implement initial datapack enabled/disabled pack lists.
 - [x] Implement mutable `player-idle-timeout`.
