@@ -29,7 +29,7 @@
 - [ ] Implement `LevelStorageAccess`: per-session interface with `getDimensionPath()`, `readLevelData()`, `saveLevelData()`, `deleteLevel()`, dimension folder layout (`DIM-1/`, `DIM1/`, named dimensions under `dimensions/`)
 - [ ] Implement `PrimaryLevelData`: all `level.dat` fields including `DataVersion`, `Version` (id/name/series/snapshot), `LevelName`, `SpawnX/Y/Z/Angle`, `GameType`, `Difficulty`, `DayTime`, `Time`, `generatorName`/`generatorSettings` → `WorldGenSettings` codec, `allowCommands`, `hardcore`, `initialized`, `WasModded`, `DataPacks` (enabled/disabled lists), `ScheduledEvents` (`TimerQueue`), `ServerBrands`, `CustomBossEvents`, `DragonFight`, `scoreboard`, `GameRules`
 - [ ] Implement `DerivedLevelData`: thin view over `PrimaryLevelData` for individual dimensions, inheriting game rules and world properties but with per-dimension spawn/seed
-- [ ] Implement `LevelVersion`: extracting `DataVersion`, world series/snapshot from `level.dat` before full load for upgrade check
+- [x] Implement `LevelVersion`: extracting `DataVersion`, world series/snapshot from `level.dat` before full load for upgrade check
 - [ ] Add parity test: `level.dat` written and re-read with same fields for a default world vs. vanilla-generated `level.dat`
 
 ## Player Data Storage

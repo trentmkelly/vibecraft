@@ -13,6 +13,25 @@ use crate::storage::nbt::{
 use super::datafix::require_current_world_data_version;
 
 const SESSION_LOCK_MARKER: &[u8] = "\u{2603}".as_bytes();
+const CURRENT_VERSION_NAME: &str = "26.1.2";
+const CURRENT_VERSION_SERIES: &str = "main";
+const CURRENT_VERSION_SNAPSHOT: bool = false;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftDataVersion {
+    pub id: i32,
+    pub series: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LevelVersion {
+    pub level_data_version: i32,
+    pub data_version: Option<i32>,
+    pub last_played: i64,
+    pub minecraft_version_name: String,
+    pub minecraft_version: MinecraftDataVersion,
+    pub snapshot: bool,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldLayout {
@@ -172,7 +191,13 @@ impl WorldLayout {
 
     pub fn load_level_dat_checked(&self) -> std::io::Result<Tag> {
         let tag = self.load_level_dat_with_backup()?;
-        let data_version = data_version_from_level_dat(&tag).ok_or_else(|| {
+        let level_version = LevelVersion::parse_level_dat(&tag).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "level.dat missing DataVersion",
+            )
+        })?;
+        let data_version = level_version.data_version.ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "level.dat missing DataVersion",
@@ -318,6 +343,35 @@ impl WorldLayout {
     }
 }
 
+impl LevelVersion {
+    pub fn parse_level_dat(tag: &Tag) -> Option<Self> {
+        let data = level_dat_data_compound(tag)?;
+        let data_version = compound_i32(data, "DataVersion");
+        let version = compound_tag(data, "Version");
+        Some(Self {
+            level_data_version: compound_i32(data, "version").unwrap_or(0),
+            data_version,
+            last_played: compound_i64(data, "LastPlayed").unwrap_or(0),
+            minecraft_version_name: version
+                .and_then(|version| compound_string(version, "Name"))
+                .unwrap_or(CURRENT_VERSION_NAME)
+                .to_string(),
+            minecraft_version: MinecraftDataVersion {
+                id: version
+                    .and_then(|version| compound_i32(version, "Id"))
+                    .unwrap_or(crate::storage::datafix::TARGET_DATA_VERSION),
+                series: version
+                    .and_then(|version| compound_string(version, "Series"))
+                    .unwrap_or(CURRENT_VERSION_SERIES)
+                    .to_string(),
+            },
+            snapshot: version
+                .and_then(|version| compound_bool(version, "Snapshot"))
+                .unwrap_or(CURRENT_VERSION_SNAPSHOT),
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct SessionLock {
     file: File,
@@ -420,22 +474,61 @@ fn is_would_block_lock_error(err: &std::io::Error) -> bool {
         || err.raw_os_error() == Some(libc::EAGAIN)
 }
 
-fn data_version_from_level_dat(tag: &Tag) -> Option<i32> {
+fn level_dat_data_compound(tag: &Tag) -> Option<&[(String, Tag)]> {
     let Tag::Compound(values) = tag else {
         return None;
     };
     values
         .iter()
         .find_map(|(name, value)| match (name.as_str(), value) {
-            ("DataVersion", Tag::Int(version)) => Some(*version),
-            ("Data", Tag::Compound(data_values)) => {
-                data_values
-                    .iter()
-                    .find_map(|(name, value)| match (name.as_str(), value) {
-                        ("DataVersion", Tag::Int(version)) => Some(*version),
-                        _ => None,
-                    })
-            }
+            ("Data", Tag::Compound(data_values)) => Some(data_values.as_slice()),
+            _ => None,
+        })
+        .or(Some(values.as_slice()))
+}
+
+fn compound_tag<'a>(values: &'a [(String, Tag)], key: &str) -> Option<&'a [(String, Tag)]> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::Compound(values)) if name == key => Some(values.as_slice()),
+            _ => None,
+        })
+}
+
+fn compound_i32(values: &[(String, Tag)], key: &str) -> Option<i32> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::Int(value)) if name == key => Some(*value),
+            _ => None,
+        })
+}
+
+fn compound_i64(values: &[(String, Tag)], key: &str) -> Option<i64> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::Long(value)) if name == key => Some(*value),
+            (name, Tag::Int(value)) if name == key => Some(i64::from(*value)),
+            _ => None,
+        })
+}
+
+fn compound_string<'a>(values: &'a [(String, Tag)], key: &str) -> Option<&'a str> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::String(value)) if name == key => Some(value.as_str()),
+            _ => None,
+        })
+}
+
+fn compound_bool(values: &[(String, Tag)], key: &str) -> Option<bool> {
+    values
+        .iter()
+        .find_map(|(name, value)| match (name.as_str(), value) {
+            (name, Tag::Byte(value)) if name == key => Some(*value != 0),
             _ => None,
         })
 }
@@ -828,5 +921,75 @@ mod tests {
         assert!(err.to_string().contains("missing DataVersion"));
 
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn parses_level_version_like_vanilla_summary_data() {
+        let tag = crate::storage::nbt::Tag::Compound(vec![(
+            "Data".to_string(),
+            crate::storage::nbt::Tag::Compound(vec![
+                ("version".to_string(), crate::storage::nbt::Tag::Int(19133)),
+                (
+                    "DataVersion".to_string(),
+                    crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+                ),
+                (
+                    "LastPlayed".to_string(),
+                    crate::storage::nbt::Tag::Long(123456789),
+                ),
+                (
+                    "Version".to_string(),
+                    crate::storage::nbt::Tag::Compound(vec![
+                        (
+                            "Name".to_string(),
+                            crate::storage::nbt::Tag::String("26.1.2".to_string()),
+                        ),
+                        (
+                            "Id".to_string(),
+                            crate::storage::nbt::Tag::Int(
+                                crate::storage::datafix::TARGET_DATA_VERSION,
+                            ),
+                        ),
+                        (
+                            "Series".to_string(),
+                            crate::storage::nbt::Tag::String("main".to_string()),
+                        ),
+                        ("Snapshot".to_string(), crate::storage::nbt::Tag::Byte(0)),
+                    ]),
+                ),
+            ]),
+        )]);
+
+        let version = super::LevelVersion::parse_level_dat(&tag).unwrap();
+        assert_eq!(version.level_data_version, 19133);
+        assert_eq!(
+            version.data_version,
+            Some(crate::storage::datafix::TARGET_DATA_VERSION)
+        );
+        assert_eq!(version.last_played, 123456789);
+        assert_eq!(version.minecraft_version_name, "26.1.2");
+        assert_eq!(
+            version.minecraft_version.id,
+            crate::storage::datafix::TARGET_DATA_VERSION
+        );
+        assert_eq!(version.minecraft_version.series, "main");
+        assert!(!version.snapshot);
+    }
+
+    #[test]
+    fn parses_legacy_level_version_defaults_without_version_compound() {
+        let tag = crate::storage::nbt::Tag::Compound(vec![
+            ("version".to_string(), crate::storage::nbt::Tag::Int(19132)),
+            (
+                "DataVersion".to_string(),
+                crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+            ),
+        ]);
+
+        let version = super::LevelVersion::parse_level_dat(&tag).unwrap();
+        assert_eq!(version.level_data_version, 19132);
+        assert_eq!(version.minecraft_version_name, "26.1.2");
+        assert_eq!(version.minecraft_version.series, "main");
+        assert!(!version.snapshot);
     }
 }
