@@ -52,6 +52,7 @@ mod fuzz_tests;
 mod game_event;
 mod game_rules;
 mod gametest_resources;
+mod generated_reports;
 mod gravity;
 mod inhabited_time;
 mod inventory;
@@ -179,6 +180,12 @@ fn run(options: CliOptions) -> Result<(), String> {
 
     let settings_path = PathBuf::from("server.properties");
     let eula_path = PathBuf::from("eula.txt");
+
+    if options.report {
+        generated_reports::generate_reports("generated")?;
+        logger.info("Generated reports under generated/reports")?;
+        return Ok(());
+    }
 
     let mut properties = ServerProperties::load_or_default(&settings_path)?;
     properties.save(&settings_path)?;
@@ -388,5 +395,25 @@ mod tests {
         assert!(Path::new("eula.txt").is_file());
         assert!(log.contains("You need to agree to the EULA in order to run the server"));
         assert!(!Path::new("world").exists());
+    }
+
+    #[test]
+    fn report_flag_generates_reports_and_exits_before_eula_gate() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("report");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        let mut options = CliOptions::default();
+        options.report = true;
+
+        run(options).expect("report run");
+
+        assert!(Path::new("generated/reports/registries.json").is_file());
+        assert!(Path::new("generated/reports/commands.json").is_file());
+        assert!(Path::new("generated/reports/biomes.json").is_file());
+        assert!(Path::new("generated/reports/blocks.json").is_file());
+        assert!(Path::new("generated/reports/items.json").is_file());
+        assert!(Path::new("generated/data/minecraft/tags/block/mineable.json").is_file());
+        assert!(!Path::new("eula.txt").exists());
     }
 }

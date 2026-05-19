@@ -9,6 +9,7 @@ pub struct CliOptions {
     pub force_upgrade: bool,
     pub erase_cache: bool,
     pub recreate_region_files: bool,
+    pub report: bool,
     pub safe_mode: bool,
     pub help: bool,
     pub universe: PathBuf,
@@ -29,6 +30,7 @@ impl Default for CliOptions {
             force_upgrade: false,
             erase_cache: false,
             recreate_region_files: false,
+            report: false,
             safe_mode: false,
             help: false,
             universe: PathBuf::from("."),
@@ -58,6 +60,7 @@ impl CliOptions {
                 "--forceUpgrade" => options.force_upgrade = true,
                 "--eraseCache" => options.erase_cache = true,
                 "--recreateRegionFiles" => options.recreate_region_files = true,
+                "--report" | "--reports" => options.report = true,
                 "--safeMode" => options.safe_mode = true,
                 "--help" | "-h" => options.help = true,
                 "--jfrProfile" => options.jfr_profile = true,
@@ -94,6 +97,7 @@ impl CliOptions {
            --forceUpgrade\n\
            --eraseCache\n\
            --recreateRegionFiles\n\
+           --report\n\
            --safeMode\n\
            --help\n\
            --universe <path>\n\
@@ -130,6 +134,7 @@ mod tests {
                 "--forceUpgrade",
                 "--eraseCache",
                 "--recreateRegionFiles",
+                "--report",
                 "--safeMode",
                 "--universe",
                 "worlds",
@@ -155,6 +160,7 @@ mod tests {
         assert!(options.force_upgrade);
         assert!(options.erase_cache);
         assert!(options.recreate_region_files);
+        assert!(options.report);
         assert!(options.safe_mode);
         assert_eq!(options.universe, PathBuf::from("worlds"));
         assert_eq!(options.world.as_deref(), Some("test"));
