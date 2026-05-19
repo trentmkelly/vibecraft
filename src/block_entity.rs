@@ -154,6 +154,19 @@ pub struct BedBlockEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BannerPatternLayer {
+    pub pattern: String,
+    pub color: DyeColor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BannerBlockEntity {
+    pub base_color: DyeColor,
+    pub patterns: Vec<BannerPatternLayer>,
+    pub custom_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockEntityError {
     UnknownType(String),
     MissingId,
@@ -491,6 +504,139 @@ impl BedBlockEntity {
 
     pub fn save_additional(&self) -> Tag {
         Tag::Compound(Vec::new())
+    }
+}
+
+impl DyeColor {
+    fn vanilla_name(self) -> &'static str {
+        match self {
+            DyeColor::White => "white",
+            DyeColor::Orange => "orange",
+            DyeColor::Magenta => "magenta",
+            DyeColor::LightBlue => "light_blue",
+            DyeColor::Yellow => "yellow",
+            DyeColor::Lime => "lime",
+            DyeColor::Pink => "pink",
+            DyeColor::Gray => "gray",
+            DyeColor::LightGray => "light_gray",
+            DyeColor::Cyan => "cyan",
+            DyeColor::Purple => "purple",
+            DyeColor::Blue => "blue",
+            DyeColor::Brown => "brown",
+            DyeColor::Green => "green",
+            DyeColor::Red => "red",
+            DyeColor::Black => "black",
+        }
+    }
+
+    fn from_vanilla_name(value: &str) -> Option<Self> {
+        match value {
+            "white" => Some(DyeColor::White),
+            "orange" => Some(DyeColor::Orange),
+            "magenta" => Some(DyeColor::Magenta),
+            "light_blue" => Some(DyeColor::LightBlue),
+            "yellow" => Some(DyeColor::Yellow),
+            "lime" => Some(DyeColor::Lime),
+            "pink" => Some(DyeColor::Pink),
+            "gray" => Some(DyeColor::Gray),
+            "light_gray" => Some(DyeColor::LightGray),
+            "cyan" => Some(DyeColor::Cyan),
+            "purple" => Some(DyeColor::Purple),
+            "blue" => Some(DyeColor::Blue),
+            "brown" => Some(DyeColor::Brown),
+            "green" => Some(DyeColor::Green),
+            "red" => Some(DyeColor::Red),
+            "black" => Some(DyeColor::Black),
+            _ => None,
+        }
+    }
+}
+
+impl BannerPatternLayer {
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            ("pattern".to_string(), Tag::String(self.pattern.clone())),
+            (
+                "color".to_string(),
+                Tag::String(self.color.vanilla_name().to_string()),
+            ),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Option<Self> {
+        let entries = compound_entries(tag)?;
+        Some(Self {
+            pattern: get_string(entries, "pattern")?.to_string(),
+            color: DyeColor::from_vanilla_name(get_string(entries, "color")?)?,
+        })
+    }
+}
+
+impl BannerBlockEntity {
+    pub const MAX_PATTERNS: usize = 6;
+
+    pub fn from_block_state(block_state: &str) -> Option<Self> {
+        let name = block_state.strip_prefix("minecraft:")?;
+        let color_name = name
+            .strip_suffix("_wall_banner")
+            .or_else(|| name.strip_suffix("_banner"))?;
+        Some(Self {
+            base_color: DyeColor::from_vanilla_name(color_name)?,
+            patterns: Vec::new(),
+            custom_name: None,
+        })
+    }
+
+    pub fn add_pattern(&mut self, pattern: impl Into<String>, color: DyeColor) -> bool {
+        if self.patterns.len() >= Self::MAX_PATTERNS {
+            return false;
+        }
+        self.patterns.push(BannerPatternLayer {
+            pattern: pattern.into(),
+            color,
+        });
+        true
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if !self.patterns.is_empty() {
+            fields.push((
+                "patterns".to_string(),
+                Tag::List(
+                    self.patterns
+                        .iter()
+                        .map(BannerPatternLayer::to_tag)
+                        .collect(),
+                ),
+            ));
+        }
+        if let Some(custom_name) = &self.custom_name {
+            fields.push(("CustomName".to_string(), Tag::String(custom_name.clone())));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(block_state: &str, tag: &Tag) -> Option<Self> {
+        let mut banner = Self::from_block_state(block_state)?;
+        let entries = compound_entries(tag);
+        banner.custom_name = entries
+            .and_then(|entries| get_string(entries, "CustomName"))
+            .map(ToString::to_string);
+        banner.patterns = entries
+            .and_then(|entries| entries.iter().find(|(name, _)| name == "patterns"))
+            .and_then(|(_, tag)| match tag {
+                Tag::List(values) => Some(
+                    values
+                        .iter()
+                        .filter_map(BannerPatternLayer::from_tag)
+                        .take(Self::MAX_PATTERNS)
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default();
+        Some(banner)
     }
 }
 
@@ -1503,6 +1649,105 @@ mod tests {
                 ("y".to_string(), Tag::Int(pos().y)),
                 ("z".to_string(), Tag::Int(pos().z)),
             ])
+        );
+    }
+
+    #[test]
+    fn banner_block_entity_tracks_color_patterns_and_update_tag_shape() {
+        let mut banner =
+            BannerBlockEntity::from_block_state("minecraft:light_blue_wall_banner").unwrap();
+        assert_eq!(banner.base_color, DyeColor::LightBlue);
+        assert!(banner.add_pattern("minecraft:stripe_bottom", DyeColor::Red));
+        assert!(banner.add_pattern("minecraft:flower", DyeColor::Yellow));
+        assert!(banner.add_pattern("minecraft:creeper", DyeColor::Green));
+        assert!(banner.add_pattern("minecraft:skull", DyeColor::Black));
+        assert!(banner.add_pattern("minecraft:mojang", DyeColor::Purple));
+        assert!(banner.add_pattern("minecraft:globe", DyeColor::White));
+        assert!(!banner.add_pattern("minecraft:extra", DyeColor::Orange));
+        banner.custom_name = Some("{\"text\":\"Marker\"}".to_string());
+
+        let saved = banner.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                (
+                    "patterns".to_string(),
+                    Tag::List(vec![
+                        Tag::Compound(vec![
+                            (
+                                "pattern".to_string(),
+                                Tag::String("minecraft:stripe_bottom".to_string())
+                            ),
+                            ("color".to_string(), Tag::String("red".to_string())),
+                        ]),
+                        Tag::Compound(vec![
+                            (
+                                "pattern".to_string(),
+                                Tag::String("minecraft:flower".to_string())
+                            ),
+                            ("color".to_string(), Tag::String("yellow".to_string())),
+                        ]),
+                        Tag::Compound(vec![
+                            (
+                                "pattern".to_string(),
+                                Tag::String("minecraft:creeper".to_string())
+                            ),
+                            ("color".to_string(), Tag::String("green".to_string())),
+                        ]),
+                        Tag::Compound(vec![
+                            (
+                                "pattern".to_string(),
+                                Tag::String("minecraft:skull".to_string())
+                            ),
+                            ("color".to_string(), Tag::String("black".to_string())),
+                        ]),
+                        Tag::Compound(vec![
+                            (
+                                "pattern".to_string(),
+                                Tag::String("minecraft:mojang".to_string())
+                            ),
+                            ("color".to_string(), Tag::String("purple".to_string())),
+                        ]),
+                        Tag::Compound(vec![
+                            (
+                                "pattern".to_string(),
+                                Tag::String("minecraft:globe".to_string())
+                            ),
+                            ("color".to_string(), Tag::String("white".to_string())),
+                        ]),
+                    ])
+                ),
+                (
+                    "CustomName".to_string(),
+                    Tag::String("{\"text\":\"Marker\"}".to_string())
+                ),
+            ])
+        );
+
+        let loaded =
+            BannerBlockEntity::load_additional("minecraft:light_blue_wall_banner", &saved).unwrap();
+        assert_eq!(loaded, banner);
+        assert_eq!(BannerBlockEntity::from_block_state("minecraft:stone"), None);
+
+        let mut entity = BlockEntity::new(
+            BlockEntityTypeId::Banner,
+            pos(),
+            "minecraft:light_blue_banner",
+        )
+        .unwrap();
+        entity.custom_data.insert(
+            "patterns".to_string(),
+            match saved {
+                Tag::Compound(fields) => fields
+                    .into_iter()
+                    .find(|(key, _)| key == "patterns")
+                    .map(|(_, value)| value)
+                    .unwrap(),
+                _ => unreachable!(),
+            },
+        );
+        assert!(
+            matches!(entity.get_update_tag(), Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "patterns") && fields.iter().all(|(key, _)| key != "id"))
         );
     }
 
