@@ -282,6 +282,75 @@ export function summarizeCommandBeforeReadyEvidence(evidence, scenarios = comman
   return { ok: Object.values(steps).every(Boolean), steps }
 }
 
+export function commandResultConsistencyScenarios(options = {}) {
+  const primary = options.primary ?? 'ResultBot'
+  return [
+    resultScenario('console', `/gamemode creative ${primary}`, 'commands.gamemode.success.self', {
+      successCount: 1,
+      sideEffect: 'gamemode-creative'
+    }),
+    resultScenario('op-bot', '/list', 'commands.list.players', {
+      minSuccessCount: 1,
+      feedbackVisibleToSource: true
+    }),
+    resultScenario('non-op-bot', `/gamemode survival ${primary}`, 'commands.generic.permission', {
+      successCount: 0,
+      denied: true
+    }),
+    resultScenario('command-block', `/say ${primary}`, 'commands.say.success', {
+      successCount: 1,
+      feedbackVisibleToOperators: true
+    }),
+    resultScenario('function', `/tp ${primary} 0 80 0`, 'commands.teleport.success.location.single', {
+      successCount: 1,
+      sideEffect: 'position-correction'
+    })
+  ]
+}
+
+export function commandResultConsistencyManifest(options = {}) {
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    scenarios: commandResultConsistencyScenarios(options).map(entry => ({
+      source: entry.source,
+      command: entry.command,
+      expectedFeedbackKey: entry.expectedFeedbackKey,
+      successCount: entry.successCount,
+      minSuccessCount: entry.minSuccessCount,
+      denied: entry.denied,
+      sideEffect: entry.sideEffect,
+      feedbackVisibleToSource: entry.feedbackVisibleToSource,
+      feedbackVisibleToOperators: entry.feedbackVisibleToOperators
+    }))
+  }
+}
+
+export function summarizeCommandResultConsistencyEvidence(evidence, scenarios = commandResultConsistencyScenarios()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'command_result_consistency')
+    .map(event => [`${event.summary?.[0]}:${event.summary?.[1]}`, event.summary?.[2] ?? {}]))
+  const steps = Object.fromEntries(scenarios.map(scenario => {
+    const observed = observations.get(`${scenario.source}:${scenario.command}`)
+    const successCountOk = scenario.minSuccessCount === undefined
+      ? observed?.successCount === scenario.successCount
+      : observed?.successCount >= scenario.minSuccessCount
+    const feedbackOk = String(observed?.feedback ?? '').includes(scenario.expectedFeedbackKey)
+    const sideEffectOk = !scenario.sideEffect || (observed?.sideEffects ?? []).includes(scenario.sideEffect)
+    const deniedOk = !scenario.denied || observed?.denied === true
+    const visibilityOk = scenario.feedbackVisibleToSource !== true || observed?.feedbackVisibleToSource === true
+    const operatorVisibilityOk = scenario.feedbackVisibleToOperators !== true ||
+      observed?.feedbackVisibleToOperators === true
+    return [`${scenario.source}:${scenario.command}`, Boolean(successCountOk &&
+      feedbackOk &&
+      sideEffectOk &&
+      deniedOk &&
+      visibilityOk &&
+      operatorVisibilityOk)]
+  }))
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')
@@ -303,6 +372,20 @@ function listScenario(name, source, phase, expectedNames) {
 
 function beforeReadyScenario(phase, command, expectedBehavior) {
   return { phase, command, expectedBehavior }
+}
+
+function resultScenario(source, command, expectedFeedbackKey, options = {}) {
+  return {
+    source,
+    command,
+    expectedFeedbackKey,
+    successCount: options.successCount,
+    minSuccessCount: options.minSuccessCount,
+    denied: options.denied ?? false,
+    sideEffect: options.sideEffect,
+    feedbackVisibleToSource: options.feedbackVisibleToSource ?? false,
+    feedbackVisibleToOperators: options.feedbackVisibleToOperators ?? false
+  }
 }
 
 function behaviorMatches(observed, expected) {

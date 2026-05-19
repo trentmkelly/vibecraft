@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   commandBeforeReadyManifest,
   commandBeforeReadyScenarios,
+  commandResultConsistencyManifest,
+  commandResultConsistencyScenarios,
   commandScenarioManifest,
   commandPermissionReloadManifest,
   commandPermissionReloadScenario,
@@ -17,6 +19,7 @@ import {
   runCommandScenario,
   summarizeCommandBeforeReadyEvidence,
   summarizeCommandPermissionReloadEvidence,
+  summarizeCommandResultConsistencyEvidence,
   summarizeLoginGatedCommandEvidence,
   summarizeListLoginStateEvidence,
   summarizeTeleportCommandEvidence,
@@ -286,4 +289,40 @@ test('summarizeCommandBeforeReadyEvidence requires pre-ready handling and post-r
   assert.equal(summarizeCommandBeforeReadyEvidence(evidence, scenarios).ok, true)
   evidence.timeline[0].summary[2].postReadyAccepted = false
   assert.equal(summarizeCommandBeforeReadyEvidence(evidence, scenarios).ok, false)
+})
+
+test('commandResultConsistencyManifest covers console, bots, command block, and function sources', () => {
+  const manifest = commandResultConsistencyManifest({ primary: 'Steve' })
+
+  assert.deepEqual(manifest.scenarios.map(scenario => scenario.source), [
+    'console',
+    'op-bot',
+    'non-op-bot',
+    'command-block',
+    'function'
+  ])
+  assert.ok(manifest.scenarios.some(scenario => scenario.denied))
+  assert.ok(manifest.scenarios.some(scenario => scenario.sideEffect === 'position-correction'))
+  assert.ok(manifest.scenarios.every(scenario => scenario.expectedFeedbackKey.startsWith('commands.')))
+})
+
+test('summarizeCommandResultConsistencyEvidence requires counts, feedback visibility, and side effects', () => {
+  const scenarios = commandResultConsistencyScenarios({ primary: 'Steve' })
+  const evidence = {
+    timeline: scenarios.map(scenario => ({
+      name: 'command_result_consistency',
+      summary: [scenario.source, scenario.command, {
+        successCount: scenario.minSuccessCount ?? scenario.successCount,
+        feedback: scenario.expectedFeedbackKey,
+        denied: scenario.denied,
+        sideEffects: scenario.sideEffect ? [scenario.sideEffect] : [],
+        feedbackVisibleToSource: scenario.feedbackVisibleToSource,
+        feedbackVisibleToOperators: scenario.feedbackVisibleToOperators
+      }]
+    }))
+  }
+
+  assert.equal(summarizeCommandResultConsistencyEvidence(evidence, scenarios).ok, true)
+  evidence.timeline[4].summary[2].sideEffects = []
+  assert.equal(summarizeCommandResultConsistencyEvidence(evidence, scenarios).ok, false)
 })
