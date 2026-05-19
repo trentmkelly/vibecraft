@@ -50,11 +50,11 @@
 - [x] Implement `ShapedRecipe`: row/column pattern with `ShapedRecipePattern`, ingredient-to-key mapping, result ItemStack, `canCraftInDimensions(w, h)`, mirroring and rotation support NOT applied (vanilla does not rotate shaped recipes)
 - [x] Implement `ShapedRecipePattern`: key → `Ingredient` map, raw pattern strings, width/height derivation, `matches(CraftingInput)` with offset scan
 - [x] Implement `ShapelessRecipe`: unordered `List<Ingredient>` matching, `matches()` via subset check with item-count consumption
-- [ ] Implement `TransmuteRecipe`: shaped/shapeless recipe that transforms an item to a new type while preserving certain components (e.g., `minecraft:transmute`)
-- [ ] Implement `ImbueRecipe`: imbue enchantment or effect onto an item via crafting
+- [x] Implement `TransmuteRecipe`: shaped/shapeless recipe that transforms an item to a new type while preserving certain components (e.g., `minecraft:transmute`)
+- [x] Implement `ImbueRecipe`: imbue enchantment or effect onto an item via crafting
 - [x] Add unit test: shaped recipe matches correct grid position, rejects wrong orientation
 - [x] Add unit test: shapeless recipe accepts any ingredient ordering, respects count requirements
-- [ ] Add unit test: transmute recipe preserves expected components on result
+- [x] Add unit test: transmute recipe preserves expected components on result
 
 ## Special Crafting Recipes
 
@@ -104,7 +104,7 @@
 
 - [x] Implement recipe manager loading, recipe map indexing, property sets, selectable recipes, placement info, display metadata, and reload invalidation.
 - [x] Implement core recipe interfaces: `Recipe`, `CraftingRecipe`, `NormalCraftingRecipe`, `CustomRecipe`, `SingleItemRecipe`, `AbstractCookingRecipe`, `SmithingRecipe`, and `SelectableRecipe`.
-- [ ] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`.
+- [x] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`.
 - [ ] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
 - [x] Implement cooking recipes: `SmeltingRecipe`, `BlastingRecipe`, `SmokingRecipe`, and `CampfireCookingRecipe`, including cook time, experience, fuel interaction, and recipe book categories.
 - [x] Implement smithing and station recipes: `SimpleSmithingRecipe`, `SmithingTransformRecipe`, `SmithingTrimRecipe`, and `StonecutterRecipe`.

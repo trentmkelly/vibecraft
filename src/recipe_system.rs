@@ -573,13 +573,21 @@ pub fn load_recipe_json(id: &'static str, raw: &str) -> Result<RecipeHolder, Str
             base: parse_field_ingredient(object, "base", id)?,
             addition: parse_field_ingredient(object, "addition", id)?,
         },
-        "crafting_transmute" => RecipeKind::Special {
-            kind: SpecialRecipeKind::Transmute,
-            result_hint: Some(parse_result(object, id)?),
+        "crafting_transmute" => RecipeKind::Transmute {
+            input: parse_field_ingredient(object, "input", id)?,
+            material: parse_field_ingredient(object, "material", id)?,
+            min_material_count: parse_material_count_bound(object, "min").unwrap_or(1),
+            max_material_count: parse_material_count_bound(object, "max").unwrap_or(1),
+            result: parse_result(object, id)?,
+            add_material_count_to_result: object
+                .get("add_material_count_to_result")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false),
         },
-        "crafting_imbue" => RecipeKind::Special {
-            kind: SpecialRecipeKind::Imbue,
-            result_hint: Some(parse_result(object, id)?),
+        "crafting_imbue" => RecipeKind::Imbue {
+            source: parse_field_ingredient(object, "source", id)?,
+            material: parse_field_ingredient(object, "material", id)?,
+            result: parse_result(object, id)?,
         },
         "crafting_dye" => RecipeKind::Special {
             kind: SpecialRecipeKind::DyedItem,
@@ -739,6 +747,18 @@ fn parse_result(
     })
 }
 
+fn parse_material_count_bound(
+    object: &serde_json::Map<String, serde_json::Value>,
+    bound: &str,
+) -> Option<u32> {
+    object
+        .get("material_count")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|bounds| bounds.get(bound))
+        .and_then(serde_json::Value::as_u64)
+        .map(|value| value as u32)
+}
+
 fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<RecipePropertySet> {
     let mut furnace = Vec::new();
     let mut blast_furnace = Vec::new();
@@ -875,6 +895,25 @@ pub struct CraftingStack {
 impl CraftingStack {
     pub fn one(item: &'static str) -> Self {
         Self { item, count: 1 }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentCraftingStack {
+    pub item: &'static str,
+    pub count: u32,
+    pub potion_contents: Option<&'static str>,
+    pub custom_name: Option<&'static str>,
+}
+
+impl ComponentCraftingStack {
+    pub fn one(item: &'static str) -> Self {
+        Self {
+            item,
+            count: 1,
+            potion_contents: None,
+            custom_name: None,
+        }
     }
 }
 
@@ -1308,6 +1347,19 @@ pub enum RecipeKind {
         ingredient: IngredientSpec,
         result: ItemAmount,
     },
+    Transmute {
+        input: IngredientSpec,
+        material: IngredientSpec,
+        min_material_count: u32,
+        max_material_count: u32,
+        result: ItemAmount,
+        add_material_count_to_result: bool,
+    },
+    Imbue {
+        source: IngredientSpec,
+        material: IngredientSpec,
+        result: ItemAmount,
+    },
     SmithingTransform {
         template: IngredientSpec,
         base: IngredientSpec,
@@ -1330,6 +1382,8 @@ impl RecipeKind {
         match self {
             RecipeKind::Shaped { .. }
             | RecipeKind::Shapeless { .. }
+            | RecipeKind::Transmute { .. }
+            | RecipeKind::Imbue { .. }
             | RecipeKind::Special { .. } => "crafting",
             RecipeKind::Cooking { kind, .. } => match kind {
                 CookingKind::Smelting => "smelting",
@@ -1348,6 +1402,8 @@ impl RecipeKind {
             RecipeKind::Shapeless { .. } => "crafting_shapeless",
             RecipeKind::Cooking { kind, .. } => kind.serializer(),
             RecipeKind::Stonecutting { .. } => "stonecutting",
+            RecipeKind::Transmute { .. } => "crafting_transmute",
+            RecipeKind::Imbue { .. } => "crafting_imbue",
             RecipeKind::SmithingTransform { .. } => "smithing_transform",
             RecipeKind::SmithingTrim { .. } => "smithing_trim",
             RecipeKind::Special { kind, .. } => match kind {
@@ -1375,7 +1431,10 @@ impl RecipeKind {
 
     pub fn recipe_book_category(&self) -> &'static str {
         match self {
-            RecipeKind::Shaped { .. } | RecipeKind::Shapeless { .. } => "crafting_misc",
+            RecipeKind::Shaped { .. }
+            | RecipeKind::Shapeless { .. }
+            | RecipeKind::Transmute { .. }
+            | RecipeKind::Imbue { .. } => "crafting_misc",
             RecipeKind::Cooking {
                 kind: CookingKind::Smelting,
                 ..
@@ -1468,6 +1527,25 @@ impl RecipeKind {
                 ..
             } => shaped_matches(*width, *height, pattern, grid_width, grid_height, items),
             RecipeKind::Shapeless { ingredients, .. } => shapeless_matches(ingredients, items),
+            RecipeKind::Transmute {
+                input,
+                material,
+                min_material_count,
+                max_material_count,
+                result,
+                add_material_count_to_result,
+            } => transmute_matches(
+                input,
+                material,
+                *min_material_count,
+                *max_material_count,
+                result,
+                *add_material_count_to_result,
+                items,
+            ),
+            RecipeKind::Imbue {
+                source, material, ..
+            } => imbue_matches(source, material, grid_width, grid_height, items),
             RecipeKind::Cooking { ingredient, .. }
             | RecipeKind::Stonecutting { ingredient, .. } => {
                 let mut present = items.iter().flatten();
@@ -1504,6 +1582,8 @@ impl RecipeKind {
             | RecipeKind::Shapeless { result, .. }
             | RecipeKind::Cooking { result, .. }
             | RecipeKind::Stonecutting { result, .. }
+            | RecipeKind::Transmute { result, .. }
+            | RecipeKind::Imbue { result, .. }
             | RecipeKind::SmithingTransform { result, .. } => Some(result.clone()),
             RecipeKind::SmithingTrim { .. } => None,
             RecipeKind::Special { result_hint, .. } => result_hint.clone(),
@@ -1522,6 +1602,108 @@ impl RecipeKind {
 
 fn optional_ingredient(ingredient: &IngredientSpec) -> Option<IngredientSpec> {
     (!ingredient.is_empty()).then(|| ingredient.clone())
+}
+
+fn transmute_matches(
+    input: &IngredientSpec,
+    material: &IngredientSpec,
+    min_material_count: u32,
+    max_material_count: u32,
+    result: &ItemAmount,
+    add_material_count_to_result: bool,
+    items: &[Option<&'static str>],
+) -> bool {
+    let ingredient_count = items.iter().filter(|item| item.is_some()).count() as u32;
+    if ingredient_count < min_material_count + 1 || ingredient_count > max_material_count + 1 {
+        return false;
+    }
+
+    let mut found_input = None;
+    let mut material_count = 0;
+    for item in items.iter().flatten() {
+        if input.matches(item) {
+            if found_input.replace(*item).is_some() {
+                return false;
+            }
+        } else if material.matches(item) {
+            material_count += 1;
+            if material_count > max_material_count {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    let Some(input_item) = found_input else {
+        return false;
+    };
+    if material_count < min_material_count || material_count > max_material_count {
+        return false;
+    }
+
+    let result_count =
+        transmute_result_count(result.count, material_count, add_material_count_to_result);
+    result_count != 1 || input_item != result.item
+}
+
+fn imbue_matches(
+    source: &IngredientSpec,
+    material: &IngredientSpec,
+    grid_width: usize,
+    grid_height: usize,
+    items: &[Option<&'static str>],
+) -> bool {
+    if grid_width != 3 || grid_height != 3 || items.len() != 9 || items.iter().any(Option::is_none)
+    {
+        return false;
+    }
+
+    items.iter().enumerate().all(|(index, item)| {
+        let item = item.expect("checked non-empty imbue grid");
+        if index == 4 {
+            source.matches(item)
+        } else {
+            material.matches(item)
+        }
+    })
+}
+
+pub fn transmute_result(
+    result: &ItemAmount,
+    input: &ComponentCraftingStack,
+    material_count: u32,
+    add_material_count_to_result: bool,
+) -> ComponentCraftingStack {
+    let mut output = input.clone();
+    output.item = result.item;
+    output.count =
+        transmute_result_count(result.count, material_count, add_material_count_to_result);
+    output
+}
+
+pub fn imbue_result(
+    result: &ItemAmount,
+    source: &ComponentCraftingStack,
+) -> ComponentCraftingStack {
+    ComponentCraftingStack {
+        item: result.item,
+        count: result.count,
+        potion_contents: source.potion_contents,
+        custom_name: None,
+    }
+}
+
+fn transmute_result_count(
+    base_count: u32,
+    material_count: u32,
+    add_material_count_to_result: bool,
+) -> u32 {
+    if add_material_count_to_result {
+        base_count + material_count
+    } else {
+        base_count
+    }
 }
 
 fn shaped_matches(
@@ -1905,6 +2087,119 @@ mod tests {
                 None
             ]
         ));
+    }
+
+    #[test]
+    fn transmute_and_imbue_recipes_match_java_crafting_rules() {
+        let transmute = RecipeKind::Transmute {
+            input: IngredientSpec::Item("minecraft:filled_map"),
+            material: IngredientSpec::Item("minecraft:map"),
+            min_material_count: 1,
+            max_material_count: 8,
+            result: ItemAmount::one("minecraft:filled_map"),
+            add_material_count_to_result: true,
+        };
+
+        assert_eq!(transmute.serializer(), "crafting_transmute");
+        assert!(transmute.matches(
+            3,
+            3,
+            &[
+                Some("minecraft:filled_map"),
+                Some("minecraft:map"),
+                Some("minecraft:map"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ]
+        ));
+        assert!(!transmute.matches(
+            3,
+            3,
+            &[
+                Some("minecraft:filled_map"),
+                Some("minecraft:filled_map"),
+                Some("minecraft:map"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ]
+        ));
+
+        let source = ComponentCraftingStack {
+            item: "minecraft:filled_map",
+            count: 1,
+            potion_contents: None,
+            custom_name: Some("Base map"),
+        };
+        let copied = transmute_result(&ItemAmount::one("minecraft:filled_map"), &source, 2, true);
+        assert_eq!(copied.item, "minecraft:filled_map");
+        assert_eq!(copied.count, 3);
+        assert_eq!(copied.custom_name, Some("Base map"));
+
+        let imbue = RecipeKind::Imbue {
+            source: IngredientSpec::Item("minecraft:lingering_potion"),
+            material: IngredientSpec::Item("minecraft:arrow"),
+            result: ItemAmount {
+                item: "minecraft:tipped_arrow",
+                count: 8,
+            },
+        };
+        assert_eq!(imbue.serializer(), "crafting_imbue");
+        assert!(imbue.matches(
+            3,
+            3,
+            &[
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:lingering_potion"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+            ]
+        ));
+        assert!(!imbue.matches(
+            3,
+            3,
+            &[
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:potion"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+                Some("minecraft:arrow"),
+            ]
+        ));
+
+        let potion = ComponentCraftingStack {
+            item: "minecraft:lingering_potion",
+            count: 1,
+            potion_contents: Some("minecraft:strong_harming"),
+            custom_name: Some("Splashy"),
+        };
+        let arrows = imbue_result(
+            &ItemAmount {
+                item: "minecraft:tipped_arrow",
+                count: 8,
+            },
+            &potion,
+        );
+        assert_eq!(arrows.item, "minecraft:tipped_arrow");
+        assert_eq!(arrows.count, 8);
+        assert_eq!(arrows.potion_contents, Some("minecraft:strong_harming"));
+        assert_eq!(arrows.custom_name, None);
     }
 
     #[test]
