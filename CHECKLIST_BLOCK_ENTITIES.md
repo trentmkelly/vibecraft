@@ -56,11 +56,11 @@
 
 ## Sign and Text Block Entities
 
-- [ ] Implement `SignBlockEntity`: `SignText` for front face and back face independently, each with 4 `Component` lines, color (`DyeColor`), glowing state, editable state, wax-sealing state, `executeClickCommands(player)` permission check
-- [ ] Implement `HangingSignBlockEntity`: same text model as `SignBlockEntity`, 6 different attachment types (ceiling, wall, log-wall variants)
+- [x] Implement `SignBlockEntity`: `SignText` for front face and back face independently, each with 4 `Component` lines, color (`DyeColor`), glowing state, editable state, wax-sealing state, `executeClickCommands(player)` permission check
+- [x] Implement `HangingSignBlockEntity`: same text model as `SignBlockEntity`, 6 different attachment types (ceiling, wall, log-wall variants)
 - [x] Implement `LecternBlockEntity`: held `ItemStack` (written book), page index, `hasBook()`, `setBook()`, `clearContent()`, comparator output (0 = empty, 1–14 proportional to page/total pages, 15 on last page)
-- [ ] Implement sign text filtering: route sign text through text-filter integration (same path as chat messages) before storing
-- [ ] Add parity test: sign front/back text NBT serialization, waxed state preventing edits, glowing color tint
+- [x] Implement sign text filtering: route sign text through text-filter integration (same path as chat messages) before storing
+- [x] Add parity test: sign front/back text NBT serialization, waxed state preventing edits, glowing color tint
 - [x] Add parity test: lectern comparator output across page transitions
 
 ## Utility Block Entities
@@ -131,7 +131,7 @@
 - [x] Implement furnace family block entities: `AbstractFurnaceBlockEntity`, `FurnaceBlockEntity`, `BlastFurnaceBlockEntity`, and `SmokerBlockEntity`, including burn time, cook time, fuel values, recipe matching, XP storage, sided inventory, lit state, and comparator output.
 - [x] Implement container block entities: `BaseContainerBlockEntity`, `RandomizableContainerBlockEntity`, `ChestBlockEntity`, `TrappedChestBlockEntity`, `BarrelBlockEntity`, `ShulkerBoxBlockEntity`, `DispenserBlockEntity`, `DropperBlockEntity`, `HopperBlockEntity`, and `ShelfBlockEntity`, including loot tables, custom names, locks, viewer counts, lid animation, sided access, and redstone/comparator interactions.
 - [ ] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
-- [ ] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
+- [x] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
 - [ ] Implement utility block entities: `BeaconBlockEntity`, `BrewingStandBlockEntity`, `CrafterBlockEntity`, `EnchantingTableBlockEntity`, `JukeboxBlockEntity`, `ComparatorBlockEntity`, `DaylightDetectorBlockEntity`, and `CommandBlockEntity`.
 - [ ] Implement world/system block entities: `SpawnerBlockEntity`, `TrialSpawnerBlockEntity`, `JigsawBlockEntity`, `StructureBlockEntity`, `TheEndGatewayBlockEntity`, `TheEndPortalBlockEntity`, `TestBlockEntity`, and `TestInstanceBlockEntity`.
 - [x] Implement decorative/lore block entities: `BannerBlockEntity`, `BedBlockEntity`, `BrushableBlockEntity`, `DecoratedPotBlockEntity`, `SkullBlockEntity`, `BellBlockEntity`, and `CopperGolemStatueBlockEntity`.

@@ -359,6 +359,41 @@ pub struct LecternBlockEntity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HangingSignAttachment {
+    Wall,
+    Ceiling,
+    CeilingMiddle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignLine {
+    pub raw: String,
+    pub filtered: String,
+    pub click_command: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignText {
+    pub lines: [SignLine; 4],
+    pub color: DyeColor,
+    pub has_glowing_text: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignBlockEntityModel {
+    pub front_text: SignText,
+    pub back_text: SignText,
+    pub is_waxed: bool,
+    pub player_who_may_edit: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HangingSignBlockEntityModel {
+    pub sign: SignBlockEntityModel,
+    pub attachment: HangingSignAttachment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FurnaceBlockEntityKind {
     Furnace,
     BlastFurnace,
@@ -2538,6 +2573,321 @@ impl LecternBlockEntity {
         } else {
             page.clamp(0, self.page_count - 1)
         }
+    }
+}
+
+impl HangingSignAttachment {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Wall => "wall",
+            Self::Ceiling => "ceiling",
+            Self::CeilingMiddle => "ceiling_middle",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "wall" => Some(Self::Wall),
+            "ceiling" => Some(Self::Ceiling),
+            "ceiling_middle" => Some(Self::CeilingMiddle),
+            _ => None,
+        }
+    }
+}
+
+impl Default for SignLine {
+    fn default() -> Self {
+        Self {
+            raw: String::new(),
+            filtered: String::new(),
+            click_command: None,
+        }
+    }
+}
+
+impl SignLine {
+    pub fn new(raw: impl Into<String>, filtered: impl Into<String>) -> Self {
+        Self {
+            raw: raw.into(),
+            filtered: filtered.into(),
+            click_command: None,
+        }
+    }
+
+    pub fn with_click_command(mut self, command: impl Into<String>) -> Self {
+        self.click_command = Some(command.into());
+        self
+    }
+
+    pub fn visible_text(&self, should_filter: bool) -> &str {
+        if should_filter {
+            &self.filtered
+        } else {
+            &self.raw
+        }
+    }
+}
+
+impl Default for SignText {
+    fn default() -> Self {
+        Self {
+            lines: std::array::from_fn(|_| SignLine::default()),
+            color: DyeColor::Black,
+            has_glowing_text: false,
+        }
+    }
+}
+
+impl SignText {
+    pub const LINES: usize = 4;
+
+    pub fn set_message(
+        &mut self,
+        index: usize,
+        raw: impl Into<String>,
+        filtered: impl Into<String>,
+    ) -> bool {
+        if index >= Self::LINES {
+            return false;
+        }
+        self.lines[index] = SignLine::new(raw, filtered);
+        true
+    }
+
+    pub fn has_message(&self, should_filter: bool) -> bool {
+        self.lines
+            .iter()
+            .any(|line| !line.visible_text(should_filter).is_empty())
+    }
+
+    pub fn has_any_click_commands(&self, should_filter: bool) -> bool {
+        self.lines.iter().any(|line| {
+            !line.visible_text(should_filter).is_empty() && line.click_command.is_some()
+        })
+    }
+
+    pub fn to_tag(&self) -> Tag {
+        let mut fields = vec![
+            (
+                "messages".to_string(),
+                Tag::List(self.lines.iter().map(sign_line_to_tag).collect()),
+            ),
+            (
+                "color".to_string(),
+                Tag::String(self.color.vanilla_name().to_string()),
+            ),
+            (
+                "has_glowing_text".to_string(),
+                Tag::Byte(self.has_glowing_text as i8),
+            ),
+        ];
+        if self.lines.iter().any(|line| line.filtered != line.raw) {
+            fields.push((
+                "filtered_messages".to_string(),
+                Tag::List(
+                    self.lines
+                        .iter()
+                        .map(|line| Tag::String(line.filtered.clone()))
+                        .collect(),
+                ),
+            ));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn from_tag(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::default();
+        };
+        let mut text = Self::default();
+        if let Some(Tag::List(messages)) = entries
+            .iter()
+            .find(|(name, _)| name == "messages")
+            .map(|(_, tag)| tag)
+        {
+            for (index, message) in messages.iter().take(Self::LINES).enumerate() {
+                text.lines[index] = sign_line_from_tag(message);
+            }
+        }
+        if let Some(Tag::List(filtered_messages)) = entries
+            .iter()
+            .find(|(name, _)| name == "filtered_messages")
+            .map(|(_, tag)| tag)
+        {
+            for (index, message) in filtered_messages.iter().take(Self::LINES).enumerate() {
+                if let Tag::String(filtered) = message {
+                    text.lines[index].filtered = filtered.clone();
+                }
+            }
+        } else {
+            for line in &mut text.lines {
+                line.filtered = line.raw.clone();
+            }
+        }
+        text.color = get_string(entries, "color")
+            .and_then(DyeColor::from_vanilla_name)
+            .unwrap_or(DyeColor::Black);
+        text.has_glowing_text = get_bool(entries, "has_glowing_text").unwrap_or(false);
+        text
+    }
+}
+
+impl Default for SignBlockEntityModel {
+    fn default() -> Self {
+        Self {
+            front_text: SignText::default(),
+            back_text: SignText::default(),
+            is_waxed: false,
+            player_who_may_edit: None,
+        }
+    }
+}
+
+impl SignBlockEntityModel {
+    pub const MAX_TEXT_LINE_WIDTH: i32 = 90;
+    pub const TEXT_LINE_HEIGHT: i32 = 10;
+
+    pub fn text(&self, front_text: bool) -> &SignText {
+        if front_text {
+            &self.front_text
+        } else {
+            &self.back_text
+        }
+    }
+
+    pub fn text_mut(&mut self, front_text: bool) -> &mut SignText {
+        if front_text {
+            &mut self.front_text
+        } else {
+            &mut self.back_text
+        }
+    }
+
+    pub fn set_allowed_player_editor(&mut self, player_uuid: Option<String>) {
+        self.player_who_may_edit = player_uuid;
+    }
+
+    pub fn player_is_too_far_away_to_edit(&self, player_uuid: &str, distance: f64) -> bool {
+        self.player_who_may_edit.as_deref() != Some(player_uuid) || distance > 4.0
+    }
+
+    pub fn tick_editing_player(&mut self, player_uuid: &str, distance: f64) -> bool {
+        if self.player_is_too_far_away_to_edit(player_uuid, distance) {
+            self.player_who_may_edit = None;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn update_sign_text(
+        &mut self,
+        player_uuid: &str,
+        front_text: bool,
+        lines: [SignLine; 4],
+        player_filters_text: bool,
+    ) -> bool {
+        if self.is_waxed || self.player_who_may_edit.as_deref() != Some(player_uuid) {
+            return false;
+        }
+        let text = self.text_mut(front_text);
+        if player_filters_text {
+            for (slot, line) in lines.into_iter().enumerate() {
+                text.lines[slot].raw = line.filtered.clone();
+                text.lines[slot].filtered = line.filtered;
+                text.lines[slot].click_command = line.click_command;
+            }
+        } else {
+            text.lines = lines;
+        }
+        self.player_who_may_edit = None;
+        true
+    }
+
+    pub fn set_waxed(&mut self, is_waxed: bool) -> bool {
+        if self.is_waxed == is_waxed {
+            false
+        } else {
+            self.is_waxed = is_waxed;
+            true
+        }
+    }
+
+    pub fn can_execute_click_commands(&self, front_text: bool, should_filter: bool) -> bool {
+        self.is_waxed && self.text(front_text).has_any_click_commands(should_filter)
+    }
+
+    pub fn executable_click_commands(&self, front_text: bool, should_filter: bool) -> Vec<String> {
+        if !self.is_waxed {
+            return Vec::new();
+        }
+        self.text(front_text)
+            .lines
+            .iter()
+            .filter(|line| !line.visible_text(should_filter).is_empty())
+            .filter_map(|line| line.click_command.clone())
+            .collect()
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            ("front_text".to_string(), self.front_text.to_tag()),
+            ("back_text".to_string(), self.back_text.to_tag()),
+            ("is_waxed".to_string(), Tag::Byte(self.is_waxed as i8)),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::default();
+        };
+        Self {
+            front_text: entries
+                .iter()
+                .find(|(name, _)| name == "front_text")
+                .map(|(_, tag)| SignText::from_tag(tag))
+                .unwrap_or_default(),
+            back_text: entries
+                .iter()
+                .find(|(name, _)| name == "back_text")
+                .map(|(_, tag)| SignText::from_tag(tag))
+                .unwrap_or_default(),
+            is_waxed: get_bool(entries, "is_waxed").unwrap_or(false),
+            player_who_may_edit: None,
+        }
+    }
+}
+
+impl HangingSignBlockEntityModel {
+    pub const MAX_TEXT_LINE_WIDTH: i32 = 60;
+    pub const TEXT_LINE_HEIGHT: i32 = 9;
+
+    pub fn new(attachment: HangingSignAttachment) -> Self {
+        Self {
+            sign: SignBlockEntityModel::default(),
+            attachment,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = match self.sign.save_additional() {
+            Tag::Compound(entries) => entries,
+            _ => Vec::new(),
+        };
+        entries.push((
+            "attachment".to_string(),
+            Tag::String(self.attachment.as_str().to_string()),
+        ));
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let sign = SignBlockEntityModel::load_additional(tag);
+        let attachment = compound_entries(tag)
+            .and_then(|entries| get_string(entries, "attachment"))
+            .and_then(HangingSignAttachment::from_str)
+            .unwrap_or(HangingSignAttachment::Ceiling);
+        Self { sign, attachment }
     }
 }
 
@@ -6280,6 +6630,30 @@ fn load_container_items(entries: &[(String, Tag)], items: &mut [Option<PotItemSt
     }
 }
 
+fn sign_line_to_tag(line: &SignLine) -> Tag {
+    if let Some(command) = &line.click_command {
+        Tag::Compound(vec![
+            ("text".to_string(), Tag::String(line.raw.clone())),
+            ("run_command".to_string(), Tag::String(command.clone())),
+        ])
+    } else {
+        Tag::String(line.raw.clone())
+    }
+}
+
+fn sign_line_from_tag(tag: &Tag) -> SignLine {
+    match tag {
+        Tag::String(raw) => SignLine::new(raw.clone(), raw.clone()),
+        Tag::Compound(entries) => {
+            let raw = get_string(entries, "text").unwrap_or("").to_string();
+            let mut line = SignLine::new(raw.clone(), raw);
+            line.click_command = get_string(entries, "run_command").map(str::to_string);
+            line
+        }
+        _ => SignLine::default(),
+    }
+}
+
 fn compound_entries(tag: &Tag) -> Option<&Vec<(String, Tag)>> {
     match tag {
         Tag::Compound(entries) => Some(entries),
@@ -7262,6 +7636,86 @@ mod tests {
         assert_eq!(single_page.get_redstone_signal(), 15);
         single_page.clear_content();
         assert_eq!(single_page.save_additional(), Tag::Compound(Vec::new()));
+    }
+
+    #[test]
+    fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
+        let mut sign = SignBlockEntityModel::default();
+        assert_eq!(SignBlockEntityModel::MAX_TEXT_LINE_WIDTH, 90);
+        assert_eq!(SignBlockEntityModel::TEXT_LINE_HEIGHT, 10);
+        assert_eq!(sign.front_text.color, DyeColor::Black);
+        assert!(!sign.front_text.has_message(false));
+        assert!(!sign.update_sign_text(
+            "player-a",
+            true,
+            std::array::from_fn(|_| SignLine::default()),
+            false,
+        ));
+
+        sign.set_allowed_player_editor(Some("player-a".to_string()));
+        assert!(!sign.player_is_too_far_away_to_edit("player-a", 4.0));
+        let front_lines = [
+            SignLine::new("raw one", "filtered one").with_click_command("/say front"),
+            SignLine::new("raw two", "filtered two"),
+            SignLine::new("", ""),
+            SignLine::new("raw four", "filtered four"),
+        ];
+        assert!(sign.update_sign_text("player-a", true, front_lines, false));
+        assert!(sign.player_who_may_edit.is_none());
+        sign.front_text.color = DyeColor::Blue;
+        sign.front_text.has_glowing_text = true;
+        assert_eq!(sign.front_text.lines[0].visible_text(false), "raw one");
+        assert_eq!(sign.front_text.lines[0].visible_text(true), "filtered one");
+        assert!(!sign.can_execute_click_commands(true, false));
+        assert!(sign.set_waxed(true));
+        assert!(sign.can_execute_click_commands(true, false));
+        assert_eq!(
+            sign.executable_click_commands(true, false),
+            vec!["/say front".to_string()]
+        );
+
+        sign.set_allowed_player_editor(Some("player-b".to_string()));
+        let filtered_back_lines = [
+            SignLine::new("unsafe", "safe"),
+            SignLine::new("raw", "clean"),
+            SignLine::new("", ""),
+            SignLine::new("last", "filtered last"),
+        ];
+        assert!(!sign.update_sign_text("player-b", false, filtered_back_lines.clone(), true));
+        assert_eq!(sign.back_text.lines[0].raw, "");
+        assert!(sign.set_waxed(false));
+        assert!(sign.update_sign_text("player-b", false, filtered_back_lines, true));
+        assert_eq!(sign.back_text.lines[0].raw, "safe");
+        assert_eq!(sign.back_text.lines[0].filtered, "safe");
+
+        sign.set_allowed_player_editor(Some("player-c".to_string()));
+        assert!(sign.tick_editing_player("player-c", 4.01));
+        assert!(sign.player_who_may_edit.is_none());
+
+        let saved = sign.save_additional();
+        let loaded = SignBlockEntityModel::load_additional(&saved);
+        assert_eq!(loaded.front_text.color, DyeColor::Blue);
+        assert!(loaded.front_text.has_glowing_text);
+        assert_eq!(loaded.front_text.lines[0].raw, "raw one");
+        assert_eq!(loaded.front_text.lines[0].filtered, "filtered one");
+        assert_eq!(
+            loaded.front_text.lines[0].click_command.as_deref(),
+            Some("/say front")
+        );
+        assert_eq!(loaded.back_text.lines[3].raw, "filtered last");
+        assert!(!loaded.is_waxed);
+
+        let mut hanging = HangingSignBlockEntityModel::new(HangingSignAttachment::CeilingMiddle);
+        hanging.sign = loaded;
+        assert_eq!(HangingSignBlockEntityModel::MAX_TEXT_LINE_WIDTH, 60);
+        assert_eq!(HangingSignBlockEntityModel::TEXT_LINE_HEIGHT, 9);
+        let loaded_hanging =
+            HangingSignBlockEntityModel::load_additional(&hanging.save_additional());
+        assert_eq!(
+            loaded_hanging.attachment,
+            HangingSignAttachment::CeilingMiddle
+        );
+        assert_eq!(loaded_hanging.sign.front_text.lines[0].raw, "raw one");
     }
 
     #[test]
