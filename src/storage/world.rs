@@ -284,6 +284,179 @@ impl LevelStorageAccess {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LevelGameType {
+    Survival,
+    Creative,
+    Adventure,
+    Spectator,
+}
+
+impl LevelGameType {
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Survival => 0,
+            Self::Creative => 1,
+            Self::Adventure => 2,
+            Self::Spectator => 3,
+        }
+    }
+
+    pub fn from_id(id: i32) -> Option<Self> {
+        match id {
+            0 => Some(Self::Survival),
+            1 => Some(Self::Creative),
+            2 => Some(Self::Adventure),
+            3 => Some(Self::Spectator),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LevelDifficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard,
+}
+
+impl LevelDifficulty {
+    pub fn id(self) -> i8 {
+        match self {
+            Self::Peaceful => 0,
+            Self::Easy => 1,
+            Self::Normal => 2,
+            Self::Hard => 3,
+        }
+    }
+
+    pub fn from_id(id: i8) -> Option<Self> {
+        match id {
+            0 => Some(Self::Peaceful),
+            1 => Some(Self::Easy),
+            2 => Some(Self::Normal),
+            3 => Some(Self::Hard),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelRespawnData {
+    pub dimension: String,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub angle: f32,
+}
+
+impl Default for LevelRespawnData {
+    fn default() -> Self {
+        Self {
+            dimension: "minecraft:overworld".to_string(),
+            x: 0,
+            y: 0,
+            z: 0,
+            angle: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorldDataView {
+    pub level_name: String,
+    pub game_type: LevelGameType,
+    pub hardcore: bool,
+    pub allow_commands: bool,
+    pub difficulty: LevelDifficulty,
+    pub difficulty_locked: bool,
+    pub seed: i64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServerLevelDataView {
+    pub respawn_data: LevelRespawnData,
+    pub game_time: i64,
+    pub initialized: bool,
+    pub seed: i64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DerivedLevelData {
+    world_data: WorldDataView,
+    wrapped: ServerLevelDataView,
+}
+
+impl DerivedLevelData {
+    pub fn new(world_data: WorldDataView, wrapped: ServerLevelDataView) -> Self {
+        Self {
+            world_data,
+            wrapped,
+        }
+    }
+
+    pub fn respawn_data(&self) -> &LevelRespawnData {
+        &self.wrapped.respawn_data
+    }
+
+    pub fn set_spawn(&mut self, respawn_data: LevelRespawnData) {
+        self.wrapped.respawn_data = respawn_data;
+    }
+
+    pub fn game_time(&self) -> i64 {
+        self.wrapped.game_time
+    }
+
+    pub fn set_game_time(&mut self, _time: i64) {
+        // Java DerivedLevelData.setGameTime is intentionally a no-op.
+    }
+
+    pub fn level_name(&self) -> &str {
+        &self.world_data.level_name
+    }
+
+    pub fn game_type(&self) -> LevelGameType {
+        self.world_data.game_type
+    }
+
+    pub fn set_game_type(&mut self, _game_type: LevelGameType) {
+        // Java DerivedLevelData.setGameType is intentionally a no-op.
+    }
+
+    pub fn is_hardcore(&self) -> bool {
+        self.world_data.hardcore
+    }
+
+    pub fn allow_commands(&self) -> bool {
+        self.world_data.allow_commands
+    }
+
+    pub fn initialized(&self) -> bool {
+        self.wrapped.initialized
+    }
+
+    pub fn set_initialized(&mut self, _initialized: bool) {
+        // Java DerivedLevelData.setInitialized is intentionally a no-op.
+    }
+
+    pub fn difficulty(&self) -> LevelDifficulty {
+        self.world_data.difficulty
+    }
+
+    pub fn difficulty_locked(&self) -> bool {
+        self.world_data.difficulty_locked
+    }
+
+    pub fn world_seed(&self) -> i64 {
+        self.world_data.seed
+    }
+
+    pub fn dimension_seed(&self) -> i64 {
+        self.wrapped.seed
+    }
+}
+
 impl WorldLayout {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
@@ -1174,6 +1347,60 @@ mod tests {
         assert!(!path.join("world_two").exists());
 
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn derived_level_data_matches_java_delegation_semantics() {
+        let world_data = super::WorldDataView {
+            level_name: "Shared World".to_string(),
+            game_type: super::LevelGameType::Creative,
+            hardcore: true,
+            allow_commands: true,
+            difficulty: super::LevelDifficulty::Hard,
+            difficulty_locked: true,
+            seed: 12345,
+        };
+        let wrapped = super::ServerLevelDataView {
+            respawn_data: super::LevelRespawnData {
+                dimension: "minecraft:the_nether".to_string(),
+                x: 8,
+                y: 70,
+                z: -4,
+                angle: 90.0,
+            },
+            game_time: 24000,
+            initialized: false,
+            seed: 67890,
+        };
+        let mut derived = super::DerivedLevelData::new(world_data, wrapped);
+
+        assert_eq!(derived.level_name(), "Shared World");
+        assert_eq!(derived.game_type(), super::LevelGameType::Creative);
+        assert!(derived.is_hardcore());
+        assert!(derived.allow_commands());
+        assert_eq!(derived.difficulty(), super::LevelDifficulty::Hard);
+        assert!(derived.difficulty_locked());
+        assert_eq!(derived.game_time(), 24000);
+        assert!(!derived.initialized());
+        assert_eq!(derived.world_seed(), 12345);
+        assert_eq!(derived.dimension_seed(), 67890);
+
+        derived.set_spawn(super::LevelRespawnData {
+            dimension: "minecraft:overworld".to_string(),
+            x: 0,
+            y: 64,
+            z: 0,
+            angle: 0.0,
+        });
+        assert_eq!(derived.respawn_data().dimension, "minecraft:overworld");
+        assert_eq!(derived.respawn_data().y, 64);
+
+        derived.set_game_time(1);
+        derived.set_game_type(super::LevelGameType::Survival);
+        derived.set_initialized(true);
+        assert_eq!(derived.game_time(), 24000);
+        assert_eq!(derived.game_type(), super::LevelGameType::Creative);
+        assert!(!derived.initialized());
     }
 
     #[test]
