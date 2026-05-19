@@ -90,7 +90,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `broadcast-rcon-to-ops`.
 - [x] Implement `broadcast-console-to-ops`.
 - [x] Implement clamped `max-world-size`.
-- [ ] Implement `sync-chunk-writes`.
+- [x] Implement `sync-chunk-writes`.
 - [x] Implement `region-file-compression` with at least deflate parity.
 - [x] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
 - [x] Implement mutable `enable-status`.
