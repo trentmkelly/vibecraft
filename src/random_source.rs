@@ -269,6 +269,15 @@ impl RandomSourceKind {
             Self::Xoroshiro(random) => random.consume_count(rounds),
         }
     }
+
+    pub fn next_f32(&mut self) -> f32 {
+        match self {
+            Self::Legacy(random) => random.next_f32(),
+            Self::Xoroshiro(random) => {
+                ((random.next_i32() as u32 >> 8) as f32) / ((1_u32 << 24) as f32)
+            }
+        }
+    }
 }
 
 pub fn random_state_seed_factories(

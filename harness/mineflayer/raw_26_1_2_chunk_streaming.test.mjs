@@ -39,7 +39,9 @@ test('raw 26.1.2 initial chunk stream preserves vanilla readiness ordering and d
 
     const joined = await runJoinProbe(port, 'ChunkStream', {
       RUSTCRAFT_EXPECT_WORLD_SEED: '24680',
-      RUSTCRAFT_EXPECT_IS_FLAT: 'true'
+      RUSTCRAFT_EXPECT_IS_FLAT: 'false',
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
+      RUSTCRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
     })
 
     assert.equal(joined.ok, true)
@@ -47,26 +49,30 @@ test('raw 26.1.2 initial chunk stream preserves vanilla readiness ordering and d
       viewDistance: 5,
       simulationDistance: 3
     })
-    assert.deepEqual(joined.joinState.chunkStreaming, {
+    assert.deepEqual({
+      cacheCenter: joined.joinState.chunkStreaming.cacheCenter,
+      cacheRadius: joined.joinState.chunkStreaming.cacheRadius,
+      batchSize: joined.joinState.chunkStreaming.batchSize,
+      chunks: joined.joinState.chunkStreaming.chunks
+    }, {
       cacheCenter: {
         x: 0,
         z: 0
       },
       cacheRadius: 5,
-      batchSize: 9,
-      chunks: [
-        { x: -1, z: -1 },
-        { x: 0, z: -1 },
-        { x: 1, z: -1 },
-        { x: -1, z: 0 },
-        { x: 0, z: 0 },
-        { x: 1, z: 0 },
-        { x: -1, z: 1 },
-        { x: 0, z: 1 },
-        { x: 1, z: 1 }
-      ]
+      batchSize: 121,
+      chunks: expectedChunkSquare(5)
     })
-    assert.equal(joined.joinState.initialChunkCount, 9)
+    assert.equal(joined.joinState.initialChunkCount, 121)
+    assert.equal(joined.joinState.chunkStreaming.chunkBiomePalettes.length, 121)
+    assert.ok(joined.joinState.chunkStreaming.chunkBiomePalettes.every(chunk => chunk.sectionCount >= 1))
+    assert.ok(joined.joinState.chunkStreaming.chunkBiomePalettes.every(chunk =>
+      chunk.biomePalette.length >= 1 &&
+      chunk.biomePalette.every(biome => biome.startsWith('minecraft:'))
+    ))
+    assert.ok(!joined.joinState.chunkStreaming.chunkBiomePalettes.some(chunk =>
+      chunk.biomePalette.includes('minecraft:badlands')
+    ))
     assert.equal(joined.play.at(-1).id, 11)
   } finally {
     if (server) await stopServer(server.child)
@@ -78,6 +84,16 @@ async function start (root, port) {
   const server = startRustCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
+}
+
+function expectedChunkSquare (radius) {
+  const chunks = []
+  for (let z = -radius; z <= radius; z += 1) {
+    for (let x = -radius; x <= radius; x += 1) {
+      chunks.push({ x, z })
+    }
+  }
+  return chunks
 }
 
 async function runJoinProbe (port, username, env = {}) {

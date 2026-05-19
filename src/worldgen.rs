@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, span, BiomeSourceModel,
@@ -10,7 +10,7 @@ pub use crate::random_source::RandomAlgorithm;
 
 use crate::random_source::{
     large_feature_seed_with_salt, random_state_named_factory, random_state_seed_factories,
-    LegacyRandom, RandomSourceKind,
+    LegacyRandom, PositionalRandomFactory, RandomSourceKind,
 };
 use crate::registry::Identifier;
 use crate::storage::chunk::{
@@ -385,6 +385,57 @@ pub struct ConfiguredCarver {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CarverBlockInput {
+    pub pos: BlockPos,
+    pub block: &'static str,
+    pub was_masked: bool,
+    pub aquifer_state: Option<&'static str>,
+    pub should_schedule_fluid_update: bool,
+    pub debug_enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CarverBlockOutcome {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub mask_index: usize,
+    pub mark_postprocessing: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CarverSkipModel<'a> {
+    None,
+    Cave { floor_level: f64 },
+    Canyon { width_factors: &'a [f32] },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaveTunnelStep {
+    pub step: i32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub horizontal_radius: f64,
+    pub vertical_radius: f64,
+    pub can_reach: bool,
+    pub carve: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaveTunnelBranch {
+    pub split_step: i32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub left_thickness: f32,
+    pub right_thickness: f32,
+    pub left_horizontal_rotation: f32,
+    pub right_horizontal_rotation: f32,
+    pub vertical_rotation: f32,
+    pub distance: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorldCarverType {
     Cave,
     NetherCave,
@@ -491,6 +542,53 @@ pub enum HeightProvider {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GenerationDecorationStep {
+    RawGeneration,
+    Lakes,
+    LocalModifications,
+    UndergroundStructures,
+    SurfaceStructures,
+    Strongholds,
+    UndergroundOres,
+    UndergroundDecoration,
+    FluidSprings,
+    VegetalDecoration,
+    TopLayerModification,
+}
+
+impl GenerationDecorationStep {
+    pub const VALUES: [GenerationDecorationStep; 11] = [
+        GenerationDecorationStep::RawGeneration,
+        GenerationDecorationStep::Lakes,
+        GenerationDecorationStep::LocalModifications,
+        GenerationDecorationStep::UndergroundStructures,
+        GenerationDecorationStep::SurfaceStructures,
+        GenerationDecorationStep::Strongholds,
+        GenerationDecorationStep::UndergroundOres,
+        GenerationDecorationStep::UndergroundDecoration,
+        GenerationDecorationStep::FluidSprings,
+        GenerationDecorationStep::VegetalDecoration,
+        GenerationDecorationStep::TopLayerModification,
+    ];
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            GenerationDecorationStep::RawGeneration => "raw_generation",
+            GenerationDecorationStep::Lakes => "lakes",
+            GenerationDecorationStep::LocalModifications => "local_modifications",
+            GenerationDecorationStep::UndergroundStructures => "underground_structures",
+            GenerationDecorationStep::SurfaceStructures => "surface_structures",
+            GenerationDecorationStep::Strongholds => "strongholds",
+            GenerationDecorationStep::UndergroundOres => "underground_ores",
+            GenerationDecorationStep::UndergroundDecoration => "underground_decoration",
+            GenerationDecorationStep::FluidSprings => "fluid_springs",
+            GenerationDecorationStep::VegetalDecoration => "vegetal_decoration",
+            GenerationDecorationStep::TopLayerModification => "top_layer_modification",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockPredicateType {
     pub id: &'static str,
 }
@@ -511,11 +609,38 @@ pub enum BlockPredicate {
     MatchingBlocks {
         blocks: &'static [&'static str],
     },
+    MatchingBlocksAt {
+        offset_y: i32,
+        blocks: &'static [&'static str],
+    },
+    MatchingBlockTag {
+        tag: &'static str,
+    },
     MatchingFluids {
         fluids: &'static [&'static str],
     },
+    MatchingFluidsAt {
+        offset_y: i32,
+        fluids: &'static [&'static str],
+    },
     Solid,
+    SolidAt {
+        offset_y: i32,
+    },
     Replaceable,
+    ReplaceableAt {
+        offset_y: i32,
+    },
+    WouldSurvive {
+        offset_y: i32,
+        state: &'static str,
+        survives: bool,
+    },
+    HasSturdyFace {
+        offset_y: i32,
+        direction: &'static str,
+        sturdy: bool,
+    },
     InsideWorldBounds {
         offset_y: i32,
     },
@@ -539,7 +664,7 @@ pub struct BlockPos {
     pub z: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlacementModifier {
     RarityFilter {
         chance: i32,
@@ -559,9 +684,34 @@ pub enum PlacementModifier {
     Count {
         count: i32,
     },
+    NoiseBasedCount {
+        noise_to_count_ratio: i32,
+        noise_factor: f64,
+        noise_offset: f64,
+        sampled_noise: f64,
+    },
+    NoiseThresholdCount {
+        noise_level: f64,
+        below_noise: i32,
+        above_noise: i32,
+        sampled_noise: f64,
+    },
+    CountOnEveryLayer {
+        positions: &'static [BlockPos],
+    },
+    EnvironmentScan {
+        direction_y: i32,
+        target_condition: BlockPredicate,
+        allowed_search_condition: BlockPredicate,
+        max_steps: i32,
+        states: &'static [BlockPredicateContext],
+    },
     InSquare,
     Heightmap {
         heightmap: HeightmapKind,
+    },
+    HeightRange {
+        height: HeightProvider,
     },
     RandomOffset {
         xz_spread: i32,
@@ -619,6 +769,12 @@ pub struct FeatureSorterData {
     pub feature: &'static str,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeatureSorterSourceModel {
+    pub id: &'static str,
+    pub feature_steps: &'static [&'static [&'static str]],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepFeatureDataModel {
     pub features: Vec<&'static str>,
@@ -630,6 +786,29 @@ impl StepFeatureDataModel {
             .iter()
             .position(|candidate| *candidate == feature)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BiomeDecorationFeatureCall {
+    pub step_index: usize,
+    pub global_feature_index: usize,
+    pub feature: &'static str,
+    pub seed: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BiomeDecorationStructureCall {
+    pub step_index: usize,
+    pub step_structure_index: usize,
+    pub structure: &'static str,
+    pub seed: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BiomeDecorationFeaturePlan {
+    pub origin: BlockPos,
+    pub decoration_seed: i64,
+    pub feature_calls: Vec<BiomeDecorationFeatureCall>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -791,13 +970,45 @@ pub struct WeightedBlockState {
     pub weight: i32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuleBasedBlockStateProviderRule {
+    pub if_true: BlockPredicate,
+    pub then: Box<BlockStateProviderModel>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockStateProviderModel {
     Simple(&'static str),
     Weighted(Vec<WeightedBlockState>),
+    RotatedBlock(&'static str),
+    RandomizedInt {
+        source: Box<BlockStateProviderModel>,
+        property: &'static str,
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
+    RuleBased {
+        fallback: Option<Box<BlockStateProviderModel>>,
+        rules: Vec<RuleBasedBlockStateProviderRule>,
+    },
+    Noise {
+        states: Vec<&'static str>,
+    },
+    NoiseThreshold {
+        threshold: f32,
+        high_chance: f32,
+        default_state: &'static str,
+        low_states: Vec<&'static str>,
+        high_states: Vec<&'static str>,
+    },
+    DualNoise {
+        variety_min: i32,
+        variety_max: i32,
+        states: Vec<&'static str>,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SimpleBlockConfigurationModel {
     pub to_place: BlockStateProviderModel,
     pub schedule_tick: bool,
@@ -934,7 +1145,7 @@ pub struct VegetationPatchPlan {
     pub vegetation_origins: Vec<BlockPos>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LakeConfigurationModel {
     pub fluid: BlockStateProviderModel,
     pub barrier: BlockStateProviderModel,
@@ -1166,7 +1377,7 @@ pub struct DeltaPlacementBlock {
     pub state: &'static str,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NetherForestVegetationConfigModel {
     pub state_provider: BlockStateProviderModel,
     pub spread_width: i32,
@@ -1333,12 +1544,12 @@ pub enum HorizontalDirection {
     East,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BlockPileConfigurationModel {
     pub state_provider: BlockStateProviderModel,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DiskConfigurationModel {
     pub state_provider: BlockStateProviderModel,
     pub target: BlockPredicate,
@@ -1382,6 +1593,141 @@ pub struct UnderwaterMagmaCandidate {
     pub block: &'static str,
     pub below_visible_from_above: bool,
     pub horizontal_visible_from_outside: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DripstoneClusterSampledConfig {
+    pub floor_to_ceiling_search_range: i32,
+    pub height: i32,
+    pub x_radius: i32,
+    pub z_radius: i32,
+    pub max_stalagmite_stalactite_height_diff: i32,
+    pub height_deviation: i32,
+    pub dripstone_block_layer_thickness: i32,
+    pub density: f32,
+    pub wetness: f32,
+    pub chance_of_dripstone_column_at_max_distance_from_center: f32,
+    pub max_distance_from_edge_affecting_chance_of_dripstone_column: i32,
+    pub max_distance_from_center_affecting_height_bias: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DripstoneClusterColumnInput {
+    pub dx: i32,
+    pub dz: i32,
+    pub ceiling_y: Option<i32>,
+    pub floor_y: Option<i32>,
+    pub floor_pool_supported: bool,
+    pub ceiling_is_lava: bool,
+    pub floor_is_lava: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DripstoneClusterColumnRolls {
+    pub water_roll: f32,
+    pub stalactite_roll: f64,
+    pub stalactite_density_roll: f32,
+    pub stalactite_biased_height: f32,
+    pub stalagmite_roll: f64,
+    pub stalagmite_density_roll: f32,
+    pub stalagmite_biased_height: f32,
+    pub stalagmite_height_diff_roll: i32,
+    pub overlap_split_roll: i32,
+    pub merge_tips_roll: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointedDripstoneDirection {
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointedDripstoneThickness {
+    Base,
+    Middle,
+    Frustum,
+    Tip,
+    TipMerge,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PointedDripstoneBlockModel {
+    pub pos: BlockPos,
+    pub direction: PointedDripstoneDirection,
+    pub thickness: PointedDripstoneThickness,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DripstoneClusterColumnPlan {
+    pub water_pos: Option<BlockPos>,
+    pub ceiling_dripstone_blocks: Vec<BlockPos>,
+    pub floor_dripstone_blocks: Vec<BlockPos>,
+    pub stalactite: Vec<PointedDripstoneBlockModel>,
+    pub stalagmite: Vec<PointedDripstoneBlockModel>,
+    pub merge_tips: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PointedDripstoneConfigurationModel {
+    pub chance_of_taller_dripstone: f32,
+    pub chance_of_directional_spread: f32,
+    pub chance_of_spread_radius2: f32,
+    pub chance_of_spread_radius3: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PointedDripstoneSpreadRoll {
+    pub direction: HorizontalDirection,
+    pub direction_roll: f32,
+    pub radius2_roll: f32,
+    pub radius2_direction: HorizontalDirection,
+    pub radius3_roll: f32,
+    pub radius3_direction: HorizontalDirection,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PointedDripstoneFeaturePlan {
+    pub tip_direction: Option<PointedDripstoneDirection>,
+    pub dripstone_blocks: Vec<BlockPos>,
+    pub pointed_blocks: Vec<PointedDripstoneBlockModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LargeDripstoneSampledConfig {
+    pub floor_to_ceiling_search_range: i32,
+    pub column_radius_min: i32,
+    pub column_radius_max: i32,
+    pub height_scale: f64,
+    pub max_column_radius_to_cave_height_ratio: f32,
+    pub stalactite_bluntness: f64,
+    pub stalagmite_bluntness: f64,
+    pub wind_speed: f64,
+    pub wind_direction_radians: f64,
+    pub min_radius_for_wind: i32,
+    pub min_bluntness_for_wind: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LargeDripstoneModel {
+    pub root: BlockPos,
+    pub pointing_up: bool,
+    pub radius: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LargeDripstoneBlockModel {
+    pub pos: BlockPos,
+    pub pointing_up: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LargeDripstonePlacementPlan {
+    pub stalactite: LargeDripstoneModel,
+    pub stalagmite: LargeDripstoneModel,
+    pub wind_enabled: bool,
+    pub stalactite_blocks: Vec<LargeDripstoneBlockModel>,
+    pub stalagmite_blocks: Vec<LargeDripstoneBlockModel>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1504,6 +1850,61 @@ pub struct RootPlacerModel {
     pub mangrove_root_placement: MangroveRootPlacementModel,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RootSystemConfigurationModel {
+    pub tree_feature: &'static str,
+    pub required_vertical_space_for_tree: i32,
+    pub root_radius: i32,
+    pub root_replaceable: &'static str,
+    pub root_state_provider: BlockStateProviderModel,
+    pub root_placement_attempts: i32,
+    pub root_column_max_height: i32,
+    pub hanging_root_radius: i32,
+    pub hanging_roots_vertical_span: i32,
+    pub hanging_root_state_provider: BlockStateProviderModel,
+    pub hanging_root_placement_attempts: i32,
+    pub allowed_vertical_water_for_tree: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootSystemTreeCandidateModel {
+    pub pos: BlockPos,
+    pub allowed_tree_position: bool,
+    pub vertical_space_states: Vec<&'static str>,
+    pub below_state: &'static str,
+    pub tree_feature_places: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RootSystemOffsetRoll {
+    pub positive_x: i32,
+    pub negative_x: i32,
+    pub positive_y: i32,
+    pub negative_y: i32,
+    pub positive_z: i32,
+    pub negative_z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RootSystemPlacementKind {
+    RootedDirt,
+    HangingRoot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RootSystemPlacementBlock {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub kind: RootSystemPlacementKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootSystemPlacementPlan {
+    pub tree_origin: Option<BlockPos>,
+    pub blocks: Vec<RootSystemPlacementBlock>,
+    pub attempted_roots: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreePlacementBlockKind {
     DirtBelowTrunk,
@@ -1522,6 +1923,55 @@ pub struct TreePlacementBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreePlacementPlan {
     pub blocks: Vec<TreePlacementBlock>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeLeafDistanceUpdate {
+    pub pos: BlockPos,
+    pub distance: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeFoliageAttachmentModel {
+    pub pos: BlockPos,
+    pub radius_offset: i32,
+    pub double_trunk: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrunkPlacementPlan {
+    pub blocks: Vec<TreePlacementBlock>,
+    pub attachments: Vec<TreeFoliageAttachmentModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpwardsBranchingBranchModel {
+    pub trunk_y_offset: i32,
+    pub direction: HorizontalDirection,
+    pub branch_pos: i32,
+    pub branch_steps: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MegaJungleBranchModel {
+    pub branch_height: i32,
+    pub angle_radians: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CherryBranchModel {
+    pub start_offset_from_origin: i32,
+    pub direction: HorizontalDirection,
+    pub horizontal_length: i32,
+    pub end_offset_from_origin: i32,
+    pub middle_continues_upwards: bool,
+    pub grow_vertically: Vec<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FancyTrunkClusterRollModel {
+    pub shape_float: f32,
+    pub angle_float: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1550,15 +2000,97 @@ pub struct FallenTreePlacementPlan {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TreeDecoratorModel {
     TrunkVine,
-    LeaveVine,
-    PaleMoss,
-    CreakingHeart,
-    Cocoa { probability: f32 },
-    Beehive { probability: f32 },
+    LeaveVine {
+        probability: f32,
+    },
+    PaleMoss {
+        leaves_probability: f32,
+        trunk_probability: f32,
+        ground_probability: f32,
+    },
+    CreakingHeart {
+        probability: f32,
+    },
+    Cocoa {
+        probability: f32,
+    },
+    Beehive {
+        probability: f32,
+    },
     AlterGround,
-    AttachedToLeaves { probability: f32 },
+    AttachedToLeaves {
+        probability: f32,
+    },
     PlaceOnGround,
-    AttachedToLogs { probability: f32 },
+    AttachedToLogs {
+        probability: f32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeDecoratorPlacement {
+    pub pos: BlockPos,
+    pub state: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BeehiveDecoratorPlacement {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub bee_ticks_in_hive: Vec<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlaceOnGroundAttemptContext {
+    pub pos: BlockPos,
+    pub above_is_air_or_vine: bool,
+    pub pos_is_solid_render: bool,
+    pub motion_blocking_no_leaves_height: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AlterGroundScanContext {
+    pub pos: BlockPos,
+    pub provider_state: Option<&'static str>,
+    pub is_air: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaleMossAttachmentContext {
+    pub pos: BlockPos,
+    pub down_air: bool,
+    pub below_air: Vec<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrunkVineLogContext {
+    pub pos: BlockPos,
+    pub west_air: bool,
+    pub east_air: bool,
+    pub north_air: bool,
+    pub south_air: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CocoaLogContext {
+    pub pos: BlockPos,
+    pub north_air: bool,
+    pub east_air: bool,
+    pub south_air: bool,
+    pub west_air: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LeaveVineLeafContext {
+    pub pos: BlockPos,
+    pub west_air: bool,
+    pub east_air: bool,
+    pub north_air: bool,
+    pub south_air: bool,
+    pub west_below_air: [bool; 4],
+    pub east_below_air: [bool; 4],
+    pub north_below_air: [bool; 4],
+    pub south_below_air: [bool; 4],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1698,6 +2230,84 @@ pub enum JigsawProjectionModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawDirectionModel {
+    Down,
+    Up,
+    North,
+    South,
+    West,
+    East,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawJointTypeModel {
+    Rollable,
+    Aligned,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawConnectorModel {
+    pub name: &'static str,
+    pub target: &'static str,
+    pub pool: &'static str,
+    pub front: JigsawDirectionModel,
+    pub top: JigsawDirectionModel,
+    pub joint: JigsawJointTypeModel,
+    pub placement_priority: i32,
+    pub selection_priority: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawLocalConnectorModel {
+    pub connector: JigsawConnectorModel,
+    pub local_pos: BlockPos,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawPoolSizeModel {
+    pub name: &'static str,
+    pub fallback: Option<&'static str>,
+    pub max_size: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawPoolAvailabilityWarning {
+    EmptyOrNonExistentTarget,
+    EmptyOrNonExistentFallback,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawPoolAvailabilityDecisionModel {
+    pub can_place_children: bool,
+    pub warning: Option<JigsawPoolAvailabilityWarning>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawChildFreeShapeScope {
+    SourcePiece,
+    Context,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawChildFreeShapeSelectionModel {
+    pub scope: JigsawChildFreeShapeScope,
+    pub initialized_source_shape: Option<StructureBoundingBoxModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawAcceptedChildSchedulingModel {
+    pub child_depth: i32,
+    pub queue_for_expansion: bool,
+    pub placement_priority: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SequencedPriorityQueueModel<T> {
+    queues_by_priority: BTreeMap<i32, VecDeque<T>>,
+    highest_priority: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LiquidSettingsModel {
     IgnoreWaterlogging,
     ApplyWaterlogging,
@@ -1798,6 +2408,19 @@ pub struct JigsawTemplatePoolModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawCandidatePoolSource {
+    Target,
+    Fallback,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JigsawCandidateElementModel {
+    pub source: JigsawCandidatePoolSource,
+    pub raw_template_index: usize,
+    pub element: JigsawPoolElementModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DefaultFeatureJigsawModel {
     pub name: &'static str,
     pub final_state: &'static str,
@@ -1845,6 +2468,15 @@ pub struct JigsawChildPlacementYModel {
     pub case: JigsawJunctionYOffsetCase,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawChildBoxPlacementModel {
+    pub raw_target_box_pos: BlockPos,
+    pub raw_target_bounding_box: StructureBoundingBoxModel,
+    pub y_offset: i32,
+    pub target_box_position: BlockPos,
+    pub target_bounding_box: StructureBoundingBoxModel,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JigsawStructureModel {
     pub start_pool: &'static str,
@@ -1870,6 +2502,22 @@ pub struct JigsawGenerationPointModel {
     pub max_distance_from_center: JigsawMaxDistanceModel,
     pub dimension_padding: DimensionPaddingModel,
     pub liquid_settings: LiquidSettingsModel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawExpansionBoundsModel {
+    pub min_x: i32,
+    pub min_y: i32,
+    pub min_z: i32,
+    pub max_x_exclusive: i32,
+    pub max_y_exclusive: i32,
+    pub max_z_exclusive: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawStartAnchorAdjustmentModel {
+    pub local_anchor: BlockPos,
+    pub adjusted_position: BlockPos,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2643,6 +3291,13 @@ pub struct StructureFamilyEntry {
 pub struct JigsawPoolBootstrapSource {
     pub source_file: &'static str,
     pub registrations: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JigsawStartPoolModel {
+    pub structure_family: &'static str,
+    pub source_file: &'static str,
+    pub pool: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3804,6 +4459,70 @@ pub fn build_features_per_step(
     feature_sources: &[&[&[&'static str]]],
     try_reducing_error: bool,
 ) -> Result<Vec<StepFeatureDataModel>, String> {
+    match build_features_per_step_raw(feature_sources) {
+        Ok(features) => Ok(features),
+        Err(error) if try_reducing_error && error == "Feature order cycle found" => Err(format!(
+            "Feature order cycle found, involved sources: {}",
+            feature_sources.len()
+        )),
+        Err(error) => Err(error),
+    }
+}
+
+pub fn build_features_per_step_with_source_ids(
+    feature_sources: &[FeatureSorterSourceModel],
+    try_reducing_error: bool,
+) -> Result<Vec<StepFeatureDataModel>, String> {
+    let source_steps = feature_sources
+        .iter()
+        .map(|source| source.feature_steps)
+        .collect::<Vec<_>>();
+
+    match build_features_per_step_raw(&source_steps) {
+        Ok(features) => Ok(features),
+        Err(error) if try_reducing_error && error == "Feature order cycle found" => {
+            let mut reduced_sources = feature_sources.to_vec();
+
+            loop {
+                let last_size = reduced_sources.len();
+                let mut index = 0;
+                while index < reduced_sources.len() {
+                    let removed = reduced_sources.remove(index);
+                    let reduced_steps = reduced_sources
+                        .iter()
+                        .map(|source| source.feature_steps)
+                        .collect::<Vec<_>>();
+
+                    if build_features_per_step_raw(&reduced_steps).is_err() {
+                        continue;
+                    }
+
+                    reduced_sources.insert(index, removed);
+                    index += 1;
+                }
+
+                if last_size == reduced_sources.len() {
+                    break;
+                }
+            }
+
+            let involved_sources = reduced_sources
+                .iter()
+                .map(|source| source.id)
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "Feature order cycle found, involved sources: [{}]",
+                involved_sources
+            ))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn build_features_per_step_raw(
+    feature_sources: &[&[&[&'static str]]],
+) -> Result<Vec<StepFeatureDataModel>, String> {
     use std::collections::{BTreeMap, BTreeSet};
 
     let mut feature_indices = BTreeMap::<&'static str, usize>::new();
@@ -3856,14 +4575,7 @@ pub fn build_features_per_step(
                 &mut sorted_features,
             )
         {
-            return if try_reducing_error {
-                Err(format!(
-                    "Feature order cycle found, involved sources: {}",
-                    feature_sources.len()
-                ))
-            } else {
-                Err("Feature order cycle found".to_string())
-            };
+            return Err("Feature order cycle found".to_string());
         }
     }
 
@@ -3877,6 +4589,93 @@ pub fn build_features_per_step(
                 .collect(),
         })
         .collect())
+}
+
+pub fn biome_decoration_feature_plan(
+    world_seed: i64,
+    chunk_x: i32,
+    chunk_z: i32,
+    min_section_y: i32,
+    features_per_step: &[StepFeatureDataModel],
+    possible_biome_feature_steps: &[&[&[&'static str]]],
+) -> BiomeDecorationFeaturePlan {
+    use std::collections::BTreeSet;
+
+    let origin = BlockPos {
+        x: chunk_x * 16,
+        y: min_section_y * 16,
+        z: chunk_z * 16,
+    };
+    let decoration_seed = crate::random_source::decoration_seed(
+        world_seed,
+        origin.x,
+        origin.z,
+        RandomAlgorithm::Xoroshiro,
+    );
+    let mut feature_calls = Vec::new();
+
+    for (step_index, step_feature_data) in features_per_step.iter().enumerate() {
+        let mut possible_features_this_step = BTreeSet::new();
+        for biome_steps in possible_biome_feature_steps {
+            if let Some(features_in_biome_this_step) = biome_steps.get(step_index) {
+                for feature in *features_in_biome_this_step {
+                    if let Some(index) = step_feature_data.index_mapping(feature) {
+                        possible_features_this_step.insert(index);
+                    }
+                }
+            }
+        }
+
+        for global_feature_index in possible_features_this_step {
+            if let Some(feature) = step_feature_data
+                .features
+                .get(global_feature_index)
+                .copied()
+            {
+                feature_calls.push(BiomeDecorationFeatureCall {
+                    step_index,
+                    global_feature_index,
+                    feature,
+                    seed: crate::random_source::feature_seed(
+                        decoration_seed,
+                        global_feature_index as i32,
+                        step_index as i32,
+                    ),
+                });
+            }
+        }
+    }
+
+    BiomeDecorationFeaturePlan {
+        origin,
+        decoration_seed,
+        feature_calls,
+    }
+}
+
+pub fn biome_decoration_structure_calls(
+    decoration_seed: i64,
+    generation_steps: usize,
+    structures_by_step: &[&[&'static str]],
+) -> Vec<BiomeDecorationStructureCall> {
+    let mut calls = Vec::new();
+    for step_index in 0..generation_steps {
+        if let Some(structures) = structures_by_step.get(step_index) {
+            for (step_structure_index, structure) in structures.iter().copied().enumerate() {
+                calls.push(BiomeDecorationStructureCall {
+                    step_index,
+                    step_structure_index,
+                    structure,
+                    seed: crate::random_source::feature_seed(
+                        decoration_seed,
+                        step_structure_index as i32,
+                        step_index as i32,
+                    ),
+                });
+            }
+        }
+    }
+    calls
 }
 
 fn feature_sorter_dfs(
@@ -4109,7 +4908,7 @@ fn noise_preview_tree_blocks(
             TrunkPlacerModel {
                 base_height: if forest_tree { 5 } else { 4 },
                 height_rand_a: 2,
-                height_rand_b: 1,
+                height_rand_b: 0,
                 kind: TrunkPlacerKind::Straight,
             },
             FoliagePlacerModel {
@@ -13667,6 +14466,59 @@ pub const JIGSAW_POOL_BOOTSTRAP_SOURCES: &[JigsawPoolBootstrapSource] = &[
     },
 ];
 
+pub const JIGSAW_STRUCTURE_START_POOLS: &[JigsawStartPoolModel] = &[
+    JigsawStartPoolModel {
+        structure_family: "village/plains",
+        source_file: "PlainVillagePools.java",
+        pool: "minecraft:village/plains/town_centers",
+    },
+    JigsawStartPoolModel {
+        structure_family: "village/desert",
+        source_file: "DesertVillagePools.java",
+        pool: "minecraft:village/desert/town_centers",
+    },
+    JigsawStartPoolModel {
+        structure_family: "village/savanna",
+        source_file: "SavannaVillagePools.java",
+        pool: "minecraft:village/savanna/town_centers",
+    },
+    JigsawStartPoolModel {
+        structure_family: "village/snowy",
+        source_file: "SnowyVillagePools.java",
+        pool: "minecraft:village/snowy/town_centers",
+    },
+    JigsawStartPoolModel {
+        structure_family: "village/taiga",
+        source_file: "TaigaVillagePools.java",
+        pool: "minecraft:village/taiga/town_centers",
+    },
+    JigsawStartPoolModel {
+        structure_family: "pillager_outpost",
+        source_file: "PillagerOutpostPools.java",
+        pool: "minecraft:pillager_outpost/base_plates",
+    },
+    JigsawStartPoolModel {
+        structure_family: "bastion",
+        source_file: "BastionPieces.java",
+        pool: "minecraft:bastion/starts",
+    },
+    JigsawStartPoolModel {
+        structure_family: "ancient_city",
+        source_file: "AncientCityStructurePieces.java",
+        pool: "minecraft:ancient_city/city_center",
+    },
+    JigsawStartPoolModel {
+        structure_family: "trail_ruins",
+        source_file: "TrailRuinsStructurePools.java",
+        pool: "minecraft:trail_ruins/tower",
+    },
+    JigsawStartPoolModel {
+        structure_family: "trial_chambers",
+        source_file: "TrialChambersStructurePools.java",
+        pool: "minecraft:trial_chambers/chamber/end",
+    },
+];
+
 pub const BLENDING_CONSTANTS: BlendingConstants = BlendingConstants {
     height_blending_range_cells: 27,
     height_blending_range_chunks: 7,
@@ -14233,6 +15085,17 @@ impl StructureBoundingBoxModel {
             max_z: self.max_z + dz,
         }
     }
+
+    pub fn encapsulate_pos(self, pos: BlockPos) -> StructureBoundingBoxModel {
+        StructureBoundingBoxModel {
+            min_x: self.min_x.min(pos.x),
+            min_y: self.min_y.min(pos.y),
+            min_z: self.min_z.min(pos.z),
+            max_x: self.max_x.max(pos.x),
+            max_y: self.max_y.max(pos.y),
+            max_z: self.max_z.max(pos.z),
+        }
+    }
 }
 
 pub fn structure_make_bounding_box(
@@ -14748,6 +15611,151 @@ impl JigsawProjectionModel {
             JigsawProjectionModel::TerrainMatching => &["minecraft:gravity"],
             JigsawProjectionModel::Rigid => &[],
         }
+    }
+}
+
+impl JigsawDirectionModel {
+    pub const ALL: [Self; 6] = [
+        Self::Down,
+        Self::Up,
+        Self::North,
+        Self::South,
+        Self::West,
+        Self::East,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Down => "down",
+            Self::Up => "up",
+            Self::North => "north",
+            Self::South => "south",
+            Self::West => "west",
+            Self::East => "east",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "down" => Some(Self::Down),
+            "up" => Some(Self::Up),
+            "north" => Some(Self::North),
+            "south" => Some(Self::South),
+            "west" => Some(Self::West),
+            "east" => Some(Self::East),
+            _ => None,
+        }
+    }
+
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::Down => Self::Up,
+            Self::Up => Self::Down,
+            Self::North => Self::South,
+            Self::South => Self::North,
+            Self::West => Self::East,
+            Self::East => Self::West,
+        }
+    }
+
+    pub fn step(self) -> BlockPos {
+        match self {
+            Self::Down => BlockPos { x: 0, y: -1, z: 0 },
+            Self::Up => BlockPos { x: 0, y: 1, z: 0 },
+            Self::North => BlockPos { x: 0, y: 0, z: -1 },
+            Self::South => BlockPos { x: 0, y: 0, z: 1 },
+            Self::West => BlockPos { x: -1, y: 0, z: 0 },
+            Self::East => BlockPos { x: 1, y: 0, z: 0 },
+        }
+    }
+}
+
+impl JigsawJointTypeModel {
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Rollable => "rollable",
+            Self::Aligned => "aligned",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "rollable" => Some(Self::Rollable),
+            "aligned" => Some(Self::Aligned),
+            _ => None,
+        }
+    }
+}
+
+impl JigsawConnectorModel {
+    pub fn target_pos(&self, pos: BlockPos) -> BlockPos {
+        let step = self.front.step();
+        BlockPos {
+            x: pos.x + step.x,
+            y: pos.y + step.y,
+            z: pos.z + step.z,
+        }
+    }
+}
+
+pub fn jigsaw_connectors_can_attach(
+    source: &JigsawConnectorModel,
+    target: &JigsawConnectorModel,
+) -> bool {
+    source.front == target.front.opposite()
+        && (source.joint == JigsawJointTypeModel::Rollable || source.top == target.top)
+        && source.target == target.name
+}
+
+impl<T> SequencedPriorityQueueModel<T> {
+    pub fn new() -> Self {
+        Self {
+            queues_by_priority: BTreeMap::new(),
+            highest_priority: None,
+        }
+    }
+
+    pub fn add(&mut self, data: T, priority: i32) {
+        let queue = self.queues_by_priority.entry(priority).or_default();
+        queue.push_back(data);
+        if self
+            .highest_priority
+            .is_none_or(|highest| priority >= highest)
+        {
+            self.highest_priority = Some(priority);
+        }
+    }
+
+    pub fn next_item(&mut self) -> Option<T> {
+        let priority = self.highest_priority?;
+        let queue = self.queues_by_priority.get_mut(&priority)?;
+        let result = queue.pop_front();
+        if queue.is_empty() {
+            self.switch_cache_to_next_highest_priority();
+        }
+        result
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.highest_priority.is_none()
+    }
+
+    pub fn highest_priority(&self) -> Option<i32> {
+        self.highest_priority
+    }
+
+    fn switch_cache_to_next_highest_priority(&mut self) {
+        self.highest_priority = self
+            .queues_by_priority
+            .iter()
+            .rev()
+            .find_map(|(priority, queue)| (!queue.is_empty()).then_some(*priority));
+    }
+}
+
+impl<T> Default for SequencedPriorityQueueModel<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -15477,6 +16485,123 @@ impl JigsawTemplatePoolModel {
         }
         None
     }
+
+    pub fn element_at_expanded_index(
+        &self,
+        expanded_index: usize,
+    ) -> Option<(usize, JigsawPoolElementModel)> {
+        let raw_index = self.get_weighted_template_index(expanded_index)?;
+        Some((raw_index, self.raw_templates[raw_index].element.clone()))
+    }
+}
+
+pub fn jigsaw_expansion_hack_target_size(
+    do_expansion_hack: bool,
+    hack_box: StructureBoundingBoxModel,
+    target_jigsaws: &[JigsawLocalConnectorModel],
+    pools: &[JigsawPoolSizeModel],
+    pool_alias_lookup: &JigsawPoolAliasLookupModel,
+) -> i32 {
+    if !do_expansion_hack || hack_box.max_y - hack_box.min_y + 1 > 16 {
+        return 0;
+    }
+
+    target_jigsaws
+        .iter()
+        .filter_map(|target_jigsaw| {
+            let facing_step = target_jigsaw.connector.front.step();
+            let facing_pos = BlockPos {
+                x: target_jigsaw.local_pos.x + facing_step.x,
+                y: target_jigsaw.local_pos.y + facing_step.y,
+                z: target_jigsaw.local_pos.z + facing_step.z,
+            };
+            if !hack_box.is_inside(facing_pos) {
+                return None;
+            }
+
+            let child_pool_name = pool_alias_lookup.lookup(target_jigsaw.connector.pool);
+            let child_pool = pools.iter().find(|pool| pool.name == child_pool_name);
+            let child_pool_size = child_pool.map_or(0, |pool| pool.max_size);
+            let child_fallback_size = child_pool
+                .and_then(|pool| pool.fallback)
+                .and_then(|fallback_name| pools.iter().find(|pool| pool.name == fallback_name))
+                .map_or(0, |pool| pool.max_size);
+            Some(child_pool_size.max(child_fallback_size))
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+pub fn jigsaw_pool_availability_decision(
+    target_pool_exists: bool,
+    target_pool_size: usize,
+    fallback_pool_name: &'static str,
+    fallback_pool_size: usize,
+) -> JigsawPoolAvailabilityDecisionModel {
+    if !target_pool_exists || target_pool_size == 0 {
+        return JigsawPoolAvailabilityDecisionModel {
+            can_place_children: false,
+            warning: Some(JigsawPoolAvailabilityWarning::EmptyOrNonExistentTarget),
+        };
+    }
+    if fallback_pool_size == 0 && fallback_pool_name != "minecraft:empty" {
+        return JigsawPoolAvailabilityDecisionModel {
+            can_place_children: false,
+            warning: Some(JigsawPoolAvailabilityWarning::EmptyOrNonExistentFallback),
+        };
+    }
+    JigsawPoolAvailabilityDecisionModel {
+        can_place_children: true,
+        warning: None,
+    }
+}
+
+pub fn jigsaw_candidate_elements_in_iteration_order(
+    target_pool: &JigsawTemplatePoolModel,
+    fallback_pool: &JigsawTemplatePoolModel,
+    depth: i32,
+    max_depth: i32,
+    target_expanded_indices: &[usize],
+    fallback_expanded_indices: &[usize],
+) -> Vec<JigsawCandidateElementModel> {
+    let mut candidates = Vec::new();
+    if depth != max_depth {
+        append_jigsaw_candidate_elements(
+            &mut candidates,
+            target_pool,
+            JigsawCandidatePoolSource::Target,
+            target_expanded_indices,
+        );
+    }
+    append_jigsaw_candidate_elements(
+        &mut candidates,
+        fallback_pool,
+        JigsawCandidatePoolSource::Fallback,
+        fallback_expanded_indices,
+    );
+    candidates
+}
+
+fn append_jigsaw_candidate_elements(
+    candidates: &mut Vec<JigsawCandidateElementModel>,
+    pool: &JigsawTemplatePoolModel,
+    source: JigsawCandidatePoolSource,
+    expanded_indices: &[usize],
+) {
+    for expanded_index in expanded_indices {
+        let Some((raw_template_index, element)) = pool.element_at_expanded_index(*expanded_index)
+        else {
+            continue;
+        };
+        if element.element_type == JigsawPoolElementTypeModel::Empty {
+            break;
+        }
+        candidates.push(JigsawCandidateElementModel {
+            source,
+            raw_template_index,
+            element,
+        });
+    }
 }
 
 impl PoolElementStructurePieceModel {
@@ -15585,6 +16710,87 @@ pub fn jigsaw_child_placement_y(
     }
 }
 
+pub fn jigsaw_child_box_placement(
+    target_jigsaw_world_pos: BlockPos,
+    target_jigsaw_local_pos: BlockPos,
+    raw_target_bounding_box_at_origin: StructureBoundingBoxModel,
+    placement: JigsawChildPlacementYModel,
+) -> JigsawChildBoxPlacementModel {
+    let raw_target_box_pos = BlockPos {
+        x: target_jigsaw_world_pos.x - target_jigsaw_local_pos.x,
+        y: target_jigsaw_world_pos.y - target_jigsaw_local_pos.y,
+        z: target_jigsaw_world_pos.z - target_jigsaw_local_pos.z,
+    };
+    let raw_target_bounding_box = raw_target_bounding_box_at_origin.moved(
+        raw_target_box_pos.x,
+        raw_target_box_pos.y,
+        raw_target_box_pos.z,
+    );
+    let y_offset = placement.target_box_y - raw_target_bounding_box.min_y;
+    let target_box_position = BlockPos {
+        x: raw_target_box_pos.x,
+        y: raw_target_box_pos.y + y_offset,
+        z: raw_target_box_pos.z,
+    };
+    let target_bounding_box = raw_target_bounding_box.moved(0, y_offset, 0);
+
+    JigsawChildBoxPlacementModel {
+        raw_target_box_pos,
+        raw_target_bounding_box,
+        y_offset,
+        target_box_position,
+        target_bounding_box,
+    }
+}
+
+pub fn jigsaw_apply_expansion_hack_to_target_box(
+    target_bounding_box: StructureBoundingBoxModel,
+    expand_to: i32,
+) -> StructureBoundingBoxModel {
+    if expand_to <= 0 {
+        return target_bounding_box;
+    }
+
+    let new_size = (expand_to + 1).max(target_bounding_box.max_y - target_bounding_box.min_y);
+    target_bounding_box.encapsulate_pos(BlockPos {
+        x: target_bounding_box.min_x,
+        y: target_bounding_box.min_y + new_size,
+        z: target_bounding_box.min_z,
+    })
+}
+
+pub fn jigsaw_child_free_shape_selection(
+    source_bounding_box: StructureBoundingBoxModel,
+    target_jigsaw_pos: BlockPos,
+    source_shape_already_initialized: bool,
+) -> JigsawChildFreeShapeSelectionModel {
+    if source_bounding_box.is_inside(target_jigsaw_pos) {
+        JigsawChildFreeShapeSelectionModel {
+            scope: JigsawChildFreeShapeScope::SourcePiece,
+            initialized_source_shape: (!source_shape_already_initialized)
+                .then_some(source_bounding_box),
+        }
+    } else {
+        JigsawChildFreeShapeSelectionModel {
+            scope: JigsawChildFreeShapeScope::Context,
+            initialized_source_shape: None,
+        }
+    }
+}
+
+pub fn jigsaw_accepted_child_scheduling(
+    depth: i32,
+    max_depth: i32,
+    placement_priority: i32,
+) -> JigsawAcceptedChildSchedulingModel {
+    let child_depth = depth + 1;
+    JigsawAcceptedChildSchedulingModel {
+        child_depth,
+        queue_for_expansion: child_depth <= max_depth,
+        placement_priority,
+    }
+}
+
 pub fn jigsaw_source_junction(
     target_jigsaw_pos: (i32, i32, i32),
     placement: JigsawChildPlacementYModel,
@@ -15616,6 +16822,62 @@ pub fn jigsaw_target_junction(
         source_z: source_jigsaw_pos.2,
         delta_y: -delta_y,
         dest_projection: source_projection,
+    }
+}
+
+pub fn jigsaw_start_too_close_to_world_height_limits(
+    min_y: i32,
+    height: i32,
+    dimension_padding: DimensionPaddingModel,
+    center_piece_box: StructureBoundingBoxModel,
+) -> bool {
+    if dimension_padding == DimensionPaddingModel::ZERO {
+        return false;
+    }
+    let max_y = min_y + height - 1;
+    let min_y_with_padding = min_y + dimension_padding.bottom;
+    let max_y_with_padding = max_y - dimension_padding.top;
+    center_piece_box.min_y < min_y_with_padding || center_piece_box.max_y > max_y_with_padding
+}
+
+pub fn jigsaw_initial_expansion_bounds(
+    center_x: i32,
+    center_y: i32,
+    center_z: i32,
+    max_distance_from_center: JigsawMaxDistanceModel,
+    min_y: i32,
+    height: i32,
+    dimension_padding: DimensionPaddingModel,
+) -> JigsawExpansionBoundsModel {
+    let max_y = min_y + height - 1;
+    JigsawExpansionBoundsModel {
+        min_x: center_x - max_distance_from_center.horizontal,
+        min_y: (center_y - max_distance_from_center.vertical).max(min_y + dimension_padding.bottom),
+        min_z: center_z - max_distance_from_center.horizontal,
+        max_x_exclusive: center_x + max_distance_from_center.horizontal + 1,
+        max_y_exclusive: (center_y + max_distance_from_center.vertical + 1)
+            .min(max_y + 1 - dimension_padding.top),
+        max_z_exclusive: center_z + max_distance_from_center.horizontal + 1,
+    }
+}
+
+pub fn jigsaw_start_anchor_adjustment(
+    requested_position: BlockPos,
+    anchored_position: BlockPos,
+) -> JigsawStartAnchorAdjustmentModel {
+    let local_anchor = BlockPos {
+        x: anchored_position.x - requested_position.x,
+        y: anchored_position.y - requested_position.y,
+        z: anchored_position.z - requested_position.z,
+    };
+    let adjusted_position = BlockPos {
+        x: requested_position.x - local_anchor.x,
+        y: requested_position.y - local_anchor.y,
+        z: requested_position.z - local_anchor.z,
+    };
+    JigsawStartAnchorAdjustmentModel {
+        local_anchor,
+        adjusted_position,
     }
 }
 
@@ -19955,24 +21217,192 @@ pub fn block_predicate_test(
     context: BlockPredicateContext,
     origin_y: i32,
 ) -> bool {
+    block_predicate_test_with_vertical_context(predicate, context, context, origin_y)
+}
+
+pub fn block_predicate_test_with_vertical_context(
+    predicate: BlockPredicate,
+    origin_context: BlockPredicateContext,
+    offset_context: BlockPredicateContext,
+    origin_y: i32,
+) -> bool {
     match predicate {
-        BlockPredicate::MatchingBlocks { blocks } => blocks.contains(&context.block),
-        BlockPredicate::MatchingFluids { fluids } => fluids.contains(&context.fluid),
-        BlockPredicate::Solid => context.solid,
-        BlockPredicate::Replaceable => context.replaceable,
+        BlockPredicate::MatchingBlocks { blocks } => blocks.contains(&origin_context.block),
+        BlockPredicate::MatchingBlocksAt { offset_y, blocks } => {
+            block_predicate_offset_context(offset_context, origin_y, offset_y)
+                .is_some_and(|offset_context| blocks.contains(&offset_context.block))
+        }
+        BlockPredicate::MatchingBlockTag { tag } => block_matches_tag(origin_context.block, tag),
+        BlockPredicate::MatchingFluids { fluids } => fluids.contains(&origin_context.fluid),
+        BlockPredicate::MatchingFluidsAt { offset_y, fluids } => {
+            block_predicate_offset_context(offset_context, origin_y, offset_y)
+                .is_some_and(|offset_context| fluids.contains(&offset_context.fluid))
+        }
+        BlockPredicate::Solid => origin_context.solid,
+        BlockPredicate::SolidAt { offset_y } => {
+            block_predicate_offset_context(offset_context, origin_y, offset_y)
+                .is_some_and(|offset_context| offset_context.solid)
+        }
+        BlockPredicate::Replaceable => origin_context.replaceable,
+        BlockPredicate::ReplaceableAt { offset_y } => {
+            block_predicate_offset_context(offset_context, origin_y, offset_y)
+                .is_some_and(|offset_context| offset_context.replaceable)
+        }
+        BlockPredicate::WouldSurvive {
+            offset_y,
+            state: _,
+            survives,
+        } => block_predicate_offset_context(offset_context, origin_y, offset_y)
+            .is_some_and(|_| survives),
+        BlockPredicate::HasSturdyFace {
+            offset_y,
+            direction: _,
+            sturdy,
+        } => block_predicate_offset_context(offset_context, origin_y, offset_y)
+            .is_some_and(|_| sturdy),
         BlockPredicate::InsideWorldBounds { offset_y } => {
             let y = origin_y + offset_y;
-            y >= context.min_y && y < context.min_y + context.height
+            y >= origin_context.min_y && y < origin_context.min_y + origin_context.height
         }
-        BlockPredicate::AnyOf { predicates } => predicates
-            .iter()
-            .any(|predicate| block_predicate_test(*predicate, context, origin_y)),
-        BlockPredicate::AllOf { predicates } => predicates
-            .iter()
-            .all(|predicate| block_predicate_test(*predicate, context, origin_y)),
-        BlockPredicate::Not { predicate } => !block_predicate_test(*predicate, context, origin_y),
+        BlockPredicate::AnyOf { predicates } => predicates.iter().any(|predicate| {
+            block_predicate_test_with_vertical_context(
+                *predicate,
+                origin_context,
+                offset_context,
+                origin_y,
+            )
+        }),
+        BlockPredicate::AllOf { predicates } => predicates.iter().all(|predicate| {
+            block_predicate_test_with_vertical_context(
+                *predicate,
+                origin_context,
+                offset_context,
+                origin_y,
+            )
+        }),
+        BlockPredicate::Not { predicate } => !block_predicate_test_with_vertical_context(
+            *predicate,
+            origin_context,
+            offset_context,
+            origin_y,
+        ),
         BlockPredicate::True => true,
-        BlockPredicate::Unobstructed => context.unobstructed,
+        BlockPredicate::Unobstructed => origin_context.unobstructed,
+    }
+}
+
+fn block_predicate_offset_context(
+    context: BlockPredicateContext,
+    origin_y: i32,
+    offset_y: i32,
+) -> Option<BlockPredicateContext> {
+    let y = origin_y + offset_y;
+    (y >= context.min_y && y < context.min_y + context.height).then_some(context)
+}
+
+fn block_matches_tag(block: &str, tag: &str) -> bool {
+    let tag = tag.strip_prefix("minecraft:").unwrap_or(tag);
+    match tag {
+        "air" => {
+            block == "minecraft:air"
+                || block == "minecraft:cave_air"
+                || block == "minecraft:void_air"
+        }
+        "logs" => matches!(
+            block,
+            "minecraft:oak_log"
+                | "minecraft:spruce_log"
+                | "minecraft:birch_log"
+                | "minecraft:jungle_log"
+                | "minecraft:acacia_log"
+                | "minecraft:dark_oak_log"
+                | "minecraft:mangrove_log"
+                | "minecraft:cherry_log"
+                | "minecraft:pale_oak_log"
+                | "minecraft:crimson_stem"
+                | "minecraft:warped_stem"
+                | "minecraft:stripped_oak_log"
+                | "minecraft:stripped_spruce_log"
+                | "minecraft:stripped_birch_log"
+                | "minecraft:stripped_jungle_log"
+                | "minecraft:stripped_acacia_log"
+                | "minecraft:stripped_dark_oak_log"
+                | "minecraft:stripped_mangrove_log"
+                | "minecraft:stripped_cherry_log"
+                | "minecraft:stripped_pale_oak_log"
+                | "minecraft:stripped_crimson_stem"
+                | "minecraft:stripped_warped_stem"
+        ),
+        "leaves" => matches!(
+            block,
+            "minecraft:oak_leaves"
+                | "minecraft:spruce_leaves"
+                | "minecraft:birch_leaves"
+                | "minecraft:jungle_leaves"
+                | "minecraft:acacia_leaves"
+                | "minecraft:dark_oak_leaves"
+                | "minecraft:mangrove_leaves"
+                | "minecraft:cherry_leaves"
+                | "minecraft:pale_oak_leaves"
+                | "minecraft:azalea_leaves"
+                | "minecraft:flowering_azalea_leaves"
+        ),
+        "small_flowers" => matches!(
+            block,
+            "minecraft:dandelion"
+                | "minecraft:poppy"
+                | "minecraft:blue_orchid"
+                | "minecraft:allium"
+                | "minecraft:azure_bluet"
+                | "minecraft:red_tulip"
+                | "minecraft:orange_tulip"
+                | "minecraft:white_tulip"
+                | "minecraft:pink_tulip"
+                | "minecraft:oxeye_daisy"
+                | "minecraft:cornflower"
+                | "minecraft:lily_of_the_valley"
+                | "minecraft:wither_rose"
+                | "minecraft:closed_eyeblossom"
+                | "minecraft:open_eyeblossom"
+        ),
+        "replaceable_by_trees" => {
+            block_matches_tag(block, "minecraft:leaves")
+                || block_matches_tag(block, "minecraft:small_flowers")
+                || matches!(
+                    block,
+                    "minecraft:pale_moss_carpet"
+                        | "minecraft:short_grass"
+                        | "minecraft:fern"
+                        | "minecraft:dead_bush"
+                        | "minecraft:vine"
+                        | "minecraft:glow_lichen"
+                        | "minecraft:sunflower"
+                        | "minecraft:lilac"
+                        | "minecraft:rose_bush"
+                        | "minecraft:peony"
+                        | "minecraft:tall_grass"
+                        | "minecraft:large_fern"
+                        | "minecraft:hanging_roots"
+                        | "minecraft:pitcher_plant"
+                        | "minecraft:water"
+                        | "minecraft:seagrass"
+                        | "minecraft:tall_seagrass"
+                        | "minecraft:bush"
+                        | "minecraft:firefly_bush"
+                        | "minecraft:warped_roots"
+                        | "minecraft:nether_sprouts"
+                        | "minecraft:crimson_roots"
+                        | "minecraft:leaf_litter"
+                        | "minecraft:short_dry_grass"
+                        | "minecraft:tall_dry_grass"
+                )
+        }
+        "replaceable" => {
+            block == "minecraft:air"
+                || block == "minecraft:cave_air"
+                || block == "minecraft:void_air"
+        }
+        _ => false,
     }
 }
 
@@ -20003,6 +21433,30 @@ pub fn placement_modifier_positions(
             }
         }
         PlacementModifier::Count { count } => vec![origin; count.max(0) as usize],
+        PlacementModifier::NoiseBasedCount {
+            noise_to_count_ratio,
+            noise_factor: _,
+            noise_offset,
+            sampled_noise,
+        } => {
+            let count =
+                ((sampled_noise + noise_offset) * noise_to_count_ratio as f64).ceil() as i32;
+            vec![origin; count.max(0) as usize]
+        }
+        PlacementModifier::NoiseThresholdCount {
+            noise_level,
+            below_noise,
+            above_noise,
+            sampled_noise,
+        } => {
+            let count = if sampled_noise < noise_level {
+                below_noise
+            } else {
+                above_noise
+            };
+            vec![origin; count.max(0) as usize]
+        }
+        PlacementModifier::CountOnEveryLayer { positions } => positions.to_vec(),
         PlacementModifier::InSquare => vec![BlockPos {
             x: origin.x + first_roll.rem_euclid(16),
             y: origin.y,
@@ -20031,9 +21485,11 @@ pub fn placement_modifier_positions(
         }
         PlacementModifier::BiomeFilter
         | PlacementModifier::BlockPredicateFilter { .. }
+        | PlacementModifier::EnvironmentScan { .. }
         | PlacementModifier::SurfaceWaterDepthFilter { .. }
         | PlacementModifier::SurfaceRelativeThresholdFilter { .. }
-        | PlacementModifier::Heightmap { .. } => Vec::new(),
+        | PlacementModifier::Heightmap { .. }
+        | PlacementModifier::HeightRange { .. } => Vec::new(),
     }
 }
 
@@ -20121,8 +21577,85 @@ pub fn placement_modifier_positions_with_context(
                 Vec::new()
             }
         }
+        PlacementModifier::HeightRange { height } => vec![BlockPos {
+            x: origin.x,
+            y: height_provider_sample_with_rolls(
+                height,
+                WorldGenerationHeightContext {
+                    min_y: context.min_y,
+                    height: context.block_predicate.height,
+                },
+                first_roll,
+                second_roll,
+                third_roll,
+            ),
+            z: origin.z,
+        }],
+        PlacementModifier::EnvironmentScan {
+            direction_y,
+            target_condition,
+            allowed_search_condition,
+            max_steps,
+            states,
+        } => environment_scan_placement_position(
+            origin,
+            context,
+            direction_y,
+            target_condition,
+            allowed_search_condition,
+            max_steps,
+            states,
+        )
+        .into_iter()
+        .collect(),
         _ => placement_modifier_positions(modifier, origin, first_roll, second_roll, third_roll),
     }
+}
+
+pub fn environment_scan_placement_position(
+    origin: BlockPos,
+    fallback_context: PlacementContextModel,
+    direction_y: i32,
+    target_condition: BlockPredicate,
+    allowed_search_condition: BlockPredicate,
+    max_steps: i32,
+    states: &[BlockPredicateContext],
+) -> Option<BlockPos> {
+    if !(1..=32).contains(&max_steps) || direction_y == 0 {
+        return None;
+    }
+
+    let step = direction_y.signum();
+    for i in 0..=max_steps {
+        let pos = BlockPos {
+            x: origin.x,
+            y: origin.y + i * step,
+            z: origin.z,
+        };
+        if pos.y < fallback_context.min_y
+            || pos.y >= fallback_context.min_y + fallback_context.block_predicate.height
+        {
+            return None;
+        }
+
+        let block_context = states
+            .get(i as usize)
+            .copied()
+            .unwrap_or(fallback_context.block_predicate);
+        if i == 0 && !block_predicate_test(allowed_search_condition, block_context, pos.y) {
+            return None;
+        }
+        if block_predicate_test(target_condition, block_context, pos.y) {
+            return Some(pos);
+        }
+        if i == max_steps {
+            break;
+        }
+        if !block_predicate_test(allowed_search_condition, block_context, pos.y) {
+            return None;
+        }
+    }
+    None
 }
 
 fn placement_context_height(context: PlacementContextModel, heightmap: HeightmapKind) -> i32 {
@@ -22661,6 +24194,32 @@ pub fn ore_vein_decision(input: OreVeinDecisionInput) -> Option<&'static str> {
     }
 }
 
+pub fn ore_vein_decision_at(
+    ore_factory: PositionalRandomFactory,
+    x: i32,
+    y: i32,
+    z: i32,
+    vein_toggle: f64,
+    vein_ridged: f64,
+    vein_gap: f64,
+    debug_ore_veins: bool,
+) -> Option<&'static str> {
+    let mut positional_random = ore_factory.at(x, y, z);
+    let solidness_random = f64::from(positional_random.next_f32());
+    let richness_random = f64::from(positional_random.next_f32());
+    let raw_ore_random = f64::from(positional_random.next_f32());
+    ore_vein_decision(OreVeinDecisionInput {
+        y,
+        vein_toggle,
+        vein_ridged,
+        vein_gap,
+        solidness_random,
+        richness_random,
+        raw_ore_random,
+        debug_ore_veins,
+    })
+}
+
 fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
     let clamped = value.clamp(from_min, from_max);
     let progress = (clamped - from_min) / (from_max - from_min);
@@ -22687,6 +24246,512 @@ pub fn world_carver_type(id: &str) -> Option<WorldCarverType> {
 
 pub fn carver_is_start_chunk(carver: &ConfiguredCarver, random_next_float: f32) -> bool {
     random_next_float <= carver.probability
+}
+
+pub fn carver_mask_index(x: i32, y: i32, z: i32, min_y: i32) -> Option<usize> {
+    if y < min_y {
+        return None;
+    }
+    Some(((x & 15) | ((z & 15) << 4) | ((y - min_y) << 8)) as usize)
+}
+
+pub fn carver_mask_position(
+    index: usize,
+    chunk_min_x: i32,
+    chunk_min_z: i32,
+    min_y: i32,
+) -> BlockPos {
+    BlockPos {
+        x: chunk_min_x + (index as i32 & 15),
+        y: min_y + (index as i32 >> 8),
+        z: chunk_min_z + ((index as i32 >> 4) & 15),
+    }
+}
+
+pub fn carver_can_replace_block(carver: &ConfiguredCarver, block: &str) -> bool {
+    match carver.replaceable_tag {
+        "#minecraft:overworld_carver_replaceables" => matches!(
+            block,
+            "minecraft:stone"
+                | "minecraft:granite"
+                | "minecraft:diorite"
+                | "minecraft:andesite"
+                | "minecraft:tuff"
+                | "minecraft:calcite"
+                | "minecraft:dirt"
+                | "minecraft:grass_block"
+                | "minecraft:podzol"
+                | "minecraft:mycelium"
+                | "minecraft:coarse_dirt"
+                | "minecraft:rooted_dirt"
+                | "minecraft:deepslate"
+                | "minecraft:sandstone"
+                | "minecraft:red_sandstone"
+                | "minecraft:sand"
+                | "minecraft:red_sand"
+                | "minecraft:clay"
+                | "minecraft:gravel"
+                | "minecraft:water"
+                | "minecraft:ice"
+                | "minecraft:packed_ice"
+                | "minecraft:snow_block"
+        ),
+        "#minecraft:nether_carver_replaceables" => matches!(
+            block,
+            "minecraft:netherrack"
+                | "minecraft:basalt"
+                | "minecraft:blackstone"
+                | "minecraft:soul_sand"
+                | "minecraft:soul_soil"
+                | "minecraft:crimson_nylium"
+                | "minecraft:warped_nylium"
+                | "minecraft:nether_wart_block"
+                | "minecraft:warped_wart_block"
+        ),
+        _ => false,
+    }
+}
+
+pub fn carver_effective_lava_y(
+    carver: &ConfiguredCarver,
+    height_context: WorldGenerationHeightContext,
+) -> i32 {
+    match carver.carver_type {
+        WorldCarverType::NetherCave => height_context.min_y + 31,
+        _ => carver.lava_level.resolve_y(height_context),
+    }
+}
+
+pub fn nether_carver_thickness(first_float: f32, second_float: f32) -> f32 {
+    (first_float * 2.0 + second_float) * 2.0
+}
+
+pub fn carver_tunnel_y_scale(carver_type: WorldCarverType) -> f64 {
+    match carver_type {
+        WorldCarverType::NetherCave => 5.0,
+        WorldCarverType::Cave | WorldCarverType::Canyon => 1.0,
+    }
+}
+
+pub fn carver_cave_bound(carver_type: WorldCarverType) -> i32 {
+    match carver_type {
+        WorldCarverType::NetherCave => 10,
+        WorldCarverType::Cave | WorldCarverType::Canyon => 15,
+    }
+}
+
+pub fn carver_carve_block(
+    carver: &ConfiguredCarver,
+    height_context: WorldGenerationHeightContext,
+    input: CarverBlockInput,
+) -> Option<CarverBlockOutcome> {
+    if input.was_masked && !input.debug_enabled {
+        return None;
+    }
+    if !carver_can_replace_block(carver, input.block) && !input.debug_enabled {
+        return None;
+    }
+    if carver.carver_type == WorldCarverType::NetherCave && !input.debug_enabled {
+        return Some(CarverBlockOutcome {
+            pos: input.pos,
+            state: if input.pos.y <= carver_effective_lava_y(carver, height_context) {
+                "minecraft:lava"
+            } else {
+                "minecraft:cave_air"
+            },
+            mask_index: carver_mask_index(
+                input.pos.x,
+                input.pos.y,
+                input.pos.z,
+                height_context.min_y,
+            )?,
+            mark_postprocessing: false,
+        });
+    }
+    let state = if input.pos.y <= carver_effective_lava_y(carver, height_context) {
+        "minecraft:lava"
+    } else {
+        match input.aquifer_state {
+            Some("minecraft:air") if input.debug_enabled => "minecraft:orange_stained_glass",
+            Some("minecraft:water") if input.debug_enabled => "minecraft:blue_stained_glass",
+            Some("minecraft:lava") if input.debug_enabled => "minecraft:red_stained_glass",
+            Some(state) => state,
+            None if input.debug_enabled => carver.debug.barrier_state,
+            None => return None,
+        }
+    };
+    Some(CarverBlockOutcome {
+        pos: input.pos,
+        state,
+        mask_index: carver_mask_index(input.pos.x, input.pos.y, input.pos.z, height_context.min_y)?,
+        mark_postprocessing: input.should_schedule_fluid_update
+            && matches!(state, "minecraft:water" | "minecraft:lava"),
+    })
+}
+
+pub fn carver_ellipsoid_candidate_positions(
+    chunk_min_x: i32,
+    chunk_min_z: i32,
+    height_context: WorldGenerationHeightContext,
+    upgrading: bool,
+    x: f64,
+    y: f64,
+    z: f64,
+    horizontal_radius: f64,
+    vertical_radius: f64,
+    existing_mask_indices: &[usize],
+    debug_enabled: bool,
+    skip_model: CarverSkipModel<'_>,
+) -> Vec<BlockPos> {
+    let chunk_middle_x = chunk_min_x + 8;
+    let chunk_middle_z = chunk_min_z + 8;
+    let max_delta = 16.0 + horizontal_radius * 2.0;
+    if (x - f64::from(chunk_middle_x)).abs() > max_delta
+        || (z - f64::from(chunk_middle_z)).abs() > max_delta
+    {
+        return Vec::new();
+    }
+
+    let min_x_index = ((x - horizontal_radius).floor() as i32 - chunk_min_x - 1).max(0);
+    let max_x_index = ((x + horizontal_radius).floor() as i32 - chunk_min_x).min(15);
+    let min_y = ((y - vertical_radius).floor() as i32 - 1).max(height_context.min_y + 1);
+    let protected_blocks_on_top = if upgrading { 0 } else { 7 };
+    let max_y = ((y + vertical_radius).floor() as i32 + 1)
+        .min(height_context.min_y + height_context.height - 1 - protected_blocks_on_top);
+    let min_z_index = ((z - horizontal_radius).floor() as i32 - chunk_min_z - 1).max(0);
+    let max_z_index = ((z + horizontal_radius).floor() as i32 - chunk_min_z).min(15);
+    let mut positions = Vec::new();
+
+    for x_index in min_x_index..=max_x_index {
+        let world_x = chunk_min_x + x_index;
+        let xd = (f64::from(world_x) + 0.5 - x) / horizontal_radius;
+        for z_index in min_z_index..=max_z_index {
+            let world_z = chunk_min_z + z_index;
+            let zd = (f64::from(world_z) + 0.5 - z) / horizontal_radius;
+            if xd * xd + zd * zd >= 1.0 {
+                continue;
+            }
+            for world_y in (min_y + 1..=max_y).rev() {
+                let yd = (f64::from(world_y) - 0.5 - y) / vertical_radius;
+                if carver_should_skip_ellipsoid_cell(
+                    skip_model,
+                    height_context,
+                    xd,
+                    yd,
+                    zd,
+                    world_y,
+                ) {
+                    continue;
+                }
+                let Some(mask_index) =
+                    carver_mask_index(world_x, world_y, world_z, height_context.min_y)
+                else {
+                    continue;
+                };
+                if debug_enabled || !existing_mask_indices.contains(&mask_index) {
+                    positions.push(BlockPos {
+                        x: world_x,
+                        y: world_y,
+                        z: world_z,
+                    });
+                }
+            }
+        }
+    }
+    positions
+}
+
+pub fn carver_should_skip_ellipsoid_cell(
+    skip_model: CarverSkipModel<'_>,
+    height_context: WorldGenerationHeightContext,
+    xd: f64,
+    yd: f64,
+    zd: f64,
+    y: i32,
+) -> bool {
+    match skip_model {
+        CarverSkipModel::None => false,
+        CarverSkipModel::Cave { floor_level } => {
+            yd <= floor_level || xd * xd + yd * yd + zd * zd >= 1.0
+        }
+        CarverSkipModel::Canyon { width_factors } => {
+            let y_index = y - height_context.min_y;
+            let width_factor = width_factors
+                .get((y_index - 1).max(0) as usize)
+                .copied()
+                .unwrap_or(1.0);
+            (xd * xd + zd * zd) * f64::from(width_factor) + yd * yd / 6.0 >= 1.0
+        }
+    }
+}
+
+pub fn cave_carver_cave_count(
+    cave_bound: i32,
+    first_roll: i32,
+    second_roll: i32,
+    third_roll: i32,
+) -> i32 {
+    if cave_bound <= 0 {
+        return 0;
+    }
+    let first = first_roll.rem_euclid(cave_bound);
+    let second = second_roll.rem_euclid(first + 1);
+    third_roll.rem_euclid(second + 1)
+}
+
+pub fn cave_carver_thickness(
+    first_float: f32,
+    second_float: f32,
+    rare_roll: i32,
+    rare_first_float: f32,
+    rare_second_float: f32,
+) -> f32 {
+    let mut thickness = first_float * 2.0 + second_float;
+    if rare_roll.rem_euclid(10) == 0 {
+        thickness *= rare_first_float * rare_second_float * 3.0 + 1.0;
+    }
+    thickness
+}
+
+pub fn cave_room_radii(thickness: f32, y_scale: f64) -> (f64, f64) {
+    let horizontal_radius = 1.5 + f64::from(thickness);
+    (horizontal_radius, horizontal_radius * y_scale)
+}
+
+pub fn cave_tunnel_steps(
+    chunk_middle_x: f64,
+    chunk_middle_z: f64,
+    mut x: f64,
+    mut y: f64,
+    mut z: f64,
+    thickness: f32,
+    mut horizontal_rotation: f32,
+    mut vertical_rotation: f32,
+    distance: i32,
+    y_scale: f64,
+    horizontal_radius_multiplier: f64,
+    vertical_radius_multiplier: f64,
+    random_quarter_skip_rolls: &[i32],
+    rotation_rolls: &[(f32, f32, f32, f32, f32, f32)],
+) -> Vec<CaveTunnelStep> {
+    let mut steps = Vec::new();
+    let mut y_rota = 0.0_f32;
+    let mut x_rota = 0.0_f32;
+    for current_step in 0..distance {
+        let horizontal_radius = 1.5
+            + f64::from((std::f32::consts::PI * current_step as f32 / distance as f32).sin())
+                * f64::from(thickness);
+        let vertical_radius = horizontal_radius * y_scale;
+        let cos_x = vertical_rotation.cos();
+        x += f64::from(horizontal_rotation.cos() * cos_x);
+        y += f64::from(vertical_rotation.sin());
+        z += f64::from(horizontal_rotation.sin() * cos_x);
+        vertical_rotation *= 0.7;
+        vertical_rotation += x_rota * 0.1;
+        horizontal_rotation += y_rota * 0.1;
+        x_rota *= 0.9;
+        y_rota *= 0.75;
+        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = rotation_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or((0.5, 0.5, 0.0, 0.5, 0.5, 0.0));
+        x_rota += (xr_a - xr_b) * xr_c * 2.0;
+        y_rota += (yr_a - yr_b) * yr_c * 4.0;
+        let carve = random_quarter_skip_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or(1)
+            .rem_euclid(4)
+            != 0;
+        let can_reach = (x - chunk_middle_x) * (x - chunk_middle_x)
+            + (z - chunk_middle_z) * (z - chunk_middle_z)
+            - f64::from(distance - current_step).powi(2)
+            <= f64::from(thickness + 18.0).powi(2);
+        steps.push(CaveTunnelStep {
+            step: current_step,
+            x,
+            y,
+            z,
+            horizontal_radius: horizontal_radius * horizontal_radius_multiplier,
+            vertical_radius: vertical_radius * vertical_radius_multiplier,
+            can_reach,
+            carve,
+        });
+        if carve && !can_reach {
+            break;
+        }
+    }
+    steps
+}
+
+pub fn cave_tunnel_split_branch(
+    mut x: f64,
+    mut y: f64,
+    mut z: f64,
+    thickness: f32,
+    mut horizontal_rotation: f32,
+    mut vertical_rotation: f32,
+    distance: i32,
+    split_roll: i32,
+    steep_roll: i32,
+    left_thickness_roll: f32,
+    right_thickness_roll: f32,
+    rotation_rolls: &[(f32, f32, f32, f32, f32, f32)],
+) -> Option<CaveTunnelBranch> {
+    if distance < 2 || thickness <= 1.0 {
+        return None;
+    }
+    let split_point = split_roll.rem_euclid(distance / 2) + distance / 4;
+    let steep = steep_roll.rem_euclid(6) == 0;
+    let mut y_rota = 0.0_f32;
+    let mut x_rota = 0.0_f32;
+
+    for current_step in 0..distance {
+        let cos_x = vertical_rotation.cos();
+        x += f64::from(horizontal_rotation.cos() * cos_x);
+        y += f64::from(vertical_rotation.sin());
+        z += f64::from(horizontal_rotation.sin() * cos_x);
+        vertical_rotation *= if steep { 0.92 } else { 0.7 };
+        vertical_rotation += x_rota * 0.1;
+        horizontal_rotation += y_rota * 0.1;
+        x_rota *= 0.9;
+        y_rota *= 0.75;
+        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = rotation_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or((0.5, 0.5, 0.0, 0.5, 0.5, 0.0));
+        x_rota += (xr_a - xr_b) * xr_c * 2.0;
+        y_rota += (yr_a - yr_b) * yr_c * 4.0;
+
+        if current_step == split_point {
+            return Some(CaveTunnelBranch {
+                split_step: current_step,
+                x,
+                y,
+                z,
+                left_thickness: left_thickness_roll * 0.5 + 0.5,
+                right_thickness: right_thickness_roll * 0.5 + 0.5,
+                left_horizontal_rotation: horizontal_rotation - std::f32::consts::FRAC_PI_2,
+                right_horizontal_rotation: horizontal_rotation + std::f32::consts::FRAC_PI_2,
+                vertical_rotation: vertical_rotation / 3.0,
+                distance,
+            });
+        }
+    }
+
+    None
+}
+
+pub fn canyon_tunnel_steps(
+    chunk_middle_x: f64,
+    chunk_middle_z: f64,
+    mut x: f64,
+    mut y: f64,
+    mut z: f64,
+    thickness: f32,
+    mut horizontal_rotation: f32,
+    mut vertical_rotation: f32,
+    distance: i32,
+    y_scale: f64,
+    default_vertical_factor: f32,
+    center_vertical_factor: f32,
+    random_quarter_skip_rolls: &[i32],
+    horizontal_radius_factor_rolls: &[f32],
+    vertical_radius_rolls: &[f32],
+    rotation_rolls: &[(f32, f32, f32, f32, f32, f32)],
+) -> Vec<CaveTunnelStep> {
+    let mut steps = Vec::new();
+    let mut y_rota = 0.0_f32;
+    let mut x_rota = 0.0_f32;
+    for current_step in 0..distance {
+        let base_horizontal_radius = 1.5
+            + f64::from((current_step as f32 * std::f32::consts::PI / distance as f32).sin())
+                * f64::from(thickness);
+        let horizontal_factor = horizontal_radius_factor_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or(1.0);
+        let vertical_roll = vertical_radius_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or(1.0);
+        let horizontal_radius = base_horizontal_radius * f64::from(horizontal_factor);
+        let vertical_radius = canyon_vertical_radius(
+            default_vertical_factor,
+            center_vertical_factor,
+            base_horizontal_radius * y_scale,
+            distance,
+            current_step,
+            vertical_roll,
+        );
+        let xc = vertical_rotation.cos();
+        x += f64::from(horizontal_rotation.cos() * xc);
+        y += f64::from(vertical_rotation.sin());
+        z += f64::from(horizontal_rotation.sin() * xc);
+        vertical_rotation *= 0.7;
+        vertical_rotation += x_rota * 0.05;
+        horizontal_rotation += y_rota * 0.05;
+        x_rota *= 0.8;
+        y_rota *= 0.5;
+        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = rotation_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or((0.5, 0.5, 0.0, 0.5, 0.5, 0.0));
+        x_rota += (xr_a - xr_b) * xr_c * 2.0;
+        y_rota += (yr_a - yr_b) * yr_c * 4.0;
+        let carve = random_quarter_skip_rolls
+            .get(current_step as usize)
+            .copied()
+            .unwrap_or(1)
+            .rem_euclid(4)
+            != 0;
+        let can_reach = (x - chunk_middle_x) * (x - chunk_middle_x)
+            + (z - chunk_middle_z) * (z - chunk_middle_z)
+            - f64::from(distance - current_step).powi(2)
+            <= f64::from(thickness + 18.0).powi(2);
+        steps.push(CaveTunnelStep {
+            step: current_step,
+            x,
+            y,
+            z,
+            horizontal_radius,
+            vertical_radius,
+            can_reach,
+            carve,
+        });
+        if carve && !can_reach {
+            break;
+        }
+    }
+    steps
+}
+
+pub fn canyon_width_factors(depth: i32, width_smoothness: i32, rolls: &[(i32, f32)]) -> Vec<f32> {
+    let mut factors = Vec::new();
+    let mut width_factor = 1.0_f32;
+    for y_index in 0..depth.max(0) {
+        let (reset_roll, random_float) = rolls.get(y_index as usize).copied().unwrap_or((1, 0.0));
+        if y_index == 0 || width_smoothness <= 0 || reset_roll.rem_euclid(width_smoothness) == 0 {
+            width_factor = 1.0 + random_float * random_float;
+        }
+        factors.push(width_factor * width_factor);
+    }
+    factors
+}
+
+pub fn canyon_vertical_radius(
+    default_factor: f32,
+    center_factor: f32,
+    vertical_radius: f64,
+    distance: i32,
+    current_step: i32,
+    random_between_roll: f32,
+) -> f64 {
+    let vertical_multiplier = 1.0 - (0.5 - current_step as f32 / distance as f32).abs() * 2.0;
+    let factor = default_factor + center_factor * vertical_multiplier;
+    f64::from(factor)
+        * vertical_radius
+        * f64::from(0.75 + 0.25 * random_between_roll.clamp(0.0, 1.0))
 }
 
 pub fn feature_type_by_id(id: &str) -> Option<&'static FeatureType> {
@@ -22770,8 +24835,98 @@ pub fn block_state_provider_sample(
     provider: &BlockStateProviderModel,
     random_roll: i32,
 ) -> Option<&'static str> {
+    block_state_provider_sample_with_context(provider, random_roll, None, 0, "minecraft:air")
+}
+
+pub fn block_state_provider_sample_in_context(
+    provider: &BlockStateProviderModel,
+    random_roll: i32,
+    context: BlockPredicateContext,
+    origin_y: i32,
+    current_block: &'static str,
+) -> Option<&'static str> {
+    block_state_provider_sample_with_context(
+        provider,
+        random_roll,
+        Some(context),
+        origin_y,
+        current_block,
+    )
+}
+
+pub fn block_state_provider_sample_with_noise_value(
+    provider: &BlockStateProviderModel,
+    random_roll: i32,
+    noise_value: f64,
+) -> Option<&'static str> {
+    block_state_provider_sample_with_context_and_noise(
+        provider,
+        random_roll,
+        None,
+        0,
+        "minecraft:air",
+        Some(noise_value),
+    )
+}
+
+pub fn block_state_provider_sample_dual_noise_values(
+    provider: &BlockStateProviderModel,
+    variety_noise: f64,
+    candidate_noise_values: &[f64],
+    final_noise_value: f64,
+) -> Option<&'static str> {
+    match provider {
+        BlockStateProviderModel::DualNoise {
+            variety_min,
+            variety_max,
+            states,
+        } => dual_noise_provider_select_state(
+            states,
+            *variety_min,
+            *variety_max,
+            variety_noise,
+            candidate_noise_values,
+            final_noise_value,
+        ),
+        _ => block_state_provider_sample_with_noise_value(provider, 0, final_noise_value),
+    }
+}
+
+fn block_state_provider_sample_with_context(
+    provider: &BlockStateProviderModel,
+    random_roll: i32,
+    context: Option<BlockPredicateContext>,
+    origin_y: i32,
+    current_block: &'static str,
+) -> Option<&'static str> {
+    block_state_provider_sample_with_context_and_noise(
+        provider,
+        random_roll,
+        context,
+        origin_y,
+        current_block,
+        None,
+    )
+}
+
+fn block_state_provider_sample_with_context_and_noise(
+    provider: &BlockStateProviderModel,
+    random_roll: i32,
+    context: Option<BlockPredicateContext>,
+    origin_y: i32,
+    current_block: &'static str,
+    noise_value: Option<f64>,
+) -> Option<&'static str> {
     match provider {
         BlockStateProviderModel::Simple(state) => Some(*state),
+        BlockStateProviderModel::RotatedBlock(block) => Some(rotated_pillar_state(
+            block,
+            match random_roll.rem_euclid(3) {
+                0 => Axis::X,
+                1 => Axis::Y,
+                _ => Axis::Z,
+            },
+        )),
         BlockStateProviderModel::Weighted(entries) => {
             let total_weight = entries.iter().try_fold(0_i32, |total, entry| {
                 (entry.weight > 0).then_some(total + entry.weight)
@@ -22782,6 +24937,225 @@ pub fn block_state_provider_sample(
                 (roll < 0).then_some(entry.state)
             })
         }
+        BlockStateProviderModel::RandomizedInt {
+            source,
+            property,
+            min_inclusive,
+            max_inclusive,
+        } => {
+            let state = block_state_provider_sample(source, random_roll)?;
+            let value = sample_inclusive_i32(*min_inclusive, *max_inclusive, random_roll);
+            randomized_int_state_provider_apply(state, property, value)
+        }
+        BlockStateProviderModel::RuleBased { fallback, rules } => {
+            if let Some(context) = context {
+                if let Some(rule) = rules
+                    .iter()
+                    .find(|rule| block_predicate_test(rule.if_true, context, origin_y))
+                {
+                    return block_state_provider_sample_with_context(
+                        &rule.then,
+                        random_roll,
+                        Some(context),
+                        origin_y,
+                        current_block,
+                    );
+                }
+            }
+            match fallback {
+                Some(fallback) => block_state_provider_sample_with_context(
+                    fallback,
+                    random_roll,
+                    context,
+                    origin_y,
+                    current_block,
+                ),
+                None => Some(current_block),
+            }
+        }
+        BlockStateProviderModel::Noise { states } => {
+            noise_provider_select_state(states, noise_value.unwrap_or(0.0))
+        }
+        BlockStateProviderModel::NoiseThreshold {
+            threshold,
+            high_chance,
+            default_state,
+            low_states,
+            high_states,
+        } => {
+            let noise_value = noise_value.unwrap_or(0.0);
+            if noise_value < f64::from(*threshold) {
+                weighted_noise_state_pick(low_states, random_roll)
+            } else if random_float_from_roll(random_roll) < *high_chance {
+                weighted_noise_state_pick(high_states, random_roll)
+            } else {
+                Some(*default_state)
+            }
+        }
+        BlockStateProviderModel::DualNoise {
+            variety_min,
+            variety_max,
+            states,
+        } => dual_noise_provider_select_state(
+            states,
+            *variety_min,
+            *variety_max,
+            0.0,
+            &[0.0],
+            noise_value.unwrap_or(0.0),
+        ),
+    }
+}
+
+fn noise_provider_select_state(states: &[&'static str], noise_value: f64) -> Option<&'static str> {
+    if states.is_empty() {
+        return None;
+    }
+    let placement_value = ((1.0 + noise_value) / 2.0).clamp(0.0, 0.9999);
+    states
+        .get((placement_value * states.len() as f64) as usize)
+        .copied()
+}
+
+fn weighted_noise_state_pick(states: &[&'static str], random_roll: i32) -> Option<&'static str> {
+    if states.is_empty() {
+        return None;
+    }
+    states
+        .get(random_roll.rem_euclid(states.len() as i32) as usize)
+        .copied()
+}
+
+fn dual_noise_provider_select_state(
+    states: &[&'static str],
+    variety_min: i32,
+    variety_max: i32,
+    variety_noise: f64,
+    candidate_noise_values: &[f64],
+    final_noise_value: f64,
+) -> Option<&'static str> {
+    if states.is_empty() {
+        return None;
+    }
+    let local_variety = clamped_map(
+        variety_noise,
+        -1.0,
+        1.0,
+        f64::from(variety_min),
+        f64::from(variety_max + 1),
+    ) as usize;
+    if local_variety == 0 {
+        return None;
+    }
+
+    let mut possible_states = Vec::with_capacity(local_variety);
+    for index in 0..local_variety {
+        let candidate_noise = candidate_noise_values.get(index).copied().unwrap_or(0.0);
+        possible_states.push(noise_provider_select_state(states, candidate_noise)?);
+    }
+    noise_provider_select_state(&possible_states, final_noise_value)
+}
+
+fn random_float_from_roll(random_roll: i32) -> f32 {
+    (random_roll.rem_euclid(1_000_000) as f32) / 1_000_000.0
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+fn rotated_pillar_state(block: &'static str, axis: Axis) -> &'static str {
+    match (block, axis) {
+        ("minecraft:oak_log", Axis::X) => "minecraft:oak_log[axis=x]",
+        ("minecraft:oak_log", Axis::Y) => "minecraft:oak_log",
+        ("minecraft:oak_log", Axis::Z) => "minecraft:oak_log[axis=z]",
+        ("minecraft:birch_log", Axis::X) => "minecraft:birch_log[axis=x]",
+        ("minecraft:birch_log", Axis::Y) => "minecraft:birch_log",
+        ("minecraft:birch_log", Axis::Z) => "minecraft:birch_log[axis=z]",
+        ("minecraft:spruce_log", Axis::X) => "minecraft:spruce_log[axis=x]",
+        ("minecraft:spruce_log", Axis::Y) => "minecraft:spruce_log",
+        ("minecraft:spruce_log", Axis::Z) => "minecraft:spruce_log[axis=z]",
+        ("minecraft:jungle_log", Axis::X) => "minecraft:jungle_log[axis=x]",
+        ("minecraft:jungle_log", Axis::Y) => "minecraft:jungle_log",
+        ("minecraft:jungle_log", Axis::Z) => "minecraft:jungle_log[axis=z]",
+        ("minecraft:acacia_log", Axis::X) => "minecraft:acacia_log[axis=x]",
+        ("minecraft:acacia_log", Axis::Y) => "minecraft:acacia_log",
+        ("minecraft:acacia_log", Axis::Z) => "minecraft:acacia_log[axis=z]",
+        ("minecraft:dark_oak_log", Axis::X) => "minecraft:dark_oak_log[axis=x]",
+        ("minecraft:dark_oak_log", Axis::Y) => "minecraft:dark_oak_log",
+        ("minecraft:dark_oak_log", Axis::Z) => "minecraft:dark_oak_log[axis=z]",
+        ("minecraft:mangrove_log", Axis::X) => "minecraft:mangrove_log[axis=x]",
+        ("minecraft:mangrove_log", Axis::Y) => "minecraft:mangrove_log",
+        ("minecraft:mangrove_log", Axis::Z) => "minecraft:mangrove_log[axis=z]",
+        ("minecraft:cherry_log", Axis::X) => "minecraft:cherry_log[axis=x]",
+        ("minecraft:cherry_log", Axis::Y) => "minecraft:cherry_log",
+        ("minecraft:cherry_log", Axis::Z) => "minecraft:cherry_log[axis=z]",
+        ("minecraft:pale_oak_log", Axis::X) => "minecraft:pale_oak_log[axis=x]",
+        ("minecraft:pale_oak_log", Axis::Y) => "minecraft:pale_oak_log",
+        ("minecraft:pale_oak_log", Axis::Z) => "minecraft:pale_oak_log[axis=z]",
+        ("minecraft:hay_block", Axis::X) => "minecraft:hay_block[axis=x]",
+        ("minecraft:hay_block", Axis::Y) => "minecraft:hay_block",
+        ("minecraft:hay_block", Axis::Z) => "minecraft:hay_block[axis=z]",
+        ("minecraft:basalt", Axis::X) => "minecraft:basalt[axis=x]",
+        ("minecraft:basalt", Axis::Y) => "minecraft:basalt",
+        ("minecraft:basalt", Axis::Z) => "minecraft:basalt[axis=z]",
+        _ => block,
+    }
+}
+
+fn randomized_int_state_provider_apply(
+    state: &'static str,
+    property: &str,
+    value: i32,
+) -> Option<&'static str> {
+    match (state, property, value) {
+        ("minecraft:cave_vines[age=0,berries=false]", "age", 23) => {
+            Some("minecraft:cave_vines[age=23,berries=false]")
+        }
+        ("minecraft:cave_vines[age=0,berries=false]", "age", 24) => {
+            Some("minecraft:cave_vines[age=24,berries=false]")
+        }
+        ("minecraft:cave_vines[age=0,berries=false]", "age", 25) => {
+            Some("minecraft:cave_vines[age=25,berries=false]")
+        }
+        ("minecraft:cave_vines[age=0,berries=true]", "age", 23) => {
+            Some("minecraft:cave_vines[age=23,berries=true]")
+        }
+        ("minecraft:cave_vines[age=0,berries=true]", "age", 24) => {
+            Some("minecraft:cave_vines[age=24,berries=true]")
+        }
+        ("minecraft:cave_vines[age=0,berries=true]", "age", 25) => {
+            Some("minecraft:cave_vines[age=25,berries=true]")
+        }
+        (
+            "minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]",
+            "age",
+            0,
+        ) => Some("minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]"),
+        (
+            "minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]",
+            "age",
+            1,
+        ) => Some("minecraft:mangrove_propagule[age=1,hanging=true,stage=0,waterlogged=false]"),
+        (
+            "minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]",
+            "age",
+            2,
+        ) => Some("minecraft:mangrove_propagule[age=2,hanging=true,stage=0,waterlogged=false]"),
+        (
+            "minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]",
+            "age",
+            3,
+        ) => Some("minecraft:mangrove_propagule[age=3,hanging=true,stage=0,waterlogged=false]"),
+        (
+            "minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]",
+            "age",
+            4,
+        ) => Some("minecraft:mangrove_propagule[age=4,hanging=true,stage=0,waterlogged=false]"),
+        _ => Some(state),
     }
 }
 
@@ -25637,6 +28011,608 @@ pub fn underwater_magma_is_valid_placement(candidate: &UnderwaterMagmaCandidate)
         && !candidate.horizontal_visible_from_outside
 }
 
+pub fn validate_dripstone_cluster_sampled_config(
+    config: DripstoneClusterSampledConfig,
+) -> Result<DripstoneClusterSampledConfig, String> {
+    if !(1..=512).contains(&config.floor_to_ceiling_search_range)
+        || !(1..=128).contains(&config.height)
+        || !(1..=128).contains(&config.x_radius)
+        || !(1..=128).contains(&config.z_radius)
+        || !(0..=64).contains(&config.max_stalagmite_stalactite_height_diff)
+        || !(1..=64).contains(&config.height_deviation)
+        || !(0..=128).contains(&config.dripstone_block_layer_thickness)
+        || !(0.0..=2.0).contains(&config.density)
+        || !(0.0..=2.0).contains(&config.wetness)
+        || !(0.0..=1.0).contains(&config.chance_of_dripstone_column_at_max_distance_from_center)
+        || !(1..=64).contains(&config.max_distance_from_edge_affecting_chance_of_dripstone_column)
+        || !(1..=64).contains(&config.max_distance_from_center_affecting_height_bias)
+    {
+        Err("dripstone cluster sampled fields are outside vanilla codec ranges".to_string())
+    } else {
+        Ok(config)
+    }
+}
+
+pub fn dripstone_cluster_chance_of_column(
+    x_radius: i32,
+    z_radius: i32,
+    dx: i32,
+    dz: i32,
+    config: DripstoneClusterSampledConfig,
+) -> f64 {
+    let x_distance_from_edge = x_radius - dx.abs();
+    let z_distance_from_edge = z_radius - dz.abs();
+    let distance_from_edge = x_distance_from_edge.min(z_distance_from_edge);
+    clamped_map_f64(
+        distance_from_edge as f64,
+        0.0,
+        config.max_distance_from_edge_affecting_chance_of_dripstone_column as f64,
+        config.chance_of_dripstone_column_at_max_distance_from_center as f64,
+        1.0,
+    )
+}
+
+pub fn dripstone_cluster_height_for_column(
+    dx: i32,
+    dz: i32,
+    density: f32,
+    max_height: i32,
+    config: DripstoneClusterSampledConfig,
+    density_roll: f32,
+    biased_height_sample: f32,
+) -> i32 {
+    if density_roll > density {
+        return 0;
+    }
+    let distance_from_center = dx.abs() + dz.abs();
+    let _height_mean = clamped_map_f64(
+        distance_from_center as f64,
+        0.0,
+        config.max_distance_from_center_affecting_height_bias as f64,
+        max_height as f64 / 2.0,
+        0.0,
+    );
+    biased_height_sample.clamp(0.0, max_height as f32) as i32
+}
+
+pub fn dripstone_cluster_column_plan(
+    origin: BlockPos,
+    config: DripstoneClusterSampledConfig,
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+) -> DripstoneClusterColumnPlan {
+    let chance = dripstone_cluster_chance_of_column(
+        config.x_radius,
+        config.z_radius,
+        input.dx,
+        input.dz,
+        config,
+    );
+    let mut floor_y = input.floor_y;
+    let water_pos = if rolls.water_roll < config.wetness
+        && input.floor_y.is_some()
+        && input.floor_pool_supported
+    {
+        let base_floor_y = input.floor_y.unwrap();
+        floor_y = Some(base_floor_y - 1);
+        Some(BlockPos {
+            x: origin.x + input.dx,
+            y: base_floor_y,
+            z: origin.z + input.dz,
+        })
+    } else {
+        None
+    };
+
+    let want_stalactite = rolls.stalactite_roll < chance;
+    let mut stalactite_height = if let Some(ceiling_y) = input.ceiling_y {
+        if want_stalactite && !input.ceiling_is_lava {
+            let max_height = floor_y
+                .map(|floor| config.height.min(ceiling_y - floor))
+                .unwrap_or(config.height);
+            dripstone_cluster_height_for_column(
+                input.dx,
+                input.dz,
+                config.density,
+                max_height,
+                config,
+                rolls.stalactite_density_roll,
+                rolls.stalactite_biased_height,
+            )
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+
+    let want_stalagmite = rolls.stalagmite_roll < chance;
+    let mut stalagmite_height = if floor_y.is_some() && want_stalagmite && !input.floor_is_lava {
+        if input.ceiling_y.is_some() {
+            (stalactite_height
+                + inclusive_roll(
+                    rolls.stalagmite_height_diff_roll,
+                    -config.max_stalagmite_stalactite_height_diff,
+                    config.max_stalagmite_stalactite_height_diff,
+                ))
+            .max(0)
+        } else {
+            dripstone_cluster_height_for_column(
+                input.dx,
+                input.dz,
+                config.density,
+                config.height,
+                config,
+                rolls.stalagmite_density_roll,
+                rolls.stalagmite_biased_height,
+            )
+        }
+    } else {
+        0
+    };
+
+    if let (Some(ceiling_y), Some(floor_y_value)) = (input.ceiling_y, floor_y) {
+        if ceiling_y - stalactite_height <= floor_y_value + stalagmite_height {
+            let lowest_stalactite_bottom = (ceiling_y - stalactite_height).max(floor_y_value + 1);
+            let highest_stalagmite_top = (floor_y_value + stalagmite_height).min(ceiling_y - 1);
+            let actual_stalactite_bottom = inclusive_roll(
+                rolls.overlap_split_roll,
+                lowest_stalactite_bottom,
+                highest_stalagmite_top + 1,
+            );
+            let actual_stalagmite_top = actual_stalactite_bottom - 1;
+            stalactite_height = ceiling_y - actual_stalactite_bottom;
+            stalagmite_height = actual_stalagmite_top - floor_y_value;
+        }
+    }
+
+    let column_height = input
+        .ceiling_y
+        .zip(floor_y)
+        .map(|(ceiling, floor)| ceiling - floor);
+    let merge_tips = rolls.merge_tips_roll
+        && stalactite_height > 0
+        && stalagmite_height > 0
+        && column_height.is_some_and(|height| stalactite_height + stalagmite_height == height);
+    let column_xz = BlockPos {
+        x: origin.x + input.dx,
+        y: origin.y,
+        z: origin.z + input.dz,
+    };
+
+    DripstoneClusterColumnPlan {
+        water_pos,
+        ceiling_dripstone_blocks: input
+            .ceiling_y
+            .filter(|_| want_stalactite && !input.ceiling_is_lava)
+            .map(|ceiling_y| {
+                dripstone_block_layer_positions(
+                    column_xz,
+                    ceiling_y,
+                    config.dripstone_block_layer_thickness,
+                    1,
+                )
+            })
+            .unwrap_or_default(),
+        floor_dripstone_blocks: floor_y
+            .filter(|_| want_stalagmite && !input.floor_is_lava)
+            .map(|floor_y| {
+                dripstone_block_layer_positions(
+                    column_xz,
+                    floor_y,
+                    config.dripstone_block_layer_thickness,
+                    -1,
+                )
+            })
+            .unwrap_or_default(),
+        stalactite: input
+            .ceiling_y
+            .map(|ceiling_y| {
+                pointed_dripstone_column(
+                    BlockPos {
+                        x: column_xz.x,
+                        y: ceiling_y - 1,
+                        z: column_xz.z,
+                    },
+                    PointedDripstoneDirection::Down,
+                    stalactite_height,
+                    merge_tips,
+                )
+            })
+            .unwrap_or_default(),
+        stalagmite: floor_y
+            .map(|floor_y| {
+                pointed_dripstone_column(
+                    BlockPos {
+                        x: column_xz.x,
+                        y: floor_y + 1,
+                        z: column_xz.z,
+                    },
+                    PointedDripstoneDirection::Up,
+                    stalagmite_height,
+                    merge_tips,
+                )
+            })
+            .unwrap_or_default(),
+        merge_tips,
+    }
+}
+
+pub fn pointed_dripstone_column(
+    start_pos: BlockPos,
+    direction: PointedDripstoneDirection,
+    total_length: i32,
+    merged_tip: bool,
+) -> Vec<PointedDripstoneBlockModel> {
+    let mut thicknesses = Vec::new();
+    if total_length >= 3 {
+        thicknesses.push(PointedDripstoneThickness::Base);
+        for _ in 0..total_length - 3 {
+            thicknesses.push(PointedDripstoneThickness::Middle);
+        }
+    }
+    if total_length >= 2 {
+        thicknesses.push(PointedDripstoneThickness::Frustum);
+    }
+    if total_length >= 1 {
+        thicknesses.push(if merged_tip {
+            PointedDripstoneThickness::TipMerge
+        } else {
+            PointedDripstoneThickness::Tip
+        });
+    }
+
+    thicknesses
+        .into_iter()
+        .enumerate()
+        .map(|(index, thickness)| PointedDripstoneBlockModel {
+            pos: BlockPos {
+                x: start_pos.x,
+                y: match direction {
+                    PointedDripstoneDirection::Up => start_pos.y + index as i32,
+                    PointedDripstoneDirection::Down => start_pos.y - index as i32,
+                },
+                z: start_pos.z,
+            },
+            direction,
+            thickness,
+        })
+        .collect()
+}
+
+pub fn validate_pointed_dripstone_configuration(
+    config: PointedDripstoneConfigurationModel,
+) -> Result<PointedDripstoneConfigurationModel, String> {
+    if [
+        config.chance_of_taller_dripstone,
+        config.chance_of_directional_spread,
+        config.chance_of_spread_radius2,
+        config.chance_of_spread_radius3,
+    ]
+    .into_iter()
+    .all(|chance| (0.0..=1.0).contains(&chance))
+    {
+        Ok(config)
+    } else {
+        Err("pointed dripstone chances must be in 0.0..=1.0".to_string())
+    }
+}
+
+pub fn pointed_dripstone_tip_direction(
+    can_place_above: bool,
+    can_place_below: bool,
+    choose_down_when_both: bool,
+) -> Option<PointedDripstoneDirection> {
+    match (can_place_above, can_place_below) {
+        (true, true) => Some(if choose_down_when_both {
+            PointedDripstoneDirection::Down
+        } else {
+            PointedDripstoneDirection::Up
+        }),
+        (true, false) => Some(PointedDripstoneDirection::Down),
+        (false, true) => Some(PointedDripstoneDirection::Up),
+        (false, false) => None,
+    }
+}
+
+pub fn pointed_dripstone_feature_plan(
+    origin: BlockPos,
+    config: PointedDripstoneConfigurationModel,
+    can_place_above: bool,
+    can_place_below: bool,
+    choose_down_when_both: bool,
+    taller_roll: f32,
+    next_position_empty_or_water: bool,
+    spread_rolls: &[PointedDripstoneSpreadRoll],
+) -> Result<PointedDripstoneFeaturePlan, String> {
+    validate_pointed_dripstone_configuration(config)?;
+    let Some(tip_direction) =
+        pointed_dripstone_tip_direction(can_place_above, can_place_below, choose_down_when_both)
+    else {
+        return Ok(PointedDripstoneFeaturePlan {
+            tip_direction: None,
+            dripstone_blocks: Vec::new(),
+            pointed_blocks: Vec::new(),
+        });
+    };
+    let root_pos = match tip_direction {
+        PointedDripstoneDirection::Down => BlockPos {
+            x: origin.x,
+            y: origin.y + 1,
+            z: origin.z,
+        },
+        PointedDripstoneDirection::Up => BlockPos {
+            x: origin.x,
+            y: origin.y - 1,
+            z: origin.z,
+        },
+    };
+    let height = if taller_roll < config.chance_of_taller_dripstone && next_position_empty_or_water
+    {
+        2
+    } else {
+        1
+    };
+
+    Ok(PointedDripstoneFeaturePlan {
+        tip_direction: Some(tip_direction),
+        dripstone_blocks: pointed_dripstone_patch_positions(root_pos, config, spread_rolls),
+        pointed_blocks: pointed_dripstone_column(origin, tip_direction, height, false),
+    })
+}
+
+pub fn pointed_dripstone_patch_positions(
+    root_pos: BlockPos,
+    config: PointedDripstoneConfigurationModel,
+    rolls: &[PointedDripstoneSpreadRoll],
+) -> Vec<BlockPos> {
+    let mut positions = vec![root_pos];
+    for roll in rolls {
+        if roll.direction_roll > config.chance_of_directional_spread {
+            continue;
+        }
+        let pos1 = offset_horizontal(root_pos, roll.direction, 1);
+        positions.push(pos1);
+        if roll.radius2_roll > config.chance_of_spread_radius2 {
+            continue;
+        }
+        let pos2 = offset_horizontal(pos1, roll.radius2_direction, 1);
+        positions.push(pos2);
+        if roll.radius3_roll > config.chance_of_spread_radius3 {
+            continue;
+        }
+        positions.push(offset_horizontal(pos2, roll.radius3_direction, 1));
+    }
+    positions
+}
+
+pub fn validate_large_dripstone_sampled_config(
+    config: LargeDripstoneSampledConfig,
+) -> Result<LargeDripstoneSampledConfig, String> {
+    if !(1..=512).contains(&config.floor_to_ceiling_search_range)
+        || !(1..=60).contains(&config.column_radius_min)
+        || !(1..=60).contains(&config.column_radius_max)
+        || config.column_radius_min > config.column_radius_max
+        || !(0.0..=20.0).contains(&config.height_scale)
+        || !(0.1..=1.0).contains(&config.max_column_radius_to_cave_height_ratio)
+        || !(0.1..=10.0).contains(&config.stalactite_bluntness)
+        || !(0.1..=10.0).contains(&config.stalagmite_bluntness)
+        || !(0.0..=2.0).contains(&config.wind_speed)
+        || !(0.0..=std::f64::consts::PI).contains(&config.wind_direction_radians)
+        || !(0..=100).contains(&config.min_radius_for_wind)
+        || !(0.0..=5.0).contains(&config.min_bluntness_for_wind)
+    {
+        Err("large dripstone sampled fields are outside vanilla codec ranges".to_string())
+    } else {
+        Ok(config)
+    }
+}
+
+pub fn large_dripstone_selected_radius(
+    cave_height: i32,
+    config: LargeDripstoneSampledConfig,
+    radius_roll: i32,
+) -> Option<i32> {
+    if cave_height < 4 {
+        return None;
+    }
+    let max_based_on_height =
+        (cave_height as f32 * config.max_column_radius_to_cave_height_ratio) as i32;
+    let max_radius = max_based_on_height.clamp(config.column_radius_min, config.column_radius_max);
+    Some(inclusive_roll(
+        radius_roll,
+        config.column_radius_min,
+        max_radius,
+    ))
+}
+
+pub fn large_dripstone_height_at_radius(
+    xz_distance_from_center: f64,
+    dripstone_radius: i32,
+    scale: f64,
+    bluntness: f64,
+) -> i32 {
+    let xz_distance = xz_distance_from_center.max(bluntness);
+    let cutoff = 0.384;
+    let r = xz_distance / dripstone_radius as f64 * cutoff;
+    let part1 = 0.75 * r.powf(4.0 / 3.0);
+    let part2 = r.powf(2.0 / 3.0);
+    let part3 = (1.0 / 3.0) * r.ln();
+    let height_relative = (scale * (part1 - part2 - part3)).max(0.0);
+    (height_relative / cutoff * dripstone_radius as f64) as i32
+}
+
+pub fn large_dripstone_wind_enabled(
+    radius: i32,
+    bluntness: f64,
+    config: LargeDripstoneSampledConfig,
+) -> bool {
+    radius >= config.min_radius_for_wind && bluntness >= config.min_bluntness_for_wind
+}
+
+pub fn large_dripstone_wind_offset(
+    pos: BlockPos,
+    origin_y: i32,
+    config: LargeDripstoneSampledConfig,
+) -> BlockPos {
+    let dy = origin_y - pos.y;
+    BlockPos {
+        x: pos.x
+            + (config.wind_direction_radians.cos() * config.wind_speed * dy as f64).floor() as i32,
+        y: pos.y,
+        z: pos.z
+            + (config.wind_direction_radians.sin() * config.wind_speed * dy as f64).floor() as i32,
+    }
+}
+
+pub fn large_dripstone_placement_plan(
+    origin: BlockPos,
+    floor_y: i32,
+    ceiling_y: i32,
+    config: LargeDripstoneSampledConfig,
+    radius_roll: i32,
+    shrink_rolls: &[f32],
+    shrink_factor_rolls: &[f32],
+) -> Option<LargeDripstonePlacementPlan> {
+    validate_large_dripstone_sampled_config(config).ok()?;
+    let cave_height = ceiling_y - floor_y - 1;
+    let radius = large_dripstone_selected_radius(cave_height, config, radius_roll)?;
+    let stalactite = LargeDripstoneModel {
+        root: BlockPos {
+            x: origin.x,
+            y: ceiling_y - 1,
+            z: origin.z,
+        },
+        pointing_up: false,
+        radius,
+    };
+    let stalagmite = LargeDripstoneModel {
+        root: BlockPos {
+            x: origin.x,
+            y: floor_y + 1,
+            z: origin.z,
+        },
+        pointing_up: true,
+        radius,
+    };
+    let wind_enabled = large_dripstone_wind_enabled(radius, config.stalactite_bluntness, config)
+        && large_dripstone_wind_enabled(radius, config.stalagmite_bluntness, config);
+
+    Some(LargeDripstonePlacementPlan {
+        stalactite,
+        stalagmite,
+        wind_enabled,
+        stalactite_blocks: large_dripstone_blocks(
+            stalactite,
+            config.height_scale,
+            config.stalactite_bluntness,
+            origin.y,
+            if wind_enabled { Some(config) } else { None },
+            shrink_rolls,
+            shrink_factor_rolls,
+        ),
+        stalagmite_blocks: large_dripstone_blocks(
+            stalagmite,
+            config.height_scale,
+            config.stalagmite_bluntness,
+            origin.y,
+            if wind_enabled { Some(config) } else { None },
+            shrink_rolls,
+            shrink_factor_rolls,
+        ),
+    })
+}
+
+pub fn large_dripstone_blocks(
+    dripstone: LargeDripstoneModel,
+    scale: f64,
+    bluntness: f64,
+    origin_y: i32,
+    wind: Option<LargeDripstoneSampledConfig>,
+    shrink_rolls: &[f32],
+    shrink_factor_rolls: &[f32],
+) -> Vec<LargeDripstoneBlockModel> {
+    let mut blocks = Vec::new();
+    let mut roll_index = 0;
+    let mut factor_roll_index = 0;
+    for dx in -dripstone.radius..=dripstone.radius {
+        for dz in -dripstone.radius..=dripstone.radius {
+            let current_radius = ((dx * dx + dz * dz) as f64).sqrt();
+            if current_radius > dripstone.radius as f64 {
+                continue;
+            }
+            let mut height = large_dripstone_height_at_radius(
+                current_radius,
+                dripstone.radius,
+                scale,
+                bluntness,
+            );
+            if height <= 0 {
+                continue;
+            }
+            let shrink_roll = shrink_rolls.get(roll_index).copied().unwrap_or(1.0);
+            roll_index += 1;
+            if shrink_roll < 0.2 {
+                let factor_roll = shrink_factor_rolls
+                    .get(factor_roll_index)
+                    .copied()
+                    .unwrap_or(1.0)
+                    .clamp(0.0, 1.0);
+                factor_roll_index += 1;
+                height = (height as f32 * (0.8 + 0.2 * factor_roll)) as i32;
+            }
+            for i in 0..height {
+                let raw = BlockPos {
+                    x: dripstone.root.x + dx,
+                    y: if dripstone.pointing_up {
+                        dripstone.root.y + i
+                    } else {
+                        dripstone.root.y - i
+                    },
+                    z: dripstone.root.z + dz,
+                };
+                blocks.push(LargeDripstoneBlockModel {
+                    pos: wind
+                        .map(|config| large_dripstone_wind_offset(raw, origin_y, config))
+                        .unwrap_or(raw),
+                    pointing_up: dripstone.pointing_up,
+                });
+            }
+        }
+    }
+    blocks
+}
+
+fn dripstone_block_layer_positions(
+    column_xz: BlockPos,
+    start_y: i32,
+    max_count: i32,
+    y_step: i32,
+) -> Vec<BlockPos> {
+    (0..max_count)
+        .map(|i| BlockPos {
+            x: column_xz.x,
+            y: start_y + i * y_step,
+            z: column_xz.z,
+        })
+        .collect()
+}
+
+fn clamped_map_f64(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
+    if value <= from_min {
+        to_min
+    } else if value >= from_max {
+        to_max
+    } else {
+        let progress = (value - from_min) / (from_max - from_min);
+        to_min + progress * (to_max - to_min)
+    }
+}
+
+fn inclusive_roll(roll: i32, min: i32, max: i32) -> i32 {
+    min + roll.rem_euclid(max - min + 1)
+}
+
 pub fn feature_size_type(id: &str) -> Option<&'static str> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLDGEN_TYPE_REGISTRIES
@@ -25744,34 +28720,8 @@ pub fn trunk_placer_height(placer: TrunkPlacerModel, rand_a: i32, rand_b: i32) -
 }
 
 pub fn tree_valid_pos(state: &str) -> bool {
-    matches!(
-        state,
-        "minecraft:air"
-            | "minecraft:cave_air"
-            | "minecraft:void_air"
-            | "minecraft:vine"
-            | "minecraft:water"
-            | "minecraft:short_grass"
-            | "minecraft:tall_grass"
-            | "minecraft:fern"
-            | "minecraft:large_fern"
-            | "minecraft:snow"
-            | "minecraft:dandelion"
-            | "minecraft:poppy"
-            | "minecraft:blue_orchid"
-            | "minecraft:allium"
-            | "minecraft:azure_bluet"
-            | "minecraft:orange_tulip"
-            | "minecraft:pink_tulip"
-            | "minecraft:red_tulip"
-            | "minecraft:white_tulip"
-            | "minecraft:oxeye_daisy"
-            | "minecraft:cornflower"
-            | "minecraft:lily_of_the_valley"
-            | "minecraft:wither_rose"
-    ) || state.ends_with("_leaves")
-        || state.ends_with("_sapling")
-        || state.ends_with("_flower")
+    block_matches_tag(state, "minecraft:air")
+        || block_matches_tag(state, "minecraft:replaceable_by_trees")
 }
 
 pub fn tree_max_free_height(
@@ -25832,8 +28782,8 @@ pub fn validate_foliage_placer(placer: FoliagePlacerModel) -> Result<FoliagePlac
         FoliagePlacerKind::Blob { height }
         | FoliagePlacerKind::Bush { height }
         | FoliagePlacerKind::Fancy { height }
-        | FoliagePlacerKind::Jungle { height }
-        | FoliagePlacerKind::Cherry { height, .. } => (0..=16).contains(&height),
+        | FoliagePlacerKind::Jungle { height } => (0..=16).contains(&height),
+        FoliagePlacerKind::Cherry { height, .. } => (4..=16).contains(&height),
         FoliagePlacerKind::Spruce {
             height_min,
             height_max,
@@ -25846,8 +28796,8 @@ pub fn validate_foliage_placer(placer: FoliagePlacerModel) -> Result<FoliagePlac
             height_min,
             height_max,
         } => {
-            (0..=16).contains(&height_min)
-                && (0..=16).contains(&height_max)
+            (0..=24).contains(&height_min)
+                && (0..=24).contains(&height_max)
                 && height_min <= height_max
         }
         FoliagePlacerKind::Acacia | FoliagePlacerKind::DarkOak => true,
@@ -25902,6 +28852,263 @@ pub fn validate_root_placer(placer: RootPlacerModel) -> Result<RootPlacerModel, 
     }
 }
 
+pub fn validate_root_system_configuration(
+    config: &RootSystemConfigurationModel,
+) -> Result<(), String> {
+    if !(1..=64).contains(&config.required_vertical_space_for_tree)
+        || !(1..=64).contains(&config.root_radius)
+        || !(1..=256).contains(&config.root_placement_attempts)
+        || !(1..=4096).contains(&config.root_column_max_height)
+        || !(1..=64).contains(&config.hanging_root_radius)
+        || !(1..=16).contains(&config.hanging_roots_vertical_span)
+        || !(1..=256).contains(&config.hanging_root_placement_attempts)
+        || !(1..=64).contains(&config.allowed_vertical_water_for_tree)
+    {
+        Err("root system configuration fields are outside vanilla codec ranges".to_string())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn mangrove_potential_root_positions(
+    pos: BlockPos,
+    prev_dir: HorizontalDirection,
+    root_origin: BlockPos,
+    max_root_width: i32,
+    random_skew_chance: f32,
+    skew_roll: f32,
+    choose_next_to: bool,
+) -> Vec<BlockPos> {
+    let below = BlockPos {
+        x: pos.x,
+        y: pos.y - 1,
+        z: pos.z,
+    };
+    let next_to = offset_horizontal(pos, prev_dir, 1);
+    let next_to_below = BlockPos {
+        x: next_to.x,
+        y: next_to.y - 1,
+        z: next_to.z,
+    };
+    let width = (pos.x - root_origin.x).abs()
+        + (pos.y - root_origin.y).abs()
+        + (pos.z - root_origin.z).abs();
+    if width > max_root_width - 3 && width <= max_root_width {
+        if skew_roll < random_skew_chance {
+            vec![below, next_to_below]
+        } else {
+            vec![below]
+        }
+    } else if width > max_root_width || skew_roll < random_skew_chance {
+        vec![below]
+    } else if choose_next_to {
+        vec![next_to]
+    } else {
+        vec![below]
+    }
+}
+
+pub fn root_system_placement_plan(
+    origin: BlockPos,
+    origin_is_air: bool,
+    config: &RootSystemConfigurationModel,
+    tree_candidates: &[RootSystemTreeCandidateModel],
+    root_rolls: &[RootSystemOffsetRoll],
+    hanging_root_rolls: &[RootSystemOffsetRoll],
+    root_replaceable_positions: &[BlockPos],
+    hanging_root_candidates: &[BlockPos],
+) -> Result<RootSystemPlacementPlan, String> {
+    validate_root_system_configuration(config)?;
+    if !origin_is_air {
+        return Ok(RootSystemPlacementPlan {
+            tree_origin: None,
+            blocks: Vec::new(),
+            attempted_roots: false,
+        });
+    }
+
+    for y in 0..config.root_column_max_height {
+        let working_pos = BlockPos {
+            x: origin.x,
+            y: origin.y + y + 1,
+            z: origin.z,
+        };
+        let Some(candidate) = tree_candidates
+            .iter()
+            .find(|candidate| candidate.pos == working_pos)
+        else {
+            continue;
+        };
+        if !candidate.allowed_tree_position
+            || !root_system_space_for_tree(
+                &candidate.vertical_space_states,
+                config.required_vertical_space_for_tree,
+                config.allowed_vertical_water_for_tree,
+            )
+        {
+            continue;
+        }
+        if root_system_below_rejects_tree(candidate.below_state) {
+            return Ok(RootSystemPlacementPlan {
+                tree_origin: None,
+                blocks: Vec::new(),
+                attempted_roots: false,
+            });
+        }
+        if !candidate.tree_feature_places {
+            continue;
+        }
+
+        let mut blocks = root_system_dirt_placements(
+            origin,
+            origin.y + y,
+            config,
+            root_rolls,
+            root_replaceable_positions,
+        );
+        blocks.extend(root_system_hanging_root_placements(
+            origin,
+            config,
+            hanging_root_rolls,
+            hanging_root_candidates,
+        ));
+        return Ok(RootSystemPlacementPlan {
+            tree_origin: Some(candidate.pos),
+            blocks,
+            attempted_roots: true,
+        });
+    }
+
+    Ok(RootSystemPlacementPlan {
+        tree_origin: None,
+        blocks: Vec::new(),
+        attempted_roots: false,
+    })
+}
+
+pub fn root_system_space_for_tree(
+    vertical_space_states: &[&str],
+    required_vertical_space_for_tree: i32,
+    allowed_vertical_water_for_tree: i32,
+) -> bool {
+    (1..=required_vertical_space_for_tree).all(|blocks_above_origin| {
+        let state = vertical_space_states
+            .get((blocks_above_origin - 1) as usize)
+            .copied()
+            .unwrap_or("minecraft:air");
+        root_system_is_allowed_tree_space(
+            state,
+            blocks_above_origin,
+            allowed_vertical_water_for_tree,
+        )
+    })
+}
+
+pub fn root_system_is_allowed_tree_space(
+    state: &str,
+    blocks_above_origin: i32,
+    allowed_vertical_water_for_tree: i32,
+) -> bool {
+    if matches!(
+        state,
+        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+    ) {
+        return true;
+    }
+    let blocks_above_ground = blocks_above_origin + 1;
+    blocks_above_ground <= allowed_vertical_water_for_tree && state == "minecraft:water"
+}
+
+fn root_system_below_rejects_tree(below_state: &str) -> bool {
+    below_state == "minecraft:lava" || !root_system_solid_state(below_state)
+}
+
+fn root_system_solid_state(state: &str) -> bool {
+    !matches!(
+        state,
+        "minecraft:air"
+            | "minecraft:cave_air"
+            | "minecraft:void_air"
+            | "minecraft:water"
+            | "minecraft:lava"
+    )
+}
+
+fn root_system_dirt_placements(
+    origin: BlockPos,
+    target_height: i32,
+    config: &RootSystemConfigurationModel,
+    rolls: &[RootSystemOffsetRoll],
+    replaceable_positions: &[BlockPos],
+) -> Vec<RootSystemPlacementBlock> {
+    let mut placements = Vec::new();
+    let mut roll_index = 0;
+    for y in origin.y..target_height {
+        let working_base = BlockPos {
+            x: origin.x,
+            y,
+            z: origin.z,
+        };
+        for _ in 0..config.root_placement_attempts {
+            let roll = rolls.get(roll_index).copied().unwrap_or_default();
+            roll_index += 1;
+            let pos = BlockPos {
+                x: working_base.x + roll.positive_x.rem_euclid(config.root_radius)
+                    - roll.negative_x.rem_euclid(config.root_radius),
+                y: working_base.y,
+                z: working_base.z + roll.positive_z.rem_euclid(config.root_radius)
+                    - roll.negative_z.rem_euclid(config.root_radius),
+            };
+            if replaceable_positions.contains(&pos) {
+                placements.push(RootSystemPlacementBlock {
+                    pos,
+                    state: block_state_provider_sample(
+                        &config.root_state_provider,
+                        roll_index as i32,
+                    )
+                    .unwrap_or("minecraft:air"),
+                    kind: RootSystemPlacementKind::RootedDirt,
+                });
+            }
+        }
+    }
+    placements
+}
+
+fn root_system_hanging_root_placements(
+    origin: BlockPos,
+    config: &RootSystemConfigurationModel,
+    rolls: &[RootSystemOffsetRoll],
+    candidates: &[BlockPos],
+) -> Vec<RootSystemPlacementBlock> {
+    let mut placements = Vec::new();
+    for attempt in 0..config.hanging_root_placement_attempts {
+        let roll = rolls.get(attempt as usize).copied().unwrap_or_default();
+        let pos = BlockPos {
+            x: origin.x + roll.positive_x.rem_euclid(config.hanging_root_radius)
+                - roll.negative_x.rem_euclid(config.hanging_root_radius),
+            y: origin.y
+                + roll
+                    .positive_y
+                    .rem_euclid(config.hanging_roots_vertical_span)
+                - roll
+                    .negative_y
+                    .rem_euclid(config.hanging_roots_vertical_span),
+            z: origin.z + roll.positive_z.rem_euclid(config.hanging_root_radius)
+                - roll.negative_z.rem_euclid(config.hanging_root_radius),
+        };
+        if candidates.contains(&pos) {
+            placements.push(RootSystemPlacementBlock {
+                pos,
+                state: block_state_provider_sample(&config.hanging_root_state_provider, attempt)
+                    .unwrap_or("minecraft:air"),
+                kind: RootSystemPlacementKind::HangingRoot,
+            });
+        }
+    }
+    placements
+}
+
 pub fn simple_tree_placement_plan(
     origin: BlockPos,
     trunk: TrunkPlacerModel,
@@ -25920,19 +29127,41 @@ pub fn simple_tree_placement_plan(
         );
     }
 
+    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
     let (foliage_height, bush_shape) = match foliage.kind {
-        FoliagePlacerKind::Blob { height } => (height, false),
+        FoliagePlacerKind::Blob { height }
+        | FoliagePlacerKind::Fancy { height }
+        | FoliagePlacerKind::Jungle { height } => (height, false),
         FoliagePlacerKind::Bush { height } => (height, true),
-        _ => {
-            return Err(
-                "only blob and bush foliage placement is modeled by simple_tree_placement_plan"
-                    .to_string(),
-            )
-        }
+        FoliagePlacerKind::Acacia | FoliagePlacerKind::DarkOak => (0, false),
+        FoliagePlacerKind::Pine {
+            height_min,
+            height_max,
+        } => (sample_inclusive_i32(height_min, height_max, rand_a), false),
+        FoliagePlacerKind::Spruce {
+            height_min,
+            height_max,
+        } => (
+            (tree_height - sample_inclusive_i32(height_min, height_max, rand_a)).max(4),
+            false,
+        ),
+        FoliagePlacerKind::MegaPine {
+            height_min,
+            height_max,
+        } => (sample_inclusive_i32(height_min, height_max, rand_a), false),
+        FoliagePlacerKind::RandomSpread {
+            foliage_height_min,
+            foliage_height_max,
+            ..
+        } => (
+            sample_inclusive_i32(foliage_height_min, foliage_height_max, rand_a),
+            false,
+        ),
+        FoliagePlacerKind::Cherry { height, .. } => (height, false),
     };
 
-    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
-    let leaf_radius = foliage.radius_min;
+    let leaf_radius = sample_inclusive_i32(foliage.radius_min, foliage.radius_max, rand_a);
+    let foliage_offset = sample_inclusive_i32(foliage.offset_min, foliage.offset_max, rand_b);
     let mut blocks = Vec::new();
     push_tree_block(
         &mut blocks,
@@ -25966,25 +29195,1072 @@ pub fn simple_tree_placement_plan(
         y: origin.y + tree_height,
         z: origin.z,
     };
-    for yo in (0..=foliage_height).rev() {
-        let current_radius = if bush_shape {
-            leaf_radius - 1 - yo
-        } else {
-            (leaf_radius - 1 - yo / 2).max(0)
+    if foliage.kind == FoliagePlacerKind::Acacia {
+        let acacia_origin = BlockPos {
+            x: foliage_origin.x,
+            y: foliage_origin.y + foliage_offset,
+            z: foliage_origin.z,
         };
-        if current_radius < 0 {
-            continue;
-        }
-        place_simple_leaves_row(
+        place_acacia_leaves_row(
             &mut blocks,
-            foliage_origin,
-            current_radius,
-            -yo,
+            acacia_origin,
+            leaf_radius,
+            -1 - foliage_height,
             foliage_state,
         );
+        place_acacia_leaves_row(
+            &mut blocks,
+            acacia_origin,
+            leaf_radius - 1,
+            -foliage_height,
+            foliage_state,
+        );
+        place_acacia_leaves_row(
+            &mut blocks,
+            acacia_origin,
+            leaf_radius - 1,
+            0,
+            foliage_state,
+        );
+    } else if foliage.kind == FoliagePlacerKind::DarkOak {
+        let dark_oak_origin = BlockPos {
+            x: foliage_origin.x,
+            y: foliage_origin.y + foliage_offset,
+            z: foliage_origin.z,
+        };
+        place_dark_oak_single_trunk_leaves_row(
+            &mut blocks,
+            dark_oak_origin,
+            leaf_radius + 2,
+            -1,
+            foliage_state,
+        );
+        place_dark_oak_single_trunk_leaves_row(
+            &mut blocks,
+            dark_oak_origin,
+            leaf_radius + 1,
+            0,
+            foliage_state,
+        );
+    } else if matches!(foliage.kind, FoliagePlacerKind::Pine { .. }) {
+        for (y_offset, current_radius) in
+            pine_foliage_rows(foliage_offset, foliage_height, leaf_radius)
+        {
+            place_conifer_leaves_row(
+                &mut blocks,
+                foliage_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+            );
+        }
+    } else if matches!(foliage.kind, FoliagePlacerKind::Spruce { .. }) {
+        for (y_offset, current_radius) in spruce_foliage_rows(
+            foliage_offset,
+            foliage_height,
+            leaf_radius,
+            rand_b.rem_euclid(2),
+        ) {
+            place_conifer_leaves_row(
+                &mut blocks,
+                foliage_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+            );
+        }
+    } else if matches!(foliage.kind, FoliagePlacerKind::MegaPine { .. }) {
+        for (y_offset, current_radius) in mega_pine_foliage_rows(
+            foliage_origin.y,
+            foliage_offset,
+            foliage_height,
+            leaf_radius,
+        ) {
+            place_mega_pine_leaves_row(
+                &mut blocks,
+                foliage_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+            );
+        }
+    } else if let FoliagePlacerKind::Cherry {
+        wide_bottom_layer_hole_chance,
+        corner_hole_chance,
+        ..
+    } = foliage.kind
+    {
+        let cherry_origin = BlockPos {
+            x: foliage_origin.x,
+            y: foliage_origin.y + foliage_offset,
+            z: foliage_origin.z,
+        };
+        for (y_offset, current_radius) in cherry_foliage_rows(foliage_height, leaf_radius) {
+            place_cherry_leaves_row(
+                &mut blocks,
+                cherry_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+                wide_bottom_layer_hole_chance,
+                corner_hole_chance,
+                rand_a,
+                rand_b,
+            );
+        }
+    } else if let FoliagePlacerKind::RandomSpread {
+        leaf_placement_attempts,
+        ..
+    } = foliage.kind
+    {
+        let rolls = deterministic_random_spread_rolls(
+            rand_a,
+            rand_b,
+            leaf_radius,
+            foliage_height,
+            leaf_placement_attempts,
+        );
+        for pos in random_spread_foliage_positions(
+            foliage_origin,
+            foliage_height,
+            leaf_radius,
+            leaf_placement_attempts,
+            &rolls,
+        ) {
+            push_tree_block(
+                &mut blocks,
+                TreePlacementBlock {
+                    pos,
+                    state: foliage_state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    } else if matches!(foliage.kind, FoliagePlacerKind::Jungle { .. }) {
+        for (y_offset, current_radius) in
+            mega_jungle_foliage_rows(foliage_offset, 1 + rand_b.rem_euclid(2), leaf_radius)
+        {
+            place_mega_pine_leaves_row(
+                &mut blocks,
+                foliage_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+            );
+        }
+    } else if matches!(foliage.kind, FoliagePlacerKind::Fancy { .. }) {
+        for (y_offset, current_radius) in
+            fancy_foliage_rows(foliage_offset, foliage_height, leaf_radius)
+        {
+            place_fancy_leaves_row(
+                &mut blocks,
+                foliage_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+            );
+        }
+    } else {
+        for y_offset in ((foliage_offset - foliage_height)..=foliage_offset).rev() {
+            let current_radius = if bush_shape {
+                leaf_radius - 1 - y_offset
+            } else {
+                (leaf_radius - 1 - y_offset / 2).max(0)
+            };
+            if current_radius < 0 {
+                continue;
+            }
+            place_simple_leaves_row(
+                &mut blocks,
+                foliage_origin,
+                current_radius,
+                y_offset,
+                foliage_state,
+                matches!(foliage.kind, FoliagePlacerKind::Blob { .. }),
+                rand_a,
+                rand_b,
+            );
+        }
     }
 
     Ok(TreePlacementPlan { blocks })
+}
+
+pub fn forking_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    lean_direction: HorizontalDirection,
+    branch_direction: HorizontalDirection,
+    lean_height_roll: i32,
+    lean_steps_roll: i32,
+    branch_pos_roll: i32,
+    branch_steps_roll: i32,
+) -> TrunkPlacementPlan {
+    let mut blocks = vec![TreePlacementBlock {
+        pos: BlockPos {
+            x: origin.x,
+            y: origin.y - 1,
+            z: origin.z,
+        },
+        state: below_trunk_state,
+        kind: TreePlacementBlockKind::DirtBelowTrunk,
+    }];
+    let mut attachments = Vec::new();
+    let lean_height = tree_height - lean_height_roll.rem_euclid(4) - 1;
+    let mut lean_steps = 3 - lean_steps_roll.rem_euclid(3);
+    let mut tx = origin.x;
+    let mut tz = origin.z;
+    let mut last_top_y = None;
+
+    for y_offset in 0..tree_height {
+        let y = origin.y + y_offset;
+        if y_offset >= lean_height && lean_steps > 0 {
+            let moved = offset_horizontal(BlockPos { x: tx, y, z: tz }, lean_direction, 1);
+            tx = moved.x;
+            tz = moved.z;
+            lean_steps -= 1;
+        }
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos { x: tx, y, z: tz },
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+        last_top_y = Some(y + 1);
+    }
+
+    if let Some(y) = last_top_y {
+        attachments.push(TreeFoliageAttachmentModel {
+            pos: BlockPos { x: tx, y, z: tz },
+            radius_offset: 1,
+            double_trunk: false,
+        });
+    }
+
+    if branch_direction != lean_direction {
+        tx = origin.x;
+        tz = origin.z;
+        let branch_pos = lean_height - branch_pos_roll.rem_euclid(2) - 1;
+        let mut branch_steps = 1 + branch_steps_roll.rem_euclid(3);
+        last_top_y = None;
+        let mut y_offset = branch_pos;
+        while y_offset < tree_height && branch_steps > 0 {
+            if y_offset >= 1 {
+                let y = origin.y + y_offset;
+                let moved = offset_horizontal(BlockPos { x: tx, y, z: tz }, branch_direction, 1);
+                tx = moved.x;
+                tz = moved.z;
+                push_tree_block(
+                    &mut blocks,
+                    TreePlacementBlock {
+                        pos: BlockPos { x: tx, y, z: tz },
+                        state: trunk_state,
+                        kind: TreePlacementBlockKind::Log,
+                    },
+                );
+                last_top_y = Some(y + 1);
+            }
+            y_offset += 1;
+            branch_steps -= 1;
+        }
+
+        if let Some(y) = last_top_y {
+            attachments.push(TreeFoliageAttachmentModel {
+                pos: BlockPos { x: tx, y, z: tz },
+                radius_offset: 0,
+                double_trunk: false,
+            });
+        }
+    }
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+pub fn bending_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    direction: HorizontalDirection,
+    min_height_for_leaves: i32,
+    bend_length: i32,
+    bend_start_roll: i32,
+) -> TrunkPlacementPlan {
+    let mut blocks = vec![TreePlacementBlock {
+        pos: BlockPos {
+            x: origin.x,
+            y: origin.y - 1,
+            z: origin.z,
+        },
+        state: below_trunk_state,
+        kind: TreePlacementBlockKind::DirtBelowTrunk,
+    }];
+    let mut attachments = Vec::new();
+    let log_height = tree_height - 1;
+    let mut pos = origin;
+
+    for i in 0..=log_height {
+        if i + 1 >= log_height + bend_start_roll.rem_euclid(2) {
+            pos = offset_horizontal(pos, direction, 1);
+        }
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos,
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+        if i >= min_height_for_leaves {
+            attachments.push(TreeFoliageAttachmentModel {
+                pos,
+                radius_offset: 0,
+                double_trunk: false,
+            });
+        }
+        pos.y += 1;
+    }
+
+    for _ in 0..=bend_length {
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos,
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+        attachments.push(TreeFoliageAttachmentModel {
+            pos,
+            radius_offset: 0,
+            double_trunk: false,
+        });
+        pos = offset_horizontal(pos, direction, 1);
+    }
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+pub fn giant_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+) -> TrunkPlacementPlan {
+    let mut blocks = Vec::new();
+    for (dx, dz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x + dx,
+                    y: origin.y - 1,
+                    z: origin.z + dz,
+                },
+                state: below_trunk_state,
+                kind: TreePlacementBlockKind::DirtBelowTrunk,
+            },
+        );
+    }
+
+    for y_offset in 0..tree_height {
+        let full_2x2_layer = y_offset < tree_height - 1;
+        for (dx, dz) in [(0, 0), (1, 0), (1, 1), (0, 1)] {
+            if !full_2x2_layer && (dx != 0 || dz != 0) {
+                continue;
+            }
+            push_tree_block(
+                &mut blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state: trunk_state,
+                    kind: TreePlacementBlockKind::Log,
+                },
+            );
+        }
+    }
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments: vec![TreeFoliageAttachmentModel {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y + tree_height,
+                z: origin.z,
+            },
+            radius_offset: 0,
+            double_trunk: true,
+        }],
+    }
+}
+
+pub fn mega_jungle_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    branches: &[MegaJungleBranchModel],
+) -> TrunkPlacementPlan {
+    let mut plan = giant_trunk_placement_plan(origin, tree_height, trunk_state, below_trunk_state);
+    for branch in branches {
+        let mut bx = 0;
+        let mut bz = 0;
+        for b in 0..5 {
+            bx = (1.5 + branch.angle_radians.cos() * b as f32) as i32;
+            bz = (1.5 + branch.angle_radians.sin() * b as f32) as i32;
+            push_tree_block(
+                &mut plan.blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + bx,
+                        y: origin.y + branch.branch_height - 3 + b / 2,
+                        z: origin.z + bz,
+                    },
+                    state: trunk_state,
+                    kind: TreePlacementBlockKind::Log,
+                },
+            );
+        }
+        plan.attachments.push(TreeFoliageAttachmentModel {
+            pos: BlockPos {
+                x: origin.x + bx,
+                y: origin.y + branch.branch_height,
+                z: origin.z + bz,
+            },
+            radius_offset: -2,
+            double_trunk: false,
+        });
+    }
+    plan
+}
+
+pub fn dark_oak_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    lean_direction: HorizontalDirection,
+    lean_height_roll: i32,
+    lean_steps_roll: i32,
+    branch_rolls: &[i32],
+) -> TrunkPlacementPlan {
+    let mut blocks = Vec::new();
+    for (dx, dz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x + dx,
+                    y: origin.y - 1,
+                    z: origin.z + dz,
+                },
+                state: below_trunk_state,
+                kind: TreePlacementBlockKind::DirtBelowTrunk,
+            },
+        );
+    }
+
+    let lean_height = tree_height - lean_height_roll.rem_euclid(4);
+    let mut lean_steps = 2 - lean_steps_roll.rem_euclid(3);
+    let mut tx = origin.x;
+    let mut tz = origin.z;
+    let ey = origin.y + tree_height - 1;
+    for y_offset in 0..tree_height {
+        if y_offset >= lean_height && lean_steps > 0 {
+            let moved = offset_horizontal(
+                BlockPos {
+                    x: tx,
+                    y: origin.y + y_offset,
+                    z: tz,
+                },
+                lean_direction,
+                1,
+            );
+            tx = moved.x;
+            tz = moved.z;
+            lean_steps -= 1;
+        }
+        for (dx, dz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+            push_tree_block(
+                &mut blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: tx + dx,
+                        y: origin.y + y_offset,
+                        z: tz + dz,
+                    },
+                    state: trunk_state,
+                    kind: TreePlacementBlockKind::Log,
+                },
+            );
+        }
+    }
+
+    let mut attachments = vec![TreeFoliageAttachmentModel {
+        pos: BlockPos {
+            x: tx,
+            y: ey,
+            z: tz,
+        },
+        radius_offset: 0,
+        double_trunk: true,
+    }];
+    let mut roll_index = 0;
+    for ox in -1..=2 {
+        for oz in -1..=2 {
+            if (0..=1).contains(&ox) && (0..=1).contains(&oz) {
+                continue;
+            }
+            let gate_roll = branch_rolls.get(roll_index).copied().unwrap_or(1);
+            roll_index += 1;
+            if gate_roll.rem_euclid(3) > 0 {
+                continue;
+            }
+            let length_roll = branch_rolls.get(roll_index).copied().unwrap_or(0);
+            roll_index += 1;
+            let length = length_roll.rem_euclid(3) + 2;
+            for branch_y in 0..length {
+                push_tree_block(
+                    &mut blocks,
+                    TreePlacementBlock {
+                        pos: BlockPos {
+                            x: origin.x + ox,
+                            y: ey - branch_y - 1,
+                            z: origin.z + oz,
+                        },
+                        state: trunk_state,
+                        kind: TreePlacementBlockKind::Log,
+                    },
+                );
+            }
+            attachments.push(TreeFoliageAttachmentModel {
+                pos: BlockPos {
+                    x: origin.x + ox,
+                    y: ey,
+                    z: origin.z + oz,
+                },
+                radius_offset: 0,
+                double_trunk: false,
+            });
+        }
+    }
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+pub fn upwards_branching_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    branches: &[UpwardsBranchingBranchModel],
+) -> TrunkPlacementPlan {
+    let mut blocks = Vec::new();
+    let mut attachments = Vec::new();
+
+    for height_pos in 0..tree_height {
+        let current_height = origin.y + height_pos;
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: current_height,
+                    z: origin.z,
+                },
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+
+        for branch in branches
+            .iter()
+            .copied()
+            .filter(|branch| branch.trunk_y_offset == height_pos && height_pos < tree_height - 1)
+        {
+            place_upwards_branching_branch(
+                &mut blocks,
+                &mut attachments,
+                origin,
+                tree_height,
+                trunk_state,
+                branch,
+            );
+        }
+
+        if height_pos == tree_height - 1 {
+            attachments.push(TreeFoliageAttachmentModel {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: current_height + 1,
+                    z: origin.z,
+                },
+                radius_offset: 0,
+                double_trunk: false,
+            });
+        }
+    }
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+pub fn cherry_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    branch_count: i32,
+    branches: &[CherryBranchModel],
+) -> TrunkPlacementPlan {
+    let mut blocks = vec![TreePlacementBlock {
+        pos: BlockPos {
+            x: origin.x,
+            y: origin.y - 1,
+            z: origin.z,
+        },
+        state: below_trunk_state,
+        kind: TreePlacementBlockKind::DirtBelowTrunk,
+    }];
+    let has_middle_branch = branch_count == 3;
+    let trunk_height = if has_middle_branch {
+        tree_height
+    } else {
+        branches
+            .iter()
+            .take(branch_count.clamp(1, 2) as usize)
+            .map(|branch| branch.start_offset_from_origin + 1)
+            .max()
+            .unwrap_or(tree_height)
+    };
+    for y_offset in 0..trunk_height {
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: origin.y + y_offset,
+                    z: origin.z,
+                },
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+    }
+
+    let mut attachments = Vec::new();
+    if has_middle_branch {
+        attachments.push(TreeFoliageAttachmentModel {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y + trunk_height,
+                z: origin.z,
+            },
+            radius_offset: 0,
+            double_trunk: false,
+        });
+    }
+    for branch in branches.iter().take(branch_count.clamp(1, 3) as usize) {
+        attachments.push(place_cherry_branch(
+            &mut blocks,
+            origin,
+            tree_height,
+            trunk_state,
+            branch,
+        ));
+    }
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+pub fn fancy_trunk_placement_plan(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    cluster_rolls: &[FancyTrunkClusterRollModel],
+) -> TrunkPlacementPlan {
+    let height = tree_height + 2;
+    let trunk_height = ((height as f64) * 0.618).floor() as i32;
+    let trunk_top_y = origin.y + trunk_height;
+    let clusters_per_y = 1.min((1.382 + ((height as f64) / 13.0).powi(2)).floor() as i32);
+    let mut blocks = vec![TreePlacementBlock {
+        pos: BlockPos {
+            x: origin.x,
+            y: origin.y - 1,
+            z: origin.z,
+        },
+        state: below_trunk_state,
+        kind: TreePlacementBlockKind::DirtBelowTrunk,
+    }];
+    let mut foliage_coords = vec![(
+        TreeFoliageAttachmentModel {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y + height - 5,
+                z: origin.z,
+            },
+            radius_offset: 0,
+            double_trunk: false,
+        },
+        trunk_top_y,
+    )];
+
+    let mut roll_index = 0;
+    for relative_y in (0..=(height - 5)).rev() {
+        let tree_shape = fancy_trunk_tree_shape(height, relative_y);
+        if tree_shape < 0.0 {
+            continue;
+        }
+        for _ in 0..clusters_per_y {
+            let roll =
+                cluster_rolls
+                    .get(roll_index)
+                    .copied()
+                    .unwrap_or(FancyTrunkClusterRollModel {
+                        shape_float: 0.0,
+                        angle_float: 0.0,
+                    });
+            roll_index += 1;
+            let radius = f64::from(tree_shape) * f64::from(roll.shape_float + 0.328);
+            let angle = f64::from(roll.angle_float) * 2.0 * std::f64::consts::PI;
+            let x = radius * angle.sin() + 0.5;
+            let z = radius * angle.cos() + 0.5;
+            let check_start = BlockPos {
+                x: origin.x + x.floor() as i32,
+                y: origin.y + relative_y - 1,
+                z: origin.z + z.floor() as i32,
+            };
+            let dx = origin.x - check_start.x;
+            let dz = origin.z - check_start.z;
+            let branch_height = check_start.y as f64 - f64::from(dx * dx + dz * dz).sqrt() * 0.381;
+            let branch_top_y = if branch_height > f64::from(trunk_top_y) {
+                trunk_top_y
+            } else {
+                branch_height as i32
+            };
+            foliage_coords.push((
+                TreeFoliageAttachmentModel {
+                    pos: check_start,
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                branch_top_y,
+            ));
+        }
+    }
+
+    fancy_trunk_place_limb(
+        &mut blocks,
+        origin,
+        BlockPos {
+            x: origin.x,
+            y: origin.y + trunk_height,
+            z: origin.z,
+        },
+        trunk_state,
+    );
+    for (attachment, branch_base_y) in &foliage_coords {
+        let base_coord = BlockPos {
+            x: origin.x,
+            y: *branch_base_y,
+            z: origin.z,
+        };
+        if base_coord != attachment.pos
+            && fancy_trunk_should_trim_branch(height, branch_base_y - origin.y)
+        {
+            fancy_trunk_place_limb(&mut blocks, base_coord, attachment.pos, trunk_state);
+        }
+    }
+
+    let attachments = foliage_coords
+        .into_iter()
+        .filter_map(|(attachment, branch_base_y)| {
+            if fancy_trunk_should_trim_branch(height, branch_base_y - origin.y) {
+                Some(attachment)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+fn place_cherry_branch(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    _tree_height: i32,
+    trunk_state: &'static str,
+    branch: &CherryBranchModel,
+) -> TreeFoliageAttachmentModel {
+    let extend_branch_away_from_trunk = branch.middle_continues_upwards
+        || branch.end_offset_from_origin < branch.start_offset_from_origin;
+    let distance_to_trunk = branch.horizontal_length + i32::from(extend_branch_away_from_trunk);
+    let branch_end_pos = offset_horizontal(
+        BlockPos {
+            x: origin.x,
+            y: origin.y + branch.end_offset_from_origin,
+            z: origin.z,
+        },
+        branch.direction,
+        distance_to_trunk,
+    );
+    let mut log_pos = BlockPos {
+        x: origin.x,
+        y: origin.y + branch.start_offset_from_origin,
+        z: origin.z,
+    };
+    let horizontal_state = rotated_log_state(trunk_state, branch.direction);
+    for _ in 0..if extend_branch_away_from_trunk { 2 } else { 1 } {
+        log_pos = offset_horizontal(log_pos, branch.direction, 1);
+        push_tree_block(
+            blocks,
+            TreePlacementBlock {
+                pos: log_pos,
+                state: horizontal_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+    }
+
+    let mut choice_index = 0;
+    while log_pos != branch_end_pos {
+        let vertical_delta = branch_end_pos.y - log_pos.y;
+        let horizontal_delta = match branch.direction {
+            HorizontalDirection::East => branch_end_pos.x - log_pos.x,
+            HorizontalDirection::West => log_pos.x - branch_end_pos.x,
+            HorizontalDirection::South => branch_end_pos.z - log_pos.z,
+            HorizontalDirection::North => log_pos.z - branch_end_pos.z,
+        };
+        let grow_vertically = if horizontal_delta == 0 {
+            true
+        } else if vertical_delta == 0 {
+            false
+        } else {
+            let choice = branch
+                .grow_vertically
+                .get(choice_index)
+                .copied()
+                .unwrap_or(true);
+            choice_index += 1;
+            choice
+        };
+        if grow_vertically {
+            log_pos.y += vertical_delta.signum();
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: log_pos,
+                    state: trunk_state,
+                    kind: TreePlacementBlockKind::Log,
+                },
+            );
+        } else {
+            log_pos = offset_horizontal(log_pos, branch.direction, 1);
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: log_pos,
+                    state: horizontal_state,
+                    kind: TreePlacementBlockKind::Log,
+                },
+            );
+        }
+    }
+
+    TreeFoliageAttachmentModel {
+        pos: BlockPos {
+            x: branch_end_pos.x,
+            y: branch_end_pos.y + 1,
+            z: branch_end_pos.z,
+        },
+        radius_offset: 0,
+        double_trunk: false,
+    }
+}
+
+pub fn fancy_trunk_tree_shape(height: i32, y: i32) -> f32 {
+    if (y as f32) < height as f32 * 0.3 {
+        return -1.0;
+    }
+    let radius = height as f32 / 2.0;
+    let adjacent = radius - y as f32;
+    if adjacent.abs() >= radius {
+        return 0.0;
+    }
+    let distance = if adjacent == 0.0 {
+        radius
+    } else {
+        (radius * radius - adjacent * adjacent).sqrt()
+    };
+    distance * 0.5
+}
+
+fn fancy_trunk_should_trim_branch(height: i32, local_y: i32) -> bool {
+    (local_y as f64) >= (height as f64) * 0.2
+}
+
+fn fancy_trunk_place_limb(
+    blocks: &mut Vec<TreePlacementBlock>,
+    start_pos: BlockPos,
+    end_pos: BlockPos,
+    trunk_state: &'static str,
+) {
+    let delta = BlockPos {
+        x: end_pos.x - start_pos.x,
+        y: end_pos.y - start_pos.y,
+        z: end_pos.z - start_pos.z,
+    };
+    let steps = delta.x.abs().max(delta.y.abs()).max(delta.z.abs());
+    if steps == 0 {
+        push_tree_block(
+            blocks,
+            TreePlacementBlock {
+                pos: start_pos,
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+        return;
+    }
+
+    let dx = delta.x as f32 / steps as f32;
+    let dy = delta.y as f32 / steps as f32;
+    let dz = delta.z as f32 / steps as f32;
+    for i in 0..=steps {
+        let pos = BlockPos {
+            x: start_pos.x + (0.5 + i as f32 * dx).floor() as i32,
+            y: start_pos.y + (0.5 + i as f32 * dy).floor() as i32,
+            z: start_pos.z + (0.5 + i as f32 * dz).floor() as i32,
+        };
+        push_tree_block(
+            blocks,
+            TreePlacementBlock {
+                pos,
+                state: fancy_trunk_log_state(trunk_state, start_pos, pos),
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+    }
+}
+
+fn fancy_trunk_log_state(
+    trunk_state: &'static str,
+    start_pos: BlockPos,
+    block_pos: BlockPos,
+) -> &'static str {
+    let xdiff = (block_pos.x - start_pos.x).abs();
+    let zdiff = (block_pos.z - start_pos.z).abs();
+    let maxdiff = xdiff.max(zdiff);
+    if maxdiff == 0 {
+        trunk_state
+    } else if xdiff == maxdiff {
+        rotated_log_state(trunk_state, HorizontalDirection::East)
+    } else {
+        rotated_log_state(trunk_state, HorizontalDirection::South)
+    }
+}
+
+fn place_upwards_branching_branch(
+    blocks: &mut Vec<TreePlacementBlock>,
+    attachments: &mut Vec<TreeFoliageAttachmentModel>,
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    branch: UpwardsBranchingBranchModel,
+) {
+    let current_height = origin.y + branch.trunk_y_offset;
+    let mut height_along_branch = current_height + branch.branch_pos;
+    let mut log_x = origin.x;
+    let mut log_z = origin.z;
+    let mut branch_placement_index = branch.branch_pos;
+    let mut branch_steps = branch.branch_steps;
+
+    while branch_placement_index < tree_height && branch_steps > 0 {
+        if branch_placement_index >= 1 {
+            let placement_height = current_height + branch_placement_index;
+            let moved = offset_horizontal(
+                BlockPos {
+                    x: log_x,
+                    y: placement_height,
+                    z: log_z,
+                },
+                branch.direction,
+                1,
+            );
+            log_x = moved.x;
+            log_z = moved.z;
+            height_along_branch = placement_height + 1;
+            let log_pos = BlockPos {
+                x: log_x,
+                y: placement_height,
+                z: log_z,
+            };
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: log_pos,
+                    state: trunk_state,
+                    kind: TreePlacementBlockKind::Log,
+                },
+            );
+            attachments.push(TreeFoliageAttachmentModel {
+                pos: log_pos,
+                radius_offset: 0,
+                double_trunk: false,
+            });
+        }
+
+        branch_placement_index += 1;
+        branch_steps -= 1;
+    }
+
+    if height_along_branch - current_height > 1 {
+        let foliage_pos = BlockPos {
+            x: log_x,
+            y: height_along_branch,
+            z: log_z,
+        };
+        attachments.push(TreeFoliageAttachmentModel {
+            pos: foliage_pos,
+            radius_offset: 0,
+            double_trunk: false,
+        });
+        attachments.push(TreeFoliageAttachmentModel {
+            pos: BlockPos {
+                x: foliage_pos.x,
+                y: foliage_pos.y - 2,
+                z: foliage_pos.z,
+            },
+            radius_offset: 0,
+            double_trunk: false,
+        });
+    }
 }
 
 pub fn fallen_tree_log_length(min_length: i32, max_length: i32, sample_roll: i32) -> i32 {
@@ -26102,6 +30378,12 @@ fn rotated_log_state(state: &'static str, direction: HorizontalDirection) -> &'s
         ("minecraft:jungle_log", HorizontalDirection::North | HorizontalDirection::South) => {
             "minecraft:jungle_log[axis=z]"
         }
+        ("minecraft:cherry_log", HorizontalDirection::East | HorizontalDirection::West) => {
+            "minecraft:cherry_log[axis=x]"
+        }
+        ("minecraft:cherry_log", HorizontalDirection::North | HorizontalDirection::South) => {
+            "minecraft:cherry_log[axis=z]"
+        }
         _ => state,
     }
 }
@@ -26112,9 +30394,17 @@ fn place_simple_leaves_row(
     radius: i32,
     y_offset: i32,
     state: &'static str,
+    blob_shape: bool,
+    rand_a: i32,
+    rand_b: i32,
 ) {
     for dx in -radius..=radius {
         for dz in -radius..=radius {
+            if simple_leaves_row_should_skip_corner(
+                dx, y_offset, dz, radius, blob_shape, rand_a, rand_b,
+            ) {
+                continue;
+            }
             push_tree_block(
                 blocks,
                 TreePlacementBlock {
@@ -26131,10 +30421,599 @@ fn place_simple_leaves_row(
     }
 }
 
+fn place_acacia_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+) {
+    if radius < 0 {
+        return;
+    }
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if acacia_leaves_row_should_skip(dx.abs(), y_offset, dz.abs(), radius) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn place_dark_oak_single_trunk_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+) {
+    if radius < 0 {
+        return;
+    }
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if dark_oak_single_trunk_leaves_row_should_skip(dx.abs(), y_offset, dz.abs(), radius) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn place_conifer_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+) {
+    if radius < 0 {
+        return;
+    }
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if conifer_leaves_row_should_skip(dx.abs(), dz.abs(), radius) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn place_fancy_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+) {
+    if radius < 0 {
+        return;
+    }
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if fancy_leaves_row_should_skip(dx, dz, radius) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn place_cherry_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+    wide_bottom_layer_hole_chance: f32,
+    corner_hole_chance: f32,
+    rand_a: i32,
+    rand_b: i32,
+) {
+    if radius < 0 {
+        return;
+    }
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if cherry_leaves_row_should_skip(
+                dx.abs(),
+                y_offset,
+                dz.abs(),
+                radius,
+                wide_bottom_layer_hole_chance,
+                corner_hole_chance,
+                rand_a,
+                rand_b,
+            ) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn place_mega_pine_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+) {
+    if radius < 0 {
+        return;
+    }
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if mega_pine_leaves_row_should_skip(dx.abs(), dz.abs(), radius) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
+fn pine_foliage_rows(offset: i32, foliage_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+    let mut rows = Vec::new();
+    let mut current_radius = 0;
+    for y_offset in (offset - foliage_height..=offset).rev() {
+        rows.push((y_offset, current_radius));
+        if current_radius >= 1 && y_offset == offset - foliage_height + 1 {
+            current_radius -= 1;
+        } else if current_radius < leaf_radius {
+            current_radius += 1;
+        }
+    }
+    rows
+}
+
+fn fancy_foliage_rows(offset: i32, foliage_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+    let mut rows = Vec::new();
+    for y_offset in (offset - foliage_height..=offset).rev() {
+        let current_radius = leaf_radius
+            + if y_offset != offset && y_offset != offset - foliage_height {
+                1
+            } else {
+                0
+            };
+        rows.push((y_offset, current_radius));
+    }
+    rows
+}
+
+fn mega_jungle_foliage_rows(offset: i32, leaf_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+    let mut rows = Vec::new();
+    for y_offset in (offset - leaf_height..=offset).rev() {
+        rows.push((y_offset, leaf_radius + 1 - y_offset));
+    }
+    rows
+}
+
+fn cherry_foliage_rows(foliage_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+    let current_radius = leaf_radius - 1;
+    let mut rows = vec![
+        (foliage_height - 3, current_radius - 2),
+        (foliage_height - 4, current_radius - 1),
+    ];
+    for y_offset in (0..=foliage_height - 5).rev() {
+        rows.push((y_offset, current_radius));
+    }
+    rows.push((-1, current_radius));
+    rows.push((-2, current_radius - 1));
+    rows
+}
+
+fn random_spread_foliage_positions(
+    origin: BlockPos,
+    foliage_height: i32,
+    leaf_radius: i32,
+    leaf_placement_attempts: i32,
+    rolls: &[i32],
+) -> Vec<BlockPos> {
+    if foliage_height <= 0 || leaf_radius <= 0 || leaf_placement_attempts <= 0 {
+        return Vec::new();
+    }
+    let mut positions = Vec::new();
+    for attempt in 0..leaf_placement_attempts as usize {
+        let base = attempt * 6;
+        let sample = |index: usize, bound: i32| {
+            rolls
+                .get(base + index)
+                .copied()
+                .unwrap_or(0)
+                .rem_euclid(bound)
+        };
+        positions.push(BlockPos {
+            x: origin.x + sample(0, leaf_radius) - sample(1, leaf_radius),
+            y: origin.y + sample(2, foliage_height) - sample(3, foliage_height),
+            z: origin.z + sample(4, leaf_radius) - sample(5, leaf_radius),
+        });
+    }
+    positions
+}
+
+fn deterministic_random_spread_rolls(
+    rand_a: i32,
+    rand_b: i32,
+    leaf_radius: i32,
+    foliage_height: i32,
+    leaf_placement_attempts: i32,
+) -> Vec<i32> {
+    if foliage_height <= 0 || leaf_radius <= 0 || leaf_placement_attempts <= 0 {
+        return Vec::new();
+    }
+    let mut seed = (rand_a as i64 as u64)
+        ^ (rand_b as i64 as u64).rotate_left(29)
+        ^ (leaf_radius as i64 as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+        ^ (foliage_height as i64 as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    let mut rolls = Vec::with_capacity(leaf_placement_attempts as usize * 6);
+    for _ in 0..leaf_placement_attempts * 6 {
+        seed = splitmix64(seed);
+        rolls.push((seed >> 1) as i32);
+    }
+    rolls
+}
+
+fn splitmix64(mut value: u64) -> u64 {
+    value = value.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    let mut mixed = value;
+    mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    mixed ^ (mixed >> 31)
+}
+
+fn mega_pine_foliage_rows(
+    origin_y: i32,
+    offset: i32,
+    foliage_height: i32,
+    leaf_radius: i32,
+) -> Vec<(i32, i32)> {
+    if foliage_height <= 0 {
+        return vec![(offset, leaf_radius)];
+    }
+    let mut rows = Vec::new();
+    let mut prev_radius = 0;
+    for y_offset in (offset - foliage_height)..=offset {
+        let yo = -y_offset;
+        let smooth_radius =
+            leaf_radius + ((yo as f32 / foliage_height as f32) * 3.5).floor() as i32;
+        let jagged_radius =
+            if yo > 0 && smooth_radius == prev_radius && (origin_y + y_offset).rem_euclid(2) == 0 {
+                smooth_radius + 1
+            } else {
+                smooth_radius
+            };
+        rows.push((y_offset, jagged_radius));
+        prev_radius = smooth_radius;
+    }
+    rows
+}
+
+fn spruce_foliage_rows(
+    offset: i32,
+    foliage_height: i32,
+    leaf_radius: i32,
+    initial_radius: i32,
+) -> Vec<(i32, i32)> {
+    let mut rows = Vec::new();
+    let mut current_radius = initial_radius.clamp(0, 1);
+    let mut max_radius = 1;
+    let mut min_radius = 0;
+    for y_offset in (-foliage_height..=offset).rev() {
+        rows.push((y_offset, current_radius));
+        if current_radius >= max_radius {
+            current_radius = min_radius;
+            min_radius = 1;
+            max_radius = (max_radius + 1).min(leaf_radius);
+        } else {
+            current_radius += 1;
+        }
+    }
+    rows
+}
+
+fn sample_inclusive_i32(min: i32, max: i32, roll: i32) -> i32 {
+    if max <= min {
+        min
+    } else {
+        min + roll.rem_euclid(max - min + 1)
+    }
+}
+
+fn simple_leaves_row_should_skip_corner(
+    dx: i32,
+    y_offset: i32,
+    dz: i32,
+    radius: i32,
+    blob_shape: bool,
+    rand_a: i32,
+    rand_b: i32,
+) -> bool {
+    if dx.abs() != radius || dz.abs() != radius {
+        return false;
+    }
+    if blob_shape && y_offset == 0 {
+        return true;
+    }
+    simple_tree_corner_roll(dx, y_offset, dz, rand_a, rand_b) == 0
+}
+
+fn acacia_leaves_row_should_skip(dx: i32, y_offset: i32, dz: i32, radius: i32) -> bool {
+    if y_offset == 0 {
+        (dx > 1 || dz > 1) && dx != 0 && dz != 0
+    } else {
+        dx == radius && dz == radius && radius > 0
+    }
+}
+
+fn dark_oak_single_trunk_leaves_row_should_skip(
+    dx: i32,
+    y_offset: i32,
+    dz: i32,
+    radius: i32,
+) -> bool {
+    y_offset == -1 && dx == radius && dz == radius
+}
+
+fn conifer_leaves_row_should_skip(dx: i32, dz: i32, radius: i32) -> bool {
+    dx == radius && dz == radius && radius > 0
+}
+
+fn fancy_leaves_row_should_skip(dx: i32, dz: i32, radius: i32) -> bool {
+    let dx = dx as f32 + 0.5;
+    let dz = dz as f32 + 0.5;
+    dx * dx + dz * dz > (radius * radius) as f32
+}
+
+fn cherry_leaves_row_should_skip(
+    dx: i32,
+    y_offset: i32,
+    dz: i32,
+    radius: i32,
+    wide_bottom_layer_hole_chance: f32,
+    corner_hole_chance: f32,
+    rand_a: i32,
+    rand_b: i32,
+) -> bool {
+    if y_offset == -1
+        && (dx == radius || dz == radius)
+        && deterministic_chance_roll(dx, y_offset, dz, rand_a, rand_b)
+            < wide_bottom_layer_hole_chance
+    {
+        return true;
+    }
+
+    let corner = dx == radius && dz == radius;
+    let wide_layer = radius > 2;
+    if wide_layer {
+        corner
+            || (dx + dz > radius * 2 - 2
+                && deterministic_chance_roll(dx, y_offset, dz, rand_b, rand_a) < corner_hole_chance)
+    } else {
+        corner && deterministic_chance_roll(dx, y_offset, dz, rand_b, rand_a) < corner_hole_chance
+    }
+}
+
+fn deterministic_chance_roll(dx: i32, y_offset: i32, dz: i32, rand_a: i32, rand_b: i32) -> f32 {
+    (simple_tree_corner_roll(dx, y_offset, dz, rand_a, rand_b) as f32) * 0.5
+}
+
+fn mega_pine_leaves_row_should_skip(dx: i32, dz: i32, radius: i32) -> bool {
+    dx + dz >= 7 || dx * dx + dz * dz > radius * radius
+}
+
+fn simple_tree_corner_roll(dx: i32, y_offset: i32, dz: i32, rand_a: i32, rand_b: i32) -> i32 {
+    let mut value = (rand_a as i64 as u64)
+        ^ (rand_b as i64 as u64).rotate_left(17)
+        ^ (dx as i64 as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+        ^ (y_offset as i64 as u64).wrapping_mul(0xbf58_476d_1ce4_e5b9)
+        ^ (dz as i64 as u64).wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    ((value ^ (value >> 31)) & 1) as i32
+}
+
 fn push_tree_block(blocks: &mut Vec<TreePlacementBlock>, block: TreePlacementBlock) {
     if !blocks.iter().any(|existing| existing.pos == block.pos) {
         blocks.push(block);
     }
+}
+
+pub fn tree_leaf_distance_updates(
+    logs: &[BlockPos],
+    leaves: &[(BlockPos, i32)],
+    decorations: &[BlockPos],
+    roots: &[BlockPos],
+) -> Vec<TreeLeafDistanceUpdate> {
+    let Some(bounds) = bounding_box_for_positions(
+        logs.iter()
+            .chain(leaves.iter().map(|(pos, _)| pos))
+            .chain(decorations.iter())
+            .chain(roots.iter())
+            .copied()
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) else {
+        return Vec::new();
+    };
+
+    let mut full = Vec::new();
+    for pos in decorations.iter().chain(roots.iter()).copied() {
+        if block_pos_inside_bounds(pos, bounds) && !full.contains(&pos) {
+            full.push(pos);
+        }
+    }
+    let mut to_check: Vec<Vec<BlockPos>> = vec![Vec::new(); 7];
+    for pos in logs.iter().copied() {
+        if block_pos_inside_bounds(pos, bounds) && !to_check[0].contains(&pos) {
+            to_check[0].push(pos);
+        }
+    }
+
+    let mut updates: Vec<TreeLeafDistanceUpdate> = Vec::new();
+    let mut smallest_distance = 0_usize;
+    while smallest_distance < 7 {
+        if to_check[smallest_distance].is_empty() {
+            smallest_distance += 1;
+            continue;
+        }
+        let pos = to_check[smallest_distance].remove(0);
+        if !block_pos_inside_bounds(pos, bounds) {
+            continue;
+        }
+        if smallest_distance != 0 && !updates.iter().any(|update| update.pos == pos) {
+            updates.push(TreeLeafDistanceUpdate {
+                pos,
+                distance: smallest_distance as i32,
+            });
+        }
+        if !full.contains(&pos) {
+            full.push(pos);
+        }
+
+        for neighbor in block_pos_six_neighbors(pos) {
+            if !block_pos_inside_bounds(neighbor, bounds) || full.contains(&neighbor) {
+                continue;
+            }
+            let Some((_, current_distance)) =
+                leaves.iter().find(|(leaf_pos, _)| *leaf_pos == neighbor)
+            else {
+                continue;
+            };
+            let new_distance = (*current_distance).min(smallest_distance as i32 + 1);
+            if new_distance < 7 {
+                let bucket = new_distance as usize;
+                if !to_check[bucket].contains(&neighbor) {
+                    to_check[bucket].push(neighbor);
+                }
+                smallest_distance = smallest_distance.min(bucket);
+            }
+        }
+    }
+
+    updates
+}
+
+fn bounding_box_for_positions(positions: &[BlockPos]) -> Option<(BlockPos, BlockPos)> {
+    let first = *positions.first()?;
+    let mut min = first;
+    let mut max = first;
+    for pos in positions.iter().copied().skip(1) {
+        min.x = min.x.min(pos.x);
+        min.y = min.y.min(pos.y);
+        min.z = min.z.min(pos.z);
+        max.x = max.x.max(pos.x);
+        max.y = max.y.max(pos.y);
+        max.z = max.z.max(pos.z);
+    }
+    Some((min, max))
+}
+
+fn block_pos_inside_bounds(pos: BlockPos, bounds: (BlockPos, BlockPos)) -> bool {
+    pos.x >= bounds.0.x
+        && pos.y >= bounds.0.y
+        && pos.z >= bounds.0.z
+        && pos.x <= bounds.1.x
+        && pos.y <= bounds.1.y
+        && pos.z <= bounds.1.z
+}
+
+fn block_pos_six_neighbors(pos: BlockPos) -> [BlockPos; 6] {
+    [
+        BlockPos {
+            x: pos.x + 1,
+            ..pos
+        },
+        BlockPos {
+            x: pos.x - 1,
+            ..pos
+        },
+        BlockPos {
+            y: pos.y + 1,
+            ..pos
+        },
+        BlockPos {
+            y: pos.y - 1,
+            ..pos
+        },
+        BlockPos {
+            z: pos.z + 1,
+            ..pos
+        },
+        BlockPos {
+            z: pos.z - 1,
+            ..pos
+        },
+    ]
 }
 
 pub fn validate_feature_size(size: FeatureSizeModel) -> Result<FeatureSizeModel, String> {
@@ -26231,25 +31110,922 @@ pub fn validate_tree_decorator(
 ) -> Result<TreeDecoratorModel, String> {
     let probability = match decorator {
         TreeDecoratorModel::Cocoa { probability }
+        | TreeDecoratorModel::LeaveVine { probability }
         | TreeDecoratorModel::Beehive { probability }
+        | TreeDecoratorModel::CreakingHeart { probability }
         | TreeDecoratorModel::AttachedToLeaves { probability }
         | TreeDecoratorModel::AttachedToLogs { probability } => Some(probability),
         TreeDecoratorModel::TrunkVine
-        | TreeDecoratorModel::LeaveVine
-        | TreeDecoratorModel::PaleMoss
-        | TreeDecoratorModel::CreakingHeart
+        | TreeDecoratorModel::PaleMoss { .. }
         | TreeDecoratorModel::AlterGround
         | TreeDecoratorModel::PlaceOnGround => None,
     };
     if probability.is_some_and(|probability| !(0.0..=1.0).contains(&probability)) {
         Err("tree decorator probability must be in 0.0..=1.0".to_string())
+    } else if let TreeDecoratorModel::PaleMoss {
+        leaves_probability,
+        trunk_probability,
+        ground_probability,
+    } = decorator
+    {
+        if [leaves_probability, trunk_probability, ground_probability]
+            .iter()
+            .any(|probability| !(0.0..=1.0).contains(probability))
+        {
+            Err("pale moss decorator probabilities must be in 0.0..=1.0".to_string())
+        } else {
+            Ok(decorator)
+        }
     } else {
         Ok(decorator)
     }
 }
 
+pub fn validate_attached_to_leaves_decorator_fields(
+    exclusion_radius_xz: i32,
+    exclusion_radius_y: i32,
+    required_empty_blocks: i32,
+    directions_len: usize,
+) -> Result<(), String> {
+    if !(0..=16).contains(&exclusion_radius_xz) || !(0..=16).contains(&exclusion_radius_y) {
+        return Err("attached-to-leaves exclusion radii must be in 0..=16".to_string());
+    }
+    if !(1..=16).contains(&required_empty_blocks) {
+        return Err("attached-to-leaves required_empty_blocks must be in 1..=16".to_string());
+    }
+    if directions_len == 0 {
+        return Err("attached-to-leaves directions list must be non-empty".to_string());
+    }
+    Ok(())
+}
+
+pub fn validate_place_on_ground_decorator_fields(
+    tries: i32,
+    radius: i32,
+    height: i32,
+) -> Result<(), String> {
+    if tries <= 0 {
+        return Err("place-on-ground tries must be positive".to_string());
+    }
+    if radius < 0 || height < 0 {
+        return Err("place-on-ground radius and height must be non-negative".to_string());
+    }
+    Ok(())
+}
+
 pub fn tree_decorator_should_place(probability: f32, random_next_float: f32) -> bool {
     random_next_float < probability
+}
+
+pub fn tree_lowest_trunk_or_root_positions(logs: &[BlockPos], roots: &[BlockPos]) -> Vec<BlockPos> {
+    let mut sorted_logs = logs.to_vec();
+    let mut sorted_roots = roots.to_vec();
+    sorted_logs.sort_by_key(|pos| pos.y);
+    sorted_roots.sort_by_key(|pos| pos.y);
+    if sorted_roots.is_empty() {
+        sorted_logs
+    } else if sorted_logs
+        .first()
+        .zip(sorted_roots.first())
+        .is_some_and(|(log, root)| log.y == root.y)
+    {
+        sorted_logs
+            .into_iter()
+            .chain(sorted_roots)
+            .collect::<Vec<_>>()
+    } else {
+        sorted_roots
+    }
+}
+
+pub fn trunk_vine_decorator_placement(
+    logs: &[TrunkVineLogContext],
+    random_next_int_3: &[i32],
+) -> Vec<TreeDecoratorPlacement> {
+    let mut sorted_logs = logs.to_vec();
+    sorted_logs.sort_by_key(|log| log.pos.y);
+    let mut roll_index = 0;
+    let mut placements = Vec::new();
+    for log in sorted_logs {
+        for (target, air, state) in [
+            (
+                BlockPos {
+                    x: log.pos.x - 1,
+                    y: log.pos.y,
+                    z: log.pos.z,
+                },
+                log.west_air,
+                "minecraft:vine[east=true]",
+            ),
+            (
+                BlockPos {
+                    x: log.pos.x + 1,
+                    y: log.pos.y,
+                    z: log.pos.z,
+                },
+                log.east_air,
+                "minecraft:vine[west=true]",
+            ),
+            (
+                BlockPos {
+                    x: log.pos.x,
+                    y: log.pos.y,
+                    z: log.pos.z - 1,
+                },
+                log.north_air,
+                "minecraft:vine[south=true]",
+            ),
+            (
+                BlockPos {
+                    x: log.pos.x,
+                    y: log.pos.y,
+                    z: log.pos.z + 1,
+                },
+                log.south_air,
+                "minecraft:vine[north=true]",
+            ),
+        ] {
+            let roll = random_next_int_3.get(roll_index).copied().unwrap_or(0);
+            roll_index += 1;
+            if roll.rem_euclid(3) > 0 && air {
+                placements.push(TreeDecoratorPlacement { pos: target, state });
+            }
+        }
+    }
+    placements
+}
+
+fn add_hanging_vine_placements(
+    placements: &mut Vec<TreeDecoratorPlacement>,
+    pos: BlockPos,
+    direction_state: &'static str,
+    below_air: &[bool; 4],
+) {
+    placements.push(TreeDecoratorPlacement {
+        pos,
+        state: direction_state,
+    });
+    for (index, air) in below_air.iter().copied().enumerate() {
+        if !air {
+            break;
+        }
+        placements.push(TreeDecoratorPlacement {
+            pos: BlockPos {
+                x: pos.x,
+                y: pos.y - 1 - index as i32,
+                z: pos.z,
+            },
+            state: direction_state,
+        });
+    }
+}
+
+pub fn leave_vine_decorator_placement(
+    leaves: &[LeaveVineLeafContext],
+    probability: f32,
+    side_rolls: &[f32],
+) -> Vec<TreeDecoratorPlacement> {
+    let mut sorted_leaves = leaves.to_vec();
+    sorted_leaves.sort_by_key(|leaf| leaf.pos.y);
+    let mut roll_index = 0;
+    let mut placements = Vec::new();
+    for leaf in sorted_leaves {
+        for (target, air, below_air, state) in [
+            (
+                BlockPos {
+                    x: leaf.pos.x - 1,
+                    y: leaf.pos.y,
+                    z: leaf.pos.z,
+                },
+                leaf.west_air,
+                leaf.west_below_air,
+                "minecraft:vine[east=true]",
+            ),
+            (
+                BlockPos {
+                    x: leaf.pos.x + 1,
+                    y: leaf.pos.y,
+                    z: leaf.pos.z,
+                },
+                leaf.east_air,
+                leaf.east_below_air,
+                "minecraft:vine[west=true]",
+            ),
+            (
+                BlockPos {
+                    x: leaf.pos.x,
+                    y: leaf.pos.y,
+                    z: leaf.pos.z - 1,
+                },
+                leaf.north_air,
+                leaf.north_below_air,
+                "minecraft:vine[south=true]",
+            ),
+            (
+                BlockPos {
+                    x: leaf.pos.x,
+                    y: leaf.pos.y,
+                    z: leaf.pos.z + 1,
+                },
+                leaf.south_air,
+                leaf.south_below_air,
+                "minecraft:vine[north=true]",
+            ),
+        ] {
+            let roll = side_rolls.get(roll_index).copied().unwrap_or(1.0);
+            roll_index += 1;
+            if roll < probability && air {
+                add_hanging_vine_placements(&mut placements, target, state, &below_air);
+            }
+        }
+    }
+    placements
+}
+
+pub fn cocoa_decorator_placement(
+    logs: &[CocoaLogContext],
+    probability: f32,
+    global_roll: f32,
+    side_rolls: &[f32],
+    age_rolls: &[i32],
+) -> Vec<TreeDecoratorPlacement> {
+    if global_roll >= probability {
+        return Vec::new();
+    }
+    let mut sorted_logs = logs.to_vec();
+    sorted_logs.sort_by_key(|log| log.pos.y);
+    let Some(tree_y) = sorted_logs.first().map(|log| log.pos.y) else {
+        return Vec::new();
+    };
+    let mut side_roll_index = 0;
+    let mut age_roll_index = 0;
+    let mut placements = Vec::new();
+    for log in sorted_logs {
+        if log.pos.y - tree_y > 2 {
+            continue;
+        }
+        for (target, air, facing) in [
+            (
+                BlockPos {
+                    x: log.pos.x,
+                    y: log.pos.y,
+                    z: log.pos.z + 1,
+                },
+                log.south_air,
+                "north",
+            ),
+            (
+                BlockPos {
+                    x: log.pos.x - 1,
+                    y: log.pos.y,
+                    z: log.pos.z,
+                },
+                log.west_air,
+                "east",
+            ),
+            (
+                BlockPos {
+                    x: log.pos.x,
+                    y: log.pos.y,
+                    z: log.pos.z - 1,
+                },
+                log.north_air,
+                "south",
+            ),
+            (
+                BlockPos {
+                    x: log.pos.x + 1,
+                    y: log.pos.y,
+                    z: log.pos.z,
+                },
+                log.east_air,
+                "west",
+            ),
+        ] {
+            let side_roll = side_rolls.get(side_roll_index).copied().unwrap_or(1.0);
+            side_roll_index += 1;
+            if side_roll <= 0.25 && air {
+                let age = age_rolls
+                    .get(age_roll_index)
+                    .copied()
+                    .unwrap_or(0)
+                    .rem_euclid(3);
+                age_roll_index += 1;
+                placements.push(TreeDecoratorPlacement {
+                    pos: target,
+                    state: match (age, facing) {
+                        (0, "north") => "minecraft:cocoa[age=0,facing=north]",
+                        (1, "north") => "minecraft:cocoa[age=1,facing=north]",
+                        (2, "north") => "minecraft:cocoa[age=2,facing=north]",
+                        (0, "east") => "minecraft:cocoa[age=0,facing=east]",
+                        (1, "east") => "minecraft:cocoa[age=1,facing=east]",
+                        (2, "east") => "minecraft:cocoa[age=2,facing=east]",
+                        (0, "south") => "minecraft:cocoa[age=0,facing=south]",
+                        (1, "south") => "minecraft:cocoa[age=1,facing=south]",
+                        (2, "south") => "minecraft:cocoa[age=2,facing=south]",
+                        (0, "west") => "minecraft:cocoa[age=0,facing=west]",
+                        (1, "west") => "minecraft:cocoa[age=1,facing=west]",
+                        _ => "minecraft:cocoa[age=2,facing=west]",
+                    },
+                });
+            }
+        }
+    }
+    placements
+}
+
+pub fn beehive_decorator_placement(
+    logs: &[BlockPos],
+    leaves: &[BlockPos],
+    probability: f32,
+    global_roll: f32,
+    leafless_height_roll: i32,
+    shuffled_candidate_indices: &[usize],
+    candidate_air: &[(BlockPos, bool, bool)],
+    bee_count_roll: i32,
+    bee_ticks_rolls: &[i32],
+) -> Option<BeehiveDecoratorPlacement> {
+    if logs.is_empty() || global_roll >= probability {
+        return None;
+    }
+    let mut sorted_logs = logs.to_vec();
+    sorted_logs.sort_by_key(|pos| pos.y);
+    let mut sorted_leaves = leaves.to_vec();
+    sorted_leaves.sort_by_key(|pos| pos.y);
+    let first_log_y = sorted_logs.first()?.y;
+    let last_log_y = sorted_logs.last()?.y;
+    let hive_y = if let Some(first_leaf) = sorted_leaves.first() {
+        (first_leaf.y - 1).max(first_log_y + 1)
+    } else {
+        (first_log_y + 1 + leafless_height_roll.rem_euclid(3)).min(last_log_y)
+    };
+    let mut candidates = Vec::new();
+    for log in sorted_logs.iter().filter(|pos| pos.y == hive_y) {
+        candidates.extend([
+            BlockPos {
+                x: log.x + 1,
+                y: log.y,
+                z: log.z,
+            },
+            BlockPos {
+                x: log.x,
+                y: log.y,
+                z: log.z + 1,
+            },
+            BlockPos {
+                x: log.x - 1,
+                y: log.y,
+                z: log.z,
+            },
+        ]);
+    }
+    if candidates.is_empty() {
+        return None;
+    }
+    let mut candidate_order = shuffled_candidate_indices
+        .iter()
+        .copied()
+        .filter_map(|index| candidates.get(index).copied())
+        .collect::<Vec<_>>();
+    if candidate_order.len() < candidates.len() {
+        for candidate in candidates {
+            if !candidate_order.contains(&candidate) {
+                candidate_order.push(candidate);
+            }
+        }
+    }
+    let hive_pos = candidate_order.into_iter().find(|candidate| {
+        candidate_air
+            .iter()
+            .find(|(pos, _, _)| pos == candidate)
+            .is_some_and(|(_, self_air, front_air)| *self_air && *front_air)
+    })?;
+    let bee_count = 2 + bee_count_roll.rem_euclid(2);
+    let bee_ticks_in_hive = (0..bee_count as usize)
+        .map(|index| {
+            bee_ticks_rolls
+                .get(index)
+                .copied()
+                .unwrap_or(0)
+                .rem_euclid(599)
+        })
+        .collect();
+    Some(BeehiveDecoratorPlacement {
+        pos: hive_pos,
+        state: "minecraft:bee_nest[facing=south,honey_level=0]",
+        bee_ticks_in_hive,
+    })
+}
+
+pub fn creaking_heart_decorator_placement(
+    logs: &[BlockPos],
+    probability: f32,
+    global_roll: f32,
+    shuffled_log_indices: &[usize],
+    adjacent_log_checks: &[(BlockPos, [bool; 6])],
+) -> Option<TreeDecoratorPlacement> {
+    if logs.is_empty() || global_roll >= probability {
+        return None;
+    }
+    let mut sorted_logs = logs.to_vec();
+    sorted_logs.sort_by_key(|pos| pos.y);
+    let mut log_order = shuffled_log_indices
+        .iter()
+        .copied()
+        .filter_map(|index| sorted_logs.get(index).copied())
+        .collect::<Vec<_>>();
+    if log_order.len() < sorted_logs.len() {
+        for log in sorted_logs {
+            if !log_order.contains(&log) {
+                log_order.push(log);
+            }
+        }
+    }
+    let pos = log_order.into_iter().find(|candidate| {
+        adjacent_log_checks
+            .iter()
+            .find(|(pos, _)| pos == candidate)
+            .is_some_and(|(_, checks)| checks.iter().all(|is_log| *is_log))
+    })?;
+    Some(TreeDecoratorPlacement {
+        pos,
+        state: "minecraft:creaking_heart[active=false,axis=y,natural=true]",
+    })
+}
+
+pub fn place_on_ground_decorator_placement(
+    lowest_trunk_or_root_positions: &[BlockPos],
+    tries: i32,
+    radius: i32,
+    height: i32,
+    block_state: &'static str,
+    attempts: &[PlaceOnGroundAttemptContext],
+) -> Result<Vec<TreeDecoratorPlacement>, String> {
+    validate_place_on_ground_decorator_fields(tries, radius, height)?;
+    let Some(origin) = lowest_trunk_or_root_positions.first().copied() else {
+        return Ok(Vec::new());
+    };
+    let min_y = origin.y;
+    let mut min_x = origin.x;
+    let mut max_x = origin.x;
+    let mut min_z = origin.z;
+    let mut max_z = origin.z;
+    for position in lowest_trunk_or_root_positions {
+        if position.y == min_y {
+            min_x = min_x.min(position.x);
+            max_x = max_x.max(position.x);
+            min_z = min_z.min(position.z);
+            max_z = max_z.max(position.z);
+        }
+    }
+    let bounds_min_x = min_x - radius;
+    let bounds_max_x = max_x + radius;
+    let bounds_min_y = min_y - height;
+    let bounds_max_y = min_y + height;
+    let bounds_min_z = min_z - radius;
+    let bounds_max_z = max_z + radius;
+    let mut placements = Vec::new();
+    for attempt in attempts.iter().take(tries as usize) {
+        if attempt.pos.x < bounds_min_x
+            || attempt.pos.x > bounds_max_x
+            || attempt.pos.y < bounds_min_y
+            || attempt.pos.y > bounds_max_y
+            || attempt.pos.z < bounds_min_z
+            || attempt.pos.z > bounds_max_z
+        {
+            continue;
+        }
+        let above_pos = BlockPos {
+            x: attempt.pos.x,
+            y: attempt.pos.y + 1,
+            z: attempt.pos.z,
+        };
+        if attempt.above_is_air_or_vine
+            && attempt.pos_is_solid_render
+            && attempt.motion_blocking_no_leaves_height <= above_pos.y
+        {
+            placements.push(TreeDecoratorPlacement {
+                pos: above_pos,
+                state: block_state,
+            });
+        }
+    }
+    Ok(placements)
+}
+
+fn alter_ground_scan_context_at(
+    scan_contexts: &[AlterGroundScanContext],
+    pos: BlockPos,
+) -> AlterGroundScanContext {
+    scan_contexts
+        .iter()
+        .copied()
+        .find(|context| context.pos == pos)
+        .unwrap_or(AlterGroundScanContext {
+            pos,
+            provider_state: None,
+            is_air: true,
+        })
+}
+
+fn alter_ground_place_block_at(
+    placements: &mut Vec<TreeDecoratorPlacement>,
+    pos: BlockPos,
+    scan_contexts: &[AlterGroundScanContext],
+) {
+    for dy in (-3..=2).rev() {
+        let cursor = BlockPos {
+            x: pos.x,
+            y: pos.y + dy,
+            z: pos.z,
+        };
+        let context = alter_ground_scan_context_at(scan_contexts, cursor);
+        if let Some(state) = context.provider_state {
+            placements.push(TreeDecoratorPlacement { pos: cursor, state });
+            break;
+        }
+        if !context.is_air && dy < 0 {
+            break;
+        }
+    }
+}
+
+fn alter_ground_place_circle(
+    placements: &mut Vec<TreeDecoratorPlacement>,
+    pos: BlockPos,
+    scan_contexts: &[AlterGroundScanContext],
+) {
+    for dx in -2i32..=2 {
+        for dz in -2i32..=2 {
+            if dx.abs() == 2 && dz.abs() == 2 {
+                continue;
+            }
+            alter_ground_place_block_at(
+                placements,
+                BlockPos {
+                    x: pos.x + dx,
+                    y: pos.y,
+                    z: pos.z + dz,
+                },
+                scan_contexts,
+            );
+        }
+    }
+}
+
+pub fn alter_ground_decorator_placement(
+    lowest_trunk_or_root_positions: &[BlockPos],
+    random_next_int_64: &[i32],
+    scan_contexts: &[AlterGroundScanContext],
+) -> Vec<TreeDecoratorPlacement> {
+    let mut sorted_positions = lowest_trunk_or_root_positions.to_vec();
+    sorted_positions.sort_by_key(|pos| pos.y);
+    let Some(min_y) = sorted_positions.first().map(|pos| pos.y) else {
+        return Vec::new();
+    };
+    let roots = sorted_positions
+        .into_iter()
+        .filter(|pos| pos.y == min_y)
+        .collect::<Vec<_>>();
+    let mut placements = Vec::new();
+    let mut roll_index = 0;
+    for pos in roots {
+        for anchor in [
+            BlockPos {
+                x: pos.x - 1,
+                y: pos.y,
+                z: pos.z - 1,
+            },
+            BlockPos {
+                x: pos.x + 2,
+                y: pos.y,
+                z: pos.z - 1,
+            },
+            BlockPos {
+                x: pos.x - 1,
+                y: pos.y,
+                z: pos.z + 2,
+            },
+            BlockPos {
+                x: pos.x + 2,
+                y: pos.y,
+                z: pos.z + 2,
+            },
+        ] {
+            alter_ground_place_circle(&mut placements, anchor, scan_contexts);
+        }
+        for _ in 0..5 {
+            let placement = random_next_int_64
+                .get(roll_index)
+                .copied()
+                .unwrap_or(0)
+                .rem_euclid(64);
+            roll_index += 1;
+            let x_offset = placement % 8;
+            let z_offset = placement / 8;
+            if x_offset == 0 || x_offset == 7 || z_offset == 0 || z_offset == 7 {
+                alter_ground_place_circle(
+                    &mut placements,
+                    BlockPos {
+                        x: pos.x - 3 + x_offset,
+                        y: pos.y,
+                        z: pos.z - 3 + z_offset,
+                    },
+                    scan_contexts,
+                );
+            }
+        }
+    }
+    placements
+}
+
+fn add_pale_moss_hanger_placements(
+    placements: &mut Vec<TreeDecoratorPlacement>,
+    mut pos: BlockPos,
+    below_air: &[bool],
+    hanger_rolls: &[f32],
+    hanger_roll_index: &mut usize,
+) {
+    let mut below_index = 0;
+    while below_air.get(below_index).copied().unwrap_or(false) {
+        let roll = hanger_rolls.get(*hanger_roll_index).copied().unwrap_or(0.0);
+        *hanger_roll_index += 1;
+        if roll < 0.5 {
+            break;
+        }
+        placements.push(TreeDecoratorPlacement {
+            pos,
+            state: "minecraft:pale_hanging_moss[tip=false]",
+        });
+        pos = BlockPos {
+            x: pos.x,
+            y: pos.y - 1,
+            z: pos.z,
+        };
+        below_index += 1;
+    }
+    placements.push(TreeDecoratorPlacement {
+        pos,
+        state: "minecraft:pale_hanging_moss[tip=true]",
+    });
+}
+
+pub fn pale_moss_decorator_placement(
+    logs: &[PaleMossAttachmentContext],
+    leaves: &[PaleMossAttachmentContext],
+    leaves_probability: f32,
+    trunk_probability: f32,
+    ground_probability: f32,
+    ground_roll: f32,
+    trunk_rolls: &[f32],
+    leaf_rolls: &[f32],
+    hanger_rolls: &[f32],
+) -> Vec<TreeDecoratorPlacement> {
+    if logs.is_empty() {
+        return Vec::new();
+    }
+    let mut sorted_logs = logs.to_vec();
+    sorted_logs.sort_by_key(|log| log.pos.y);
+    let mut sorted_leaves = leaves.to_vec();
+    sorted_leaves.sort_by_key(|leaf| leaf.pos.y);
+    let mut placements = Vec::new();
+    if ground_roll < ground_probability {
+        let origin = sorted_logs
+            .iter()
+            .map(|log| log.pos)
+            .min_by_key(|pos| pos.y)
+            .expect("logs is non-empty");
+        placements.push(TreeDecoratorPlacement {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y + 1,
+                z: origin.z,
+            },
+            state: "minecraft:configured_feature/pale_moss_patch",
+        });
+    }
+    let mut hanger_roll_index = 0;
+    for (index, log) in sorted_logs.iter().enumerate() {
+        let roll = trunk_rolls.get(index).copied().unwrap_or(1.0);
+        if roll < trunk_probability && log.down_air {
+            add_pale_moss_hanger_placements(
+                &mut placements,
+                BlockPos {
+                    x: log.pos.x,
+                    y: log.pos.y - 1,
+                    z: log.pos.z,
+                },
+                &log.below_air,
+                hanger_rolls,
+                &mut hanger_roll_index,
+            );
+        }
+    }
+    for (index, leaf) in sorted_leaves.iter().enumerate() {
+        let roll = leaf_rolls.get(index).copied().unwrap_or(1.0);
+        if roll < leaves_probability && leaf.down_air {
+            add_pale_moss_hanger_placements(
+                &mut placements,
+                BlockPos {
+                    x: leaf.pos.x,
+                    y: leaf.pos.y - 1,
+                    z: leaf.pos.z,
+                },
+                &leaf.below_air,
+                hanger_rolls,
+                &mut hanger_roll_index,
+            );
+        }
+    }
+    placements
+}
+
+fn relative_direction(pos: BlockPos, direction: &str) -> BlockPos {
+    match direction {
+        "down" => BlockPos {
+            x: pos.x,
+            y: pos.y - 1,
+            z: pos.z,
+        },
+        "up" => BlockPos {
+            x: pos.x,
+            y: pos.y + 1,
+            z: pos.z,
+        },
+        "north" => BlockPos {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z - 1,
+        },
+        "south" => BlockPos {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z + 1,
+        },
+        "west" => BlockPos {
+            x: pos.x - 1,
+            y: pos.y,
+            z: pos.z,
+        },
+        "east" => BlockPos {
+            x: pos.x + 1,
+            y: pos.y,
+            z: pos.z,
+        },
+        _ => pos,
+    }
+}
+
+pub fn attached_to_logs_decorator_placement(
+    logs: &[BlockPos],
+    probability: f32,
+    block_state: &'static str,
+    shuffled_log_indices: &[usize],
+    direction_choices: &[&str],
+    probability_rolls: &[f32],
+    placement_air: &[(BlockPos, bool)],
+) -> Vec<TreeDecoratorPlacement> {
+    let mut sorted_logs = logs.to_vec();
+    sorted_logs.sort_by_key(|pos| pos.y);
+    let mut log_order = shuffled_log_indices
+        .iter()
+        .copied()
+        .filter_map(|index| sorted_logs.get(index).copied())
+        .collect::<Vec<_>>();
+    if log_order.len() < sorted_logs.len() {
+        for log in sorted_logs {
+            if !log_order.contains(&log) {
+                log_order.push(log);
+            }
+        }
+    }
+    let mut placements = Vec::new();
+    for (index, log) in log_order.into_iter().enumerate() {
+        let direction = direction_choices.get(index).copied().unwrap_or("north");
+        let placement_pos = relative_direction(log, direction);
+        let roll = probability_rolls.get(index).copied().unwrap_or(1.0);
+        let is_air = placement_air
+            .iter()
+            .find(|(pos, _)| *pos == placement_pos)
+            .is_some_and(|(_, air)| *air);
+        if roll <= probability && is_air {
+            placements.push(TreeDecoratorPlacement {
+                pos: placement_pos,
+                state: block_state,
+            });
+        }
+    }
+    placements
+}
+
+fn contains_required_empty_blocks(
+    leaf_pos: BlockPos,
+    direction: &str,
+    required_empty_blocks: i32,
+    air_checks: &[(BlockPos, bool)],
+) -> bool {
+    (1..=required_empty_blocks).all(|distance| {
+        let check_pos = match direction {
+            "down" => BlockPos {
+                x: leaf_pos.x,
+                y: leaf_pos.y - distance,
+                z: leaf_pos.z,
+            },
+            "up" => BlockPos {
+                x: leaf_pos.x,
+                y: leaf_pos.y + distance,
+                z: leaf_pos.z,
+            },
+            "north" => BlockPos {
+                x: leaf_pos.x,
+                y: leaf_pos.y,
+                z: leaf_pos.z - distance,
+            },
+            "south" => BlockPos {
+                x: leaf_pos.x,
+                y: leaf_pos.y,
+                z: leaf_pos.z + distance,
+            },
+            "west" => BlockPos {
+                x: leaf_pos.x - distance,
+                y: leaf_pos.y,
+                z: leaf_pos.z,
+            },
+            "east" => BlockPos {
+                x: leaf_pos.x + distance,
+                y: leaf_pos.y,
+                z: leaf_pos.z,
+            },
+            _ => leaf_pos,
+        };
+        air_checks
+            .iter()
+            .find(|(pos, _)| *pos == check_pos)
+            .is_some_and(|(_, air)| *air)
+    })
+}
+
+pub fn attached_to_leaves_decorator_placement(
+    leaves: &[BlockPos],
+    probability: f32,
+    exclusion_radius_xz: i32,
+    exclusion_radius_y: i32,
+    required_empty_blocks: i32,
+    block_state: &'static str,
+    shuffled_leaf_indices: &[usize],
+    direction_choices: &[&str],
+    probability_rolls: &[f32],
+    air_checks: &[(BlockPos, bool)],
+) -> Result<Vec<TreeDecoratorPlacement>, String> {
+    validate_attached_to_leaves_decorator_fields(
+        exclusion_radius_xz,
+        exclusion_radius_y,
+        required_empty_blocks,
+        direction_choices.len(),
+    )?;
+    let mut sorted_leaves = leaves.to_vec();
+    sorted_leaves.sort_by_key(|pos| pos.y);
+    let mut leaf_order = shuffled_leaf_indices
+        .iter()
+        .copied()
+        .filter_map(|index| sorted_leaves.get(index).copied())
+        .collect::<Vec<_>>();
+    if leaf_order.len() < sorted_leaves.len() {
+        for leaf in sorted_leaves {
+            if !leaf_order.contains(&leaf) {
+                leaf_order.push(leaf);
+            }
+        }
+    }
+    let mut blacklist = Vec::new();
+    let mut placements = Vec::new();
+    for (index, leaf_pos) in leaf_order.into_iter().enumerate() {
+        let direction = direction_choices.get(index).copied().unwrap_or("down");
+        let placement_pos = relative_direction(leaf_pos, direction);
+        let roll = probability_rolls.get(index).copied().unwrap_or(1.0);
+        if blacklist.contains(&(placement_pos.x, placement_pos.y, placement_pos.z))
+            || roll >= probability
+        {
+            continue;
+        }
+        if !contains_required_empty_blocks(leaf_pos, direction, required_empty_blocks, air_checks) {
+            continue;
+        }
+        for x in placement_pos.x - exclusion_radius_xz..=placement_pos.x + exclusion_radius_xz {
+            for y in placement_pos.y - exclusion_radius_y..=placement_pos.y + exclusion_radius_y {
+                for z in
+                    placement_pos.z - exclusion_radius_xz..=placement_pos.z + exclusion_radius_xz
+                {
+                    blacklist.push((x, y, z));
+                }
+            }
+        }
+        placements.push(TreeDecoratorPlacement {
+            pos: placement_pos,
+            state: block_state,
+        });
+    }
+    Ok(placements)
 }
 
 pub fn spring_feature_can_place(
@@ -26629,12 +32405,13 @@ mod tests {
         CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo, FloatProvider,
         FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider, HeightRange,
-        MangroveRootPlacementModel, MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset,
-        NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
-        PlacementContextModel, PlacementModifier, RandomSpreadType, RootPlacerModel,
-        SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
-        SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset,
-        SurfaceRuleSource, TreeDecoratorModel, TreePlacementBlockKind, TrunkPlacerKind,
+        HorizontalDirection, MangroveRootPlacementModel, MappedDensityFunction,
+        MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
+        OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel, PlacementModifier,
+        RandomSpreadType, RootPlacerModel, RuleBasedBlockStateProviderRule, SpawnBlockKind,
+        SpawnColumnHeights, StructureFamily, StructurePlacementKind, SurfaceConditionSource,
+        SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource,
+        TreeDecoratorModel, TreeFoliageAttachmentModel, TreePlacementBlockKind, TrunkPlacerKind,
         TrunkPlacerModel, VerticalAnchor, WeightedBlockState, WeightedHeightProvider,
         WorldCarverType, WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
         AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
@@ -27344,6 +33121,29 @@ mod tests {
     }
 
     #[test]
+    fn generation_decoration_steps_match_vanilla_serialized_order() {
+        assert_eq!(
+            super::GenerationDecorationStep::VALUES
+                .iter()
+                .map(|step| step.serialized_name())
+                .collect::<Vec<_>>(),
+            vec![
+                "raw_generation",
+                "lakes",
+                "local_modifications",
+                "underground_structures",
+                "surface_structures",
+                "strongholds",
+                "underground_ores",
+                "underground_decoration",
+                "fluid_springs",
+                "vegetal_decoration",
+                "top_layer_modification",
+            ]
+        );
+    }
+
+    #[test]
     fn block_predicate_types_match_vanilla_registry_order() {
         assert_eq!(
             BLOCK_PREDICATE_TYPES
@@ -27390,6 +33190,23 @@ mod tests {
         assert!(super::block_predicate_test(
             BlockPredicate::MatchingBlocks {
                 blocks: &["minecraft:dirt", "minecraft:grass_block"],
+            },
+            grass,
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::MatchingBlockTag {
+                tag: "minecraft:logs",
+            },
+            BlockPredicateContext {
+                block: "minecraft:stripped_oak_log",
+                ..grass
+            },
+            64
+        ));
+        assert!(!super::block_predicate_test(
+            BlockPredicate::MatchingBlockTag {
+                tag: "minecraft:leaves",
             },
             grass,
             64
@@ -27448,6 +33265,137 @@ mod tests {
             grass,
             64
         ));
+
+        let water_below = BlockPredicateContext {
+            block: "minecraft:water",
+            fluid: "minecraft:water",
+            solid: false,
+            replaceable: true,
+            unobstructed: false,
+            ..grass
+        };
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::SolidAt { offset_y: -1 },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::MatchingFluidsAt {
+                offset_y: -1,
+                fluids: &["minecraft:water"],
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::ReplaceableAt { offset_y: -1 },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::WouldSurvive {
+                offset_y: -1,
+                state: "minecraft:oak_sapling",
+                survives: true,
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::WouldSurvive {
+                offset_y: -1,
+                state: "minecraft:oak_sapling",
+                survives: true,
+            },
+            grass,
+            water_below,
+            -64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::WouldSurvive {
+                offset_y: -1,
+                state: "minecraft:oak_sapling",
+                survives: false,
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::HasSturdyFace {
+                offset_y: -1,
+                direction: "up",
+                sturdy: true,
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::HasSturdyFace {
+                offset_y: -1,
+                direction: "up",
+                sturdy: true,
+            },
+            grass,
+            water_below,
+            -64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::HasSturdyFace {
+                offset_y: -1,
+                direction: "north",
+                sturdy: false,
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::MatchingBlocksAt {
+                offset_y: -1,
+                blocks: &["minecraft:water"],
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::MatchingFluidsAt {
+                offset_y: -1,
+                fluids: &["minecraft:water"],
+            },
+            grass,
+            water_below,
+            -64
+        ));
+
+        static OFFSET_WATER: BlockPredicate = BlockPredicate::MatchingFluidsAt {
+            offset_y: -1,
+            fluids: &["minecraft:water"],
+        };
+        static OFFSET_SOLID: BlockPredicate = BlockPredicate::SolidAt { offset_y: -1 };
+        static OFFSET_ANY_PREDICATES: &[BlockPredicate] = &[OFFSET_SOLID, OFFSET_WATER];
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::AnyOf {
+                predicates: OFFSET_ANY_PREDICATES,
+            },
+            grass,
+            water_below,
+            64
+        ));
+        assert!(super::block_predicate_test_with_vertical_context(
+            BlockPredicate::Not {
+                predicate: &OFFSET_SOLID,
+            },
+            grass,
+            water_below,
+            64
+        ));
     }
 
     #[test]
@@ -27488,6 +33436,36 @@ mod tests {
                 0
             ),
             vec![origin, origin, origin]
+        );
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::NoiseBasedCount {
+                    noise_to_count_ratio: 4,
+                    noise_factor: 200.0,
+                    noise_offset: 0.25,
+                    sampled_noise: 0.26,
+                },
+                origin,
+                0,
+                0,
+                0,
+            ),
+            vec![origin, origin, origin]
+        );
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::NoiseThresholdCount {
+                    noise_level: 0.4,
+                    below_noise: 2,
+                    above_noise: 5,
+                    sampled_noise: 0.4,
+                },
+                origin,
+                0,
+                0,
+                0,
+            ),
+            vec![origin; 5]
         );
         assert_eq!(
             super::placement_modifier_positions(PlacementModifier::InSquare, origin, 19, 31, 0),
@@ -27555,6 +33533,30 @@ mod tests {
                 },
             ]
         );
+        static EVERY_LAYER_POSITIONS: &[BlockPos] = &[
+            BlockPos {
+                x: 33,
+                y: 70,
+                z: -15,
+            },
+            BlockPos {
+                x: 34,
+                y: 80,
+                z: -15,
+            },
+        ];
+        assert_eq!(
+            super::placement_modifier_positions(
+                PlacementModifier::CountOnEveryLayer {
+                    positions: EVERY_LAYER_POSITIONS,
+                },
+                origin,
+                0,
+                0,
+                0,
+            ),
+            EVERY_LAYER_POSITIONS.to_vec()
+        );
 
         let placement_context = PlacementContextModel {
             min_y: -64,
@@ -27590,6 +33592,26 @@ mod tests {
         );
         assert_eq!(
             super::placement_modifier_positions_with_context(
+                PlacementModifier::HeightRange {
+                    height: HeightProvider::Uniform {
+                        min_inclusive: VerticalAnchor::Absolute(64),
+                        max_inclusive: VerticalAnchor::Absolute(68),
+                    },
+                },
+                origin,
+                placement_context,
+                3,
+                0,
+                0,
+            ),
+            vec![BlockPos {
+                x: 32,
+                y: 67,
+                z: -16,
+            }]
+        );
+        assert_eq!(
+            super::placement_modifier_positions_with_context(
                 PlacementModifier::SurfaceRelativeThresholdFilter {
                     heightmap: HeightmapKind::WorldSurface,
                     min_inclusive: -16,
@@ -27606,6 +33628,64 @@ mod tests {
                 0,
             ),
             vec![origin]
+        );
+        static SCAN_STATES: &[BlockPredicateContext] = &[
+            BlockPredicateContext {
+                min_y: -64,
+                height: 384,
+                block: "minecraft:air",
+                fluid: "minecraft:empty",
+                solid: false,
+                replaceable: true,
+                unobstructed: true,
+            },
+            BlockPredicateContext {
+                min_y: -64,
+                height: 384,
+                block: "minecraft:air",
+                fluid: "minecraft:empty",
+                solid: false,
+                replaceable: true,
+                unobstructed: true,
+            },
+            BlockPredicateContext {
+                min_y: -64,
+                height: 384,
+                block: "minecraft:grass_block",
+                fluid: "minecraft:empty",
+                solid: true,
+                replaceable: false,
+                unobstructed: true,
+            },
+        ];
+        static SCAN_ALLOWED_PREDICATES: &[BlockPredicate] =
+            &[BlockPredicate::Replaceable, BlockPredicate::Solid];
+        assert_eq!(
+            super::placement_modifier_positions_with_context(
+                PlacementModifier::EnvironmentScan {
+                    direction_y: -1,
+                    target_condition: BlockPredicate::Solid,
+                    allowed_search_condition: BlockPredicate::AnyOf {
+                        predicates: SCAN_ALLOWED_PREDICATES,
+                    },
+                    max_steps: 3,
+                    states: SCAN_STATES,
+                },
+                BlockPos {
+                    x: 32,
+                    y: 72,
+                    z: -16,
+                },
+                placement_context,
+                0,
+                0,
+                0,
+            ),
+            vec![BlockPos {
+                x: 32,
+                y: 70,
+                z: -16,
+            }]
         );
         assert!(super::placement_modifier_positions_with_context(
             PlacementModifier::SurfaceWaterDepthFilter { max_water_depth: 8 },
@@ -29593,6 +35673,40 @@ mod tests {
     }
 
     #[test]
+    fn ore_veinifier_uses_positional_random_factory_sequence() {
+        let ore_factory = crate::random_source::random_state_seed_factories(
+            8675309,
+            super::RandomAlgorithm::Xoroshiro,
+        )
+        .ore;
+        let mut positional_random = ore_factory.at(4, 25, -9);
+        let manual = super::ore_vein_decision(OreVeinDecisionInput {
+            y: 25,
+            vein_toggle: 0.61,
+            vein_ridged: -0.1,
+            vein_gap: 0.0,
+            solidness_random: f64::from(positional_random.next_f32()),
+            richness_random: f64::from(positional_random.next_f32()),
+            raw_ore_random: f64::from(positional_random.next_f32()),
+            debug_ore_veins: false,
+        });
+        assert_eq!(
+            super::ore_vein_decision_at(ore_factory, 4, 25, -9, 0.61, -0.1, 0.0, false),
+            manual
+        );
+
+        let legacy_ore_factory = crate::random_source::random_state_seed_factories(
+            8675309,
+            super::RandomAlgorithm::Legacy,
+        )
+        .ore;
+        assert_eq!(
+            super::ore_vein_decision_at(legacy_ore_factory, 4, 25, -9, 0.61, -0.1, 0.0, false),
+            None
+        );
+    }
+
+    #[test]
     fn configured_carvers_match_vanilla_bootstrap_entries() {
         assert_eq!(
             WORLD_CARVER_TYPES
@@ -29673,6 +35787,12 @@ mod tests {
         assert_eq!(nether.probability, 0.2);
         assert_eq!(nether.y.min, VerticalAnchor::Absolute(0));
         assert_eq!(nether.y.max, VerticalAnchor::BelowTop(1));
+        assert_eq!(super::carver_cave_bound(WorldCarverType::NetherCave), 10);
+        assert_eq!(
+            super::carver_tunnel_y_scale(WorldCarverType::NetherCave),
+            5.0
+        );
+        assert_eq!(super::nether_carver_thickness(0.5, 0.25), 2.5);
         assert_eq!(
             nether.replaceable_tag,
             "#minecraft:nether_carver_replaceables"
@@ -29691,6 +35811,289 @@ mod tests {
         assert!(super::carver_can_reach(8.0, 8.0, 8.0, 8.0, 0, 10, 1.0));
         assert!(super::carver_can_reach(8.0, 8.0, 30.0, 8.0, 0, 10, 4.0));
         assert!(!super::carver_can_reach(8.0, 8.0, 80.0, 8.0, 9, 10, 1.0));
+        assert_eq!(super::carver_mask_index(17, -60, 31, -64), Some(1_265));
+        assert_eq!(
+            super::carver_mask_position(1_265, 16, 16, -64),
+            BlockPos {
+                x: 17,
+                y: -60,
+                z: 31,
+            }
+        );
+
+        let cave = super::configured_carver("cave").unwrap();
+        let nether = super::configured_carver("nether_cave").unwrap();
+        let height_context = WorldGenerationHeightContext {
+            min_y: -64,
+            height: 384,
+        };
+        let nether_height_context = WorldGenerationHeightContext {
+            min_y: 0,
+            height: 128,
+        };
+        assert!(super::carver_can_replace_block(cave, "minecraft:stone"));
+        assert!(!super::carver_can_replace_block(cave, "minecraft:bedrock"));
+        assert_eq!(super::carver_effective_lava_y(cave, height_context), -56);
+        assert_eq!(
+            super::carver_effective_lava_y(nether, nether_height_context),
+            31
+        );
+        assert_eq!(
+            super::carver_carve_block(
+                cave,
+                height_context,
+                super::CarverBlockInput {
+                    pos: BlockPos { x: 1, y: -57, z: 2 },
+                    block: "minecraft:stone",
+                    was_masked: false,
+                    aquifer_state: Some("minecraft:air"),
+                    should_schedule_fluid_update: false,
+                    debug_enabled: false,
+                },
+            )
+            .unwrap()
+            .state,
+            "minecraft:lava"
+        );
+        assert_eq!(
+            super::carver_carve_block(
+                cave,
+                height_context,
+                super::CarverBlockInput {
+                    pos: BlockPos { x: 1, y: 60, z: 2 },
+                    block: "minecraft:stone",
+                    was_masked: false,
+                    aquifer_state: Some("minecraft:water"),
+                    should_schedule_fluid_update: true,
+                    debug_enabled: false,
+                },
+            )
+            .unwrap(),
+            super::CarverBlockOutcome {
+                pos: BlockPos { x: 1, y: 60, z: 2 },
+                state: "minecraft:water",
+                mask_index: 31_777,
+                mark_postprocessing: true,
+            }
+        );
+        assert!(super::carver_carve_block(
+            cave,
+            height_context,
+            super::CarverBlockInput {
+                pos: BlockPos { x: 1, y: 60, z: 2 },
+                block: "minecraft:bedrock",
+                was_masked: false,
+                aquifer_state: Some("minecraft:air"),
+                should_schedule_fluid_update: false,
+                debug_enabled: false,
+            },
+        )
+        .is_none());
+        assert_eq!(
+            super::carver_carve_block(
+                cave,
+                height_context,
+                super::CarverBlockInput {
+                    pos: BlockPos { x: 1, y: 60, z: 2 },
+                    block: "minecraft:bedrock",
+                    was_masked: true,
+                    aquifer_state: None,
+                    should_schedule_fluid_update: false,
+                    debug_enabled: true,
+                },
+            )
+            .unwrap()
+            .state,
+            "minecraft:crimson_button"
+        );
+        assert_eq!(
+            super::carver_carve_block(
+                nether,
+                nether_height_context,
+                super::CarverBlockInput {
+                    pos: BlockPos { x: 1, y: 31, z: 2 },
+                    block: "minecraft:netherrack",
+                    was_masked: false,
+                    aquifer_state: Some("minecraft:air"),
+                    should_schedule_fluid_update: true,
+                    debug_enabled: false,
+                },
+            )
+            .unwrap(),
+            super::CarverBlockOutcome {
+                pos: BlockPos { x: 1, y: 31, z: 2 },
+                state: "minecraft:lava",
+                mask_index: 7_969,
+                mark_postprocessing: false,
+            }
+        );
+        assert_eq!(
+            super::carver_carve_block(
+                nether,
+                nether_height_context,
+                super::CarverBlockInput {
+                    pos: BlockPos { x: 1, y: 32, z: 2 },
+                    block: "minecraft:netherrack",
+                    was_masked: false,
+                    aquifer_state: Some("minecraft:water"),
+                    should_schedule_fluid_update: true,
+                    debug_enabled: false,
+                },
+            )
+            .unwrap()
+            .state,
+            "minecraft:cave_air"
+        );
+        let ellipsoid = super::carver_ellipsoid_candidate_positions(
+            0,
+            0,
+            height_context,
+            false,
+            8.0,
+            64.0,
+            8.0,
+            2.0,
+            2.0,
+            &[],
+            false,
+            super::CarverSkipModel::Cave { floor_level: -0.7 },
+        );
+        assert!(ellipsoid.contains(&BlockPos { x: 8, y: 65, z: 8 }));
+        assert!(!ellipsoid.contains(&BlockPos { x: 8, y: 62, z: 8 }));
+        let masked_index = super::carver_mask_index(8, 65, 8, -64).unwrap();
+        assert!(!super::carver_ellipsoid_candidate_positions(
+            0,
+            0,
+            height_context,
+            false,
+            8.0,
+            64.0,
+            8.0,
+            2.0,
+            2.0,
+            &[masked_index],
+            false,
+            super::CarverSkipModel::Cave { floor_level: -0.7 },
+        )
+        .contains(&BlockPos { x: 8, y: 65, z: 8 }));
+        assert!(super::carver_ellipsoid_candidate_positions(
+            0,
+            0,
+            height_context,
+            false,
+            8.0,
+            64.0,
+            8.0,
+            2.0,
+            2.0,
+            &[masked_index],
+            true,
+            super::CarverSkipModel::Cave { floor_level: -0.7 },
+        )
+        .contains(&BlockPos { x: 8, y: 65, z: 8 }));
+        assert!(super::carver_ellipsoid_candidate_positions(
+            0,
+            0,
+            height_context,
+            false,
+            100.0,
+            64.0,
+            8.0,
+            2.0,
+            2.0,
+            &[],
+            false,
+            super::CarverSkipModel::None,
+        )
+        .is_empty());
+        assert_eq!(super::cave_carver_cave_count(15, 14, 7, 3), 3);
+        assert_eq!(super::cave_carver_cave_count(15, 0, 9, 9), 0);
+        assert!((super::cave_carver_thickness(0.5, 0.25, 1, 1.0, 1.0) - 1.25).abs() < 0.0001);
+        assert!((super::cave_carver_thickness(0.5, 0.25, 0, 0.5, 0.5) - 2.1875).abs() < 0.0001);
+        assert_eq!(super::cave_room_radii(2.5, 0.5), (4.0, 2.0));
+        let tunnel_steps = super::cave_tunnel_steps(
+            8.0,
+            8.0,
+            8.0,
+            64.0,
+            8.0,
+            2.0,
+            0.0,
+            0.0,
+            4,
+            1.0,
+            1.0,
+            1.0,
+            &[1, 1, 1, 1],
+            &[(0.5, 0.5, 0.0, 0.5, 0.5, 0.0); 4],
+        );
+        assert_eq!(tunnel_steps.len(), 4);
+        assert!(tunnel_steps.iter().all(|step| step.carve && step.can_reach));
+        assert!((tunnel_steps[0].x - 9.0).abs() < 0.0001);
+        assert!((tunnel_steps[2].horizontal_radius - 3.5).abs() < 0.0001);
+        let branch = super::cave_tunnel_split_branch(
+            8.0,
+            64.0,
+            8.0,
+            2.0,
+            0.0,
+            0.0,
+            8,
+            0,
+            1,
+            0.25,
+            0.75,
+            &[(0.5, 0.5, 0.0, 0.5, 0.5, 0.0); 8],
+        )
+        .unwrap();
+        assert_eq!(branch.split_step, 2);
+        assert!((branch.x - 11.0).abs() < 0.0001);
+        assert!((branch.left_thickness - 0.625).abs() < 0.0001);
+        assert!((branch.right_thickness - 0.875).abs() < 0.0001);
+        assert!((branch.left_horizontal_rotation + std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+        assert!((branch.right_horizontal_rotation - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+        assert!(super::cave_tunnel_split_branch(
+            8.0,
+            64.0,
+            8.0,
+            1.0,
+            0.0,
+            0.0,
+            8,
+            0,
+            1,
+            0.25,
+            0.75,
+            &[]
+        )
+        .is_none());
+        let canyon_steps = super::canyon_tunnel_steps(
+            8.0,
+            8.0,
+            8.0,
+            64.0,
+            8.0,
+            2.0,
+            0.0,
+            0.0,
+            4,
+            1.0,
+            0.75,
+            1.0,
+            &[1, 1, 1, 1],
+            &[0.5, 1.0, 1.5, 2.0],
+            &[1.0, 1.0, 1.0, 1.0],
+            &[(0.5, 0.5, 0.0, 0.5, 0.5, 0.0); 4],
+        );
+        assert_eq!(canyon_steps.len(), 4);
+        assert!((canyon_steps[0].horizontal_radius - 0.75).abs() < 0.0001);
+        assert!((canyon_steps[2].horizontal_radius - 5.25).abs() < 0.0001);
+        assert!((canyon_steps[2].vertical_radius - 6.125).abs() < 0.0001);
+        assert_eq!(
+            super::canyon_width_factors(4, 2, &[(0, 0.5), (1, 1.0), (0, 0.25), (1, 0.0)]),
+            vec![1.5625, 1.5625, 1.1289063, 1.1289063]
+        );
+        assert!((super::canyon_vertical_radius(0.75, 1.0, 4.0, 8, 4, 1.0) - 7.0).abs() < 0.0001);
     }
 
     #[test]
@@ -31525,9 +37928,133 @@ mod tests {
     }
 
     #[test]
+    fn biome_decoration_feature_plan_uses_possible_biomes_sorted_indices_and_feature_seeds() {
+        let plains = super::biome_generation_settings("plains").unwrap();
+        let forest = super::biome_generation_settings("forest").unwrap();
+        let sorted =
+            super::build_features_per_step(&[plains.feature_steps, forest.feature_steps], true)
+                .unwrap();
+        let plan = super::biome_decoration_feature_plan(
+            12_345,
+            4,
+            -7,
+            -4,
+            &sorted,
+            &[plains.feature_steps],
+        );
+
+        assert_eq!(
+            plan.origin,
+            BlockPos {
+                x: 64,
+                y: -64,
+                z: -112
+            }
+        );
+        assert_eq!(
+            plan.decoration_seed,
+            crate::random_source::decoration_seed(
+                12_345,
+                64,
+                -112,
+                crate::random_source::RandomAlgorithm::Xoroshiro
+            )
+        );
+        assert!(plan.feature_calls.windows(2).all(|calls| (
+            calls[0].step_index,
+            calls[0].global_feature_index
+        ) <= (
+            calls[1].step_index,
+            calls[1].global_feature_index
+        )));
+
+        let plains_tree_call = plan
+            .feature_calls
+            .iter()
+            .find(|call| call.feature == "minecraft:trees_plains")
+            .expect("plains trees should be planned for plains biome decoration");
+        assert_eq!(
+            plains_tree_call.global_feature_index,
+            sorted[plains_tree_call.step_index]
+                .index_mapping("minecraft:trees_plains")
+                .unwrap()
+        );
+        assert_eq!(
+            plains_tree_call.seed,
+            crate::random_source::feature_seed(
+                plan.decoration_seed,
+                plains_tree_call.global_feature_index as i32,
+                plains_tree_call.step_index as i32
+            )
+        );
+        assert!(!plan
+            .feature_calls
+            .iter()
+            .any(|call| call.feature == "minecraft:trees_birch_and_oak_leaf_litter"));
+
+        let mixed_plan = super::biome_decoration_feature_plan(
+            12_345,
+            4,
+            -7,
+            -4,
+            &sorted,
+            &[plains.feature_steps, forest.feature_steps],
+        );
+        assert!(mixed_plan
+            .feature_calls
+            .iter()
+            .any(|call| call.feature == "minecraft:trees_birch_and_oak_leaf_litter"));
+    }
+
+    #[test]
+    fn biome_decoration_structure_calls_use_per_step_indices_before_features() {
+        let decoration_seed = crate::random_source::decoration_seed(
+            12_345,
+            64,
+            -112,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
+        let calls = super::biome_decoration_structure_calls(
+            decoration_seed,
+            5,
+            &[
+                &[],
+                &["minecraft:mineshaft", "minecraft:village"],
+                &[],
+                &["minecraft:stronghold"],
+            ],
+        );
+
+        assert_eq!(
+            calls,
+            vec![
+                super::BiomeDecorationStructureCall {
+                    step_index: 1,
+                    step_structure_index: 0,
+                    structure: "minecraft:mineshaft",
+                    seed: crate::random_source::feature_seed(decoration_seed, 0, 1),
+                },
+                super::BiomeDecorationStructureCall {
+                    step_index: 1,
+                    step_structure_index: 1,
+                    structure: "minecraft:village",
+                    seed: crate::random_source::feature_seed(decoration_seed, 1, 1),
+                },
+                super::BiomeDecorationStructureCall {
+                    step_index: 3,
+                    step_structure_index: 0,
+                    structure: "minecraft:stronghold",
+                    seed: crate::random_source::feature_seed(decoration_seed, 0, 3),
+                },
+            ]
+        );
+    }
+
+    #[test]
     fn feature_sorter_reports_order_cycles() {
         static SOURCE_A: &[&[&str]] = &[&["minecraft:a", "minecraft:b"]];
         static SOURCE_B: &[&[&str]] = &[&["minecraft:b", "minecraft:a"]];
+        static SOURCE_C: &[&[&str]] = &[&["minecraft:c", "minecraft:d"]];
 
         assert_eq!(
             super::build_features_per_step(&[SOURCE_A, SOURCE_B], false).unwrap_err(),
@@ -31536,6 +38063,27 @@ mod tests {
         assert_eq!(
             super::build_features_per_step(&[SOURCE_A, SOURCE_B], true).unwrap_err(),
             "Feature order cycle found, involved sources: 2".to_string()
+        );
+        assert_eq!(
+            super::build_features_per_step_with_source_ids(
+                &[
+                    super::FeatureSorterSourceModel {
+                        id: "source_a",
+                        feature_steps: SOURCE_A,
+                    },
+                    super::FeatureSorterSourceModel {
+                        id: "source_b",
+                        feature_steps: SOURCE_B,
+                    },
+                    super::FeatureSorterSourceModel {
+                        id: "irrelevant_source_c",
+                        feature_steps: SOURCE_C,
+                    },
+                ],
+                true,
+            )
+            .unwrap_err(),
+            "Feature order cycle found, involved sources: [source_a, source_b]".to_string()
         );
     }
 
@@ -31590,6 +38138,10 @@ mod tests {
             super::block_state_provider_type("minecraft:weighted_state_provider"),
             Some("minecraft:weighted_state_provider")
         );
+        assert_eq!(
+            super::block_state_provider_type("minecraft:rotated_block_provider"),
+            Some("minecraft:rotated_block_provider")
+        );
         assert_eq!(super::block_state_provider_type("missing"), None);
         assert_eq!(
             super::block_state_provider_sample(
@@ -31625,6 +38177,241 @@ mod tests {
                 0,
             ),
             None
+        );
+        let rotated = BlockStateProviderModel::RotatedBlock("minecraft:hay_block");
+        assert_eq!(
+            super::block_state_provider_sample(&rotated, 0),
+            Some("minecraft:hay_block[axis=x]")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&rotated, 1),
+            Some("minecraft:hay_block")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&rotated, 2),
+            Some("minecraft:hay_block[axis=z]")
+        );
+        let randomized_cave_vines = BlockStateProviderModel::RandomizedInt {
+            source: Box::new(BlockStateProviderModel::Weighted(vec![
+                WeightedBlockState {
+                    state: "minecraft:cave_vines[age=0,berries=false]",
+                    weight: 4,
+                },
+                WeightedBlockState {
+                    state: "minecraft:cave_vines[age=0,berries=true]",
+                    weight: 1,
+                },
+            ])),
+            property: "age",
+            min_inclusive: 23,
+            max_inclusive: 25,
+        };
+        assert_eq!(
+            super::block_state_provider_sample(&randomized_cave_vines, 0),
+            Some("minecraft:cave_vines[age=23,berries=false]")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&randomized_cave_vines, 4),
+            Some("minecraft:cave_vines[age=24,berries=true]")
+        );
+        let randomized_propagule = BlockStateProviderModel::RandomizedInt {
+            source: Box::new(BlockStateProviderModel::Simple(
+                "minecraft:mangrove_propagule[age=0,hanging=true,stage=0,waterlogged=false]",
+            )),
+            property: "age",
+            min_inclusive: 0,
+            max_inclusive: 4,
+        };
+        assert_eq!(
+            super::block_state_provider_sample(&randomized_propagule, 3),
+            Some("minecraft:mangrove_propagule[age=3,hanging=true,stage=0,waterlogged=false]")
+        );
+        let missing_property = BlockStateProviderModel::RandomizedInt {
+            source: Box::new(BlockStateProviderModel::Simple("minecraft:stone")),
+            property: "age",
+            min_inclusive: 0,
+            max_inclusive: 4,
+        };
+        assert_eq!(
+            super::block_state_provider_sample(&missing_property, 3),
+            Some("minecraft:stone")
+        );
+        let rule_based_disk = BlockStateProviderModel::RuleBased {
+            fallback: Some(Box::new(BlockStateProviderModel::Simple("minecraft:sand"))),
+            rules: vec![RuleBasedBlockStateProviderRule {
+                if_true: BlockPredicate::MatchingBlocks {
+                    blocks: &["minecraft:air"],
+                },
+                then: Box::new(BlockStateProviderModel::Simple("minecraft:sandstone")),
+            }],
+        };
+        assert_eq!(
+            super::block_state_provider_sample_in_context(
+                &rule_based_disk,
+                0,
+                BlockPredicateContext {
+                    min_y: -64,
+                    height: 384,
+                    block: "minecraft:air",
+                    fluid: "minecraft:empty",
+                    solid: false,
+                    replaceable: true,
+                    unobstructed: true,
+                },
+                64,
+                "minecraft:air",
+            ),
+            Some("minecraft:sandstone")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_in_context(
+                &rule_based_disk,
+                0,
+                BlockPredicateContext {
+                    min_y: -64,
+                    height: 384,
+                    block: "minecraft:dirt",
+                    fluid: "minecraft:empty",
+                    solid: true,
+                    replaceable: false,
+                    unobstructed: true,
+                },
+                64,
+                "minecraft:dirt",
+            ),
+            Some("minecraft:sand")
+        );
+        let no_fallback = BlockStateProviderModel::RuleBased {
+            fallback: None,
+            rules: vec![RuleBasedBlockStateProviderRule {
+                if_true: BlockPredicate::MatchingBlocks {
+                    blocks: &["minecraft:air"],
+                },
+                then: Box::new(BlockStateProviderModel::Simple("minecraft:dirt")),
+            }],
+        };
+        assert_eq!(
+            super::block_state_provider_sample_in_context(
+                &no_fallback,
+                0,
+                BlockPredicateContext {
+                    min_y: -64,
+                    height: 384,
+                    block: "minecraft:stone",
+                    fluid: "minecraft:empty",
+                    solid: true,
+                    replaceable: false,
+                    unobstructed: true,
+                },
+                64,
+                "minecraft:stone",
+            ),
+            Some("minecraft:stone")
+        );
+        let flower_forest_noise = BlockStateProviderModel::Noise {
+            states: vec![
+                "minecraft:dandelion",
+                "minecraft:poppy",
+                "minecraft:allium",
+                "minecraft:azure_bluet",
+                "minecraft:red_tulip",
+                "minecraft:orange_tulip",
+                "minecraft:white_tulip",
+                "minecraft:pink_tulip",
+                "minecraft:oxeye_daisy",
+                "minecraft:cornflower",
+                "minecraft:lily_of_the_valley",
+            ],
+        };
+        assert_eq!(
+            super::block_state_provider_sample_with_noise_value(&flower_forest_noise, 0, -1.5),
+            Some("minecraft:dandelion")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_with_noise_value(&flower_forest_noise, 0, 0.0),
+            Some("minecraft:orange_tulip")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_with_noise_value(&flower_forest_noise, 0, 1.5),
+            Some("minecraft:lily_of_the_valley")
+        );
+        let plains_flower_threshold = BlockStateProviderModel::NoiseThreshold {
+            threshold: -0.8,
+            high_chance: 0.33333334,
+            default_state: "minecraft:dandelion",
+            low_states: vec![
+                "minecraft:orange_tulip",
+                "minecraft:red_tulip",
+                "minecraft:pink_tulip",
+                "minecraft:white_tulip",
+            ],
+            high_states: vec![
+                "minecraft:poppy",
+                "minecraft:azure_bluet",
+                "minecraft:oxeye_daisy",
+                "minecraft:cornflower",
+            ],
+        };
+        assert_eq!(
+            super::block_state_provider_sample_with_noise_value(&plains_flower_threshold, 2, -0.9),
+            Some("minecraft:pink_tulip")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_with_noise_value(
+                &plains_flower_threshold,
+                200_000,
+                -0.7
+            ),
+            Some("minecraft:poppy")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_with_noise_value(
+                &plains_flower_threshold,
+                900_000,
+                -0.7
+            ),
+            Some("minecraft:dandelion")
+        );
+        let meadow_dual_noise = BlockStateProviderModel::DualNoise {
+            variety_min: 1,
+            variety_max: 3,
+            states: vec![
+                "minecraft:tall_grass[half=lower]",
+                "minecraft:allium",
+                "minecraft:poppy",
+                "minecraft:azure_bluet",
+                "minecraft:dandelion",
+                "minecraft:cornflower",
+                "minecraft:oxeye_daisy",
+                "minecraft:short_grass",
+            ],
+        };
+        assert_eq!(
+            super::block_state_provider_sample_dual_noise_values(
+                &meadow_dual_noise,
+                -1.0,
+                &[1.0],
+                0.0,
+            ),
+            Some("minecraft:short_grass")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_dual_noise_values(
+                &meadow_dual_noise,
+                1.0,
+                &[-1.0, -0.5, 0.0, 1.0],
+                0.9999,
+            ),
+            Some("minecraft:short_grass")
+        );
+        assert_eq!(
+            super::block_state_provider_sample_dual_noise_values(
+                &meadow_dual_noise,
+                0.0,
+                &[-1.0, 1.0],
+                -1.0,
+            ),
+            Some("minecraft:tall_grass[half=lower]")
         );
         let flower_provider = BlockStateProviderModel::Simple("minecraft:dandelion");
         let simple_config = super::SimpleBlockConfigurationModel {
@@ -33393,6 +40180,289 @@ mod tests {
             &[0.0; 27],
         )
         .is_empty());
+        let dripstone_config = super::DripstoneClusterSampledConfig {
+            floor_to_ceiling_search_range: 12,
+            height: 6,
+            x_radius: 3,
+            z_radius: 3,
+            max_stalagmite_stalactite_height_diff: 1,
+            height_deviation: 2,
+            dripstone_block_layer_thickness: 2,
+            density: 1.0,
+            wetness: 0.5,
+            chance_of_dripstone_column_at_max_distance_from_center: 0.2,
+            max_distance_from_edge_affecting_chance_of_dripstone_column: 3,
+            max_distance_from_center_affecting_height_bias: 4,
+        };
+        assert_eq!(
+            super::validate_dripstone_cluster_sampled_config(dripstone_config),
+            Ok(dripstone_config)
+        );
+        assert!(
+            (super::dripstone_cluster_chance_of_column(3, 3, 3, 0, dripstone_config) - 0.2).abs()
+                < 0.000001
+        );
+        assert_eq!(
+            super::dripstone_cluster_chance_of_column(3, 3, 0, 0, dripstone_config),
+            1.0
+        );
+        assert_eq!(
+            super::dripstone_cluster_height_for_column(1, 1, 0.5, 6, dripstone_config, 0.75, 5.0,),
+            0
+        );
+        assert_eq!(
+            super::pointed_dripstone_column(
+                BlockPos { x: 0, y: 70, z: 0 },
+                super::PointedDripstoneDirection::Down,
+                4,
+                true,
+            ),
+            vec![
+                super::PointedDripstoneBlockModel {
+                    pos: BlockPos { x: 0, y: 70, z: 0 },
+                    direction: super::PointedDripstoneDirection::Down,
+                    thickness: super::PointedDripstoneThickness::Base,
+                },
+                super::PointedDripstoneBlockModel {
+                    pos: BlockPos { x: 0, y: 69, z: 0 },
+                    direction: super::PointedDripstoneDirection::Down,
+                    thickness: super::PointedDripstoneThickness::Middle,
+                },
+                super::PointedDripstoneBlockModel {
+                    pos: BlockPos { x: 0, y: 68, z: 0 },
+                    direction: super::PointedDripstoneDirection::Down,
+                    thickness: super::PointedDripstoneThickness::Frustum,
+                },
+                super::PointedDripstoneBlockModel {
+                    pos: BlockPos { x: 0, y: 67, z: 0 },
+                    direction: super::PointedDripstoneDirection::Down,
+                    thickness: super::PointedDripstoneThickness::TipMerge,
+                },
+            ]
+        );
+        let dripstone_plan = super::dripstone_cluster_column_plan(
+            BlockPos {
+                x: 10,
+                y: 64,
+                z: 10,
+            },
+            dripstone_config,
+            super::DripstoneClusterColumnInput {
+                dx: 0,
+                dz: 0,
+                ceiling_y: Some(74),
+                floor_y: Some(68),
+                floor_pool_supported: false,
+                ceiling_is_lava: false,
+                floor_is_lava: false,
+            },
+            super::DripstoneClusterColumnRolls {
+                water_roll: 0.75,
+                stalactite_roll: 0.0,
+                stalactite_density_roll: 0.0,
+                stalactite_biased_height: 4.0,
+                stalagmite_roll: 0.0,
+                stalagmite_density_roll: 0.0,
+                stalagmite_biased_height: 3.0,
+                stalagmite_height_diff_roll: 1,
+                overlap_split_roll: 0,
+                merge_tips_roll: true,
+            },
+        );
+        assert_eq!(
+            dripstone_plan.ceiling_dripstone_blocks,
+            vec![
+                BlockPos {
+                    x: 10,
+                    y: 74,
+                    z: 10
+                },
+                BlockPos {
+                    x: 10,
+                    y: 75,
+                    z: 10
+                },
+            ]
+        );
+        assert_eq!(
+            dripstone_plan.floor_dripstone_blocks,
+            vec![
+                BlockPos {
+                    x: 10,
+                    y: 68,
+                    z: 10
+                },
+                BlockPos {
+                    x: 10,
+                    y: 67,
+                    z: 10
+                },
+            ]
+        );
+        assert!(!dripstone_plan.merge_tips);
+        assert_eq!(dripstone_plan.stalactite.len(), 4);
+        assert_eq!(dripstone_plan.stalagmite.len(), 1);
+        let pointed_config = super::PointedDripstoneConfigurationModel {
+            chance_of_taller_dripstone: 0.5,
+            chance_of_directional_spread: 0.7,
+            chance_of_spread_radius2: 0.5,
+            chance_of_spread_radius3: 0.5,
+        };
+        assert_eq!(
+            super::validate_pointed_dripstone_configuration(pointed_config),
+            Ok(pointed_config)
+        );
+        assert_eq!(
+            super::pointed_dripstone_tip_direction(true, true, true),
+            Some(super::PointedDripstoneDirection::Down)
+        );
+        assert_eq!(
+            super::pointed_dripstone_tip_direction(false, true, true),
+            Some(super::PointedDripstoneDirection::Up)
+        );
+        assert_eq!(
+            super::pointed_dripstone_tip_direction(false, false, true),
+            None
+        );
+        let pointed_plan = super::pointed_dripstone_feature_plan(
+            BlockPos { x: 4, y: 70, z: 4 },
+            pointed_config,
+            true,
+            false,
+            false,
+            0.25,
+            true,
+            &[
+                super::PointedDripstoneSpreadRoll {
+                    direction: HorizontalDirection::East,
+                    direction_roll: 0.2,
+                    radius2_roll: 0.2,
+                    radius2_direction: HorizontalDirection::South,
+                    radius3_roll: 0.2,
+                    radius3_direction: HorizontalDirection::West,
+                },
+                super::PointedDripstoneSpreadRoll {
+                    direction: HorizontalDirection::North,
+                    direction_roll: 0.9,
+                    radius2_roll: 0.0,
+                    radius2_direction: HorizontalDirection::North,
+                    radius3_roll: 0.0,
+                    radius3_direction: HorizontalDirection::North,
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            pointed_plan.dripstone_blocks,
+            vec![
+                BlockPos { x: 4, y: 71, z: 4 },
+                BlockPos { x: 5, y: 71, z: 4 },
+                BlockPos { x: 5, y: 71, z: 5 },
+                BlockPos { x: 4, y: 71, z: 5 },
+            ]
+        );
+        assert_eq!(
+            pointed_plan.pointed_blocks,
+            vec![
+                super::PointedDripstoneBlockModel {
+                    pos: BlockPos { x: 4, y: 70, z: 4 },
+                    direction: super::PointedDripstoneDirection::Down,
+                    thickness: super::PointedDripstoneThickness::Frustum,
+                },
+                super::PointedDripstoneBlockModel {
+                    pos: BlockPos { x: 4, y: 69, z: 4 },
+                    direction: super::PointedDripstoneDirection::Down,
+                    thickness: super::PointedDripstoneThickness::Tip,
+                },
+            ]
+        );
+        let large_dripstone_config = super::LargeDripstoneSampledConfig {
+            floor_to_ceiling_search_range: 30,
+            column_radius_min: 2,
+            column_radius_max: 6,
+            height_scale: 2.0,
+            max_column_radius_to_cave_height_ratio: 1.0,
+            stalactite_bluntness: 1.0,
+            stalagmite_bluntness: 1.5,
+            wind_speed: 0.5,
+            wind_direction_radians: 0.0,
+            min_radius_for_wind: 2,
+            min_bluntness_for_wind: 1.0,
+        };
+        assert_eq!(
+            super::validate_large_dripstone_sampled_config(large_dripstone_config),
+            Ok(large_dripstone_config)
+        );
+        assert_eq!(
+            super::large_dripstone_selected_radius(4, large_dripstone_config, 99),
+            Some(2)
+        );
+        assert_eq!(
+            super::large_dripstone_selected_radius(3, large_dripstone_config, 0),
+            None
+        );
+        assert_eq!(
+            super::large_dripstone_wind_offset(
+                BlockPos { x: 4, y: 62, z: 4 },
+                64,
+                large_dripstone_config,
+            ),
+            BlockPos { x: 5, y: 62, z: 4 }
+        );
+        assert!(
+            super::large_dripstone_height_at_radius(0.0, 5, 2.0, 1.0)
+                > super::large_dripstone_height_at_radius(5.0, 5, 2.0, 1.0)
+        );
+        let large_dripstone_plan = super::large_dripstone_placement_plan(
+            BlockPos { x: 4, y: 64, z: 4 },
+            60,
+            65,
+            large_dripstone_config,
+            0,
+            &[1.0; 13],
+            &[1.0; 13],
+        )
+        .unwrap();
+        assert_eq!(
+            large_dripstone_plan.stalactite.root,
+            BlockPos { x: 4, y: 64, z: 4 }
+        );
+        assert_eq!(
+            large_dripstone_plan.stalagmite.root,
+            BlockPos { x: 4, y: 61, z: 4 }
+        );
+        assert!(large_dripstone_plan.wind_enabled);
+        assert!(large_dripstone_plan
+            .stalactite_blocks
+            .iter()
+            .any(|block| block.pos.x > 4 && !block.pointing_up));
+        let full_large_dripstone_blocks = super::large_dripstone_blocks(
+            super::LargeDripstoneModel {
+                root: BlockPos { x: 0, y: 70, z: 0 },
+                pointing_up: false,
+                radius: 2,
+            },
+            2.0,
+            1.0,
+            70,
+            None,
+            &[1.0; 13],
+            &[1.0; 13],
+        );
+        let shrunken_large_dripstone_blocks = super::large_dripstone_blocks(
+            super::LargeDripstoneModel {
+                root: BlockPos { x: 0, y: 70, z: 0 },
+                pointing_up: false,
+                radius: 2,
+            },
+            2.0,
+            1.0,
+            70,
+            None,
+            &[0.0; 13],
+            &[0.0; 13],
+        );
+        assert!(shrunken_large_dripstone_blocks.len() < full_large_dripstone_blocks.len());
         assert_eq!(
             super::feature_size_type("two_layers_feature_size"),
             Some("minecraft:two_layers_feature_size")
@@ -33425,6 +40495,61 @@ mod tests {
         assert_eq!(super::feature_size_at_height(three, 8, 0), 0);
         assert_eq!(super::feature_size_at_height(three, 8, 5), 1);
         assert_eq!(super::feature_size_at_height(three, 8, 6), 2);
+        let leaf_updates = super::tree_leaf_distance_updates(
+            &[BlockPos { x: 0, y: 0, z: 0 }],
+            &[
+                (BlockPos { x: 1, y: 0, z: 0 }, 7),
+                (BlockPos { x: 2, y: 0, z: 0 }, 7),
+                (BlockPos { x: 3, y: 0, z: 0 }, 7),
+                (BlockPos { x: 4, y: 0, z: 0 }, 7),
+                (BlockPos { x: 5, y: 0, z: 0 }, 7),
+                (BlockPos { x: 6, y: 0, z: 0 }, 7),
+                (BlockPos { x: 7, y: 0, z: 0 }, 7),
+                (BlockPos { x: 1, y: 1, z: 0 }, 1),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(
+            leaf_updates,
+            vec![
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 1, y: 0, z: 0 },
+                    distance: 1,
+                },
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 1, y: 1, z: 0 },
+                    distance: 1,
+                },
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 2, y: 0, z: 0 },
+                    distance: 2,
+                },
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 3, y: 0, z: 0 },
+                    distance: 3,
+                },
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 4, y: 0, z: 0 },
+                    distance: 4,
+                },
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 5, y: 0, z: 0 },
+                    distance: 5,
+                },
+                super::TreeLeafDistanceUpdate {
+                    pos: BlockPos { x: 6, y: 0, z: 0 },
+                    distance: 6,
+                },
+            ]
+        );
+        assert!(super::tree_leaf_distance_updates(
+            &[],
+            &[(BlockPos { x: 1, y: 0, z: 0 }, 7)],
+            &[],
+            &[]
+        )
+        .is_empty());
         assert_eq!(
             super::validate_feature_size(FeatureSizeModel::TwoLayers {
                 limit: 82,
@@ -33482,6 +40607,10 @@ mod tests {
         assert!(super::tree_valid_pos("minecraft:air"));
         assert!(super::tree_valid_pos("minecraft:oak_leaves"));
         assert!(super::tree_valid_pos("minecraft:dandelion"));
+        assert!(super::tree_valid_pos("minecraft:water"));
+        assert!(super::tree_valid_pos("minecraft:pale_moss_carpet"));
+        assert!(super::tree_valid_pos("minecraft:short_dry_grass"));
+        assert!(!super::tree_valid_pos("minecraft:oak_sapling"));
         assert!(!super::tree_valid_pos("minecraft:stone"));
         let min_size = FeatureSizeModel::TwoLayers {
             limit: 1,
@@ -33567,6 +40696,31 @@ mod tests {
             super::validate_foliage_placer(blob_foliage),
             Ok(blob_foliage)
         );
+        let max_height_pine = FoliagePlacerModel {
+            radius_min: 0,
+            radius_max: 16,
+            offset_min: 0,
+            offset_max: 16,
+            kind: FoliagePlacerKind::Pine {
+                height_min: 0,
+                height_max: 24,
+            },
+        };
+        assert_eq!(
+            super::validate_foliage_placer(max_height_pine),
+            Ok(max_height_pine)
+        );
+        assert_eq!(
+            super::validate_foliage_placer(FoliagePlacerModel {
+                kind: FoliagePlacerKind::Spruce {
+                    height_min: 0,
+                    height_max: 25,
+                },
+                ..max_height_pine
+            })
+            .unwrap_err(),
+            "foliage placer variant fields are outside vanilla codec ranges".to_string()
+        );
         assert_eq!(
             super::validate_foliage_placer(FoliagePlacerModel {
                 radius_min: 0,
@@ -33577,6 +40731,23 @@ mod tests {
                     foliage_height_min: 0,
                     foliage_height_max: 1,
                     leaf_placement_attempts: 1,
+                },
+            })
+            .unwrap_err(),
+            "foliage placer variant fields are outside vanilla codec ranges".to_string()
+        );
+        assert_eq!(
+            super::validate_foliage_placer(FoliagePlacerModel {
+                radius_min: 0,
+                radius_max: 16,
+                offset_min: 0,
+                offset_max: 16,
+                kind: FoliagePlacerKind::Cherry {
+                    height: 3,
+                    wide_bottom_layer_hole_chance: 0.0,
+                    corner_hole_chance: 0.0,
+                    hanging_leaves_chance: 0.0,
+                    hanging_leaves_extension_chance: 0.0,
                 },
             })
             .unwrap_err(),
@@ -33606,10 +40777,263 @@ mod tests {
             .unwrap_err(),
             "root placer fields are outside vanilla codec ranges".to_string()
         );
+        let root_system_config = super::RootSystemConfigurationModel {
+            tree_feature: "minecraft:azalea_tree",
+            required_vertical_space_for_tree: 3,
+            root_radius: 3,
+            root_replaceable: "#minecraft:dirt",
+            root_state_provider: BlockStateProviderModel::Simple("minecraft:rooted_dirt"),
+            root_placement_attempts: 2,
+            root_column_max_height: 4,
+            hanging_root_radius: 3,
+            hanging_roots_vertical_span: 2,
+            hanging_root_state_provider: BlockStateProviderModel::Simple("minecraft:hanging_roots"),
+            hanging_root_placement_attempts: 2,
+            allowed_vertical_water_for_tree: 2,
+        };
+        assert_eq!(
+            super::validate_root_system_configuration(&root_system_config),
+            Ok(())
+        );
+        assert_eq!(
+            super::mangrove_potential_root_positions(
+                BlockPos {
+                    x: 404,
+                    y: 64,
+                    z: 400,
+                },
+                HorizontalDirection::East,
+                BlockPos {
+                    x: 400,
+                    y: 64,
+                    z: 400,
+                },
+                4,
+                0.5,
+                0.25,
+                false,
+            ),
+            vec![
+                BlockPos {
+                    x: 404,
+                    y: 63,
+                    z: 400,
+                },
+                BlockPos {
+                    x: 405,
+                    y: 63,
+                    z: 400,
+                },
+            ]
+        );
+        assert_eq!(
+            super::mangrove_potential_root_positions(
+                BlockPos {
+                    x: 401,
+                    y: 64,
+                    z: 400,
+                },
+                HorizontalDirection::East,
+                BlockPos {
+                    x: 400,
+                    y: 64,
+                    z: 400,
+                },
+                4,
+                0.0,
+                0.5,
+                true,
+            ),
+            vec![BlockPos {
+                x: 402,
+                y: 64,
+                z: 400,
+            }]
+        );
+        assert_eq!(
+            super::mangrove_potential_root_positions(
+                BlockPos {
+                    x: 406,
+                    y: 64,
+                    z: 400,
+                },
+                HorizontalDirection::East,
+                BlockPos {
+                    x: 400,
+                    y: 64,
+                    z: 400,
+                },
+                4,
+                1.0,
+                0.0,
+                true,
+            ),
+            vec![BlockPos {
+                x: 406,
+                y: 63,
+                z: 400,
+            }]
+        );
+        assert!(super::root_system_is_allowed_tree_space(
+            "minecraft:water",
+            1,
+            2
+        ));
+        assert!(!super::root_system_is_allowed_tree_space(
+            "minecraft:water",
+            2,
+            2
+        ));
+        let root_plan = super::root_system_placement_plan(
+            BlockPos {
+                x: 400,
+                y: 64,
+                z: 400,
+            },
+            true,
+            &root_system_config,
+            &[
+                super::RootSystemTreeCandidateModel {
+                    pos: BlockPos {
+                        x: 400,
+                        y: 65,
+                        z: 400,
+                    },
+                    allowed_tree_position: true,
+                    vertical_space_states: vec![
+                        "minecraft:air",
+                        "minecraft:water",
+                        "minecraft:air",
+                    ],
+                    below_state: "minecraft:stone",
+                    tree_feature_places: false,
+                },
+                super::RootSystemTreeCandidateModel {
+                    pos: BlockPos {
+                        x: 400,
+                        y: 66,
+                        z: 400,
+                    },
+                    allowed_tree_position: true,
+                    vertical_space_states: vec!["minecraft:air", "minecraft:air", "minecraft:air"],
+                    below_state: "minecraft:dirt",
+                    tree_feature_places: true,
+                },
+            ],
+            &[
+                super::RootSystemOffsetRoll {
+                    positive_x: 2,
+                    negative_x: 1,
+                    positive_z: 1,
+                    ..Default::default()
+                },
+                super::RootSystemOffsetRoll {
+                    positive_x: 0,
+                    negative_x: 0,
+                    positive_z: 0,
+                    negative_z: 1,
+                    ..Default::default()
+                },
+            ],
+            &[
+                super::RootSystemOffsetRoll {
+                    positive_x: 1,
+                    positive_y: 1,
+                    positive_z: 0,
+                    ..Default::default()
+                },
+                super::RootSystemOffsetRoll {
+                    negative_x: 1,
+                    negative_y: 1,
+                    negative_z: 1,
+                    ..Default::default()
+                },
+            ],
+            &[
+                BlockPos {
+                    x: 401,
+                    y: 64,
+                    z: 401,
+                },
+                BlockPos {
+                    x: 400,
+                    y: 64,
+                    z: 399,
+                },
+            ],
+            &[BlockPos {
+                x: 401,
+                y: 65,
+                z: 400,
+            }],
+        )
+        .unwrap();
+        assert_eq!(
+            root_plan.tree_origin,
+            Some(BlockPos {
+                x: 400,
+                y: 66,
+                z: 400,
+            })
+        );
+        assert_eq!(
+            root_plan.blocks,
+            vec![
+                super::RootSystemPlacementBlock {
+                    pos: BlockPos {
+                        x: 401,
+                        y: 64,
+                        z: 401,
+                    },
+                    state: "minecraft:rooted_dirt",
+                    kind: super::RootSystemPlacementKind::RootedDirt,
+                },
+                super::RootSystemPlacementBlock {
+                    pos: BlockPos {
+                        x: 400,
+                        y: 64,
+                        z: 399,
+                    },
+                    state: "minecraft:rooted_dirt",
+                    kind: super::RootSystemPlacementKind::RootedDirt,
+                },
+                super::RootSystemPlacementBlock {
+                    pos: BlockPos {
+                        x: 401,
+                        y: 65,
+                        z: 400,
+                    },
+                    state: "minecraft:hanging_roots",
+                    kind: super::RootSystemPlacementKind::HangingRoot,
+                },
+            ]
+        );
+        assert!(
+            !super::root_system_placement_plan(
+                BlockPos {
+                    x: 400,
+                    y: 64,
+                    z: 400,
+                },
+                false,
+                &root_system_config,
+                &[],
+                &[],
+                &[],
+                &[],
+                &[],
+            )
+            .unwrap()
+            .attempted_roots
+        );
         let tree_plan = super::simple_tree_placement_plan(
             BlockPos { x: 8, y: 64, z: 8 },
             straight_trunk,
-            blob_foliage,
+            FoliagePlacerModel {
+                offset_min: 0,
+                offset_max: 0,
+                ..blob_foliage
+            },
             "minecraft:oak_log",
             "minecraft:oak_leaves",
             "minecraft:dirt",
@@ -33635,6 +41059,612 @@ mod tests {
                 && block.pos == BlockPos { x: 8, y: 71, z: 8 }
                 && block.state == "minecraft:oak_leaves"
         }));
+        assert!(!tree_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos == BlockPos { x: 7, y: 71, z: 7 }
+        }));
+        assert!(tree_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos == BlockPos { x: 6, y: 68, z: 8 }
+        }));
+        assert!(tree_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos == BlockPos { x: 10, y: 68, z: 8 }
+        }));
+        let bush_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 20,
+                y: 64,
+                z: 20,
+            },
+            TrunkPlacerModel {
+                base_height: 3,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 1,
+                offset_max: 1,
+                kind: FoliagePlacerKind::Bush { height: 2 },
+            },
+            "minecraft:oak_log",
+            "minecraft:oak_leaves",
+            "minecraft:dirt",
+            2,
+            4,
+        )
+        .unwrap();
+        assert!(bush_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 20,
+                        y: 68,
+                        z: 20,
+                    }
+        }));
+        assert!(!bush_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 21,
+                        y: 68,
+                        z: 20,
+                    }
+        }));
+        assert!(bush_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 21,
+                        y: 67,
+                        z: 20,
+                    }
+        }));
+        assert!(!bush_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 22,
+                        y: 67,
+                        z: 20,
+                    }
+        }));
+        assert!(bush_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 22,
+                        y: 66,
+                        z: 20,
+                    }
+        }));
+        let acacia_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 40,
+                y: 64,
+                z: 40,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Acacia,
+            },
+            "minecraft:acacia_log",
+            "minecraft:acacia_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert!(acacia_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 42,
+                        y: 67,
+                        z: 40,
+                    }
+        }));
+        assert!(!acacia_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 42,
+                        y: 67,
+                        z: 42,
+                    }
+        }));
+        assert!(acacia_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 41,
+                        y: 68,
+                        z: 41,
+                    }
+        }));
+        assert!(acacia_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 41,
+                        y: 68,
+                        z: 40,
+                    }
+        }));
+        let dark_oak_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 60,
+                y: 64,
+                z: 60,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::DarkOak,
+            },
+            "minecraft:dark_oak_log",
+            "minecraft:dark_oak_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert!(dark_oak_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 64,
+                        y: 67,
+                        z: 60,
+                    }
+        }));
+        assert!(!dark_oak_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 64,
+                        y: 67,
+                        z: 64,
+                    }
+        }));
+        assert!(dark_oak_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 63,
+                        y: 68,
+                        z: 63,
+                    }
+        }));
+        let fancy_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 70,
+                y: 64,
+                z: 70,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Fancy { height: 2 },
+            },
+            "minecraft:oak_log",
+            "minecraft:oak_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            super::fancy_foliage_rows(0, 2, 2),
+            vec![(0, 2), (-1, 3), (-2, 2)]
+        );
+        assert!(fancy_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 72,
+                        y: 67,
+                        z: 70,
+                    }
+        }));
+        assert!(!fancy_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 73,
+                        y: 67,
+                        z: 70,
+                    }
+        }));
+        assert!(fancy_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 68,
+                        y: 68,
+                        z: 70,
+                    }
+        }));
+        assert!(!fancy_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 72,
+                        y: 68,
+                        z: 70,
+                    }
+        }));
+        assert!(!super::fancy_leaves_row_should_skip(-2, 0, 2));
+        assert!(super::fancy_leaves_row_should_skip(2, 0, 2));
+        let mega_jungle_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 140,
+                y: 64,
+                z: 140,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Jungle { height: 4 },
+            },
+            "minecraft:jungle_log",
+            "minecraft:jungle_leaves",
+            "minecraft:dirt",
+            0,
+            1,
+        )
+        .unwrap();
+        assert_eq!(
+            super::mega_jungle_foliage_rows(0, 2, 2),
+            vec![(0, 3), (-1, 4), (-2, 5)]
+        );
+        assert!(mega_jungle_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 145,
+                        y: 66,
+                        z: 140,
+                    }
+        }));
+        assert!(!mega_jungle_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 145,
+                        y: 66,
+                        z: 145,
+                    }
+        }));
+        let random_spread_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 160,
+                y: 64,
+                z: 160,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 3,
+                radius_max: 3,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::RandomSpread {
+                    foliage_height_min: 4,
+                    foliage_height_max: 4,
+                    leaf_placement_attempts: 4,
+                },
+            },
+            "minecraft:azalea_log",
+            "minecraft:azalea_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            super::random_spread_foliage_positions(
+                BlockPos {
+                    x: 10,
+                    y: 20,
+                    z: 30
+                },
+                4,
+                3,
+                2,
+                &[2, 0, 3, 1, 1, 0, 0, 2, 0, 3, 0, 1],
+            ),
+            vec![
+                BlockPos {
+                    x: 12,
+                    y: 22,
+                    z: 31
+                },
+                BlockPos { x: 8, y: 17, z: 29 },
+            ]
+        );
+        assert_eq!(
+            random_spread_plan
+                .blocks
+                .iter()
+                .filter(|block| block.kind == TreePlacementBlockKind::Leaves)
+                .count(),
+            4
+        );
+        let cherry_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 180,
+                y: 64,
+                z: 180,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 4,
+                radius_max: 4,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Cherry {
+                    height: 5,
+                    wide_bottom_layer_hole_chance: 0.0,
+                    corner_hole_chance: 0.0,
+                    hanging_leaves_chance: 0.0,
+                    hanging_leaves_extension_chance: 0.0,
+                },
+            },
+            "minecraft:cherry_log",
+            "minecraft:cherry_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            super::cherry_foliage_rows(5, 4),
+            vec![(2, 1), (1, 2), (0, 3), (-1, 3), (-2, 2)]
+        );
+        assert!(cherry_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 183,
+                        y: 68,
+                        z: 182,
+                    }
+        }));
+        assert!(!cherry_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 183,
+                        y: 68,
+                        z: 183,
+                    }
+        }));
+        assert!(!super::cherry_leaves_row_should_skip(
+            3, -1, 0, 3, 0.0, 0.0, 0, 0
+        ));
+        assert!(super::cherry_leaves_row_should_skip(
+            3, -1, 0, 3, 1.0, 0.0, 0, 0
+        ));
+        let pine_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 80,
+                y: 64,
+                z: 80,
+            },
+            TrunkPlacerModel {
+                base_height: 4,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Pine {
+                    height_min: 3,
+                    height_max: 3,
+                },
+            },
+            "minecraft:spruce_log",
+            "minecraft:spruce_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            super::pine_foliage_rows(0, 3, 2),
+            vec![(0, 0), (-1, 1), (-2, 2), (-3, 1)]
+        );
+        assert!(pine_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 82,
+                        y: 66,
+                        z: 80,
+                    }
+        }));
+        assert!(!pine_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 82,
+                        y: 66,
+                        z: 82,
+                    }
+        }));
+        assert!(pine_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 81,
+                        y: 65,
+                        z: 80,
+                    }
+        }));
+        let spruce_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 100,
+                y: 64,
+                z: 100,
+            },
+            TrunkPlacerModel {
+                base_height: 6,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Spruce {
+                    height_min: 2,
+                    height_max: 2,
+                },
+            },
+            "minecraft:spruce_log",
+            "minecraft:spruce_leaves",
+            "minecraft:dirt",
+            0,
+            1,
+        )
+        .unwrap();
+        assert_eq!(
+            super::spruce_foliage_rows(0, 4, 2, 1),
+            vec![(0, 1), (-1, 0), (-2, 1), (-3, 2), (-4, 1)]
+        );
+        assert!(spruce_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 102,
+                        y: 67,
+                        z: 100,
+                    }
+        }));
+        assert!(!spruce_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 102,
+                        y: 67,
+                        z: 102,
+                    }
+        }));
+        assert!(spruce_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 101,
+                        y: 66,
+                        z: 100,
+                    }
+        }));
+        let mega_pine_plan = super::simple_tree_placement_plan(
+            BlockPos {
+                x: 120,
+                y: 64,
+                z: 120,
+            },
+            TrunkPlacerModel {
+                base_height: 6,
+                height_rand_a: 0,
+                height_rand_b: 0,
+                kind: TrunkPlacerKind::Straight,
+            },
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::MegaPine {
+                    height_min: 6,
+                    height_max: 6,
+                },
+            },
+            "minecraft:spruce_log",
+            "minecraft:spruce_leaves",
+            "minecraft:dirt",
+            0,
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            super::mega_pine_foliage_rows(70, 0, 6, 2),
+            vec![(-6, 5), (-5, 4), (-4, 5), (-3, 3), (-2, 4), (-1, 2), (0, 2)]
+        );
+        assert!(mega_pine_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 124,
+                        y: 68,
+                        z: 120,
+                    }
+        }));
+        assert!(!mega_pine_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: 124,
+                        y: 68,
+                        z: 124,
+                    }
+        }));
+        assert!(!super::mega_pine_leaves_row_should_skip(4, 0, 4));
+        assert!(super::mega_pine_leaves_row_should_skip(4, 4, 5));
         assert_eq!(
             super::simple_tree_placement_plan(
                 BlockPos { x: 8, y: 64, z: 8 },
@@ -33653,6 +41683,572 @@ mod tests {
             )
             .unwrap_err(),
             "only straight trunk placement is modeled by simple_tree_placement_plan".to_string()
+        );
+        let forking_plan = super::forking_trunk_placement_plan(
+            BlockPos {
+                x: 200,
+                y: 64,
+                z: 200,
+            },
+            6,
+            "minecraft:oak_log",
+            "minecraft:dirt",
+            HorizontalDirection::East,
+            HorizontalDirection::North,
+            1,
+            1,
+            0,
+            2,
+        );
+        assert!(forking_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 202,
+                        y: 69,
+                        z: 200,
+                    }
+        }));
+        assert!(forking_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 200,
+                        y: 69,
+                        z: 197,
+                    }
+        }));
+        assert_eq!(
+            forking_plan.attachments,
+            vec![
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 202,
+                        y: 70,
+                        z: 200,
+                    },
+                    radius_offset: 1,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 200,
+                        y: 70,
+                        z: 197,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+            ]
+        );
+        assert_eq!(
+            super::forking_trunk_placement_plan(
+                BlockPos {
+                    x: 200,
+                    y: 64,
+                    z: 200,
+                },
+                6,
+                "minecraft:oak_log",
+                "minecraft:dirt",
+                HorizontalDirection::East,
+                HorizontalDirection::East,
+                1,
+                1,
+                0,
+                2,
+            )
+            .attachments
+            .len(),
+            1
+        );
+        let bending_plan = super::bending_trunk_placement_plan(
+            BlockPos {
+                x: 220,
+                y: 64,
+                z: 220,
+            },
+            5,
+            "minecraft:oak_log",
+            "minecraft:dirt",
+            HorizontalDirection::South,
+            2,
+            2,
+            0,
+        );
+        assert!(bending_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 220,
+                        y: 67,
+                        z: 221,
+                    }
+        }));
+        assert!(bending_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 220,
+                        y: 69,
+                        z: 224,
+                    }
+        }));
+        assert_eq!(
+            bending_plan.attachments.first().copied(),
+            Some(TreeFoliageAttachmentModel {
+                pos: BlockPos {
+                    x: 220,
+                    y: 66,
+                    z: 220,
+                },
+                radius_offset: 0,
+                double_trunk: false,
+            })
+        );
+        assert_eq!(
+            bending_plan.attachments.last().copied(),
+            Some(TreeFoliageAttachmentModel {
+                pos: BlockPos {
+                    x: 220,
+                    y: 69,
+                    z: 224,
+                },
+                radius_offset: 0,
+                double_trunk: false,
+            })
+        );
+        let giant_plan = super::giant_trunk_placement_plan(
+            BlockPos {
+                x: 240,
+                y: 64,
+                z: 240,
+            },
+            3,
+            "minecraft:jungle_log",
+            "minecraft:dirt",
+        );
+        assert_eq!(
+            giant_plan
+                .blocks
+                .iter()
+                .filter(|block| block.kind == TreePlacementBlockKind::DirtBelowTrunk)
+                .count(),
+            4
+        );
+        assert_eq!(
+            giant_plan
+                .blocks
+                .iter()
+                .filter(|block| block.kind == TreePlacementBlockKind::Log)
+                .count(),
+            9
+        );
+        assert!(giant_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::DirtBelowTrunk
+                && block.pos
+                    == BlockPos {
+                        x: 241,
+                        y: 63,
+                        z: 241,
+                    }
+        }));
+        assert!(giant_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 241,
+                        y: 65,
+                        z: 241,
+                    }
+        }));
+        assert!(!giant_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 241,
+                        y: 66,
+                        z: 241,
+                    }
+        }));
+        assert_eq!(
+            giant_plan.attachments,
+            vec![TreeFoliageAttachmentModel {
+                pos: BlockPos {
+                    x: 240,
+                    y: 67,
+                    z: 240,
+                },
+                radius_offset: 0,
+                double_trunk: true,
+            }]
+        );
+        let mega_jungle_trunk_plan = super::mega_jungle_trunk_placement_plan(
+            BlockPos {
+                x: 250,
+                y: 64,
+                z: 250,
+            },
+            6,
+            "minecraft:jungle_log",
+            "minecraft:dirt",
+            &[super::MegaJungleBranchModel {
+                branch_height: 4,
+                angle_radians: 0.0,
+            }],
+        );
+        assert!(mega_jungle_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 255,
+                        y: 67,
+                        z: 251,
+                    }
+        }));
+        assert_eq!(
+            mega_jungle_trunk_plan.attachments,
+            vec![
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 250,
+                        y: 70,
+                        z: 250,
+                    },
+                    radius_offset: 0,
+                    double_trunk: true,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 255,
+                        y: 68,
+                        z: 251,
+                    },
+                    radius_offset: -2,
+                    double_trunk: false,
+                },
+            ]
+        );
+        let dark_oak_plan = super::dark_oak_trunk_placement_plan(
+            BlockPos {
+                x: 260,
+                y: 64,
+                z: 260,
+            },
+            6,
+            "minecraft:dark_oak_log",
+            "minecraft:dirt",
+            HorizontalDirection::East,
+            1,
+            1,
+            &[1, 1, 1, 1, 0, 2, 1, 1, 1, 1, 1, 1, 1, 1],
+        );
+        assert_eq!(
+            dark_oak_plan
+                .blocks
+                .iter()
+                .filter(|block| block.kind == TreePlacementBlockKind::DirtBelowTrunk)
+                .count(),
+            4
+        );
+        assert!(dark_oak_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 262,
+                        y: 69,
+                        z: 261,
+                    }
+        }));
+        assert!(dark_oak_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 260,
+                        y: 68,
+                        z: 259,
+                    }
+        }));
+        assert!(dark_oak_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 260,
+                        y: 65,
+                        z: 259,
+                    }
+        }));
+        assert_eq!(
+            dark_oak_plan.attachments,
+            vec![
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 261,
+                        y: 69,
+                        z: 260,
+                    },
+                    radius_offset: 0,
+                    double_trunk: true,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 260,
+                        y: 69,
+                        z: 259,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+            ]
+        );
+        let upwards_branching_plan = super::upwards_branching_trunk_placement_plan(
+            BlockPos {
+                x: 280,
+                y: 64,
+                z: 280,
+            },
+            5,
+            "minecraft:spruce_log",
+            &[super::UpwardsBranchingBranchModel {
+                trunk_y_offset: 1,
+                direction: HorizontalDirection::North,
+                branch_pos: 1,
+                branch_steps: 3,
+            }],
+        );
+        assert_eq!(
+            upwards_branching_plan
+                .blocks
+                .iter()
+                .filter(|block| block.kind == TreePlacementBlockKind::Log)
+                .count(),
+            8
+        );
+        assert!(upwards_branching_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.pos
+                    == BlockPos {
+                        x: 280,
+                        y: 67,
+                        z: 278,
+                    }
+        }));
+        assert_eq!(
+            upwards_branching_plan.attachments,
+            vec![
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 280,
+                        y: 66,
+                        z: 279,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 280,
+                        y: 67,
+                        z: 278,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 280,
+                        y: 68,
+                        z: 277,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 280,
+                        y: 69,
+                        z: 277,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 280,
+                        y: 67,
+                        z: 277,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 280,
+                        y: 69,
+                        z: 280,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+            ]
+        );
+        let cherry_trunk_plan = super::cherry_trunk_placement_plan(
+            BlockPos {
+                x: 300,
+                y: 64,
+                z: 300,
+            },
+            6,
+            "minecraft:cherry_log",
+            "minecraft:dirt",
+            2,
+            &[
+                super::CherryBranchModel {
+                    start_offset_from_origin: 3,
+                    direction: HorizontalDirection::East,
+                    horizontal_length: 2,
+                    end_offset_from_origin: 5,
+                    middle_continues_upwards: false,
+                    grow_vertically: vec![false, true, true],
+                },
+                super::CherryBranchModel {
+                    start_offset_from_origin: 2,
+                    direction: HorizontalDirection::West,
+                    horizontal_length: 2,
+                    end_offset_from_origin: 1,
+                    middle_continues_upwards: true,
+                    grow_vertically: vec![true, false],
+                },
+            ],
+        );
+        assert!(cherry_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::DirtBelowTrunk
+                && block.pos
+                    == BlockPos {
+                        x: 300,
+                        y: 63,
+                        z: 300,
+                    }
+        }));
+        assert!(cherry_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.state == "minecraft:cherry_log[axis=x]"
+                && block.pos
+                    == BlockPos {
+                        x: 302,
+                        y: 67,
+                        z: 300,
+                    }
+        }));
+        assert!(cherry_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.state == "minecraft:cherry_log"
+                && block.pos
+                    == BlockPos {
+                        x: 302,
+                        y: 69,
+                        z: 300,
+                    }
+        }));
+        assert_eq!(
+            cherry_trunk_plan.attachments,
+            vec![
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 302,
+                        y: 70,
+                        z: 300,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 297,
+                        y: 66,
+                        z: 300,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+            ]
+        );
+        let fancy_trunk_plan = super::fancy_trunk_placement_plan(
+            BlockPos {
+                x: 320,
+                y: 64,
+                z: 320,
+            },
+            8,
+            "minecraft:oak_log",
+            "minecraft:dirt",
+            &[super::FancyTrunkClusterRollModel {
+                shape_float: 0.5,
+                angle_float: 0.25,
+            }],
+        );
+        assert_eq!(super::fancy_trunk_tree_shape(10, 2), -1.0);
+        assert_eq!(super::fancy_trunk_tree_shape(10, 0), -1.0);
+        assert!(fancy_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::DirtBelowTrunk
+                && block.pos
+                    == BlockPos {
+                        x: 320,
+                        y: 63,
+                        z: 320,
+                    }
+        }));
+        assert!(fancy_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.state == "minecraft:oak_log"
+                && block.pos
+                    == BlockPos {
+                        x: 320,
+                        y: 70,
+                        z: 320,
+                    }
+        }));
+        assert!(fancy_trunk_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Log
+                && block.state == "minecraft:oak_log[axis=x]"
+                && block.pos
+                    == BlockPos {
+                        x: 322,
+                        y: 68,
+                        z: 320,
+                    }
+        }));
+        assert_eq!(
+            fancy_trunk_plan.attachments,
+            vec![
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 320,
+                        y: 69,
+                        z: 320,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 322,
+                        y: 68,
+                        z: 320,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                TreeFoliageAttachmentModel {
+                    pos: BlockPos {
+                        x: 320,
+                        y: 67,
+                        z: 321,
+                    },
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+            ]
         );
         let fallen_config = super::FallenTreeConfigurationModel {
             trunk_provider: BlockStateProviderModel::Simple("minecraft:oak_log"),
@@ -33710,12 +42306,792 @@ mod tests {
             Ok(TreeDecoratorModel::Cocoa { probability: 0.25 })
         );
         assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::LeaveVine { probability: 1.0 }),
+            Ok(TreeDecoratorModel::LeaveVine { probability: 1.0 })
+        );
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::CreakingHeart { probability: 0.0 }),
+            Ok(TreeDecoratorModel::CreakingHeart { probability: 0.0 })
+        );
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::PaleMoss {
+                leaves_probability: 0.25,
+                trunk_probability: 0.5,
+                ground_probability: 1.0,
+            }),
+            Ok(TreeDecoratorModel::PaleMoss {
+                leaves_probability: 0.25,
+                trunk_probability: 0.5,
+                ground_probability: 1.0,
+            })
+        );
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::PaleMoss {
+                leaves_probability: 1.1,
+                trunk_probability: 0.5,
+                ground_probability: 1.0,
+            })
+            .unwrap_err(),
+            "pale moss decorator probabilities must be in 0.0..=1.0".to_string()
+        );
+        assert_eq!(
             super::validate_tree_decorator(TreeDecoratorModel::Beehive { probability: 1.5 })
                 .unwrap_err(),
             "tree decorator probability must be in 0.0..=1.0".to_string()
         );
         assert!(super::tree_decorator_should_place(0.25, 0.249));
         assert!(!super::tree_decorator_should_place(0.25, 0.25));
+        assert_eq!(
+            super::tree_lowest_trunk_or_root_positions(
+                &[BlockPos { x: 0, y: 3, z: 0 }, BlockPos { x: 0, y: 1, z: 0 },],
+                &[],
+            ),
+            vec![BlockPos { x: 0, y: 1, z: 0 }, BlockPos { x: 0, y: 3, z: 0 },]
+        );
+        assert_eq!(
+            super::tree_lowest_trunk_or_root_positions(
+                &[BlockPos { x: 0, y: 1, z: 0 }],
+                &[
+                    BlockPos { x: 1, y: 0, z: 0 },
+                    BlockPos { x: 1, y: -1, z: 0 },
+                ],
+            ),
+            vec![
+                BlockPos { x: 1, y: -1, z: 0 },
+                BlockPos { x: 1, y: 0, z: 0 },
+            ]
+        );
+        assert_eq!(
+            super::tree_lowest_trunk_or_root_positions(
+                &[BlockPos { x: 0, y: 1, z: 0 }],
+                &[BlockPos { x: 1, y: 1, z: 0 }],
+            ),
+            vec![BlockPos { x: 0, y: 1, z: 0 }, BlockPos { x: 1, y: 1, z: 0 },]
+        );
+        assert_eq!(
+            super::trunk_vine_decorator_placement(
+                &[
+                    super::TrunkVineLogContext {
+                        pos: BlockPos {
+                            x: 10,
+                            y: 66,
+                            z: 10
+                        },
+                        west_air: true,
+                        east_air: true,
+                        north_air: true,
+                        south_air: true,
+                    },
+                    super::TrunkVineLogContext {
+                        pos: BlockPos {
+                            x: 10,
+                            y: 64,
+                            z: 10
+                        },
+                        west_air: true,
+                        east_air: false,
+                        north_air: true,
+                        south_air: true,
+                    },
+                ],
+                &[1, 2, 0, 1, 0, 1, 2, 0],
+            ),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 9, y: 64, z: 10 },
+                    state: "minecraft:vine[east=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 10,
+                        y: 64,
+                        z: 11
+                    },
+                    state: "minecraft:vine[north=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 11,
+                        y: 66,
+                        z: 10
+                    },
+                    state: "minecraft:vine[west=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 10, y: 66, z: 9 },
+                    state: "minecraft:vine[south=true]",
+                },
+            ]
+        );
+        assert_eq!(
+            super::leave_vine_decorator_placement(
+                &[
+                    super::LeaveVineLeafContext {
+                        pos: BlockPos {
+                            x: 30,
+                            y: 70,
+                            z: 30
+                        },
+                        west_air: true,
+                        east_air: true,
+                        north_air: true,
+                        south_air: true,
+                        west_below_air: [true, true, false, true],
+                        east_below_air: [false, true, true, true],
+                        north_below_air: [true, true, true, true],
+                        south_below_air: [true, true, true, true],
+                    },
+                    super::LeaveVineLeafContext {
+                        pos: BlockPos {
+                            x: 30,
+                            y: 68,
+                            z: 30
+                        },
+                        west_air: true,
+                        east_air: false,
+                        north_air: true,
+                        south_air: true,
+                        west_below_air: [true, false, true, true],
+                        east_below_air: [true, true, true, true],
+                        north_below_air: [true, true, true, true],
+                        south_below_air: [true, true, true, true],
+                    },
+                ],
+                0.5,
+                &[0.1, 0.2, 0.6, 0.5, 0.6, 0.6, 0.0, 0.7],
+            ),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 29,
+                        y: 68,
+                        z: 30
+                    },
+                    state: "minecraft:vine[east=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 29,
+                        y: 67,
+                        z: 30
+                    },
+                    state: "minecraft:vine[east=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 30,
+                        y: 70,
+                        z: 29
+                    },
+                    state: "minecraft:vine[south=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 30,
+                        y: 69,
+                        z: 29
+                    },
+                    state: "minecraft:vine[south=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 30,
+                        y: 68,
+                        z: 29
+                    },
+                    state: "minecraft:vine[south=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 30,
+                        y: 67,
+                        z: 29
+                    },
+                    state: "minecraft:vine[south=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 30,
+                        y: 66,
+                        z: 29
+                    },
+                    state: "minecraft:vine[south=true]",
+                },
+            ]
+        );
+        assert_eq!(
+            super::cocoa_decorator_placement(
+                &[
+                    super::CocoaLogContext {
+                        pos: BlockPos {
+                            x: 20,
+                            y: 67,
+                            z: 20
+                        },
+                        north_air: true,
+                        east_air: true,
+                        south_air: true,
+                        west_air: true,
+                    },
+                    super::CocoaLogContext {
+                        pos: BlockPos {
+                            x: 20,
+                            y: 64,
+                            z: 20
+                        },
+                        north_air: true,
+                        east_air: true,
+                        south_air: false,
+                        west_air: true,
+                    },
+                ],
+                0.5,
+                0.49,
+                &[0.1, 0.2, 0.3, 0.25, 0.1, 0.1, 0.1, 0.1],
+                &[1, 2, 4, 0, 1, 2],
+            ),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 19,
+                        y: 64,
+                        z: 20
+                    },
+                    state: "minecraft:cocoa[age=1,facing=east]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 21,
+                        y: 64,
+                        z: 20
+                    },
+                    state: "minecraft:cocoa[age=2,facing=west]",
+                },
+            ]
+        );
+        assert!(super::cocoa_decorator_placement(
+            &[super::CocoaLogContext {
+                pos: BlockPos {
+                    x: 20,
+                    y: 64,
+                    z: 20
+                },
+                north_air: true,
+                east_air: true,
+                south_air: true,
+                west_air: true,
+            }],
+            0.5,
+            0.5,
+            &[0.0; 4],
+            &[0; 4],
+        )
+        .is_empty());
+        assert_eq!(
+            super::beehive_decorator_placement(
+                &[
+                    BlockPos { x: 0, y: 64, z: 0 },
+                    BlockPos { x: 0, y: 65, z: 0 },
+                    BlockPos { x: 0, y: 66, z: 0 },
+                ],
+                &[BlockPos { x: 0, y: 66, z: 0 }],
+                1.0,
+                0.0,
+                0,
+                &[2, 0, 1],
+                &[
+                    (BlockPos { x: -1, y: 65, z: 0 }, false, true),
+                    (BlockPos { x: 1, y: 65, z: 0 }, true, false),
+                    (BlockPos { x: 0, y: 65, z: 1 }, true, true),
+                ],
+                1,
+                &[598, 599, 600],
+            ),
+            Some(super::BeehiveDecoratorPlacement {
+                pos: BlockPos { x: 0, y: 65, z: 1 },
+                state: "minecraft:bee_nest[facing=south,honey_level=0]",
+                bee_ticks_in_hive: vec![598, 0, 1],
+            })
+        );
+        assert!(super::beehive_decorator_placement(
+            &[BlockPos { x: 0, y: 64, z: 0 }],
+            &[],
+            0.5,
+            0.5,
+            0,
+            &[],
+            &[],
+            0,
+            &[],
+        )
+        .is_none());
+        assert_eq!(
+            super::creaking_heart_decorator_placement(
+                &[
+                    BlockPos { x: 5, y: 66, z: 5 },
+                    BlockPos { x: 5, y: 64, z: 5 },
+                    BlockPos { x: 5, y: 65, z: 5 },
+                ],
+                0.75,
+                0.5,
+                &[2, 0, 1],
+                &[
+                    (
+                        BlockPos { x: 5, y: 66, z: 5 },
+                        [true, true, false, true, true, true]
+                    ),
+                    (
+                        BlockPos { x: 5, y: 64, z: 5 },
+                        [true, true, true, true, true, true]
+                    ),
+                    (
+                        BlockPos { x: 5, y: 65, z: 5 },
+                        [true, true, true, true, false, true]
+                    ),
+                ],
+            ),
+            Some(super::TreeDecoratorPlacement {
+                pos: BlockPos { x: 5, y: 64, z: 5 },
+                state: "minecraft:creaking_heart[active=false,axis=y,natural=true]",
+            })
+        );
+        assert!(super::creaking_heart_decorator_placement(
+            &[BlockPos { x: 5, y: 64, z: 5 }],
+            0.75,
+            0.75,
+            &[0],
+            &[(BlockPos { x: 5, y: 64, z: 5 }, [true; 6])],
+        )
+        .is_none());
+        assert_eq!(
+            super::pale_moss_decorator_placement(
+                &[
+                    super::PaleMossAttachmentContext {
+                        pos: BlockPos { x: 6, y: 66, z: 6 },
+                        down_air: true,
+                        below_air: vec![true, true, false],
+                    },
+                    super::PaleMossAttachmentContext {
+                        pos: BlockPos { x: 6, y: 64, z: 6 },
+                        down_air: true,
+                        below_air: vec![true, true, true],
+                    },
+                    super::PaleMossAttachmentContext {
+                        pos: BlockPos { x: 6, y: 65, z: 6 },
+                        down_air: false,
+                        below_air: vec![true],
+                    },
+                ],
+                &[super::PaleMossAttachmentContext {
+                    pos: BlockPos { x: 7, y: 68, z: 7 },
+                    down_air: true,
+                    below_air: vec![true, false],
+                }],
+                0.5,
+                0.75,
+                0.25,
+                0.1,
+                &[0.2, 0.9, 0.8],
+                &[0.25],
+                &[0.8, 0.3, 0.6],
+            ),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 6, y: 65, z: 6 },
+                    state: "minecraft:configured_feature/pale_moss_patch",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 6, y: 63, z: 6 },
+                    state: "minecraft:pale_hanging_moss[tip=false]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 6, y: 62, z: 6 },
+                    state: "minecraft:pale_hanging_moss[tip=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 7, y: 67, z: 7 },
+                    state: "minecraft:pale_hanging_moss[tip=false]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 7, y: 66, z: 7 },
+                    state: "minecraft:pale_hanging_moss[tip=true]",
+                },
+            ]
+        );
+        assert!(
+            super::pale_moss_decorator_placement(&[], &[], 1.0, 1.0, 1.0, 0.0, &[], &[], &[],)
+                .is_empty()
+        );
+        assert_eq!(
+            super::validate_place_on_ground_decorator_fields(1, 0, 0),
+            Ok(())
+        );
+        assert_eq!(
+            super::validate_place_on_ground_decorator_fields(0, 0, 0).unwrap_err(),
+            "place-on-ground tries must be positive".to_string()
+        );
+        assert_eq!(
+            super::validate_place_on_ground_decorator_fields(1, -1, 0).unwrap_err(),
+            "place-on-ground radius and height must be non-negative".to_string()
+        );
+        assert_eq!(
+            super::place_on_ground_decorator_placement(
+                &[
+                    BlockPos { x: 0, y: 64, z: 0 },
+                    BlockPos { x: 2, y: 64, z: 1 },
+                    BlockPos {
+                        x: 10,
+                        y: 65,
+                        z: 10
+                    },
+                ],
+                5,
+                2,
+                1,
+                "minecraft:pale_moss_carpet",
+                &[
+                    super::PlaceOnGroundAttemptContext {
+                        pos: BlockPos {
+                            x: -2,
+                            y: 64,
+                            z: -2
+                        },
+                        above_is_air_or_vine: true,
+                        pos_is_solid_render: true,
+                        motion_blocking_no_leaves_height: 65,
+                    },
+                    super::PlaceOnGroundAttemptContext {
+                        pos: BlockPos { x: 4, y: 65, z: 3 },
+                        above_is_air_or_vine: true,
+                        pos_is_solid_render: true,
+                        motion_blocking_no_leaves_height: 67,
+                    },
+                    super::PlaceOnGroundAttemptContext {
+                        pos: BlockPos { x: 0, y: 63, z: 0 },
+                        above_is_air_or_vine: false,
+                        pos_is_solid_render: true,
+                        motion_blocking_no_leaves_height: 64,
+                    },
+                    super::PlaceOnGroundAttemptContext {
+                        pos: BlockPos { x: 0, y: 64, z: 0 },
+                        above_is_air_or_vine: true,
+                        pos_is_solid_render: false,
+                        motion_blocking_no_leaves_height: 65,
+                    },
+                    super::PlaceOnGroundAttemptContext {
+                        pos: BlockPos { x: 2, y: 64, z: 1 },
+                        above_is_air_or_vine: true,
+                        pos_is_solid_render: true,
+                        motion_blocking_no_leaves_height: 64,
+                    },
+                    super::PlaceOnGroundAttemptContext {
+                        pos: BlockPos { x: 0, y: 64, z: 0 },
+                        above_is_air_or_vine: true,
+                        pos_is_solid_render: true,
+                        motion_blocking_no_leaves_height: 65,
+                    },
+                ],
+            )
+            .unwrap(),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: -2,
+                        y: 65,
+                        z: -2
+                    },
+                    state: "minecraft:pale_moss_carpet",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos { x: 2, y: 65, z: 1 },
+                    state: "minecraft:pale_moss_carpet",
+                },
+            ]
+        );
+        assert!(super::place_on_ground_decorator_placement(
+            &[],
+            1,
+            0,
+            0,
+            "minecraft:pale_moss_carpet",
+            &[],
+        )
+        .unwrap()
+        .is_empty());
+        let alter_ground = super::alter_ground_decorator_placement(
+            &[
+                BlockPos { x: 0, y: 64, z: 0 },
+                BlockPos { x: 2, y: 65, z: 0 },
+            ],
+            &[9, 18, 27, 36, 63],
+            &[
+                super::AlterGroundScanContext {
+                    pos: BlockPos {
+                        x: -1,
+                        y: 66,
+                        z: -1,
+                    },
+                    provider_state: Some("minecraft:rooted_dirt"),
+                    is_air: true,
+                },
+                super::AlterGroundScanContext {
+                    pos: BlockPos {
+                        x: -3,
+                        y: 66,
+                        z: -3,
+                    },
+                    provider_state: Some("minecraft:moss_block"),
+                    is_air: true,
+                },
+                super::AlterGroundScanContext {
+                    pos: BlockPos { x: 4, y: 66, z: 4 },
+                    provider_state: Some("minecraft:podzol"),
+                    is_air: true,
+                },
+                super::AlterGroundScanContext {
+                    pos: BlockPos { x: 1, y: 63, z: -1 },
+                    provider_state: None,
+                    is_air: false,
+                },
+                super::AlterGroundScanContext {
+                    pos: BlockPos { x: 1, y: 62, z: -1 },
+                    provider_state: Some("minecraft:coarse_dirt"),
+                    is_air: true,
+                },
+                super::AlterGroundScanContext {
+                    pos: BlockPos { x: 2, y: 61, z: 2 },
+                    provider_state: Some("minecraft:coarse_dirt"),
+                    is_air: true,
+                },
+            ],
+        );
+        assert!(alter_ground.contains(&super::TreeDecoratorPlacement {
+            pos: BlockPos {
+                x: -1,
+                y: 66,
+                z: -1
+            },
+            state: "minecraft:rooted_dirt",
+        }));
+        assert!(alter_ground.contains(&super::TreeDecoratorPlacement {
+            pos: BlockPos { x: 4, y: 66, z: 4 },
+            state: "minecraft:podzol",
+        }));
+        assert!(alter_ground.contains(&super::TreeDecoratorPlacement {
+            pos: BlockPos { x: 2, y: 61, z: 2 },
+            state: "minecraft:coarse_dirt",
+        }));
+        assert!(!alter_ground.contains(&super::TreeDecoratorPlacement {
+            pos: BlockPos {
+                x: -3,
+                y: 66,
+                z: -3
+            },
+            state: "minecraft:moss_block",
+        }));
+        assert!(!alter_ground.contains(&super::TreeDecoratorPlacement {
+            pos: BlockPos { x: 1, y: 62, z: -1 },
+            state: "minecraft:coarse_dirt",
+        }));
+        assert!(super::alter_ground_decorator_placement(&[], &[], &[]).is_empty());
+        assert_eq!(
+            super::attached_to_logs_decorator_placement(
+                &[
+                    BlockPos {
+                        x: 40,
+                        y: 66,
+                        z: 40
+                    },
+                    BlockPos {
+                        x: 40,
+                        y: 64,
+                        z: 40
+                    },
+                    BlockPos {
+                        x: 40,
+                        y: 65,
+                        z: 40
+                    },
+                ],
+                0.5,
+                "minecraft:glow_lichen",
+                &[2, 0, 1],
+                &["north", "east", "south"],
+                &[0.5, 0.49, 0.1],
+                &[
+                    (
+                        BlockPos {
+                            x: 40,
+                            y: 66,
+                            z: 39
+                        },
+                        true,
+                    ),
+                    (
+                        BlockPos {
+                            x: 41,
+                            y: 64,
+                            z: 40
+                        },
+                        false,
+                    ),
+                    (
+                        BlockPos {
+                            x: 40,
+                            y: 65,
+                            z: 41
+                        },
+                        true,
+                    ),
+                ],
+            ),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 40,
+                        y: 66,
+                        z: 39
+                    },
+                    state: "minecraft:glow_lichen",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 40,
+                        y: 65,
+                        z: 41
+                    },
+                    state: "minecraft:glow_lichen",
+                },
+            ]
+        );
+        assert_eq!(
+            super::validate_attached_to_leaves_decorator_fields(16, 0, 1, 1),
+            Ok(())
+        );
+        assert_eq!(
+            super::validate_attached_to_leaves_decorator_fields(17, 0, 1, 1).unwrap_err(),
+            "attached-to-leaves exclusion radii must be in 0..=16".to_string()
+        );
+        assert_eq!(
+            super::validate_attached_to_leaves_decorator_fields(0, 0, 0, 1).unwrap_err(),
+            "attached-to-leaves required_empty_blocks must be in 1..=16".to_string()
+        );
+        assert_eq!(
+            super::validate_attached_to_leaves_decorator_fields(0, 0, 1, 0).unwrap_err(),
+            "attached-to-leaves directions list must be non-empty".to_string()
+        );
+        assert_eq!(
+            super::attached_to_leaves_decorator_placement(
+                &[
+                    BlockPos {
+                        x: 50,
+                        y: 64,
+                        z: 50
+                    },
+                    BlockPos {
+                        x: 51,
+                        y: 64,
+                        z: 50
+                    },
+                    BlockPos {
+                        x: 50,
+                        y: 65,
+                        z: 50
+                    },
+                ],
+                0.5,
+                1,
+                0,
+                2,
+                "minecraft:mangrove_propagule[hanging=true]",
+                &[0, 1, 2],
+                &["down", "down", "east"],
+                &[0.1, 0.1, 0.49],
+                &[
+                    (
+                        BlockPos {
+                            x: 50,
+                            y: 63,
+                            z: 50
+                        },
+                        true,
+                    ),
+                    (
+                        BlockPos {
+                            x: 50,
+                            y: 62,
+                            z: 50
+                        },
+                        true,
+                    ),
+                    (
+                        BlockPos {
+                            x: 51,
+                            y: 63,
+                            z: 50
+                        },
+                        true,
+                    ),
+                    (
+                        BlockPos {
+                            x: 51,
+                            y: 62,
+                            z: 50
+                        },
+                        true,
+                    ),
+                    (
+                        BlockPos {
+                            x: 51,
+                            y: 65,
+                            z: 50
+                        },
+                        true,
+                    ),
+                    (
+                        BlockPos {
+                            x: 52,
+                            y: 65,
+                            z: 50
+                        },
+                        true,
+                    ),
+                ],
+            )
+            .unwrap(),
+            vec![
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 50,
+                        y: 63,
+                        z: 50
+                    },
+                    state: "minecraft:mangrove_propagule[hanging=true]",
+                },
+                super::TreeDecoratorPlacement {
+                    pos: BlockPos {
+                        x: 51,
+                        y: 65,
+                        z: 50
+                    },
+                    state: "minecraft:mangrove_propagule[hanging=true]",
+                },
+            ]
+        );
+        assert!(super::attached_to_leaves_decorator_placement(
+            &[BlockPos { x: 0, y: 64, z: 0 }],
+            0.5,
+            0,
+            0,
+            1,
+            "minecraft:mangrove_propagule[hanging=true]",
+            &[0],
+            &["down"],
+            &[0.5],
+            &[(BlockPos { x: 0, y: 63, z: 0 }, true)],
+        )
+        .unwrap()
+        .is_empty());
     }
 
     #[test]
@@ -35315,6 +44691,254 @@ mod tests {
     }
 
     #[test]
+    fn jigsaw_connector_orientation_and_attachment_match_vanilla_can_attach() {
+        use super::JigsawDirectionModel::{East, North, South, Up, West};
+        use super::JigsawJointTypeModel::{Aligned, Rollable};
+
+        assert_eq!(super::JigsawDirectionModel::from_id("north"), Some(North));
+        assert_eq!(super::JigsawDirectionModel::from_id("sideways"), None);
+        assert_eq!(North.id(), "north");
+        assert_eq!(North.opposite(), South);
+        assert_eq!(East.step(), super::BlockPos { x: 1, y: 0, z: 0 });
+        assert_eq!(
+            super::JigsawJointTypeModel::from_id("aligned"),
+            Some(Aligned)
+        );
+        assert_eq!(Rollable.id(), "rollable");
+
+        let source = super::JigsawConnectorModel {
+            name: "minecraft:road",
+            target: "minecraft:house",
+            pool: "minecraft:village/plains/houses",
+            front: North,
+            top: Up,
+            joint: Aligned,
+            placement_priority: 3,
+            selection_priority: 7,
+        };
+        let matching_target = super::JigsawConnectorModel {
+            name: "minecraft:house",
+            target: "minecraft:road",
+            pool: "minecraft:empty",
+            front: South,
+            top: Up,
+            joint: Rollable,
+            placement_priority: 0,
+            selection_priority: 0,
+        };
+        assert!(super::jigsaw_connectors_can_attach(
+            &source,
+            &matching_target
+        ));
+        assert_eq!(
+            source.target_pos(super::BlockPos {
+                x: 10,
+                y: 64,
+                z: -5
+            }),
+            super::BlockPos {
+                x: 10,
+                y: 64,
+                z: -6
+            }
+        );
+
+        let wrong_front = super::JigsawConnectorModel {
+            front: West,
+            ..matching_target
+        };
+        assert!(!super::jigsaw_connectors_can_attach(&source, &wrong_front));
+
+        let wrong_top = super::JigsawConnectorModel {
+            top: East,
+            ..matching_target
+        };
+        assert!(!super::jigsaw_connectors_can_attach(&source, &wrong_top));
+
+        let rollable_source = super::JigsawConnectorModel {
+            joint: Rollable,
+            ..source
+        };
+        assert!(super::jigsaw_connectors_can_attach(
+            &rollable_source,
+            &wrong_top
+        ));
+
+        let wrong_name = super::JigsawConnectorModel {
+            name: "minecraft:stable",
+            ..matching_target
+        };
+        assert!(!super::jigsaw_connectors_can_attach(&source, &wrong_name));
+    }
+
+    #[test]
+    fn sequenced_priority_queue_matches_java_highest_priority_fifo_order() {
+        let mut queue = super::SequencedPriorityQueueModel::new();
+        assert!(queue.is_empty());
+        assert_eq!(queue.highest_priority(), None);
+
+        queue.add("low-a", -2);
+        queue.add("high-a", 5);
+        queue.add("mid-a", 1);
+        queue.add("high-b", 5);
+        queue.add("top-a", 9);
+
+        assert_eq!(queue.highest_priority(), Some(9));
+        assert_eq!(queue.next_item(), Some("top-a"));
+
+        assert_eq!(queue.highest_priority(), Some(5));
+        assert_eq!(queue.next_item(), Some("high-a"));
+
+        queue.add("high-c", 5);
+        queue.add("higher-late", 7);
+        assert_eq!(queue.highest_priority(), Some(7));
+        assert_eq!(queue.next_item(), Some("higher-late"));
+
+        assert_eq!(queue.highest_priority(), Some(5));
+        assert_eq!(queue.next_item(), Some("high-b"));
+        assert_eq!(queue.next_item(), Some("high-c"));
+        assert_eq!(queue.next_item(), Some("mid-a"));
+        assert_eq!(queue.next_item(), Some("low-a"));
+        assert_eq!(queue.next_item(), None);
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn jigsaw_start_height_limit_rejection_matches_dimension_padding_rules() {
+        let fits_at_padded_edges = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: -60,
+            min_z: 0,
+            max_x: 8,
+            max_y: 311,
+            max_z: 8,
+        };
+        assert!(!super::jigsaw_start_too_close_to_world_height_limits(
+            -64,
+            384,
+            super::DimensionPaddingModel { bottom: 4, top: 8 },
+            fits_at_padded_edges,
+        ));
+
+        let below_padding = super::StructureBoundingBoxModel {
+            min_y: -61,
+            ..fits_at_padded_edges
+        };
+        assert!(super::jigsaw_start_too_close_to_world_height_limits(
+            -64,
+            384,
+            super::DimensionPaddingModel { bottom: 4, top: 8 },
+            below_padding,
+        ));
+
+        let above_padding = super::StructureBoundingBoxModel {
+            max_y: 312,
+            ..fits_at_padded_edges
+        };
+        assert!(super::jigsaw_start_too_close_to_world_height_limits(
+            -64,
+            384,
+            super::DimensionPaddingModel { bottom: 4, top: 8 },
+            above_padding,
+        ));
+
+        assert!(!super::jigsaw_start_too_close_to_world_height_limits(
+            -64,
+            384,
+            super::DimensionPaddingModel::ZERO,
+            super::StructureBoundingBoxModel {
+                min_y: -10_000,
+                max_y: 10_000,
+                ..fits_at_padded_edges
+            },
+        ));
+    }
+
+    #[test]
+    fn jigsaw_initial_expansion_bounds_match_java_aabb_and_padding_clamps() {
+        assert_eq!(
+            super::jigsaw_initial_expansion_bounds(
+                100,
+                70,
+                -30,
+                super::JigsawMaxDistanceModel {
+                    horizontal: 80,
+                    vertical: 96,
+                },
+                -64,
+                384,
+                super::DimensionPaddingModel { bottom: 4, top: 8 },
+            ),
+            super::JigsawExpansionBoundsModel {
+                min_x: 20,
+                min_y: -26,
+                min_z: -110,
+                max_x_exclusive: 181,
+                max_y_exclusive: 167,
+                max_z_exclusive: 51,
+            }
+        );
+
+        assert_eq!(
+            super::jigsaw_initial_expansion_bounds(
+                0,
+                300,
+                0,
+                super::JigsawMaxDistanceModel {
+                    horizontal: 1,
+                    vertical: 80,
+                },
+                -64,
+                384,
+                super::DimensionPaddingModel { bottom: 0, top: 16 },
+            ),
+            super::JigsawExpansionBoundsModel {
+                min_x: -1,
+                min_y: 220,
+                min_z: -1,
+                max_x_exclusive: 2,
+                max_y_exclusive: 304,
+                max_z_exclusive: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn jigsaw_start_anchor_adjustment_matches_named_start_jigsaw_math() {
+        assert_eq!(
+            super::jigsaw_start_anchor_adjustment(
+                super::BlockPos {
+                    x: 160,
+                    y: 72,
+                    z: -48,
+                },
+                super::BlockPos {
+                    x: 166,
+                    y: 75,
+                    z: -61,
+                },
+            ),
+            super::JigsawStartAnchorAdjustmentModel {
+                local_anchor: super::BlockPos { x: 6, y: 3, z: -13 },
+                adjusted_position: super::BlockPos {
+                    x: 154,
+                    y: 69,
+                    z: -35,
+                },
+            }
+        );
+
+        let unchanged = super::BlockPos { x: 0, y: 64, z: 0 };
+        assert_eq!(
+            super::jigsaw_start_anchor_adjustment(unchanged, unchanged),
+            super::JigsawStartAnchorAdjustmentModel {
+                local_anchor: super::BlockPos { x: 0, y: 0, z: 0 },
+                adjusted_position: unchanged,
+            }
+        );
+    }
+
+    #[test]
     fn jigsaw_junction_serialization_and_java_equality_match_vanilla() {
         let junction = super::JigsawJunctionModel {
             source_x: 12,
@@ -35543,6 +45167,277 @@ mod tests {
     }
 
     #[test]
+    fn jigsaw_candidate_pool_iteration_order_matches_java_target_fallback_and_empty_break() {
+        let target_a = super::JigsawPoolElementModel::single(
+            "minecraft:village/plains/houses/a",
+            &[],
+            super::JigsawProjectionModel::Rigid,
+            None,
+        );
+        let target_b = super::JigsawPoolElementModel::single(
+            "minecraft:village/plains/houses/b",
+            &[],
+            super::JigsawProjectionModel::Rigid,
+            None,
+        );
+        let fallback = super::JigsawPoolElementModel::legacy_single(
+            "minecraft:village/plains/fallback",
+            &[],
+            super::JigsawProjectionModel::TerrainMatching,
+            None,
+        );
+        let target_pool = super::JigsawTemplatePoolModel::new(
+            "minecraft:empty",
+            vec![
+                super::JigsawTemplatePoolElementEntry {
+                    element: target_a.clone(),
+                    weight: 2,
+                },
+                super::JigsawTemplatePoolElementEntry {
+                    element: target_b.clone(),
+                    weight: 1,
+                },
+            ],
+        )
+        .unwrap();
+        let fallback_pool = super::JigsawTemplatePoolModel::new(
+            "minecraft:empty",
+            vec![
+                super::JigsawTemplatePoolElementEntry {
+                    element: fallback.clone(),
+                    weight: 1,
+                },
+                super::JigsawTemplatePoolElementEntry {
+                    element: super::JigsawPoolElementModel::empty(),
+                    weight: 1,
+                },
+                super::JigsawTemplatePoolElementEntry {
+                    element: target_b.clone(),
+                    weight: 1,
+                },
+            ],
+        )
+        .unwrap();
+
+        let candidates = super::jigsaw_candidate_elements_in_iteration_order(
+            &target_pool,
+            &fallback_pool,
+            1,
+            3,
+            &[2, 0, 1],
+            &[0, 1, 2],
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| (candidate.source, candidate.raw_template_index))
+                .collect::<Vec<_>>(),
+            vec![
+                (super::JigsawCandidatePoolSource::Target, 1),
+                (super::JigsawCandidatePoolSource::Target, 0),
+                (super::JigsawCandidatePoolSource::Target, 0),
+                (super::JigsawCandidatePoolSource::Fallback, 0),
+            ]
+        );
+        assert_eq!(candidates[0].element, target_b);
+        assert_eq!(candidates[3].element, fallback);
+
+        let max_depth_candidates = super::jigsaw_candidate_elements_in_iteration_order(
+            &target_pool,
+            &fallback_pool,
+            3,
+            3,
+            &[2, 0, 1],
+            &[0, 1, 2],
+        );
+        assert_eq!(
+            max_depth_candidates
+                .iter()
+                .map(|candidate| candidate.source)
+                .collect::<Vec<_>>(),
+            vec![super::JigsawCandidatePoolSource::Fallback]
+        );
+    }
+
+    #[test]
+    fn jigsaw_expansion_hack_target_size_matches_java_pool_max_size_lookup() {
+        let hack_box = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 0,
+            min_z: 0,
+            max_x: 15,
+            max_y: 15,
+            max_z: 15,
+        };
+        let jigsaws = vec![
+            super::JigsawLocalConnectorModel {
+                connector: super::JigsawConnectorModel {
+                    name: "minecraft:street",
+                    target: "minecraft:street",
+                    pool: "minecraft:village/common/houses",
+                    front: super::JigsawDirectionModel::East,
+                    top: super::JigsawDirectionModel::Up,
+                    joint: super::JigsawJointTypeModel::Aligned,
+                    placement_priority: 0,
+                    selection_priority: 0,
+                },
+                local_pos: super::BlockPos { x: 14, y: 6, z: 7 },
+            },
+            super::JigsawLocalConnectorModel {
+                connector: super::JigsawConnectorModel {
+                    name: "minecraft:street",
+                    target: "minecraft:street",
+                    pool: "minecraft:village/plains/ignored_outside",
+                    front: super::JigsawDirectionModel::East,
+                    top: super::JigsawDirectionModel::Up,
+                    joint: super::JigsawJointTypeModel::Aligned,
+                    placement_priority: 0,
+                    selection_priority: 0,
+                },
+                local_pos: super::BlockPos { x: 15, y: 6, z: 7 },
+            },
+            super::JigsawLocalConnectorModel {
+                connector: super::JigsawConnectorModel {
+                    name: "minecraft:street",
+                    target: "minecraft:street",
+                    pool: "minecraft:village/plains/missing",
+                    front: super::JigsawDirectionModel::North,
+                    top: super::JigsawDirectionModel::Up,
+                    joint: super::JigsawJointTypeModel::Aligned,
+                    placement_priority: 0,
+                    selection_priority: 0,
+                },
+                local_pos: super::BlockPos { x: 4, y: 6, z: 4 },
+            },
+        ];
+        let pools = [
+            super::JigsawPoolSizeModel {
+                name: "minecraft:village/plains/houses",
+                fallback: Some("minecraft:village/plains/terminators"),
+                max_size: 4,
+            },
+            super::JigsawPoolSizeModel {
+                name: "minecraft:village/plains/terminators",
+                fallback: None,
+                max_size: 9,
+            },
+            super::JigsawPoolSizeModel {
+                name: "minecraft:village/plains/ignored_outside",
+                fallback: None,
+                max_size: 99,
+            },
+        ];
+        let lookup = super::JigsawPoolAliasLookupModel {
+            mappings: BTreeMap::from([(
+                "minecraft:village/common/houses",
+                "minecraft:village/plains/houses",
+            )]),
+        };
+
+        assert_eq!(
+            super::jigsaw_expansion_hack_target_size(true, hack_box, &jigsaws, &pools, &lookup),
+            9
+        );
+        assert_eq!(
+            super::jigsaw_expansion_hack_target_size(false, hack_box, &jigsaws, &pools, &lookup),
+            0
+        );
+        assert_eq!(
+            super::jigsaw_expansion_hack_target_size(
+                true,
+                super::StructureBoundingBoxModel {
+                    max_y: 16,
+                    ..hack_box
+                },
+                &jigsaws,
+                &pools,
+                &lookup,
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn jigsaw_pool_availability_decision_matches_java_warning_and_skip_rules() {
+        assert_eq!(
+            super::jigsaw_pool_availability_decision(false, 0, "minecraft:empty", 0),
+            super::JigsawPoolAvailabilityDecisionModel {
+                can_place_children: false,
+                warning: Some(super::JigsawPoolAvailabilityWarning::EmptyOrNonExistentTarget),
+            }
+        );
+        assert_eq!(
+            super::jigsaw_pool_availability_decision(true, 0, "minecraft:empty", 0),
+            super::JigsawPoolAvailabilityDecisionModel {
+                can_place_children: false,
+                warning: Some(super::JigsawPoolAvailabilityWarning::EmptyOrNonExistentTarget),
+            }
+        );
+        assert_eq!(
+            super::jigsaw_pool_availability_decision(true, 3, "minecraft:village/bad_fallback", 0),
+            super::JigsawPoolAvailabilityDecisionModel {
+                can_place_children: false,
+                warning: Some(super::JigsawPoolAvailabilityWarning::EmptyOrNonExistentFallback),
+            }
+        );
+        assert_eq!(
+            super::jigsaw_pool_availability_decision(true, 3, "minecraft:empty", 0),
+            super::JigsawPoolAvailabilityDecisionModel {
+                can_place_children: true,
+                warning: None,
+            }
+        );
+        assert_eq!(
+            super::jigsaw_pool_availability_decision(
+                true,
+                3,
+                "minecraft:village/plains/terminators",
+                2,
+            ),
+            super::JigsawPoolAvailabilityDecisionModel {
+                can_place_children: true,
+                warning: None,
+            }
+        );
+    }
+
+    #[test]
+    fn jigsaw_structure_start_pools_match_java_bootstrap_start_keys() {
+        assert_eq!(
+            super::JIGSAW_STRUCTURE_START_POOLS
+                .iter()
+                .map(|entry| entry.pool)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:village/plains/town_centers",
+                "minecraft:village/desert/town_centers",
+                "minecraft:village/savanna/town_centers",
+                "minecraft:village/snowy/town_centers",
+                "minecraft:village/taiga/town_centers",
+                "minecraft:pillager_outpost/base_plates",
+                "minecraft:bastion/starts",
+                "minecraft:ancient_city/city_center",
+                "minecraft:trail_ruins/tower",
+                "minecraft:trial_chambers/chamber/end",
+            ]
+        );
+        assert!(super::JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .all(|entry| entry.pool.starts_with("minecraft:")));
+        assert_eq!(
+            super::JIGSAW_STRUCTURE_START_POOLS
+                .iter()
+                .filter(|entry| entry.structure_family.starts_with("village/"))
+                .count(),
+            5
+        );
+        assert!(super::JIGSAW_STRUCTURE_START_POOLS.iter().any(|entry| {
+            entry.source_file == "TrialChambersStructurePools.java"
+                && entry.pool == "minecraft:trial_chambers/chamber/end"
+        }));
+    }
+
+    #[test]
     fn pool_element_structure_piece_state_and_junction_y_math_match_vanilla() {
         let element = super::JigsawPoolElementModel::single(
             "minecraft:bastion/starts/start",
@@ -35694,6 +45589,215 @@ mod tests {
                 source_z: -4,
                 delta_y: -delta_y,
                 dest_projection: super::JigsawProjectionModel::TerrainMatching,
+            }
+        );
+    }
+
+    #[test]
+    fn jigsaw_child_box_placement_matches_java_raw_box_and_y_offset_math() {
+        let placement = super::jigsaw_child_placement_y(
+            super::JigsawProjectionModel::Rigid,
+            super::JigsawProjectionModel::Rigid,
+            64,
+            5,
+            2,
+            1,
+            0,
+            0,
+            90,
+        );
+        assert_eq!(placement.target_box_y, 68);
+
+        let box_placement = super::jigsaw_child_box_placement(
+            super::BlockPos {
+                x: 101,
+                y: 70,
+                z: -31,
+            },
+            super::BlockPos { x: 4, y: 2, z: 6 },
+            super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 0,
+                min_z: 0,
+                max_x: 9,
+                max_y: 7,
+                max_z: 11,
+            },
+            placement,
+        );
+
+        assert_eq!(
+            box_placement,
+            super::JigsawChildBoxPlacementModel {
+                raw_target_box_pos: super::BlockPos {
+                    x: 97,
+                    y: 68,
+                    z: -37,
+                },
+                raw_target_bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 97,
+                    min_y: 68,
+                    min_z: -37,
+                    max_x: 106,
+                    max_y: 75,
+                    max_z: -26,
+                },
+                y_offset: 0,
+                target_box_position: super::BlockPos {
+                    x: 97,
+                    y: 68,
+                    z: -37,
+                },
+                target_bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 97,
+                    min_y: 68,
+                    min_z: -37,
+                    max_x: 106,
+                    max_y: 75,
+                    max_z: -26,
+                },
+            }
+        );
+
+        let terrain_placement = super::jigsaw_child_placement_y(
+            super::JigsawProjectionModel::TerrainMatching,
+            super::JigsawProjectionModel::Rigid,
+            64,
+            5,
+            2,
+            -1,
+            0,
+            0,
+            91,
+        );
+        let moved = super::jigsaw_child_box_placement(
+            super::BlockPos {
+                x: 101,
+                y: 70,
+                z: -31,
+            },
+            super::BlockPos { x: 4, y: 2, z: 6 },
+            super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 0,
+                min_z: 0,
+                max_x: 9,
+                max_y: 7,
+                max_z: 11,
+            },
+            terrain_placement,
+        );
+        assert_eq!(terrain_placement.target_box_y, 89);
+        assert_eq!(moved.y_offset, 21);
+        assert_eq!(moved.target_box_position.y, 89);
+        assert_eq!(moved.target_bounding_box.min_y, 89);
+        assert_eq!(moved.target_bounding_box.max_y, 96);
+    }
+
+    #[test]
+    fn jigsaw_expansion_hack_box_encapsulation_matches_java_height_math() {
+        let target_box = super::StructureBoundingBoxModel {
+            min_x: 10,
+            min_y: 64,
+            min_z: -4,
+            max_x: 18,
+            max_y: 71,
+            max_z: 4,
+        };
+        assert_eq!(
+            super::jigsaw_apply_expansion_hack_to_target_box(target_box, 0),
+            target_box
+        );
+        assert_eq!(
+            super::jigsaw_apply_expansion_hack_to_target_box(target_box, 2),
+            target_box
+        );
+        assert_eq!(
+            super::jigsaw_apply_expansion_hack_to_target_box(target_box, 9),
+            super::StructureBoundingBoxModel {
+                max_y: 74,
+                ..target_box
+            }
+        );
+        assert_eq!(
+            super::jigsaw_apply_expansion_hack_to_target_box(target_box, -1),
+            target_box
+        );
+    }
+
+    #[test]
+    fn jigsaw_child_free_shape_selection_matches_java_source_inside_check() {
+        let source_box = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 64,
+            min_z: 0,
+            max_x: 15,
+            max_y: 79,
+            max_z: 15,
+        };
+        assert_eq!(
+            super::jigsaw_child_free_shape_selection(
+                source_box,
+                super::BlockPos {
+                    x: 15,
+                    y: 79,
+                    z: 15
+                },
+                false,
+            ),
+            super::JigsawChildFreeShapeSelectionModel {
+                scope: super::JigsawChildFreeShapeScope::SourcePiece,
+                initialized_source_shape: Some(source_box),
+            }
+        );
+        assert_eq!(
+            super::jigsaw_child_free_shape_selection(
+                source_box,
+                super::BlockPos { x: 4, y: 70, z: 4 },
+                true,
+            ),
+            super::JigsawChildFreeShapeSelectionModel {
+                scope: super::JigsawChildFreeShapeScope::SourcePiece,
+                initialized_source_shape: None,
+            }
+        );
+        assert_eq!(
+            super::jigsaw_child_free_shape_selection(
+                source_box,
+                super::BlockPos { x: 16, y: 70, z: 4 },
+                false,
+            ),
+            super::JigsawChildFreeShapeSelectionModel {
+                scope: super::JigsawChildFreeShapeScope::Context,
+                initialized_source_shape: None,
+            }
+        );
+    }
+
+    #[test]
+    fn jigsaw_accepted_child_scheduling_matches_java_depth_and_priority_rule() {
+        assert_eq!(
+            super::jigsaw_accepted_child_scheduling(0, 1, 7),
+            super::JigsawAcceptedChildSchedulingModel {
+                child_depth: 1,
+                queue_for_expansion: true,
+                placement_priority: 7,
+            }
+        );
+        assert_eq!(
+            super::jigsaw_accepted_child_scheduling(1, 1, -3),
+            super::JigsawAcceptedChildSchedulingModel {
+                child_depth: 2,
+                queue_for_expansion: false,
+                placement_priority: -3,
+            }
+        );
+        assert_eq!(
+            super::jigsaw_accepted_child_scheduling(19, 20, i32::MAX),
+            super::JigsawAcceptedChildSchedulingModel {
+                child_depth: 20,
+                queue_for_expansion: true,
+                placement_priority: i32::MAX,
             }
         );
     }
@@ -36343,7 +46447,7 @@ mod tests {
             .is_none());
         assert_eq!(
             access.get_references_for_structure("minecraft:shipwreck"),
-            &[]
+            &[] as &[i64]
         );
         assert!(!access.has_any_structure_references());
         assert!(!access.unsaved);

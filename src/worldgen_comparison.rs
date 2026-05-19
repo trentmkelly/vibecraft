@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::seed_validation::{build_seed_parity_sample, ChunkCoord, SeedParitySample};
-use crate::storage::chunk::{LevelChunk, ChunkSection};
+use crate::storage::chunk::{ChunkSection, LevelChunk};
 use crate::storage::nbt::Tag;
 use crate::worldgen::{
     blending_output_for_old_height, block_predicate_test, carver_is_start_chunk, configured_carver,
@@ -15,7 +15,10 @@ use crate::worldgen::{
     PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
     SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, WORLD_PRESETS,
 };
+use serde_json::Value;
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldgenChunkComparison {
@@ -78,6 +81,34 @@ pub struct WorldgenNamedArraySignature {
 pub struct WorldgenStructureSignature {
     pub start_keys: Vec<String>,
     pub reference_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldgenChunkSignatureDiff {
+    pub chunk: ChunkCoord,
+    pub field: &'static str,
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaFixtureChunkSummary {
+    pub chunk: ChunkCoord,
+    pub status: String,
+    pub section_count: usize,
+    pub non_empty_section_count: usize,
+    pub heightmaps: Vec<WorldgenNamedArraySignature>,
+    pub block_palette: Vec<String>,
+    pub biome_palette: Vec<String>,
+    pub sections: Vec<WorldgenSectionSignature>,
+    pub structures: WorldgenStructureSignature,
+    pub payload_fingerprint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaFixtureReport {
+    pub format: String,
+    pub chunks: Vec<VanillaFixtureChunkSummary>,
 }
 
 pub fn build_worldgen_chunk_comparisons(
@@ -407,6 +438,329 @@ pub fn build_chunk_signature(chunk: &LevelChunk) -> WorldgenChunkSignature {
     }
 }
 
+pub fn diff_chunk_signatures(
+    left: &WorldgenChunkSignature,
+    right: &WorldgenChunkSignature,
+) -> Vec<WorldgenChunkSignatureDiff> {
+    let chunk = left.chunk;
+    let mut diffs = Vec::new();
+    push_diff(&mut diffs, chunk, "chunk", &left.chunk, &right.chunk);
+    push_diff(&mut diffs, chunk, "status", &left.status, &right.status);
+    push_diff(
+        &mut diffs,
+        chunk,
+        "section_count",
+        &left.section_count,
+        &right.section_count,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "non_empty_section_count",
+        &left.non_empty_section_count,
+        &right.non_empty_section_count,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "heightmaps",
+        &left.heightmaps,
+        &right.heightmaps,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "block_palette",
+        &left.block_palette,
+        &right.block_palette,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "biome_palette",
+        &left.biome_palette,
+        &right.biome_palette,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "sections",
+        &left.sections,
+        &right.sections,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "structures",
+        &left.structures,
+        &right.structures,
+    );
+    push_diff(
+        &mut diffs,
+        chunk,
+        "payload_fingerprint",
+        &left.payload_fingerprint,
+        &right.payload_fingerprint,
+    );
+    diffs
+}
+
+pub fn signature_from_vanilla_fixture_summary(
+    summary: VanillaFixtureChunkSummary,
+) -> WorldgenChunkSignature {
+    WorldgenChunkSignature {
+        chunk: summary.chunk,
+        status: summary.status,
+        section_count: summary.section_count,
+        non_empty_section_count: summary.non_empty_section_count,
+        heightmaps: sorted_named_arrays(summary.heightmaps),
+        block_palette: sorted_unique(summary.block_palette),
+        biome_palette: sorted_unique(summary.biome_palette),
+        sections: sorted_sections(summary.sections),
+        structures: WorldgenStructureSignature {
+            start_keys: sorted_unique(summary.structures.start_keys),
+            reference_keys: sorted_unique(summary.structures.reference_keys),
+        },
+        payload_fingerprint: summary.payload_fingerprint,
+    }
+}
+
+pub fn load_vanilla_fixture_report(path: impl AsRef<Path>) -> Result<VanillaFixtureReport, String> {
+    parse_vanilla_fixture_report(&fs::read_to_string(path.as_ref()).map_err(|err| {
+        format!(
+            "failed to read vanilla fixture report {}: {err}",
+            path.as_ref().display()
+        )
+    })?)
+}
+
+pub fn parse_vanilla_fixture_report(raw: &str) -> Result<VanillaFixtureReport, String> {
+    let root: Value =
+        serde_json::from_str(raw).map_err(|err| format!("invalid fixture report JSON: {err}"))?;
+    let format = string_field_value(&root, "format")
+        .unwrap_or("unknown")
+        .to_string();
+    let mut chunks = Vec::new();
+    for result in array_field(&root, "results")? {
+        for artifact in array_field(result, "artifacts")? {
+            for chunk in array_field(artifact, "requestedChunks")? {
+                chunks.push(parse_fixture_chunk(chunk)?);
+            }
+        }
+    }
+    Ok(VanillaFixtureReport { format, chunks })
+}
+
+pub fn fixture_report_signatures(report: &VanillaFixtureReport) -> Vec<WorldgenChunkSignature> {
+    report
+        .chunks
+        .iter()
+        .cloned()
+        .map(signature_from_vanilla_fixture_summary)
+        .collect()
+}
+
+fn parse_fixture_chunk(value: &Value) -> Result<VanillaFixtureChunkSummary, String> {
+    Ok(VanillaFixtureChunkSummary {
+        chunk: ChunkCoord {
+            x: i32_field(value, "chunkX")?,
+            z: i32_field(value, "chunkZ")?,
+        },
+        status: string_field_value(value, "status")
+            .ok_or_else(|| "fixture chunk missing status".to_string())?
+            .to_string(),
+        section_count: usize_field(value, "sectionCount")?,
+        non_empty_section_count: usize_field(value, "nonEmptySectionCount")?,
+        heightmaps: parse_heightmaps(
+            value
+                .get("heightmaps")
+                .ok_or_else(|| "fixture chunk missing heightmaps".to_string())?,
+        )?,
+        block_palette: string_array_field(value, "blockPalette")?,
+        biome_palette: string_array_field(value, "biomePalette")?,
+        sections: parse_sections(array_field(value, "sections")?)?,
+        structures: parse_structures(
+            value
+                .get("structures")
+                .ok_or_else(|| "fixture chunk missing structures".to_string())?,
+        )?,
+        payload_fingerprint: hex_fingerprint_field(value, "payloadSha256")?,
+    })
+}
+
+fn parse_heightmaps(value: &Value) -> Result<Vec<WorldgenNamedArraySignature>, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "heightmaps must be an object".to_string())?;
+    let mut entries = object
+        .iter()
+        .map(|(name, value)| {
+            Ok(WorldgenNamedArraySignature {
+                name: name.clone(),
+                entries: usize_field(value, "entries")?,
+                fingerprint: 0,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    entries.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(entries)
+}
+
+fn parse_sections(values: &[Value]) -> Result<Vec<WorldgenSectionSignature>, String> {
+    values
+        .iter()
+        .map(|value| {
+            Ok(WorldgenSectionSignature {
+                y: i8_field(value, "y")?,
+                block_palette: string_array_field(value, "blockPalette")?,
+                block_data_entries: usize_field(
+                    value
+                        .get("blockStatesData")
+                        .ok_or_else(|| "section missing blockStatesData".to_string())?,
+                    "entries",
+                )?,
+                block_data_fingerprint: optional_hex_fingerprint_field(
+                    value
+                        .get("blockStatesData")
+                        .ok_or_else(|| "section missing blockStatesData".to_string())?,
+                    "sha256",
+                )?,
+                biome_palette: string_array_field(value, "biomePalette")?,
+                biome_data_entries: usize_field(
+                    value
+                        .get("biomeData")
+                        .ok_or_else(|| "section missing biomeData".to_string())?,
+                    "entries",
+                )?,
+                biome_data_fingerprint: optional_hex_fingerprint_field(
+                    value
+                        .get("biomeData")
+                        .ok_or_else(|| "section missing biomeData".to_string())?,
+                    "sha256",
+                )?,
+            })
+        })
+        .collect()
+}
+
+fn parse_structures(value: &Value) -> Result<WorldgenStructureSignature, String> {
+    Ok(WorldgenStructureSignature {
+        start_keys: string_array_field(value, "startKeys")?,
+        reference_keys: string_array_field(value, "referenceKeys")?,
+    })
+}
+
+fn array_field<'a>(value: &'a Value, field: &str) -> Result<&'a [Value], String> {
+    Ok(value
+        .get(field)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]))
+}
+
+fn string_array_field(value: &Value, field: &str) -> Result<Vec<String>, String> {
+    array_field(value, field)?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(ToString::to_string)
+                .ok_or_else(|| format!("{field} entries must be strings"))
+        })
+        .collect()
+}
+
+fn string_field_value<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
+    value.get(field).and_then(Value::as_str)
+}
+
+fn i32_field(value: &Value, field: &str) -> Result<i32, String> {
+    let raw = value
+        .get(field)
+        .and_then(Value::as_i64)
+        .ok_or_else(|| format!("missing integer field {field}"))?;
+    i32::try_from(raw).map_err(|_| format!("{field} is out of i32 range"))
+}
+
+fn i8_field(value: &Value, field: &str) -> Result<i8, String> {
+    let raw = value
+        .get(field)
+        .and_then(Value::as_i64)
+        .ok_or_else(|| format!("missing integer field {field}"))?;
+    i8::try_from(raw).map_err(|_| format!("{field} is out of i8 range"))
+}
+
+fn usize_field(value: &Value, field: &str) -> Result<usize, String> {
+    let raw = value
+        .get(field)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("missing unsigned field {field}"))?;
+    usize::try_from(raw).map_err(|_| format!("{field} is out of usize range"))
+}
+
+fn hex_fingerprint_field(value: &Value, field: &str) -> Result<u64, String> {
+    optional_hex_fingerprint_field(value, field).and_then(|fingerprint| {
+        if fingerprint == 0 {
+            Err(format!("{field} must contain a non-null SHA-256 string"))
+        } else {
+            Ok(fingerprint)
+        }
+    })
+}
+
+fn optional_hex_fingerprint_field(value: &Value, field: &str) -> Result<u64, String> {
+    match value.get(field) {
+        Some(Value::String(hex)) => Ok(fingerprint_hex(hex)),
+        Some(Value::Null) | None => Ok(0),
+        _ => Err(format!("{field} must be a SHA-256 string or null")),
+    }
+}
+
+fn fingerprint_hex(hex: &str) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    mix_bytes(&mut hash, hex.as_bytes());
+    hash
+}
+
+fn sorted_named_arrays(
+    mut values: Vec<WorldgenNamedArraySignature>,
+) -> Vec<WorldgenNamedArraySignature> {
+    values.sort_by(|left, right| left.name.cmp(&right.name));
+    values
+}
+
+fn sorted_sections(mut values: Vec<WorldgenSectionSignature>) -> Vec<WorldgenSectionSignature> {
+    for section in &mut values {
+        section.block_palette = sorted_unique(std::mem::take(&mut section.block_palette));
+        section.biome_palette = sorted_unique(std::mem::take(&mut section.biome_palette));
+    }
+    values.sort_by_key(|section| section.y);
+    values
+}
+
+fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn push_diff<T: std::fmt::Debug + PartialEq>(
+    diffs: &mut Vec<WorldgenChunkSignatureDiff>,
+    chunk: ChunkCoord,
+    field: &'static str,
+    left: &T,
+    right: &T,
+) {
+    if left != right {
+        diffs.push(WorldgenChunkSignatureDiff {
+            chunk,
+            field,
+            left: format!("{left:?}"),
+            right: format!("{right:?}"),
+        });
+    }
+}
+
 fn section_signature(section: &ChunkSection) -> WorldgenSectionSignature {
     let block_palette = palette_names(&section.block_states, true);
     let biome_palette = palette_names(&section.biomes, false);
@@ -710,22 +1064,21 @@ mod tests {
         assert_eq!(signature.status, "minecraft:full");
         assert_eq!(signature.section_count, 1);
         assert_eq!(signature.non_empty_section_count, 1);
-        assert!(
-            signature.heightmaps.iter().any(|heightmap| {
-                (heightmap.name == "WORLD_SURFACE_WG" || heightmap.name == "WORLD_SURFACE")
-                    && heightmap.entries > 0
-            })
-        );
-        assert!(
-            signature.heightmaps.iter().any(|heightmap| {
-                (heightmap.name == "OCEAN_FLOOR_WG" || heightmap.name == "OCEAN_FLOOR")
-                    && heightmap.entries > 0
-            })
-        );
+        assert!(signature.heightmaps.iter().any(|heightmap| {
+            (heightmap.name == "WORLD_SURFACE_WG" || heightmap.name == "WORLD_SURFACE")
+                && heightmap.entries > 0
+        }));
+        assert!(signature.heightmaps.iter().any(|heightmap| {
+            (heightmap.name == "OCEAN_FLOOR_WG" || heightmap.name == "OCEAN_FLOOR")
+                && heightmap.entries > 0
+        }));
         assert!(signature
             .block_palette
             .contains(&"minecraft:grass_block".to_string()));
-        assert_eq!(signature.biome_palette, vec!["minecraft:plains".to_string()]);
+        assert_eq!(
+            signature.biome_palette,
+            vec!["minecraft:plains".to_string()]
+        );
         assert_ne!(signature.payload_fingerprint, 0);
     }
 
@@ -739,7 +1092,10 @@ mod tests {
         chunk.structures = Tag::Compound(vec![
             (
                 "starts".to_string(),
-                Tag::Compound(vec![("minecraft:village".to_string(), Tag::Compound(vec![]))]),
+                Tag::Compound(vec![(
+                    "minecraft:village".to_string(),
+                    Tag::Compound(vec![]),
+                )]),
             ),
             (
                 "References".to_string(),
@@ -765,5 +1121,188 @@ mod tests {
             .sections
             .iter()
             .all(|section| section.block_data_fingerprint != 0));
+    }
+
+    #[test]
+    fn chunk_signature_diff_reports_field_level_drift() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let left = build_chunk_signature(&chunk);
+        let mut right = left.clone();
+        right.status = "minecraft:noise".to_string();
+        right.block_palette.push("minecraft:water".to_string());
+        right.payload_fingerprint ^= 0xfeed;
+
+        let diffs = diff_chunk_signatures(&left, &right);
+        assert_eq!(
+            diffs.iter().map(|diff| diff.field).collect::<Vec<_>>(),
+            vec!["status", "block_palette", "payload_fingerprint"]
+        );
+        assert!(diffs
+            .iter()
+            .all(|diff| diff.chunk == ChunkCoord { x: 0, z: 0 }));
+        assert!(diffs[0].left.contains("minecraft:full"));
+        assert!(diffs[0].right.contains("minecraft:noise"));
+    }
+
+    #[test]
+    fn vanilla_fixture_summary_normalizes_to_chunk_signature_for_rust_diffs() {
+        let fixture = VanillaFixtureChunkSummary {
+            chunk: ChunkCoord { x: 1, z: -2 },
+            status: "minecraft:full".to_string(),
+            section_count: 2,
+            non_empty_section_count: 2,
+            heightmaps: vec![
+                WorldgenNamedArraySignature {
+                    name: "WORLD_SURFACE".to_string(),
+                    entries: 37,
+                    fingerprint: 20,
+                },
+                WorldgenNamedArraySignature {
+                    name: "MOTION_BLOCKING".to_string(),
+                    entries: 37,
+                    fingerprint: 10,
+                },
+            ],
+            block_palette: vec![
+                "minecraft:water".to_string(),
+                "minecraft:stone".to_string(),
+                "minecraft:stone".to_string(),
+            ],
+            biome_palette: vec![
+                "minecraft:forest".to_string(),
+                "minecraft:plains".to_string(),
+            ],
+            sections: vec![
+                WorldgenSectionSignature {
+                    y: 1,
+                    block_palette: vec!["minecraft:water".to_string()],
+                    block_data_entries: 256,
+                    block_data_fingerprint: 99,
+                    biome_palette: vec!["minecraft:forest".to_string()],
+                    biome_data_entries: 64,
+                    biome_data_fingerprint: 77,
+                },
+                WorldgenSectionSignature {
+                    y: 0,
+                    block_palette: vec!["minecraft:stone".to_string(), "minecraft:air".to_string()],
+                    block_data_entries: 256,
+                    block_data_fingerprint: 55,
+                    biome_palette: vec!["minecraft:plains".to_string()],
+                    biome_data_entries: 64,
+                    biome_data_fingerprint: 33,
+                },
+            ],
+            structures: WorldgenStructureSignature {
+                start_keys: vec!["minecraft:village".to_string()],
+                reference_keys: vec![
+                    "minecraft:mineshaft".to_string(),
+                    "minecraft:mineshaft".to_string(),
+                ],
+            },
+            payload_fingerprint: 1234,
+        };
+
+        let signature = signature_from_vanilla_fixture_summary(fixture);
+
+        assert_eq!(signature.chunk, ChunkCoord { x: 1, z: -2 });
+        assert_eq!(
+            signature
+                .heightmaps
+                .iter()
+                .map(|heightmap| heightmap.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["MOTION_BLOCKING", "WORLD_SURFACE"]
+        );
+        assert_eq!(
+            signature.block_palette,
+            vec!["minecraft:stone".to_string(), "minecraft:water".to_string()]
+        );
+        assert_eq!(signature.sections[0].y, 0);
+        assert_eq!(signature.sections[1].y, 1);
+        assert_eq!(
+            signature.structures.reference_keys,
+            vec!["minecraft:mineshaft".to_string()]
+        );
+    }
+
+    #[test]
+    fn parses_vanilla_fixture_report_json_into_signatures() {
+        let report = parse_vanilla_fixture_report(
+            r#"{
+              "format": "rustcraft-vanilla-worldgen-fixtures-v1",
+              "results": [{
+                "artifacts": [{
+                  "requestedChunks": [{
+                    "chunkX": 0,
+                    "chunkZ": -1,
+                    "status": "minecraft:full",
+                    "sectionCount": 1,
+                    "nonEmptySectionCount": 1,
+                    "heightmaps": {
+                      "WORLD_SURFACE": { "type": "long_array", "entries": 37 },
+                      "MOTION_BLOCKING": { "type": "long_array", "entries": 37 }
+                    },
+                    "structures": {
+                      "startKeys": [],
+                      "referenceKeys": ["minecraft:mineshaft"]
+                    },
+                    "sections": [{
+                      "y": 0,
+                      "blockPalette": ["minecraft:stone", "minecraft:water"],
+                      "blockStatesData": {
+                        "entries": 256,
+                        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                      },
+                      "biomePalette": ["minecraft:forest"],
+                      "biomeData": {
+                        "entries": 0,
+                        "sha256": null
+                      }
+                    }],
+                    "blockPalette": ["minecraft:water", "minecraft:stone"],
+                    "biomePalette": ["minecraft:forest"],
+                    "payloadSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  }]
+                }]
+              }]
+            }"#,
+        )
+        .expect("fixture JSON should parse");
+
+        assert_eq!(report.format, "rustcraft-vanilla-worldgen-fixtures-v1");
+        assert_eq!(report.chunks.len(), 1);
+        let signatures = fixture_report_signatures(&report);
+        assert_eq!(signatures[0].chunk, ChunkCoord { x: 0, z: -1 });
+        assert_eq!(
+            signatures[0].block_palette,
+            vec!["minecraft:stone".to_string(), "minecraft:water".to_string()]
+        );
+        assert_eq!(
+            signatures[0].structures.reference_keys,
+            vec!["minecraft:mineshaft".to_string()]
+        );
+        assert_ne!(signatures[0].payload_fingerprint, 0);
+    }
+
+    #[test]
+    fn parses_real_tmp_oracle_fixture_report_when_available() {
+        let path = std::path::Path::new("/tmp/rustcraft-vanilla-fixtures.json");
+        if !path.exists() {
+            return;
+        }
+
+        let report = load_vanilla_fixture_report(path).expect("real fixture report should parse");
+        let signatures = fixture_report_signatures(&report);
+        assert!(!signatures.is_empty());
+        assert!(signatures
+            .iter()
+            .all(|signature| signature.status == "minecraft:full"));
+        assert!(signatures.iter().any(|signature| signature
+            .block_palette
+            .contains(&"minecraft:stone".to_string())));
     }
 }

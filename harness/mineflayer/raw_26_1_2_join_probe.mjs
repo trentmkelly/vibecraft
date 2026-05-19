@@ -16,6 +16,7 @@ const firstTickActions = new Set(firstTickActionRequest === '1'
   ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'player_input', 'swing', 'use_item_on', 'use_item']
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
 const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+const expectedDefaultSpawn = parseBlockPosEnv(process.env.RUSTCRAFT_EXPECT_DEFAULT_SPAWN, { x: 0, y: 80, z: 0 })
 const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 const extraMovementPositions = parsePositionArrayEnv(process.env.RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS)
 const expectedHeldSlot = Number(process.env.RUSTCRAFT_EXPECT_HELD_SLOT ?? 0)
@@ -735,8 +736,8 @@ async function main () {
   const playPackets = []
   const joinState = {}
   let keepAliveReplies = 0
-  const expectedPlayPacketIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
-  for (let i = 0; i < expectedPlayPacketIds.length;) {
+  const expectedPlayPacketPrefixIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12]
+  for (let i = 0; i < 256;) {
     const packet = await reader.nextPacket()
     if (packet.id === clientboundKeepAlivePacketId) {
       if (packet.body.length !== 8) {
@@ -749,15 +750,20 @@ async function main () {
     }
     playPackets.push(packet)
     play.push({ id: packet.id, length: packet.length })
+    if (i < expectedPlayPacketPrefixIds.length && packet.id !== expectedPlayPacketPrefixIds[i] && !recordOnly) {
+      throw new Error(`expected play packet ${expectedPlayPacketPrefixIds[i]} at index ${i}, got ${packet.id}`)
+    }
     if (abortAfter === 'join_game' && packet.id === 49) return abortSocket(socket, 'join_game', { login: login.id, config, play })
     if (abortAfter === 'first_chunk' && packet.id === 45) return abortSocket(socket, 'first_chunk', { login: login.id, config, play })
     if (abortAfter === 'chunk_batch_finished' && packet.id === 11) return abortSocket(socket, 'chunk_batch_finished', { login: login.id, config, play })
     i += 1
+    if (packet.id === 11 && i > expectedPlayPacketPrefixIds.length) break
   }
   if (!recordOnly) {
-    for (const id of expectedPlayPacketIds) {
+    for (const id of [...expectedPlayPacketPrefixIds, 11]) {
       if (!play.some(packet => packet.id === id)) throw new Error(`missing play packet ${id}`)
     }
+    if (!play.some(packet => packet.id === 45)) throw new Error('missing initial level_chunk_with_light packet')
     const packetById = new Map()
     for (const packet of playPackets) {
       if (!packetById.has(packet.id)) packetById.set(packet.id, [])
@@ -896,7 +902,7 @@ async function main () {
     if (!spawnPacket) throw new Error('missing default spawn position packet')
     const spawnDimension = readString(spawnPacket.body, 0)
     const spawnPos = readBlockPos(spawnPacket.body, spawnDimension.offset)
-    if (spawnDimension.value !== 'minecraft:overworld' || spawnPos.x !== 0 || spawnPos.y !== 80 || spawnPos.z !== 0) {
+    if (spawnDimension.value !== 'minecraft:overworld' || spawnPos.x !== expectedDefaultSpawn.x || spawnPos.y !== expectedDefaultSpawn.y || spawnPos.z !== expectedDefaultSpawn.z) {
       throw new Error(`unexpected default spawn ${spawnDimension.value} ${spawnPos.x} ${spawnPos.y} ${spawnPos.z}`)
     }
     joinState.defaultSpawn = {
@@ -938,7 +944,38 @@ async function main () {
       chunks: (packetById.get(45) ?? []).map(packet => ({
         x: packet.body.readInt32BE(0),
         z: packet.body.readInt32BE(4)
-      }))
+      })),
+      chunkBiomePalettes: (packetById.get(45) ?? []).map(packet => decodeLevelChunkBiomePalette(packet, registryPackets))
+    }
+  }
+  if (recordOnly) {
+    const packetById = new Map()
+    for (const packet of playPackets) {
+      if (!packetById.has(packet.id)) packetById.set(packet.id, [])
+      packetById.get(packet.id).push(packet)
+    }
+    const positionPacket = packetById.get(72)?.[0]
+    if (positionPacket) {
+      joinState.position = decodePlayerPositionPacket(positionPacket.body)
+    }
+    const chunkCacheRadiusPacket = packetById.get(95)?.[0]
+    const chunkCacheRadius = chunkCacheRadiusPacket && readVarInt(chunkCacheRadiusPacket.body)
+    const chunkCacheCenterPacket = packetById.get(94)?.[0]
+    const chunkCacheCenterX = chunkCacheCenterPacket && readVarInt(chunkCacheCenterPacket.body)
+    const chunkCacheCenterZ = chunkCacheCenterX && readVarInt(chunkCacheCenterPacket.body, chunkCacheCenterX.offset)
+    const chunkBatchFinishedPacket = packetById.get(11)?.[0]
+    const chunkBatchSize = chunkBatchFinishedPacket && readVarInt(chunkBatchFinishedPacket.body)
+    if (chunkCacheRadius && chunkCacheCenterX && chunkCacheCenterZ && chunkBatchSize) {
+      joinState.chunkStreaming = {
+        cacheCenter: { x: chunkCacheCenterX.value, z: chunkCacheCenterZ.value },
+        cacheRadius: chunkCacheRadius.value,
+        batchSize: chunkBatchSize.value,
+        chunks: (packetById.get(45) ?? []).map(packet => ({
+          x: packet.body.readInt32BE(0),
+          z: packet.body.readInt32BE(4)
+        })),
+        chunkBiomePalettes: (packetById.get(45) ?? []).map(packet => decodeLevelChunkBiomePalette(packet, registryPackets))
+      }
     }
   }
   joinState.lastReceivedChunk = play.filter(packet => packet.id === 45).length === 0
@@ -984,7 +1021,8 @@ async function main () {
       play.push({ id: packet.id, length: packet.length })
       playPackets.push(packet)
     }
-    const dynamicPackets = playPackets.slice(expectedPlayPacketIds.length)
+    const initialBatchEnd = playPackets.findIndex(packet => packet.id === 11)
+    const dynamicPackets = initialBatchEnd === -1 ? [] : playPackets.slice(initialBatchEnd + 1)
     const batches = parseDynamicChunkBatches(dynamicPackets)
     joinState.dynamicChunkStreamingBatches = batches
     joinState.dynamicChunkStreaming = batches.at(-1)
@@ -1067,6 +1105,92 @@ function readLoginSpawnInfo (body) {
   }
 }
 
+function decodePlayerPositionPacket (body) {
+  let offset = 0
+  const teleportId = readVarInt(body, offset)
+  offset = teleportId.offset
+  const x = body.readDoubleBE(offset); offset += 8
+  const y = body.readDoubleBE(offset); offset += 8
+  const z = body.readDoubleBE(offset); offset += 8
+  offset += 24
+  const yaw = body.readFloatBE(offset); offset += 4
+  const pitch = body.readFloatBE(offset); offset += 4
+  const relatives = body.length - offset >= 4
+    ? body.readInt32BE(offset)
+    : body.readUInt8(offset)
+  return { teleportId: teleportId.value, x, y, z, yaw, pitch, relatives }
+}
+
+function decodeLevelChunkBiomePalette (packet, registryPackets) {
+  const biomeRegistry = registryPackets.find(packet => packet.registry === 'minecraft:worldgen/biome')?.elementIds ?? []
+  let offset = 0
+  const x = packet.body.readInt32BE(offset); offset += 4
+  const z = packet.body.readInt32BE(offset); offset += 4
+  const heightmapCount = readVarInt(packet.body, offset); offset = heightmapCount.offset
+  for (let i = 0; i < heightmapCount.value; i++) {
+    const heightmapType = readVarInt(packet.body, offset); offset = heightmapType.offset
+    const length = readVarInt(packet.body, offset); offset = length.offset + length.value * 8
+  }
+  const sectionDataLength = readVarInt(packet.body, offset); offset = sectionDataLength.offset
+  const sectionDataEnd = offset + sectionDataLength.value
+  const biomePaletteIds = new Set()
+  let sectionCount = 0
+  while (offset < sectionDataEnd) {
+    const section = decodeNetworkChunkSection(packet.body, offset)
+    offset = section.offset
+    sectionCount += 1
+    for (const id of section.biomePaletteIds) biomePaletteIds.add(id)
+  }
+  if (offset !== sectionDataEnd) {
+    throw new Error(`chunk ${x},${z} section data parser stopped ${offset - sectionDataEnd} bytes from section end`)
+  }
+  const blockEntityCount = readVarInt(packet.body, offset)
+  if (!blockEntityCount) throw new Error(`chunk ${x},${z} missing block entity count`)
+  return {
+    x,
+    z,
+    sectionCount,
+    biomePaletteIds: [...biomePaletteIds].sort((left, right) => left - right),
+    biomePalette: [...biomePaletteIds]
+      .sort((left, right) => left - right)
+      .map(id => biomeRegistry[id] ?? `unknown:${id}`)
+  }
+}
+
+function decodeNetworkChunkSection (buffer, offset) {
+  offset += 2 // nonEmptyBlockCount
+  offset += 2 // fluidCount
+  const blocks = decodeNetworkPalettedContainer(buffer, offset, 4096)
+  const biomes = decodeNetworkPalettedContainer(buffer, blocks.offset, 64)
+  return {
+    offset: biomes.offset,
+    biomePaletteIds: biomes.paletteIds
+  }
+}
+
+function decodeNetworkPalettedContainer (buffer, offset, entries) {
+  const bitsPerEntry = buffer[offset++]
+  const paletteIds = []
+  if (bitsPerEntry === 0) {
+    const single = readVarInt(buffer, offset)
+    if (!single) throw new Error('missing single-value paletted container id')
+    offset = single.offset
+    paletteIds.push(single.value)
+  } else {
+    const paletteLength = readVarInt(buffer, offset)
+    if (!paletteLength) throw new Error('missing paletted container palette length')
+    offset = paletteLength.offset
+    for (let i = 0; i < paletteLength.value; i++) {
+      const id = readVarInt(buffer, offset)
+      if (!id) throw new Error('missing paletted container palette id')
+      offset = id.offset
+      paletteIds.push(id.value)
+    }
+    offset += Math.ceil(entries * bitsPerEntry / 64) * 8
+  }
+  return { offset, paletteIds }
+}
+
 function commandSuggestionMatches (body, expected) {
   if (!expected) return true
   const transaction = readVarInt(body, 0)
@@ -1113,6 +1237,16 @@ function parsePositionEnv (value, fallback) {
   if (!value) return fallback
   const parsed = JSON.parse(value)
   return parsePosition(parsed)
+}
+
+function parseBlockPosEnv (value, fallback) {
+  if (!value) return fallback
+  const parsed = JSON.parse(value)
+  return {
+    x: Number(parsed.x),
+    y: Number(parsed.y),
+    z: Number(parsed.z)
+  }
 }
 
 function parsePositionArrayEnv (value) {

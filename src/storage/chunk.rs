@@ -473,6 +473,36 @@ impl BlockStateEntry {
     }
 }
 
+pub fn palette_bits_for_size(palette_len: usize) -> usize {
+    let needed = usize::BITS as usize - (palette_len.saturating_sub(1)).leading_zeros() as usize;
+    needed.max(4)
+}
+
+pub fn pack_palette_indices(indices: &[u64], bits_per_entry: usize) -> Vec<i64> {
+    let values_per_long = 64 / bits_per_entry;
+    let mut packed = vec![0_u64; indices.len().div_ceil(values_per_long)];
+    for (i, &value) in indices.iter().enumerate() {
+        let word = i / values_per_long;
+        let bit = (i % values_per_long) * bits_per_entry;
+        packed[word] |= value << bit;
+    }
+    packed.into_iter().map(|w| w as i64).collect()
+}
+
+pub fn unpack_palette_indices(data: &[i64], bits_per_entry: usize, count: usize) -> Vec<u64> {
+    let values_per_long = 64 / bits_per_entry;
+    let mask = (1_u64 << bits_per_entry) - 1;
+    let mut indices = vec![0_u64; count];
+    for i in 0..count {
+        let word = i / values_per_long;
+        let bit = (i % values_per_long) * bits_per_entry;
+        if word < data.len() {
+            indices[i] = (data[word] as u64 >> bit) & mask;
+        }
+    }
+    indices
+}
+
 impl PalettedContainer {
     pub fn single(entry: Tag, expected_entries: usize) -> Self {
         Self {
@@ -508,6 +538,55 @@ impl PalettedContainer {
             data,
             expected_entries,
         })
+    }
+
+    pub fn set_entry(&mut self, index: usize, entry: Tag) {
+        let palette_idx = match self.palette.iter().position(|e| e == &entry) {
+            Some(i) => i,
+            None => {
+                self.palette.push(entry);
+                self.palette.len() - 1
+            }
+        };
+        if self.palette.len() == 1 {
+            self.data = None;
+            return;
+        }
+        let bits = palette_bits_for_size(self.palette.len());
+        let count = self.expected_entries;
+        let mut indices = match &self.data {
+            Some(d) => {
+                let old_bits = palette_bits_for_size(self.palette.len().saturating_sub(1).max(1));
+                unpack_palette_indices(d, old_bits, count)
+            }
+            None => vec![0_u64; count],
+        };
+        if index < indices.len() {
+            indices[index] = palette_idx as u64;
+        }
+        self.data = Some(pack_palette_indices(&indices, bits));
+    }
+}
+
+impl LevelChunk {
+    pub fn set_block_state(&mut self, world_x: i32, world_y: i32, world_z: i32, block_name: &str) {
+        let section_y = world_y.div_euclid(16) as i8;
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_y = world_y.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_y * 256 + local_z * 16 + local_x;
+
+        let entry = Tag::Compound(vec![(
+            "Name".to_string(),
+            Tag::String(block_name.to_string()),
+        )]);
+
+        if let Some(section) = self.sections.iter_mut().find(|s| s.y == section_y) {
+            if let Ok(mut container) = PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME) {
+                container.set_entry(index, entry);
+                section.block_states = container.to_nbt();
+            }
+        }
     }
 }
 

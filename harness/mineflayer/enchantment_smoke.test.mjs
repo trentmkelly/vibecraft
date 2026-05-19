@@ -5,7 +5,9 @@ import {
   summarizeEnchantmentSmoke,
   ENCHANTED_SMOKE_ITEMS,
   buildGiveCommand,
-  recordEnchantEvent
+  buildGiveCommandForTarget,
+  recordEnchantEvent,
+  runEnchantmentSmoke
 } from './enchantment_smoke.mjs'
 
 test('createEnchantmentSmokePlan covers all 5 enchantment smoke steps', () => {
@@ -64,7 +66,11 @@ test('buildGiveCommand produces valid /give command string', () => {
   const cmd = buildGiveCommand(sword)
   assert.ok(cmd.startsWith('/give @s minecraft:diamond_sword'))
   assert.ok(cmd.includes('minecraft:sharpness'))
-  assert.ok(cmd.includes('Enchantments:['))
+  assert.ok(cmd.includes('minecraft:enchantments={levels:'))
+  assert.equal(
+    buildGiveCommandForTarget(sword, 'EnchantBot'),
+    '/give EnchantBot minecraft:diamond_sword[minecraft:enchantments={levels:{"minecraft:sharpness":5,"minecraft:looting":3,"minecraft:unbreaking":3}}] 1'
+  )
 })
 
 test('recordEnchantEvent appends to session timeline', () => {
@@ -73,4 +79,31 @@ test('recordEnchantEvent appends to session timeline', () => {
   assert.equal(session.timeline.length, 1)
   assert.equal(session.timeline[0].name, 'enchant')
   assert.equal(session.timeline[0].summary[0], 'enchant.give.sword')
+})
+
+test('runEnchantmentSmoke joins, gives enchanted items, and records decode evidence', async () => {
+  const writes = []
+  const inventory = [
+    { name: 'diamond_sword', count: 1, displayName: 'Diamond Sword', components: { 'minecraft:enchantments': {} } },
+    { name: 'diamond_pickaxe', count: 1, displayName: 'Diamond Pickaxe', components: { 'minecraft:enchantments': {} } },
+    { name: 'diamond_boots', count: 1, displayName: 'Diamond Boots', components: { 'minecraft:enchantments': {} } }
+  ]
+  let cleaned = false
+  const result = await runEnchantmentSmoke({
+    port: 25565,
+    runObservedOfflineLogin: async () => ({
+      profile: { username: 'EnchantBot' },
+      timeline: [],
+      bot: { inventory: { items: () => inventory } },
+      server: { child: { stdin: { write: line => writes.push(line) } } },
+      cleanup: async () => { cleaned = true }
+    }),
+    waitForSpawn: async () => {},
+    timeoutMs: 100
+  })
+
+  assert.equal(result.summary.ok, true)
+  assert.equal(writes.length, 3)
+  assert.ok(writes.every(line => line.startsWith('give EnchantBot minecraft:')))
+  assert.equal(cleaned, true)
 })

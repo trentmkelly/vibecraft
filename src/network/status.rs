@@ -24,7 +24,7 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    pack_block_position, unpack_block_position, ClientboundLevelChunkPacketData,
+    unpack_block_position, ClientboundLevelChunkPacketData,
     ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
@@ -55,7 +55,7 @@ use crate::player_access::{NameAndId, PlayerAccess};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
-use crate::storage::region::ChunkPos;
+use crate::storage::region::{ChunkPos, RegionFile};
 use crate::storage::world::WorldLayout;
 use crate::worldgen::generate_overworld_chunk_for_preset;
 
@@ -1341,6 +1341,7 @@ fn handle_login_connection(
         world_seed,
         &finished.profile,
         &play_state,
+        world_root,
     )?;
     let mut current_chunk_x = chunk_coordinate(play_state.x);
     let mut current_chunk_z = chunk_coordinate(play_state.z);
@@ -1350,9 +1351,7 @@ fn handle_login_connection(
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
     let mut entity_id_counter: i32 = 1; // player has entity ID 1; start here so first drop = 2
-    let mut broken_blocks: HashMap<(i32, i32, i32), i32> = load_broken_blocks(world_root);
-    let initial_chunks: Vec<_> = loaded_chunks.iter().copied().collect();
-    send_broken_block_corrections(stream, compression, &initial_chunks, &broken_blocks)?;
+    let world_layout = WorldLayout::new(world_root);
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
             keep_alive_id = keep_alive_id.wrapping_add(1);
@@ -1394,12 +1393,7 @@ fn handle_login_connection(
                             current_chunk_z,
                             &chunks_to_send,
                             true,
-                        )?;
-                        send_broken_block_corrections(
-                            stream,
-                            compression,
-                            &chunks_to_send,
-                            &broken_blocks,
+                            world_root,
                         )?;
                     }
                     continue;
@@ -1413,7 +1407,8 @@ fn handle_login_connection(
                     let mut pos_bytes = [0u8; 8];
                     input.read_exact(&mut pos_bytes)?;
                     let packed_pos = i64::from_be_bytes(pos_bytes);
-                    let _direction = read_var_i32(&mut input)?;
+                    let mut direction_byte = [0u8; 1];
+                    input.read_exact(&mut direction_byte)?;
                     let sequence = read_var_i32(&mut input)?;
                     let should_break =
                         action == 2 || (action == 0 && play_state.game_mode == GameMode::Creative);
@@ -1434,55 +1429,56 @@ fn handle_login_connection(
                             },
                         )?;
                         let (bx, by, bz) = unpack_block_position(packed_pos);
-                        let block_state = get_block_state_at_with_overrides(
-                            bx,
-                            by,
-                            bz,
-                            &broken_blocks,
-                        );
-                        broken_blocks.insert((bx, by, bz), AIR_BLOCK_STATE_ID);
-                        save_broken_blocks(world_root, &broken_blocks);
-                        if let Some(item_id) = block_state_to_item_drop(block_state) {
-                            entity_id_counter = entity_id_counter.wrapping_add(1);
-                            let eid = entity_id_counter;
-                            let drop_x = bx as f64 + 0.5;
-                            let drop_y = by as f64 + 0.5;
-                            let drop_z = bz as f64 + 0.5;
-                            write_framed_packet_with_compression(
-                                stream,
-                                compression,
-                                CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-                                |p| {
-                                    write_var_i32(p, eid)?;
-                                    let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
-                                    let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
-                                    p.write_all(&uuid_hi.to_be_bytes())?;
-                                    p.write_all(&uuid_lo.to_be_bytes())?;
-                                    write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
-                                    p.write_all(&drop_x.to_be_bytes())?;
-                                    p.write_all(&drop_y.to_be_bytes())?;
-                                    p.write_all(&drop_z.to_be_bytes())?;
-                                    p.write_all(&[0u8, 0u8, 0u8])?; // pitch, yaw, head_yaw
-                                    write_var_i32(p, 0)?; // data
-                                    p.write_all(&[0u8, 0u8, 0u8, 0u8, 0u8, 0u8])
-                                    // vx, vy, vz
-                                },
-                            )?;
-                            write_framed_packet_with_compression(
-                                stream,
-                                compression,
-                                CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-                                |p| {
-                                    write_var_i32(p, eid)?;
-                                    p.write_all(&[8u8])?; // metadata index 8 = item stack
-                                    write_var_i32(p, 7)?; // serializer id: ItemStack
-                                    write_var_i32(p, 1)?; // count = 1
-                                    write_var_i32(p, item_id)?;
-                                    write_var_i32(p, 0)?; // add_components = 0
-                                    write_var_i32(p, 0)?; // remove_components = 0
-                                    p.write_all(&[0xFFu8]) // end of metadata
-                                },
-                            )?;
+                        let chunk_pos = ChunkPos {
+                            x: bx.div_euclid(16),
+                            z: bz.div_euclid(16),
+                        };
+                        let block_state = get_block_state_at(bx, by, bz);
+                        save_broken_block_to_region(&world_layout, chunk_pos, bx, by, bz);
+                        if play_state.game_mode != GameMode::Creative {
+                            if let Some(item_id) = block_state_to_item_drop(block_state) {
+                                entity_id_counter = entity_id_counter.wrapping_add(1);
+                                let eid = entity_id_counter;
+                                let drop_x = bx as f64 + 0.5;
+                                let drop_y = by as f64 + 0.5;
+                                let drop_z = bz as f64 + 0.5;
+                                write_framed_packet_with_compression(
+                                    stream,
+                                    compression,
+                                    CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+                                    |p| {
+                                        write_var_i32(p, eid)?;
+                                        let uuid_hi =
+                                            (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
+                                        let uuid_lo =
+                                            (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
+                                        p.write_all(&uuid_hi.to_be_bytes())?;
+                                        p.write_all(&uuid_lo.to_be_bytes())?;
+                                        write_var_i32(p, ITEM_ENTITY_TYPE_ID)?;
+                                        p.write_all(&drop_x.to_be_bytes())?;
+                                        p.write_all(&drop_y.to_be_bytes())?;
+                                        p.write_all(&drop_z.to_be_bytes())?;
+                                        p.write_all(&[0u8])?; // movement = Vec3.ZERO (LpVec3: 0x00)
+                                        p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
+                                        write_var_i32(p, 0) // data
+                                    },
+                                )?;
+                                write_framed_packet_with_compression(
+                                    stream,
+                                    compression,
+                                    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+                                    |p| {
+                                        write_var_i32(p, eid)?;
+                                        p.write_all(&[8u8])?; // metadata index 8 = item stack
+                                        write_var_i32(p, 7)?; // serializer id: ItemStack
+                                        write_var_i32(p, 1)?; // count = 1
+                                        write_var_i32(p, item_id)?;
+                                        write_var_i32(p, 0)?; // add_components = 0
+                                        write_var_i32(p, 0)?; // remove_components = 0
+                                        p.write_all(&[0xFFu8]) // end of metadata
+                                    },
+                                )?;
+                            }
                         }
                     }
                     continue;
@@ -1883,6 +1879,7 @@ fn write_minimal_play_join(
     world_seed: i64,
     profile: &NameAndId,
     play_state: &PlaySessionState,
+    world_root: &Path,
 ) -> io::Result<()> {
     let center_chunk_x = chunk_coordinate(play_state.x);
     let center_chunk_z = chunk_coordinate(play_state.z);
@@ -2071,6 +2068,7 @@ fn write_minimal_play_join(
         center_chunk_z,
         chunk_batch_radius(properties),
         false,
+        world_root,
     )
 }
 
@@ -2081,6 +2079,7 @@ fn write_play_chunk_batch(
     center_chunk_z: i32,
     radius: i32,
     update_cache_center: bool,
+    world_root: &Path,
 ) -> io::Result<()> {
     if update_cache_center {
         write_framed_packet_with_compression(
@@ -2103,6 +2102,7 @@ fn write_play_chunk_batch(
         center_chunk_z,
         &chunks,
         false,
+        world_root,
     )
 }
 
@@ -2113,6 +2113,7 @@ fn write_play_chunk_delta(
     center_chunk_z: i32,
     chunks: &[(i32, i32)],
     update_cache_center: bool,
+    world_root: &Path,
 ) -> io::Result<()> {
     if update_cache_center {
         write_framed_packet_with_compression(
@@ -2139,7 +2140,7 @@ fn write_play_chunk_delta(
             stream,
             compression,
             CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-            |payload| write_generated_spawn_chunk_packet(payload, x, z),
+            |payload| write_generated_spawn_chunk_packet(payload, x, z, world_root),
         )?;
     }
     write_framed_packet_with_compression(
@@ -2349,12 +2350,31 @@ fn block_pos_as_long(x: i32, y: i32, z: i32) -> i64 {
         | ((z as i64 & PACKED_Z_MASK) << Z_OFFSET)
 }
 
-fn write_generated_spawn_chunk_packet<W: Write>(writer: &mut W, x: i32, z: i32) -> io::Result<()> {
-    let chunk = generate_overworld_chunk_for_preset(ChunkPos { x, z }, "normal")
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+fn write_generated_spawn_chunk_packet<W: Write>(
+    writer: &mut W,
+    x: i32,
+    z: i32,
+    world_root: &Path,
+) -> io::Result<()> {
+    let pos = ChunkPos { x, z };
+    let region_dir = world_root.join("region");
+    let chunk = try_load_chunk_from_region(&region_dir, pos)
+        .unwrap_or_else(|| {
+            generate_overworld_chunk_for_preset(pos, "normal")
+                .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
+        });
     let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
     let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
     write_level_chunk_with_light_payload(writer, &packet)
+}
+
+fn try_load_chunk_from_region(
+    region_dir: &Path,
+    pos: ChunkPos,
+) -> Option<crate::storage::chunk::LevelChunk> {
+    let region = RegionFile::open(region_dir, pos.region()).ok()?;
+    let (_name, tag) = region.read_chunk_nbt(pos).ok()??;
+    crate::storage::chunk::LevelChunk::from_nbt(pos, &tag).ok()
 }
 
 fn write_level_chunk_with_light_payload<W: Write>(
@@ -2578,73 +2598,25 @@ fn block_state_to_item_drop(block_state_id: i32) -> Option<i32> {
     }
 }
 
-fn get_block_state_at_with_overrides(
-    x: i32,
-    y: i32,
-    z: i32,
-    overrides: &HashMap<(i32, i32, i32), i32>,
-) -> i32 {
-    if let Some(&state) = overrides.get(&(x, y, z)) {
-        return state;
-    }
-    get_block_state_at(x, y, z)
-}
 
-fn load_broken_blocks(world_root: &Path) -> HashMap<(i32, i32, i32), i32> {
-    let path = world_root.join("broken_blocks.dat");
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return HashMap::new();
+fn save_broken_block_to_region(layout: &WorldLayout, chunk_pos: ChunkPos, bx: i32, by: i32, bz: i32) {
+    let region_dir = layout.region_dir();
+    let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) else {
+        return;
     };
-    let mut map = HashMap::new();
-    for line in text.lines() {
-        let parts: Vec<_> = line.split(',').collect();
-        if parts.len() == 4 {
-            if let (Ok(x), Ok(y), Ok(z), Ok(s)) = (
-                parts[0].parse::<i32>(),
-                parts[1].parse::<i32>(),
-                parts[2].parse::<i32>(),
-                parts[3].parse::<i32>(),
-            ) {
-                map.insert((x, y, z), s);
-            }
+    let mut chunk = match region.read_chunk_nbt(chunk_pos) {
+        Ok(Some((_name, tag))) => {
+            crate::storage::chunk::LevelChunk::from_nbt(chunk_pos, &tag).unwrap_or_else(|_| {
+                generate_overworld_chunk_for_preset(chunk_pos, "normal")
+                    .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(chunk_pos))
+            })
         }
-    }
-    map
-}
-
-fn save_broken_blocks(world_root: &Path, broken: &HashMap<(i32, i32, i32), i32>) {
-    let path = world_root.join("broken_blocks.dat");
-    let text: String = broken
-        .iter()
-        .map(|(&(x, y, z), &s)| format!("{},{},{},{}\n", x, y, z, s))
-        .collect();
-    let _ = std::fs::write(&path, text);
-}
-
-fn send_broken_block_corrections(
-    stream: &mut TcpStream,
-    compression: CompressionState,
-    chunks: &[(i32, i32)],
-    broken: &HashMap<(i32, i32, i32), i32>,
-) -> io::Result<()> {
-    let chunk_set: BTreeSet<(i32, i32)> = chunks.iter().copied().collect();
-    for (&(x, y, z), &state) in broken {
-        let cx = x.div_euclid(16);
-        let cz = z.div_euclid(16);
-        if chunk_set.contains(&(cx, cz)) {
-            let packed = pack_block_position(x, y, z);
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-                |p| {
-                    p.write_all(&packed.to_be_bytes())?;
-                    write_var_i32(p, state)
-                },
-            )?;
-        }
-    }
-    Ok(())
+        _ => generate_overworld_chunk_for_preset(chunk_pos, "normal")
+            .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(chunk_pos)),
+    };
+    chunk.set_block_state(bx, by, bz, "minecraft:air");
+    let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
+    let _ = region.write_chunk_nbt(chunk_pos, "", &nbt);
 }
 
 fn section_min_y(section_index: usize) -> i32 {

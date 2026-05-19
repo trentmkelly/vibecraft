@@ -65,9 +65,8 @@ const SOUND_EVENTS_SOURCE: &str = include_str!(concat!(
 
 pub const SOUND_EVENTS_COUNT_26_1_2: usize = 1902;
 
-pub static SOUND_EVENTS: LazyLock<&'static [SoundEventDef]> = LazyLock::new(|| {
-    Box::leak(load_sound_events().into_boxed_slice())
-});
+pub static SOUND_EVENTS: LazyLock<&'static [SoundEventDef]> =
+    LazyLock::new(|| Box::leak(load_sound_events().into_boxed_slice()));
 
 fn load_sound_events() -> Vec<SoundEventDef> {
     let mut events = Vec::with_capacity(SOUND_EVENTS_COUNT_26_1_2);
@@ -635,23 +634,47 @@ pub const BANNER_PATTERNS: &[BannerPatternDef] = &[
     banner("minecraft:circle", "block.minecraft.banner.circle"),
     banner("minecraft:creeper", "block.minecraft.banner.creeper"),
     banner("minecraft:cross", "block.minecraft.banner.cross"),
-    banner("minecraft:curly_border", "block.minecraft.banner.curly_border"),
-    banner("minecraft:diagonal_left", "block.minecraft.banner.diagonal_left"),
-    banner("minecraft:diagonal_right", "block.minecraft.banner.diagonal_right"),
-    banner("minecraft:diagonal_up_left", "block.minecraft.banner.diagonal_up_left"),
-    banner("minecraft:diagonal_up_right", "block.minecraft.banner.diagonal_up_right"),
+    banner(
+        "minecraft:curly_border",
+        "block.minecraft.banner.curly_border",
+    ),
+    banner(
+        "minecraft:diagonal_left",
+        "block.minecraft.banner.diagonal_left",
+    ),
+    banner(
+        "minecraft:diagonal_right",
+        "block.minecraft.banner.diagonal_right",
+    ),
+    banner(
+        "minecraft:diagonal_up_left",
+        "block.minecraft.banner.diagonal_up_left",
+    ),
+    banner(
+        "minecraft:diagonal_up_right",
+        "block.minecraft.banner.diagonal_up_right",
+    ),
     banner("minecraft:flow", "block.minecraft.banner.flow"),
     banner("minecraft:flower", "block.minecraft.banner.flower"),
     banner("minecraft:globe", "block.minecraft.banner.globe"),
     banner("minecraft:gradient", "block.minecraft.banner.gradient"),
-    banner("minecraft:gradient_up", "block.minecraft.banner.gradient_up"),
+    banner(
+        "minecraft:gradient_up",
+        "block.minecraft.banner.gradient_up",
+    ),
     banner("minecraft:guster", "block.minecraft.banner.guster"),
-    banner("minecraft:half_horizontal", "block.minecraft.banner.half_horizontal"),
+    banner(
+        "minecraft:half_horizontal",
+        "block.minecraft.banner.half_horizontal",
+    ),
     banner(
         "minecraft:half_horizontal_bottom",
         "block.minecraft.banner.half_horizontal_bottom",
     ),
-    banner("minecraft:half_vertical", "block.minecraft.banner.half_vertical"),
+    banner(
+        "minecraft:half_vertical",
+        "block.minecraft.banner.half_vertical",
+    ),
     banner(
         "minecraft:half_vertical_right",
         "block.minecraft.banner.half_vertical_right",
@@ -660,7 +683,10 @@ pub const BANNER_PATTERNS: &[BannerPatternDef] = &[
     banner("minecraft:piglin", "block.minecraft.banner.piglin"),
     banner("minecraft:rhombus", "block.minecraft.banner.rhombus"),
     banner("minecraft:skull", "block.minecraft.banner.skull"),
-    banner("minecraft:small_stripes", "block.minecraft.banner.small_stripes"),
+    banner(
+        "minecraft:small_stripes",
+        "block.minecraft.banner.small_stripes",
+    ),
     banner(
         "minecraft:square_bottom_left",
         "block.minecraft.banner.square_bottom_left",
@@ -669,30 +695,63 @@ pub const BANNER_PATTERNS: &[BannerPatternDef] = &[
         "minecraft:square_bottom_right",
         "block.minecraft.banner.square_bottom_right",
     ),
-    banner("minecraft:square_top_left", "block.minecraft.banner.square_top_left"),
-    banner("minecraft:square_top_right", "block.minecraft.banner.square_top_right"),
+    banner(
+        "minecraft:square_top_left",
+        "block.minecraft.banner.square_top_left",
+    ),
+    banner(
+        "minecraft:square_top_right",
+        "block.minecraft.banner.square_top_right",
+    ),
     banner(
         "minecraft:straight_cross",
         "block.minecraft.banner.straight_cross",
     ),
-    banner("minecraft:stripe_bottom", "block.minecraft.banner.stripe_bottom"),
-    banner("minecraft:stripe_center", "block.minecraft.banner.stripe_center"),
-    banner("minecraft:stripe_downleft", "block.minecraft.banner.stripe_downleft"),
+    banner(
+        "minecraft:stripe_bottom",
+        "block.minecraft.banner.stripe_bottom",
+    ),
+    banner(
+        "minecraft:stripe_center",
+        "block.minecraft.banner.stripe_center",
+    ),
+    banner(
+        "minecraft:stripe_downleft",
+        "block.minecraft.banner.stripe_downleft",
+    ),
     banner(
         "minecraft:stripe_downright",
         "block.minecraft.banner.stripe_downright",
     ),
-    banner("minecraft:stripe_left", "block.minecraft.banner.stripe_left"),
-    banner("minecraft:stripe_middle", "block.minecraft.banner.stripe_middle"),
-    banner("minecraft:stripe_right", "block.minecraft.banner.stripe_right"),
+    banner(
+        "minecraft:stripe_left",
+        "block.minecraft.banner.stripe_left",
+    ),
+    banner(
+        "minecraft:stripe_middle",
+        "block.minecraft.banner.stripe_middle",
+    ),
+    banner(
+        "minecraft:stripe_right",
+        "block.minecraft.banner.stripe_right",
+    ),
     banner("minecraft:stripe_top", "block.minecraft.banner.stripe_top"),
-    banner("minecraft:triangle_bottom", "block.minecraft.banner.triangle_bottom"),
-    banner("minecraft:triangle_top", "block.minecraft.banner.triangle_top"),
+    banner(
+        "minecraft:triangle_bottom",
+        "block.minecraft.banner.triangle_bottom",
+    ),
+    banner(
+        "minecraft:triangle_top",
+        "block.minecraft.banner.triangle_top",
+    ),
     banner(
         "minecraft:triangles_bottom",
         "block.minecraft.banner.triangles_bottom",
     ),
-    banner("minecraft:triangles_top", "block.minecraft.banner.triangles_top"),
+    banner(
+        "minecraft:triangles_top",
+        "block.minecraft.banner.triangles_top",
+    ),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -850,7 +909,12 @@ pub const JUKEBOX_SONGS: &[JukeboxSongDef] = &[
         73.0,
     ),
     jukebox_song("minecraft:tears", "minecraft:music_disc.tears", 10, 175.0),
-    jukebox_song("minecraft:lava_chicken", "minecraft:music_disc.lava_chicken", 9, 134.0),
+    jukebox_song(
+        "minecraft:lava_chicken",
+        "minecraft:music_disc.lava_chicken",
+        9,
+        134.0,
+    ),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1294,9 +1358,18 @@ mod tests {
             Some("painting.minecraft.backyard.author")
         );
 
-        let no_author = ["minecraft:earth", "minecraft:fire", "minecraft:water", "minecraft:wind", "minecraft:wither"];
+        let no_author = [
+            "minecraft:earth",
+            "minecraft:fire",
+            "minecraft:water",
+            "minecraft:wind",
+            "minecraft:wither",
+        ];
         for id in no_author {
-            let entry = PAINTING_VARIANTS.iter().find(|variant| variant.id == id).unwrap();
+            let entry = PAINTING_VARIANTS
+                .iter()
+                .find(|variant| variant.id == id)
+                .unwrap();
             assert!(!entry.has_author);
         }
     }
@@ -1305,7 +1378,10 @@ mod tests {
     fn banner_patterns_include_vanilla_translation_keys_and_new_patterns() {
         assert_eq!(BANNER_PATTERNS.len(), 43);
         assert_eq!(BANNER_PATTERNS.first().unwrap().id, "minecraft:base");
-        assert_eq!(BANNER_PATTERNS.last().unwrap().id, "minecraft:triangles_top");
+        assert_eq!(
+            BANNER_PATTERNS.last().unwrap().id,
+            "minecraft:triangles_top"
+        );
         let expected_ids: [&str; 43] = [
             "minecraft:base",
             "minecraft:border",
@@ -1359,15 +1435,27 @@ mod tests {
             .unwrap();
         assert_eq!(actual_ids, expected_ids);
         assert_eq!(
-            BANNER_PATTERNS.iter().find(|pattern| pattern.id == "minecraft:flow").unwrap().translation_key,
+            BANNER_PATTERNS
+                .iter()
+                .find(|pattern| pattern.id == "minecraft:flow")
+                .unwrap()
+                .translation_key,
             "block.minecraft.banner.flow"
         );
         assert_eq!(
-            BANNER_PATTERNS.iter().find(|pattern| pattern.id == "minecraft:triangles_top").unwrap().translation_key,
+            BANNER_PATTERNS
+                .iter()
+                .find(|pattern| pattern.id == "minecraft:triangles_top")
+                .unwrap()
+                .translation_key,
             "block.minecraft.banner.triangles_top"
         );
         assert_eq!(
-            BANNER_PATTERNS.iter().find(|pattern| pattern.id == "minecraft:diagonal_up_left").unwrap().translation_key,
+            BANNER_PATTERNS
+                .iter()
+                .find(|pattern| pattern.id == "minecraft:diagonal_up_left")
+                .unwrap()
+                .translation_key,
             "block.minecraft.banner.diagonal_up_left"
         );
     }
@@ -1501,7 +1589,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            JUKEBOX_SONGS.iter().find(|song| song.id == "minecraft:tears").unwrap(),
+            JUKEBOX_SONGS
+                .iter()
+                .find(|song| song.id == "minecraft:tears")
+                .unwrap(),
             &JukeboxSongDef {
                 id: "minecraft:tears",
                 sound_event: "minecraft:music_disc.tears",
@@ -1510,7 +1601,10 @@ mod tests {
             }
         );
         assert_eq!(
-            JUKEBOX_SONGS.iter().find(|song| song.id == "minecraft:lava_chicken").unwrap(),
+            JUKEBOX_SONGS
+                .iter()
+                .find(|song| song.id == "minecraft:lava_chicken")
+                .unwrap(),
             &JukeboxSongDef {
                 id: "minecraft:lava_chicken",
                 sound_event: "minecraft:music_disc.lava_chicken",

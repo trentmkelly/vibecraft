@@ -4,6 +4,12 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use flate2::read::{GzDecoder, ZlibDecoder};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
+
+use super::nbt::{read_named_tag, write_named_tag, Tag};
+
 pub const SECTOR_BYTES: u32 = 4096;
 pub const HEADER_BYTES: u64 = 8192;
 pub const CHUNKS_PER_REGION_AXIS: i32 = 32;
@@ -172,6 +178,85 @@ impl RegionFile {
         let offset = 4096 + (chunk.local_index() * 4) as u64;
         file.seek(SeekFrom::Start(offset))?;
         file.write_all(&timestamp.to_be_bytes())
+    }
+
+    pub fn read_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<Option<(String, Tag)>> {
+        let Some(location) = self.read_location(chunk)? else {
+            return Ok(None);
+        };
+        let byte_offset = location.sector_offset as u64 * SECTOR_BYTES as u64;
+        let mut file = File::open(&self.path)?;
+        file.seek(SeekFrom::Start(byte_offset))?;
+        let mut length_bytes = [0u8; 4];
+        file.read_exact(&mut length_bytes)?;
+        let data_len = u32::from_be_bytes(length_bytes) as usize;
+        if data_len == 0 {
+            return Ok(None);
+        }
+        let mut data = vec![0u8; data_len];
+        file.read_exact(&mut data)?;
+        let compression_type = data[0];
+        let compressed = &data[1..];
+        let tag = match compression_type {
+            1 => {
+                let mut bytes = Vec::new();
+                GzDecoder::new(compressed).read_to_end(&mut bytes)?;
+                read_named_tag(&mut bytes.as_slice())
+            }
+            2 => {
+                let mut bytes = Vec::new();
+                ZlibDecoder::new(compressed).read_to_end(&mut bytes)?;
+                read_named_tag(&mut bytes.as_slice())
+            }
+            3 => read_named_tag(&mut compressed.as_ref()),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("unsupported region compression type {compression_type}"),
+                ))
+            }
+        }?;
+        Ok(Some(tag))
+    }
+
+    pub fn write_chunk_nbt(&self, chunk: ChunkPos, name: &str, tag: &Tag) -> io::Result<()> {
+        let mut compressed = Vec::new();
+        let mut encoder = ZlibEncoder::new(&mut compressed, Compression::default());
+        write_named_tag(&mut encoder, name, tag)?;
+        encoder.finish()?;
+
+        // data_len = compression-type byte + compressed bytes
+        let data_len = 1 + compressed.len();
+        let mut chunk_bytes: Vec<u8> = Vec::with_capacity(4 + data_len);
+        chunk_bytes.extend_from_slice(&(data_len as u32).to_be_bytes());
+        chunk_bytes.push(RegionCompression::Deflate.id());
+        chunk_bytes.extend_from_slice(&compressed);
+
+        let sector_count = chunk_bytes.len().div_ceil(SECTOR_BYTES as usize);
+        chunk_bytes.resize(sector_count * SECTOR_BYTES as usize, 0);
+
+        let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
+        let file_len = file.seek(SeekFrom::End(0))?;
+        let sector_start = (file_len as usize).div_ceil(SECTOR_BYTES as usize) as u32;
+        let sector_start = sector_start.max(2); // sectors 0-1 are the header
+
+        file.seek(SeekFrom::Start(sector_start as u64 * SECTOR_BYTES as u64))?;
+        file.write_all(&chunk_bytes)?;
+        drop(file);
+
+        self.write_location(
+            chunk,
+            RegionLocation {
+                sector_offset: sector_start,
+                sector_count: sector_count as u8,
+            },
+        )?;
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as u32;
+        self.write_timestamp(chunk, timestamp)
     }
 }
 

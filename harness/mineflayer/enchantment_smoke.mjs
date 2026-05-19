@@ -1,6 +1,8 @@
-// Enchantment smoke test: join offline mode, receive an enchanted item (sword, pick, boots)
-// via /give, verify bot/client does not hit missing registry, missing tag, tooltip,
-// or component decode failures.
+import { runObservedOfflineLogin } from './login_session.mjs'
+import { waitForSpawn } from './bot_actions.mjs'
+
+// Enchantment smoke test: join offline mode, receive enchanted items via server
+// commands, then verify the client stays connected and inventory decoding succeeds.
 
 export function createEnchantmentSmokePlan(options = {}) {
   return {
@@ -53,6 +55,55 @@ export function recordEnchantEvent(session, action, details = {}) {
   return { action, ...details }
 }
 
+export async function runEnchantmentSmoke(options = {}) {
+  const plan = createEnchantmentSmokePlan(options)
+  const session = await (options.runObservedOfflineLogin ?? runObservedOfflineLogin)({
+    ...options,
+    username: plan.username,
+    properties: {
+      ...plan.serverProperties,
+      ...(options.properties ?? {})
+    },
+    keepAlive: true
+  })
+  if (session.error) throw session.error
+
+  try {
+    await (options.waitForSpawn ?? waitForSpawn)(session, { timeoutMs: options.timeoutMs })
+    for (const item of ENCHANTED_SMOKE_ITEMS) {
+      const command = buildGiveCommandForTarget(item, session.profile?.username ?? plan.username)
+      await (options.sendCommand ?? sendConsoleCommand)(session, command)
+      const evidence = await (options.waitForInventoryItem ?? waitForInventoryItem)(
+        session,
+        item,
+        { timeoutMs: options.timeoutMs }
+      )
+      recordEnchantEvent(session, item.action, {
+        command,
+        item: item.itemId,
+        enchantments: item.enchantments,
+        evidence
+      })
+      assertNoClientDecodeFailure(session)
+    }
+
+    recordEnchantEvent(session, 'enchant.tooltip.decode_ok', {
+      inventoryItems: summarizeInventoryItems(session)
+    })
+    recordEnchantEvent(session, 'enchant.tag.lookup_ok', {
+      enchantments: ENCHANTED_SMOKE_ITEMS.flatMap(item => item.enchantments.map(e => e.id))
+    })
+
+    return {
+      plan,
+      session,
+      summary: summarizeEnchantmentSmoke(session, plan)
+    }
+  } finally {
+    await session.cleanup?.()
+  }
+}
+
 // Enchanted items used in smoke tests
 export const ENCHANTED_SMOKE_ITEMS = [
   {
@@ -88,12 +139,78 @@ export const ENCHANTED_SMOKE_ITEMS = [
 ]
 
 export function buildGiveCommand(item) {
-  const enchStr = item.enchantments
-    .map(e => `{id:"${e.id}",lvl:${e.level}}`)
+  return buildGiveCommandForTarget(item, '@s')
+}
+
+export function buildGiveCommandForTarget(item, target) {
+  const levels = item.enchantments
+    .map(e => `"${e.id}":${e.level}`)
     .join(',')
-  return `/give @s ${item.itemId}{Enchantments:[${enchStr}]}`
+  return `/give ${target} ${item.itemId}[minecraft:enchantments={levels:{${levels}}}] 1`
+}
+
+function sendConsoleCommand(session, command) {
+  const line = command.startsWith('/') ? command.slice(1) : command
+  session.server?.child?.stdin?.write(`${line}\n`)
+  recordEnchantEvent(session, 'enchant.console.command', { command })
+}
+
+async function waitForInventoryItem(session, item, options = {}) {
+  const wantedName = item.itemId.split(':').pop()
+  const timeoutMs = options.timeoutMs ?? 30_000
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const stack = session.bot?.inventory?.items?.().find(candidate => {
+      return candidate.name === wantedName || candidate.type === item.itemId || candidate.displayName === item.itemId
+    })
+    if (stack) return summarizeItem(stack)
+    await delay(100)
+  }
+  throw new Error(`Timed out waiting for ${item.itemId} in bot inventory`)
+}
+
+function assertNoClientDecodeFailure(session) {
+  const badEvent = (session.timeline ?? []).find(event => {
+    if (!['kicked', 'error', 'end'].includes(event.name)) return false
+    const text = JSON.stringify(event.summary ?? [])
+    return /registry|tag|tooltip|component|decode|missing|disconnect|kicked/i.test(text) || event.name !== 'end'
+  })
+  if (badEvent) {
+    throw new Error(`Enchantment smoke saw client failure: ${JSON.stringify(badEvent.summary ?? [])}`)
+  }
+}
+
+function summarizeInventoryItems(session) {
+  return session.bot?.inventory?.items?.().map(summarizeItem) ?? []
+}
+
+function summarizeItem(item) {
+  return {
+    name: item.name ?? null,
+    type: item.type ?? null,
+    count: item.count ?? 1,
+    displayName: item.displayName ?? null,
+    nbt: item.nbt ? true : undefined,
+    components: item.components ? Object.keys(item.components).sort() : undefined
+  }
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log('enchantment_smoke defined — run via the test harness')
+  runEnchantmentSmoke({
+    binary: process.env.RUSTCRAFT_BIN,
+    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
+    version: process.env.MINEFLAYER_VERSION,
+    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
+    keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+  }).then(result => {
+    console.log(JSON.stringify({ plan: result.plan, summary: result.summary }, null, 2))
+    process.exitCode = result.summary.ok ? 0 : 1
+  }).catch(error => {
+    console.error(error)
+    process.exitCode = 1
+  })
 }
