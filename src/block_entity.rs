@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::block_update::BlockPos;
+use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
@@ -230,6 +230,31 @@ pub struct SkullBlockEntity {
     pub custom_name: Option<String>,
     pub animation_tick_count: i32,
     pub is_animating: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BellBlockEvent {
+    pub event_id: i32,
+    pub event_param: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BellTickEffects {
+    pub play_resonate_sound: bool,
+    pub glowing_raiders: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BellBlockEntity {
+    pub last_ring_timestamp: u64,
+    pub ticks: i32,
+    pub shaking: bool,
+    pub click_direction: Option<Direction>,
+    pub heard_bell_entities: usize,
+    pub nearby_raiders_within_hear_radius: usize,
+    pub nearby_raiders_within_highlight_radius: usize,
+    pub resonating: bool,
+    pub resonation_ticks: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1100,6 +1125,153 @@ impl SkullBlockEntity {
         } else {
             self.animation_tick_count as f32
         }
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+}
+
+impl BellBlockEntity {
+    pub const EVENT_RING: i32 = 1;
+    pub const DURATION: i32 = 50;
+    pub const GLOW_DURATION: i32 = 60;
+    pub const MIN_TICKS_BETWEEN_SEARCHES: u64 = 60;
+    pub const MAX_RESONATION_TICKS: i32 = 40;
+    pub const TICKS_BEFORE_RESONATION: i32 = 5;
+    pub const SEARCH_RADIUS: f64 = 48.0;
+    pub const HEAR_BELL_RADIUS: f64 = 32.0;
+    pub const HIGHLIGHT_RAIDERS_RADIUS: f64 = 48.0;
+
+    pub fn new() -> Self {
+        Self {
+            last_ring_timestamp: 0,
+            ticks: 0,
+            shaking: false,
+            click_direction: None,
+            heard_bell_entities: 0,
+            nearby_raiders_within_hear_radius: 0,
+            nearby_raiders_within_highlight_radius: 0,
+            resonating: false,
+            resonation_ticks: 0,
+        }
+    }
+
+    pub fn direction_3d_data_value(direction: Direction) -> i32 {
+        match direction {
+            Direction::Down => 0,
+            Direction::Up => 1,
+            Direction::North => 2,
+            Direction::South => 3,
+            Direction::West => 4,
+            Direction::East => 5,
+        }
+    }
+
+    pub fn direction_from_3d_data_value(value: i32) -> Direction {
+        match value {
+            0 => Direction::Down,
+            1 => Direction::Up,
+            2 => Direction::North,
+            3 => Direction::South,
+            4 => Direction::West,
+            5 => Direction::East,
+            _ => Direction::Down,
+        }
+    }
+
+    pub fn on_hit(&mut self, click_direction: Direction) -> BellBlockEvent {
+        self.click_direction = Some(click_direction);
+        if self.shaking {
+            self.ticks = 0;
+        } else {
+            self.shaking = true;
+        }
+        BellBlockEvent {
+            event_id: Self::EVENT_RING,
+            event_param: Self::direction_3d_data_value(click_direction),
+        }
+    }
+
+    pub fn trigger_event(
+        &mut self,
+        event_id: i32,
+        event_param: i32,
+        game_time: u64,
+        nearby_living_within_hear_radius: usize,
+        nearby_raiders_within_hear_radius: usize,
+        nearby_raiders_within_highlight_radius: usize,
+    ) -> bool {
+        if event_id != Self::EVENT_RING {
+            return false;
+        }
+        self.update_entities(
+            game_time,
+            nearby_living_within_hear_radius,
+            nearby_raiders_within_hear_radius,
+            nearby_raiders_within_highlight_radius,
+        );
+        self.resonation_ticks = 0;
+        self.click_direction = Some(Self::direction_from_3d_data_value(event_param));
+        self.ticks = 0;
+        self.shaking = true;
+        true
+    }
+
+    pub fn update_entities(
+        &mut self,
+        game_time: u64,
+        nearby_living_within_hear_radius: usize,
+        nearby_raiders_within_hear_radius: usize,
+        nearby_raiders_within_highlight_radius: usize,
+    ) {
+        if game_time > self.last_ring_timestamp + Self::MIN_TICKS_BETWEEN_SEARCHES
+            || self.last_ring_timestamp == 0
+        {
+            self.last_ring_timestamp = game_time;
+            self.heard_bell_entities = nearby_living_within_hear_radius;
+            self.nearby_raiders_within_hear_radius = nearby_raiders_within_hear_radius;
+            self.nearby_raiders_within_highlight_radius = nearby_raiders_within_highlight_radius;
+        }
+    }
+
+    pub fn tick(&mut self) -> BellTickEffects {
+        let mut effects = BellTickEffects {
+            play_resonate_sound: false,
+            glowing_raiders: 0,
+        };
+
+        if self.shaking {
+            self.ticks += 1;
+        }
+
+        if self.ticks >= Self::DURATION {
+            self.shaking = false;
+            self.ticks = 0;
+        }
+
+        if self.ticks >= Self::TICKS_BEFORE_RESONATION
+            && self.resonation_ticks == 0
+            && self.nearby_raiders_within_hear_radius > 0
+        {
+            self.resonating = true;
+            effects.play_resonate_sound = true;
+        }
+
+        if self.resonating {
+            if self.resonation_ticks < Self::MAX_RESONATION_TICKS {
+                self.resonation_ticks += 1;
+            } else {
+                effects.glowing_raiders = self.nearby_raiders_within_highlight_radius;
+                self.resonating = false;
+            }
+        }
+
+        effects
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![])
     }
 
     pub fn get_update_tag(&self) -> Tag {
@@ -2469,6 +2641,94 @@ mod tests {
                 ),
             ])
         );
+    }
+
+    #[test]
+    fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
+        assert_eq!(BellBlockEntity::DURATION, 50);
+        assert_eq!(BellBlockEntity::GLOW_DURATION, 60);
+        assert_eq!(BellBlockEntity::MIN_TICKS_BETWEEN_SEARCHES, 60);
+        assert_eq!(BellBlockEntity::MAX_RESONATION_TICKS, 40);
+        assert_eq!(BellBlockEntity::TICKS_BEFORE_RESONATION, 5);
+        assert_eq!(BellBlockEntity::SEARCH_RADIUS, 48.0);
+        assert_eq!(BellBlockEntity::HEAR_BELL_RADIUS, 32.0);
+        assert_eq!(BellBlockEntity::HIGHLIGHT_RAIDERS_RADIUS, 48.0);
+
+        let mut bell = BellBlockEntity::new();
+        let block_event = bell.on_hit(Direction::North);
+        assert_eq!(
+            block_event,
+            BellBlockEvent {
+                event_id: BellBlockEntity::EVENT_RING,
+                event_param: 2,
+            }
+        );
+        assert!(bell.shaking);
+        assert_eq!(bell.click_direction, Some(Direction::North));
+
+        bell.ticks = 12;
+        assert_eq!(bell.on_hit(Direction::East).event_param, 5);
+        assert_eq!(bell.ticks, 0);
+        assert_eq!(bell.click_direction, Some(Direction::East));
+
+        assert!(bell.trigger_event(1, 3, 100, 4, 1, 2));
+        assert_eq!(bell.click_direction, Some(Direction::South));
+        assert_eq!(bell.last_ring_timestamp, 100);
+        assert_eq!(bell.heard_bell_entities, 4);
+        assert_eq!(bell.nearby_raiders_within_hear_radius, 1);
+        assert_eq!(bell.nearby_raiders_within_highlight_radius, 2);
+        assert_eq!(bell.ticks, 0);
+        assert!(bell.shaking);
+        assert!(!bell.trigger_event(99, 0, 100, 0, 0, 0));
+
+        for _ in 0..4 {
+            assert_eq!(
+                bell.tick(),
+                BellTickEffects {
+                    play_resonate_sound: false,
+                    glowing_raiders: 0,
+                }
+            );
+        }
+        assert_eq!(bell.ticks, 4);
+        assert_eq!(
+            bell.tick(),
+            BellTickEffects {
+                play_resonate_sound: true,
+                glowing_raiders: 0,
+            }
+        );
+        assert!(bell.resonating);
+        assert_eq!(bell.resonation_ticks, 1);
+
+        for _ in 0..39 {
+            let effects = bell.tick();
+            assert!(!effects.play_resonate_sound);
+            assert_eq!(effects.glowing_raiders, 0);
+        }
+        assert_eq!(bell.resonation_ticks, 40);
+        assert_eq!(
+            bell.tick(),
+            BellTickEffects {
+                play_resonate_sound: false,
+                glowing_raiders: 2,
+            }
+        );
+        assert!(!bell.resonating);
+
+        while bell.shaking {
+            bell.tick();
+        }
+        assert_eq!(bell.ticks, 0);
+        assert_eq!(bell.save_additional(), Tag::Compound(vec![]));
+        assert_eq!(bell.get_update_tag(), Tag::Compound(vec![]));
+
+        let mut cached = bell.clone();
+        cached.update_entities(120, 7, 3, 5);
+        assert_eq!(cached.heard_bell_entities, 4);
+        cached.update_entities(161, 7, 3, 5);
+        assert_eq!(cached.heard_bell_entities, 7);
+        assert_eq!(cached.nearby_raiders_within_highlight_radius, 5);
     }
 
     #[test]
