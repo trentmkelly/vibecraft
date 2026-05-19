@@ -926,6 +926,16 @@ pub struct ClientboundEntityPositionSyncPacket {
     pub on_ground: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundPlayerPositionPacket {
+    pub id: i32,
+    pub position: Vec3,
+    pub movement: Vec3,
+    pub y_rot: f32,
+    pub x_rot: f32,
+    pub relative_flags: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundMoveEntityPacket {
     pub id: i32,
@@ -2720,6 +2730,14 @@ impl ClientboundEntityPositionSyncPacket {
         write_var_i32(writer, self.id)?;
         write_position_move_rotation(writer, self.position, self.movement, self.y_rot, self.x_rot)?;
         write_bool(writer, self.on_ground)
+    }
+}
+
+impl ClientboundPlayerPositionPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_position_move_rotation(writer, self.position, self.movement, self.y_rot, self.x_rot)?;
+        write_i32(writer, self.relative_flags as i32)
     }
 }
 
@@ -6467,6 +6485,21 @@ mod tests {
         assert_eq!(position_sync[0], 8);
         assert_eq!(position_sync.len(), 58);
         assert_eq!(*position_sync.last().unwrap(), 0);
+
+        let mut player_position = Vec::new();
+        ClientboundPlayerPositionPacket {
+            id: 9,
+            position: teleport.position,
+            movement: teleport.movement,
+            y_rot: teleport.y_rot,
+            x_rot: teleport.x_rot,
+            relative_flags: 0b1_0010_0011,
+        }
+        .write(&mut player_position)
+        .unwrap();
+        assert_eq!(player_position[0], 9);
+        assert_eq!(player_position.len(), 61);
+        assert_eq!(&player_position[57..61], &0b1_0010_0011_i32.to_be_bytes());
 
         let mut look_at = Vec::new();
         ClientboundPlayerLookAtPacket {

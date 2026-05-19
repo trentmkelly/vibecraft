@@ -203,7 +203,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundPaddleBoatPacket` (0x23): left-paddle, right-paddle booleans
 - [x] `ServerboundPlayerInputPacket` (0x2B): single-byte `Input.STREAM_CODEC` bitset for forward, backward, left, right, jump, shift, and sprint flags (26.1.2 format)
 - [x] `ServerboundPlayerLoadedPacket` (0x2C): empty payload
-- [ ] `ClientboundPlayerPositionPacket` (0x40): pos X/Y/Z, velocity X/Y/Z, yaw, pitch, relative flags (4-byte INT bitmask — not VarInt), teleport ID VarInt
+- [x] `ClientboundPlayerPositionPacket` (0x48): id VarInt, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), relative flags fixed 4-byte INT bitmask
 
 ## Block / Entity Action Packets (Clientbound)
 

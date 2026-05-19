@@ -1070,7 +1070,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_position",
         java_class: "ClientboundPlayerPositionPacket",
-        field_order: "unparsed",
+        field_order: "id:VarInt, change:PositionMoveRotation(position Vec3, deltaMovement Vec3, yRot float, xRot float), relatives:Set<Relative> as fixed int",
     },
     PlayPacketSpec {
         id: 73,
