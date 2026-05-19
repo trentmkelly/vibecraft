@@ -31,6 +31,8 @@ pub struct Slot {
 pub struct Menu {
     pub slots: Vec<Slot>,
     pub remote_slots: Vec<ItemStack>,
+    pub data_slots: Vec<DataSlot>,
+    pub remote_data_slots: Vec<i32>,
     pub carried: ItemStack,
     pub remote_carried: ItemStack,
     pub hotbar: Vec<ItemStack>,
@@ -44,9 +46,27 @@ pub struct SlotChange {
     pub stack: ItemStack,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataSlot {
+    value: i32,
+    previous_value: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainerData {
+    values: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataChange {
+    pub id: usize,
+    pub value: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuDataSync {
     pub slots: Vec<SlotChange>,
+    pub data: Vec<DataChange>,
     pub carried: Option<ItemStack>,
 }
 
@@ -114,16 +134,93 @@ impl Slot {
     }
 }
 
+impl DataSlot {
+    pub fn standalone() -> Self {
+        Self {
+            value: 0,
+            previous_value: 0,
+        }
+    }
+
+    pub fn with_value(value: i32) -> Self {
+        Self {
+            value,
+            previous_value: value,
+        }
+    }
+
+    pub fn get(&self) -> i32 {
+        self.value
+    }
+
+    pub fn set(&mut self, value: i32) {
+        self.value = value;
+    }
+
+    pub fn check_and_clear_update_flag(&mut self) -> bool {
+        let changed = self.value != self.previous_value;
+        self.previous_value = self.value;
+        changed
+    }
+}
+
+impl ContainerData {
+    pub fn new(count: usize) -> Self {
+        Self {
+            values: vec![0; count],
+        }
+    }
+
+    pub fn from_values(values: Vec<i32>) -> Self {
+        Self { values }
+    }
+
+    pub fn get(&self, data_id: usize) -> Option<i32> {
+        self.values.get(data_id).copied()
+    }
+
+    pub fn set(&mut self, data_id: usize, value: i32) -> bool {
+        let Some(slot) = self.values.get_mut(data_id) else {
+            return false;
+        };
+        *slot = value;
+        true
+    }
+
+    pub fn get_count(&self) -> usize {
+        self.values.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = i32> + '_ {
+        self.values.iter().copied()
+    }
+}
+
 impl Menu {
     pub fn new(slot_count: usize) -> Self {
         Self {
             slots: vec![Slot::empty(); slot_count],
             remote_slots: vec![ItemStack::empty(); slot_count],
+            data_slots: Vec::new(),
+            remote_data_slots: Vec::new(),
             carried: ItemStack::empty(),
             remote_carried: ItemStack::empty(),
             hotbar: vec![ItemStack::empty(); 9],
             creative: false,
             dropped: Vec::new(),
+        }
+    }
+
+    pub fn add_data_slot(&mut self, data_slot: DataSlot) -> usize {
+        let index = self.data_slots.len();
+        self.data_slots.push(data_slot);
+        self.remote_data_slots.push(0);
+        index
+    }
+
+    pub fn add_data_slots(&mut self, container: &ContainerData) {
+        for value in container.iter() {
+            self.add_data_slot(DataSlot::with_value(value));
         }
     }
 
@@ -140,9 +237,20 @@ impl Menu {
                 }
             })
             .collect();
+        let data = self
+            .data_slots
+            .iter()
+            .enumerate()
+            .map(|(id, data_slot)| {
+                let value = data_slot.get();
+                self.remote_data_slots[id] = value;
+                DataChange { id, value }
+            })
+            .collect();
         self.remote_carried = self.carried.clone();
         MenuDataSync {
             slots,
+            data,
             carried: Some(self.carried.clone()),
         }
     }
@@ -168,6 +276,28 @@ impl Menu {
         }
         self.remote_carried = self.carried.clone();
         Some(self.carried.clone())
+    }
+
+    pub fn send_data_change(&mut self, id: usize) -> Option<DataChange> {
+        let current = self.data_slots.get(id)?.get();
+        let remote = self.remote_data_slots.get_mut(id)?;
+        if *remote == current {
+            return None;
+        }
+        *remote = current;
+        Some(DataChange { id, value: current })
+    }
+
+    pub fn send_data_changes(&mut self) -> Vec<DataChange> {
+        let mut changes = Vec::new();
+        for id in 0..self.data_slots.len() {
+            if self.data_slots[id].check_and_clear_update_flag() {
+                if let Some(change) = self.send_data_change(id) {
+                    changes.push(change);
+                }
+            }
+        }
+        changes
     }
 
     pub fn click_pickup(
@@ -510,6 +640,7 @@ mod tests {
         let full = menu.send_all_data_to_remote();
         assert_eq!(full.slots.len(), 2);
         assert_eq!(full.slots[0].stack.item_id(), "minecraft:stick");
+        assert!(full.data.is_empty());
         assert_eq!(full.carried.unwrap().item_id(), "minecraft:apple");
         assert!(menu.send_slot_change(0).is_none());
         assert!(menu.send_carried_change().is_none());
@@ -524,5 +655,27 @@ mod tests {
         let carried = menu.send_carried_change().unwrap();
         assert_eq!(carried.item_id(), "minecraft:diamond");
         assert!(menu.send_carried_change().is_none());
+    }
+
+    #[test]
+    fn data_slots_sync_all_values_then_only_changed_values() {
+        let mut menu = Menu::new(0);
+        menu.add_data_slots(&ContainerData::from_values(vec![20, 0, 80]));
+
+        let full = menu.send_all_data_to_remote();
+        assert_eq!(
+            full.data,
+            vec![
+                DataChange { id: 0, value: 20 },
+                DataChange { id: 1, value: 0 },
+                DataChange { id: 2, value: 80 }
+            ]
+        );
+        assert!(menu.send_data_changes().is_empty());
+
+        menu.data_slots[1].set(7);
+        let changes = menu.send_data_changes();
+        assert_eq!(changes, vec![DataChange { id: 1, value: 7 }]);
+        assert!(menu.send_data_changes().is_empty());
     }
 }
