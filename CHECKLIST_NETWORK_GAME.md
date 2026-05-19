@@ -104,7 +104,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundRecipeBookAddPacket` (0x3C): recipe entries list (display entry, notification/highlight flags), replace flag
 - [x] `ClientboundRecipeBookRemovePacket` (0x3D): recipe IDs list
 - [x] `ClientboundRecipeBookSettingsPacket` (0x3E): recipe book open/filter flags per book type
-- [ ] `ClientboundUpdateAdvancementsPacket` (0x74): reset/clear flag, added advancements map (ID → AdvancementHolder), removed advancement IDs, progress map (ID → criterion done-date map)
+- [x] `ClientboundUpdateAdvancementsPacket` (0x74): reset/clear flag, added advancement holders, removed advancement IDs, progress map, show-advancements flag
 - [x] `ServerboundRecipeBookChangeSettingsPacket` (0x2E): book type enum VarInt, is-open bool, is-filter-active bool
 - [x] `ServerboundRecipeBookSeenRecipePacket` (0x2F): recipe display ID VarInt index
 

@@ -1294,8 +1294,34 @@ pub struct ClientboundRecipeBookSettingsPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundAdvancementsPacket {
     pub reset: bool,
-    pub added: Vec<Identifier>,
+    pub added: Vec<AdvancementHolderData>,
     pub removed: Vec<Identifier>,
+    pub progress: Vec<(Identifier, AdvancementProgressData)>,
+    pub show_advancements: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvancementHolderData {
+    pub id: Identifier,
+    pub value: AdvancementData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvancementData {
+    pub parent: Option<Identifier>,
+    pub display_payload: Option<Vec<u8>>,
+    pub requirements: Vec<Vec<String>>,
+    pub sends_telemetry_event: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvancementProgressData {
+    pub criteria: Vec<(String, CriterionProgressData)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CriterionProgressData {
+    pub obtained_epoch_millis: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3875,6 +3901,81 @@ impl ClientboundRecipeBookSettingsPacket {
         self.furnace.write(writer)?;
         self.blast_furnace.write(writer)?;
         self.smoker.write(writer)
+    }
+}
+
+impl ClientboundAdvancementsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.reset)?;
+        write_collection(writer, &self.added, |writer, advancement| {
+            advancement.write(writer)
+        })?;
+        write_collection(writer, &self.removed, write_identifier)?;
+        write_collection(writer, &self.progress, |writer, (id, progress)| {
+            write_identifier(writer, id)?;
+            progress.write(writer)
+        })?;
+        write_bool(writer, self.show_advancements)
+    }
+}
+
+impl AdvancementHolderData {
+    pub fn minimal(
+        id: Identifier,
+        parent: Option<Identifier>,
+        requirements: Vec<Vec<String>>,
+        sends_telemetry_event: bool,
+    ) -> Self {
+        Self {
+            id,
+            value: AdvancementData {
+                parent,
+                display_payload: None,
+                requirements,
+                sends_telemetry_event,
+            },
+        }
+    }
+
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.id)?;
+        self.value.write(writer)
+    }
+}
+
+impl AdvancementData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_optional(writer, self.parent.as_ref(), write_identifier)?;
+        write_optional(writer, self.display_payload.as_ref(), |writer, payload| {
+            writer.write_all(payload)
+        })?;
+        write_collection(writer, &self.requirements, |writer, requirement_group| {
+            write_collection(writer, requirement_group, |writer, criterion| {
+                write_string(writer, criterion, 32767)
+            })
+        })?;
+        write_bool(writer, self.sends_telemetry_event)
+    }
+}
+
+impl AdvancementProgressData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(writer, &self.criteria, |writer, (criterion, progress)| {
+            write_string(writer, criterion, 32767)?;
+            progress.write(writer)
+        })
+    }
+}
+
+impl CriterionProgressData {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self.obtained_epoch_millis {
+            Some(epoch_millis) => {
+                write_bool(writer, true)?;
+                write_i64(writer, epoch_millis)
+            }
+            None => write_bool(writer, false),
+        }
     }
 }
 
@@ -7401,8 +7502,15 @@ mod tests {
             }),
             PlayInstruction::Advancements(ClientboundAdvancementsPacket {
                 reset: true,
-                added: vec![Identifier::parse("minecraft:story/root").unwrap()],
+                added: vec![AdvancementHolderData::minimal(
+                    Identifier::parse("minecraft:story/root").unwrap(),
+                    None,
+                    vec![vec!["tick".to_string()]],
+                    true,
+                )],
                 removed: Vec::new(),
+                progress: Vec::new(),
+                show_advancements: true,
             }),
             PlayInstruction::AwardStats(ClientboundAwardStatsPacket {
                 stats: vec![AwardedStat {
@@ -8188,6 +8296,69 @@ mod tests {
         .write(&mut recipe_settings)
         .unwrap();
         assert_eq!(recipe_settings, vec![1, 0, 0, 1, 0, 0, 1, 1]);
+
+        let root_id = Identifier::parse("minecraft:story/root").unwrap();
+        let hidden_id = Identifier::parse("minecraft:story/hidden").unwrap();
+        let mut advancements = Vec::new();
+        ClientboundAdvancementsPacket {
+            reset: true,
+            added: vec![AdvancementHolderData::minimal(
+                root_id.clone(),
+                None,
+                vec![vec!["tick".to_string()]],
+                true,
+            )],
+            removed: vec![hidden_id],
+            progress: vec![(
+                root_id,
+                AdvancementProgressData {
+                    criteria: vec![
+                        (
+                            "tick".to_string(),
+                            CriterionProgressData {
+                                obtained_epoch_millis: Some(1000),
+                            },
+                        ),
+                        (
+                            "stone".to_string(),
+                            CriterionProgressData {
+                                obtained_epoch_millis: None,
+                            },
+                        ),
+                    ],
+                },
+            )],
+            show_advancements: true,
+        }
+        .write(&mut advancements)
+        .unwrap();
+        assert_eq!(
+            advancements,
+            [
+                vec![
+                    1, 1, 20, // reset, added count, holder id length
+                ],
+                b"minecraft:story/root".to_vec(),
+                vec![
+                    0, 0, 1, 1,
+                    4, // no parent, no display, requirements count/group/string length
+                ],
+                b"tick".to_vec(),
+                vec![1, 1, 22], // telemetry, removed count, removed id length
+                b"minecraft:story/hidden".to_vec(),
+                vec![1, 20], // progress map count, progress id length
+                b"minecraft:story/root".to_vec(),
+                vec![2, 4], // criteria count, first criterion length
+                b"tick".to_vec(),
+                vec![
+                    1, 0, 0, 0, 0, 0, 0, 3, 0xe8,
+                    5, // done + epoch millis, second criterion length
+                ],
+                b"stone".to_vec(),
+                vec![0, 1], // not done, show advancements
+            ]
+            .concat()
+        );
 
         let mut command_suggestions = Vec::new();
         ClientboundCommandSuggestionsPacket {

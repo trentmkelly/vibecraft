@@ -1,6 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::network::play::ClientboundAdvancementsPacket;
+use crate::network::play::{
+    AdvancementHolderData, AdvancementProgressData, ClientboundAdvancementsPacket,
+    CriterionProgressData,
+};
 use crate::registry::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -299,13 +302,47 @@ impl PlayerAdvancementSet {
         let added = definitions
             .iter()
             .filter(|definition| self.dirty.contains(&definition.id))
-            .map(|definition| definition.id.clone())
+            .map(|definition| {
+                AdvancementHolderData::minimal(
+                    definition.id.clone(),
+                    definition.parent.clone(),
+                    definition.requirements.clone(),
+                    definition.sends_telemetry_event,
+                )
+            })
+            .collect();
+        let progress = self
+            .dirty
+            .iter()
+            .filter_map(|id| self.progress.get(id).map(|progress| (id, progress)))
+            .map(|(id, progress)| {
+                (
+                    id.clone(),
+                    AdvancementProgressData {
+                        criteria: progress
+                            .criteria
+                            .iter()
+                            .map(|(criterion, obtained)| {
+                                (
+                                    criterion.clone(),
+                                    CriterionProgressData {
+                                        obtained_epoch_millis: obtained
+                                            .map(|seconds| seconds.saturating_mul(1000) as i64),
+                                    },
+                                )
+                            })
+                            .collect(),
+                    },
+                )
+            })
             .collect();
         self.dirty.clear();
         ClientboundAdvancementsPacket {
             reset: false,
             added,
             removed: Vec::new(),
+            progress,
+            show_advancements: true,
         }
     }
 

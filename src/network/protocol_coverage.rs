@@ -1478,7 +1478,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "update_advancements",
         java_class: "ClientboundUpdateAdvancementsPacket",
-        field_order: "unparsed",
+        field_order: "reset:bool, added:List(AdvancementHolder id:Identifier + Advancement(parent:optional Identifier, display:optional DisplayInfo, requirements:list list string, sends_telemetry_event:bool)), removed:LinkedHashSet<Identifier>, progress:Map(Identifier -> criteria map string -> nullable Instant epoch millis), show_advancements:bool",
     },
     PlayPacketSpec {
         id: 131,
