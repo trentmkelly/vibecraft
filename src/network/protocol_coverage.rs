@@ -628,7 +628,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "boss_event",
         java_class: "ClientboundBossEventPacket",
-        field_order: "unparsed",
+        field_order: "id:UUID, operation:OperationType enum VarInt, payload by operation: add(name:trusted Component network NBT tag, progress:float, color enum VarInt, overlay enum VarInt, flags byte), remove(), update_progress(float), update_name(trusted Component network NBT tag), update_style(color enum VarInt, overlay enum VarInt), update_properties(flags byte)",
     },
     PlayPacketSpec {
         id: 10,

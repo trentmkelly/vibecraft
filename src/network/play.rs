@@ -1304,20 +1304,62 @@ pub struct ClientboundScoreboardPacket {
     pub score: Option<i32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundBossEventPacket {
     pub event_id: Uuid,
     pub operation: BossEventOperation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BossEventOperation {
-    Add,
+    Add {
+        name: Tag,
+        progress: f32,
+        color: BossBarColor,
+        overlay: BossBarOverlay,
+        flags: BossEventFlags,
+    },
     Remove,
-    UpdateProgress,
-    UpdateName,
-    UpdateStyle,
-    UpdateProperties,
+    UpdateProgress {
+        progress: f32,
+    },
+    UpdateName {
+        name: Tag,
+    },
+    UpdateStyle {
+        color: BossBarColor,
+        overlay: BossBarOverlay,
+    },
+    UpdateProperties {
+        flags: BossEventFlags,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BossBarColor {
+    Pink = 0,
+    Blue = 1,
+    Red = 2,
+    Green = 3,
+    Yellow = 4,
+    Purple = 5,
+    White = 6,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BossBarOverlay {
+    Progress = 0,
+    Notched6 = 1,
+    Notched10 = 2,
+    Notched12 = 3,
+    Notched20 = 4,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BossEventFlags {
+    pub darken_screen: bool,
+    pub play_music: bool,
+    pub create_world_fog: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5679,6 +5721,54 @@ impl ClientboundGameRuleValuesPacket {
     }
 }
 
+impl ClientboundBossEventPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_uuid(writer, self.event_id)?;
+        match &self.operation {
+            BossEventOperation::Add {
+                name,
+                progress,
+                color,
+                overlay,
+                flags,
+            } => {
+                write_var_i32(writer, 0)?;
+                write_network_tag(writer, name)?;
+                write_f32(writer, *progress)?;
+                write_var_i32(writer, *color as i32)?;
+                write_var_i32(writer, *overlay as i32)?;
+                writer.write_all(&[flags.bits()])
+            }
+            BossEventOperation::Remove => write_var_i32(writer, 1),
+            BossEventOperation::UpdateProgress { progress } => {
+                write_var_i32(writer, 2)?;
+                write_f32(writer, *progress)
+            }
+            BossEventOperation::UpdateName { name } => {
+                write_var_i32(writer, 3)?;
+                write_network_tag(writer, name)
+            }
+            BossEventOperation::UpdateStyle { color, overlay } => {
+                write_var_i32(writer, 4)?;
+                write_var_i32(writer, *color as i32)?;
+                write_var_i32(writer, *overlay as i32)
+            }
+            BossEventOperation::UpdateProperties { flags } => {
+                write_var_i32(writer, 5)?;
+                writer.write_all(&[flags.bits()])
+            }
+        }
+    }
+}
+
+impl BossEventFlags {
+    pub fn bits(self) -> u8 {
+        (if self.darken_screen { 1 } else { 0 })
+            | (if self.play_music { 2 } else { 0 })
+            | (if self.create_world_fog { 4 } else { 0 })
+    }
+}
+
 impl ServerboundMovePlayerPacket {
     fn read_shape<R: Read>(reader: &mut R, shape: MoveShape) -> io::Result<Self> {
         let mut packet = Self {
@@ -6324,7 +6414,7 @@ mod tests {
             }),
             PlayInstruction::BossEvent(ClientboundBossEventPacket {
                 event_id: Uuid([2; 16]),
-                operation: BossEventOperation::UpdateProgress,
+                operation: BossEventOperation::UpdateProgress { progress: 0.5 },
             }),
             PlayInstruction::Title(ClientboundTitlePacket {
                 kind: TitlePacketKind::Times,
@@ -7204,6 +7294,51 @@ mod tests {
         );
         assert!(set_score.windows(3).any(|window| window == [0x02, 1, 10]));
         assert_eq!(&set_score[set_score.len() - 3..], &[0, 1, 0]);
+
+        let mut boss_add = Vec::new();
+        ClientboundBossEventPacket {
+            event_id: Uuid([9; 16]),
+            operation: BossEventOperation::Add {
+                name: Tag::Compound(vec![("text".to_string(), Tag::String("Boss".to_string()))]),
+                progress: 0.75,
+                color: BossBarColor::Purple,
+                overlay: BossBarOverlay::Notched10,
+                flags: BossEventFlags {
+                    darken_screen: true,
+                    play_music: false,
+                    create_world_fog: true,
+                },
+            },
+        }
+        .write(&mut boss_add)
+        .unwrap();
+        assert_eq!(&boss_add[..17], &[vec![9; 16], vec![0]].concat());
+        assert!(boss_add
+            .windows(4)
+            .any(|window| window == 0.75_f32.to_be_bytes()));
+        assert_eq!(&boss_add[boss_add.len() - 3..], &[5, 2, 5]);
+
+        let mut boss_progress = Vec::new();
+        ClientboundBossEventPacket {
+            event_id: Uuid([8; 16]),
+            operation: BossEventOperation::UpdateProgress { progress: 0.25 },
+        }
+        .write(&mut boss_progress)
+        .unwrap();
+        assert_eq!(&boss_progress[..17], &[vec![8; 16], vec![2]].concat());
+        assert_eq!(&boss_progress[17..], &0.25_f32.to_be_bytes());
+
+        let mut boss_style = Vec::new();
+        ClientboundBossEventPacket {
+            event_id: Uuid([7; 16]),
+            operation: BossEventOperation::UpdateStyle {
+                color: BossBarColor::Red,
+                overlay: BossBarOverlay::Notched20,
+            },
+        }
+        .write(&mut boss_style)
+        .unwrap();
+        assert_eq!(&boss_style[16..], &[4, 2, 4]);
 
         let mut pack_pop = Vec::new();
         ClientboundResourcePackPopPacket {

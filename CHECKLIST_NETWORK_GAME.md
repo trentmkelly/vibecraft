@@ -138,7 +138,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Bossbar Packet
 
-- [ ] `ClientboundBossEventPacket` (0x0A): boss UUID, operation (add with name/progress/color/overlay/flags, remove, update-progress, update-name, update-style, update-flags)
+- [x] `ClientboundBossEventPacket` (0x0A): boss UUID, operation (add with name/progress/color/overlay/flags, remove, update-progress, update-name, update-style, update-flags)
 
 ## World Border Packets
 
