@@ -937,6 +937,111 @@ impl InventoryMenu {
         }
         result
     }
+
+    pub fn quick_move(&mut self, slot: usize) -> ItemStack {
+        let Some(source) = InventoryMenuSlot::from_vanilla_slot(slot) else {
+            return ItemStack::empty();
+        };
+        let mut moving = if source == InventoryMenuSlot::Result {
+            self.take_result()
+        } else {
+            let stack = self.get_slot(slot).unwrap_or_else(ItemStack::empty);
+            if stack.is_empty() {
+                return ItemStack::empty();
+            }
+            self.set_slot(slot, ItemStack::empty());
+            stack
+        };
+        let original = moving.clone();
+
+        match source {
+            InventoryMenuSlot::Result => {
+                self.insert_into_ranges(&mut moving, &[36..45, 9..36]);
+            }
+            InventoryMenuSlot::Hotbar(_) => {
+                self.insert_into_ranges(&mut moving, &[9..36]);
+            }
+            InventoryMenuSlot::Storage(_) => {
+                self.insert_into_armor_slot_if_possible(&mut moving);
+                self.insert_into_ranges(&mut moving, &[36..45]);
+            }
+            _ => {
+                self.insert_into_ranges(&mut moving, &[9..36, 36..45]);
+            }
+        }
+
+        if !moving.is_empty() && source != InventoryMenuSlot::Result {
+            self.set_slot(slot, moving);
+        }
+        original
+    }
+
+    fn insert_into_ranges(&mut self, stack: &mut ItemStack, ranges: &[std::ops::Range<usize>]) {
+        for range in ranges {
+            for slot in range.clone() {
+                if stack.is_empty() {
+                    return;
+                }
+                self.merge_into_slot(slot, stack);
+            }
+        }
+        for range in ranges {
+            for slot in range.clone() {
+                if stack.is_empty() {
+                    return;
+                }
+                self.move_into_empty_slot(slot, stack);
+            }
+        }
+    }
+
+    fn insert_into_armor_slot_if_possible(&mut self, stack: &mut ItemStack) {
+        let Some(slot) = matching_armor_menu_slot(stack.item_id()) else {
+            return;
+        };
+        self.move_into_empty_slot(slot, stack);
+    }
+
+    fn merge_into_slot(&mut self, slot: usize, stack: &mut ItemStack) {
+        let Some(mut target) = self.get_slot(slot) else {
+            return;
+        };
+        if target.is_empty() || !same_item_same_components(&target, stack) {
+            return;
+        }
+        let room = target.max_stack_size() as i32 - target.count();
+        let moved = room.max(0).min(stack.count());
+        if moved > 0 {
+            target.grow(moved);
+            stack.shrink(moved);
+            self.set_slot(slot, target);
+        }
+    }
+
+    fn move_into_empty_slot(&mut self, slot: usize, stack: &mut ItemStack) {
+        if stack.is_empty()
+            || !self.may_place(slot)
+            || self.get_slot(slot).is_none_or(|target| !target.is_empty())
+        {
+            return;
+        }
+        let moved = stack.count().min(stack.max_stack_size() as i32);
+        self.set_slot(slot, stack.split(moved));
+    }
+}
+
+fn matching_armor_menu_slot(item_id: &str) -> Option<usize> {
+    if item_id.ends_with("_helmet") || item_id == "minecraft:turtle_helmet" {
+        Some(5)
+    } else if item_id.ends_with("_chestplate") || item_id == "minecraft:elytra" {
+        Some(6)
+    } else if item_id.ends_with("_leggings") {
+        Some(7)
+    } else if item_id.ends_with("_boots") {
+        Some(8)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -1266,6 +1371,41 @@ mod tests {
             menu.recipe_unlock_events(),
             &["minecraft:test_bucket_recipe"],
             "recipe-book unlock should be emitted only for first craft"
+        );
+    }
+
+    #[test]
+    fn inventory_menu_quick_move_uses_vanilla_inventory_zones() {
+        let mut menu = InventoryMenu::new(PlayerInventory::new(), crafting_test_recipes());
+        menu.set_slot(1, ItemStack::new("minecraft:oak_log", 1));
+
+        let crafted = menu.quick_move(0);
+        assert_eq!(crafted.item_id(), "minecraft:oak_planks");
+        assert_eq!(crafted.count(), 4);
+        assert_eq!(menu.get_slot(36).unwrap().item_id(), "minecraft:oak_planks");
+        assert!(menu.get_slot(1).unwrap().is_empty());
+        assert!(menu.get_slot(0).unwrap().is_empty());
+
+        for slot in 36..45 {
+            menu.set_slot(slot, ItemStack::new("minecraft:cobblestone", 64));
+        }
+        menu.set_slot(36, ItemStack::new("minecraft:stick", 8));
+        let hotbar = menu.quick_move(36);
+        assert_eq!(hotbar.item_id(), "minecraft:stick");
+        assert!(menu.get_slot(36).unwrap().is_empty());
+        assert_eq!(menu.get_slot(9).unwrap().item_id(), "minecraft:stick");
+
+        menu.set_slot(9, ItemStack::new("minecraft:apple", 3));
+        let storage = menu.quick_move(9);
+        assert_eq!(storage.item_id(), "minecraft:apple");
+        assert_eq!(menu.get_slot(36).unwrap().item_id(), "minecraft:apple");
+
+        menu.set_slot(10, ItemStack::new("minecraft:leather_boots", 1));
+        let boots = menu.quick_move(10);
+        assert_eq!(boots.item_id(), "minecraft:leather_boots");
+        assert_eq!(
+            menu.get_slot(8).unwrap().item_id(),
+            "minecraft:leather_boots"
         );
     }
 
