@@ -223,6 +223,15 @@ pub struct CopperGolemStatueBlockEntity {
     pub custom_name: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkullBlockEntity {
+    pub profile: Option<Tag>,
+    pub note_block_sound: Option<String>,
+    pub custom_name: Option<String>,
+    pub animation_tick_count: i32,
+    pub is_animating: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockEntityError {
     UnknownType(String),
@@ -985,6 +994,116 @@ impl CopperGolemStatueBlockEntity {
             ));
         }
         Tag::Compound(fields)
+    }
+}
+
+impl SkullBlockEntity {
+    pub fn new() -> Self {
+        Self {
+            profile: None,
+            note_block_sound: None,
+            custom_name: None,
+            animation_tick_count: 0,
+            is_animating: false,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if let Some(profile) = &self.profile {
+            fields.push(("profile".to_string(), profile.clone()));
+        }
+        if let Some(note_block_sound) = &self.note_block_sound {
+            fields.push((
+                "note_block_sound".to_string(),
+                Tag::String(note_block_sound.clone()),
+            ));
+        }
+        if let Some(custom_name) = &self.custom_name {
+            fields.push(("custom_name".to_string(), Tag::String(custom_name.clone())));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Tag::Compound(entries) = tag else {
+            return Self::new();
+        };
+        Self {
+            profile: entries
+                .iter()
+                .find(|(name, _)| name == "profile")
+                .map(|(_, tag)| tag.clone()),
+            note_block_sound: get_string(entries, "note_block_sound").map(ToString::to_string),
+            custom_name: get_string(entries, "custom_name").map(ToString::to_string),
+            animation_tick_count: 0,
+            is_animating: false,
+        }
+    }
+
+    pub fn apply_implicit_components(&mut self, components: &BTreeMap<String, Tag>) {
+        self.profile = components.get("minecraft:profile").cloned();
+        self.note_block_sound = components
+            .get("minecraft:note_block_sound")
+            .and_then(|tag| match tag {
+                Tag::String(id) => Some(id.clone()),
+                _ => None,
+            });
+        self.custom_name = components
+            .get("minecraft:custom_name")
+            .and_then(|tag| match tag {
+                Tag::String(name) => Some(name.clone()),
+                _ => None,
+            });
+    }
+
+    pub fn collect_implicit_components(&self) -> BTreeMap<String, Tag> {
+        let mut components = BTreeMap::new();
+        if let Some(profile) = &self.profile {
+            components.insert("minecraft:profile".to_string(), profile.clone());
+        }
+        if let Some(note_block_sound) = &self.note_block_sound {
+            components.insert(
+                "minecraft:note_block_sound".to_string(),
+                Tag::String(note_block_sound.clone()),
+            );
+        }
+        if let Some(custom_name) = &self.custom_name {
+            components.insert(
+                "minecraft:custom_name".to_string(),
+                Tag::String(custom_name.clone()),
+            );
+        }
+        components
+    }
+
+    pub fn remove_components_from_tag(tag: &mut Tag) {
+        if let Tag::Compound(entries) = tag {
+            entries.retain(|(name, _)| {
+                name != "profile" && name != "note_block_sound" && name != "custom_name"
+            });
+        }
+    }
+
+    pub fn animation_tick(&mut self, powered: bool) {
+        if powered {
+            self.is_animating = true;
+            self.animation_tick_count += 1;
+        } else {
+            self.is_animating = false;
+        }
+    }
+
+    pub fn animation(&self, partial_tick: f32) -> f32 {
+        if self.is_animating {
+            self.animation_tick_count as f32 + partial_tick
+        } else {
+            self.animation_tick_count as f32
+        }
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
     }
 }
 
@@ -2267,6 +2386,88 @@ mod tests {
                 CopperGolemStatuePose::Standing,
             ),
             None
+        );
+    }
+
+    #[test]
+    fn skull_block_entity_saves_profile_components_and_animation_like_java() {
+        let profile = Tag::Compound(vec![
+            ("name".to_string(), Tag::String("Steve".to_string())),
+            (
+                "id".to_string(),
+                Tag::String("8667ba71-b85a-4004-af54-457a9734eed7".to_string()),
+            ),
+        ]);
+        let mut skull = SkullBlockEntity::new();
+        skull.profile = Some(profile.clone());
+        skull.note_block_sound = Some("minecraft:block.note_block.basedrum".to_string());
+        skull.custom_name = Some("{\"text\":\"Head\"}".to_string());
+
+        let saved = skull.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![
+                ("profile".to_string(), profile.clone()),
+                (
+                    "note_block_sound".to_string(),
+                    Tag::String("minecraft:block.note_block.basedrum".to_string())
+                ),
+                (
+                    "custom_name".to_string(),
+                    Tag::String("{\"text\":\"Head\"}".to_string())
+                ),
+            ])
+        );
+        assert_eq!(SkullBlockEntity::load_additional(&saved), skull);
+        assert_eq!(skull.get_update_tag(), saved);
+
+        skull.animation_tick(true);
+        skull.animation_tick(true);
+        assert!(skull.is_animating);
+        assert_eq!(skull.animation_tick_count, 2);
+        assert_eq!(skull.animation(0.5), 2.5);
+        skull.animation_tick(false);
+        assert!(!skull.is_animating);
+        assert_eq!(skull.animation(0.5), 2.0);
+
+        let mut tag_with_components = saved.clone();
+        SkullBlockEntity::remove_components_from_tag(&mut tag_with_components);
+        assert_eq!(tag_with_components, Tag::Compound(vec![]));
+
+        let mut from_components = SkullBlockEntity::new();
+        from_components.apply_implicit_components(&BTreeMap::from([
+            ("minecraft:profile".to_string(), profile.clone()),
+            (
+                "minecraft:note_block_sound".to_string(),
+                Tag::String("minecraft:block.note_block.harp".to_string()),
+            ),
+            (
+                "minecraft:custom_name".to_string(),
+                Tag::String("{\"text\":\"Component Head\"}".to_string()),
+            ),
+        ]));
+        assert_eq!(from_components.profile, Some(profile.clone()));
+        assert_eq!(
+            from_components.note_block_sound,
+            Some("minecraft:block.note_block.harp".to_string())
+        );
+        assert_eq!(
+            from_components.custom_name,
+            Some("{\"text\":\"Component Head\"}".to_string())
+        );
+        assert_eq!(
+            from_components.collect_implicit_components(),
+            BTreeMap::from([
+                ("minecraft:profile".to_string(), profile),
+                (
+                    "minecraft:note_block_sound".to_string(),
+                    Tag::String("minecraft:block.note_block.harp".to_string())
+                ),
+                (
+                    "minecraft:custom_name".to_string(),
+                    Tag::String("{\"text\":\"Component Head\"}".to_string())
+                ),
+            ])
         );
     }
 

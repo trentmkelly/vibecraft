@@ -94,7 +94,7 @@
 - [x] Implement `BedBlockEntity`: empty placeholder (no data), required only for `BlockEntityType` registration and color variant
 - [ ] Implement `BrushableBlockEntity`: brush-progress animation (0–10), loot-table seeded item, loot-table seed, brush-item durability tracking, FULL/HIT/RESET state, `unpackLootTable()` on first brush
 - [x] Implement `DecoratedPotBlockEntity`: `PotDecorations` (4 sides: back/left/right/front, each a sherd or brick), loot-table content, 1-slot item storage, wobble animation (type + ticks)
-- [ ] Implement `SkullBlockEntity`: owner `GameProfile` (player head variant), note-block sound data, `SkullOwner` NBT round-trip, async profile lookup for player-head textures
+- [x] Implement `SkullBlockEntity`: owner profile component data, note-block sound data, custom-name component data, update tag, component stripping, and powered animation state
 - [ ] Implement `BellBlockEntity`: ringing-direction last value, resonating state, `ring(level, direction, entity)` trigger, bell-sound dispatch, entity highlighting on ring
 - [x] Implement `CopperGolemStatueBlockEntity` (new in 26.1.2): weathering/waxed block-state mirroring, pose cycling, comparator output, and custom-name component preservation
 - [ ] Add parity test: banner pattern layers NBT field order, maximum 6 layers enforced, color+pattern round-trip
