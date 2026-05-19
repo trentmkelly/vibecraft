@@ -2707,6 +2707,19 @@ impl PlaySession {
             // Build a flat Menu snapshot from the current InventoryMenu state, then run the
             // generic click logic through apply_scripted_packet.
             let mut snapshot = inventory_menu_to_flat_menu(inventory_menu, carried);
+            let dry_run = apply_scripted_packet(
+                &mut snapshot.clone(),
+                self.container_state_id,
+                &ScriptedContainerClickPacket {
+                    container_id: 0,
+                    state_id: packet.state_id,
+                    slot: packet.slot_num as i32,
+                    button: packet.button_num as i32,
+                    mode: play_container_input_to_inventory(packet.container_input),
+                    changed_slots: Vec::new(),
+                    carried: ItemStack::empty(),
+                },
+            );
             let scripted = ScriptedContainerClickPacket {
                 container_id: 0,
                 state_id: packet.state_id,
@@ -2715,7 +2728,7 @@ impl PlaySession {
                 mode: play_container_input_to_inventory(packet.container_input),
                 // Omit client-provided changed_slots — we validate purely from server state.
                 changed_slots: Vec::new(),
-                carried: carried.clone(),
+                carried: dry_run.carried,
             };
             let result = apply_scripted_packet(&mut snapshot, self.container_state_id, &scripted);
             if result.accepted {
@@ -11217,6 +11230,113 @@ mod tests {
         assert_eq!(packets[1].slot, -1);
         assert_eq!(packets[1].item_stack.count, 0);
         assert_eq!(session.container_state_id, 8);
+    }
+
+    fn network_crafting_test_recipes() -> crate::recipe_system::RecipeMap {
+        crate::recipe_system::RecipeMap::create(vec![crate::recipe_system::RecipeHolder {
+            id: "minecraft:oak_planks",
+            recipe: crate::recipe_system::RecipeKind::Shapeless {
+                ingredients: vec![crate::recipe_system::IngredientSpec::Item(
+                    "minecraft:oak_log",
+                )],
+                result: crate::recipe_system::ItemAmount {
+                    item: "minecraft:oak_planks",
+                    count: 4,
+                },
+            },
+        }])
+    }
+
+    #[test]
+    fn pending_container_click_updates_inventory_menu_result_and_unlocks_recipe() {
+        let mut session = PlaySession::new(7, 0);
+        let mut inventory_menu = InventoryMenu::new(
+            crate::player_inventory::PlayerInventory::new(),
+            network_crafting_test_recipes(),
+        );
+        let mut carried = ItemStack::new("minecraft:oak_log", 1);
+
+        session.last_container_click = Some(ServerboundContainerClickPacket {
+            container_id: 0,
+            state_id: 0,
+            slot_num: 1,
+            button_num: 0,
+            container_input: ContainerInput::Pickup,
+            changed_slots: BTreeMap::new(),
+            carried_item: HashedStack::empty(),
+        });
+        let instructions =
+            session.process_pending_container_click(&mut inventory_menu, &mut carried);
+
+        assert_eq!(session.container_state_id, 1);
+        assert!(carried.is_empty());
+        assert_eq!(
+            inventory_menu.get_slot(1),
+            Some(ItemStack::new("minecraft:oak_log", 1))
+        );
+        assert_eq!(
+            inventory_menu.get_slot(0),
+            Some(ItemStack::new("minecraft:oak_planks", 4))
+        );
+        assert!(instructions.iter().any(|instruction| matches!(
+            instruction,
+            PlayInstruction::ContainerSetSlot(packet)
+                if packet.container_id == 0
+                    && packet.state_id == 1
+                    && packet.slot == 0
+                    && packet.item_stack.count == 4
+        )));
+        assert!(instructions.iter().any(|instruction| matches!(
+            instruction,
+            PlayInstruction::ContainerSetSlot(packet)
+                if packet.container_id == 0
+                    && packet.state_id == 1
+                    && packet.slot == 1
+                    && packet.item_stack.count == 1
+        )));
+
+        session.last_container_click = Some(ServerboundContainerClickPacket {
+            container_id: 0,
+            state_id: 1,
+            slot_num: 0,
+            button_num: 0,
+            container_input: ContainerInput::Pickup,
+            changed_slots: BTreeMap::new(),
+            carried_item: HashedStack::empty(),
+        });
+        let instructions =
+            session.process_pending_container_click(&mut inventory_menu, &mut carried);
+
+        assert_eq!(session.container_state_id, 2);
+        assert_eq!(carried, ItemStack::new("minecraft:oak_planks", 4));
+        assert_eq!(inventory_menu.get_slot(1), Some(ItemStack::empty()));
+        assert_eq!(inventory_menu.get_slot(0), Some(ItemStack::empty()));
+        assert!(instructions.iter().any(|instruction| matches!(
+            instruction,
+            PlayInstruction::ContainerSetSlot(packet)
+                if packet.container_id == 0
+                    && packet.state_id == 2
+                    && packet.slot == 0
+                    && packet.item_stack.count == 0
+        )));
+        assert!(instructions.iter().any(|instruction| matches!(
+            instruction,
+            PlayInstruction::ContainerSetSlot(packet)
+                if packet.container_id == 0
+                    && packet.state_id == 2
+                    && packet.slot == 1
+                    && packet.item_stack.count == 0
+        )));
+        assert!(instructions.iter().any(|instruction| matches!(
+            instruction,
+            PlayInstruction::SetCursorItem(packet)
+                if packet.item_stack.count == 4
+                    && packet.item_stack.item_id == item_protocol_id("minecraft:oak_planks")
+        )));
+        assert!(instructions.iter().any(|instruction| matches!(
+            instruction,
+            PlayInstruction::RecipesUnlocked(ids) if ids == &vec!["minecraft:oak_planks"]
+        )));
     }
 
     #[test]

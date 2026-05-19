@@ -811,6 +811,9 @@ impl CraftingGrid {
         for (slot, remainder) in self.slots.iter_mut().zip(remaining_items) {
             if !slot.is_empty() {
                 slot.shrink(1);
+                if slot.is_empty() {
+                    *slot = ItemStack::empty();
+                }
             }
             if let Some(remainder) = remainder {
                 let remainder_stack = ItemStack::new(remainder.item, remainder.count as i32);
