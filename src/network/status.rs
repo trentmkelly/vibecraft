@@ -13,7 +13,10 @@ use std::time::{Duration, Instant};
 use crate::console::ConsoleInput;
 use crate::network::codec::ComponentJson;
 use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
-use crate::network::common::ClientboundDisconnectPacket;
+use crate::network::common::{
+    ClientboundDisconnectPacket, ClientboundServerLinksPacket, ServerLinkEntry, ServerLinkLabel,
+    ServerLinkType,
+};
 use crate::network::compression::CompressionState;
 use crate::network::login::{
     ClientboundLoginCompressionPacket, ClientboundLoginDisconnectPacket, LoginSession,
@@ -67,6 +70,7 @@ const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 14;
+const CLIENTBOUND_CONFIGURATION_SERVER_LINKS_PACKET_ID: i32 = 16;
 const SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID: i32 = 0;
 const SERVERBOUND_CONFIGURATION_COOKIE_RESPONSE_PACKET_ID: i32 = 1;
 const SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID: i32 = 2;
@@ -1127,6 +1131,14 @@ fn handle_login_connection(
     }
     login.acknowledge(ServerboundLoginAcknowledgedPacket::read(&mut input)?);
 
+    if let Some(packet) = bug_report_server_links_packet(properties) {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_CONFIGURATION_SERVER_LINKS_PACKET_ID,
+            |payload| packet.write(payload),
+        )?;
+    }
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -1847,6 +1859,21 @@ fn login_host_ip(server_address: &str) -> Option<String> {
     host.parse::<IpAddr>()
         .ok()
         .map(|address| address.to_string())
+}
+
+fn bug_report_server_links_packet(
+    properties: &ServerProperties,
+) -> Option<ClientboundServerLinksPacket> {
+    let link = properties.bug_report_link.trim();
+    if !(link.starts_with("https://") || link.starts_with("http://")) {
+        return None;
+    }
+    Some(ClientboundServerLinksPacket {
+        links: vec![ServerLinkEntry {
+            label: ServerLinkLabel::Known(ServerLinkType::BugReport),
+            link: link.to_string(),
+        }],
+    })
 }
 
 fn wait_for_configuration_packet<R: Read>(
@@ -4093,16 +4120,17 @@ fn escape_json_string(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        banner_pattern_nbt, cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt,
-        chunk_batch_size, chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
-        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
-        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response, load_favicon,
-        login_access_disconnect_reason, login_host_ip, newly_visible_chunks, packed_chunk_pos,
-        pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt, trim_pattern_nbt,
-        vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
-        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
-        visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
-        write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
+        banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt, chat_type_nbt,
+        chicken_sound_variant_nbt, chunk_batch_size, chunk_window, cow_sound_variant_nbt,
+        encode_base64, escape_json_string, handle_legacy_status_connection, instrument_nbt,
+        jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
+        legacy_version1_response, load_favicon, login_access_disconnect_reason, login_host_ip,
+        newly_visible_chunks, packed_chunk_pos, pig_sound_variant_nbt, read_packet, status_json,
+        trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
+        visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
+        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
+        wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
+        write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
         write_minimal_trim_material_registry_packet, write_status_pong_packet,
         write_vanilla_banner_pattern_registry_packet,
@@ -4123,14 +4151,14 @@ mod tests {
         BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
         DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
-        GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS,
-        MAX_PACKET_SIZE,
+        GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS, MAX_PACKET_SIZE,
         POPPY_BLOCK_STATE_ID, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
         STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
     };
     use crate::network::codec::write_identifier;
+    use crate::network::common::{ServerLinkLabel, ServerLinkType};
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::{read_var_i32, write_var_i32};
     use crate::registry::Identifier;
@@ -4148,6 +4176,27 @@ mod tests {
         expected_entry_count: usize,
         java_network_shape: &'static str,
         write_packet: fn(&mut Vec<u8>) -> io::Result<()>,
+    }
+
+    #[test]
+    fn bug_report_link_becomes_known_server_link_when_valid() {
+        let mut properties = ServerProperties::load_or_default(Path::new(
+            "definitely-missing-test-server.properties",
+        ))
+        .unwrap();
+        assert!(bug_report_server_links_packet(&properties).is_none());
+
+        properties.set("bug-report-link", "https://example.invalid/bugs");
+        let packet = bug_report_server_links_packet(&properties).unwrap();
+        assert_eq!(packet.links.len(), 1);
+        assert_eq!(
+            packet.links[0].label,
+            ServerLinkLabel::Known(ServerLinkType::BugReport)
+        );
+        assert_eq!(packet.links[0].link, "https://example.invalid/bugs");
+
+        properties.set("bug-report-link", "not a uri");
+        assert!(bug_report_server_links_packet(&properties).is_none());
     }
 
     #[test]

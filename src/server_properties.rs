@@ -383,6 +383,14 @@ management-server-port=24454
 rcon.port=24455
 query.port=24456
 announce-player-achievements=true
+broadcast-console-to-ops=false
+bug-report-link=https://bugs.example.invalid/rustcraft
+enable-code-of-conduct=true
+enable-jmx-monitoring=true
+max-chained-neighbor-updates=2048
+sync-chunk-writes=false
+text-filtering-config=text-filter.json
+text-filtering-version=2
 function-permission-level=3
 resource-pack-id=00000000-0000-0000-0000-000000000001
 resource-pack=https://example.invalid/pack.zip
@@ -408,15 +416,23 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(properties.rcon_port, 24455);
         assert_eq!(properties.query_port, 24456);
         assert_eq!(properties.announce_player_achievements, Some(true));
+        assert!(!properties.broadcast_console_to_ops);
+        assert_eq!(
+            properties.bug_report_link,
+            "https://bugs.example.invalid/rustcraft"
+        );
+        assert!(properties.code_of_conduct);
+        assert!(properties.enable_jmx_monitoring);
+        assert_eq!(properties.max_chained_neighbor_updates, 2048);
+        assert!(!properties.sync_chunk_writes);
+        assert_eq!(properties.text_filtering_config, "text-filter.json");
+        assert_eq!(properties.text_filtering_version, 2);
         assert_eq!(properties.function_permission_level, 3);
         assert_eq!(
             properties.resource_pack_id,
             "00000000-0000-0000-0000-000000000001"
         );
-        assert_eq!(
-            properties.resource_pack,
-            "https://example.invalid/pack.zip"
-        );
+        assert_eq!(properties.resource_pack, "https://example.invalid/pack.zip");
         assert_eq!(
             properties.resource_pack_sha1,
             "0123456789abcdef0123456789abcdef01234567"
