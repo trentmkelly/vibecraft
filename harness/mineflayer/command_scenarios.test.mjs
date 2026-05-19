@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   commandScenarioManifest,
+  commandPermissionReloadManifest,
+  commandPermissionReloadScenario,
   loginGatedCommandManifest,
   loginGatedCommandScenarios,
   listLoginStateManifest,
@@ -11,6 +13,7 @@ import {
   operatorCommandSmokeManifest,
   operatorCommandSmokeScenarios,
   runCommandScenario,
+  summarizeCommandPermissionReloadEvidence,
   summarizeLoginGatedCommandEvidence,
   summarizeListLoginStateEvidence,
   summarizeTeleportCommandEvidence,
@@ -217,4 +220,35 @@ test('summarizeLoginGatedCommandEvidence requires blocked pre-ready and successf
   assert.equal(summarizeLoginGatedCommandEvidence(evidence, scenarios).ok, true)
   evidence.timeline[0].summary[1].preReadyBlocked = false
   assert.equal(summarizeLoginGatedCommandEvidence(evidence, scenarios).ok, false)
+})
+
+test('commandPermissionReloadManifest covers ops file edits and op/deop command tree deltas', () => {
+  const manifest = commandPermissionReloadManifest({ username: 'Steve' })
+
+  assert.deepEqual(manifest.files, ['ops.json'])
+  assert.deepEqual(manifest.commands, ['/op', '/deop'])
+  assert.deepEqual(manifest.steps, [
+    'ops-json-edited',
+    'op-command-tree-delta',
+    'deop-command-tree-delta',
+    'reconnect-permission-state',
+    'denied-feedback'
+  ])
+})
+
+test('summarizeCommandPermissionReloadEvidence requires reload persistence and denied feedback', () => {
+  const scenario = commandPermissionReloadScenario({ username: 'Steve' })
+  const evidence = {
+    timeline: [
+      { name: 'command_permission_reload', summary: ['ops-json-edited', { written: true }] },
+      { name: 'command_permission_reload', summary: ['op-command-tree-delta', { visible: true }] },
+      { name: 'command_permission_reload', summary: ['deop-command-tree-delta', { visible: false }] },
+      { name: 'command_permission_reload', summary: ['reconnect-permission-state', { persisted: true }] },
+      { name: 'message', summary: ['commands.generic.permission'] }
+    ]
+  }
+
+  assert.equal(summarizeCommandPermissionReloadEvidence(evidence, scenario).ok, true)
+  evidence.timeline[3].summary[1].persisted = false
+  assert.equal(summarizeCommandPermissionReloadEvidence(evidence, scenario).ok, false)
 })

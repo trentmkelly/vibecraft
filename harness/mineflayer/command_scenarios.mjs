@@ -200,6 +200,51 @@ export function summarizeLoginGatedCommandEvidence(evidence, scenarios = loginGa
   return { ok: Object.values(steps).every(Boolean), steps }
 }
 
+export function commandPermissionReloadScenario(options = {}) {
+  const username = options.username ?? 'ReloadBot'
+  return {
+    username,
+    steps: [
+      'ops-json-edited',
+      'op-command-tree-delta',
+      'deop-command-tree-delta',
+      'reconnect-permission-state',
+      'denied-feedback'
+    ],
+    expectedDeniedFeedbackKey: 'commands.generic.permission'
+  }
+}
+
+export function commandPermissionReloadManifest(options = {}) {
+  const scenario = commandPermissionReloadScenario(options)
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    username: scenario.username,
+    files: ['ops.json'],
+    commands: ['/op', '/deop'],
+    steps: scenario.steps
+  }
+}
+
+export function summarizeCommandPermissionReloadEvidence(evidence, scenario = commandPermissionReloadScenario()) {
+  const events = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'command_permission_reload')
+    .map(event => [event.summary?.[0], event.summary?.[1] ?? {}]))
+  const deniedFeedback = (evidence.timeline ?? [])
+    .filter(event => event.name === 'message')
+    .flatMap(event => event.summary?.map(String) ?? [])
+    .some(message => message.includes(scenario.expectedDeniedFeedbackKey))
+  const steps = {
+    'ops-json-edited': events.get('ops-json-edited')?.written === true,
+    'op-command-tree-delta': events.get('op-command-tree-delta')?.visible === true,
+    'deop-command-tree-delta': events.get('deop-command-tree-delta')?.visible === false,
+    'reconnect-permission-state': events.get('reconnect-permission-state')?.persisted === true,
+    'denied-feedback': deniedFeedback
+  }
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')
