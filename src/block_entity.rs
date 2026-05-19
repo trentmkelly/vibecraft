@@ -6,6 +6,7 @@ use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
 use crate::recipe_system::FuelValues;
 use crate::redstone::{comparator_output, ComparatorMode, MAX_SIGNAL};
+use crate::spawning::{spawner_tick_plan, SpawnerConfig, SpawnerTickPlan};
 use crate::special_block::{
     command_block_tick, CommandBlockMode, CommandBlockState, SpecialBlockAction,
 };
@@ -443,6 +444,62 @@ pub struct CrafterBlockEntity {
     pub disabled_slots: [bool; 9],
     pub triggered: bool,
     pub crafting_ticks_remaining: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnerCustomSpawnRules {
+    pub block_light_limit: (i32, i32),
+    pub sky_light_limit: (i32, i32),
+    pub requires_no_sky_access: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpawnDataModel {
+    pub entity: Tag,
+    pub custom_spawn_rules: Option<SpawnerCustomSpawnRules>,
+    pub equipment: Option<Tag>,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SpawnerTickResult {
+    Idle,
+    CountDown,
+    Delay,
+    MobCapReached,
+    SpawnRulesFailed,
+    Spawned { entity_id: String, count: i32 },
+    TrySpawn { entity_id: String, attempts: i32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpawnerSpawnContext {
+    pub player_in_range: bool,
+    pub spawner_blocks_work: bool,
+    pub nearby_entities: i32,
+    pub block_light: i32,
+    pub sky_light: i32,
+    pub no_sky_access: bool,
+    pub collision_free: bool,
+    pub spawn_rules_ok: bool,
+    pub obstruction_free: bool,
+    pub delay_roll: i32,
+    pub potential_roll: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpawnerBlockEntity {
+    pub spawn_delay: i32,
+    pub min_spawn_delay: i32,
+    pub max_spawn_delay: i32,
+    pub spawn_count: i32,
+    pub max_nearby_entities: i32,
+    pub required_player_range: i32,
+    pub spawn_range: i32,
+    pub spawn_potentials: Vec<SpawnDataModel>,
+    pub next_spawn_data: Option<SpawnDataModel>,
+    pub spin: f64,
+    pub old_spin: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3323,6 +3380,369 @@ impl CrafterBlockEntity {
         }
         crafter.triggered = get_int(entries, "triggered").unwrap_or(0) != 0;
         crafter
+    }
+}
+
+impl Default for SpawnerCustomSpawnRules {
+    fn default() -> Self {
+        Self {
+            block_light_limit: (0, 15),
+            sky_light_limit: (0, 15),
+            requires_no_sky_access: false,
+        }
+    }
+}
+
+impl SpawnerCustomSpawnRules {
+    pub fn is_valid_position(&self, block_light: i32, sky_light: i32, no_sky_access: bool) -> bool {
+        (self.block_light_limit.0..=self.block_light_limit.1).contains(&block_light)
+            && (self.sky_light_limit.0..=self.sky_light_limit.1).contains(&sky_light)
+            && (!self.requires_no_sky_access || no_sky_access)
+    }
+
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "block_light_limit".to_string(),
+                Tag::IntArray(vec![self.block_light_limit.0, self.block_light_limit.1]),
+            ),
+            (
+                "sky_light_limit".to_string(),
+                Tag::IntArray(vec![self.sky_light_limit.0, self.sky_light_limit.1]),
+            ),
+            (
+                "requires_no_sky_access".to_string(),
+                Tag::Byte(i8::from(self.requires_no_sky_access)),
+            ),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Option<Self> {
+        let entries = compound_entries(tag)?;
+        Some(Self {
+            block_light_limit: int_range_field(entries, "block_light_limit").unwrap_or((0, 15)),
+            sky_light_limit: int_range_field(entries, "sky_light_limit").unwrap_or((0, 15)),
+            requires_no_sky_access: get_byte(entries, "requires_no_sky_access").unwrap_or(0) != 0,
+        })
+    }
+}
+
+impl Default for SpawnDataModel {
+    fn default() -> Self {
+        Self::new("minecraft:pig")
+    }
+}
+
+impl SpawnDataModel {
+    pub fn new(entity_id: impl Into<String>) -> Self {
+        Self {
+            entity: Tag::Compound(vec![("id".to_string(), Tag::String(entity_id.into()))]),
+            custom_spawn_rules: None,
+            equipment: None,
+            weight: 1,
+        }
+    }
+
+    pub fn entity_id(&self) -> Option<&str> {
+        compound_entries(&self.entity).and_then(|entries| get_string(entries, "id"))
+    }
+
+    fn to_tag(&self) -> Tag {
+        let mut entries = vec![("entity".to_string(), self.entity.clone())];
+        if let Some(rules) = &self.custom_spawn_rules {
+            entries.push(("custom_spawn_rules".to_string(), rules.to_tag()));
+        }
+        if let Some(equipment) = &self.equipment {
+            entries.push(("equipment".to_string(), equipment.clone()));
+        }
+        if self.weight != 1 {
+            entries.push(("weight".to_string(), Tag::Int(self.weight)));
+        }
+        Tag::Compound(entries)
+    }
+
+    fn from_tag(tag: &Tag) -> Option<Self> {
+        let entries = compound_entries(tag)?;
+        let entity = entries
+            .iter()
+            .find(|(name, _)| name == "entity")
+            .map(|(_, tag)| tag.clone())
+            .unwrap_or_else(|| {
+                Tag::Compound(vec![(
+                    "id".to_string(),
+                    Tag::String("minecraft:pig".to_string()),
+                )])
+            });
+        let custom_spawn_rules = entries
+            .iter()
+            .find(|(name, _)| name == "custom_spawn_rules")
+            .and_then(|(_, tag)| SpawnerCustomSpawnRules::from_tag(tag));
+        let equipment = entries
+            .iter()
+            .find(|(name, _)| name == "equipment")
+            .map(|(_, tag)| tag.clone());
+        let weight = get_int(entries, "weight").unwrap_or(1).max(1);
+        Some(Self {
+            entity,
+            custom_spawn_rules,
+            equipment,
+            weight,
+        })
+    }
+}
+
+impl Default for SpawnerBlockEntity {
+    fn default() -> Self {
+        let config = SpawnerConfig::default();
+        Self {
+            spawn_delay: config.spawn_delay,
+            min_spawn_delay: config.min_spawn_delay,
+            max_spawn_delay: config.max_spawn_delay,
+            spawn_count: config.spawn_count,
+            max_nearby_entities: config.max_nearby_entities,
+            required_player_range: config.required_player_range,
+            spawn_range: config.spawn_range,
+            spawn_potentials: vec![SpawnDataModel::default()],
+            next_spawn_data: None,
+            spin: 0.0,
+            old_spin: 0.0,
+        }
+    }
+}
+
+impl SpawnerBlockEntity {
+    pub const EVENT_SPAWN: i32 = 1;
+
+    pub fn config(&self) -> SpawnerConfig {
+        SpawnerConfig {
+            spawn_delay: self.spawn_delay,
+            min_spawn_delay: self.min_spawn_delay,
+            max_spawn_delay: self.max_spawn_delay,
+            spawn_count: self.spawn_count,
+            max_nearby_entities: self.max_nearby_entities,
+            required_player_range: self.required_player_range,
+            spawn_range: self.spawn_range,
+        }
+    }
+
+    pub fn get_or_create_next_spawn_data(&mut self, random_roll: usize) -> &SpawnDataModel {
+        if self.next_spawn_data.is_none() {
+            let selected = weighted_spawn_data(&self.spawn_potentials, random_roll)
+                .cloned()
+                .unwrap_or_default();
+            self.next_spawn_data = Some(selected);
+        }
+        self.next_spawn_data.as_ref().unwrap()
+    }
+
+    pub fn set_entity_id(&mut self, entity_id: impl Into<String>) {
+        let entity_id = entity_id.into();
+        let data = self
+            .next_spawn_data
+            .get_or_insert_with(SpawnDataModel::default);
+        data.entity = Tag::Compound(vec![("id".to_string(), Tag::String(entity_id))]);
+    }
+
+    pub fn delay(&mut self, random_roll: i32) {
+        self.spawn_delay = if self.max_spawn_delay <= self.min_spawn_delay {
+            self.min_spawn_delay
+        } else {
+            self.min_spawn_delay
+                + random_roll.rem_euclid(self.max_spawn_delay - self.min_spawn_delay)
+        };
+    }
+
+    pub fn server_tick(
+        &mut self,
+        player_in_range: bool,
+        spawner_blocks_work: bool,
+        nearby_entities: i32,
+        random_roll: i32,
+    ) -> SpawnerTickResult {
+        match spawner_tick_plan(
+            self.config(),
+            player_in_range,
+            spawner_blocks_work,
+            nearby_entities,
+        ) {
+            SpawnerTickPlan::Idle => SpawnerTickResult::Idle,
+            SpawnerTickPlan::CountDown { next_delay } => {
+                self.spawn_delay = next_delay;
+                SpawnerTickResult::CountDown
+            }
+            SpawnerTickPlan::Delay { .. } => {
+                self.delay(random_roll);
+                SpawnerTickResult::Delay
+            }
+            SpawnerTickPlan::TrySpawn { attempts } => {
+                let entity_id = self
+                    .get_or_create_next_spawn_data(random_roll as usize)
+                    .entity_id()
+                    .unwrap_or("minecraft:pig")
+                    .to_string();
+                SpawnerTickResult::TrySpawn {
+                    entity_id,
+                    attempts,
+                }
+            }
+        }
+    }
+
+    pub fn server_tick_with_context(&mut self, context: SpawnerSpawnContext) -> SpawnerTickResult {
+        match self.server_tick(
+            context.player_in_range,
+            context.spawner_blocks_work,
+            context.nearby_entities,
+            context.delay_roll,
+        ) {
+            SpawnerTickResult::TrySpawn {
+                entity_id,
+                attempts,
+            } => {
+                if context.nearby_entities >= self.max_nearby_entities {
+                    self.finish_spawn_cycle(context.delay_roll, context.potential_roll);
+                    return SpawnerTickResult::MobCapReached;
+                }
+                let rules = self
+                    .next_spawn_data
+                    .as_ref()
+                    .and_then(|data| data.custom_spawn_rules.as_ref());
+                let custom_rules_ok = rules
+                    .map(|rules| {
+                        rules.is_valid_position(
+                            context.block_light,
+                            context.sky_light,
+                            context.no_sky_access,
+                        )
+                    })
+                    .unwrap_or(true);
+                if !custom_rules_ok
+                    || !context.collision_free
+                    || !context.spawn_rules_ok
+                    || !context.obstruction_free
+                {
+                    return SpawnerTickResult::SpawnRulesFailed;
+                }
+                self.finish_spawn_cycle(context.delay_roll, context.potential_roll);
+                SpawnerTickResult::Spawned {
+                    entity_id,
+                    count: attempts,
+                }
+            }
+            other => other,
+        }
+    }
+
+    pub fn finish_spawn_cycle(&mut self, random_roll: i32, potential_roll: usize) {
+        self.delay(random_roll);
+        if let Some(data) = weighted_spawn_data(&self.spawn_potentials, potential_roll).cloned() {
+            self.next_spawn_data = Some(data);
+        }
+    }
+
+    pub fn client_tick(&mut self, player_in_range: bool) {
+        if !player_in_range {
+            self.old_spin = self.spin;
+            return;
+        }
+        if self.spawn_delay > 0 {
+            self.spawn_delay -= 1;
+        }
+        self.old_spin = self.spin;
+        self.spin = (self.spin + 1000.0 / (self.spawn_delay as f64 + 200.0)) % 360.0;
+    }
+
+    pub fn on_event_triggered(&mut self, client_side: bool, event_id: i32) -> bool {
+        if event_id != Self::EVENT_SPAWN {
+            return false;
+        }
+        if client_side {
+            self.spawn_delay = self.min_spawn_delay;
+        }
+        true
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = vec![
+            ("Delay".to_string(), Tag::Short(self.spawn_delay as i16)),
+            (
+                "MinSpawnDelay".to_string(),
+                Tag::Short(self.min_spawn_delay as i16),
+            ),
+            (
+                "MaxSpawnDelay".to_string(),
+                Tag::Short(self.max_spawn_delay as i16),
+            ),
+            (
+                "SpawnCount".to_string(),
+                Tag::Short(self.spawn_count as i16),
+            ),
+            (
+                "MaxNearbyEntities".to_string(),
+                Tag::Short(self.max_nearby_entities as i16),
+            ),
+            (
+                "RequiredPlayerRange".to_string(),
+                Tag::Short(self.required_player_range as i16),
+            ),
+            (
+                "SpawnRange".to_string(),
+                Tag::Short(self.spawn_range as i16),
+            ),
+        ];
+        if let Some(data) = &self.next_spawn_data {
+            entries.push(("SpawnData".to_string(), data.to_tag()));
+        }
+        entries.push((
+            "SpawnPotentials".to_string(),
+            Tag::List(
+                self.spawn_potentials
+                    .iter()
+                    .map(SpawnDataModel::to_tag)
+                    .collect(),
+            ),
+        ));
+        Tag::Compound(entries)
+    }
+
+    pub fn update_tag(&self) -> Tag {
+        let Tag::Compound(mut entries) = self.save_additional() else {
+            return Tag::Compound(Vec::new());
+        };
+        entries.retain(|(name, _)| name != "SpawnPotentials");
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut spawner = Self::default();
+        let Some(entries) = compound_entries(tag) else {
+            return spawner;
+        };
+        spawner.spawn_delay = get_short(entries, "Delay").unwrap_or(20);
+        spawner.min_spawn_delay = get_short(entries, "MinSpawnDelay").unwrap_or(200);
+        spawner.max_spawn_delay = get_short(entries, "MaxSpawnDelay").unwrap_or(800);
+        spawner.spawn_count = get_short(entries, "SpawnCount").unwrap_or(4);
+        spawner.max_nearby_entities = get_short(entries, "MaxNearbyEntities").unwrap_or(6);
+        spawner.required_player_range = get_short(entries, "RequiredPlayerRange").unwrap_or(16);
+        spawner.spawn_range = get_short(entries, "SpawnRange").unwrap_or(4);
+        spawner.next_spawn_data = entries
+            .iter()
+            .find(|(name, _)| name == "SpawnData")
+            .and_then(|(_, tag)| SpawnDataModel::from_tag(tag));
+        if let Some(Tag::List(potentials)) = entries
+            .iter()
+            .find(|(name, _)| name == "SpawnPotentials")
+            .map(|(_, tag)| tag)
+        {
+            spawner.spawn_potentials = potentials
+                .iter()
+                .filter_map(SpawnDataModel::from_tag)
+                .collect();
+        }
+        if spawner.spawn_potentials.is_empty() {
+            spawner.spawn_potentials = vec![spawner.next_spawn_data.clone().unwrap_or_default()];
+        }
+        spawner
     }
 }
 
@@ -7163,6 +7583,11 @@ fn get_int_array<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a [i32
     })
 }
 
+fn int_range_field(entries: &[(String, Tag)], key: &str) -> Option<(i32, i32)> {
+    let values = get_int_array(entries, key)?;
+    (values.len() == 2).then_some((values[0], values[1]))
+}
+
 fn get_float(entries: &[(String, Tag)], key: &str) -> Option<f32> {
     entries.iter().find_map(|(name, value)| match value {
         Tag::Float(value) if name == key => Some(*value),
@@ -7250,6 +7675,21 @@ fn tag_int_or_zero(tag: &Tag) -> i32 {
         Tag::Long(value) => *value as i32,
         _ => 0,
     }
+}
+
+fn weighted_spawn_data(values: &[SpawnDataModel], roll: usize) -> Option<&SpawnDataModel> {
+    if values.is_empty() {
+        return None;
+    }
+    let total_weight: i32 = values.iter().map(|value| value.weight.max(1)).sum();
+    let mut remaining = (roll as i32).rem_euclid(total_weight.max(1));
+    for value in values {
+        remaining -= value.weight.max(1);
+        if remaining < 0 {
+            return Some(value);
+        }
+    }
+    values.last()
 }
 
 fn tag_long_or_zero(tag: &Tag) -> i64 {
@@ -8446,6 +8886,148 @@ mod tests {
             no_recipe.pulse_craft(&[recipe]),
             CrafterPulseResult::NoRecipe
         );
+    }
+
+    #[test]
+    fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
+        let mut spawner = SpawnerBlockEntity::default();
+        assert_eq!(spawner.spawn_delay, 20);
+        assert_eq!(spawner.min_spawn_delay, 200);
+        assert_eq!(spawner.max_spawn_delay, 800);
+        assert_eq!(spawner.spawn_count, 4);
+        assert_eq!(spawner.max_nearby_entities, 6);
+        assert_eq!(spawner.required_player_range, 16);
+        assert_eq!(spawner.spawn_range, 4);
+        assert_eq!(
+            spawner.server_tick(false, true, 0, 0),
+            SpawnerTickResult::Idle
+        );
+
+        spawner.set_entity_id("minecraft:zombie");
+        assert_eq!(
+            spawner
+                .next_spawn_data
+                .as_ref()
+                .and_then(SpawnDataModel::entity_id),
+            Some("minecraft:zombie")
+        );
+
+        spawner.spawn_potentials = vec![
+            SpawnDataModel {
+                weight: 1,
+                ..SpawnDataModel::new("minecraft:zombie")
+            },
+            SpawnDataModel {
+                weight: 3,
+                custom_spawn_rules: Some(SpawnerCustomSpawnRules {
+                    block_light_limit: (0, 7),
+                    sky_light_limit: (0, 15),
+                    requires_no_sky_access: true,
+                }),
+                equipment: Some(Tag::Compound(vec![(
+                    "mainhand".to_string(),
+                    Tag::String("minecraft:iron_sword".to_string()),
+                )])),
+                ..SpawnDataModel::new("minecraft:skeleton")
+            },
+        ];
+        spawner.spawn_delay = -1;
+        assert_eq!(
+            spawner.server_tick(true, true, 0, 12),
+            SpawnerTickResult::Delay
+        );
+        assert_eq!(spawner.spawn_delay, 212);
+
+        spawner.spawn_delay = 2;
+        assert_eq!(
+            spawner.server_tick(true, true, 0, 0),
+            SpawnerTickResult::CountDown
+        );
+        assert_eq!(spawner.spawn_delay, 1);
+
+        spawner.spawn_delay = 0;
+        spawner.next_spawn_data = Some(spawner.spawn_potentials[1].clone());
+        assert_eq!(
+            spawner.server_tick_with_context(SpawnerSpawnContext {
+                player_in_range: true,
+                spawner_blocks_work: true,
+                nearby_entities: 0,
+                block_light: 8,
+                sky_light: 0,
+                no_sky_access: true,
+                collision_free: true,
+                spawn_rules_ok: true,
+                obstruction_free: true,
+                delay_roll: 5,
+                potential_roll: 0,
+            }),
+            SpawnerTickResult::SpawnRulesFailed
+        );
+        assert_eq!(spawner.spawn_delay, 0);
+
+        assert_eq!(
+            spawner.server_tick_with_context(SpawnerSpawnContext {
+                player_in_range: true,
+                spawner_blocks_work: true,
+                nearby_entities: spawner.max_nearby_entities,
+                block_light: 0,
+                sky_light: 0,
+                no_sky_access: true,
+                collision_free: true,
+                spawn_rules_ok: true,
+                obstruction_free: true,
+                delay_roll: 7,
+                potential_roll: 0,
+            }),
+            SpawnerTickResult::Delay
+        );
+        assert_eq!(spawner.spawn_delay, 207);
+
+        spawner.spawn_delay = 0;
+        spawner.next_spawn_data = Some(spawner.spawn_potentials[1].clone());
+        assert_eq!(
+            spawner.server_tick_with_context(SpawnerSpawnContext {
+                player_in_range: true,
+                spawner_blocks_work: true,
+                nearby_entities: 0,
+                block_light: 7,
+                sky_light: 0,
+                no_sky_access: true,
+                collision_free: true,
+                spawn_rules_ok: true,
+                obstruction_free: true,
+                delay_roll: 11,
+                potential_roll: 1,
+            }),
+            SpawnerTickResult::Spawned {
+                entity_id: "minecraft:skeleton".to_string(),
+                count: 4,
+            }
+        );
+        assert_eq!(spawner.spawn_delay, 211);
+        assert_eq!(
+            spawner
+                .next_spawn_data
+                .as_ref()
+                .and_then(SpawnDataModel::entity_id),
+            Some("minecraft:skeleton")
+        );
+
+        let saved = spawner.save_additional();
+        let update_tag = spawner.update_tag();
+        assert!(compound_entries(&saved)
+            .unwrap()
+            .iter()
+            .any(|(name, _)| name == "SpawnPotentials"));
+        assert!(!compound_entries(&update_tag)
+            .unwrap()
+            .iter()
+            .any(|(name, _)| name == "SpawnPotentials"));
+        assert_eq!(SpawnerBlockEntity::load_additional(&saved), spawner);
+
+        assert!(spawner.on_event_triggered(true, SpawnerBlockEntity::EVENT_SPAWN));
+        assert_eq!(spawner.spawn_delay, spawner.min_spawn_delay);
+        assert!(!spawner.on_event_triggered(true, 99));
     }
 
     #[test]

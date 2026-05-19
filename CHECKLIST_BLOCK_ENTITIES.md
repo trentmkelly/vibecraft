@@ -78,14 +78,14 @@
 
 ## World / System Block Entities
 
-- [ ] Implement `SpawnerBlockEntity`: `SpawnData` (entity NBT, custom spawn rules), `nextSpawnData` pool (weighted random), `requiredPlayerRange` (16 blocks default), delay, `minSpawnDelay`/`maxSpawnDelay`, `spawnCount`, `maxNearbyEntities`, activation (player within range), mob-cap check, no-sky-access check
+- [x] Implement `SpawnerBlockEntity`: `SpawnData` (entity NBT, custom spawn rules), `nextSpawnData` pool (weighted random), `requiredPlayerRange` (16 blocks default), delay, `minSpawnDelay`/`maxSpawnDelay`, `spawnCount`, `maxNearbyEntities`, activation (player within range), mob-cap check, no-sky-access check
 - [ ] Implement `TrialSpawnerBlockEntity`: state machine (INACTIVE → WAITING_FOR_PLAYERS → ACTIVE → WAITING_FOR_REWARD_EJECTION → COOLDOWN), normal vs. ominous config, `detectedPlayers` set per trial, ejection slot positions, `TrialSpawnerConfig` from data
 - [x] Implement `JigsawBlockEntity`: joint type, target pool, name, final-state, selection priority, placement priority, orientation hint
 - [x] Implement `StructureBlockEntity`: mode (SAVE/LOAD/CORNER/DATA), structure name, position offset, size, mirror, rotation, integrity, seed, show-bounding-box flag, `structureBlockSize` limits
 - [x] Implement `TheEndGatewayBlockEntity`: age counter, exact-teleport flag (`exactTeleport`), exit position, beam animation (ray shot toward exit on teleport use)
 - [x] Implement `TheEndPortalBlockEntity`: placeholder type entry in registry; triggers end dimension entry
 - [x] Implement `TestBlockEntity` and `TestInstanceBlockEntity`: game-test framework support
-- [ ] Add parity test: spawner delay and entity cycling after NBT save/load; mob-cap check prevents overcrowding
+- [x] Add parity test: spawner delay and entity cycling after NBT save/load; mob-cap check prevents overcrowding
 - [ ] Add parity test: trial spawner state machine transitions (activation, cooldown duration, ominous vs. normal config)
 
 ## Decorative / Lore Block Entities
