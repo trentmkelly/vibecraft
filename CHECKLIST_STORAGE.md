@@ -74,8 +74,8 @@
 - [x] Implement `session.lock`: written on world open, exclusive lock enforced, released on clean shutdown; startup refuses if lock held by another process
 - [x] Implement `level.dat` + `level.dat_old` rotation: write new `level.dat` atomically (temp file + rename), keep previous as `level.dat_old`
 - [ ] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
-- [ ] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
-- [ ] Implement POI region files: `<dim>/poi/*.mca` with POI type and occupation counts
+- [x] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
+- [x] Implement POI region files: `<dim>/poi/*.mca` with POI type and occupation counts
 - [x] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
 - [x] Implement advancements: `advancements/<uuid>.json`
 - [x] Implement stats: `stats/<uuid>.json`
@@ -155,8 +155,8 @@
 - [x] Implement command storage.
 - [x] Implement custom bossbar save data.
 - [x] Implement random sequences save data.
-- [ ] Implement POI storage.
-- [ ] Implement entity region/storage behavior.
+- [x] Implement POI storage.
+- [x] Implement entity region/storage behavior.
 - [x] Implement durable write, temp-file, backup, and corruption handling semantics.
 - [x] Implement symlink validation and path allow-list behavior.
 

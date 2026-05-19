@@ -9,6 +9,7 @@ use std::path::{Component, Path, PathBuf};
 use crate::storage::nbt::{
     read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag,
 };
+use crate::storage::region::{ChunkPos, RegionFile};
 
 use super::datafix::require_current_world_data_version;
 
@@ -340,6 +341,30 @@ impl WorldLayout {
 
     pub fn load_random_sequences(&self) -> std::io::Result<Tag> {
         self.load_saved_data("random_sequences")
+    }
+
+    pub fn save_entity_region_chunk(&self, pos: ChunkPos, tag: &Tag) -> std::io::Result<()> {
+        let region = RegionFile::open(&self.entities_dir(), pos.region())?;
+        region.write_chunk_nbt(pos, "", tag)
+    }
+
+    pub fn load_entity_region_chunk(&self, pos: ChunkPos) -> std::io::Result<Option<Tag>> {
+        let region = RegionFile::open(&self.entities_dir(), pos.region())?;
+        region
+            .read_chunk_nbt(pos)
+            .map(|chunk| chunk.map(|(_name, tag)| tag))
+    }
+
+    pub fn save_poi_region_chunk(&self, pos: ChunkPos, tag: &Tag) -> std::io::Result<()> {
+        let region = RegionFile::open(&self.poi_dir(), pos.region())?;
+        region.write_chunk_nbt(pos, "", tag)
+    }
+
+    pub fn load_poi_region_chunk(&self, pos: ChunkPos) -> std::io::Result<Option<Tag>> {
+        let region = RegionFile::open(&self.poi_dir(), pos.region())?;
+        region
+            .read_chunk_nbt(pos)
+            .map(|chunk| chunk.map(|(_name, tag)| tag))
     }
 }
 
@@ -804,6 +829,40 @@ mod tests {
         assert_eq!(layout.load_random_sequences().unwrap(), tag);
         assert!(layout.saved_data_file("scoreboard").is_file());
         assert!(layout.map_data_file(0).is_file());
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn saves_entity_and_poi_region_files_separate_from_block_regions() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-entity-poi-regions-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        let pos = crate::storage::region::ChunkPos { x: 2, z: -3 };
+        let entity_tag = crate::storage::entities::ChunkEntities {
+            pos,
+            entities: vec![crate::storage::entities::StoredEntity {
+                uuid: "00000000-0000-0000-0000-000000000001".to_string(),
+                entity_type: "minecraft:pig".to_string(),
+                data: crate::storage::nbt::Tag::Compound(vec![(
+                    "Health".to_string(),
+                    crate::storage::nbt::Tag::Float(10.0),
+                )]),
+            }],
+        }
+        .to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
+        let poi_tag = crate::storage::poi::PoiSection::new(true).to_nbt();
+
+        layout.save_entity_region_chunk(pos, &entity_tag).unwrap();
+        layout.save_poi_region_chunk(pos, &poi_tag).unwrap();
+
+        assert_eq!(layout.load_entity_region_chunk(pos).unwrap(), Some(entity_tag));
+        assert_eq!(layout.load_poi_region_chunk(pos).unwrap(), Some(poi_tag));
+        assert!(layout.entities_dir().join("r.0.-1.mca").is_file());
+        assert!(layout.poi_dir().join("r.0.-1.mca").is_file());
+        assert!(!layout.region_dir().join("r.0.-1.mca").exists());
 
         let _ = fs::remove_dir_all(&path);
     }
