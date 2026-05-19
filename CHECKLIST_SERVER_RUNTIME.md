@@ -91,7 +91,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement `broadcast-console-to-ops`.
 - [x] Implement clamped `max-world-size`.
 - [ ] Implement `sync-chunk-writes`.
-- [ ] Implement `region-file-compression` with at least deflate parity.
+- [x] Implement `region-file-compression` with at least deflate parity.
 - [ ] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
 - [ ] Implement mutable `enable-status`.
 - [ ] Implement mutable `hide-online-players`.
