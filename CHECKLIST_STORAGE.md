@@ -93,7 +93,7 @@
 - [x] Implement pending request tracking, response correlation — `ManagementServerState::handle_client_request()` records pending JSON-RPC IDs per client, correlates responses by ID, and clears abandoned requests on disconnect
 - [x] Implement allowed origins CORS check for WebSocket management connections — `AllowedOrigins::parse()` and `authorize_request()` enforce exact, wildcard, and empty-origin policies before bearer-secret authentication
 - [ ] Implement TLS support for management server connections
-- [ ] Implement shutdown behavior: in-flight management requests are completed or rejected on shutdown
+- [x] Implement shutdown behavior: in-flight management requests are completed or rejected on shutdown — `ManagementServerState::shutdown()` queues vanilla `server/stopping`, rejects tracked pending requests, and clears connection/request state
 
 ## Game Test Framework Hooks
 

@@ -604,6 +604,20 @@ impl ManagementServerState {
         self.pending_requests.len()
     }
 
+    pub fn shutdown(&mut self) -> Vec<JsonRpcResponse> {
+        self.broadcast(OutgoingNotification::ServerStopping);
+        let rejected = self
+            .pending_requests
+            .drain(..)
+            .map(|request| JsonRpcResponse {
+                id: request.id,
+                result: Err(JsonRpcError::INTERNAL_ERROR),
+            })
+            .collect();
+        self.connected_clients.clear();
+        rejected
+    }
+
     pub fn handle_client_request(
         &mut self,
         client_id: &str,
@@ -1059,6 +1073,58 @@ mod tests {
         assert_eq!(state.pending_request_count(), 1);
         state.disconnect_client("admin");
         assert_eq!(state.pending_request_count(), 0);
+    }
+
+    #[test]
+    fn shutdown_rejects_in_flight_requests_and_announces_stopping() {
+        let mut state = ManagementServerState::default();
+        state.connect_client("first");
+        state.connect_client("second");
+        state.begin_request(
+            "first",
+            &JsonRpcRequest {
+                id: JsonRpcId::Number(11),
+                method: "players/get".to_string(),
+                params: JsonRpcParams::None,
+            },
+        );
+        state.begin_request(
+            "second",
+            &JsonRpcRequest {
+                id: JsonRpcId::String("slow".to_string()),
+                method: "players/kick".to_string(),
+                params: JsonRpcParams::None,
+            },
+        );
+
+        let rejected = state.shutdown();
+        assert_eq!(
+            rejected,
+            vec![
+                JsonRpcResponse {
+                    id: JsonRpcId::Number(11),
+                    result: Err(JsonRpcError::INTERNAL_ERROR),
+                },
+                JsonRpcResponse {
+                    id: JsonRpcId::String("slow".to_string()),
+                    result: Err(JsonRpcError::INTERNAL_ERROR),
+                },
+            ]
+        );
+        assert_eq!(state.pending_request_count(), 0);
+        assert_eq!(
+            state.notifications,
+            vec![
+                QueuedNotification {
+                    client_id: "first".to_string(),
+                    method: "server/stopping".to_string(),
+                },
+                QueuedNotification {
+                    client_id: "second".to_string(),
+                    method: "server/stopping".to_string(),
+                },
+            ]
+        );
     }
 
     #[test]
