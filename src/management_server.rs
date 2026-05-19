@@ -25,6 +25,7 @@ pub const INCOMING_METHODS: &[&str] = &[
     "gamerules/update",
     "server/settings",
     "server/state",
+    "server/metrics",
 ];
 
 pub const OUTGOING_METHODS: &[&str] = &[
@@ -120,6 +121,34 @@ pub fn startup_plan(
             }
         }
         decision => ManagementStartupPlan::Refused(decision),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JmxMonitoringPlan {
+    Disabled,
+    EquivalentMetricsExport {
+        endpoint: &'static str,
+        transport: &'static str,
+    },
+    RefusedManagementDisabled,
+}
+
+pub fn jmx_monitoring_plan(
+    properties: &ServerProperties,
+    management_plan: &ManagementStartupPlan,
+) -> JmxMonitoringPlan {
+    if !properties.enable_jmx_monitoring {
+        return JmxMonitoringPlan::Disabled;
+    }
+    match management_plan {
+        ManagementStartupPlan::Listen { .. } => JmxMonitoringPlan::EquivalentMetricsExport {
+            endpoint: "server/metrics",
+            transport: "json-rpc-management",
+        },
+        ManagementStartupPlan::Disabled | ManagementStartupPlan::Refused(_) => {
+            JmxMonitoringPlan::RefusedManagementDisabled
+        }
     }
 }
 
@@ -366,6 +395,18 @@ impl DiscoveryDocument {
                 SchemaDescriptor::object("PlayerDto", &["id", "name"]),
                 SchemaDescriptor::object("KickDto", &["player", "message"]),
                 SchemaDescriptor::object("ServerStatusDto", &["running", "playerCount"]),
+                SchemaDescriptor::object(
+                    "ServerMetricsDto",
+                    &[
+                        "tick",
+                        "tickDurationNanos",
+                        "overBudgetNanos",
+                        "bytesIn",
+                        "bytesOut",
+                        "packetsIn",
+                        "packetsOut",
+                    ],
+                ),
                 SchemaDescriptor::object("GameRuleDto", &["key", "value"]),
                 SchemaDescriptor::object("BanDto", &["player", "reason", "expires"]),
                 SchemaDescriptor::object("IpBanDto", &["ip", "reason", "expires"]),
@@ -608,6 +649,7 @@ fn incoming_result_schema(method: &str) -> Option<&'static str> {
         "rpc/discover" => Some("DiscoveryDocument"),
         "server/settings" => Some("ServerSettingsDto"),
         "server/state" => Some("ServerStatusDto"),
+        "server/metrics" => Some("ServerMetricsDto"),
         _ => Some("void"),
     }
 }
@@ -790,9 +832,48 @@ mod tests {
             .any(|method| method.method == "server/status"
                 && method.params_schema.as_deref() == Some("ServerStatusDto")));
         assert!(discovery
+            .incoming_methods
+            .iter()
+            .any(|method| method.method == "server/metrics"
+                && method.result_schema.as_deref() == Some("ServerMetricsDto")));
+        assert!(discovery
             .schemas
             .iter()
             .any(|schema| schema.name == "PlayerDto" && schema.fields == ["id", "name"]));
+        assert!(discovery.schemas.iter().any(|schema| schema.name == "ServerMetricsDto"
+            && schema.fields.contains(&"tickDurationNanos".to_string())));
+    }
+
+    #[test]
+    fn jmx_property_uses_management_metrics_export_as_rust_equivalent() {
+        let mut properties = ServerProperties::load_or_default(std::path::Path::new(
+            "definitely-missing-test-server.properties",
+        ))
+        .unwrap();
+        let management_plan = ManagementStartupPlan::Listen {
+            host: "localhost".to_string(),
+            port: 25585,
+            tls: None,
+            allowed_origins: AllowedOrigins::Empty,
+        };
+
+        assert_eq!(
+            jmx_monitoring_plan(&properties, &management_plan),
+            JmxMonitoringPlan::Disabled
+        );
+
+        properties.set("enable-jmx-monitoring", "true");
+        assert_eq!(
+            jmx_monitoring_plan(&properties, &management_plan),
+            JmxMonitoringPlan::EquivalentMetricsExport {
+                endpoint: "server/metrics",
+                transport: "json-rpc-management",
+            }
+        );
+        assert_eq!(
+            jmx_monitoring_plan(&properties, &ManagementStartupPlan::Disabled),
+            JmxMonitoringPlan::RefusedManagementDisabled
+        );
     }
 
     #[test]
