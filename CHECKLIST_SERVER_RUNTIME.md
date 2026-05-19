@@ -39,7 +39,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Detect incompatible world versions before loading.
 - [x] Provide safe-mode datapack loading.
 - [ ] Support world data upgrade and region recreation workflow.
-- [ ] Implement server watchdog behavior controlled by `max-tick-time`.
+- [x] Implement server watchdog behavior controlled by `max-tick-time`.
 
 ## Migrated From Main Checklist: Dedicated Server Configuration
 
@@ -79,7 +79,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `spawn-protection`.
 - [ ] Implement mutable `op-permission-level`.
 - [ ] Implement `function-permission-level`.
-- [ ] Implement `max-tick-time`.
+- [x] Implement `max-tick-time`.
 - [ ] Implement `max-chained-neighbor-updates`.
 - [ ] Implement `rate-limit`.
 - [ ] Implement mutable `view-distance`.

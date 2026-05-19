@@ -174,6 +174,7 @@ fn run(options: CliOptions) -> Result<(), String> {
 
     let mut properties = ServerProperties::load_or_default(&settings_path)?;
     properties.save(&settings_path)?;
+    let watchdog = runtime::Watchdog::from_max_tick_time_millis(properties.max_tick_time);
 
     let eula = Eula::load_or_create(&eula_path)?;
 
@@ -212,6 +213,10 @@ fn run(options: CliOptions) -> Result<(), String> {
     logger.info(&format!(
         "serverId={}",
         options.server_id.as_deref().unwrap_or("")
+    ))?;
+    logger.info(&format!(
+        "maxTickTime={}",
+        watchdog.max_tick_time_millis()
     ))?;
     let (console_input, _console_handle) = console::spawn_console_input_thread();
     logger.info("Started server console input thread")?;

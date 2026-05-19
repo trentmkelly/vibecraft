@@ -477,6 +477,18 @@ impl Watchdog {
         Self { max_tick_time }
     }
 
+    pub fn from_max_tick_time_millis(max_tick_time_millis: u64) -> Self {
+        Self::new(Duration::from_millis(max_tick_time_millis))
+    }
+
+    pub fn max_tick_time(&self) -> Duration {
+        self.max_tick_time
+    }
+
+    pub fn max_tick_time_millis(&self) -> u64 {
+        self.max_tick_time.as_millis().min(u128::from(u64::MAX)) as u64
+    }
+
     pub fn check_tick(&self, tick_duration: Duration) -> WatchdogDecision {
         if self.max_tick_time.is_zero() {
             WatchdogDecision::Disabled
@@ -1127,6 +1139,19 @@ mod tests {
         assert_eq!(
             Watchdog::new(Duration::ZERO).check_tick(Duration::from_secs(999)),
             WatchdogDecision::Disabled
+        );
+    }
+
+    #[test]
+    fn watchdog_uses_server_property_milliseconds() {
+        let watchdog = Watchdog::from_max_tick_time_millis(12_345);
+        assert_eq!(watchdog.max_tick_time(), Duration::from_millis(12_345));
+        assert_eq!(watchdog.max_tick_time_millis(), 12_345);
+        assert_eq!(
+            watchdog.check_tick(Duration::from_millis(12_346)),
+            WatchdogDecision::Crash {
+                exceeded_by: Duration::from_millis(1)
+            }
         );
     }
 
