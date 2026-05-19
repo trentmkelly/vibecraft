@@ -104,7 +104,7 @@
 
 - [ ] Implement `BeehiveBlockEntity`: occupants list (entity UUID, ticks-in-hive, min-occupation-ticks, has-nectar), anger flag, honey level (0–5), `addOccupant()`, `emptyAllLivingFromHive()`, `releaseAllOccupants()`, hive-full check, fire-destroy behavior
 - [x] Implement `ConduitBlockEntity`: frame block scanning (prismarine variants), active condition threshold (16 blocks minimum), target tracking within 8 blocks, attack-cooldown of 40 ticks, conduit-power effect radius (16–96 blocks based on frame count)
-- [ ] Implement `CampfireBlockEntity`: 4 cooking slots with independent `cookingTime` (600 tick default) and `cookingProgress`, signal-fire flag (hay bale below doubles smoke height), lit state determines ticking
+- [x] Implement `CampfireBlockEntity`: 4 cooking slots with independent `cookingTime` (600 tick default) and `cookingProgress`, signal-fire flag (hay bale below doubles smoke height), lit state determines ticking
 - [ ] Implement `SculkSensorBlockEntity`: vibration listener phase (LISTENING/TICKING/VIBRATION_DONE), vibration event data (source position, distance, vibration type), last-vibration frequency (output signal), delay-emit countdown, `Listening` and `Vibrating` phases
 - [ ] Implement `CalibratedSculkSensorBlockEntity`: filter frequency from comparator input side; only propagate vibration events matching the filter frequency
 - [ ] Implement `SculkCatalystBlockEntity`: charge queue on death of nearby mobs (charge proportional to XP), sculk spread emission toward charge targets

@@ -466,6 +466,21 @@ pub struct ConduitEffectApplication {
     pub duration_ticks: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CampfireBlockEntity {
+    pub items: Vec<Option<PotItemStack>>,
+    pub cooking_progress: [i32; 4],
+    pub cooking_time: [i32; 4],
+    pub signal_fire: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CampfireTickResult {
+    NoChange,
+    Changed,
+    Cooked { slot: usize, item: PotItemStack },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BellTickEffects {
     pub play_resonate_sound: bool,
@@ -1250,7 +1265,10 @@ impl StructureBlockEntity {
     }
 
     pub fn render_mode(&self) -> StructureRenderMode {
-        if !matches!(self.mode, StructureBlockMode::Save | StructureBlockMode::Load) {
+        if !matches!(
+            self.mode,
+            StructureBlockMode::Save | StructureBlockMode::Load
+        ) {
             StructureRenderMode::None
         } else if self.mode == StructureBlockMode::Save && self.show_air {
             StructureRenderMode::BoxAndInvisibleBlocks
@@ -1309,9 +1327,15 @@ impl StructureBlockEntity {
 
     fn clamp_structure_pos(pos: BlockPos) -> BlockPos {
         BlockPos {
-            x: pos.x.clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
-            y: pos.y.clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
-            z: pos.z.clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
+            x: pos
+                .x
+                .clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
+            y: pos
+                .y
+                .clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
+            z: pos
+                .z
+                .clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
         }
     }
 
@@ -2989,6 +3013,161 @@ impl ConduitBlockEntity {
     }
 }
 
+impl CampfireBlockEntity {
+    pub const NUM_SLOTS: usize = 4;
+    pub const DEFAULT_COOKING_TIME: i32 = 600;
+    pub const BURN_COOL_SPEED: i32 = 2;
+
+    pub fn new(signal_fire: bool) -> Self {
+        Self {
+            items: vec![None; Self::NUM_SLOTS],
+            cooking_progress: [0; Self::NUM_SLOTS],
+            cooking_time: [0; Self::NUM_SLOTS],
+            signal_fire,
+        }
+    }
+
+    pub fn place_food(&mut self, item: PotItemStack, cooking_time: Option<i32>) -> bool {
+        if item.is_empty() {
+            return false;
+        }
+        let Some(slot) = self.items.iter().position(Option::is_none) else {
+            return false;
+        };
+        self.items[slot] = Some(PotItemStack {
+            item_id: item.item_id,
+            count: 1,
+        });
+        self.cooking_progress[slot] = 0;
+        self.cooking_time[slot] = cooking_time.unwrap_or(Self::DEFAULT_COOKING_TIME).max(1);
+        true
+    }
+
+    pub fn cook_tick(
+        &mut self,
+        lit: bool,
+        recipe_result: impl Fn(&PotItemStack) -> PotItemStack,
+    ) -> Vec<CampfireTickResult> {
+        if !lit {
+            return self.cooldown_tick();
+        }
+
+        let mut results = Vec::new();
+        for slot in 0..Self::NUM_SLOTS {
+            if let Some(item) = self.items[slot].as_ref() {
+                self.cooking_progress[slot] += 1;
+                if self.cooking_progress[slot] >= self.cooking_time[slot] {
+                    let cooked = recipe_result(item);
+                    self.items[slot] = None;
+                    self.cooking_progress[slot] = 0;
+                    self.cooking_time[slot] = 0;
+                    results.push(CampfireTickResult::Cooked { slot, item: cooked });
+                } else {
+                    results.push(CampfireTickResult::Changed);
+                }
+            }
+        }
+        if results.is_empty() {
+            results.push(CampfireTickResult::NoChange);
+        }
+        results
+    }
+
+    pub fn cooldown_tick(&mut self) -> Vec<CampfireTickResult> {
+        let mut changed = false;
+        for slot in 0..Self::NUM_SLOTS {
+            if self.cooking_progress[slot] > 0 {
+                changed = true;
+                self.cooking_progress[slot] = (self.cooking_progress[slot] - Self::BURN_COOL_SPEED)
+                    .clamp(0, self.cooking_time[slot]);
+            }
+        }
+        vec![if changed {
+            CampfireTickResult::Changed
+        } else {
+            CampfireTickResult::NoChange
+        }]
+    }
+
+    pub fn clear_content(&mut self) {
+        self.items.fill(None);
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        Tag::Compound(vec![("Items".to_string(), self.items_tag())])
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            ("Items".to_string(), self.items_tag()),
+            (
+                "CookingTimes".to_string(),
+                Tag::IntArray(self.cooking_progress.to_vec()),
+            ),
+            (
+                "CookingTotalTimes".to_string(),
+                Tag::IntArray(self.cooking_time.to_vec()),
+            ),
+            (
+                "SignalFire".to_string(),
+                Tag::Byte(i8::from(self.signal_fire)),
+            ),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new(false);
+        };
+        let mut campfire = Self::new(get_bool(entries, "SignalFire").unwrap_or(false));
+        if let Some(Tag::List(items)) = entries
+            .iter()
+            .find_map(|(name, tag)| (name == "Items").then_some(tag))
+        {
+            for item_tag in items {
+                let Some(item_entries) = compound_entries(item_tag) else {
+                    continue;
+                };
+                let Some(slot) =
+                    get_byte(item_entries, "Slot").and_then(|slot| usize::try_from(slot).ok())
+                else {
+                    continue;
+                };
+                if slot < Self::NUM_SLOTS {
+                    campfire.items[slot] = PotItemStack::from_tag(item_tag);
+                }
+            }
+        }
+        if let Some(values) = get_int_array(entries, "CookingTimes") {
+            for (slot, value) in values.iter().copied().take(Self::NUM_SLOTS).enumerate() {
+                campfire.cooking_progress[slot] = value;
+            }
+        }
+        if let Some(values) = get_int_array(entries, "CookingTotalTimes") {
+            for (slot, value) in values.iter().copied().take(Self::NUM_SLOTS).enumerate() {
+                campfire.cooking_time[slot] = value;
+            }
+        }
+        campfire
+    }
+
+    fn items_tag(&self) -> Tag {
+        Tag::List(
+            self.items
+                .iter()
+                .enumerate()
+                .filter_map(|(slot, item)| {
+                    let mut tag = item.as_ref()?.to_tag();
+                    if let Tag::Compound(entries) = &mut tag {
+                        entries.insert(0, ("Slot".to_string(), Tag::Byte(slot as i8)));
+                    }
+                    Some(tag)
+                })
+                .collect(),
+        )
+    }
+}
+
 impl BellBlockEntity {
     pub const EVENT_RING: i32 = 1;
     pub const DURATION: i32 = 50;
@@ -4136,6 +4315,13 @@ fn get_long(entries: &[(String, Tag)], key: &str) -> Option<i64> {
     })
 }
 
+fn get_int_array<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a [i32]> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::IntArray(value) if name == key => Some(value.as_slice()),
+        _ => None,
+    })
+}
+
 fn get_float(entries: &[(String, Tag)], key: &str) -> Option<f32> {
     entries.iter().find_map(|(name, value)| match value {
         Tag::Float(value) if name == key => Some(*value),
@@ -5058,7 +5244,11 @@ mod tests {
         structure.set_structure_name(Some("minecraft:village/plains/houses/plains_small_house_1"));
         structure.author = "Builder".to_string();
         structure.metadata = "data".to_string();
-        structure.set_structure_pos(BlockPos { x: 99, y: -99, z: 7 });
+        structure.set_structure_pos(BlockPos {
+            x: 99,
+            y: -99,
+            z: 7,
+        });
         structure.set_structure_size((50, -2, 12));
         structure.mirror = StructureMirror::LeftRight;
         structure.rotation = StructureRotation::Clockwise90;
@@ -5070,14 +5260,32 @@ mod tests {
         structure.integrity = 0.65;
         structure.seed = 12345;
 
-        assert_eq!(structure.structure_pos, BlockPos { x: 48, y: -48, z: 7 });
+        assert_eq!(
+            structure.structure_pos,
+            BlockPos {
+                x: 48,
+                y: -48,
+                z: 7
+            }
+        );
         assert_eq!(structure.structure_size, (48, 0, 12));
-        assert_eq!(structure.render_mode(), StructureRenderMode::BoxAndInvisibleBlocks);
+        assert_eq!(
+            structure.render_mode(),
+            StructureRenderMode::BoxAndInvisibleBlocks
+        );
         assert_eq!(
             structure.renderable_box(),
             StructureRenderableBox {
-                min: BlockPos { x: 48, y: -48, z: 7 },
-                max: BlockPos { x: 60, y: -48, z: 55 },
+                min: BlockPos {
+                    x: 48,
+                    y: -48,
+                    z: 7
+                },
+                max: BlockPos {
+                    x: 60,
+                    y: -48,
+                    z: 55
+                },
             }
         );
 
@@ -5093,13 +5301,23 @@ mod tests {
             ("sizeX".to_string(), Tag::Int(-1)),
             ("sizeY".to_string(), Tag::Int(64)),
             ("sizeZ".to_string(), Tag::Int(9)),
-            ("rotation".to_string(), Tag::String("CLOCKWISE_180".to_string())),
+            (
+                "rotation".to_string(),
+                Tag::String("CLOCKWISE_180".to_string()),
+            ),
             ("mirror".to_string(), Tag::String("FRONT_BACK".to_string())),
             ("mode".to_string(), Tag::String("LOAD".to_string())),
             ("showboundingbox".to_string(), Tag::Byte(0)),
         ]));
         assert_eq!(loaded.structure_name, None);
-        assert_eq!(loaded.structure_pos, BlockPos { x: -48, y: 2, z: 48 });
+        assert_eq!(
+            loaded.structure_pos,
+            BlockPos {
+                x: -48,
+                y: 2,
+                z: 48
+            }
+        );
         assert_eq!(loaded.structure_size, (0, 48, 9));
         assert_eq!(loaded.rotation, StructureRotation::Clockwise180);
         assert_eq!(loaded.mirror, StructureMirror::FrontBack);
@@ -5674,17 +5892,26 @@ mod tests {
         assert_eq!(ConduitBlockEntity::MIN_KILL_SIZE, 42);
         assert_eq!(ConduitBlockEntity::EFFECT_DURATION_TICKS, 260);
         assert_eq!(ConduitBlockEntity::KILL_RANGE, 8.0);
-        assert!(ConduitBlockEntity::is_valid_frame_block("minecraft:sea_lantern"));
+        assert!(ConduitBlockEntity::is_valid_frame_block(
+            "minecraft:sea_lantern"
+        ));
         assert!(!ConduitBlockEntity::is_valid_frame_block("minecraft:stone"));
 
-        let origin = BlockPos { x: 10, y: 64, z: 10 };
+        let origin = BlockPos {
+            x: 10,
+            y: 64,
+            z: 10,
+        };
         let mut conduit = ConduitBlockEntity::new();
         assert!(!conduit.update_shape(origin, |_| false, |_| "minecraft:sea_lantern"));
         assert!(conduit.effect_blocks.is_empty());
 
         assert!(conduit.update_shape(origin, |_| true, |_| "minecraft:prismarine"));
         assert_eq!(conduit.effect_blocks.len(), 42);
-        assert_eq!(ConduitBlockEntity::effect_range(conduit.effect_blocks.len()), 96);
+        assert_eq!(
+            ConduitBlockEntity::effect_range(conduit.effect_blocks.len()),
+            96
+        );
         conduit.is_active = true;
         assert_eq!(
             conduit.apply_effects(),
@@ -5705,13 +5932,20 @@ mod tests {
         let mut minimum = ConduitBlockEntity::new();
         assert!(minimum.update_shape(origin, |_| true, active_frame_lookup));
         assert_eq!(minimum.effect_blocks.len(), 16);
-        assert_eq!(ConduitBlockEntity::effect_range(minimum.effect_blocks.len()), 32);
+        assert_eq!(
+            ConduitBlockEntity::effect_range(minimum.effect_blocks.len()),
+            32
+        );
         minimum.is_hunting = minimum.effect_blocks.len() >= ConduitBlockEntity::MIN_KILL_SIZE;
         assert!(!minimum.update_destroy_target(
             origin,
             &[ConduitTarget {
                 id: "guardian".to_string(),
-                pos: BlockPos { x: 12, y: 64, z: 10 },
+                pos: BlockPos {
+                    x: 12,
+                    y: 64,
+                    z: 10
+                },
                 alive: true,
                 enemy: true,
                 in_water_or_rain: true,
@@ -5722,21 +5956,30 @@ mod tests {
         let targets = vec![
             ConduitTarget {
                 id: "outside".to_string(),
-                pos: BlockPos { x: 18, y: 64, z: 10 },
+                pos: BlockPos {
+                    x: 18,
+                    y: 64,
+                    z: 10,
+                },
                 alive: true,
                 enemy: true,
                 in_water_or_rain: true,
             },
             ConduitTarget {
                 id: "guardian".to_string(),
-                pos: BlockPos { x: 17, y: 64, z: 10 },
+                pos: BlockPos {
+                    x: 17,
+                    y: 64,
+                    z: 10,
+                },
                 alive: true,
                 enemy: true,
                 in_water_or_rain: true,
             },
         ];
         let mut hunting = ConduitBlockEntity::new();
-        let attacked = hunting.server_tick(40, origin, |_| true, |_| "minecraft:sea_lantern", &targets);
+        let attacked =
+            hunting.server_tick(40, origin, |_| true, |_| "minecraft:sea_lantern", &targets);
         assert_eq!(attacked.as_deref(), Some("guardian"));
         assert!(hunting.is_active);
         assert!(hunting.is_hunting);
@@ -5749,13 +5992,23 @@ mod tests {
         );
         let dead_target = [ConduitTarget {
             id: "guardian".to_string(),
-            pos: BlockPos { x: 17, y: 64, z: 10 },
+            pos: BlockPos {
+                x: 17,
+                y: 64,
+                z: 10,
+            },
             alive: false,
             enemy: true,
             in_water_or_rain: true,
         }];
         assert_eq!(
-            hunting.server_tick(120, origin, |_| true, |_| "minecraft:sea_lantern", &dead_target),
+            hunting.server_tick(
+                120,
+                origin,
+                |_| true,
+                |_| "minecraft:sea_lantern",
+                &dead_target
+            ),
             None
         );
         assert_eq!(hunting.destroy_target, None);
@@ -5774,6 +6027,113 @@ mod tests {
             Some("guardian".to_string())
         );
         assert_eq!(hunting.get_update_tag(), saved);
+    }
+
+    #[test]
+    fn campfire_block_entity_cooks_cools_saves_and_updates_items_like_java() {
+        assert_eq!(CampfireBlockEntity::NUM_SLOTS, 4);
+        assert_eq!(CampfireBlockEntity::DEFAULT_COOKING_TIME, 600);
+        assert_eq!(CampfireBlockEntity::BURN_COOL_SPEED, 2);
+
+        let mut campfire = CampfireBlockEntity::new(true);
+        assert!(campfire.place_food(
+            PotItemStack {
+                item_id: "minecraft:cod".to_string(),
+                count: 3,
+            },
+            Some(3),
+        ));
+        assert_eq!(
+            campfire.items[0],
+            Some(PotItemStack {
+                item_id: "minecraft:cod".to_string(),
+                count: 1,
+            })
+        );
+        assert_eq!(campfire.cooking_time[0], 3);
+        assert!((1..CampfireBlockEntity::NUM_SLOTS).all(|slot| campfire.items[slot].is_none()));
+
+        assert_eq!(
+            campfire.cook_tick(true, |item| PotItemStack {
+                item_id: format!(
+                    "minecraft:cooked_{}",
+                    item.item_id.trim_start_matches("minecraft:")
+                ),
+                count: 1,
+            }),
+            vec![CampfireTickResult::Changed]
+        );
+        assert_eq!(campfire.cooking_progress[0], 1);
+        assert_eq!(campfire.cooldown_tick(), vec![CampfireTickResult::Changed]);
+        assert_eq!(campfire.cooking_progress[0], 0);
+
+        campfire.cooking_progress[0] = 2;
+        assert_eq!(
+            campfire.cook_tick(true, |item| PotItemStack {
+                item_id: format!(
+                    "minecraft:cooked_{}",
+                    item.item_id.trim_start_matches("minecraft:")
+                ),
+                count: 1,
+            }),
+            vec![CampfireTickResult::Cooked {
+                slot: 0,
+                item: PotItemStack {
+                    item_id: "minecraft:cooked_cod".to_string(),
+                    count: 1,
+                },
+            }]
+        );
+        assert_eq!(campfire.items[0], None);
+        assert_eq!(campfire.cooking_progress[0], 0);
+        assert_eq!(campfire.cooking_time[0], 0);
+
+        assert!(campfire.place_food(
+            PotItemStack {
+                item_id: "minecraft:salmon".to_string(),
+                count: 1,
+            },
+            None,
+        ));
+        campfire.cooking_progress[0] = 5;
+        assert!(campfire.place_food(
+            PotItemStack {
+                item_id: "minecraft:beef".to_string(),
+                count: 1,
+            },
+            Some(10),
+        ));
+        assert_eq!(campfire.cooking_time[0], 600);
+        assert_eq!(campfire.cooking_time[1], 10);
+
+        let saved = campfire.save_additional();
+        assert_eq!(CampfireBlockEntity::load_additional(&saved), campfire);
+        assert_eq!(
+            campfire.get_update_tag(),
+            Tag::Compound(vec![(
+                "Items".to_string(),
+                Tag::List(vec![
+                    Tag::Compound(vec![
+                        ("Slot".to_string(), Tag::Byte(0)),
+                        (
+                            "id".to_string(),
+                            Tag::String("minecraft:salmon".to_string())
+                        ),
+                        ("count".to_string(), Tag::Int(1)),
+                    ]),
+                    Tag::Compound(vec![
+                        ("Slot".to_string(), Tag::Byte(1)),
+                        ("id".to_string(), Tag::String("minecraft:beef".to_string())),
+                        ("count".to_string(), Tag::Int(1)),
+                    ]),
+                ])
+            )])
+        );
+
+        campfire.clear_content();
+        assert!(campfire.items.iter().all(Option::is_none));
+        assert_eq!(campfire.cooldown_tick(), vec![CampfireTickResult::Changed]);
+        assert_eq!(campfire.cooking_progress[0], 3);
     }
 
     #[test]
