@@ -249,7 +249,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "edit_book",
         java_class: "ServerboundEditBookPacket",
-        field_order: "unparsed",
+        field_order: "slot:VarInt, pages:list max 100 of utf8 max 1024, title:optional utf8 max 32",
     },
     PlayPacketSpec {
         id: 25,

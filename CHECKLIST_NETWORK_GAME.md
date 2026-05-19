@@ -92,7 +92,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundContainerClosePacket` (0x13): container ID VarInt
 - [x] `ServerboundSetCarriedItemPacket` (0x35): slot short
 - [x] `ServerboundPickItemFromBlockPacket` (0x24): block pos, include-data bool; `ServerboundPickItemFromEntityPacket` (0x25): entity ID VarInt, include-data bool
-- [ ] `ServerboundEditBookPacket` (0x14): hand, pages list, optional title
+- [x] `ServerboundEditBookPacket` (0x18): slot VarInt, pages list capped at 100 entries with 1024-char UTF-8 pages, optional 32-char title
 - [x] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
 - [x] `ServerboundSelectTradePacket` (0x33): item number VarInt
 - [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id

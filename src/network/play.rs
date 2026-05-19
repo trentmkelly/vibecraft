@@ -33,6 +33,7 @@ pub const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID: i32 = 16;
 pub const SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID: i32 = 17;
 pub const SERVERBOUND_CONTAINER_CLICK_PACKET_ID: i32 = 18;
 pub const SERVERBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 19;
+pub const SERVERBOUND_EDIT_BOOK_PACKET_ID: i32 = 24;
 pub const SERVERBOUND_JIGSAW_GENERATE_PACKET_ID: i32 = 27;
 pub const SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID: i32 = 29;
 pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
@@ -420,6 +421,13 @@ pub struct ServerboundContainerButtonClickPacket {
 pub struct ServerboundCommandSuggestionPacket {
     pub id: i32,
     pub command: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundEditBookPacket {
+    pub slot: i32,
+    pub pages: Vec<String>,
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1182,6 +1190,7 @@ pub struct PlaySession {
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
+    pub last_edit_book: Option<ServerboundEditBookPacket>,
     pub last_resource_pack_response: Option<ServerboundResourcePackPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
@@ -1282,6 +1291,7 @@ impl PlaySession {
             last_select_trade: None,
             last_rename_item: None,
             last_command_suggestion: None,
+            last_edit_book: None,
             last_resource_pack_response: None,
             last_container_close: None,
             last_container_button_click: None,
@@ -1476,6 +1486,16 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad container close packet: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_EDIT_BOOK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundEditBookPacket::read(&mut input) {
+                    Ok(book) => {
+                        self.last_edit_book = Some(book);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad edit book packet: {err}")),
                 }
             }
             SERVERBOUND_JIGSAW_GENERATE_PACKET_ID => {
@@ -3142,6 +3162,52 @@ impl ServerboundCommandSuggestionPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.id)?;
         write_string(writer, &self.command, 32500)
+    }
+}
+
+impl ServerboundEditBookPacket {
+    pub const MAX_PAGES: usize = 100;
+    pub const MAX_PAGE_CHARS: usize = 1024;
+    pub const MAX_TITLE_CHARS: usize = 32;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let slot = read_var_i32(reader)?;
+        let page_count = read_var_i32(reader)?;
+        if page_count < 0 || page_count as usize > Self::MAX_PAGES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid edit book page count",
+            ));
+        }
+        let mut pages = Vec::with_capacity(page_count as usize);
+        for _ in 0..page_count {
+            pages.push(read_string(reader, Self::MAX_PAGE_CHARS)?);
+        }
+        let title = if read_bool(reader)? {
+            Some(read_string(reader, Self::MAX_TITLE_CHARS)?)
+        } else {
+            None
+        };
+        Ok(Self { slot, pages, title })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.pages.len() > Self::MAX_PAGES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "too many edit book pages",
+            ));
+        }
+        write_var_i32(writer, self.slot)?;
+        write_var_i32(writer, self.pages.len() as i32)?;
+        for page in &self.pages {
+            write_string(writer, page, Self::MAX_PAGE_CHARS)?;
+        }
+        write_bool(writer, self.title.is_some())?;
+        if let Some(title) = &self.title {
+            write_string(writer, title, Self::MAX_TITLE_CHARS)?;
+        }
+        Ok(())
     }
 }
 
@@ -4852,6 +4918,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID, vec![0; 8])),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_EDIT_BOOK_PACKET_ID, vec![0, 101])),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5552,6 +5622,37 @@ mod tests {
             session.last_container_button_click,
             Some(container_button_click)
         );
+
+        let edit_book = ServerboundEditBookPacket {
+            slot: 1,
+            pages: vec!["page one".to_string(), "page two".to_string()],
+            title: Some("Title".to_string()),
+        };
+        let mut edit_book_payload = Vec::new();
+        edit_book.write(&mut edit_book_payload).unwrap();
+        assert_eq!(
+            edit_book_payload,
+            vec![
+                1, 2, 8, b'p', b'a', b'g', b'e', b' ', b'o', b'n', b'e', 8, b'p', b'a',
+                b'g', b'e', b' ', b't', b'w', b'o', 1, 5, b'T', b'i', b't', b'l', b'e'
+            ]
+        );
+        assert_eq!(
+            ServerboundEditBookPacket::read(&mut cursor(edit_book_payload.clone())).unwrap(),
+            edit_book
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_EDIT_BOOK_PACKET_ID, edit_book_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_edit_book, Some(edit_book));
+        assert!(ServerboundEditBookPacket {
+            slot: 0,
+            pages: vec!["x".to_string(); 101],
+            title: None,
+        }
+        .write(&mut Vec::new())
+        .is_err());
 
         let chat_ack = ServerboundChatAckPacket { offset: 128 };
         let mut chat_ack_payload = Vec::new();
