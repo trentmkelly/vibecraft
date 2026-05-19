@@ -133,7 +133,7 @@ use std::process;
 
 use cli::CliOptions;
 use eula::Eula;
-use log::Logger;
+use log::{LogLevel, Logger};
 use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
 use network::status::run_status_server;
@@ -169,7 +169,20 @@ fn main() {
 }
 
 fn run(options: CliOptions) -> Result<(), String> {
-    let logger = Logger::open("logs")?;
+    // Determine the log level using the documented precedence:
+    //   1. --log-level CLI flag
+    //   2. RUSTCRAFT_LOG environment variable
+    //   3. Default: Info
+    let level = options
+        .log_level
+        .or_else(|| {
+            std::env::var("RUSTCRAFT_LOG")
+                .ok()
+                .and_then(|val| LogLevel::from_str(&val).ok())
+        })
+        .unwrap_or(LogLevel::Info);
+
+    let logger = crate::log::init(Logger::open_with_level("logs", level)?);
     logger.info("Starting RustCraft target server for Minecraft Java Edition 26.1.2")?;
 
     if let Some(pid_file) = &options.pid_file {

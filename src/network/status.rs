@@ -1807,10 +1807,10 @@ fn handle_login_connection(
                     input.read_exact(&mut direction_byte)?;
                     let sequence = read_var_i32(&mut input)?;
                     let (dbx, dby, dbz) = unpack_block_position(packed_pos);
-                    eprintln!(
-                        "[DEBUG] player_action action={action} pos=({dbx},{dby},{dbz}) mode={:?}",
+                    crate::log::log_debug(&format!(
+                        "player_action action={action} pos=({dbx},{dby},{dbz}) mode={:?}",
                         play_state.game_mode
-                    );
+                    ));
                     // Java ServerPlayerGameMode: START_DESTROY_BLOCK with getDestroyProgress >= 1.0
                     // (i.e. destroy_time == 0) → "insta mine" — break immediately, same as creative.
                     if action == 0 {
@@ -1824,7 +1824,7 @@ fn handle_login_connection(
                             .as_deref()
                             .and_then(|name| representative_state_definition(name))
                             .map(|def| def.physical.destroy_time);
-                        eprintln!("[DEBUG] instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}");
+                        crate::log::log_debug(&format!("instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"));
                     }
                     let is_instabreak =
                         action == 0 && play_state.game_mode != GameMode::Creative && {
@@ -1860,12 +1860,26 @@ fn handle_login_connection(
                         // Sending BlockChangedAck FIRST lets the client commit its block-
                         // prediction state before AddEntity arrives, so the entity spawns into
                         // confirmed-AIR and renders correctly.
+                        if crate::log::global_level() >= crate::log::LogLevel::Trace {
+                            crate::log::log_trace(&format!(
+                                "block break seq={sequence} pos=({dbx},{dby},{dbz}) action={action} game_mode={:?}",
+                                play_state.game_mode
+                            ));
+                            crate::log::log_trace(&format!(
+                                "sending BLOCK_CHANGED_ACK seq={sequence}"
+                            ));
+                        }
                         write_framed_packet_with_compression(
                             stream,
                             compression,
                             CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
                             |p| write_var_i32(p, sequence),
                         )?;
+                        if crate::log::global_level() >= crate::log::LogLevel::Trace {
+                            crate::log::log_trace(&format!(
+                                "sending BLOCK_UPDATE pos=({dbx},{dby},{dbz}) new_state=AIR"
+                            ));
+                        }
                         write_framed_packet_with_compression(
                             stream,
                             compression,
@@ -1882,7 +1896,7 @@ fn handle_login_connection(
                         };
                         let block_name =
                             break_block_in_region(&world_layout, chunk_pos, bx, by, bz);
-                        eprintln!("[DEBUG] block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}", play_state.game_mode);
+                        crate::log::log_debug(&format!("block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}", play_state.game_mode));
                         if play_state.game_mode != GameMode::Creative {
                             let loot_seed = (bx as u64).wrapping_mul(0x9E37_79B9)
                                 ^ (by as u64).wrapping_mul(0x6C62_272E)
@@ -1907,6 +1921,13 @@ fn handle_login_connection(
                                 let vel_x = pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1;
                                 let vel_y = 0.2_f64;
                                 let vel_z = pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1;
+                                if crate::log::global_level() >= crate::log::LogLevel::Trace {
+                                    crate::log::log_trace(&format!(
+                                        "sending ADD_ENTITY eid={eid} item={item_name} \
+                                         pos=({drop_x},{drop_y},{drop_z}) \
+                                         vel=({vel_x:.4},{vel_y:.4},{vel_z:.4})"
+                                    ));
+                                }
                                 write_framed_packet_with_compression(
                                     stream,
                                     compression,
@@ -1928,6 +1949,11 @@ fn handle_login_connection(
                                         write_var_i32(p, 0)
                                     },
                                 )?;
+                                if crate::log::global_level() >= crate::log::LogLevel::Trace {
+                                    crate::log::log_trace(&format!(
+                                        "sending SET_ENTITY_DATA eid={eid} item={item_name} count={count} pid={item_pid}"
+                                    ));
+                                }
                                 write_framed_packet_with_compression(
                                     stream,
                                     compression,
@@ -6303,6 +6329,21 @@ where
     write_packet(writer, &payload)
 }
 
+/// Returns the number of bytes needed to encode `value` as a Minecraft VarInt.
+///
+/// Packet IDs are always non-negative, so the sign extension applied to
+/// negative values by [`write_var_i32`] is not relevant here.
+fn var_int_encoded_len(value: i32) -> usize {
+    let uval = value as u32;
+    match uval {
+        0..=0x7F => 1,
+        0x80..=0x3FFF => 2,
+        0x4000..=0x1F_FFFF => 3,
+        0x20_0000..=0xFFF_FFFF => 4,
+        _ => 5,
+    }
+}
+
 fn write_framed_packet_with_compression<W, F>(
     writer: &mut W,
     compression: CompressionState,
@@ -6316,6 +6357,12 @@ where
     let mut payload = Vec::new();
     write_var_i32(&mut payload, packet_id)?;
     write_body(&mut payload)?;
+    // Emit a TRACE-level packet dump when tracing is active.  The guard avoids
+    // the format overhead when tracing is off.
+    if crate::log::global_level() >= crate::log::LogLevel::Trace {
+        let id_len = var_int_encoded_len(packet_id);
+        crate::log::log_packet_send(packet_id, &payload[id_len..]);
+    }
     let frame = compression.encode_packet(&payload)?;
     writer.write_all(&frame)
 }
@@ -6660,7 +6707,8 @@ mod tests {
         write_vanilla_frog_variant_registry_packet, write_vanilla_instrument_registry_packet,
         write_vanilla_jukebox_song_registry_packet, write_vanilla_painting_variant_registry_packet,
         write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
-        write_vanilla_timeline_registry_packet, write_vanilla_trim_pattern_registry_packet,
+        var_int_encoded_len, write_vanilla_timeline_registry_packet,
+        write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
@@ -8662,5 +8710,37 @@ mod tests {
             found_timeline,
             "tags packet must include minecraft:timeline group"
         );
+    }
+
+    // ─── var_int_encoded_len ─────────────────────────────────────────────────
+
+    #[test]
+    fn var_int_encoded_len_matches_actual_encoding() {
+        // Boundary values for each VarInt byte-count tier.
+        let cases: &[(i32, usize)] = &[
+            (0, 1),
+            (1, 1),
+            (127, 1),     // 0x7F — last 1-byte value
+            (128, 2),     // 0x80 — first 2-byte value
+            (16383, 2),   // 0x3FFF — last 2-byte value
+            (16384, 3),   // 0x4000 — first 3-byte value
+            (2097151, 3), // 0x1FFFFF — last 3-byte value
+            (2097152, 4), // 0x200000 — first 4-byte value
+        ];
+        for &(value, expected_len) in cases {
+            let encoded = crate::network::varint::encode_var_i32(value);
+            assert_eq!(
+                encoded.len(),
+                expected_len,
+                "encode_var_i32({value}) produced {} bytes, expected {expected_len}",
+                encoded.len()
+            );
+            assert_eq!(
+                var_int_encoded_len(value),
+                expected_len,
+                "var_int_encoded_len({value}) returned {}, expected {expected_len}",
+                var_int_encoded_len(value)
+            );
+        }
     }
 }

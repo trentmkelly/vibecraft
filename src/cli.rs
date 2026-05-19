@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::log::LogLevel;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CliOptions {
     pub nogui: bool,
@@ -18,6 +20,9 @@ pub struct CliOptions {
     pub server_id: Option<String>,
     pub jfr_profile: bool,
     pub pid_file: Option<PathBuf>,
+    /// Overrides the default log level.  `None` means fall back to the
+    /// `RUSTCRAFT_LOG` environment variable, then `LogLevel::Info`.
+    pub log_level: Option<LogLevel>,
 }
 
 impl Default for CliOptions {
@@ -39,6 +44,7 @@ impl Default for CliOptions {
             server_id: None,
             jfr_profile: false,
             pid_file: None,
+            log_level: None,
         }
     }
 }
@@ -78,6 +84,13 @@ impl CliOptions {
                 "--pidFile" => {
                     options.pid_file = Some(PathBuf::from(required_value("--pidFile", &mut iter)?))
                 }
+                "--log-level" => {
+                    let raw = required_value("--log-level", &mut iter)?;
+                    options.log_level = Some(
+                        LogLevel::from_str(&raw)
+                            .map_err(|_| format!("Invalid value for --log-level: {raw:?}. Expected info, debug, or trace."))?,
+                    );
+                }
                 _ if arg.starts_with("--") => return Err(format!("Unknown option: {arg}")),
                 _ => return Err(format!("Unexpected positional argument: {arg}")),
             }
@@ -105,7 +118,8 @@ impl CliOptions {
            --port <port>\n\
            --serverId <id>\n\
            --jfrProfile (accepted; profiling is not implemented by RustCraft)\n\
-           --pidFile <path>"
+           --pidFile <path>\n\
+           --log-level <info|debug|trace>  (overrides RUSTCRAFT_LOG env var)"
     }
 }
 
@@ -180,5 +194,57 @@ mod tests {
     fn help_documents_jfr_profile_as_noop() {
         assert!(CliOptions::help()
             .contains("--jfrProfile (accepted; profiling is not implemented by RustCraft)"));
+    }
+
+    #[test]
+    fn log_level_flag_parses_all_variants() {
+        use crate::log::LogLevel;
+
+        for (flag_val, expected) in &[
+            ("info", LogLevel::Info),
+            ("debug", LogLevel::Debug),
+            ("trace", LogLevel::Trace),
+            ("INFO", LogLevel::Info),
+            ("Debug", LogLevel::Debug),
+            ("TRACE", LogLevel::Trace),
+        ] {
+            let options = CliOptions::parse(
+                ["--log-level", flag_val]
+                    .into_iter()
+                    .map(String::from),
+            )
+            .unwrap_or_else(|e| panic!("parse failed for {flag_val:?}: {e}"));
+            assert_eq!(
+                options.log_level.as_ref(),
+                Some(expected),
+                "wrong level for {flag_val:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn log_level_defaults_to_none() {
+        let options = CliOptions::default();
+        assert_eq!(options.log_level, None);
+    }
+
+    #[test]
+    fn log_level_flag_rejects_unknown_value() {
+        let err = CliOptions::parse(
+            ["--log-level", "verbose"].into_iter().map(String::from),
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("verbose"),
+            "error message should mention the bad value; got: {err}"
+        );
+    }
+
+    #[test]
+    fn help_documents_log_level_flag() {
+        assert!(
+            CliOptions::help().contains("--log-level"),
+            "help text must document --log-level"
+        );
     }
 }
