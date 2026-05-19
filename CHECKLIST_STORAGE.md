@@ -42,8 +42,8 @@
 
 ## Saved Data Storage
 
-- [ ] Implement `SavedDataStorage`: per-level `.dat` files under `data/` folder, `get(key)` loads, `computeIfAbsent(key, factory)` creates on miss, `set(key, data)` marks dirty, autosave on level save
-- [ ] Implement `CommandStorage`: `minecraft:` and function-namespaced NBT storage, `/data storage` command access
+- [x] Implement `SavedDataStorage`: per-level `.dat` files under `data/` folder, `get(key)` loads, `computeIfAbsent(key, factory)` creates on miss, `set(key, data)` marks dirty, autosave on level save — `storage::saved_data::SavedDataStorage` caches loaded data, wraps saves in `{data,DataVersion}`, writes gzip NBT under namespaced data paths, and clears dirty state after save
+- [x] Implement `CommandStorage`: `minecraft:` and function-namespaced NBT storage, `/data storage` command access — `storage::saved_data::CommandStorage` stores per-namespace `command_storage.dat` containers, removes empty compounds, lists keys, and persists through `SavedDataStorage`
 - [x] Implement tag value helpers: `TagValueInput`, `TagValueOutput` for NBT-backed data — `storage::tag_value` wraps Rust NBT compounds with vanilla-style typed reads/writes, child compounds, compound lists, discard/replacement, and mismatch problem reporting
 - [ ] Add parity test: command storage NBT written by `/data merge storage` command is readable by `/data get storage`
 

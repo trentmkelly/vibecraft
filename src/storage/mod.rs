@@ -4,5 +4,6 @@ pub mod entities;
 pub mod nbt;
 pub mod poi;
 pub mod region;
+pub mod saved_data;
 pub mod tag_value;
 pub mod world;
