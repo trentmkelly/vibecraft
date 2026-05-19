@@ -1,4 +1,5 @@
 use crate::base_entity::{BaseEntity, EntityDimensions, RemovalReason, Vec3};
+use crate::storage::nbt::Tag;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VehicleState {
@@ -572,6 +573,7 @@ pub struct CommandBlockMinecartState {
     pub minecart: MinecartState,
     pub command: String,
     pub last_output: String,
+    pub track_output: bool,
     pub last_activated_tick: i32,
 }
 
@@ -583,8 +585,36 @@ impl CommandBlockMinecartState {
             minecart: MinecartState::new(id, MinecartKind::CommandBlock),
             command: String::new(),
             last_output: String::new(),
+            track_output: true,
             last_activated_tick: -Self::ACTIVATION_DELAY,
         }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = vec![
+            ("Command".to_string(), Tag::String(self.command.clone())),
+            (
+                "TrackOutput".to_string(),
+                Tag::Byte(i8::from(self.track_output)),
+            ),
+        ];
+        if self.track_output && !self.last_output.is_empty() {
+            entries.push(("LastOutput".to_string(), Tag::String(self.last_output.clone())));
+        }
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(id: i32, tag: &Tag) -> Self {
+        let mut state = Self::new(id);
+        let Some(entries) = compound_entries(tag) else {
+            return state;
+        };
+        state.command = get_string(entries, "Command").unwrap_or("").to_string();
+        state.track_output = get_bool(entries, "TrackOutput").unwrap_or(true);
+        if state.track_output {
+            state.last_output = get_string(entries, "LastOutput").unwrap_or("").to_string();
+        }
+        state
     }
 
     pub fn activate_minecart(&mut self, powered: bool, tick_count: i32) -> bool {
@@ -599,6 +629,27 @@ impl CommandBlockMinecartState {
     pub fn can_interact(&self, player_can_use_gamemaster_blocks: bool) -> bool {
         player_can_use_gamemaster_blocks
     }
+}
+
+fn compound_entries(tag: &Tag) -> Option<&[(String, Tag)]> {
+    match tag {
+        Tag::Compound(entries) => Some(entries.as_slice()),
+        _ => None,
+    }
+}
+
+fn get_string<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a str> {
+    entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
+        (entry, Tag::String(value)) if entry == key => Some(value.as_str()),
+        _ => None,
+    })
+}
+
+fn get_bool(entries: &[(String, Tag)], key: &str) -> Option<bool> {
+    entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
+        (entry, Tag::Byte(value)) if entry == key => Some(*value != 0),
+        _ => None,
+    })
 }
 
 pub const VEHICLE_ENTITY_FAMILIES: &[&str] = &[
@@ -909,6 +960,24 @@ mod tests {
         let mut command = CommandBlockMinecartState::new(10);
         assert!(command.can_interact(true));
         assert!(!command.can_interact(false));
+        command.command = "say rail".to_string();
+        command.last_output = "{\"text\":\"ok\"}".to_string();
+        let saved = command.save_additional();
+        assert_eq!(CommandBlockMinecartState::load_additional(10, &saved), command);
+        let loaded_without_tracking = CommandBlockMinecartState::load_additional(
+            11,
+            &Tag::Compound(vec![
+                ("Command".to_string(), Tag::String("say quiet".to_string())),
+                ("TrackOutput".to_string(), Tag::Byte(0)),
+                (
+                    "LastOutput".to_string(),
+                    Tag::String("{\"text\":\"ignored\"}".to_string()),
+                ),
+            ]),
+        );
+        assert_eq!(loaded_without_tracking.command, "say quiet");
+        assert!(!loaded_without_tracking.track_output);
+        assert_eq!(loaded_without_tracking.last_output, "");
         assert!(command.activate_minecart(true, 0));
         assert!(!command.activate_minecart(true, 3));
         assert!(command.activate_minecart(true, 4));
