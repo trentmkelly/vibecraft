@@ -161,8 +161,8 @@
 - [x] Implement world border. — detailed world-border rows above are implemented, with command-model, packet, damage, warning, lerp, clamping, and Mineflayer/fallback coverage
 - [x] Add Mineflayer world-border tests for initialize, lerp, warning distance/time, damage buffer/amount, movement clamping, and command-driven updates.
 - [x] Add command-model world-state fallback coverage that drives `/time`, `/weather`, and `/worldborder` together and verifies client-observable runtime state, success counts, feedback keys, broadcast visibility, and border lerp/warning fields while full Mineflayer observation remains pending.
-- [ ] Implement explosions and game events.
-- [ ] Implement vibrations, sculk sensors, calibrated sculk sensors, wardens, allays, and event listeners.
+- [x] Implement explosions and game events.
+- [x] Implement vibrations, sculk sensors, calibrated sculk sensors, wardens, allays, and event listeners.
 - [ ] Implement raids, patrols, hero of the village, bad omen/raid omen/trial omen, and village raid state.
 - [ ] Implement maps, banners on maps, markers, frames, and map decorations.
 - [ ] Implement waypoints and timelines introduced in this version.
