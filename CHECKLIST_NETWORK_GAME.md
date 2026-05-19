@@ -153,7 +153,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundSoundPacket` (0x65): sound holder (registered ID VarInt or inline sound event), source VarInt, pos X/Y/Z fixed-point, volume, pitch, seed long
 - [ ] `ClientboundSoundEntityPacket` (0x66): same but entity ID instead of position
-- [ ] `ClientboundStopSoundPacket` (0x67): optional source, optional sound name
+- [x] `ClientboundStopSoundPacket` (0x77): flags byte, optional sound source enum, optional sound identifier
 - [ ] `ClientboundNamedSoundEffectPacket`: deprecated alias handled by `ClientboundSoundPacket`
 - [ ] `ClientboundLevelParticlesPacket` (0x29): particle type VarInt, long distance bool, pos X/Y/Z, offset X/Y/Z, max speed, count, particle data (varies by type); verify all ~100 particle type data shapes
 - [x] `ClientboundLevelEventPacket` (0x2E): event int, pos BlockPos, data int, global bool

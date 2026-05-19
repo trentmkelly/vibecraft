@@ -1399,7 +1399,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "stop_sound",
         java_class: "ClientboundStopSoundPacket",
-        field_order: "unparsed",
+        field_order: "flags:byte bit0 has_source bit1 has_sound, optional source:SoundSource enum VarInt, optional name:Identifier",
     },
     PlayPacketSpec {
         id: 120,

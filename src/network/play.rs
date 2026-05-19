@@ -1254,6 +1254,27 @@ pub struct ClientboundSoundPacket {
     pub entity_id: Option<i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundStopSoundPacket {
+    pub source: Option<SoundSource>,
+    pub name: Option<Identifier>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SoundSource {
+    Master = 0,
+    Music = 1,
+    Records = 2,
+    Weather = 3,
+    Blocks = 4,
+    Hostile = 5,
+    Neutral = 6,
+    Players = 7,
+    Ambient = 8,
+    Voice = 9,
+    Ui = 10,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundParticlePacket {
     pub particle_id: i32,
@@ -2894,6 +2915,25 @@ impl ClientboundStartConfigurationPacket {
     pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
         Ok(())
     }
+}
+
+impl ClientboundStopSoundPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let flags =
+            (if self.source.is_some() { 1 } else { 0 }) | (if self.name.is_some() { 2 } else { 0 });
+        writer.write_all(&[flags])?;
+        if let Some(source) = self.source {
+            write_enum_index(writer, source as usize, SoundSource::COUNT)?;
+        }
+        if let Some(name) = &self.name {
+            write_identifier(writer, name)?;
+        }
+        Ok(())
+    }
+}
+
+impl SoundSource {
+    const COUNT: usize = 11;
 }
 
 impl MobEffectFlags {
@@ -6443,6 +6483,18 @@ mod tests {
         assert_eq!(&look_at[9..17], &64.5_f64.to_be_bytes());
         assert_eq!(&look_at[17..25], &(-7.25_f64).to_be_bytes());
         assert_eq!(&look_at[25..], &[1, 33, 0]);
+
+        let mut stop_sound = Vec::new();
+        ClientboundStopSoundPacket {
+            source: Some(SoundSource::Blocks),
+            name: Some(Identifier::parse("minecraft:block.note_block.harp").unwrap()),
+        }
+        .write(&mut stop_sound)
+        .unwrap();
+        assert_eq!(
+            stop_sound,
+            [vec![3, 4, 31], b"minecraft:block.note_block.harp".to_vec()].concat()
+        );
     }
 
     #[test]
