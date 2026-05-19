@@ -199,6 +199,12 @@ pub struct DecoratedPotBlockEntity {
     pub last_wobble_style: Option<DecoratedPotWobbleStyle>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecoratedPotDrops {
+    pub decoration_items: Vec<String>,
+    pub stored_item: Option<PotItemStack>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CopperWeatherState {
     Unaffected,
@@ -941,6 +947,13 @@ impl DecoratedPotBlockEntity {
         self.wobble_started_at_tick = game_time;
         self.last_wobble_style = Some(style);
         true
+    }
+
+    pub fn destruction_drops(&self) -> DecoratedPotDrops {
+        DecoratedPotDrops {
+            decoration_items: self.decorations.ordered(),
+            stored_item: self.item.clone().filter(|item| !item.is_empty()),
+        }
     }
 }
 
@@ -2767,6 +2780,59 @@ mod tests {
         );
         assert!(!pot.trigger_event(99, DecoratedPotWobbleStyle::Positive.id(), 43));
         assert!(!pot.trigger_event(DecoratedPotBlockEntity::EVENT_POT_WOBBLES, 99, 43));
+    }
+
+    #[test]
+    fn decorated_pot_wobble_and_destruction_drops_preserve_sherds_and_item() {
+        let mut pot = DecoratedPotBlockEntity {
+            decorations: PotDecorations::new(
+                Some("minecraft:arms_up_pottery_sherd".to_string()),
+                Some("minecraft:blade_pottery_sherd".to_string()),
+                None,
+                Some("minecraft:brewer_pottery_sherd".to_string()),
+            ),
+            ..DecoratedPotBlockEntity::default()
+        };
+
+        pot.item = Some(PotItemStack {
+            item_id: "minecraft:emerald".to_string(),
+            count: 3,
+        });
+        assert!(pot.trigger_event(
+            DecoratedPotBlockEntity::EVENT_POT_WOBBLES,
+            DecoratedPotWobbleStyle::Positive.id(),
+            2400,
+        ));
+        assert_eq!(pot.wobble_started_at_tick, 2400);
+        assert_eq!(
+            pot.last_wobble_style,
+            Some(DecoratedPotWobbleStyle::Positive)
+        );
+        assert_eq!(DecoratedPotWobbleStyle::Positive.duration(), 7);
+
+        let drops = pot.destruction_drops();
+        assert_eq!(
+            drops.decoration_items,
+            vec![
+                "minecraft:arms_up_pottery_sherd".to_string(),
+                "minecraft:blade_pottery_sherd".to_string(),
+                "minecraft:brick".to_string(),
+                "minecraft:brewer_pottery_sherd".to_string(),
+            ]
+        );
+        assert_eq!(
+            drops.stored_item,
+            Some(PotItemStack {
+                item_id: "minecraft:emerald".to_string(),
+                count: 3,
+            })
+        );
+
+        pot.item = Some(PotItemStack {
+            item_id: "minecraft:air".to_string(),
+            count: 0,
+        });
+        assert_eq!(pot.destruction_drops().stored_item, None);
     }
 
     #[test]
