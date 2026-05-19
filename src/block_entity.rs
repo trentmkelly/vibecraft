@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::block_update::BlockPos;
+use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -154,6 +155,7 @@ pub enum BlockEntityError {
         ty: BlockEntityTypeId,
         block_state: String,
     },
+    UnsupportedDataVersion(String),
 }
 
 impl TestBlockMode {
@@ -960,7 +962,13 @@ pub const BLOCK_ENTITY_TYPES: &[BlockEntityTypeInfo] = &[
         "copper_golem_statue",
         &[
             "minecraft:copper_golem_statue",
+            "minecraft:exposed_copper_golem_statue",
+            "minecraft:weathered_copper_golem_statue",
+            "minecraft:oxidized_copper_golem_statue",
             "minecraft:waxed_copper_golem_statue",
+            "minecraft:waxed_exposed_copper_golem_statue",
+            "minecraft:waxed_weathered_copper_golem_statue",
+            "minecraft:waxed_oxidized_copper_golem_statue",
         ],
         BlockEntityTickKind::Server,
         false,
@@ -1205,6 +1213,17 @@ pub fn load_static(
     Ok(entity)
 }
 
+pub fn load_static_with_data_version(
+    pos: BlockPos,
+    block_state: &str,
+    tag: &Tag,
+    data_version: i32,
+) -> Result<BlockEntity, BlockEntityError> {
+    require_current_world_data_version(data_version)
+        .map_err(BlockEntityError::UnsupportedDataVersion)?;
+    load_static(pos, block_state, tag)
+}
+
 pub fn corrected_pos_from_chunk(base_chunk_x: i32, base_chunk_z: i32, tag: &Tag) -> BlockPos {
     let entries = compound_entries(tag);
     let x = entries
@@ -1317,6 +1336,19 @@ mod tests {
             type_info(BlockEntityTypeId::CopperGolemStatue).key,
             "copper_golem_statue"
         );
+        assert_eq!(
+            type_info(BlockEntityTypeId::CopperGolemStatue).valid_blocks,
+            &[
+                "minecraft:copper_golem_statue",
+                "minecraft:exposed_copper_golem_statue",
+                "minecraft:weathered_copper_golem_statue",
+                "minecraft:oxidized_copper_golem_statue",
+                "minecraft:waxed_copper_golem_statue",
+                "minecraft:waxed_exposed_copper_golem_statue",
+                "minecraft:waxed_weathered_copper_golem_statue",
+                "minecraft:waxed_oxidized_copper_golem_statue",
+            ]
+        );
         assert!(is_valid_block_state(
             BlockEntityTypeId::Sign,
             "minecraft:oak_wall_sign"
@@ -1378,6 +1410,9 @@ mod tests {
         assert!(has_block_entity_for_block("minecraft:green_bed"));
         assert!(has_block_entity_for_block("minecraft:black_shulker_box"));
         assert!(has_block_entity_for_block("minecraft:crimson_shelf"));
+        assert!(has_block_entity_for_block(
+            "minecraft:waxed_oxidized_copper_golem_statue"
+        ));
         assert!(has_block_entity_for_block(
             "minecraft:warped_wall_hanging_sign"
         ));
@@ -1441,6 +1476,34 @@ mod tests {
         assert_eq!(entity.ty, BlockEntityTypeId::Campfire);
         assert!(entity.custom_data.contains_key("CookingTimes"));
         assert!(entity.components.contains_key("minecraft:lore"));
+    }
+
+    #[test]
+    fn load_static_with_data_version_refuses_unsafe_migrations() {
+        let tag = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:campfire".to_string()),
+        )]);
+
+        let entity = load_static_with_data_version(
+            pos(),
+            "minecraft:campfire",
+            &tag,
+            crate::storage::datafix::TARGET_DATA_VERSION,
+        )
+        .unwrap();
+        assert_eq!(entity.ty, BlockEntityTypeId::Campfire);
+
+        assert!(matches!(
+            load_static_with_data_version(
+                pos(),
+                "minecraft:campfire",
+                &tag,
+                crate::storage::datafix::TARGET_DATA_VERSION - 1,
+            ),
+            Err(BlockEntityError::UnsupportedDataVersion(message))
+                if message.contains("unsafe migrations")
+        ));
     }
 
     #[test]
