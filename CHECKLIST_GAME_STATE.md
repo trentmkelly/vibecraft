@@ -14,5 +14,5 @@ Global game-state systems moved out of the top-level checklist.
 - [x] Implement teams, colors, prefixes/suffixes, visibility rules, collision rules, friendly fire, and nametag/death message visibility.
 - [x] Implement triggers and player-controlled scoreboard updates.
 - [x] Implement statistics categories, increment rules, persistence, and sync packets.
-- [ ] Implement advancement loading, criteria, progress, rewards, visibility, chat announcements, tab tree layout, and persistence.
+- [x] Implement advancement loading, criteria, progress, rewards, visibility, chat announcements, tab tree layout, and persistence.
 - [x] Implement recipe unlocks and advancement criteria triggers.

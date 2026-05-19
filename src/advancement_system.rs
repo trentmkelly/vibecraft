@@ -95,6 +95,55 @@ pub struct RecipeUnlockedCriterion {
 }
 
 impl AdvancementDefinition {
+    pub fn from_json(id: &str, raw: &str) -> Result<Self, String> {
+        let value: serde_json::Value = serde_json::from_str(raw)
+            .map_err(|err| format!("invalid advancement JSON for {id}: {err}"))?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| format!("advancement {id} must be a JSON object"))?;
+        let criteria_object = object
+            .get("criteria")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| format!("advancement {id} missing criteria object"))?;
+        if criteria_object.is_empty() {
+            return Err(format!("advancement {id} criteria cannot be empty"));
+        }
+        let criteria = criteria_object.keys().cloned().collect::<BTreeSet<_>>();
+        let requirements = match object.get("requirements") {
+            Some(value) => parse_advancement_requirements(id, value, &criteria)?,
+            None => criteria
+                .iter()
+                .map(|criterion| vec![criterion.clone()])
+                .collect(),
+        };
+        let rewards = object
+            .get("rewards")
+            .map(parse_advancement_rewards)
+            .transpose()?
+            .unwrap_or_default();
+        let display = object
+            .get("display")
+            .map(parse_advancement_display)
+            .transpose()?;
+        Ok(Self {
+            id: Identifier::parse(id)?,
+            parent: object
+                .get("parent")
+                .map(|value| {
+                    json_string(value, "parent").and_then(|parent| Identifier::parse(&parent))
+                })
+                .transpose()?,
+            display,
+            rewards,
+            criteria,
+            requirements,
+            sends_telemetry_event: object
+                .get("sends_telemetry_event")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false),
+        })
+    }
+
     pub fn all_of(
         id: &str,
         parent: Option<&str>,
@@ -166,6 +215,135 @@ impl AdvancementDefinition {
                 .as_ref()
                 .is_some_and(|parent| player.is_done(parent))
     }
+}
+
+fn parse_advancement_requirements(
+    id: &str,
+    value: &serde_json::Value,
+    criteria: &BTreeSet<String>,
+) -> Result<Vec<Vec<String>>, String> {
+    let outer = value
+        .as_array()
+        .ok_or_else(|| format!("advancement {id} requirements must be an array"))?;
+    let mut requirements = Vec::new();
+    for group in outer {
+        let inner = group
+            .as_array()
+            .ok_or_else(|| format!("advancement {id} requirement group must be an array"))?;
+        let mut parsed_group = Vec::new();
+        for criterion in inner {
+            let criterion = json_string(criterion, "requirement criterion")?;
+            if !criteria.contains(&criterion) {
+                return Err(format!(
+                    "advancement {id} requirement references unknown criterion {criterion}"
+                ));
+            }
+            parsed_group.push(criterion);
+        }
+        requirements.push(parsed_group);
+    }
+    Ok(requirements)
+}
+
+fn parse_advancement_rewards(value: &serde_json::Value) -> Result<AdvancementRewards, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "advancement rewards must be an object".to_string())?;
+    Ok(AdvancementRewards {
+        experience: object
+            .get("experience")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0)
+            .try_into()
+            .map_err(|_| "advancement reward experience out of i32 range".to_string())?,
+        loot: parse_identifier_array(object.get("loot"), "loot")?,
+        recipes: parse_identifier_array(object.get("recipes"), "recipes")?,
+        function: object
+            .get("function")
+            .map(|value| json_string(value, "function").and_then(|id| Identifier::parse(&id)))
+            .transpose()?,
+    })
+}
+
+fn parse_advancement_display(value: &serde_json::Value) -> Result<AdvancementDisplay, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "advancement display must be an object".to_string())?;
+    Ok(AdvancementDisplay {
+        title: stringify_component(
+            object
+                .get("title")
+                .ok_or_else(|| "advancement display missing title".to_string())?,
+        )?,
+        description: stringify_component(
+            object
+                .get("description")
+                .ok_or_else(|| "advancement display missing description".to_string())?,
+        )?,
+        frame: match object
+            .get("frame")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("task")
+        {
+            "task" => AdvancementFrame::Task,
+            "challenge" => AdvancementFrame::Challenge,
+            "goal" => AdvancementFrame::Goal,
+            frame => return Err(format!("unknown advancement frame {frame}")),
+        },
+        show_toast: object
+            .get("show_toast")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true),
+        announce_chat: object
+            .get("announce_to_chat")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true),
+        hidden: object
+            .get("hidden")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
+        x: 0,
+        y: 0,
+    })
+}
+
+fn parse_identifier_array(
+    value: Option<&serde_json::Value>,
+    field: &str,
+) -> Result<Vec<Identifier>, String> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let array = value
+        .as_array()
+        .ok_or_else(|| format!("advancement rewards {field} must be an array"))?;
+    array
+        .iter()
+        .map(|value| json_string(value, field).and_then(|id| Identifier::parse(&id)))
+        .collect()
+}
+
+fn json_string(value: &serde_json::Value, field: &str) -> Result<String, String> {
+    value
+        .as_str()
+        .map(ToString::to_string)
+        .ok_or_else(|| format!("{field} must be a string"))
+}
+
+fn stringify_component(value: &serde_json::Value) -> Result<String, String> {
+    if let Some(text) = value.as_str() {
+        return Ok(text.to_string());
+    }
+    let object = value
+        .as_object()
+        .ok_or_else(|| "component must be a string or object".to_string())?;
+    if let Some(text) = object.get("text").and_then(serde_json::Value::as_str) {
+        return Ok(text.to_string());
+    }
+    if let Some(translate) = object.get("translate").and_then(serde_json::Value::as_str) {
+        return Ok(translate.to_string());
+    }
+    Err("component object must contain text or translate".to_string())
 }
 
 impl AdvancementProgress {
@@ -576,6 +754,79 @@ mod tests {
         assert!(json.contains("\"DataVersion\":4189"));
         assert!(json.contains("\"minecraft:story/root\""));
         assert!(json.contains("\"done\":true"));
+    }
+
+    #[test]
+    fn advancement_json_loader_decodes_vanilla_codec_fields() {
+        let mut root = AdvancementDefinition::from_json(
+            "minecraft:story/root",
+            include_str!(
+                "../../decompiled-server-26.1.2/data/minecraft/advancement/story/root.json"
+            ),
+        )
+        .unwrap();
+        assert_eq!(root.parent, None);
+        assert_eq!(
+            root.criteria,
+            BTreeSet::from(["crafting_table".to_string()])
+        );
+        assert_eq!(root.requirements, vec![vec!["crafting_table".to_string()]]);
+        assert!(root.sends_telemetry_event);
+        let root_display = root.display.as_ref().unwrap();
+        assert_eq!(root_display.title, "advancements.story.root.title");
+        assert!(!root_display.show_toast);
+        assert!(!root_display.announce_chat);
+        assert_eq!(root_display.frame, AdvancementFrame::Task);
+
+        let mine_stone = AdvancementDefinition::from_json(
+            "minecraft:story/mine_stone",
+            include_str!(
+                "../../decompiled-server-26.1.2/data/minecraft/advancement/story/mine_stone.json"
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            mine_stone.parent,
+            Some(Identifier::parse("minecraft:story/root").unwrap())
+        );
+        assert_eq!(
+            mine_stone.display.as_ref().unwrap().description,
+            "advancements.story.mine_stone.description"
+        );
+        assert!(mine_stone.display.as_ref().unwrap().show_toast);
+        assert!(mine_stone.display.as_ref().unwrap().announce_chat);
+
+        let recipe = AdvancementDefinition::from_json(
+            "minecraft:recipes/decorations/crafting_table",
+            include_str!(
+                "../../decompiled-server-26.1.2/data/minecraft/advancement/recipes/decorations/crafting_table.json"
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            recipe.rewards.recipes,
+            vec![Identifier::parse("minecraft:crafting_table").unwrap()]
+        );
+        assert!(recipe.display.is_none());
+
+        assign_tree_layout(std::slice::from_mut(&mut root));
+        assert_eq!(root.display.as_ref().unwrap().x, 0);
+    }
+
+    #[test]
+    fn advancement_json_loader_rejects_invalid_requirements() {
+        assert!(
+            AdvancementDefinition::from_json("minecraft:test/empty", r#"{"criteria":{}}"#)
+                .unwrap_err()
+                .contains("criteria cannot be empty")
+        );
+
+        assert!(AdvancementDefinition::from_json(
+            "minecraft:test/bad_requirement",
+            r#"{"criteria":{"tick":{"trigger":"minecraft:tick"}},"requirements":[["missing"]]}"#
+        )
+        .unwrap_err()
+        .contains("unknown criterion"));
     }
 
     #[test]
