@@ -96,7 +96,7 @@
 - [x] Implement `DecoratedPotBlockEntity`: `PotDecorations` (4 sides: back/left/right/front, each a sherd or brick), loot-table content, 1-slot item storage, wobble animation (type + ticks)
 - [ ] Implement `SkullBlockEntity`: owner `GameProfile` (player head variant), note-block sound data, `SkullOwner` NBT round-trip, async profile lookup for player-head textures
 - [ ] Implement `BellBlockEntity`: ringing-direction last value, resonating state, `ring(level, direction, entity)` trigger, bell-sound dispatch, entity highlighting on ring
-- [ ] Implement `CopperGolemStatueBlockEntity` (new in 26.1.2): oxidation stage mirroring block state, button-press animation ticks
+- [x] Implement `CopperGolemStatueBlockEntity` (new in 26.1.2): weathering/waxed block-state mirroring, pose cycling, comparator output, and custom-name component preservation
 - [ ] Add parity test: banner pattern layers NBT field order, maximum 6 layers enforced, color+pattern round-trip
 - [ ] Add parity test: decorated pot wobble animation state after item insertion, destruction drops both sherds and stored item
 

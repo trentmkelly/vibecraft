@@ -199,6 +199,30 @@ pub struct DecoratedPotBlockEntity {
     pub last_wobble_style: Option<DecoratedPotWobbleStyle>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CopperWeatherState {
+    Unaffected,
+    Exposed,
+    Weathered,
+    Oxidized,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CopperGolemStatuePose {
+    Standing,
+    Sitting,
+    Running,
+    Star,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopperGolemStatueBlockEntity {
+    pub weather_state: CopperWeatherState,
+    pub waxed: bool,
+    pub pose: CopperGolemStatuePose,
+    pub custom_name: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockEntityError {
     UnknownType(String),
@@ -865,6 +889,102 @@ impl DecoratedPotBlockEntity {
         self.wobble_started_at_tick = game_time;
         self.last_wobble_style = Some(style);
         true
+    }
+}
+
+impl CopperWeatherState {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Unaffected => "unaffected",
+            Self::Exposed => "exposed",
+            Self::Weathered => "weathered",
+            Self::Oxidized => "oxidized",
+        }
+    }
+}
+
+impl CopperGolemStatuePose {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Standing => "standing",
+            Self::Sitting => "sitting",
+            Self::Running => "running",
+            Self::Star => "star",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Standing => Self::Sitting,
+            Self::Sitting => Self::Running,
+            Self::Running => Self::Star,
+            Self::Star => Self::Standing,
+        }
+    }
+
+    pub fn comparator_output(self) -> u8 {
+        match self {
+            Self::Standing => 1,
+            Self::Sitting => 2,
+            Self::Running => 3,
+            Self::Star => 4,
+        }
+    }
+}
+
+impl CopperGolemStatueBlockEntity {
+    pub fn from_block_state(block_state: &str, pose: CopperGolemStatuePose) -> Option<Self> {
+        let id = block_state.strip_prefix("minecraft:")?;
+        let (waxed, id) = id
+            .strip_prefix("waxed_")
+            .map(|id| (true, id))
+            .unwrap_or((false, id));
+        let weather_state = match id {
+            "copper_golem_statue" => CopperWeatherState::Unaffected,
+            "exposed_copper_golem_statue" => CopperWeatherState::Exposed,
+            "weathered_copper_golem_statue" => CopperWeatherState::Weathered,
+            "oxidized_copper_golem_statue" => CopperWeatherState::Oxidized,
+            _ => return None,
+        };
+        Some(Self {
+            weather_state,
+            waxed,
+            pose,
+            custom_name: None,
+        })
+    }
+
+    pub fn update_pose(&mut self) {
+        self.pose = self.pose.next();
+    }
+
+    pub fn comparator_output(&self) -> u8 {
+        self.pose.comparator_output()
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = Vec::new();
+        if let Some(custom_name) = &self.custom_name {
+            fields.push(("CustomName".to_string(), Tag::String(custom_name.clone())));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn clone_item_components(&self) -> Tag {
+        let mut fields = vec![(
+            "minecraft:block_state".to_string(),
+            Tag::Compound(vec![(
+                "copper_golem_pose".to_string(),
+                Tag::String(self.pose.serialized_name().to_string()),
+            )]),
+        )];
+        if let Some(custom_name) = &self.custom_name {
+            fields.push((
+                "minecraft:custom_name".to_string(),
+                Tag::String(custom_name.clone()),
+            ));
+        }
+        Tag::Compound(fields)
     }
 }
 
@@ -2082,6 +2202,72 @@ mod tests {
         );
         assert!(!pot.trigger_event(99, DecoratedPotWobbleStyle::Positive.id(), 43));
         assert!(!pot.trigger_event(DecoratedPotBlockEntity::EVENT_POT_WOBBLES, 99, 43));
+    }
+
+    #[test]
+    fn copper_golem_statue_tracks_weather_pose_comparator_and_clone_components() {
+        let mut statue = CopperGolemStatueBlockEntity::from_block_state(
+            "minecraft:waxed_weathered_copper_golem_statue",
+            CopperGolemStatuePose::Standing,
+        )
+        .unwrap();
+        assert_eq!(statue.weather_state, CopperWeatherState::Weathered);
+        assert_eq!(statue.weather_state.serialized_name(), "weathered");
+        assert!(statue.waxed);
+        assert_eq!(statue.comparator_output(), 1);
+
+        statue.update_pose();
+        assert_eq!(statue.pose, CopperGolemStatuePose::Sitting);
+        assert_eq!(statue.comparator_output(), 2);
+        statue.update_pose();
+        assert_eq!(statue.pose, CopperGolemStatuePose::Running);
+        assert_eq!(statue.comparator_output(), 3);
+        statue.update_pose();
+        assert_eq!(statue.pose, CopperGolemStatuePose::Star);
+        assert_eq!(statue.comparator_output(), 4);
+        statue.update_pose();
+        assert_eq!(statue.pose, CopperGolemStatuePose::Standing);
+
+        statue.custom_name = Some("{\"text\":\"Copper Buddy\"}".to_string());
+        assert_eq!(
+            statue.save_additional(),
+            Tag::Compound(vec![(
+                "CustomName".to_string(),
+                Tag::String("{\"text\":\"Copper Buddy\"}".to_string())
+            )])
+        );
+        assert_eq!(
+            statue.clone_item_components(),
+            Tag::Compound(vec![
+                (
+                    "minecraft:block_state".to_string(),
+                    Tag::Compound(vec![(
+                        "copper_golem_pose".to_string(),
+                        Tag::String("standing".to_string())
+                    )])
+                ),
+                (
+                    "minecraft:custom_name".to_string(),
+                    Tag::String("{\"text\":\"Copper Buddy\"}".to_string())
+                ),
+            ])
+        );
+
+        let oxidized = CopperGolemStatueBlockEntity::from_block_state(
+            "minecraft:oxidized_copper_golem_statue",
+            CopperGolemStatuePose::Star,
+        )
+        .unwrap();
+        assert_eq!(oxidized.weather_state, CopperWeatherState::Oxidized);
+        assert!(!oxidized.waxed);
+        assert_eq!(oxidized.comparator_output(), 4);
+        assert_eq!(
+            CopperGolemStatueBlockEntity::from_block_state(
+                "minecraft:copper_block",
+                CopperGolemStatuePose::Standing,
+            ),
+            None
+        );
     }
 
     #[test]
