@@ -503,6 +503,81 @@ pub struct SpawnerBlockEntity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrialSpawnerStateModel {
+    Inactive,
+    WaitingForPlayers,
+    Active,
+    WaitingForRewardEjection,
+    EjectingReward,
+    Cooldown,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrialSpawnerConfigModel {
+    pub spawn_range: i32,
+    pub total_mobs: f32,
+    pub simultaneous_mobs: f32,
+    pub total_mobs_added_per_player: f32,
+    pub simultaneous_mobs_added_per_player: f32,
+    pub ticks_between_spawn: i32,
+    pub spawn_potentials: Vec<SpawnDataModel>,
+    pub loot_tables_to_eject: Vec<String>,
+    pub items_to_drop_when_ominous: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrialSpawnerFullConfigModel {
+    pub normal_config: TrialSpawnerConfigModel,
+    pub ominous_config: TrialSpawnerConfigModel,
+    pub target_cooldown_length: i32,
+    pub required_player_range: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrialSpawnerBlockEntity {
+    pub state: TrialSpawnerStateModel,
+    pub is_ominous: bool,
+    pub config: TrialSpawnerFullConfigModel,
+    pub detected_players: Vec<String>,
+    pub current_mobs: Vec<String>,
+    pub cooldown_ends_at: i64,
+    pub next_mob_spawns_at: i64,
+    pub total_mobs_spawned: i32,
+    pub next_spawn_data: Option<SpawnDataModel>,
+    pub ejecting_loot_table: Option<String>,
+    pub spin: f64,
+    pub old_spin: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrialSpawnerTickResult {
+    StateChanged(TrialSpawnerStateModel),
+    Waiting,
+    DetectedPlayers(usize),
+    SpawnMob {
+        entity_id: String,
+    },
+    ReadyForRewards,
+    EjectedReward {
+        loot_table: String,
+        remaining_players: usize,
+    },
+    CooldownFinished,
+    BecameOminous,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrialSpawnerTickContext {
+    pub game_time: i64,
+    pub can_spawn_in_level: bool,
+    pub detected_player_count: usize,
+    pub current_mobs_alive: usize,
+    pub spawn_success: bool,
+    pub apply_ominous: bool,
+    pub roll: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FurnaceBlockEntityKind {
     Furnace,
     BlastFurnace,
@@ -3742,6 +3817,497 @@ impl SpawnerBlockEntity {
         if spawner.spawn_potentials.is_empty() {
             spawner.spawn_potentials = vec![spawner.next_spawn_data.clone().unwrap_or_default()];
         }
+        spawner
+    }
+}
+
+impl TrialSpawnerStateModel {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Inactive => "inactive",
+            Self::WaitingForPlayers => "waiting_for_players",
+            Self::Active => "active",
+            Self::WaitingForRewardEjection => "waiting_for_reward_ejection",
+            Self::EjectingReward => "ejecting_reward",
+            Self::Cooldown => "cooldown",
+        }
+    }
+
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "inactive" => Some(Self::Inactive),
+            "waiting_for_players" => Some(Self::WaitingForPlayers),
+            "active" => Some(Self::Active),
+            "waiting_for_reward_ejection" => Some(Self::WaitingForRewardEjection),
+            "ejecting_reward" => Some(Self::EjectingReward),
+            "cooldown" => Some(Self::Cooldown),
+            _ => None,
+        }
+    }
+
+    pub fn light_level(self) -> i32 {
+        match self {
+            Self::Inactive | Self::Cooldown => 0,
+            Self::WaitingForPlayers => 4,
+            Self::Active | Self::WaitingForRewardEjection | Self::EjectingReward => 8,
+        }
+    }
+}
+
+impl Default for TrialSpawnerConfigModel {
+    fn default() -> Self {
+        Self {
+            spawn_range: 4,
+            total_mobs: 6.0,
+            simultaneous_mobs: 2.0,
+            total_mobs_added_per_player: 2.0,
+            simultaneous_mobs_added_per_player: 1.0,
+            ticks_between_spawn: 40,
+            spawn_potentials: Vec::new(),
+            loot_tables_to_eject: vec![
+                "minecraft:spawners/trial_chamber/consumables".to_string(),
+                "minecraft:spawners/trial_chamber/key".to_string(),
+            ],
+            items_to_drop_when_ominous:
+                "minecraft:spawners/trial_chamber/items_to_drop_when_ominous".to_string(),
+        }
+    }
+}
+
+impl TrialSpawnerConfigModel {
+    pub fn target_total_mobs(&self, additional_players: usize) -> i32 {
+        (self.total_mobs + self.total_mobs_added_per_player * additional_players as f32).floor()
+            as i32
+    }
+
+    pub fn target_simultaneous_mobs(&self, additional_players: usize) -> i32 {
+        (self.simultaneous_mobs
+            + self.simultaneous_mobs_added_per_player * additional_players as f32)
+            .floor() as i32
+    }
+
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            ("spawn_range".to_string(), Tag::Int(self.spawn_range)),
+            ("total_mobs".to_string(), Tag::Float(self.total_mobs)),
+            (
+                "simultaneous_mobs".to_string(),
+                Tag::Float(self.simultaneous_mobs),
+            ),
+            (
+                "total_mobs_added_per_player".to_string(),
+                Tag::Float(self.total_mobs_added_per_player),
+            ),
+            (
+                "simultaneous_mobs_added_per_player".to_string(),
+                Tag::Float(self.simultaneous_mobs_added_per_player),
+            ),
+            (
+                "ticks_between_spawn".to_string(),
+                Tag::Int(self.ticks_between_spawn),
+            ),
+            (
+                "spawn_potentials".to_string(),
+                Tag::List(
+                    self.spawn_potentials
+                        .iter()
+                        .map(SpawnDataModel::to_tag)
+                        .collect(),
+                ),
+            ),
+            (
+                "loot_tables_to_eject".to_string(),
+                Tag::List(
+                    self.loot_tables_to_eject
+                        .iter()
+                        .map(|value| Tag::String(value.clone()))
+                        .collect(),
+                ),
+            ),
+            (
+                "items_to_drop_when_ominous".to_string(),
+                Tag::String(self.items_to_drop_when_ominous.clone()),
+            ),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Self {
+        let mut config = Self::default();
+        let Some(entries) = compound_entries(tag) else {
+            return config;
+        };
+        config.spawn_range = get_int(entries, "spawn_range").unwrap_or(config.spawn_range);
+        config.total_mobs = get_float(entries, "total_mobs").unwrap_or(config.total_mobs);
+        config.simultaneous_mobs =
+            get_float(entries, "simultaneous_mobs").unwrap_or(config.simultaneous_mobs);
+        config.total_mobs_added_per_player = get_float(entries, "total_mobs_added_per_player")
+            .unwrap_or(config.total_mobs_added_per_player);
+        config.simultaneous_mobs_added_per_player =
+            get_float(entries, "simultaneous_mobs_added_per_player")
+                .unwrap_or(config.simultaneous_mobs_added_per_player);
+        config.ticks_between_spawn =
+            get_int(entries, "ticks_between_spawn").unwrap_or(config.ticks_between_spawn);
+        if let Some(Tag::List(values)) = entries
+            .iter()
+            .find(|(name, _)| name == "spawn_potentials")
+            .map(|(_, tag)| tag)
+        {
+            config.spawn_potentials = values.iter().filter_map(SpawnDataModel::from_tag).collect();
+        }
+        if let Some(values) = string_list_field(entries, "loot_tables_to_eject") {
+            config.loot_tables_to_eject = values;
+        }
+        config.items_to_drop_when_ominous = get_string(entries, "items_to_drop_when_ominous")
+            .unwrap_or(&config.items_to_drop_when_ominous)
+            .to_string();
+        config
+    }
+}
+
+impl Default for TrialSpawnerFullConfigModel {
+    fn default() -> Self {
+        Self {
+            normal_config: TrialSpawnerConfigModel::default(),
+            ominous_config: TrialSpawnerConfigModel::default(),
+            target_cooldown_length: 36_000,
+            required_player_range: 14,
+        }
+    }
+}
+
+impl TrialSpawnerFullConfigModel {
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            ("normal_config".to_string(), self.normal_config.to_tag()),
+            ("ominous_config".to_string(), self.ominous_config.to_tag()),
+            (
+                "target_cooldown_length".to_string(),
+                Tag::Int(self.target_cooldown_length),
+            ),
+            (
+                "required_player_range".to_string(),
+                Tag::Int(self.required_player_range),
+            ),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Self {
+        let mut config = Self::default();
+        let Some(entries) = compound_entries(tag) else {
+            return config;
+        };
+        if let Some((_, tag)) = entries.iter().find(|(name, _)| name == "normal_config") {
+            config.normal_config = TrialSpawnerConfigModel::from_tag(tag);
+        }
+        if let Some((_, tag)) = entries.iter().find(|(name, _)| name == "ominous_config") {
+            config.ominous_config = TrialSpawnerConfigModel::from_tag(tag);
+        }
+        config.target_cooldown_length =
+            get_int(entries, "target_cooldown_length").unwrap_or(config.target_cooldown_length);
+        config.required_player_range =
+            get_int(entries, "required_player_range").unwrap_or(config.required_player_range);
+        config
+    }
+}
+
+impl Default for TrialSpawnerBlockEntity {
+    fn default() -> Self {
+        Self {
+            state: TrialSpawnerStateModel::Inactive,
+            is_ominous: false,
+            config: TrialSpawnerFullConfigModel::default(),
+            detected_players: Vec::new(),
+            current_mobs: Vec::new(),
+            cooldown_ends_at: 0,
+            next_mob_spawns_at: 0,
+            total_mobs_spawned: 0,
+            next_spawn_data: None,
+            ejecting_loot_table: None,
+            spin: 0.0,
+            old_spin: 0.0,
+        }
+    }
+}
+
+impl TrialSpawnerBlockEntity {
+    pub const DETECT_PLAYER_SPAWN_BUFFER: i64 = 40;
+    pub const TIME_BETWEEN_REWARD_EJECTIONS: i64 = 30;
+    pub const TICKS_BETWEEN_OMINOUS_ITEM_SPAWNERS: i64 = 160;
+
+    pub fn active_config(&self) -> &TrialSpawnerConfigModel {
+        if self.is_ominous {
+            &self.config.ominous_config
+        } else {
+            &self.config.normal_config
+        }
+    }
+
+    pub fn apply_ominous(&mut self, game_time: i64) {
+        self.is_ominous = true;
+        self.current_mobs.clear();
+        self.total_mobs_spawned = 0;
+        self.next_spawn_data = None;
+        self.next_mob_spawns_at =
+            game_time + i64::from(self.config.ominous_config.ticks_between_spawn);
+        self.cooldown_ends_at = game_time + Self::TICKS_BETWEEN_OMINOUS_ITEM_SPAWNERS;
+    }
+
+    pub fn override_entity_to_spawn(&mut self, entity_id: impl Into<String>) {
+        let data = SpawnDataModel::new(entity_id);
+        self.config.normal_config.spawn_potentials = vec![data.clone()];
+        self.config.ominous_config.spawn_potentials = vec![data];
+        self.next_spawn_data = None;
+        self.state = TrialSpawnerStateModel::Inactive;
+        self.detected_players.clear();
+        self.current_mobs.clear();
+        self.total_mobs_spawned = 0;
+    }
+
+    pub fn tick_server(&mut self, context: TrialSpawnerTickContext) -> TrialSpawnerTickResult {
+        self.current_mobs
+            .truncate(context.current_mobs_alive.min(self.current_mobs.len()));
+        if context.apply_ominous && !self.is_ominous {
+            self.apply_ominous(context.game_time);
+            return TrialSpawnerTickResult::BecameOminous;
+        }
+
+        match self.state {
+            TrialSpawnerStateModel::Inactive => {
+                self.state = TrialSpawnerStateModel::WaitingForPlayers;
+                TrialSpawnerTickResult::StateChanged(self.state)
+            }
+            TrialSpawnerStateModel::WaitingForPlayers => {
+                if !context.can_spawn_in_level || self.active_config().spawn_potentials.is_empty() {
+                    return TrialSpawnerTickResult::Waiting;
+                }
+                self.detect_players(context.detected_player_count, context.game_time);
+                if self.detected_players.is_empty() {
+                    TrialSpawnerTickResult::Waiting
+                } else {
+                    self.state = TrialSpawnerStateModel::Active;
+                    TrialSpawnerTickResult::DetectedPlayers(self.detected_players.len())
+                }
+            }
+            TrialSpawnerStateModel::Active => {
+                if !context.can_spawn_in_level {
+                    self.state = TrialSpawnerStateModel::WaitingForPlayers;
+                    return TrialSpawnerTickResult::StateChanged(self.state);
+                }
+                self.detect_players(context.detected_player_count, context.game_time);
+                let additional_players = self.detected_players.len().saturating_sub(1);
+                let target_total = self.active_config().target_total_mobs(additional_players);
+                if self.total_mobs_spawned >= target_total {
+                    if self.current_mobs.is_empty() {
+                        self.cooldown_ends_at =
+                            context.game_time + i64::from(self.config.target_cooldown_length);
+                        self.total_mobs_spawned = 0;
+                        self.next_mob_spawns_at = 0;
+                        self.state = TrialSpawnerStateModel::WaitingForRewardEjection;
+                        return TrialSpawnerTickResult::ReadyForRewards;
+                    }
+                    return TrialSpawnerTickResult::Waiting;
+                }
+                let simultaneous = self
+                    .active_config()
+                    .target_simultaneous_mobs(additional_players);
+                if context.game_time >= self.next_mob_spawns_at
+                    && (self.current_mobs.len() as i32) < simultaneous
+                    && context.spawn_success
+                {
+                    let spawn_data = self.select_next_spawn_data(context.roll);
+                    let entity_id = spawn_data
+                        .entity_id()
+                        .unwrap_or("minecraft:pig")
+                        .to_string();
+                    self.current_mobs
+                        .push(format!("mob-{}", self.total_mobs_spawned + 1));
+                    self.total_mobs_spawned += 1;
+                    self.next_mob_spawns_at =
+                        context.game_time + i64::from(self.active_config().ticks_between_spawn);
+                    self.next_spawn_data =
+                        weighted_spawn_data(&self.active_config().spawn_potentials, context.roll)
+                            .cloned();
+                    TrialSpawnerTickResult::SpawnMob { entity_id }
+                } else {
+                    TrialSpawnerTickResult::Waiting
+                }
+            }
+            TrialSpawnerStateModel::WaitingForRewardEjection => {
+                let cooldown_started_at =
+                    self.cooldown_ends_at - i64::from(self.config.target_cooldown_length);
+                if context.game_time >= cooldown_started_at + Self::DETECT_PLAYER_SPAWN_BUFFER {
+                    self.state = TrialSpawnerStateModel::EjectingReward;
+                    TrialSpawnerTickResult::StateChanged(self.state)
+                } else {
+                    TrialSpawnerTickResult::Waiting
+                }
+            }
+            TrialSpawnerStateModel::EjectingReward => {
+                let cooldown_started_at =
+                    self.cooldown_ends_at - i64::from(self.config.target_cooldown_length);
+                if (context.game_time - cooldown_started_at) % Self::TIME_BETWEEN_REWARD_EJECTIONS
+                    != 0
+                {
+                    return TrialSpawnerTickResult::Waiting;
+                }
+                if self.detected_players.is_empty() {
+                    self.ejecting_loot_table = None;
+                    self.state = TrialSpawnerStateModel::Cooldown;
+                    return TrialSpawnerTickResult::StateChanged(self.state);
+                }
+                let loot_table = self
+                    .ejecting_loot_table
+                    .clone()
+                    .or_else(|| {
+                        self.active_config()
+                            .loot_tables_to_eject
+                            .get(context.roll)
+                            .cloned()
+                    })
+                    .unwrap_or_else(|| "minecraft:empty".to_string());
+                self.ejecting_loot_table = Some(loot_table.clone());
+                self.detected_players.remove(0);
+                TrialSpawnerTickResult::EjectedReward {
+                    loot_table,
+                    remaining_players: self.detected_players.len(),
+                }
+            }
+            TrialSpawnerStateModel::Cooldown => {
+                self.detect_players(context.detected_player_count, context.game_time);
+                if !self.detected_players.is_empty() {
+                    self.total_mobs_spawned = 0;
+                    self.next_mob_spawns_at = 0;
+                    self.state = TrialSpawnerStateModel::Active;
+                    TrialSpawnerTickResult::StateChanged(self.state)
+                } else if context.game_time >= self.cooldown_ends_at {
+                    self.is_ominous = false;
+                    self.current_mobs.clear();
+                    self.next_spawn_data = None;
+                    self.ejecting_loot_table = None;
+                    self.state = TrialSpawnerStateModel::WaitingForPlayers;
+                    TrialSpawnerTickResult::CooldownFinished
+                } else {
+                    TrialSpawnerTickResult::Waiting
+                }
+            }
+        }
+    }
+
+    fn detect_players(&mut self, count: usize, game_time: i64) {
+        let previous_count = self.detected_players.len();
+        for index in self.detected_players.len()..count {
+            self.detected_players.push(format!("player-{index}"));
+        }
+        if self.detected_players.len() > previous_count {
+            self.next_mob_spawns_at = self
+                .next_mob_spawns_at
+                .max(game_time + Self::DETECT_PLAYER_SPAWN_BUFFER);
+        }
+    }
+
+    fn select_next_spawn_data(&mut self, roll: usize) -> SpawnDataModel {
+        if let Some(data) = &self.next_spawn_data {
+            return data.clone();
+        }
+        let data = weighted_spawn_data(&self.active_config().spawn_potentials, roll)
+            .cloned()
+            .unwrap_or_default();
+        self.next_spawn_data = Some(data.clone());
+        data
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut fields = vec![
+            (
+                "state".to_string(),
+                Tag::String(self.state.as_str().to_string()),
+            ),
+            (
+                "is_ominous".to_string(),
+                Tag::Byte(i8::from(self.is_ominous)),
+            ),
+            ("config".to_string(), self.config.to_tag()),
+            (
+                "registered_players".to_string(),
+                Tag::List(
+                    self.detected_players
+                        .iter()
+                        .map(|value| Tag::String(value.clone()))
+                        .collect(),
+                ),
+            ),
+            (
+                "current_mobs".to_string(),
+                Tag::List(
+                    self.current_mobs
+                        .iter()
+                        .map(|value| Tag::String(value.clone()))
+                        .collect(),
+                ),
+            ),
+            (
+                "cooldown_ends_at".to_string(),
+                Tag::Long(self.cooldown_ends_at),
+            ),
+            (
+                "next_mob_spawns_at".to_string(),
+                Tag::Long(self.next_mob_spawns_at),
+            ),
+            (
+                "total_mobs_spawned".to_string(),
+                Tag::Int(self.total_mobs_spawned),
+            ),
+        ];
+        if let Some(data) = &self.next_spawn_data {
+            fields.push(("spawn_data".to_string(), data.to_tag()));
+        }
+        if let Some(loot_table) = &self.ejecting_loot_table {
+            fields.push((
+                "ejecting_loot_table".to_string(),
+                Tag::String(loot_table.clone()),
+            ));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn update_tag(&self) -> Tag {
+        let mut fields = Vec::new();
+        if self.state == TrialSpawnerStateModel::Active {
+            fields.push((
+                "next_mob_spawns_at".to_string(),
+                Tag::Long(self.next_mob_spawns_at),
+            ));
+        }
+        if let Some(data) = &self.next_spawn_data {
+            fields.push(("spawn_data".to_string(), data.to_tag()));
+        }
+        Tag::Compound(fields)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut spawner = Self::default();
+        let Some(entries) = compound_entries(tag) else {
+            return spawner;
+        };
+        spawner.state = get_string(entries, "state")
+            .and_then(TrialSpawnerStateModel::from_str)
+            .unwrap_or(TrialSpawnerStateModel::Inactive);
+        spawner.is_ominous = get_byte(entries, "is_ominous").unwrap_or(0) != 0;
+        if let Some((_, tag)) = entries.iter().find(|(name, _)| name == "config") {
+            spawner.config = TrialSpawnerFullConfigModel::from_tag(tag);
+        }
+        spawner.detected_players =
+            string_list_field(entries, "registered_players").unwrap_or_default();
+        spawner.current_mobs = string_list_field(entries, "current_mobs").unwrap_or_default();
+        spawner.cooldown_ends_at = get_long(entries, "cooldown_ends_at").unwrap_or(0);
+        spawner.next_mob_spawns_at = get_long(entries, "next_mob_spawns_at").unwrap_or(0);
+        spawner.total_mobs_spawned = get_int(entries, "total_mobs_spawned").unwrap_or(0);
+        spawner.next_spawn_data = entries
+            .iter()
+            .find(|(name, _)| name == "spawn_data")
+            .and_then(|(_, tag)| SpawnDataModel::from_tag(tag));
+        spawner.ejecting_loot_table =
+            get_string(entries, "ejecting_loot_table").map(ToString::to_string);
         spawner
     }
 }
@@ -7583,6 +8149,21 @@ fn get_int_array<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a [i32
     })
 }
 
+fn string_list_field(entries: &[(String, Tag)], key: &str) -> Option<Vec<String>> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::List(values) if name == key => Some(
+            values
+                .iter()
+                .filter_map(|tag| match tag {
+                    Tag::String(value) => Some(value.clone()),
+                    _ => None,
+                })
+                .collect(),
+        ),
+        _ => None,
+    })
+}
+
 fn int_range_field(entries: &[(String, Tag)], key: &str) -> Option<(i32, i32)> {
     let values = get_int_array(entries, key)?;
     (values.len() == 2).then_some((values[0], values[1]))
@@ -9028,6 +9609,201 @@ mod tests {
         assert!(spawner.on_event_triggered(true, SpawnerBlockEntity::EVENT_SPAWN));
         assert_eq!(spawner.spawn_delay, spawner.min_spawn_delay);
         assert!(!spawner.on_event_triggered(true, 99));
+    }
+
+    #[test]
+    fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
+        let mut spawner = TrialSpawnerBlockEntity::default();
+        spawner.config.normal_config.spawn_potentials =
+            vec![SpawnDataModel::new("minecraft:zombie")];
+        spawner.config.ominous_config.spawn_potentials =
+            vec![SpawnDataModel::new("minecraft:breeze")];
+        spawner.config.normal_config.total_mobs = 2.0;
+        spawner.config.normal_config.simultaneous_mobs = 1.0;
+        spawner.config.normal_config.ticks_between_spawn = 5;
+        spawner.config.target_cooldown_length = 100;
+
+        assert_eq!(spawner.state, TrialSpawnerStateModel::Inactive);
+        assert_eq!(spawner.config.required_player_range, 14);
+        assert_eq!(TrialSpawnerStateModel::Active.light_level(), 8);
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 0,
+                can_spawn_in_level: true,
+                detected_player_count: 0,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::WaitingForPlayers)
+        );
+
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 1,
+                can_spawn_in_level: true,
+                detected_player_count: 2,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::DetectedPlayers(2)
+        );
+        assert_eq!(spawner.state, TrialSpawnerStateModel::Active);
+        assert_eq!(spawner.next_mob_spawns_at, 41);
+        assert_eq!(spawner.active_config().target_total_mobs(1), 4);
+        assert_eq!(spawner.active_config().target_simultaneous_mobs(1), 2);
+
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 41,
+                can_spawn_in_level: true,
+                detected_player_count: 2,
+                current_mobs_alive: 0,
+                spawn_success: true,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::SpawnMob {
+                entity_id: "minecraft:zombie".to_string(),
+            }
+        );
+        assert_eq!(spawner.total_mobs_spawned, 1);
+        assert_eq!(spawner.current_mobs.len(), 1);
+        assert_eq!(spawner.next_mob_spawns_at, 46);
+
+        spawner.total_mobs_spawned = spawner.active_config().target_total_mobs(1);
+        spawner.current_mobs.clear();
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 47,
+                can_spawn_in_level: true,
+                detected_player_count: 2,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::ReadyForRewards
+        );
+        assert_eq!(
+            spawner.state,
+            TrialSpawnerStateModel::WaitingForRewardEjection
+        );
+        assert_eq!(spawner.cooldown_ends_at, 147);
+
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 87,
+                can_spawn_in_level: true,
+                detected_player_count: 2,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::EjectingReward)
+        );
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 107,
+                can_spawn_in_level: true,
+                detected_player_count: 2,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 1,
+            }),
+            TrialSpawnerTickResult::EjectedReward {
+                loot_table: "minecraft:spawners/trial_chamber/key".to_string(),
+                remaining_players: 1,
+            }
+        );
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 137,
+                can_spawn_in_level: true,
+                detected_player_count: 2,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::EjectedReward {
+                loot_table: "minecraft:spawners/trial_chamber/key".to_string(),
+                remaining_players: 0,
+            }
+        );
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 167,
+                can_spawn_in_level: true,
+                detected_player_count: 0,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::Cooldown)
+        );
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 180,
+                can_spawn_in_level: true,
+                detected_player_count: 0,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: false,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::CooldownFinished
+        );
+        assert_eq!(spawner.state, TrialSpawnerStateModel::WaitingForPlayers);
+
+        assert_eq!(
+            spawner.tick_server(TrialSpawnerTickContext {
+                game_time: 200,
+                can_spawn_in_level: true,
+                detected_player_count: 1,
+                current_mobs_alive: 0,
+                spawn_success: false,
+                apply_ominous: true,
+                roll: 0,
+            }),
+            TrialSpawnerTickResult::BecameOminous
+        );
+        assert!(spawner.is_ominous);
+        assert_eq!(spawner.next_mob_spawns_at, 240);
+        assert_eq!(spawner.cooldown_ends_at, 360);
+
+        spawner.override_entity_to_spawn("minecraft:husk");
+        assert_eq!(spawner.state, TrialSpawnerStateModel::Inactive);
+        assert_eq!(
+            spawner.config.normal_config.spawn_potentials[0].entity_id(),
+            Some("minecraft:husk")
+        );
+        assert_eq!(
+            spawner.config.ominous_config.spawn_potentials[0].entity_id(),
+            Some("minecraft:husk")
+        );
+
+        spawner.state = TrialSpawnerStateModel::Active;
+        spawner.next_mob_spawns_at = 500;
+        spawner.next_spawn_data = Some(SpawnDataModel::new("minecraft:husk"));
+        let update_tag = spawner.update_tag();
+        assert!(compound_entries(&update_tag)
+            .unwrap()
+            .iter()
+            .any(|(name, _)| name == "next_mob_spawns_at"));
+        assert!(compound_entries(&update_tag)
+            .unwrap()
+            .iter()
+            .any(|(name, _)| name == "spawn_data"));
+
+        let saved = spawner.save_additional();
+        assert_eq!(TrialSpawnerBlockEntity::load_additional(&saved), spawner);
     }
 
     #[test]
