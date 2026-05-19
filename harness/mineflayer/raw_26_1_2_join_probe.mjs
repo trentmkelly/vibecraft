@@ -737,7 +737,11 @@ async function main () {
   const joinState = {}
   let keepAliveReplies = 0
   const expectedPlayPacketPrefixIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12]
-  for (let i = 0; i < 256;) {
+  // The server-side view distance can send up to a 33x33 initial chunk window
+  // before the chunk_batch_finished marker. Keep this above that ceiling so the
+  // probe does not report a false missing packet when view-distance is high.
+  const maxPlayPacketsBeforeJoinReady = 2048
+  for (let i = 0; i < maxPlayPacketsBeforeJoinReady;) {
     const packet = await reader.nextPacket()
     if (packet.id === clientboundKeepAlivePacketId) {
       if (packet.body.length !== 8) {

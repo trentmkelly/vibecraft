@@ -28,7 +28,14 @@ test('raw 26.1.2 generated profiles write exact offline UUIDs to usercache', { t
   let server
 
   try {
-    await writeOfflineServerFiles(root, { port, levelName: 'world' })
+    await writeOfflineServerFiles(root, {
+      port,
+      levelName: 'world',
+      properties: {
+        'view-distance': '2',
+        'simulation-distance': '2'
+      }
+    })
     server = startRustCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, '127.0.0.1', 10_000)
 
@@ -64,7 +71,11 @@ async function runJoinProbe (port, username) {
       env: {
         ...process.env,
         RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username
+        RUSTCRAFT_USERNAME: username,
+        RUSTCRAFT_EXPECT_WORLD_SEED: '8675309',
+        RUSTCRAFT_EXPECT_IS_FLAT: 'false',
+        RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
+        RUSTCRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024
