@@ -4,6 +4,7 @@ use crate::management_security::{
     authenticate_management_secret, is_valid_management_secret, tls_startup_decision,
     ManagementSecurityConfig, ManagementSecurityDecision,
 };
+use crate::network::play::GameMode;
 use crate::player_access::NameAndId;
 use crate::server_properties::ServerProperties;
 
@@ -218,6 +219,8 @@ pub fn authorize_request(
 pub struct PlayerDto {
     pub id: Option<String>,
     pub name: Option<String>,
+    pub latency: i32,
+    pub game_mode: GameMode,
 }
 
 impl PlayerDto {
@@ -225,6 +228,17 @@ impl PlayerDto {
         Self {
             id: Some(profile.uuid.clone()),
             name: Some(profile.name.clone()),
+            latency: 0,
+            game_mode: GameMode::Survival,
+        }
+    }
+
+    pub fn with_state(profile: &NameAndId, latency: i32, game_mode: GameMode) -> Self {
+        Self {
+            id: Some(profile.uuid.clone()),
+            name: Some(profile.name.clone()),
+            latency,
+            game_mode,
         }
     }
 
@@ -243,9 +257,11 @@ impl PlayerDto {
 
     fn to_json(&self) -> String {
         format!(
-            "{{\"id\":{},\"name\":{}}}",
+            "{{\"id\":{},\"name\":{},\"latency\":{},\"gameMode\":{}}}",
             json_option(self.id.as_deref()),
-            json_option(self.name.as_deref())
+            json_option(self.name.as_deref()),
+            self.latency,
+            json_string(game_mode_name(self.game_mode))
         )
     }
 }
@@ -392,7 +408,7 @@ impl DiscoveryDocument {
                 .map(|method| MethodSchema::outgoing(method))
                 .collect(),
             schemas: vec![
-                SchemaDescriptor::object("PlayerDto", &["id", "name"]),
+                SchemaDescriptor::object("PlayerDto", &["id", "name", "latency", "gameMode"]),
                 SchemaDescriptor::object("KickDto", &["player", "message"]),
                 SchemaDescriptor::object("ServerStatusDto", &["running", "playerCount"]),
                 SchemaDescriptor::object(
@@ -711,6 +727,15 @@ fn outgoing_params_schema(method: &str) -> Option<&'static str> {
     }
 }
 
+fn game_mode_name(game_mode: GameMode) -> &'static str {
+    match game_mode {
+        GameMode::Survival => "survival",
+        GameMode::Creative => "creative",
+        GameMode::Adventure => "adventure",
+        GameMode::Spectator => "spectator",
+    }
+}
+
 fn json_array(items: Vec<String>) -> String {
     format!("[{}]", items.join(","))
 }
@@ -847,16 +872,33 @@ mod tests {
         let dto = PlayerDto {
             id: Some(alex.uuid.clone()),
             name: Some("Steve".to_string()),
+            latency: 0,
+            game_mode: GameMode::Survival,
         };
         assert_eq!(dto.resolve(&[steve.clone(), alex.clone()]), Some(&alex));
 
         let by_name = PlayerDto {
             id: None,
             name: Some("steve".to_string()),
+            latency: 0,
+            game_mode: GameMode::Survival,
         };
         assert_eq!(
             by_name.resolve(&[steve.clone(), alex.clone()]),
             Some(&steve)
+        );
+    }
+
+    #[test]
+    fn player_dto_json_includes_identity_latency_and_game_mode() {
+        let steve = player("Steve");
+        let dto = PlayerDto::with_state(&steve, 47, GameMode::Creative);
+        assert_eq!(
+            dto.to_json(),
+            format!(
+                "{{\"id\":\"{}\",\"name\":\"Steve\",\"latency\":47,\"gameMode\":\"creative\"}}",
+                steve.uuid
+            )
         );
     }
 
@@ -882,7 +924,8 @@ mod tests {
         assert!(discovery
             .schemas
             .iter()
-            .any(|schema| schema.name == "PlayerDto" && schema.fields == ["id", "name"]));
+            .any(|schema| schema.name == "PlayerDto"
+                && schema.fields == ["id", "name", "latency", "gameMode"]));
         assert!(discovery
             .schemas
             .iter()
@@ -953,6 +996,8 @@ mod tests {
                     player: PlayerDto {
                         id: Some(steve.uuid.clone()),
                         name: None,
+                        latency: 0,
+                        game_mode: GameMode::Survival,
                     },
                     message: None,
                 },
@@ -960,6 +1005,8 @@ mod tests {
                     player: PlayerDto {
                         id: None,
                         name: Some("Alex".to_string()),
+                        latency: 0,
+                        game_mode: GameMode::Survival,
                     },
                     message: Some("Go away".to_string()),
                 },

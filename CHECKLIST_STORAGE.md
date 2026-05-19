@@ -89,7 +89,7 @@
 - [ ] Implement JSON-RPC management server: method dispatch, JSON schema validation for parameters and results
 - [ ] Implement management server methods: `minecraft:list_players`, `minecraft:kick_player`, `minecraft:ban_player`, `minecraft:pardon_player`, etc. (all methods from decompiled `management-server.json` schema)
 - [ ] Implement management server outgoing notifications: `minecraft:player_joined`, `minecraft:player_left`
-- [ ] Implement player DTOs in management server responses: UUID, name, latency, game mode
+- [x] Implement player DTOs in management server responses: UUID, name, latency, game mode — `PlayerDto` now serializes `id`, `name`, `latency`, and `gameMode`, with discovery schema coverage
 - [x] Implement pending request tracking, response correlation — `ManagementServerState::handle_client_request()` records pending JSON-RPC IDs per client, correlates responses by ID, and clears abandoned requests on disconnect
 - [ ] Implement allowed origins CORS check for WebSocket management connections
 - [ ] Implement TLS support for management server connections
