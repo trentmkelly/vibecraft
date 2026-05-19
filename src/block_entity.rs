@@ -5,6 +5,9 @@ use std::collections::BTreeMap;
 use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
 use crate::redstone::{comparator_output, ComparatorMode, MAX_SIGNAL};
+use crate::special_block::{
+    command_block_tick, CommandBlockMode, CommandBlockState, SpecialBlockAction,
+};
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
 
@@ -201,6 +204,22 @@ pub struct ComparatorBlockEntity {
 pub struct DaylightDetectorBlockEntity {
     pub inverted: bool,
     pub power: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandBlockEntity {
+    pub command: String,
+    pub success_count: i32,
+    pub custom_name: Option<String>,
+    pub track_output: bool,
+    pub last_output: Option<String>,
+    pub update_last_execution: bool,
+    pub last_execution: i64,
+    pub powered: bool,
+    pub automatic: bool,
+    pub condition_met: bool,
+    pub mode: CommandBlockMode,
+    pub conditional: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -972,6 +991,175 @@ impl DaylightDetectorBlockEntity {
             return false;
         }
         self.update_signal(effective_sky_brightness, sun_angle_degrees)
+    }
+}
+
+impl CommandBlockEntity {
+    pub const NO_LAST_EXECUTION: i64 = -1;
+    pub const PERMISSION_LEVEL: &'static str = "gamemaster";
+    pub const SEARGE_COMMAND: &'static str = "Searge";
+    pub const SEARGE_OUTPUT: &'static str = "#itzlipofutzli";
+
+    pub fn new(mode: CommandBlockMode, conditional: bool) -> Self {
+        Self {
+            command: String::new(),
+            success_count: 0,
+            custom_name: None,
+            track_output: true,
+            last_output: None,
+            update_last_execution: true,
+            last_execution: Self::NO_LAST_EXECUTION,
+            powered: false,
+            automatic: false,
+            condition_met: false,
+            mode,
+            conditional,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = vec![
+            ("Command".to_string(), Tag::String(self.command.clone())),
+            ("SuccessCount".to_string(), Tag::Int(self.success_count)),
+            (
+                "TrackOutput".to_string(),
+                Tag::Byte(self.track_output as i8),
+            ),
+            (
+                "UpdateLastExecution".to_string(),
+                Tag::Byte(self.update_last_execution as i8),
+            ),
+            ("powered".to_string(), Tag::Byte(self.powered as i8)),
+            (
+                "conditionMet".to_string(),
+                Tag::Byte(self.condition_met as i8),
+            ),
+            ("auto".to_string(), Tag::Byte(self.automatic as i8)),
+        ];
+
+        if let Some(custom_name) = &self.custom_name {
+            entries.push(("CustomName".to_string(), Tag::String(custom_name.clone())));
+        }
+        if self.track_output {
+            if let Some(last_output) = &self.last_output {
+                entries.push(("LastOutput".to_string(), Tag::String(last_output.clone())));
+            }
+        }
+        if self.update_last_execution && self.last_execution != Self::NO_LAST_EXECUTION {
+            entries.push(("LastExecution".to_string(), Tag::Long(self.last_execution)));
+        }
+
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(mode: CommandBlockMode, conditional: bool, tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new(mode, conditional);
+        };
+        let track_output = get_bool(entries, "TrackOutput").unwrap_or(true);
+        let update_last_execution = get_bool(entries, "UpdateLastExecution").unwrap_or(true);
+        Self {
+            command: get_string(entries, "Command").unwrap_or("").to_string(),
+            success_count: get_int(entries, "SuccessCount").unwrap_or(0),
+            custom_name: get_string(entries, "CustomName").map(ToString::to_string),
+            track_output,
+            last_output: if track_output {
+                get_string(entries, "LastOutput").map(ToString::to_string)
+            } else {
+                None
+            },
+            update_last_execution,
+            last_execution: if update_last_execution {
+                get_long(entries, "LastExecution").unwrap_or(Self::NO_LAST_EXECUTION)
+            } else {
+                Self::NO_LAST_EXECUTION
+            },
+            powered: get_bool(entries, "powered").unwrap_or(false),
+            automatic: get_bool(entries, "auto").unwrap_or(false),
+            condition_met: get_bool(entries, "conditionMet").unwrap_or(false),
+            mode,
+            conditional,
+        }
+    }
+
+    pub fn set_command(&mut self, command: impl Into<String>) {
+        self.command = command.into();
+        self.success_count = 0;
+    }
+
+    pub fn set_automatic(&mut self, automatic: bool, has_level: bool) -> bool {
+        let previous = self.automatic;
+        self.automatic = automatic;
+        !previous
+            && automatic
+            && !self.powered
+            && has_level
+            && self.mode != CommandBlockMode::Sequence
+    }
+
+    pub fn mark_condition_met(&mut self, previous_command_success: bool) -> bool {
+        self.condition_met = !self.conditional || previous_command_success;
+        self.condition_met
+    }
+
+    pub fn can_use(&self, player_can_use_gamemaster_blocks: bool) -> bool {
+        player_can_use_gamemaster_blocks
+    }
+
+    pub fn execution_action(
+        &self,
+        has_permission: bool,
+        previous_success: bool,
+    ) -> SpecialBlockAction {
+        command_block_tick(
+            &CommandBlockState {
+                command: self.command.clone(),
+                mode: self.mode.clone(),
+                powered: self.powered,
+                previously_powered: false,
+                conditional: self.conditional,
+                previous_success,
+            },
+            has_permission,
+        )
+    }
+
+    pub fn perform_command(
+        &mut self,
+        game_time: i64,
+        command_blocks_enabled: bool,
+        has_permission: bool,
+        previous_success: bool,
+    ) -> bool {
+        if self.update_last_execution && self.last_execution == game_time {
+            return false;
+        }
+        if self.command.eq_ignore_ascii_case(Self::SEARGE_COMMAND) {
+            self.last_output = Some(Self::SEARGE_OUTPUT.to_string());
+            self.success_count = 1;
+            return true;
+        }
+
+        self.success_count = 0;
+        let executed = match self
+            .execution_action(has_permission && command_blocks_enabled, previous_success)
+        {
+            SpecialBlockAction::ExecuteCommand { success_count } => {
+                self.success_count = success_count;
+                true
+            }
+            SpecialBlockAction::Noop => false,
+            _ => false,
+        };
+
+        if executed {
+            if self.update_last_execution {
+                self.last_execution = game_time;
+            } else {
+                self.last_execution = Self::NO_LAST_EXECUTION;
+            }
+        }
+        executed
     }
 }
 
@@ -2650,6 +2838,13 @@ fn get_int(entries: &[(String, Tag)], key: &str) -> Option<i32> {
     })
 }
 
+fn get_long(entries: &[(String, Tag)], key: &str) -> Option<i64> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::Long(value) if name == key => Some(*value),
+        _ => None,
+    })
+}
+
 fn get_byte(entries: &[(String, Tag)], key: &str) -> Option<i8> {
     entries.iter().find_map(|(name, value)| match value {
         Tag::Byte(value) if name == key => Some(*value),
@@ -3092,6 +3287,72 @@ mod tests {
         assert_eq!(inverted.power, 11);
         assert!(inverted.update_signal(99, 0.0));
         assert_eq!(inverted.power, 0);
+    }
+
+    #[test]
+    fn command_block_entity_persists_base_fields_and_models_execution_gate() {
+        let mut command = CommandBlockEntity::new(CommandBlockMode::Redstone, true);
+        command.set_command("say hello");
+        command.custom_name = Some("\"Runner\"".to_string());
+        command.track_output = true;
+        command.last_output = Some("\"previous\"".to_string());
+        command.last_execution = 41;
+        command.powered = true;
+        command.automatic = true;
+        command.mark_condition_met(true);
+
+        let saved = command.save_additional();
+        assert_eq!(
+            CommandBlockEntity::load_additional(CommandBlockMode::Redstone, true, &saved),
+            command
+        );
+        assert_eq!(
+            command.execution_action(true, true),
+            SpecialBlockAction::ExecuteCommand { success_count: 1 }
+        );
+        assert_eq!(command.perform_command(42, true, true, true), true);
+        assert_eq!(command.success_count, 1);
+        assert_eq!(command.last_execution, 42);
+        assert_eq!(command.perform_command(42, true, true, true), false);
+
+        let mut blocked = CommandBlockEntity::new(CommandBlockMode::Auto, false);
+        blocked.set_command("say no");
+        assert_eq!(
+            blocked.execution_action(false, true),
+            SpecialBlockAction::ExecuteCommand { success_count: 0 }
+        );
+        assert!(blocked.set_automatic(true, true));
+        assert!(!blocked.set_automatic(true, true));
+        assert!(blocked.can_use(true));
+        assert!(!blocked.can_use(false));
+
+        let mut searge = CommandBlockEntity::new(CommandBlockMode::Auto, false);
+        searge.set_command("Searge");
+        assert!(searge.perform_command(9, false, false, false));
+        assert_eq!(searge.success_count, 1);
+        assert_eq!(
+            searge.last_output.as_deref(),
+            Some(CommandBlockEntity::SEARGE_OUTPUT)
+        );
+
+        let loaded_without_tracking = CommandBlockEntity::load_additional(
+            CommandBlockMode::Auto,
+            false,
+            &Tag::Compound(vec![
+                ("TrackOutput".to_string(), Tag::Byte(0)),
+                (
+                    "LastOutput".to_string(),
+                    Tag::String("\"ignored\"".to_string()),
+                ),
+                ("UpdateLastExecution".to_string(), Tag::Byte(0)),
+                ("LastExecution".to_string(), Tag::Long(99)),
+            ]),
+        );
+        assert_eq!(loaded_without_tracking.last_output, None);
+        assert_eq!(
+            loaded_without_tracking.last_execution,
+            CommandBlockEntity::NO_LAST_EXECUTION
+        );
     }
 
     #[test]

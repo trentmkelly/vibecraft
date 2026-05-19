@@ -72,7 +72,7 @@
 - [ ] Implement `JukeboxBlockEntity`: disc `ItemStack`, `isPlaying` flag, `ticksSinceSongStarted`, comparator output (disc = signal from 1–15), `startPlaying()` / `stopPlaying()`, `SongPlayer` dispatch for jukebox song resource
 - [x] Implement `ComparatorBlockEntity`: mode (COMPARE/SUBTRACT), `outputSignal` cached value, compare vs. subtract logic
 - [x] Implement `DaylightDetectorBlockEntity`: sky-light level lookup, linear signal mapping (0–15), inverted mode (night sensor)
-- [ ] Implement `CommandBlockEntity`: command string, `lastOutput` component, `CommandBlockMode` (SEQUENCE/AUTO/REDSTONE), `isConditional`, `isAutomatic`, permission-level check, `performCommand(level)` execution
+- [x] Implement `CommandBlockEntity`: command string, `lastOutput` component, `CommandBlockMode` (SEQUENCE/AUTO/REDSTONE), `isConditional`, `isAutomatic`, permission-level check, `performCommand(level)` execution
 - [ ] Add parity test: beacon tier detection with mixed pyramid materials, effect selection and duration
 - [ ] Add parity test: brewing stand tick countdown, fuel consumption, ingredient slot cleared after brew
 
