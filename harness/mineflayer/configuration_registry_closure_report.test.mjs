@@ -77,9 +77,7 @@ test('omitted registry report entries carry actionable milestone evidence', asyn
       'minecraft:enchantment',
       'minecraft:test_environment',
       'minecraft:test_instance',
-      'minecraft:dialog',
-      'minecraft:world_clock',
-      'minecraft:timeline'
+      'minecraft:dialog'
     ]
   )
 
