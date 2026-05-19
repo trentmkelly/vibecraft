@@ -50,28 +50,9 @@ test('raw 26.1.2 movement across a chunk boundary streams terrain around the new
         x: 2,
         z: -2
       },
-      batchSize: 9,
-      chunks: [
-        { x: 1, z: -3 },
-        { x: 2, z: -3 },
-        { x: 3, z: -3 },
-        { x: 1, z: -2 },
-        { x: 2, z: -2 },
-        { x: 3, z: -2 },
-        { x: 1, z: -1 },
-        { x: 2, z: -1 },
-        { x: 3, z: -1 }
-      ],
-      forgottenChunks: [
-        { x: -1, z: -1 },
-        { x: -1, z: 0 },
-        { x: -1, z: 1 },
-        { x: 0, z: -1 },
-        { x: 0, z: 0 },
-        { x: 0, z: 1 },
-        { x: 1, z: 0 },
-        { x: 1, z: 1 }
-      ]
+      batchSize: 32,
+      chunks: difference(expectedChunkSquare(4, 2, -2), expectedChunkSquare(4, 0, 0)),
+      forgottenChunks: difference(expectedChunkSquare(4, 0, 0), expectedChunkSquare(4, 2, -2))
     })
   } finally {
     if (server) await stopServer(server.child)
@@ -98,6 +79,25 @@ async function runJoinProbe (port, username, env = {}) {
   )
 
   return JSON.parse(stdout)
+}
+
+function expectedChunkSquare (radius, centerX, centerZ) {
+  const chunks = []
+  for (let x = centerX - radius; x <= centerX + radius; x++) {
+    for (let z = centerZ - radius; z <= centerZ + radius; z++) {
+      chunks.push({ x, z })
+    }
+  }
+  return chunks
+}
+
+function difference (left, right) {
+  const rightKeys = new Set(right.map(chunkKey))
+  return left.filter(chunk => !rightKeys.has(chunkKey(chunk)))
+}
+
+function chunkKey (chunk) {
+  return `${chunk.x},${chunk.z}`
 }
 
 async function reservePort () {

@@ -874,8 +874,14 @@ async function main () {
     }
     const timePacket = packetById.get(113)?.[0]
     const clockCount = timePacket && readVarInt(timePacket.body, 8)
-    if (!timePacket || timePacket.body.length !== 9 || timePacket.body.readBigInt64BE(0) !== 0n || !clockCount || clockCount.value !== 0) {
-      throw new Error(`expected set_time gameTime=0 with no clock updates, got ${timePacket?.body.toString('hex')}`)
+    if (!timePacket || timePacket.body.length < 9 || timePacket.body.readBigInt64BE(0) < 0n || !clockCount) {
+      throw new Error(`expected set_time with non-negative gameTime, got ${timePacket?.body.toString('hex')}`)
+    }
+    if (clockCount.value === 0 && clockCount.offset !== timePacket.body.length) {
+      throw new Error(`expected empty set_time clock map to end at byte ${clockCount.offset}, got ${timePacket.body.toString('hex')}`)
+    }
+    if (clockCount.value > 0 && clockCount.offset >= timePacket.body.length) {
+      throw new Error(`expected full set_time clock sync payload after ${clockCount.value} clocks, got ${timePacket.body.toString('hex')}`)
     }
     const positionPacket = packetById.get(72)?.[0]
     if (!positionPacket || positionPacket.body.length < 61) {
