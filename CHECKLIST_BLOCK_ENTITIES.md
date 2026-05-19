@@ -84,7 +84,7 @@
 - [x] Implement `StructureBlockEntity`: mode (SAVE/LOAD/CORNER/DATA), structure name, position offset, size, mirror, rotation, integrity, seed, show-bounding-box flag, `structureBlockSize` limits
 - [x] Implement `TheEndGatewayBlockEntity`: age counter, exact-teleport flag (`exactTeleport`), exit position, beam animation (ray shot toward exit on teleport use)
 - [x] Implement `TheEndPortalBlockEntity`: placeholder type entry in registry; triggers end dimension entry
-- [ ] Implement `TestBlockEntity` and `TestInstanceBlockEntity`: game-test framework support
+- [x] Implement `TestBlockEntity` and `TestInstanceBlockEntity`: game-test framework support
 - [ ] Add parity test: spawner delay and entity cycling after NBT save/load; mob-cap check prevents overcrowding
 - [ ] Add parity test: trial spawner state machine transitions (activation, cooldown duration, ominous vs. normal config)
 
