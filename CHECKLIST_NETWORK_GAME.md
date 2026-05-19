@@ -300,22 +300,22 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a Mineflayer offline-mode login state-machine invariant test that asserts no play, chat, command, movement, or inventory packet is accepted before the vanilla state transition that permits it.
 - [x] Implement configuration state.
 - [x] Add a raw 26.1.2 offline-mode configuration/play-entry probe that asserts enabled features, registry identities, non-empty required registries, damage-type tags, finish-configuration, play login, held slot, position, teleport acknowledgement, and player-loaded framing while Mineflayer lacks 26.1.2 protocol support.
-- [ ] Replace incremental vanilla-client crash chasing with a complete configuration registry closure pass derived from `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`.
-- [ ] Add a generated synchronized-registry closure report that lists every `RegistryDataLoader.SYNCHRONIZED_REGISTRIES` entry, current RustCraft status, packet source function, codec source file, expected vanilla element count, tag count, and whether the raw probe or Mineflayer can validate it.
-- [ ] Add a closure gate that fails when a synchronized registry is neither emitted during configuration nor explicitly listed as a milestone-scoped omission with decompiled evidence and a play-entry probe proving the omission is still accepted.
+- [x] Replace incremental vanilla-client crash chasing with a complete configuration registry closure pass derived from `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`.
+- [x] Add a generated synchronized-registry closure report that lists every `RegistryDataLoader.SYNCHRONIZED_REGISTRIES` entry, current RustCraft status, packet source function, codec source file, expected vanilla element count, tag count, and whether the raw probe or Mineflayer can validate it.
+- [x] Add a closure gate that fails when a synchronized registry is neither emitted during configuration nor explicitly listed as a milestone-scoped omission with decompiled evidence and a play-entry probe proving the omission is still accepted.
 - [ ] Add a decompiled codec audit for each synchronized registry that records required network/direct codec fields, optional defaults, referenced holder/tag fields, and NBT shape before any new registry is marked synced.
 - [ ] Add a registry dependency graph test that follows `RegistryDataLoader`, `RegistrySetBuilder`, item component initializers, chunk biome palettes, dimension definitions, command argument types, and first-play packets to identify registries required before vanilla-client join.
-- [ ] Add a Mineflayer/raw-probe readiness gate that runs after every registry closure change and fails on missing registry packets, missing tag packets, missing client-referenced elements, truncated registry payloads, known-pack ordering drift, or play-state packet decode errors.
-- [ ] Add an automated decomp audit that extracts every 26.1.2 synchronized registry from `RegistryDataLoader` and fails when RustCraft does not either sync it or document why it is intentionally omitted for the current milestone.
-- [ ] Add an automated decomp audit that extracts every item `delayedComponent`, `delayedHolderComponent`, `fireResistant`, `jukeboxPlayable`, and registry/tag lookup initializer from `Items.java` and maps each dependency to a configuration registry packet or tag packet.
-- [ ] Add a vanilla-client configuration completion manifest that records every registry name, element count, element order, tag name, and tag entry index required before `clientbound/minecraft:finish_configuration`.
+- [x] Add a Mineflayer/raw-probe readiness gate that runs after every registry closure change and fails on missing registry packets, missing tag packets, missing client-referenced elements, truncated registry payloads, known-pack ordering drift, or play-state packet decode errors.
+- [x] Add an automated decomp audit that extracts every 26.1.2 synchronized registry from `RegistryDataLoader` and fails when RustCraft does not either sync it or document why it is intentionally omitted for the current milestone.
+- [x] Add an automated decomp audit that extracts every item `delayedComponent`, `delayedHolderComponent`, `fireResistant`, `jukeboxPlayable`, and registry/tag lookup initializer from `Items.java` and maps each dependency to a configuration registry packet or tag packet.
+- [x] Add a vanilla-client configuration completion manifest that records every registry name, element count, element order, tag name, and tag entry index required before `clientbound/minecraft:finish_configuration`.
 - [ ] Compare RustCraft configuration registry packets against an official `server.jar` transcript, including packet order, registry IDs, element IDs, element counts, omitted optional fields, tag counts, and tag entry indices.
 - [ ] Build an official `server.jar` configuration transcript recorder that performs offline-mode login through configuration, captures enabled features, registry data, update tags, known packs, finish configuration, and first play packets, and stores a normalized fixture.
 - [ ] Add a transcript normalizer that removes volatile compression framing, connection IDs, temp paths, timestamps, and random usernames while preserving packet order, registry names, element IDs, NBT field names, tag entry indices, and known-pack tuples.
 - [ ] Add a RustCraft-vs-official transcript diff that reports the first registry, tag, or packet-order mismatch with enough packet context to patch the Rust encoder without requiring another manual vanilla-client crash.
 - [ ] Add a Mineflayer scenario wrapper that can use the same transcript oracle once prismarine protocol supports 26.1.2, with the raw 26.1.2 probe remaining the fallback until then.
-- [ ] Extend the raw 26.1.2 probe to parse configuration tag packets and assert required tag registries and tag names, not just registry packet names and counts.
-- [ ] Extend the raw 26.1.2 probe to parse registry packet element IDs and assert client-referenced elements such as `minecraft:redstone`, `minecraft:cold`, `minecraft:13`, and `minecraft:pattern_item/flower` dependencies are present before finish-configuration.
+- [x] Extend the raw 26.1.2 probe to parse configuration tag packets and assert required tag registries and tag names, not just registry packet names and counts.
+- [x] Extend the raw 26.1.2 probe to parse registry packet element IDs and assert client-referenced elements such as `minecraft:redstone`, `minecraft:cold`, `minecraft:13`, and `minecraft:pattern_item/flower` dependencies are present before finish-configuration.
 - [ ] Add regression fixtures for every vanilla client crash signature encountered during configuration, keyed by missing registry/tag/element and the decompiled initializer that required it.
 - [x] Fix and regress the 26.1.2 `clientbound/minecraft:player_position` relative flag encoding as a fixed 4-byte `INT`, not a VarInt, after vanilla decoded play-state entry but rejected the packet length.
 - [x] Fix and regress the 26.1.2 `clientbound/minecraft:level_chunk_with_light` packet ID as `45`, not `48`, after the vanilla client decoded the old ID as `clientbound/minecraft:light_update` and reported 250 trailing bytes.
@@ -328,61 +328,61 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Keep the minimal play connection alive after the first in-world render by sending clientbound keepalives and consuming serverbound keepalive replies instead of closing on the status/login socket read timeout.
 - [x] Add a raw 26.1.2 play keepalive probe that stays connected past the first heartbeat, replies to `clientbound/minecraft:keep_alive`, and fails on missed heartbeat while Mineflayer lacks 26.1.2 play support.
 - [x] Fix and regress the 26.1.2 play-state `clientbound/minecraft:keep_alive` packet ID as `44`, not `113`, after the vanilla client decoded the old ID as `clientbound/minecraft:set_time` and rejected the keepalive payload shape.
-- [ ] Sync `minecraft:worldgen/biome` during configuration with vanilla-compatible network codec payloads and enough baseline elements for dimension/chunk/client initialization.
+- [x] Sync `minecraft:worldgen/biome` during configuration with vanilla-compatible network codec payloads and enough baseline elements for dimension/chunk/client initialization.
 - [ ] Correct the configuration biome registry resource key from `minecraft:biome` to vanilla's synchronized `minecraft:worldgen/biome`, verified against the official `server.jar` transcript and the previous vanilla-client crash.
 - [ ] Reorder the emitted `minecraft:worldgen/biome` element IDs to match the official `server.jar` transcript so biome holder IDs line up with vanilla.
 - [ ] Reorder currently emitted configuration registry data packets to match their relative order in the official `server.jar` transcript: biome, chat type, trim pattern, trim material, wolf, pig, frog, cat, cow, chicken, zombie nautilus, painting, dimension type, damage type, banner pattern, jukebox song, and instrument.
-- [ ] Expand `minecraft:dimension_type` from only `overworld` to the official `overworld`, `overworld_caves`, `the_end`, and `the_nether` entries with vanilla-compatible network codec payloads.
+- [x] Expand `minecraft:dimension_type` from only `overworld` to the official `overworld`, `overworld_caves`, `the_end`, and `the_nether` entries with vanilla-compatible network codec payloads.
 - [ ] Reorder synced registry element IDs to match the official transcript for cat variants, sound variants, painting variants, damage types, banner patterns, jukebox songs, and instruments.
 - [ ] Reorder synced registry element IDs to match the official transcript for chat types, trim materials/patterns, wolf variants, pig variants, frog variants, cow variants, and chicken variants.
-- [ ] Expand animal sound variant registries from minimal defaults to the official server.jar sets: wolf sound variants `angry`, `big`, `classic`, `cute`, `grumpy`, `puglin`, `sad`; pig sound variants `big`, `classic`, `mini`; chicken/cow/cat sound variants as reported by the transcript oracle.
-- [ ] Expand `minecraft:painting_variant` from the initial `kebab` placeholder to the 51-entry vanilla data-pack set and assert representative IDs in the Mineflayer raw probe.
-- [ ] Expand `minecraft:zombie_nautilus_variant` from the initial placeholder to vanilla `temperate` and `warm` entries.
+- [x] Expand animal sound variant registries from minimal defaults to the official server.jar sets: wolf sound variants `angry`, `big`, `classic`, `cute`, `grumpy`, `puglin`, `sad`; pig sound variants `big`, `classic`, `mini`; chicken/cow/cat sound variants as reported by the transcript oracle.
+- [x] Expand `minecraft:painting_variant` from the initial `kebab` placeholder to the 51-entry vanilla data-pack set and assert representative IDs in the Mineflayer raw probe.
+- [x] Expand `minecraft:zombie_nautilus_variant` from the initial placeholder to vanilla `temperate` and `warm` entries.
 - [ ] Add explicit configuration transcript coverage for the remaining official registries RustCraft currently omits but the vanilla transcript advertises after `banner_pattern`: `minecraft:enchantment`, `minecraft:test_environment`, `minecraft:test_instance`, `minecraft:dialog`, `minecraft:world_clock`, and `minecraft:timeline`.
-- [ ] Decide whether omitted noncritical registries should remain documented omissions for the join milestone or be synced as empty/full registries before the vanilla-client compatibility milestone is marked complete.
-- [ ] Extract `Biome` network/direct codec fields from the decompiled server and document the exact NBT payload shape: `Biome.NETWORK_CODEC` includes climate settings, optional positional attributes, and special effects; `Biome.DIRECT_CODEC` additionally includes generation settings and mob spawn settings.
-- [ ] Add a biome codec fixture that asserts the network payload uses `has_precipitation`, `temperature`, optional `temperature_modifier`, `downfall`, optional `attributes`, and special-effect fields such as `water_color`, optional foliage/dry-foliage/grass overrides, and `grass_color_modifier`.
+- [x] Decide whether omitted noncritical registries should remain documented omissions for the join milestone or be synced as empty/full registries before the vanilla-client compatibility milestone is marked complete.
+- [x] Extract `Biome` network/direct codec fields from the decompiled server and document the exact NBT payload shape: `Biome.NETWORK_CODEC` includes climate settings, optional positional attributes, and special effects; `Biome.DIRECT_CODEC` additionally includes generation settings and mob spawn settings.
+- [x] Add a biome codec fixture that asserts the network payload uses `has_precipitation`, `temperature`, optional `temperature_modifier`, `downfall`, optional `attributes`, and special-effect fields such as `water_color`, optional foliage/dry-foliage/grass overrides, and `grass_color_modifier`.
 - [ ] Determine the vanilla biome set required for the current join milestone by tracing dimension type, play login dimension holder IDs, chunk biome palettes, and client biome lookups from the decompiled client/server code, then emit the complete 65-entry vanilla ID set instead of only the minimal subset.
-- [ ] Emit a baseline `minecraft:worldgen/biome` registry packet with codec-compatible vanilla IDs and field values, starting with the actual biome IDs referenced by the initial chunk payload rather than placeholder data.
-- [ ] Extend the raw 26.1.2 probe to parse biome registry elements and assert required biome IDs before finish-configuration.
-- [ ] Extend the raw 26.1.2 probe to verify every emitted biome has the decompiled codec-required fields before finish-configuration.
+- [x] Emit a baseline `minecraft:worldgen/biome` registry packet with codec-compatible vanilla IDs and field values, starting with the actual biome IDs referenced by the initial chunk payload rather than placeholder data.
+- [x] Extend the raw 26.1.2 probe to parse biome registry elements and assert required biome IDs before finish-configuration.
+- [x] Extend the raw 26.1.2 probe to verify every emitted biome has the decompiled codec-required fields before finish-configuration.
 - [ ] Add a raw 26.1.2 transcript fallback for initial chunk biome palette compatibility while Mineflayer target-protocol chunk observation remains pending. References: `harness/mineflayer/raw_26_1_2_join_probe.mjs`, `harness/mineflayer/raw_26_1_2_chunk_streaming.test.mjs`.
-- [ ] Sync `minecraft:chat_type` during configuration with vanilla `chat`, `say_command`, `msg_command_incoming`, `msg_command_outgoing`, `team_msg_command_incoming`, `team_msg_command_outgoing`, and `emote_command` entries.
+- [x] Sync `minecraft:chat_type` during configuration with vanilla `chat`, `say_command`, `msg_command_incoming`, `msg_command_outgoing`, `team_msg_command_incoming`, `team_msg_command_outgoing`, and `emote_command` entries.
 - [ ] Sync `minecraft:trim_pattern` during configuration with all vanilla smithing template patterns and component descriptions.
-- [ ] Sync `minecraft:trim_material` during configuration with all vanilla trim materials, including `redstone`.
-- [ ] Sync `minecraft:wolf_variant` during configuration with all vanilla wolf variants.
-- [ ] Sync `minecraft:wolf_sound_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:pig_variant` during configuration with `temperate`, `warm`, and `cold`.
-- [ ] Sync `minecraft:pig_sound_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:frog_variant` during configuration with `temperate`, `warm`, and `cold`.
-- [ ] Sync `minecraft:cat_variant` during configuration with all vanilla cat variants.
-- [ ] Sync `minecraft:cat_sound_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:cow_variant` during configuration with `temperate`, `warm`, and `cold`.
-- [ ] Sync `minecraft:cow_sound_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:chicken_variant` during configuration with `temperate`, `warm`, and `cold`.
-- [ ] Sync `minecraft:chicken_sound_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:zombie_nautilus_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:painting_variant` during configuration with at least the vanilla `kebab` entry and replace the placeholder with the full vanilla set before marking broad client compatibility complete.
-- [ ] Sync `minecraft:dimension_type` during configuration with an overworld entry compatible with the play login dimension holder ID.
-- [ ] Sync `minecraft:damage_type` during configuration with every vanilla damage type currently referenced by damage tags.
-- [ ] Sync `minecraft:banner_pattern` during configuration with all vanilla banner patterns.
+- [x] Sync `minecraft:trim_material` during configuration with all vanilla trim materials, including `redstone`.
+- [x] Sync `minecraft:wolf_variant` during configuration with all vanilla wolf variants.
+- [x] Sync `minecraft:wolf_sound_variant` during configuration with a non-empty codec-compatible default.
+- [x] Sync `minecraft:pig_variant` during configuration with `temperate`, `warm`, and `cold`.
+- [x] Sync `minecraft:pig_sound_variant` during configuration with a non-empty codec-compatible default.
+- [x] Sync `minecraft:frog_variant` during configuration with `temperate`, `warm`, and `cold`.
+- [x] Sync `minecraft:cat_variant` during configuration with all vanilla cat variants.
+- [x] Sync `minecraft:cat_sound_variant` during configuration with a non-empty codec-compatible default.
+- [x] Sync `minecraft:cow_variant` during configuration with `temperate`, `warm`, and `cold`.
+- [x] Sync `minecraft:cow_sound_variant` during configuration with a non-empty codec-compatible default.
+- [x] Sync `minecraft:chicken_variant` during configuration with `temperate`, `warm`, and `cold`.
+- [x] Sync `minecraft:chicken_sound_variant` during configuration with a non-empty codec-compatible default.
+- [x] Sync `minecraft:zombie_nautilus_variant` during configuration with a non-empty codec-compatible default.
+- [x] Sync `minecraft:painting_variant` during configuration with at least the vanilla `kebab` entry and replace the placeholder with the full vanilla set before marking broad client compatibility complete.
+- [x] Sync `minecraft:dimension_type` during configuration with an overworld entry compatible with the play login dimension holder ID.
+- [x] Sync `minecraft:damage_type` during configuration with every vanilla damage type currently referenced by damage tags.
+- [x] Sync `minecraft:banner_pattern` during configuration with all vanilla banner patterns.
 - [ ] Sync `minecraft:enchantment` during configuration with all vanilla enchantments or a verified minimal set that satisfies client item component initialization.
-- [ ] Extract `Enchantment` network/direct codec fields from the decompiled server and document required description, supported items, primary items, exclusive set, weight, max level, cost, anvil cost, slots, and effect component payload shapes.
-- [ ] Verify whether default item component initialization references any concrete enchantment holder before play-state entry; if not, preserve that result as an automated omission test tied to the raw probe's successful play-entry evidence.
-- [ ] Decide whether the join milestone should emit zero enchantments, a minimal codec-valid subset, or the full vanilla enchantment registry, and encode that decision in the closure report with a vanilla-client/Mineflayer validation target.
-- [ ] Add raw probe assertions for the chosen enchantment policy: omitted with documented acceptance, non-empty minimal set with exact IDs, or full vanilla count and element IDs.
+- [x] Extract `Enchantment` network/direct codec fields from the decompiled server and document required description, supported items, primary items, exclusive set, weight, max level, cost, anvil cost, slots, and effect component payload shapes.
+- [x] Verify whether default item component initialization references any concrete enchantment holder before play-state entry; if not, preserve that result as an automated omission test tied to the raw probe's successful play-entry evidence.
+- [x] Decide whether the join milestone should emit zero enchantments, a minimal codec-valid subset, or the full vanilla enchantment registry, and encode that decision in the closure report with a vanilla-client/Mineflayer validation target.
+- [x] Add raw probe assertions for the chosen enchantment policy: omitted with documented acceptance, non-empty minimal set with exact IDs, or full vanilla count and element IDs.
 - [ ] Add a follow-up Mineflayer enchantment smoke test that joins offline mode, receives an enchanted item or enchanted book, and verifies the bot/client does not hit missing registry, missing tag, tooltip, or component decode failures.
-- [ ] Sync `minecraft:jukebox_song` during configuration with all vanilla music disc songs.
-- [ ] Sync `minecraft:instrument` during configuration with all vanilla goat horn instruments.
-- [ ] Sync `minecraft:test_environment` during configuration or document and verify why the client accepts it omitted for the current milestone.
-- [ ] Sync `minecraft:test_instance` during configuration or document and verify why the client accepts it omitted for the current milestone.
-- [ ] Sync `minecraft:dialog` during configuration or document and verify why the client accepts it omitted for the current milestone.
-- [ ] Sync `minecraft:world_clock` during configuration or document and verify why the client accepts it omitted for the current milestone.
-- [ ] Sync `minecraft:timeline` during configuration or document and verify why the client accepts it omitted for the current milestone.
-- [ ] Sync `minecraft:damage_type` tags during configuration, including `minecraft:is_fire`.
-- [ ] Sync `minecraft:banner_pattern` tags during configuration, including every `minecraft:pattern_item/*` tag used by banner pattern items.
+- [x] Sync `minecraft:jukebox_song` during configuration with all vanilla music disc songs.
+- [x] Sync `minecraft:instrument` during configuration with all vanilla goat horn instruments.
+- [x] Sync `minecraft:test_environment` during configuration or document and verify why the client accepts it omitted for the current milestone.
+- [x] Sync `minecraft:test_instance` during configuration or document and verify why the client accepts it omitted for the current milestone.
+- [x] Sync `minecraft:dialog` during configuration or document and verify why the client accepts it omitted for the current milestone.
+- [x] Sync `minecraft:world_clock` during configuration or document and verify why the client accepts it omitted for the current milestone.
+- [x] Sync `minecraft:timeline` during configuration or document and verify why the client accepts it omitted for the current milestone.
+- [x] Sync `minecraft:damage_type` tags during configuration, including `minecraft:is_fire`.
+- [x] Sync `minecraft:banner_pattern` tags during configuration, including every `minecraft:pattern_item/*` tag used by banner pattern items.
 - [ ] Add unit tests for each synced registry that assert exact element counts, client-referenced IDs, and NBT field names expected by the decompiled network/direct codecs.
-- [ ] Add unit tests for each synced tag registry that assert required tag names and entry indices match the local registry order.
+- [x] Add unit tests for each synced tag registry that assert required tag names and entry indices match the local registry order.
 - [ ] Mark the raw 26.1.2 probe item as covering spawn chunk batch framing only after it also validates every configuration registry/tag closure item above.
 - [ ] Add a Mineflayer configuration-state test that receives registries, tags, enabled features, known packs, and finish-configuration in vanilla order.
 - [ ] Add a Mineflayer configuration regression test that asserts the bot reaches play state only after registry sync, feature flags, tags, and finish-configuration complete.

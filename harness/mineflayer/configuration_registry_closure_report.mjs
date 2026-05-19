@@ -75,8 +75,8 @@ export const documentedRegistryOmissions = new Map([
 ])
 
 export const requiredPlayEntryEvidence = [
-  'expected 70-byte play login packet after holder-id encoding',
-  'expected 62-byte player_position packet with fixed-int relatives',
+  'expected play login body after holder-id encoding',
+  'expected player_position body with fixed-int relatives',
   'missing play packet'
 ]
 
@@ -109,6 +109,31 @@ const codecSourceByRegistry = new Map([
   ['minecraft:dialog', 'Dialog.DIRECT_CODEC'],
   ['minecraft:world_clock', 'WorldClock.DIRECT_CODEC'],
   ['minecraft:timeline', 'Timeline.NETWORK_CODEC']
+])
+
+const packetSourceFunctionByRegistry = new Map([
+  ['minecraft:worldgen/biome', 'write_minimal_biome_registry_packet'],
+  ['minecraft:chat_type', 'write_vanilla_chat_type_registry_packet'],
+  ['minecraft:trim_pattern', 'write_vanilla_trim_pattern_registry_packet'],
+  ['minecraft:trim_material', 'write_minimal_trim_material_registry_packet'],
+  ['minecraft:wolf_variant', 'write_vanilla_wolf_variant_registry_packet'],
+  ['minecraft:wolf_sound_variant', 'write_vanilla_wolf_sound_variant_registry_packet'],
+  ['minecraft:pig_variant', 'write_vanilla_pig_variant_registry_packet'],
+  ['minecraft:pig_sound_variant', 'write_vanilla_pig_sound_variant_registry_packet'],
+  ['minecraft:frog_variant', 'write_vanilla_frog_variant_registry_packet'],
+  ['minecraft:cat_variant', 'write_vanilla_cat_variant_registry_packet'],
+  ['minecraft:cat_sound_variant', 'write_vanilla_cat_sound_variant_registry_packet'],
+  ['minecraft:cow_sound_variant', 'write_vanilla_cow_sound_variant_registry_packet'],
+  ['minecraft:cow_variant', 'write_vanilla_cow_variant_registry_packet'],
+  ['minecraft:chicken_sound_variant', 'write_vanilla_chicken_sound_variant_registry_packet'],
+  ['minecraft:chicken_variant', 'write_vanilla_chicken_variant_registry_packet'],
+  ['minecraft:zombie_nautilus_variant', 'write_vanilla_zombie_nautilus_variant_registry_packet'],
+  ['minecraft:painting_variant', 'write_vanilla_painting_variant_registry_packet'],
+  ['minecraft:dimension_type', 'write_minimal_dimension_type_registry_packet'],
+  ['minecraft:damage_type', 'write_minimal_damage_type_registry_packet'],
+  ['minecraft:banner_pattern', 'write_vanilla_banner_pattern_registry_packet'],
+  ['minecraft:jukebox_song', 'write_vanilla_jukebox_song_registry_packet'],
+  ['minecraft:instrument', 'write_vanilla_instrument_registry_packet']
 ])
 
 function registryConstantToId (constant) {
@@ -154,6 +179,7 @@ export function createConfigurationRegistryClosureReport ({ registryDataLoader, 
       status,
       emitted,
       codec: codecSourceByRegistry.get(registry) ?? 'unknown',
+      packetSourceFunction: emitted ? packetSourceFunctionByRegistry.get(registry) ?? 'unknown' : null,
       expectedElements: configurationCompletionManifest.elementCounts[registry] ?? null,
       requiredElements: requiredElementCountFor(registry),
       requiredTags: tagCountFor(registry),

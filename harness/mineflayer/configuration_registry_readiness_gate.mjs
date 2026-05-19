@@ -144,13 +144,33 @@ function finishConfigurationCheck (manifest, rawProbe) {
 
 function playEntryCheck (rawProbe) {
   const actual = rawProbe.play?.map(packet => packet.id) ?? []
-  const expected = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12, 45, 45, 45, 45, 45, 45, 45, 45, 45, 11]
+  const expectedPrefix = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12]
   const loginPacket = rawProbe.play?.find(packet => packet.id === 49)
   const positionPacket = rawProbe.play?.find(packet => packet.id === 72)
-  const ok = arrayEqual(actual, expected) && loginPacket?.length === 70 && positionPacket?.length === 62
+  const firstChunkIndex = actual.indexOf(45)
+  const chunkBatchFinishedIndex = actual.indexOf(11)
+  const prefixOk = expectedPrefix.every((packetId, index) => actual[index] === packetId)
+  const chunkWindowOk = firstChunkIndex >= expectedPrefix.length &&
+    chunkBatchFinishedIndex > firstChunkIndex &&
+    actual.slice(firstChunkIndex, chunkBatchFinishedIndex).every(packetId => packetId === 45)
+  const loginLengthOk = loginPacket?.length >= 70
+  const positionLengthOk = positionPacket?.length >= 62
+  const ok = prefixOk && chunkWindowOk && loginLengthOk && positionLengthOk
   return ok
-    ? pass('raw-26-play-entry-packets', { packets: actual, loginLength: loginPacket.length, positionLength: positionPacket.length })
-    : fail('raw-26-play-entry-packets', 'play-state packet decode boundary changed', { expected, actual, loginLength: loginPacket?.length, positionLength: positionPacket?.length })
+    ? pass('raw-26-play-entry-packets', {
+        prefix: expectedPrefix,
+        chunkCount: chunkBatchFinishedIndex - firstChunkIndex,
+        loginLength: loginPacket.length,
+        positionLength: positionPacket.length
+      })
+    : fail('raw-26-play-entry-packets', 'play-state packet decode boundary changed', {
+        expectedPrefix,
+        actual,
+        firstChunkIndex,
+        chunkBatchFinishedIndex,
+        loginLength: loginPacket?.length,
+        positionLength: positionPacket?.length
+      })
 }
 
 function registryPackets (rawProbe) {

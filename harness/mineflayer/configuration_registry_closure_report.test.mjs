@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
 import {
@@ -7,6 +10,10 @@ import {
   evaluateConfigurationRegistryClosureGate,
   loadConfigurationRegistryClosureReport
 } from './configuration_registry_closure_report.mjs'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(here, '..', '..')
+const statusSourcePath = path.join(repoRoot, 'src', 'network', 'status.rs')
 
 test('configuration registry closure report covers every synchronized registry', async () => {
   const report = await loadConfigurationRegistryClosureReport()
@@ -38,10 +45,24 @@ test('synced registry report entries are tied to manifest and raw-probe validati
     assert.equal(entry.validator, 'raw_26_1_2_join_probe')
     assert.equal(entry.omission, null)
     assert.notEqual(entry.codec, 'unknown', `${entry.registry} needs a codec source`)
+    assert.notEqual(entry.packetSourceFunction, 'unknown', `${entry.registry} needs a Rust packet source function`)
     assert.equal(
       entry.expectedElements,
       configurationCompletionManifest.elementCounts[entry.registry],
       `${entry.registry} element count must come from the completion manifest`
+    )
+  }
+})
+
+test('synced registry report packet source functions exist in RustCraft', async () => {
+  const report = await loadConfigurationRegistryClosureReport()
+  const source = await readFile(statusSourcePath, 'utf8')
+
+  for (const entry of report.filter(entry => entry.emitted)) {
+    assert.match(
+      source,
+      new RegExp(`fn ${entry.packetSourceFunction}<`),
+      `${entry.registry} packet source function is missing from status.rs`
     )
   }
 })
@@ -104,8 +125,8 @@ test('configuration registry closure gate fails uncovered registries and missing
 test('configuration registry closure gate passes current report with raw-probe play-entry evidence', async () => {
   const report = await loadConfigurationRegistryClosureReport()
   const rawProbe = [
-    'expected 70-byte play login packet after holder-id encoding',
-    'expected 62-byte player_position packet with fixed-int relatives',
+    'expected play login body after holder-id encoding',
+    'expected player_position body with fixed-int relatives',
     'missing play packet'
   ].join('\n')
 

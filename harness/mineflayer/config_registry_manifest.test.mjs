@@ -46,8 +46,8 @@ const documentedOmissions = new Map([
 ])
 
 const playEntryEvidence = [
-  'expected 70-byte play login packet after holder-id encoding',
-  'expected 62-byte player_position packet with fixed-int relatives',
+  'expected play login body after holder-id encoding',
+  'expected player_position body with fixed-int relatives',
   'missing play packet'
 ]
 

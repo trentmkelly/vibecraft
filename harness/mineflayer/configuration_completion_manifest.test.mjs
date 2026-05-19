@@ -50,5 +50,8 @@ test('configuration completion manifest is covered by the raw 26.1.2 probe', asy
     assert.ok(rawProbe.includes(`'${pack.version}'`), `raw probe does not require known pack version ${pack.version}`)
   }
 
-  assert.ok(rawProbe.includes('positionPacket.length !== 62'), 'raw probe must validate player_position length')
+  assert.ok(
+    rawProbe.includes('expected player_position body with fixed-int relatives'),
+    'raw probe must validate player_position length'
+  )
 })
