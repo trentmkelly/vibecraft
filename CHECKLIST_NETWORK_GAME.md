@@ -77,13 +77,13 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundContainerSetContentPacket` (0x12): window ID byte, state ID VarInt, items list, carried item
 - [ ] `ClientboundContainerSetSlotPacket` (0x13): window ID byte, state ID VarInt, slot short, item
-- [ ] `ClientboundContainerSetDataPacket` (0x11): window ID byte, property short, value short
+- [x] `ClientboundContainerSetDataPacket` (0x13): container ID VarInt, property short, value short
 - [ ] `ClientboundOpenScreenPacket` (0x35): window ID VarInt, menu type VarInt, title component
-- [ ] `ClientboundContainerClosePacket` (0x10): window ID byte
+- [x] `ClientboundContainerClosePacket` (0x11): container ID VarInt
 - [ ] `ClientboundHorseScreenOpenPacket` (0x25): window ID byte, slot count VarInt, entity ID VarInt
 - [ ] `ClientboundMerchantOffersPacket` (0x31): container ID, offers list (input1, input2 optional, result, uses, maxUses, xp, specialPrice, priceMultiplier, demand, ignoreDiscount), villager level, xp, is-regular-villager, can-restock
-- [ ] `ClientboundSetCarriedItemPacket` (0x53): slot byte (0–8)
-- [ ] `ClientboundCooldownPacket` (0x14): item VarInt, cooldown VarInt
+- [x] `ClientboundSetHeldSlotPacket` (0x69): slot VarInt (renamed from older carried item packet)
+- [x] `ClientboundCooldownPacket` (0x16): cooldown group Identifier, cooldown duration VarInt
 - [ ] `ClientboundSetCursorItemPacket` (0x4F): cursor item
 
 ## Inventory / Container Packets (Serverbound)
@@ -173,7 +173,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Player Abilities / Stats / Game Mode Packets
 
-- [ ] `ClientboundPlayerAbilitiesPacket` (0x38): flags byte (invulnerable/flying/allow-flying/instant-build), flying speed, walking speed
+- [x] `ClientboundPlayerAbilitiesPacket` (0x40): flags byte (invulnerable/flying/allow-flying/instant-build), flying speed float, walking speed float
 - [ ] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt → value VarInt)
 - [x] `ClientboundSetExperiencePacket` (0x56): experience-progress float, total-experience VarInt, level VarInt
 - [x] `ClientboundSetHealthPacket` (0x58): health float, food VarInt, saturation float

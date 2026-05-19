@@ -684,7 +684,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "container_close",
         java_class: "ClientboundContainerClosePacket",
-        field_order: "unparsed",
+        field_order: "container_id:CONTAINER_ID VarInt",
     },
     PlayPacketSpec {
         id: 18,
@@ -698,7 +698,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "container_set_data",
         java_class: "ClientboundContainerSetDataPacket",
-        field_order: "unparsed",
+        field_order: "container_id:CONTAINER_ID VarInt, id:short, value:short",
     },
     PlayPacketSpec {
         id: 20,
@@ -719,7 +719,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "cooldown",
         java_class: "ClientboundCooldownPacket",
-        field_order: "unparsed",
+        field_order: "cooldown_group:Identifier, duration:VarInt",
     },
     PlayPacketSpec {
         id: 23,
@@ -1014,7 +1014,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_abilities",
         java_class: "ClientboundPlayerAbilitiesPacket",
-        field_order: "unparsed",
+        field_order: "flags:byte, flying_speed:f32, walking_speed:f32",
     },
     PlayPacketSpec {
         id: 65,

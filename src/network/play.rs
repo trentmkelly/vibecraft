@@ -715,6 +715,34 @@ pub struct ClientboundSetHeldSlotPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundContainerClosePacket {
+    pub container_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundContainerSetDataPacket {
+    pub container_id: i32,
+    pub id: i16,
+    pub value: i16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundCooldownPacket {
+    pub cooldown_group: Identifier,
+    pub duration: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundPlayerAbilitiesPacket {
+    pub invulnerable: bool,
+    pub flying: bool,
+    pub can_fly: bool,
+    pub instant_build: bool,
+    pub flying_speed: f32,
+    pub walking_speed: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundPingPacket {
     pub id: i32,
 }
@@ -4740,6 +4768,42 @@ impl ClientboundSetHeldSlotPacket {
     }
 }
 
+impl ClientboundContainerClosePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)
+    }
+}
+
+impl ClientboundContainerSetDataPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_i16(writer, self.id)?;
+        write_i16(writer, self.value)
+    }
+}
+
+impl ClientboundCooldownPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.cooldown_group)?;
+        write_var_i32(writer, self.duration)
+    }
+}
+
+impl ClientboundPlayerAbilitiesPacket {
+    pub fn flags(&self) -> u8 {
+        (if self.invulnerable { 1 } else { 0 })
+            | (if self.flying { 2 } else { 0 })
+            | (if self.can_fly { 4 } else { 0 })
+            | (if self.instant_build { 8 } else { 0 })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[self.flags()])?;
+        write_f32(writer, self.flying_speed)?;
+        write_f32(writer, self.walking_speed)
+    }
+}
+
 impl ClientboundPingPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut bytes = [0u8; 4];
@@ -5792,6 +5856,48 @@ mod tests {
             ]
             .concat()
         );
+
+        let mut clientbound_close = Vec::new();
+        ClientboundContainerClosePacket { container_id: 128 }
+            .write(&mut clientbound_close)
+            .unwrap();
+        assert_eq!(clientbound_close, vec![0x80, 0x01]);
+
+        let mut set_data = Vec::new();
+        ClientboundContainerSetDataPacket {
+            container_id: 2,
+            id: -3,
+            value: 400,
+        }
+        .write(&mut set_data)
+        .unwrap();
+        assert_eq!(set_data, vec![2, 0xff, 0xfd, 0x01, 0x90]);
+
+        let mut cooldown = Vec::new();
+        ClientboundCooldownPacket {
+            cooldown_group: Identifier::parse("minecraft:ender_pearl").unwrap(),
+            duration: 20,
+        }
+        .write(&mut cooldown)
+        .unwrap();
+        assert_eq!(
+            cooldown,
+            [vec![21], b"minecraft:ender_pearl".to_vec(), vec![20]].concat()
+        );
+
+        let abilities = ClientboundPlayerAbilitiesPacket {
+            invulnerable: true,
+            flying: false,
+            can_fly: true,
+            instant_build: true,
+            flying_speed: 0.05,
+            walking_speed: 0.1,
+        };
+        let mut abilities_payload = Vec::new();
+        abilities.write(&mut abilities_payload).unwrap();
+        assert_eq!(abilities_payload[0], 0b1101);
+        assert_eq!(&abilities_payload[1..5], &0.05_f32.to_be_bytes());
+        assert_eq!(&abilities_payload[5..9], &0.1_f32.to_be_bytes());
     }
 
     #[test]
