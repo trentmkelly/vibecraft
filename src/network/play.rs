@@ -5,8 +5,8 @@ use std::io::{self, Read, Write};
 
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::codec::{
-    read_identifier, read_string, write_bitset, write_collection, write_identifier, write_string,
-    Uuid,
+    read_identifier, read_string, read_uuid, write_bitset, write_collection, write_identifier,
+    write_string, write_uuid, Uuid,
 };
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
@@ -24,6 +24,7 @@ pub const SERVERBOUND_CHAT_ACK_PACKET_ID: i32 = 6;
 pub const SERVERBOUND_CHAT_COMMAND_PACKET_ID: i32 = 7;
 pub const SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID: i32 = 8;
 pub const SERVERBOUND_CHAT_PACKET_ID: i32 = 9;
+pub const SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID: i32 = 10;
 pub const SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID: i32 = 11;
 pub const SERVERBOUND_CLIENT_COMMAND_PACKET_ID: i32 = 12;
 pub const SERVERBOUND_CLIENT_TICK_END_PACKET_ID: i32 = 13;
@@ -228,6 +229,14 @@ pub struct ServerboundChangeDifficultyPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundChatAckPacket {
     pub offset: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundChatSessionUpdatePacket {
+    pub session_id: Uuid,
+    pub expires_at_epoch_millis: i64,
+    pub public_key: Vec<u8>,
+    pub key_signature: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1245,6 +1254,7 @@ pub struct PlaySession {
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
     pub last_chat_ack: Option<ServerboundChatAckPacket>,
+    pub last_chat_session_update: Option<ServerboundChatSessionUpdatePacket>,
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub last_player_action: Option<ServerboundPlayerActionPacket>,
     pub last_use_item: Option<ServerboundUseItemPacket>,
@@ -1348,6 +1358,7 @@ impl PlaySession {
             last_move: None,
             last_vehicle_move: None,
             last_chat_ack: None,
+            last_chat_session_update: None,
             last_player_command: None,
             last_player_action: None,
             last_use_item: None,
@@ -1477,6 +1488,18 @@ impl PlaySession {
                         DispatchOutcome::Handled
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad chat ack packet: {err}")),
+                }
+            }
+            SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundChatSessionUpdatePacket::read(&mut input) {
+                    Ok(update) => {
+                        self.last_chat_session_update = Some(update);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad chat session update packet: {err}"
+                    )),
                 }
             }
             SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
@@ -2677,6 +2700,27 @@ impl ServerboundChatAckPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.offset)
+    }
+}
+
+impl ServerboundChatSessionUpdatePacket {
+    pub const MAX_PUBLIC_KEY_BYTES: usize = 512;
+    pub const MAX_SIGNATURE_BYTES: usize = 4096;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            session_id: read_uuid(reader)?,
+            expires_at_epoch_millis: read_i64(reader)?,
+            public_key: read_length_prefixed_bytes(reader, Self::MAX_PUBLIC_KEY_BYTES)?,
+            key_signature: read_length_prefixed_bytes(reader, Self::MAX_SIGNATURE_BYTES)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_uuid(writer, self.session_id)?;
+        write_i64(writer, self.expires_at_epoch_millis)?;
+        write_length_prefixed_bytes(writer, &self.public_key, Self::MAX_PUBLIC_KEY_BYTES)?;
+        write_length_prefixed_bytes(writer, &self.key_signature, Self::MAX_SIGNATURE_BYTES)
     }
 }
 
@@ -4118,6 +4162,44 @@ fn write_f32<W: Write>(writer: &mut W, value: f32) -> io::Result<()> {
     writer.write_all(&value.to_be_bytes())
 }
 
+fn read_i64<R: Read>(reader: &mut R) -> io::Result<i64> {
+    let mut bytes = [0u8; 8];
+    reader.read_exact(&mut bytes)?;
+    Ok(i64::from_be_bytes(bytes))
+}
+
+fn write_i64<W: Write>(writer: &mut W, value: i64) -> io::Result<()> {
+    writer.write_all(&value.to_be_bytes())
+}
+
+fn read_length_prefixed_bytes<R: Read>(reader: &mut R, max_size: usize) -> io::Result<Vec<u8>> {
+    let length = read_var_i32(reader)?;
+    if length < 0 || length as usize > max_size {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "length-prefixed payload too large",
+        ));
+    }
+    let mut bytes = vec![0; length as usize];
+    reader.read_exact(&mut bytes)?;
+    Ok(bytes)
+}
+
+fn write_length_prefixed_bytes<W: Write>(
+    writer: &mut W,
+    payload: &[u8],
+    max_size: usize,
+) -> io::Result<()> {
+    if payload.len() > max_size {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "length-prefixed payload too large",
+        ));
+    }
+    write_var_i32(writer, payload.len() as i32)?;
+    writer.write_all(payload)
+}
+
 fn read_f64<R: Read>(reader: &mut R) -> io::Result<f64> {
     let mut bytes = [0u8; 8];
     reader.read_exact(&mut bytes)?;
@@ -5266,6 +5348,13 @@ mod tests {
             DispatchOutcome::Disconnect(_)
         ));
         assert!(matches!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID,
+                vec![0; 24]
+            )),
+            DispatchOutcome::Disconnect(_)
+        ));
+        assert!(matches!(
             session.handle_decoded(decoded(SERVERBOUND_RESOURCE_PACK_PACKET_ID, vec![0; 16])),
             DispatchOutcome::Disconnect(_)
         ));
@@ -6071,6 +6160,45 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_chat_ack, Some(chat_ack));
+
+        let chat_session_update = ServerboundChatSessionUpdatePacket {
+            session_id: Uuid([4; 16]),
+            expires_at_epoch_millis: 1_234_567_890,
+            public_key: vec![1, 2, 3],
+            key_signature: vec![4, 5],
+        };
+        let mut chat_session_payload = Vec::new();
+        chat_session_update
+            .write(&mut chat_session_payload)
+            .unwrap();
+        let mut expected_chat_session = vec![4; 16];
+        expected_chat_session.extend_from_slice(&1_234_567_890_i64.to_be_bytes());
+        expected_chat_session.extend_from_slice(&[3, 1, 2, 3, 2, 4, 5]);
+        assert_eq!(chat_session_payload, expected_chat_session);
+        assert_eq!(
+            ServerboundChatSessionUpdatePacket::read(&mut cursor(chat_session_payload.clone()))
+                .unwrap(),
+            chat_session_update
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID,
+                chat_session_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_chat_session_update,
+            Some(chat_session_update)
+        );
+        assert!(ServerboundChatSessionUpdatePacket {
+            session_id: Uuid([0; 16]),
+            expires_at_epoch_millis: 0,
+            public_key: vec![0; 513],
+            key_signature: Vec::new(),
+        }
+        .write(&mut Vec::new())
+        .is_err());
 
         let resource_pack_response = ServerboundResourcePackPacket {
             id: Uuid([9; 16]),

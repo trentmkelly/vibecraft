@@ -151,7 +151,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "chat_session_update",
         java_class: "ServerboundChatSessionUpdatePacket",
-        field_order: "unparsed",
+        field_order: "session_id:UUID, expires_at:Instant i64 epoch millis, public_key:byte array max 512, key_signature:byte array max 4096",
     },
     PlayPacketSpec {
         id: 11,
