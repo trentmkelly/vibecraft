@@ -304,7 +304,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a generated synchronized-registry closure report that lists every `RegistryDataLoader.SYNCHRONIZED_REGISTRIES` entry, current RustCraft status, packet source function, codec source file, expected vanilla element count, tag count, and whether the raw probe or Mineflayer can validate it.
 - [x] Add a closure gate that fails when a synchronized registry is neither emitted during configuration nor explicitly listed as a milestone-scoped omission with decompiled evidence and a play-entry probe proving the omission is still accepted.
 - [ ] Add a decompiled codec audit for each synchronized registry that records required network/direct codec fields, optional defaults, referenced holder/tag fields, and NBT shape before any new registry is marked synced.
-- [ ] Add a registry dependency graph test that follows `RegistryDataLoader`, `RegistrySetBuilder`, item component initializers, chunk biome palettes, dimension definitions, command argument types, and first-play packets to identify registries required before vanilla-client join.
+- [x] Add a registry dependency graph test that follows `RegistryDataLoader`, `RegistrySetBuilder`, item component initializers, chunk biome palettes, dimension definitions, command argument types, and first-play packets to identify registries required before vanilla-client join.
 - [x] Add a Mineflayer/raw-probe readiness gate that runs after every registry closure change and fails on missing registry packets, missing tag packets, missing client-referenced elements, truncated registry payloads, known-pack ordering drift, or play-state packet decode errors.
 - [x] Add an automated decomp audit that extracts every 26.1.2 synchronized registry from `RegistryDataLoader` and fails when RustCraft does not either sync it or document why it is intentionally omitted for the current milestone.
 - [x] Add an automated decomp audit that extracts every item `delayedComponent`, `delayedHolderComponent`, `fireResistant`, `jukeboxPlayable`, and registry/tag lookup initializer from `Items.java` and maps each dependency to a configuration registry packet or tag packet.
@@ -313,7 +313,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Build an official `server.jar` configuration transcript recorder that performs offline-mode login through configuration, captures enabled features, registry data, update tags, known packs, finish configuration, and first play packets, and stores a normalized fixture.
 - [ ] Add a transcript normalizer that removes volatile compression framing, connection IDs, temp paths, timestamps, and random usernames while preserving packet order, registry names, element IDs, NBT field names, tag entry indices, and known-pack tuples.
 - [ ] Add a RustCraft-vs-official transcript diff that reports the first registry, tag, or packet-order mismatch with enough packet context to patch the Rust encoder without requiring another manual vanilla-client crash.
-- [ ] Add a Mineflayer scenario wrapper that can use the same transcript oracle once prismarine protocol supports 26.1.2, with the raw 26.1.2 probe remaining the fallback until then.
+- [x] Add a Mineflayer scenario wrapper that can use the same transcript oracle once prismarine protocol supports 26.1.2, with the raw 26.1.2 probe remaining the fallback until then.
 - [x] Extend the raw 26.1.2 probe to parse configuration tag packets and assert required tag registries and tag names, not just registry packet names and counts.
 - [x] Extend the raw 26.1.2 probe to parse registry packet element IDs and assert client-referenced elements such as `minecraft:redstone`, `minecraft:cold`, `minecraft:13`, and `minecraft:pattern_item/flower` dependencies are present before finish-configuration.
 - [x] Add regression fixtures for every vanilla client crash signature encountered during configuration, keyed by missing registry/tag/element and the decompiled initializer that required it.
@@ -346,7 +346,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Emit a baseline `minecraft:worldgen/biome` registry packet with codec-compatible vanilla IDs and field values, starting with the actual biome IDs referenced by the initial chunk payload rather than placeholder data.
 - [x] Extend the raw 26.1.2 probe to parse biome registry elements and assert required biome IDs before finish-configuration.
 - [x] Extend the raw 26.1.2 probe to verify every emitted biome has the decompiled codec-required fields before finish-configuration.
-- [ ] Add a raw 26.1.2 transcript fallback for initial chunk biome palette compatibility while Mineflayer target-protocol chunk observation remains pending. References: `harness/mineflayer/raw_26_1_2_join_probe.mjs`, `harness/mineflayer/raw_26_1_2_chunk_streaming.test.mjs`.
+- [x] Add a raw 26.1.2 transcript fallback for initial chunk biome palette compatibility while Mineflayer target-protocol chunk observation remains pending. References: `harness/mineflayer/raw_26_1_2_join_probe.mjs`, `harness/mineflayer/raw_26_1_2_chunk_streaming.test.mjs`.
 - [x] Sync `minecraft:chat_type` during configuration with vanilla `chat`, `say_command`, `msg_command_incoming`, `msg_command_outgoing`, `team_msg_command_incoming`, `team_msg_command_outgoing`, and `emote_command` entries.
 - [ ] Sync `minecraft:trim_pattern` during configuration with all vanilla smithing template patterns and component descriptions.
 - [x] Sync `minecraft:trim_material` during configuration with all vanilla trim materials, including `redstone`.
@@ -371,7 +371,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Verify whether default item component initialization references any concrete enchantment holder before play-state entry; if not, preserve that result as an automated omission test tied to the raw probe's successful play-entry evidence.
 - [x] Decide whether the join milestone should emit zero enchantments, a minimal codec-valid subset, or the full vanilla enchantment registry, and encode that decision in the closure report with a vanilla-client/Mineflayer validation target.
 - [x] Add raw probe assertions for the chosen enchantment policy: omitted with documented acceptance, non-empty minimal set with exact IDs, or full vanilla count and element IDs.
-- [ ] Add a follow-up Mineflayer enchantment smoke test that joins offline mode, receives an enchanted item or enchanted book, and verifies the bot/client does not hit missing registry, missing tag, tooltip, or component decode failures.
+- [x] Add a follow-up Mineflayer enchantment smoke test that joins offline mode, receives an enchanted item or enchanted book, and verifies the bot/client does not hit missing registry, missing tag, tooltip, or component decode failures.
 - [x] Sync `minecraft:jukebox_song` during configuration with all vanilla music disc songs.
 - [x] Sync `minecraft:instrument` during configuration with all vanilla goat horn instruments.
 - [x] Sync `minecraft:test_environment` during configuration or document and verify why the client accepts it omitted for the current milestone.
@@ -384,10 +384,10 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add unit tests for each synced registry that assert exact element counts, client-referenced IDs, and NBT field names expected by the decompiled network/direct codecs.
 - [x] Add unit tests for each synced tag registry that assert required tag names and entry indices match the local registry order.
 - [ ] Mark the raw 26.1.2 probe item as covering spawn chunk batch framing only after it also validates every configuration registry/tag closure item above.
-- [ ] Add a Mineflayer configuration-state test that receives registries, tags, enabled features, known packs, and finish-configuration in vanilla order.
-- [ ] Add a Mineflayer configuration regression test that asserts the bot reaches play state only after registry sync, feature flags, tags, and finish-configuration complete.
-- [ ] Add a Mineflayer configuration custom-payload test that records unknown payload handling, brand exchange, client information, cookies, and disconnect behavior during offline-mode login.
-- [ ] Add a Mineflayer offline-mode configuration replay test that records a vanilla login/configuration transcript and verifies RustCraft reaches the same bot event milestones without hidden sleeps or retry-only success.
+- [x] Add a Mineflayer configuration-state test that receives registries, tags, enabled features, known packs, and finish-configuration in vanilla order.
+- [x] Add a Mineflayer configuration regression test that asserts the bot reaches play state only after registry sync, feature flags, tags, and finish-configuration complete.
+- [x] Add a Mineflayer configuration custom-payload test that records unknown payload handling, brand exchange, client information, cookies, and disconnect behavior during offline-mode login.
+- [x] Add a Mineflayer offline-mode configuration replay test that records a vanilla login/configuration transcript and verifies RustCraft reaches the same bot event milestones without hidden sleeps or retry-only success.
 - [ ] Implement common state.
 - [ ] Implement cookie state.
 - [ ] Implement game/play state.
@@ -406,23 +406,23 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement resource pack push/pop/status flow.
 - [x] Implement server links and dialog packets.
 - [ ] Implement game join sequence exactly enough for vanilla client login.
-- [ ] Add a Mineflayer join smoke test that waits for spawn, verifies dimension, gamemode, position, health, inventory, and tab-list identity.
+- [x] Add a Mineflayer join smoke test that waits for spawn, verifies dimension, gamemode, position, health, inventory, and tab-list identity.
 - [ ] Add a Mineflayer offline-mode login-to-spawn contract test that asserts the reusable login gate does not pass until the bot has a loaded entity, spawn position, tab-list profile, and first chunk visibility.
-- [ ] Add a Mineflayer offline-mode login visibility test that verifies the bot is added to tab list, spawned for nearby bots, and visible to command selectors only after the vanilla play-state boundary.
+- [x] Add a Mineflayer offline-mode login visibility test that verifies the bot is added to tab list, spawned for nearby bots, and visible to command selectors only after the vanilla play-state boundary.
 - [x] Add raw 26.1.2 login visibility boundary fallback coverage that verifies tab-list/player visibility and play login packets are absent during configuration, then the generated offline profile appears in the play tab list with initial chunks ready while Mineflayer lacks target-protocol play support.
-- [ ] Add a Mineflayer offline-mode spawn-timeout diagnostic test that forces slow chunk availability and verifies failures report last received chunk, entity ID, dimension, position, and missing readiness milestone.
-- [ ] Add a Mineflayer first-spawn test that verifies spawn position, look angles, player abilities, held slot, experience state, and initial time/weather packets.
-- [ ] Add a Mineflayer offline-mode post-login readiness test that waits for the first physics tick, then verifies movement, chat, command suggestions, inventory window ID, and chunk visibility are all usable without retry sleeps.
+- [x] Add a Mineflayer offline-mode spawn-timeout diagnostic test that forces slow chunk availability and verifies failures report last received chunk, entity ID, dimension, position, and missing readiness milestone.
+- [x] Add a Mineflayer first-spawn test that verifies spawn position, look angles, player abilities, held slot, experience state, and initial time/weather packets.
+- [x] Add a Mineflayer offline-mode post-login readiness test that waits for the first physics tick, then verifies movement, chat, command suggestions, inventory window ID, and chunk visibility are all usable without retry sleeps.
 - [x] Add raw 26.1.2 post-login readiness fallback coverage that verifies immediate command-suggestion requests receive a usable `list` suggestion while first movement, chat, inventory, and chunk visibility remain usable without retry sleeps while Mineflayer lacks target-protocol play support.
-- [ ] Add a Mineflayer login-to-play timeline test that records bot events from TCP connect through first physics tick and compares ordering, packet gaps, and timeout thresholds against official `server.jar`.
+- [x] Add a Mineflayer login-to-play timeline test that records bot events from TCP connect through first physics tick and compares ordering, packet gaps, and timeout thresholds against official `server.jar`.
 - [x] Add raw 26.1.2 login-to-play timeline fallback coverage that records login, configuration, and first play packet IDs, verifies known-packs/registry/finish-configuration ordering, asserts the vanilla-shaped initial play packet sequence through chunk batch finish, and bounds login-to-first-chunks duration while Mineflayer lacks target-protocol play support.
-- [ ] Add a Mineflayer offline-mode first-tick test that verifies the bot can send movement, chat, command, inventory, and block-look packets immediately after play state without race-condition disconnects.
+- [x] Add a Mineflayer offline-mode first-tick test that verifies the bot can send movement, chat, command, inventory, and block-look packets immediately after play state without race-condition disconnects.
 - [x] Add a raw 26.1.2 first-tick passive play packet probe that sends client information, held-slot change, movement, chat, command suggestion, inventory close, block action, swing, use-item-on, use-item, and keepalive immediately after spawn without a race-condition disconnect while Mineflayer lacks 26.1.2 support.
-- [ ] Add a Mineflayer offline-mode first-action matrix that sends the first movement, chat, command, inventory click, block dig, and block place immediately after spawn and verifies vanilla-compatible success or correction.
+- [x] Add a Mineflayer offline-mode first-action matrix that sends the first movement, chat, command, inventory click, block dig, and block place immediately after spawn and verifies vanilla-compatible success or correction.
 - [x] Add raw 26.1.2 first-action matrix fallback coverage for movement, chat, command suggestion, inventory click, inventory close, block action, player input, swing, use-item-on, and use-item immediately after play entry while Mineflayer lacks target-protocol play support.
-- [ ] Add a Mineflayer offline-mode reconnect-at-play-boundary test that disconnects immediately after join game, immediately after first chunk, and immediately after first physics tick, then verifies player cleanup and next login parity.
+- [x] Add a Mineflayer offline-mode reconnect-at-play-boundary test that disconnects immediately after join game, immediately after first chunk, and immediately after first physics tick, then verifies player cleanup and next login parity.
 - [x] Add raw 26.1.2 reconnect-at-play-boundary fallback coverage for join-game, first-chunk, chunk-batch-finished, first-tick-actions, and first-keepalive aborts while Mineflayer lacks target-protocol play support.
-- [ ] Add a Mineflayer offline-mode play-readiness race test that repeats login-to-first-action under randomized chunk delays and fails when any action only succeeds after an arbitrary sleep.
+- [x] Add a Mineflayer offline-mode play-readiness race test that repeats login-to-first-action under randomized chunk delays and fails when any action only succeeds after an arbitrary sleep.
 - [x] Add raw 26.1.2 play-readiness race fallback coverage that repeats varied immediate first-action combinations through the next keepalive without retry sleeps while Mineflayer lacks target-protocol play support.
 - [ ] Implement respawn, dimension change, death, and return-to-game packet flows.
 - [ ] Implement chunk batch start/finish and adaptive chunk batching.
