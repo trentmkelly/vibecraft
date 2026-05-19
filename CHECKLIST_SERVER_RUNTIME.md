@@ -133,6 +133,6 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement RCON authentication, command execution, response fragmentation, broadcast behavior, and failure modes.
 - [x] Implement query protocol basic and full stat responses with plugin list behavior equivalent to vanilla.
 - [x] Implement JSON-RPC management methods, schemas, notifications, player DTOs, reference utilities, pending request tracking, origin checks, TLS settings, and shutdown behavior.
-- [ ] Implement chase server/client debug feature or document it as intentionally unsupported with no impact on vanilla clients.
+- [x] Implement chase server/client debug feature or document it as intentionally unsupported with no impact on vanilla clients.
 - [ ] Implement game test framework hooks enough for parity test execution or document a replacement harness.
 - [ ] Implement generated data/report tooling used to compare registries, tags, commands, packs, and worldgen definitions.
