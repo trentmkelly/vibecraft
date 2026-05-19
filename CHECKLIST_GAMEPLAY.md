@@ -53,10 +53,10 @@
 
 - [x] Add Mineflayer status-effect tests: apply effect (verify `ClientboundUpdateMobEffectPacket`), tick effect (duration countdown), stack amplifier (higher amplifier replaces lower), expire (remove packet sent), clear via milk bucket (`LivingEntity.removeAllEffects()`), save to playerdata and verify restore on reconnect, verify client-visible particles/icons/amplifiers/durations match vanilla
 - [ ] Implement all vanilla mob effects with correct tick behavior:
-  - [ ] Speed/Slowness: movement speed modifier per amplifier level
+  - [x] Speed/Slowness: movement speed modifier per amplifier level
   - [ ] Haste/Mining Fatigue: break speed modifier
-  - [ ] Strength/Weakness: attack damage modifier
-  - [ ] Instant Health/Instant Damage: immediate damage/heal on apply
+  - [x] Strength/Weakness: attack damage modifier
+  - [x] Instant Health/Instant Damage: immediate damage/heal on apply
   - [ ] Jump Boost/Levitation/Slow Falling: movement effects
   - [ ] Resistance: damage reduction
   - [ ] Fire Resistance: prevents fire/lava damage
@@ -64,18 +64,18 @@
   - [ ] Night Vision: increases sky/block light rendering (client-side, server emits effect)
   - [ ] Blindness: reduces render distance (client-side effect), prevents sprinting
   - [ ] Nausea: rotation wobble (client-side), server emits effect
-  - [ ] Regeneration: `heal(1)` every `50 / (amplifier+1)` ticks
-  - [ ] Saturation: restores food and saturation directly
-  - [ ] Hunger: increases exhaustion each tick
-  - [ ] Poison: deals 1 damage every `25 / (amplifier+1)` ticks, cannot kill
-  - [ ] Wither: deals 1 damage every `40 / (amplifier+1)` ticks, can kill, bypasses armor
-  - [ ] Absorption: adds 4 × (amplifier+1) max health as absorption hearts
-  - [ ] Health Boost: +4 × (amplifier+1) max health
-  - [ ] Hero of the Village: discount effect for villager prices
-  - [ ] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
+  - [x] Regeneration: `heal(1)` every `50 / (amplifier+1)` ticks
+  - [x] Saturation: restores food and saturation directly
+  - [x] Hunger: increases exhaustion each tick
+  - [x] Poison: deals 1 damage every `25 / (amplifier+1)` ticks, cannot kill
+  - [x] Wither: deals 1 damage every `40 / (amplifier+1)` ticks, can kill, bypasses armor
+  - [x] Absorption: adds 4 × (amplifier+1) max health as absorption hearts
+  - [x] Health Boost: +4 × (amplifier+1) max health
+  - [x] Hero of the Village: discount effect for villager prices
+  - [x] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
   - [ ] Conduit Power: underwater haste + vision + attack
   - [ ] Dolphins Grace: faster swimming
-  - [ ] Luck / Unluck: luck attribute modifier
+  - [x] Luck / Unluck: luck attribute modifier
   - [ ] Glowing: outline rendering (client-side), server emits effect
   - [ ] Infested: spawn silverfish on hit
   - [ ] Oozing: spawn slimes on death
