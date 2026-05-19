@@ -52,7 +52,7 @@
 - [x] Add parity test: chest loot-table realization (loot generated once, consistent across reconnect), double-chest merged access
 - [x] Add parity test: hopper 8-tick transfer rate, priority when both push and pull available, container hop chain
 - [x] Add parity test: trapped chest redstone signal level = viewer count
-- [ ] Add Mineflayer randomizable-container test: open chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization is idempotent
+- [x] Add Mineflayer randomizable-container test: open chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization is idempotent
 
 ## Sign and Text Block Entities
 
@@ -132,7 +132,7 @@
 - [x] Implement base `BlockEntity`, ticker dispatch, type registry, update tag, update packet, save/load, and chunk attachment behavior.
 - [x] Implement furnace family block entities: `AbstractFurnaceBlockEntity`, `FurnaceBlockEntity`, `BlastFurnaceBlockEntity`, and `SmokerBlockEntity`, including burn time, cook time, fuel values, recipe matching, XP storage, sided inventory, lit state, and comparator output.
 - [x] Implement container block entities: `BaseContainerBlockEntity`, `RandomizableContainerBlockEntity`, `ChestBlockEntity`, `TrappedChestBlockEntity`, `BarrelBlockEntity`, `ShulkerBoxBlockEntity`, `DispenserBlockEntity`, `DropperBlockEntity`, `HopperBlockEntity`, and `ShelfBlockEntity`, including loot tables, custom names, locks, viewer counts, lid animation, sided access, and redstone/comparator interactions.
-- [ ] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
+- [x] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
 - [x] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
 - [x] Implement utility block entities: `BeaconBlockEntity`, `BrewingStandBlockEntity`, `CrafterBlockEntity`, `EnchantingTableBlockEntity`, `JukeboxBlockEntity`, `ComparatorBlockEntity`, `DaylightDetectorBlockEntity`, and `CommandBlockEntity`.
 - [x] Implement world/system block entities: `SpawnerBlockEntity`, `TrialSpawnerBlockEntity`, `VaultBlockEntity`, `JigsawBlockEntity`, `StructureBlockEntity`, `TheEndGatewayBlockEntity`, `TheEndPortalBlockEntity`, `TestBlockEntity`, and `TestInstanceBlockEntity`.
