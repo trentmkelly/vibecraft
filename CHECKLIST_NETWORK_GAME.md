@@ -29,10 +29,10 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundLoginPacket` (0x2B): entity ID, is-hardcore, game-type, previous-game-type, levels, registry-holder, dimension-type, dimension, seed, max-players, chunk-radius, simulation-distance, reduced-debug-info, enable-respawn-screen, do-limited-crafting, portal-cooldown, sea-level, enforces-secure-chat; verify all 19+ fields in exact order
 - [ ] `ClientboundRespawnPacket` (0x45): common player spawn info, data-to-keep flags; exact flag bitmask for KEEP_ALL_DATA, KEEP_METADATA
-- [ ] `ClientboundChangeDifficultyPacket` (0x0B): difficulty byte, difficulty-locked bool
-- [ ] `ClientboundSetDefaultSpawnPositionPacket` (0x52): BlockPos, angle float
-- [ ] `ClientboundSetTimePacket` (0x62): game-time long, day-time long, tick-day-time bool
-- [ ] `ClientboundGameEventPacket` (0x22): event ID byte, param float (covers LEVEL_CHUNKS_LOAD_START, CHANGE_GAME_MODE, WIN_GAME, DEMO_EVENT, ARROW_HIT_PLAYER, RAIN_LEVEL_CHANGE, THUNDER_LEVEL_CHANGE, PUFFER_FISH_STING, GUARDIAN_ELDER_EFFECT, IMMEDIATE_RESPAWN)
+- [x] `ClientboundChangeDifficultyPacket` (0x0B): difficulty byte, difficulty-locked bool
+- [x] `ClientboundSetDefaultSpawnPositionPacket` (0x52): BlockPos, angle float
+- [x] `ClientboundSetTimePacket` (0x62): game-time long, day-time long, tick-day-time bool
+- [x] `ClientboundGameEventPacket` (0x22): event ID byte, param float (covers LEVEL_CHUNKS_LOAD_START, CHANGE_GAME_MODE, WIN_GAME, DEMO_EVENT, ARROW_HIT_PLAYER, RAIN_LEVEL_CHANGE, THUNDER_LEVEL_CHANGE, PUFFER_FISH_STING, GUARDIAN_ELDER_EFFECT, IMMEDIATE_RESPAWN)
 
 ## Chunk and Light Packets
 
@@ -40,11 +40,11 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundForgetLevelChunkPacket` (0x1F): chunk X/Z
 - [ ] `ClientboundLightUpdatePacket` (0x28): chunk X/Z, light data; separate from chunk-with-light for mid-game updates
 - [ ] `ClientboundChunkBatchStartPacket` (0x0D): no fields
-- [ ] `ClientboundChunkBatchFinishedPacket` (0x0C): batch-size int
-- [ ] `ServerboundChunkBatchReceivedPacket` (0x09): desired-chunks-per-tick float; adaptive batching feedback
-- [ ] `ClientboundSetChunkCacheCenterPacket` (0x50): chunk X/Z VarInts
-- [ ] `ClientboundSetChunkCacheRadiusPacket` (0x51): view-distance VarInt
-- [ ] `ClientboundSetSimulationDistancePacket` (0x61): simulation-distance VarInt
+- [x] `ClientboundChunkBatchFinishedPacket` (0x0C): batch-size int
+- [x] `ServerboundChunkBatchReceivedPacket` (0x09): desired-chunks-per-tick float; adaptive batching feedback
+- [x] `ClientboundSetChunkCacheCenterPacket` (0x50): chunk X/Z VarInts
+- [x] `ClientboundSetChunkCacheRadiusPacket` (0x51): view-distance VarInt
+- [x] `ClientboundSetSimulationDistancePacket` (0x61): simulation-distance VarInt
 - [ ] `ClientboundMapItemDataPacket` (0x2D): map ID, scale, locked, optional tracking-position/decorations array, color patch or full color array; exact codec verified
 
 ## Entity Lifecycle Packets
