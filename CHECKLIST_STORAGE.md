@@ -90,7 +90,7 @@
 - [ ] Implement management server methods: `minecraft:list_players`, `minecraft:kick_player`, `minecraft:ban_player`, `minecraft:pardon_player`, etc. (all methods from decompiled `management-server.json` schema)
 - [ ] Implement management server outgoing notifications: `minecraft:player_joined`, `minecraft:player_left`
 - [ ] Implement player DTOs in management server responses: UUID, name, latency, game mode
-- [ ] Implement pending request tracking, response correlation
+- [x] Implement pending request tracking, response correlation — `ManagementServerState::handle_client_request()` records pending JSON-RPC IDs per client, correlates responses by ID, and clears abandoned requests on disconnect
 - [ ] Implement allowed origins CORS check for WebSocket management connections
 - [ ] Implement TLS support for management server connections
 - [ ] Implement shutdown behavior: in-flight management requests are completed or rejected on shutdown

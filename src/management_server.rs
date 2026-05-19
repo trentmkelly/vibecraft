@@ -546,8 +546,16 @@ pub struct QueuedNotification {
 pub struct ManagementServerState {
     pub online_players: Vec<NameAndId>,
     connected_clients: Vec<String>,
+    pending_requests: Vec<PendingManagementRequest>,
     pub disconnected_players: Vec<PlayerDisconnectEvent>,
     pub notifications: Vec<QueuedNotification>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingManagementRequest {
+    pub client_id: String,
+    pub id: JsonRpcId,
+    pub method: String,
 }
 
 impl ManagementServerState {
@@ -564,6 +572,41 @@ impl ManagementServerState {
 
     pub fn disconnect_client(&mut self, client_id: &str) {
         self.connected_clients.retain(|client| client != client_id);
+        self.pending_requests
+            .retain(|request| request.client_id != client_id);
+    }
+
+    pub fn begin_request(&mut self, client_id: &str, request: &JsonRpcRequest) {
+        self.pending_requests.push(PendingManagementRequest {
+            client_id: client_id.to_string(),
+            id: request.id.clone(),
+            method: request.method.clone(),
+        });
+    }
+
+    pub fn pending_request_count(&self) -> usize {
+        self.pending_requests.len()
+    }
+
+    pub fn handle_client_request(
+        &mut self,
+        client_id: &str,
+        request: JsonRpcRequest,
+    ) -> JsonRpcResponse {
+        self.begin_request(client_id, &request);
+        let response = self.handle_request(request);
+        self.complete_request(client_id, &response.id);
+        response
+    }
+
+    fn complete_request(&mut self, client_id: &str, id: &JsonRpcId) {
+        if let Some(index) = self
+            .pending_requests
+            .iter()
+            .position(|request| request.client_id == client_id && request.id == *id)
+        {
+            self.pending_requests.remove(index);
+        }
     }
 
     pub fn handle_request(&mut self, request: JsonRpcRequest) -> JsonRpcResponse {
@@ -940,6 +983,35 @@ mod tests {
                 method: "players/left".to_string(),
             }]
         );
+    }
+
+    #[test]
+    fn request_tracking_correlates_responses_and_cleans_up_on_disconnect() {
+        let steve = player("Steve");
+        let mut state = ManagementServerState {
+            online_players: vec![steve],
+            ..Default::default()
+        };
+        state.connect_client("admin");
+
+        let get = JsonRpcRequest {
+            id: JsonRpcId::String("req-1".to_string()),
+            method: "players/get".to_string(),
+            params: JsonRpcParams::None,
+        };
+        let response = state.handle_client_request("admin", get);
+        assert_eq!(response.id, JsonRpcId::String("req-1".to_string()));
+        assert_eq!(state.pending_request_count(), 0);
+
+        let slow = JsonRpcRequest {
+            id: JsonRpcId::Number(2),
+            method: "server/metrics".to_string(),
+            params: JsonRpcParams::None,
+        };
+        state.begin_request("admin", &slow);
+        assert_eq!(state.pending_request_count(), 1);
+        state.disconnect_client("admin");
+        assert_eq!(state.pending_request_count(), 0);
     }
 
     #[test]
