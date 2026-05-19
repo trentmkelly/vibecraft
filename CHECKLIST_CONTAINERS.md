@@ -37,7 +37,7 @@
 
 ## AbstractContainerMenu Infrastructure
 
-- [ ] Track per-player state-ID counter: `apply_scripted_packet` in `inventory_transactions.rs` already validates and increments a state ID, but there is no `container_state_id: u32` field in the player session (`network/play.rs`); add one, seed it on login, and thread it through every container-click dispatch
+- [x] Track per-player state-ID counter: `PlaySession` now owns `container_state_id`, resets it on login/join setup, and exposes `apply_scripted_container_click()` to validate against `apply_scripted_packet` and advance only accepted transactions
 - [x] Implement `Slot` list: `inventory.rs` has `Slot` with `may_place`, `may_pickup`, `max_stack_size`, `safe_take`, `safe_insert`, and `has_item`; `Menu` holds an ordered `Vec<Slot>`
 - [x] Implement carried-item stack (cursor): `Menu.carried` tracks the cursor item, updated by all click-mode handlers
 - [x] Implement remote-slot shadow copies: `Menu.remote_slots` and `remote_carried` track the last-synced client view; `send_all_data_to_remote()`, `send_slot_change()`, and `send_carried_change()` only report changed slot/carried stacks

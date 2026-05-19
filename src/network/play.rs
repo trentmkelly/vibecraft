@@ -4,6 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
 use crate::block_entity::BLOCK_ENTITY_TYPES;
+use crate::inventory::Menu;
+use crate::inventory_transactions::{
+    apply_scripted_packet, InventoryTransactionResult, ScriptedContainerClickPacket,
+};
 use crate::network::codec::{
     read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
     write_identifier, write_optional, write_string, write_uuid, Uuid,
@@ -2372,6 +2376,7 @@ pub struct PlaySession {
     pub state: PlayState,
     pub entity_id: i32,
     pub selected_slot: i16,
+    pub container_state_id: i32,
     pub pending_teleports: BTreeSet<i32>,
     pub last_move: Option<ServerboundMovePlayerPacket>,
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
@@ -2541,6 +2546,7 @@ impl PlaySession {
             state: PlayState::Joining,
             entity_id,
             selected_slot,
+            container_state_id: 0,
             pending_teleports: BTreeSet::new(),
             last_move: None,
             last_vehicle_move: None,
@@ -2581,6 +2587,7 @@ impl PlaySession {
 
     pub fn join_sequence(&mut self, login: ClientboundLoginPacket) -> Vec<PlayInstruction> {
         self.state = PlayState::WaitingForPlayerLoaded;
+        self.container_state_id = 0;
         vec![
             PlayInstruction::Login(login),
             PlayInstruction::SetHeldSlot(ClientboundSetHeldSlotPacket {
@@ -2592,6 +2599,7 @@ impl PlaySession {
 
     pub fn vanilla_join_sequence(&mut self, settings: JoinGameSettings) -> Vec<PlayInstruction> {
         self.state = PlayState::WaitingForPlayerLoaded;
+        self.container_state_id = 0;
         let mut instructions = vec![
             PlayInstruction::Login(settings.login),
             PlayInstruction::ChangeDifficulty {
@@ -2633,6 +2641,18 @@ impl PlaySession {
         }
         instructions.push(PlayInstruction::InitInventoryMenu);
         instructions
+    }
+
+    pub fn apply_scripted_container_click(
+        &mut self,
+        menu: &mut Menu,
+        packet: &ScriptedContainerClickPacket,
+    ) -> InventoryTransactionResult {
+        let result = apply_scripted_packet(menu, self.container_state_id, packet);
+        if result.accepted {
+            self.container_state_id = result.next_state_id;
+        }
+        result
     }
 
     pub fn handle_decoded(&mut self, packet: DecodedPacket) -> DispatchOutcome {
@@ -8250,6 +8270,8 @@ static CLIENTBOUND_PLAY_PACKET_NAMES: [&str; CLIENTBOUND_PLAY_PACKET_COUNT_26_1_
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::inventory::Slot;
+    use crate::item_stack::ItemStack;
     use crate::network::codec::{cursor, read_identifier, read_string};
 
     fn decoded(id: i32, payload: Vec<u8>) -> DecodedPacket {
@@ -8266,6 +8288,23 @@ mod tests {
             count,
             item_id: Some(item_id),
             components: RawDataComponentPatch::empty(),
+        }
+    }
+
+    fn scripted_container_click(
+        state_id: i32,
+        slot: i32,
+        changed_slots: Vec<(i32, ItemStack)>,
+        carried: ItemStack,
+    ) -> ScriptedContainerClickPacket {
+        ScriptedContainerClickPacket {
+            container_id: 0,
+            state_id,
+            slot,
+            button: 0,
+            mode: crate::inventory::ContainerInput::Pickup,
+            changed_slots,
+            carried,
         }
     }
 
@@ -10792,6 +10831,7 @@ mod tests {
     #[test]
     fn vanilla_join_sequence_matches_player_list_packet_and_side_effect_order() {
         let mut session = PlaySession::new(42, 3);
+        session.container_state_id = 42;
         let login = ClientboundLoginPacket {
             player_id: 42,
             hardcore: true,
@@ -10833,6 +10873,7 @@ mod tests {
         });
 
         assert_eq!(session.state, PlayState::WaitingForPlayerLoaded);
+        assert_eq!(session.container_state_id, 0);
         assert_eq!(
             instructions,
             vec![
@@ -10860,6 +10901,46 @@ mod tests {
                 PlayInstruction::InitInventoryMenu,
             ]
         );
+    }
+
+    #[test]
+    fn play_session_container_state_id_advances_only_after_accepted_click() {
+        let mut session = PlaySession::new(7, 0);
+        let mut menu = Menu::new(1);
+        menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stick", 2));
+
+        let stale = session.apply_scripted_container_click(
+            &mut menu,
+            &scripted_container_click(3, 0, vec![(0, ItemStack::empty())], ItemStack::empty()),
+        );
+        assert!(!stale.accepted);
+        assert_eq!(stale.expected_state_id, 0);
+        assert_eq!(session.container_state_id, 0);
+
+        let accepted = session.apply_scripted_container_click(
+            &mut menu,
+            &scripted_container_click(
+                0,
+                0,
+                vec![(0, ItemStack::empty())],
+                ItemStack::new("minecraft:stick", 2),
+            ),
+        );
+        assert!(accepted.accepted);
+        assert_eq!(accepted.next_state_id, 1);
+        assert_eq!(session.container_state_id, 1);
+
+        let rejected = session.apply_scripted_container_click(
+            &mut menu,
+            &scripted_container_click(
+                1,
+                0,
+                vec![(0, ItemStack::empty())],
+                ItemStack::new("minecraft:stick", 99),
+            ),
+        );
+        assert!(!rejected.accepted);
+        assert_eq!(session.container_state_id, 1);
     }
 
     #[test]
