@@ -26,14 +26,14 @@
 ## Recipe Manager
 
 - [ ] Implement `RecipeManager` loading from datapack `data/*/recipe/*.json` files with `RecipeSerializer` dispatch
-- [ ] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)`
-- [ ] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching
+- [x] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)`
+- [x] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching
 - [x] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index
 - [x] Implement recipe `PlacementInfo` for client-side ingredient placement hints
-- [ ] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload
-- [ ] Implement `RecipeAccess` interface for looking up recipe holders by ID
+- [x] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload
+- [x] Implement `RecipeAccess` interface for looking up recipe holders by ID
 - [ ] Add unit test: recipe manager loads all vanilla JSON files without error, count matches expected recipe count
-- [ ] Add unit test: `getRecipeFor` returns correct result for a representative set of shaped, shapeless, smelting, and stonecutting inputs
+- [x] Add unit test: `getRecipeFor` returns correct result for a representative set of shaped, shapeless, smelting, and stonecutting inputs
 
 ## Core Recipe Interfaces
 

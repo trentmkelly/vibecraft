@@ -361,6 +361,198 @@ pub struct SelectableSingleInputRecipe {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeHolder {
+    pub id: &'static str,
+    pub recipe: RecipeKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RecipeMap {
+    recipes: Vec<RecipeHolder>,
+}
+
+impl RecipeMap {
+    pub fn create(recipes: Vec<RecipeHolder>) -> Self {
+        Self { recipes }
+    }
+
+    pub fn by_key(&self, id: &str) -> Option<&RecipeHolder> {
+        self.recipes.iter().find(|holder| holder.id == id)
+    }
+
+    pub fn by_type(&self, recipe_type: &str) -> Vec<&RecipeHolder> {
+        self.recipes
+            .iter()
+            .filter(|holder| holder.recipe.recipe_type() == recipe_type)
+            .collect()
+    }
+
+    pub fn values(&self) -> &[RecipeHolder] {
+        &self.recipes
+    }
+
+    pub fn get_recipe_for(
+        &self,
+        recipe_type: &str,
+        grid_width: usize,
+        grid_height: usize,
+        items: &[Option<&'static str>],
+    ) -> Option<&RecipeHolder> {
+        if items.iter().all(Option::is_none) {
+            return None;
+        }
+
+        self.recipes.iter().find(|holder| {
+            holder.recipe.recipe_type() == recipe_type
+                && holder.recipe.matches(grid_width, grid_height, items)
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RecipeManagerModel {
+    recipes: RecipeMap,
+    property_sets: Vec<RecipePropertySet>,
+    stonecutter_recipes: Vec<StonecutterSelection>,
+}
+
+impl RecipeManagerModel {
+    pub fn new(recipes: Vec<RecipeHolder>) -> Self {
+        let mut manager = Self::default();
+        manager.reload(recipes);
+        manager
+    }
+
+    pub fn reload(&mut self, recipes: Vec<RecipeHolder>) {
+        self.recipes = RecipeMap::create(recipes);
+        self.property_sets = collect_recipe_property_sets(self.recipes.values());
+        self.stonecutter_recipes = self
+            .recipes
+            .values()
+            .iter()
+            .filter_map(|holder| match &holder.recipe {
+                RecipeKind::Stonecutting { ingredient, result } => Some(StonecutterSelection {
+                    recipe_id: holder.id,
+                    input: ingredient.clone(),
+                    result: result.clone(),
+                }),
+                _ => None,
+            })
+            .collect();
+    }
+
+    pub fn recipe_map(&self) -> &RecipeMap {
+        &self.recipes
+    }
+
+    pub fn property_set(&self, key: &str) -> RecipePropertySet {
+        self.property_sets
+            .iter()
+            .find(|set| set.key == key)
+            .cloned()
+            .unwrap_or_else(|| RecipePropertySet {
+                key: "minecraft:empty",
+                accepted_items: Vec::new(),
+            })
+    }
+
+    pub fn stonecutter_recipes(&self) -> &[StonecutterSelection] {
+        &self.stonecutter_recipes
+    }
+}
+
+fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<RecipePropertySet> {
+    let mut furnace = Vec::new();
+    let mut blast_furnace = Vec::new();
+    let mut smoker = Vec::new();
+    let mut campfire = Vec::new();
+    let mut smithing_template = Vec::new();
+    let mut smithing_base = Vec::new();
+    let mut smithing_addition = Vec::new();
+
+    for holder in recipes {
+        match &holder.recipe {
+            RecipeKind::Cooking {
+                kind, ingredient, ..
+            } => push_ingredient_items(
+                match kind {
+                    CookingKind::Smelting => &mut furnace,
+                    CookingKind::Blasting => &mut blast_furnace,
+                    CookingKind::Smoking => &mut smoker,
+                    CookingKind::CampfireCooking => &mut campfire,
+                },
+                ingredient,
+            ),
+            RecipeKind::SmithingTransform {
+                template,
+                base,
+                addition,
+                ..
+            }
+            | RecipeKind::SmithingTrim {
+                template,
+                base,
+                addition,
+            } => {
+                push_ingredient_items(&mut smithing_template, template);
+                push_ingredient_items(&mut smithing_base, base);
+                push_ingredient_items(&mut smithing_addition, addition);
+            }
+            _ => {}
+        }
+    }
+
+    vec![
+        RecipePropertySet {
+            key: "minecraft:furnace_input",
+            accepted_items: furnace,
+        },
+        RecipePropertySet {
+            key: "minecraft:blast_furnace_input",
+            accepted_items: blast_furnace,
+        },
+        RecipePropertySet {
+            key: "minecraft:smoker_input",
+            accepted_items: smoker,
+        },
+        RecipePropertySet {
+            key: "minecraft:campfire_input",
+            accepted_items: campfire,
+        },
+        RecipePropertySet {
+            key: "minecraft:smithing_template",
+            accepted_items: smithing_template,
+        },
+        RecipePropertySet {
+            key: "minecraft:smithing_base",
+            accepted_items: smithing_base,
+        },
+        RecipePropertySet {
+            key: "minecraft:smithing_addition",
+            accepted_items: smithing_addition,
+        },
+    ]
+}
+
+fn push_ingredient_items(target: &mut Vec<&'static str>, ingredient: &IngredientSpec) {
+    match ingredient {
+        IngredientSpec::Empty => {}
+        IngredientSpec::Item(item) => push_unique(target, item),
+        IngredientSpec::AnyOf(items) => {
+            for item in items {
+                push_unique(target, item);
+            }
+        }
+    }
+}
+
+fn push_unique(target: &mut Vec<&'static str>, item: &'static str) {
+    if !target.contains(&item) {
+        target.push(item);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StonecutterSelection {
     pub recipe_id: &'static str,
     pub input: IngredientSpec,
@@ -651,6 +843,22 @@ pub enum RecipeKind {
 }
 
 impl RecipeKind {
+    pub fn recipe_type(&self) -> &'static str {
+        match self {
+            RecipeKind::Shaped { .. }
+            | RecipeKind::Shapeless { .. }
+            | RecipeKind::Special { .. } => "crafting",
+            RecipeKind::Cooking { kind, .. } => match kind {
+                CookingKind::Smelting => "smelting",
+                CookingKind::Blasting => "blasting",
+                CookingKind::Smoking => "smoking",
+                CookingKind::CampfireCooking => "campfire_cooking",
+            },
+            RecipeKind::Stonecutting { .. } => "stonecutting",
+            RecipeKind::SmithingTransform { .. } | RecipeKind::SmithingTrim { .. } => "smithing",
+        }
+    }
+
     pub fn serializer(&self) -> &'static str {
         match self {
             RecipeKind::Shaped { .. } => "crafting_shaped",
@@ -1095,16 +1303,8 @@ mod tests {
             ],
             result: ItemAmount::one("minecraft:torch"),
         };
-        assert!(asymmetric.matches(
-            2,
-            1,
-            &[Some("minecraft:stick"), Some("minecraft:coal")]
-        ));
-        assert!(!asymmetric.matches(
-            2,
-            1,
-            &[Some("minecraft:coal"), Some("minecraft:stick")]
-        ));
+        assert!(asymmetric.matches(2, 1, &[Some("minecraft:stick"), Some("minecraft:coal")]));
+        assert!(!asymmetric.matches(2, 1, &[Some("minecraft:coal"), Some("minecraft:stick")]));
 
         let shapeless = RecipeKind::Shapeless {
             ingredients: vec![
@@ -1335,6 +1535,149 @@ mod tests {
         assert_eq!(simple.group(), "");
         assert!(simple.show_notification);
         assert_eq!(simple.placement_info(), &smithing_transform);
+    }
+
+    #[test]
+    fn recipe_manager_indexes_by_type_key_and_matching_input() {
+        let manager = RecipeManagerModel::new(vec![
+            RecipeHolder {
+                id: "minecraft:crafting_table",
+                recipe: RecipeKind::Shaped {
+                    width: 2,
+                    height: 2,
+                    pattern: vec![
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                        Some(IngredientSpec::Item("minecraft:oak_planks")),
+                    ],
+                    result: ItemAmount::one("minecraft:crafting_table"),
+                },
+            },
+            RecipeHolder {
+                id: "minecraft:firework_star",
+                recipe: RecipeKind::Shapeless {
+                    ingredients: vec![
+                        IngredientSpec::Item("minecraft:gunpowder"),
+                        IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
+                    ],
+                    result: ItemAmount::one("minecraft:firework_star"),
+                },
+            },
+            RecipeHolder {
+                id: "minecraft:iron_ingot_from_smelting_raw_iron",
+                recipe: RecipeKind::Cooking {
+                    kind: CookingKind::Smelting,
+                    ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                    result: ItemAmount::one("minecraft:iron_ingot"),
+                    experience_millis: 700,
+                    cooking_time: None,
+                },
+            },
+            RecipeHolder {
+                id: "minecraft:smooth_stone_slab_from_smooth_stone_stonecutting",
+                recipe: RecipeKind::Stonecutting {
+                    ingredient: IngredientSpec::Item("minecraft:smooth_stone"),
+                    result: ItemAmount {
+                        item: "minecraft:smooth_stone_slab",
+                        count: 2,
+                    },
+                },
+            },
+        ]);
+
+        assert_eq!(manager.recipe_map().values().len(), 4);
+        assert_eq!(
+            manager
+                .recipe_map()
+                .by_key("minecraft:crafting_table")
+                .unwrap()
+                .recipe
+                .serializer(),
+            "crafting_shaped"
+        );
+        assert_eq!(manager.recipe_map().by_type("crafting").len(), 2);
+        assert_eq!(manager.recipe_map().by_type("smelting").len(), 1);
+
+        let shaped = manager.recipe_map().get_recipe_for(
+            "crafting",
+            2,
+            2,
+            &[
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+                Some("minecraft:oak_planks"),
+            ],
+        );
+        assert_eq!(shaped.unwrap().id, "minecraft:crafting_table");
+        assert!(manager
+            .recipe_map()
+            .get_recipe_for("crafting", 2, 2, &[None, None, None, None])
+            .is_none());
+
+        let cooking =
+            manager
+                .recipe_map()
+                .get_recipe_for("smelting", 1, 1, &[Some("minecraft:raw_iron")]);
+        assert_eq!(
+            cooking.unwrap().id,
+            "minecraft:iron_ingot_from_smelting_raw_iron"
+        );
+        assert_eq!(
+            manager
+                .property_set("minecraft:furnace_input")
+                .accepted_items,
+            vec!["minecraft:raw_iron"]
+        );
+        assert_eq!(manager.stonecutter_recipes().len(), 1);
+    }
+
+    #[test]
+    fn recipe_manager_reload_replaces_indexes_and_recipe_access_sets() {
+        let mut manager = RecipeManagerModel::new(vec![RecipeHolder {
+            id: "minecraft:iron_ingot_from_smelting_raw_iron",
+            recipe: RecipeKind::Cooking {
+                kind: CookingKind::Smelting,
+                ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                result: ItemAmount::one("minecraft:iron_ingot"),
+                experience_millis: 700,
+                cooking_time: None,
+            },
+        }]);
+
+        assert!(manager
+            .recipe_map()
+            .by_key("minecraft:iron_ingot_from_smelting_raw_iron")
+            .is_some());
+        manager.reload(vec![RecipeHolder {
+            id: "minecraft:netherite_sword_smithing",
+            recipe: RecipeKind::SmithingTransform {
+                template: IngredientSpec::Item("minecraft:netherite_upgrade_smithing_template"),
+                base: IngredientSpec::Item("minecraft:diamond_sword"),
+                addition: IngredientSpec::Item("minecraft:netherite_ingot"),
+                result: ItemAmount::one("minecraft:netherite_sword"),
+            },
+        }]);
+
+        assert!(manager
+            .recipe_map()
+            .by_key("minecraft:iron_ingot_from_smelting_raw_iron")
+            .is_none());
+        assert_eq!(manager.recipe_map().by_type("smithing").len(), 1);
+        assert_eq!(
+            manager
+                .property_set("minecraft:smithing_template")
+                .accepted_items,
+            vec!["minecraft:netherite_upgrade_smithing_template"]
+        );
+        assert_eq!(
+            manager
+                .property_set("minecraft:smithing_base")
+                .accepted_items,
+            vec!["minecraft:diamond_sword"]
+        );
+        assert!(manager.stonecutter_recipes().is_empty());
     }
 
     #[test]
