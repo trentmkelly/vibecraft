@@ -236,6 +236,21 @@ pub struct JukeboxBlockEntity {
     pub ticks_since_song_started: i64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnchantingTableBlockEntity {
+    pub custom_name: Option<String>,
+    pub time: i32,
+    pub flip: f32,
+    pub o_flip: f32,
+    pub flip_t: f32,
+    pub flip_a: f32,
+    pub open: f32,
+    pub o_open: f32,
+    pub rot: f32,
+    pub o_rot: f32,
+    pub t_rot: f32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
@@ -1314,6 +1329,132 @@ fn jukebox_song_comparator_output(song_id: &str) -> u8 {
         "5" => 15,
         _ => 0,
     }
+}
+
+impl EnchantingTableBlockEntity {
+    pub const DEFAULT_NAME: &'static str = "container.enchant";
+
+    pub fn new() -> Self {
+        Self {
+            custom_name: None,
+            time: 0,
+            flip: 0.0,
+            o_flip: 0.0,
+            flip_t: 0.0,
+            flip_a: 0.0,
+            open: 0.0,
+            o_open: 0.0,
+            rot: 0.0,
+            o_rot: 0.0,
+            t_rot: 0.0,
+        }
+    }
+
+    pub fn display_name(&self) -> &str {
+        self.custom_name.as_deref().unwrap_or(Self::DEFAULT_NAME)
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        let mut entries = Vec::new();
+        if let Some(custom_name) = &self.custom_name {
+            entries.push(("CustomName".to_string(), Tag::String(custom_name.clone())));
+        }
+        Tag::Compound(entries)
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut table = Self::new();
+        if let Some(entries) = compound_entries(tag) {
+            table.custom_name = get_string(entries, "CustomName").map(ToString::to_string);
+        }
+        table
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn bookshelf_offsets() -> Vec<BlockPos> {
+        let mut offsets = Vec::new();
+        for x in -2i32..=2 {
+            for y in 0i32..=1 {
+                for z in -2i32..=2 {
+                    if x.abs() == 2 || z.abs() == 2 {
+                        offsets.push(BlockPos { x, y, z });
+                    }
+                }
+            }
+        }
+        offsets
+    }
+
+    pub fn count_valid_bookshelves(
+        is_power_provider: impl Fn(BlockPos) -> bool,
+        is_power_transmitter: impl Fn(BlockPos) -> bool,
+    ) -> usize {
+        Self::bookshelf_offsets()
+            .into_iter()
+            .filter(|offset| {
+                is_power_provider(*offset)
+                    && is_power_transmitter(BlockPos {
+                        x: offset.x / 2,
+                        y: offset.y,
+                        z: offset.z / 2,
+                    })
+            })
+            .take(15)
+            .count()
+    }
+
+    pub fn book_animation_tick(
+        &mut self,
+        player_offset_xz: Option<(f64, f64)>,
+        next_flip_delta: Option<f32>,
+    ) {
+        self.o_open = self.open;
+        self.o_rot = self.rot;
+        if let Some((xd, zd)) = player_offset_xz {
+            self.t_rot = (zd.atan2(xd)) as f32;
+            self.open += 0.1;
+            if self.open < 0.5 {
+                if let Some(delta) = next_flip_delta {
+                    let old = self.flip_t;
+                    if delta != 0.0 {
+                        self.flip_t += delta;
+                    } else {
+                        self.flip_t += 1.0;
+                    }
+                    if self.flip_t == old {
+                        self.flip_t += 1.0;
+                    }
+                }
+            }
+        } else {
+            self.t_rot += 0.02;
+            self.open -= 0.1;
+        }
+
+        self.rot = wrap_radians(self.rot);
+        self.t_rot = wrap_radians(self.t_rot);
+        let rot_dir = wrap_radians(self.t_rot - self.rot);
+        self.rot += rot_dir * 0.4;
+        self.open = self.open.clamp(0.0, 1.0);
+        self.time += 1;
+        self.o_flip = self.flip;
+        let diff = ((self.flip_t - self.flip) * 0.4).clamp(-0.2, 0.2);
+        self.flip_a += (diff - self.flip_a) * 0.9;
+        self.flip += self.flip_a;
+    }
+}
+
+fn wrap_radians(mut value: f32) -> f32 {
+    while value >= std::f32::consts::PI {
+        value -= std::f32::consts::TAU;
+    }
+    while value < -std::f32::consts::PI {
+        value += std::f32::consts::TAU;
+    }
+    value
 }
 
 impl DyeColor {
@@ -3578,6 +3719,60 @@ mod tests {
         assert!(!without_playing.is_playing);
         assert_eq!(without_playing.redstone_signal(), 0);
         assert_eq!(without_playing.comparator_output(), 15);
+    }
+
+    #[test]
+    fn enchanting_table_saves_name_scans_bookshelves_and_animates_book_like_java() {
+        let mut table = EnchantingTableBlockEntity::new();
+        assert_eq!(
+            table.display_name(),
+            EnchantingTableBlockEntity::DEFAULT_NAME
+        );
+        table.custom_name = Some("\"Arcana\"".to_string());
+        let saved = table.save_additional();
+        assert_eq!(
+            saved,
+            Tag::Compound(vec![(
+                "CustomName".to_string(),
+                Tag::String("\"Arcana\"".to_string())
+            )])
+        );
+        assert_eq!(
+            EnchantingTableBlockEntity::load_additional(&saved).custom_name,
+            Some("\"Arcana\"".to_string())
+        );
+        assert_eq!(table.get_update_tag(), saved);
+
+        let offsets = EnchantingTableBlockEntity::bookshelf_offsets();
+        assert_eq!(offsets.len(), 32);
+        assert!(offsets.contains(&BlockPos { x: -2, y: 0, z: 0 }));
+        assert!(offsets.contains(&BlockPos { x: 2, y: 1, z: 2 }));
+        let power = |pos: BlockPos| pos.x == 2 || pos.z == -2;
+        let transmit = |_pos: BlockPos| true;
+        assert_eq!(
+            EnchantingTableBlockEntity::count_valid_bookshelves(power, transmit),
+            15
+        );
+
+        table.book_animation_tick(Some((1.0, 0.0)), Some(2.0));
+        assert_eq!(table.time, 1);
+        assert_eq!(table.o_open, 0.0);
+        assert_eq!(table.open, 0.1);
+        assert_eq!(table.t_rot, 0.0);
+        assert!(table.flip > 0.0);
+        let previous_flip = table.flip;
+        table.book_animation_tick(None, None);
+        assert_eq!(table.time, 2);
+        assert_eq!(table.o_open, 0.1);
+        assert_eq!(table.open, 0.0);
+        assert!(table.t_rot > 0.0);
+        assert!(table.flip >= previous_flip);
+
+        table.rot = std::f32::consts::TAU;
+        table.t_rot = -std::f32::consts::TAU;
+        table.book_animation_tick(None, None);
+        assert!(table.rot < std::f32::consts::PI);
+        assert!(table.t_rot > -std::f32::consts::PI);
     }
 
     #[test]
