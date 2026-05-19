@@ -1096,6 +1096,27 @@ async function main () {
 
 function abortSocket (socket, phase, details) {
   socket.destroy()
+  if (summaryOnly) {
+    console.log(JSON.stringify({
+      ok: true,
+      aborted: true,
+      phase,
+      login: details.login,
+      compressionThreshold: details.compressionThreshold,
+      configPacketCount: details.config?.length ?? 0,
+      playPacketCount: details.play?.length ?? 0,
+      joinState: details.joinState == null
+        ? undefined
+        : {
+            profile: details.joinState.profile,
+            position: details.joinState.position,
+            initialChunkCount: details.joinState.initialChunkCount,
+            lastReceivedChunk: details.joinState.lastReceivedChunk
+          },
+      keepAliveReplies: details.keepAliveReplies
+    }, null, 2))
+    return
+  }
   console.log(JSON.stringify({ ok: true, aborted: true, phase, ...details }, null, 2))
 }
 
