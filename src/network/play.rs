@@ -80,6 +80,7 @@ pub const CLIENTBOUND_MERCHANT_OFFERS_PACKET_ID: i32 = 52;
 pub const CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID: i32 = 53;
 pub const CLIENTBOUND_MOVE_ENTITY_POS_ROT_PACKET_ID: i32 = 54;
 pub const CLIENTBOUND_MOVE_ENTITY_ROT_PACKET_ID: i32 = 56;
+pub const CLIENTBOUND_PING_PACKET_ID: i32 = 61;
 pub const CLIENTBOUND_PLAYER_COMBAT_KILL_PACKET_ID: i32 = 68;
 pub const CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID: i32 = 74;
 pub const CLIENTBOUND_RECIPE_BOOK_REMOVE_PACKET_ID: i32 = 75;
@@ -401,6 +402,11 @@ pub struct ClientboundSetHealthPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundSetHeldSlotPacket {
     pub slot: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundPingPacket {
+    pub id: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2876,6 +2882,20 @@ impl ClientboundSetHeldSlotPacket {
     }
 }
 
+impl ClientboundPingPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = [0u8; 4];
+        reader.read_exact(&mut bytes)?;
+        Ok(Self {
+            id: i32::from_be_bytes(bytes),
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&self.id.to_be_bytes())
+    }
+}
+
 impl ClientboundGameRuleValuesPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.values.len() as i32)?;
@@ -4664,6 +4684,16 @@ mod tests {
         assert_eq!(
             session.last_pong,
             Some(ServerboundPongPacket { id: 0x01020304 })
+        );
+
+        let mut ping = Vec::new();
+        ClientboundPingPacket { id: -0x01020304 }
+            .write(&mut ping)
+            .unwrap();
+        assert_eq!(ping, (-0x01020304_i32).to_be_bytes());
+        assert_eq!(
+            ClientboundPingPacket::read(&mut cursor(ping)).unwrap(),
+            ClientboundPingPacket { id: -0x01020304 }
         );
 
         let mut configuration_ack = Vec::new();

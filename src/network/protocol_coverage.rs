@@ -993,7 +993,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "ping",
         java_class: "ClientboundPingPacket",
-        field_order: "unparsed",
+        field_order: "id:i32_be",
     },
     PlayPacketSpec {
         id: 62,
