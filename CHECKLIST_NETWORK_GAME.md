@@ -225,7 +225,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Debug / Misc Packets
 
 - [x] `ClientboundDebugSamplePacket` (0x17): sample array longs, sample type VarInt
-- [ ] `ClientboundCustomPayloadPacket` (0x15) — `minecraft:brand` and other channels
+- [x] `ClientboundCustomPayloadPacket` (0x18) — `minecraft:brand` and unknown payload channels up to vanilla 1 MiB cap
 - [x] `ClientboundStartConfigurationPacket` (0x69): triggers switch from play back to configuration state
 - [x] `ServerboundConfigurationAcknowledgedPacket` (0x10): empty terminal payload; triggers play→configuration ack
 - [x] `ClientboundPingPacket` (0x3D): ID int

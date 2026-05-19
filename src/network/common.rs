@@ -1195,6 +1195,29 @@ mod tests {
     }
 
     #[test]
+    fn round_trips_clientbound_brand_custom_payload() {
+        let packet = ClientboundCustomPayloadPacket {
+            payload: CustomPayload::Brand("rustcraft".to_string()),
+        };
+        let mut bytes = Vec::new();
+        packet.write(&mut bytes).unwrap();
+        assert_eq!(
+            bytes,
+            [
+                vec![15],
+                b"minecraft:brand".to_vec(),
+                vec![9],
+                b"rustcraft".to_vec()
+            ]
+            .concat()
+        );
+        assert_eq!(
+            ClientboundCustomPayloadPacket::read(&mut Cursor::new(bytes)).unwrap(),
+            packet
+        );
+    }
+
+    #[test]
     fn round_trips_unknown_custom_payload_with_direction_limit() {
         let packet = ClientboundCustomPayloadPacket {
             payload: CustomPayload::Unknown {

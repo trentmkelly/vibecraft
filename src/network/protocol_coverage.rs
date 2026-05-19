@@ -733,7 +733,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "custom_payload",
         java_class: "ClientboundCustomPayloadPacket",
-        field_order: "unparsed",
+        field_order: "payload:CustomPacketPayload (channel Identifier, minecraft:brand string or unknown payload up to 1 MiB)",
     },
     PlayPacketSpec {
         id: 25,
