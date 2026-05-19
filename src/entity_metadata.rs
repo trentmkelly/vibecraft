@@ -353,6 +353,113 @@ pub const ZOMBIE_NAUTILUS_METADATA: &[EntityMetadataField] = &[field(
     "ZOMBIE_NAUTILUS_VARIANT",
 )];
 
+pub const HORSE_METADATA: &[EntityMetadataField] =
+    &[field("Horse", 19, "DATA_ID_TYPE_VARIANT", "INT")];
+
+pub const LLAMA_METADATA: &[EntityMetadataField] = &[
+    field("Llama", 20, "DATA_STRENGTH_ID", "INT"),
+    field("Llama", 21, "DATA_VARIANT_ID", "INT"),
+];
+
+pub const GOAT_METADATA: &[EntityMetadataField] = &[
+    field("Goat", 18, "DATA_IS_SCREAMING_GOAT", "BOOLEAN"),
+    field("Goat", 19, "DATA_HAS_LEFT_HORN", "BOOLEAN"),
+    field("Goat", 20, "DATA_HAS_RIGHT_HORN", "BOOLEAN"),
+];
+
+pub const HOGLIN_METADATA: &[EntityMetadataField] = &[field(
+    "Hoglin",
+    18,
+    "DATA_IMMUNE_TO_ZOMBIFICATION",
+    "BOOLEAN",
+)];
+
+pub const STRIDER_METADATA: &[EntityMetadataField] = &[
+    field("Strider", 18, "DATA_BOOST_TIME", "INT"),
+    field("Strider", 19, "DATA_SUFFOCATING", "BOOLEAN"),
+];
+
+pub const HAPPY_GHAST_METADATA: &[EntityMetadataField] = &[
+    field("HappyGhast", 18, "IS_LEASH_HOLDER", "BOOLEAN"),
+    field("HappyGhast", 19, "STAYS_STILL", "BOOLEAN"),
+];
+
+pub const MUSHROOM_COW_METADATA: &[EntityMetadataField] =
+    &[field("MushroomCow", 18, "DATA_TYPE", "INT")];
+
+pub const SHULKER_METADATA: &[EntityMetadataField] = &[
+    field("Shulker", 16, "DATA_ATTACH_FACE_ID", "DIRECTION"),
+    field("Shulker", 17, "DATA_PEEK_ID", "BYTE"),
+    field("Shulker", 18, "DATA_COLOR_ID", "BYTE"),
+];
+
+pub const WITHER_BOSS_METADATA: &[EntityMetadataField] = &[
+    field("WitherBoss", 16, "DATA_TARGET_A", "INT"),
+    field("WitherBoss", 17, "DATA_TARGET_B", "INT"),
+    field("WitherBoss", 18, "DATA_TARGET_C", "INT"),
+    field("WitherBoss", 19, "DATA_ID_INV", "INT"),
+];
+
+pub const ENDER_DRAGON_METADATA: &[EntityMetadataField] =
+    &[field("EnderDragon", 16, "DATA_PHASE", "INT")];
+
+pub const END_CRYSTAL_METADATA: &[EntityMetadataField] = &[
+    field("EndCrystal", 8, "DATA_BEAM_TARGET", "OPTIONAL_BLOCK_POS"),
+    field("EndCrystal", 9, "DATA_SHOW_BOTTOM", "BOOLEAN"),
+];
+
+pub const EXPERIENCE_ORB_METADATA: &[EntityMetadataField] =
+    &[field("ExperienceOrb", 8, "DATA_VALUE", "INT")];
+
+pub const OMINOUS_ITEM_SPAWNER_METADATA: &[EntityMetadataField] =
+    &[field("OminousItemSpawner", 8, "DATA_ITEM", "ITEM_STACK")];
+
+pub const AVATAR_METADATA: &[EntityMetadataField] = &[
+    field("Avatar", 15, "DATA_PLAYER_MAIN_HAND", "HUMANOID_ARM"),
+    field("Avatar", 16, "DATA_PLAYER_MODE_CUSTOMISATION", "BYTE"),
+];
+
+pub const MANNEQUIN_METADATA: &[EntityMetadataField] = &[
+    field("Mannequin", 17, "DATA_PROFILE", "RESOLVABLE_PROFILE"),
+    field("Mannequin", 18, "DATA_IMMOVABLE", "BOOLEAN"),
+    field("Mannequin", 19, "DATA_DESCRIPTION", "OPTIONAL_COMPONENT"),
+];
+
+pub const VEHICLE_ENTITY_METADATA: &[EntityMetadataField] = &[
+    field("VehicleEntity", 8, "DATA_ID_HURT", "INT"),
+    field("VehicleEntity", 9, "DATA_ID_HURTDIR", "INT"),
+    field("VehicleEntity", 10, "DATA_ID_DAMAGE", "FLOAT"),
+];
+
+pub const ABSTRACT_BOAT_METADATA: &[EntityMetadataField] = &[
+    field("AbstractBoat", 11, "DATA_ID_PADDLE_LEFT", "BOOLEAN"),
+    field("AbstractBoat", 12, "DATA_ID_PADDLE_RIGHT", "BOOLEAN"),
+    field("AbstractBoat", 13, "DATA_ID_BUBBLE_TIME", "INT"),
+];
+
+pub const ABSTRACT_MINECART_METADATA: &[EntityMetadataField] = &[
+    field(
+        "AbstractMinecart",
+        11,
+        "DATA_ID_CUSTOM_DISPLAY_BLOCK",
+        "OPTIONAL_BLOCK_STATE",
+    ),
+    field("AbstractMinecart", 12, "DATA_ID_DISPLAY_OFFSET", "INT"),
+];
+
+pub const MINECART_COMMAND_BLOCK_METADATA: &[EntityMetadataField] = &[
+    field("MinecartCommandBlock", 13, "DATA_ID_COMMAND_NAME", "STRING"),
+    field(
+        "MinecartCommandBlock",
+        14,
+        "DATA_ID_LAST_OUTPUT",
+        "COMPONENT",
+    ),
+];
+
+pub const MINECART_FURNACE_METADATA: &[EntityMetadataField] =
+    &[field("MinecartFurnace", 13, "DATA_ID_FUEL", "BOOLEAN")];
+
 pub const AREA_EFFECT_CLOUD_METADATA: &[EntityMetadataField] = &[
     field("AreaEffectCloud", 8, "DATA_RADIUS", "FLOAT"),
     field("AreaEffectCloud", 9, "DATA_WAITING", "BOOLEAN"),
@@ -611,8 +718,19 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
         ABSTRACT_CHESTED_HORSE_METADATA,
     ),
     class("Mule", Some("AbstractChestedHorse"), &[]),
+    class("Donkey", Some("AbstractChestedHorse"), &[]),
+    class("Horse", Some("AbstractHorse"), HORSE_METADATA),
+    class("SkeletonHorse", Some("AbstractHorse"), &[]),
+    class("ZombieHorse", Some("AbstractHorse"), &[]),
+    class("Llama", Some("AbstractChestedHorse"), LLAMA_METADATA),
+    class("TraderLlama", Some("Llama"), &[]),
     class("Camel", Some("AbstractHorse"), CAMEL_METADATA),
     class("CamelHusk", Some("Camel"), &[]),
+    class("Goat", Some("Animal"), GOAT_METADATA),
+    class("Hoglin", Some("Animal"), HOGLIN_METADATA),
+    class("Strider", Some("Animal"), STRIDER_METADATA),
+    class("HappyGhast", Some("Animal"), HAPPY_GHAST_METADATA),
+    class("MushroomCow", Some("AbstractCow"), MUSHROOM_COW_METADATA),
     class("WaterAnimal", Some("PathfinderMob"), &[]),
     class("AbstractFish", Some("WaterAnimal"), ABSTRACT_FISH_METADATA),
     class("AbstractSchoolingFish", Some("AbstractFish"), &[]),
@@ -660,6 +778,8 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
     class("GlowItemFrame", Some("ItemFrame"), &[]),
     class("Painting", Some("HangingEntity"), PAINTING_METADATA),
     class("ArmorStand", Some("LivingEntity"), ARMOR_STAND_METADATA),
+    class("Avatar", Some("LivingEntity"), AVATAR_METADATA),
+    class("Mannequin", Some("Avatar"), MANNEQUIN_METADATA),
     class("ItemEntity", Some("Entity"), ITEM_ENTITY_METADATA),
     class("PrimedTnt", Some("Entity"), PRIMED_TNT_METADATA),
     class(
@@ -668,6 +788,44 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
         FALLING_BLOCK_ENTITY_METADATA,
     ),
     class("EyeOfEnder", Some("Entity"), EYE_OF_ENDER_METADATA),
+    class("ExperienceOrb", Some("Entity"), EXPERIENCE_ORB_METADATA),
+    class(
+        "OminousItemSpawner",
+        Some("Entity"),
+        OMINOUS_ITEM_SPAWNER_METADATA,
+    ),
+    class("VehicleEntity", Some("Entity"), VEHICLE_ENTITY_METADATA),
+    class(
+        "AbstractBoat",
+        Some("VehicleEntity"),
+        ABSTRACT_BOAT_METADATA,
+    ),
+    class("Boat", Some("AbstractBoat"), &[]),
+    class("Raft", Some("AbstractBoat"), &[]),
+    class("AbstractChestBoat", Some("AbstractBoat"), &[]),
+    class("ChestBoat", Some("AbstractChestBoat"), &[]),
+    class("ChestRaft", Some("AbstractChestBoat"), &[]),
+    class(
+        "AbstractMinecart",
+        Some("VehicleEntity"),
+        ABSTRACT_MINECART_METADATA,
+    ),
+    class("Minecart", Some("AbstractMinecart"), &[]),
+    class("AbstractMinecartContainer", Some("AbstractMinecart"), &[]),
+    class("MinecartChest", Some("AbstractMinecartContainer"), &[]),
+    class("MinecartHopper", Some("AbstractMinecartContainer"), &[]),
+    class("MinecartSpawner", Some("AbstractMinecart"), &[]),
+    class("MinecartTNT", Some("AbstractMinecart"), &[]),
+    class(
+        "MinecartCommandBlock",
+        Some("AbstractMinecart"),
+        MINECART_COMMAND_BLOCK_METADATA,
+    ),
+    class(
+        "MinecartFurnace",
+        Some("AbstractMinecart"),
+        MINECART_FURNACE_METADATA,
+    ),
     class("Projectile", Some("Entity"), &[]),
     class("AbstractArrow", Some("Projectile"), ABSTRACT_ARROW_METADATA),
     class("Arrow", Some("AbstractArrow"), ARROW_METADATA),
@@ -702,6 +860,10 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
         Some("AbstractHurtingProjectile"),
         WITHER_SKULL_METADATA,
     ),
+    class("Shulker", Some("AbstractGolem"), SHULKER_METADATA),
+    class("WitherBoss", Some("Monster"), WITHER_BOSS_METADATA),
+    class("EnderDragon", Some("Mob"), ENDER_DRAGON_METADATA),
+    class("EndCrystal", Some("Entity"), END_CRYSTAL_METADATA),
 ];
 
 pub fn metadata_class(class_name: &str) -> Option<&'static EntityMetadataClass> {
@@ -929,6 +1091,23 @@ mod tests {
         assert_eq!(camel[18].accessor, "DATA_ID_FLAGS");
         assert_eq!(camel[19].accessor, "DASH");
         assert_eq!(camel[20].serializer, "LONG");
+
+        let horse = inherited_metadata_fields("Horse").unwrap();
+        assert_eq!(horse[18].accessor, "DATA_ID_FLAGS");
+        assert_eq!(horse[19].accessor, "DATA_ID_TYPE_VARIANT");
+
+        let llama = inherited_metadata_fields("Llama").unwrap();
+        assert_eq!(llama[19].accessor, "DATA_ID_CHEST");
+        assert_eq!(llama[20].accessor, "DATA_STRENGTH_ID");
+        assert_eq!(llama[21].accessor, "DATA_VARIANT_ID");
+
+        let goat = inherited_metadata_fields("Goat").unwrap();
+        assert_eq!(goat[18].accessor, "DATA_IS_SCREAMING_GOAT");
+        assert_eq!(goat[20].accessor, "DATA_HAS_RIGHT_HORN");
+
+        let strider = inherited_metadata_fields("Strider").unwrap();
+        assert_eq!(strider[18].accessor, "DATA_BOOST_TIME");
+        assert_eq!(strider[19].accessor, "DATA_SUFFOCATING");
     }
 
     #[test]
@@ -958,6 +1137,57 @@ mod tests {
         let zombie_nautilus = inherited_metadata_fields("ZombieNautilus").unwrap();
         assert_eq!(zombie_nautilus[20].accessor, "DASH");
         assert_eq!(zombie_nautilus[21].serializer, "ZOMBIE_NAUTILUS_VARIANT");
+    }
+
+    #[test]
+    fn special_entities_and_bosses_use_decompiled_root_offsets() {
+        let orb = inherited_metadata_fields("ExperienceOrb").unwrap();
+        assert_eq!(orb[8].accessor, "DATA_VALUE");
+
+        let spawner = inherited_metadata_fields("OminousItemSpawner").unwrap();
+        assert_eq!(spawner[8].serializer, "ITEM_STACK");
+
+        let crystal = inherited_metadata_fields("EndCrystal").unwrap();
+        assert_eq!(crystal[8].serializer, "OPTIONAL_BLOCK_POS");
+        assert_eq!(crystal[9].accessor, "DATA_SHOW_BOTTOM");
+
+        let dragon = inherited_metadata_fields("EnderDragon").unwrap();
+        assert_eq!(dragon[15].accessor, "DATA_MOB_FLAGS_ID");
+        assert_eq!(dragon[16].accessor, "DATA_PHASE");
+
+        let wither = inherited_metadata_fields("WitherBoss").unwrap();
+        assert_eq!(wither[16].accessor, "DATA_TARGET_A");
+        assert_eq!(wither[19].accessor, "DATA_ID_INV");
+
+        let shulker = inherited_metadata_fields("Shulker").unwrap();
+        assert_eq!(shulker[16].serializer, "DIRECTION");
+        assert_eq!(shulker[18].accessor, "DATA_COLOR_ID");
+    }
+
+    #[test]
+    fn avatar_mannequin_and_vehicle_metadata_inherit_parent_fields() {
+        let mannequin = inherited_metadata_fields("Mannequin").unwrap();
+        assert_eq!(mannequin[15].accessor, "DATA_PLAYER_MAIN_HAND");
+        assert_eq!(mannequin[16].accessor, "DATA_PLAYER_MODE_CUSTOMISATION");
+        assert_eq!(mannequin[17].serializer, "RESOLVABLE_PROFILE");
+        assert_eq!(mannequin[19].serializer, "OPTIONAL_COMPONENT");
+
+        let boat = inherited_metadata_fields("Boat").unwrap();
+        assert_eq!(boat[8].accessor, "DATA_ID_HURT");
+        assert_eq!(boat[10].serializer, "FLOAT");
+        assert_eq!(boat[11].accessor, "DATA_ID_PADDLE_LEFT");
+        assert_eq!(boat[13].accessor, "DATA_ID_BUBBLE_TIME");
+
+        let minecart = inherited_metadata_fields("Minecart").unwrap();
+        assert_eq!(minecart[11].serializer, "OPTIONAL_BLOCK_STATE");
+        assert_eq!(minecart[12].accessor, "DATA_ID_DISPLAY_OFFSET");
+
+        let command_minecart = inherited_metadata_fields("MinecartCommandBlock").unwrap();
+        assert_eq!(command_minecart[13].accessor, "DATA_ID_COMMAND_NAME");
+        assert_eq!(command_minecart[14].serializer, "COMPONENT");
+
+        let furnace_minecart = inherited_metadata_fields("MinecartFurnace").unwrap();
+        assert_eq!(furnace_minecart[13].accessor, "DATA_ID_FUEL");
     }
 
     #[test]
