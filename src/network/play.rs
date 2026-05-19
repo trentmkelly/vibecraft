@@ -1015,9 +1015,9 @@ pub struct AttributeSnapshot {
     pub modifiers: Vec<AttributeModifierSnapshot>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AttributeModifierSnapshot {
-    pub id: Uuid,
+    pub id: Identifier,
     pub amount: f64,
     pub operation: AttributeModifierOperation,
 }
@@ -5477,6 +5477,37 @@ impl ClientboundAwardStatsPacket {
     }
 }
 
+impl ClientboundUpdateAttributesPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.attributes.len() as i32)?;
+        for attribute in &self.attributes {
+            attribute.write(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl AttributeSnapshot {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.attribute_id)?;
+        write_f64(writer, self.base)?;
+        write_var_i32(writer, self.modifiers.len() as i32)?;
+        for modifier in &self.modifiers {
+            modifier.write(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl AttributeModifierSnapshot {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.id)?;
+        write_f64(writer, self.amount)?;
+        write_var_i32(writer, self.operation as i32)
+    }
+}
+
 impl ClientboundPingPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut bytes = [0u8; 4];
@@ -6805,6 +6836,33 @@ mod tests {
         .write(&mut award_stats)
         .unwrap();
         assert_eq!(award_stats, vec![1, 8, 23, 0xac, 0x02]);
+
+        let mut update_attributes = Vec::new();
+        ClientboundUpdateAttributesPacket {
+            entity_id: 300,
+            attributes: vec![AttributeSnapshot {
+                attribute_id: 4,
+                base: 20.0,
+                modifiers: vec![AttributeModifierSnapshot {
+                    id: Identifier::parse("minecraft:generic.movement_speed").unwrap(),
+                    amount: 0.5,
+                    operation: AttributeModifierOperation::AddMultipliedTotal,
+                }],
+            }],
+        }
+        .write(&mut update_attributes)
+        .unwrap();
+        assert_eq!(&update_attributes[..3], &[0xac, 0x02, 1]);
+        assert_eq!(update_attributes[3], 4);
+        assert_eq!(&update_attributes[4..12], &20.0_f64.to_be_bytes());
+        assert_eq!(update_attributes[12], 1);
+        assert_eq!(update_attributes[13], 32);
+        assert_eq!(
+            &update_attributes[14..46],
+            b"minecraft:generic.movement_speed"
+        );
+        assert_eq!(&update_attributes[46..54], &0.5_f64.to_be_bytes());
+        assert_eq!(update_attributes[54], 2);
 
         let mut section_blocks = Vec::new();
         ClientboundSectionBlocksUpdatePacket {

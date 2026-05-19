@@ -1484,7 +1484,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "update_attributes",
         java_class: "ClientboundUpdateAttributesPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, attributes:List(attribute:Holder<Attribute> registry VarInt, base:double, modifiers:List(id:Identifier, amount:double, operation:VarInt))",
     },
     PlayPacketSpec {
         id: 132,
