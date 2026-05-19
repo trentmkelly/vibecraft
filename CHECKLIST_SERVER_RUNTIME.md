@@ -61,13 +61,13 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `prevent-proxy-connections`.
 - [x] Implement `server-ip`.
 - [ ] Implement mutable `allow-flight`.
-- [ ] Implement mutable `motd`.
+- [x] Implement mutable `motd`.
 - [ ] Implement `enable-code-of-conduct`.
 - [ ] Implement `bug-report-link`.
-- [ ] Implement mutable `force-gamemode`.
-- [ ] Implement mutable `enforce-whitelist`.
+- [x] Implement mutable `force-gamemode`.
+- [x] Implement mutable `enforce-whitelist`.
 - [ ] Implement mutable `difficulty`.
-- [ ] Implement mutable `gamemode`.
+- [x] Implement mutable `gamemode`.
 - [x] Implement `level-name`.
 - [x] Implement `server-port`.
 - [x] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
@@ -82,9 +82,9 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `max-tick-time`.
 - [ ] Implement `max-chained-neighbor-updates`.
 - [x] Implement `rate-limit`.
-- [ ] Implement mutable `view-distance`.
-- [ ] Implement mutable `simulation-distance`.
-- [ ] Implement mutable `max-players`.
+- [x] Implement mutable `view-distance`.
+- [x] Implement mutable `simulation-distance`.
+- [x] Implement mutable `max-players`.
 - [ ] Add a Mineflayer max-player enforcement test that fills available slots in offline mode and verifies the extra bot receives the vanilla full-server disconnect message.
 - [x] Implement `network-compression-threshold`.
 - [x] Implement `broadcast-rcon-to-ops`.
@@ -93,8 +93,8 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement `sync-chunk-writes`.
 - [x] Implement `region-file-compression` with at least deflate parity.
 - [ ] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
-- [ ] Implement mutable `enable-status`.
-- [ ] Implement mutable `hide-online-players`.
+- [x] Implement mutable `enable-status`.
+- [x] Implement mutable `hide-online-players`.
 - [ ] Implement mutable `entity-broadcast-range-percentage`.
 - [ ] Implement `text-filtering-config` and `text-filtering-version`.
 - [ ] Implement server resource pack fields: id, URL, SHA-1, legacy hash, required flag, prompt component.
