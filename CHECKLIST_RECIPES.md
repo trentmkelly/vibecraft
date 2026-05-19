@@ -83,11 +83,11 @@
 ## Smithing and Station Recipes
 
 - [ ] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation)
-- [ ] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components
-- [ ] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result
+- [x] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components
+- [x] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result
 - [x] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately
-- [ ] Add unit test: smithing transform preserves enchantments and custom name
-- [ ] Add unit test: smithing trim applies correct material and pattern components
+- [x] Add unit test: smithing transform preserves enchantments and custom name
+- [x] Add unit test: smithing trim applies correct material and pattern components
 - [x] Add unit test: stonecutter lists all valid outputs for smooth stone input
 
 ## Recipe Validation (All Types)

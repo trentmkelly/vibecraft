@@ -397,6 +397,66 @@ impl ItemAmount {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnchantmentComponent {
+    pub id: &'static str,
+    pub level: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArmorTrimComponent {
+    pub material: &'static str,
+    pub pattern: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SmithingComponentStack {
+    pub item: &'static str,
+    pub count: u32,
+    pub custom_name: Option<&'static str>,
+    pub enchantments: Vec<EnchantmentComponent>,
+    pub trim: Option<ArmorTrimComponent>,
+}
+
+impl SmithingComponentStack {
+    pub fn one(item: &'static str) -> Self {
+        Self {
+            item,
+            count: 1,
+            custom_name: None,
+            enchantments: Vec::new(),
+            trim: None,
+        }
+    }
+}
+
+pub fn smithing_transform_result(
+    result_item: &'static str,
+    base: &SmithingComponentStack,
+) -> SmithingComponentStack {
+    let mut result = base.clone();
+    result.item = result_item;
+    result.count = 1;
+    result
+}
+
+pub fn smithing_trim_result(
+    base: &SmithingComponentStack,
+    material_from_addition: Option<&'static str>,
+    pattern: &'static str,
+) -> Option<SmithingComponentStack> {
+    let material = material_from_addition?;
+    let trim = ArmorTrimComponent { material, pattern };
+    if base.trim.as_ref() == Some(&trim) {
+        return None;
+    }
+
+    let mut result = base.clone();
+    result.count = 1;
+    result.trim = Some(trim);
+    Some(result)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IngredientSpec {
     Item(&'static str),
     AnyOf(Vec<&'static str>),
@@ -1094,6 +1154,54 @@ mod tests {
         assert!(stone_outputs
             .iter()
             .any(|recipe| recipe.recipe_id == "minecraft:stone_bricks_from_stone_stonecutting"));
+    }
+
+    #[test]
+    fn smithing_transform_preserves_original_components() {
+        let base = SmithingComponentStack {
+            item: "minecraft:diamond_sword",
+            count: 1,
+            custom_name: Some("Silk Edge"),
+            enchantments: vec![
+                EnchantmentComponent {
+                    id: "minecraft:sharpness",
+                    level: 5,
+                },
+                EnchantmentComponent {
+                    id: "minecraft:unbreaking",
+                    level: 3,
+                },
+            ],
+            trim: None,
+        };
+
+        let result = smithing_transform_result("minecraft:netherite_sword", &base);
+        assert_eq!(result.item, "minecraft:netherite_sword");
+        assert_eq!(result.count, 1);
+        assert_eq!(result.custom_name, Some("Silk Edge"));
+        assert_eq!(result.enchantments, base.enchantments);
+    }
+
+    #[test]
+    fn smithing_trim_applies_material_and_pattern_components() {
+        let base = SmithingComponentStack::one("minecraft:iron_chestplate");
+        let trimmed = smithing_trim_result(&base, Some("minecraft:amethyst"), "minecraft:spire")
+            .expect("valid trim material should produce a trimmed copy");
+
+        assert_eq!(trimmed.item, "minecraft:iron_chestplate");
+        assert_eq!(trimmed.count, 1);
+        assert_eq!(
+            trimmed.trim,
+            Some(ArmorTrimComponent {
+                material: "minecraft:amethyst",
+                pattern: "minecraft:spire",
+            })
+        );
+        assert_eq!(
+            smithing_trim_result(&trimmed, Some("minecraft:amethyst"), "minecraft:spire"),
+            None
+        );
+        assert_eq!(smithing_trim_result(&base, None, "minecraft:spire"), None);
     }
 
     #[test]
