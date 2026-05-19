@@ -511,6 +511,27 @@ pub struct CalibratedSculkSensorBlockEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SculkChargeCursor {
+    pub pos: BlockPos,
+    pub charge: i32,
+    pub decay_delay: i32,
+    pub update_delay: i32,
+    pub facings: Vec<Direction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SculkCatalystBlockEntity {
+    pub cursors: Vec<SculkChargeCursor>,
+    pub pulse_ticks: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SculkCatalystEventResult {
+    Ignored,
+    Bloom { pulse_ticks: i32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SculkSensorTickResult {
     None,
     Particle { travel_time_in_ticks: i32 },
@@ -3486,6 +3507,166 @@ impl CalibratedSculkSensorBlockEntity {
     }
 }
 
+impl SculkChargeCursor {
+    pub const MAX_CHARGE: i32 = 1000;
+
+    pub fn new(pos: BlockPos, charge: i32) -> Self {
+        Self {
+            pos,
+            charge: charge.clamp(0, Self::MAX_CHARGE),
+            decay_delay: 1,
+            update_delay: 0,
+            facings: Vec::new(),
+        }
+    }
+
+    fn to_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            ("pos".to_string(), block_pos_to_tag(self.pos)),
+            ("charge".to_string(), Tag::Int(self.charge)),
+            ("decay_delay".to_string(), Tag::Int(self.decay_delay)),
+            ("update_delay".to_string(), Tag::Int(self.update_delay)),
+            (
+                "facings".to_string(),
+                Tag::List(
+                    self.facings
+                        .iter()
+                        .map(|direction| Tag::String(direction_name(*direction).to_string()))
+                        .collect(),
+                ),
+            ),
+        ])
+    }
+
+    fn from_tag(tag: &Tag) -> Option<Self> {
+        let entries = compound_entries(tag)?;
+        Some(Self {
+            pos: entries
+                .iter()
+                .find(|(name, _)| name == "pos")
+                .and_then(|(_, tag)| block_pos_from_tag(tag))?,
+            charge: get_int(entries, "charge")
+                .unwrap_or(0)
+                .clamp(0, Self::MAX_CHARGE),
+            decay_delay: get_int(entries, "decay_delay").unwrap_or(1).clamp(0, 1),
+            update_delay: get_int(entries, "update_delay").unwrap_or(0).max(0),
+            facings: entries
+                .iter()
+                .find(|(name, _)| name == "facings")
+                .and_then(|(_, tag)| match tag {
+                    Tag::List(values) => Some(
+                        values
+                            .iter()
+                            .filter_map(|tag| match tag {
+                                Tag::String(name) => direction_from_name(name),
+                                _ => None,
+                            })
+                            .collect(),
+                    ),
+                    _ => None,
+                })
+                .unwrap_or_default(),
+        })
+    }
+}
+
+impl SculkCatalystBlockEntity {
+    pub const LISTENER_RADIUS: i32 = 8;
+    pub const PULSE_TICKS: i32 = 8;
+    pub const MAX_CURSORS: usize = 32;
+    pub const MAX_CHARGE: i32 = 1000;
+    pub const MAX_CURSOR_DISTANCE: i32 = 1024;
+
+    pub fn new() -> Self {
+        Self {
+            cursors: Vec::new(),
+            pulse_ticks: 0,
+        }
+    }
+
+    pub fn add_cursors(&mut self, start_pos: BlockPos, mut charge: i32) {
+        while charge > 0 && self.cursors.len() < Self::MAX_CURSORS {
+            let current_charge = charge.min(Self::MAX_CHARGE);
+            self.cursors
+                .push(SculkChargeCursor::new(start_pos, current_charge));
+            charge -= current_charge;
+        }
+    }
+
+    pub fn handle_entity_die(
+        &mut self,
+        source_pos: BlockPos,
+        experience_reward: i32,
+        should_drop_experience: bool,
+        experience_already_consumed: bool,
+    ) -> SculkCatalystEventResult {
+        if experience_already_consumed {
+            return SculkCatalystEventResult::Ignored;
+        }
+        if should_drop_experience && experience_reward > 0 {
+            self.add_cursors(offset_pos(source_pos, 0, 1, 0), experience_reward);
+        }
+        self.pulse_ticks = Self::PULSE_TICKS;
+        SculkCatalystEventResult::Bloom {
+            pulse_ticks: Self::PULSE_TICKS,
+        }
+    }
+
+    pub fn tick(&mut self, origin: BlockPos) {
+        self.pulse_ticks = self.pulse_ticks.saturating_sub(1);
+        self.cursors.retain_mut(|cursor| {
+            if chessboard_distance(cursor.pos, origin) > Self::MAX_CURSOR_DISTANCE {
+                return false;
+            }
+            if cursor.update_delay > 0 {
+                cursor.update_delay -= 1;
+                return true;
+            }
+            if cursor.decay_delay > 0 {
+                cursor.decay_delay -= 1;
+            } else {
+                cursor.charge = (cursor.charge - 1).max(0);
+                cursor.decay_delay = 1;
+            }
+            cursor.charge > 0
+        });
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "cursors".to_string(),
+                Tag::List(self.cursors.iter().map(SculkChargeCursor::to_tag).collect()),
+            ),
+            ("pulse_ticks".to_string(), Tag::Int(self.pulse_ticks)),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        let cursors = entries
+            .iter()
+            .find(|(name, _)| name == "cursors")
+            .and_then(|(_, tag)| match tag {
+                Tag::List(values) => Some(
+                    values
+                        .iter()
+                        .filter_map(SculkChargeCursor::from_tag)
+                        .take(Self::MAX_CURSORS)
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default();
+        Self {
+            cursors,
+            pulse_ticks: get_int(entries, "pulse_ticks").unwrap_or(0).max(0),
+        }
+    }
+}
+
 impl BellBlockEntity {
     pub const EVENT_RING: i32 = 1;
     pub const DURATION: i32 = 50;
@@ -4678,6 +4859,13 @@ fn closer_than(left: BlockPos, right: BlockPos, range: f64) -> bool {
     let dy = f64::from(left.y - right.y);
     let dz = f64::from(left.z - right.z);
     dx * dx + dy * dy + dz * dz < range * range
+}
+
+fn chessboard_distance(left: BlockPos, right: BlockPos) -> i32 {
+    (left.x - right.x)
+        .abs()
+        .max((left.y - right.y).abs())
+        .max((left.z - right.z).abs())
 }
 
 fn block_pos_from_tag(tag: &Tag) -> Option<BlockPos> {
@@ -6586,6 +6774,57 @@ mod tests {
         );
         unfiltered.set_back_signal(99);
         assert_eq!(unfiltered.back_signal, 15);
+    }
+
+    #[test]
+    fn sculk_catalyst_block_entity_queues_charge_and_pulses_on_mob_death() {
+        assert_eq!(SculkCatalystBlockEntity::LISTENER_RADIUS, 8);
+        assert_eq!(SculkCatalystBlockEntity::PULSE_TICKS, 8);
+        assert_eq!(SculkCatalystBlockEntity::MAX_CURSORS, 32);
+        assert_eq!(SculkCatalystBlockEntity::MAX_CHARGE, 1000);
+
+        let mut catalyst = SculkCatalystBlockEntity::new();
+        assert_eq!(
+            catalyst.handle_entity_die(BlockPos { x: 3, y: 64, z: -2 }, 2300, true, false,),
+            SculkCatalystEventResult::Bloom { pulse_ticks: 8 }
+        );
+        assert_eq!(catalyst.pulse_ticks, 8);
+        assert_eq!(
+            catalyst.cursors,
+            vec![
+                SculkChargeCursor::new(BlockPos { x: 3, y: 65, z: -2 }, 1000),
+                SculkChargeCursor::new(BlockPos { x: 3, y: 65, z: -2 }, 1000),
+                SculkChargeCursor::new(BlockPos { x: 3, y: 65, z: -2 }, 300),
+            ]
+        );
+
+        let saved = catalyst.save_additional();
+        assert_eq!(SculkCatalystBlockEntity::load_additional(&saved), catalyst);
+        catalyst.tick(BlockPos { x: 0, y: 64, z: 0 });
+        assert_eq!(catalyst.pulse_ticks, 7);
+        assert_eq!(catalyst.cursors[0].decay_delay, 0);
+        catalyst.tick(BlockPos { x: 0, y: 64, z: 0 });
+        assert_eq!(catalyst.cursors[0].charge, 999);
+        assert_eq!(catalyst.cursors[0].decay_delay, 1);
+
+        let mut ignored = SculkCatalystBlockEntity::new();
+        assert_eq!(
+            ignored.handle_entity_die(BlockPos { x: 0, y: 0, z: 0 }, 5, true, true),
+            SculkCatalystEventResult::Ignored
+        );
+        assert!(ignored.cursors.is_empty());
+        assert_eq!(ignored.pulse_ticks, 0);
+
+        ignored.add_cursors(BlockPos { x: 0, y: 0, z: 0 }, 40_000);
+        assert_eq!(ignored.cursors.len(), 32);
+        assert!(ignored.cursors.iter().all(|cursor| cursor.charge == 1000));
+        ignored.cursors[0].pos = BlockPos {
+            x: 2000,
+            y: 0,
+            z: 0,
+        };
+        ignored.tick(BlockPos { x: 0, y: 0, z: 0 });
+        assert_eq!(ignored.cursors.len(), 31);
     }
 
     #[test]
