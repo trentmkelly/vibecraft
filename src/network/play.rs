@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 
+use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::codec::{
     read_identifier, read_string, write_bitset, write_collection, write_identifier, write_string,
     Uuid,
@@ -51,6 +52,7 @@ pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
 pub const SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID: i32 = 46;
 pub const SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID: i32 = 47;
 pub const SERVERBOUND_RENAME_ITEM_PACKET_ID: i32 = 48;
+pub const SERVERBOUND_RESOURCE_PACK_PACKET_ID: i32 = 49;
 pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
@@ -1150,6 +1152,7 @@ pub struct PlaySession {
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
+    pub last_resource_pack_response: Option<ServerboundResourcePackPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
     pub last_pick_item_from_block: Option<ServerboundPickItemFromBlockPacket>,
@@ -1247,6 +1250,7 @@ impl PlaySession {
             last_select_trade: None,
             last_rename_item: None,
             last_command_suggestion: None,
+            last_resource_pack_response: None,
             last_container_close: None,
             last_container_button_click: None,
             last_pick_item_from_block: None,
@@ -1621,6 +1625,18 @@ impl PlaySession {
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad rename item packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_RESOURCE_PACK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundResourcePackPacket::read(&mut input) {
+                    Ok(response) => {
+                        self.last_resource_pack_response = Some(response);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad resource pack packet: {err}"))
                     }
                 }
             }
@@ -4701,6 +4717,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_CHAT_ACK_PACKET_ID, Vec::new())),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_RESOURCE_PACK_PACKET_ID, vec![0; 16])),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5415,6 +5435,34 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_chat_ack, Some(chat_ack));
+
+        let resource_pack_response = ServerboundResourcePackPacket {
+            id: Uuid([9; 16]),
+            action: crate::network::common::ResourcePackAction::Accepted,
+        };
+        let mut resource_pack_payload = Vec::new();
+        resource_pack_response
+            .write(&mut resource_pack_payload)
+            .unwrap();
+        let mut expected_resource_pack = vec![9; 16];
+        expected_resource_pack.push(3);
+        assert_eq!(resource_pack_payload, expected_resource_pack);
+        assert_eq!(
+            ServerboundResourcePackPacket::read(&mut cursor(resource_pack_payload.clone()))
+                .unwrap(),
+            resource_pack_response
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_RESOURCE_PACK_PACKET_ID,
+                resource_pack_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_resource_pack_response,
+            Some(resource_pack_response)
+        );
 
         let command_suggestion = ServerboundCommandSuggestionPacket {
             id: 128,

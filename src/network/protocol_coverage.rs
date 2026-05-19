@@ -424,7 +424,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "resource_pack",
         java_class: "ServerboundResourcePackPacket",
-        field_order: "unparsed",
+        field_order: "id:UUID, action:ResourcePackAction enum VarInt",
     },
     PlayPacketSpec {
         id: 50,

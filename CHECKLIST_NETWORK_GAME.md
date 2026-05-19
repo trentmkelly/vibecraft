@@ -220,7 +220,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundResourcePackPopPacket`: resource pack UUID
 - [ ] `ClientboundResourcePackPushPacket`: UUID, URL, hash, required, optional prompt component
-- [ ] `ServerboundResourcePackPacket` (0x24): UUID, status VarInt (accepted/declined/failed/loaded)
+- [x] `ServerboundResourcePackPacket` (0x31): UUID, action enum VarInt (`SUCCESSFULLY_LOADED`, `DECLINED`, `FAILED_DOWNLOAD`, `ACCEPTED`, `DOWNLOADED`, `INVALID_URL`, `FAILED_RELOAD`, `DISCARDED`)
 
 ## Debug / Misc Packets
 
