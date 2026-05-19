@@ -120,6 +120,46 @@ export function listLoginStateManifest(options = {}) {
   }
 }
 
+export function teleportCommandExecutionScenario(options = {}) {
+  const username = options.username ?? 'TeleportBot'
+  const position = options.position ?? { x: 8, y: 72, z: -6 }
+  return {
+    command: `/tp ${username} ${position.x} ${position.y} ${position.z}`,
+    username,
+    position,
+    expectedFeedbackKey: 'commands.teleport.success.location.single',
+    permissionDeniedKey: 'commands.generic.permission',
+    requiredSteps: [
+      'teleport-command-issued',
+      'position-correction-observed',
+      'success-feedback',
+      'non-op-permission-failure'
+    ]
+  }
+}
+
+export function summarizeTeleportCommandEvidence(evidence, scenario = teleportCommandExecutionScenario()) {
+  const actions = (evidence.timeline ?? [])
+    .filter(event => event.name === 'teleport_command')
+    .map(event => event.summary?.[0])
+  const messages = (evidence.timeline ?? [])
+    .filter(event => event.name === 'message')
+    .flatMap(event => event.summary?.map(String) ?? [])
+  const position = (evidence.timeline ?? [])
+    .find(event => event.name === 'position' && event.summary?.[0] === scenario.username)
+    ?.summary?.[1]
+  const steps = {
+    'teleport-command-issued': actions.includes('issued'),
+    'position-correction-observed': Boolean(position) &&
+      position.x === scenario.position.x &&
+      position.y === scenario.position.y &&
+      position.z === scenario.position.z,
+    'success-feedback': messages.some(message => message.includes(scenario.expectedFeedbackKey)),
+    'non-op-permission-failure': messages.some(message => message.includes(scenario.permissionDeniedKey))
+  }
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')

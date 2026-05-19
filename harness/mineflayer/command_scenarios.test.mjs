@@ -9,7 +9,9 @@ import {
   operatorCommandSmokeManifest,
   operatorCommandSmokeScenarios,
   runCommandScenario,
-  summarizeListLoginStateEvidence
+  summarizeListLoginStateEvidence,
+  summarizeTeleportCommandEvidence,
+  teleportCommandExecutionScenario
 } from './command_scenarios.mjs'
 
 test('offlineCommandScenarios cover required Mineflayer command surface', () => {
@@ -147,4 +149,38 @@ test('summarizeListLoginStateEvidence validates player counts and names for ever
   assert.equal(summarizeListLoginStateEvidence(evidence, scenarios).ok, true)
   evidence.timeline[2].summary[1].names = ['Alex']
   assert.equal(summarizeListLoginStateEvidence(evidence, scenarios).ok, false)
+})
+
+test('teleportCommandExecutionScenario records command, position, feedback, and denial requirements', () => {
+  const scenario = teleportCommandExecutionScenario({
+    username: 'Steve',
+    position: { x: 4, y: 70, z: 4 }
+  })
+
+  assert.equal(scenario.command, '/tp Steve 4 70 4')
+  assert.deepEqual(scenario.requiredSteps, [
+    'teleport-command-issued',
+    'position-correction-observed',
+    'success-feedback',
+    'non-op-permission-failure'
+  ])
+})
+
+test('summarizeTeleportCommandEvidence validates observed position, success feedback, and permission failure', () => {
+  const scenario = teleportCommandExecutionScenario({
+    username: 'Steve',
+    position: { x: 4, y: 70, z: 4 }
+  })
+  const evidence = {
+    timeline: [
+      { name: 'teleport_command', summary: ['issued', { command: scenario.command }] },
+      { name: 'position', summary: ['Steve', { x: 4, y: 70, z: 4 }] },
+      { name: 'message', summary: ['commands.teleport.success.location.single'] },
+      { name: 'message', summary: ['commands.generic.permission'] }
+    ]
+  }
+
+  assert.equal(summarizeTeleportCommandEvidence(evidence, scenario).ok, true)
+  evidence.timeline[1].summary[1].z = 5
+  assert.equal(summarizeTeleportCommandEvidence(evidence, scenario).ok, false)
 })

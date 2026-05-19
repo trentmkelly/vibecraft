@@ -55,7 +55,7 @@
 
 ## Command Testing (Mineflayer / Integration)
 
-- [ ] Add Mineflayer command execution tests: teleport a bot with `/tp`, verify bot observes its new position, verify success feedback, verify permission failure for non-op bot
+- [x] Add Mineflayer command execution tests: teleport a bot with `/tp`, verify bot observes its new position, verify success feedback, verify permission failure for non-op bot
 - [x] Add Mineflayer offline-mode `/list` login-state tests: run `/list` from console and from bot during login, after join, after duplicate replacement, and after disconnect; verify player counts and names match vanilla
 - [ ] Add Mineflayer offline-mode `/loot` command tests: `give`, `insert`, `spawn`, and `replace` targets using block, entity, chest, fishing, and custom loot tables; verify inventory/window updates and dropped item entities against official `server.jar`
 - [ ] Add Mineflayer command-suggestion tests: compare root command tree, argument suggestions, permission filtering, signed-command metadata, and tab-completion ordering against official `server.jar`
@@ -138,7 +138,7 @@
 - [x] Implement `/tag`.
 - [x] Implement `/team`.
 - [x] Implement `/teleport`.
-- [ ] Add Mineflayer command execution tests for teleporting a bot, validating its observed position correction, success feedback, and permission failures.
+- [x] Add Mineflayer command execution tests for teleporting a bot, validating its observed position correction, success feedback, and permission failures.
 - [x] Add Mineflayer offline-mode `/list` login-state tests that run `/list` from console and bot during login, after join, after duplicate replacement, and after disconnect to verify player counts and names match vanilla.
 - [x] Add command-model `/list` login-state fallback coverage for empty, joined, duplicate-replacement, multi-player, and post-disconnect online counts while raw play command execution is not wired to `/list` yet.
 - [ ] Add Mineflayer offline-mode `/loot` command tests for `give`, `insert`, `spawn`, and `replace` targets using block, entity, chest, fishing, and custom loot tables, verifying inventory/window updates and dropped item entities against vanilla.
