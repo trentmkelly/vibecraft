@@ -45,6 +45,7 @@ pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
+pub const SERVERBOUND_RENAME_ITEM_PACKET_ID: i32 = 48;
 pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
@@ -357,6 +358,11 @@ pub struct ServerboundSetBeaconPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundSelectTradePacket {
     pub item: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundRenameItemPacket {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1080,6 +1086,7 @@ pub struct PlaySession {
     pub last_sign_update: Option<ServerboundSignUpdatePacket>,
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
+    pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1168,6 +1175,7 @@ impl PlaySession {
             last_sign_update: None,
             last_set_beacon: None,
             last_select_trade: None,
+            last_rename_item: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1431,6 +1439,18 @@ impl PlaySession {
                         DispatchOutcome::Handled
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad pong packet: {err}")),
+                }
+            }
+            SERVERBOUND_RENAME_ITEM_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundRenameItemPacket::read(&mut input) {
+                    Ok(rename_item) => {
+                        self.last_rename_item = Some(rename_item);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad rename item packet: {err}"))
+                    }
                 }
             }
             SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
@@ -2748,6 +2768,18 @@ impl ServerboundSelectTradePacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.item)
+    }
+}
+
+impl ServerboundRenameItemPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            name: read_string(reader, 32767)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, 32767)
     }
 }
 
@@ -4988,6 +5020,22 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_select_trade, Some(select_trade));
+
+        let rename_item = ServerboundRenameItemPacket {
+            name: "Sharp Thing".to_string(),
+        };
+        let mut rename_payload = Vec::new();
+        rename_item.write(&mut rename_payload).unwrap();
+        assert_eq!(rename_payload[0], 11);
+        assert_eq!(
+            ServerboundRenameItemPacket::read(&mut cursor(rename_payload.clone())).unwrap(),
+            rename_item
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_RENAME_ITEM_PACKET_ID, rename_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_rename_item, Some(rename_item));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {

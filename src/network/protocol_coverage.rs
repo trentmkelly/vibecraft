@@ -417,7 +417,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "rename_item",
         java_class: "ServerboundRenameItemPacket",
-        field_order: "unparsed",
+        field_order: "name:utf(32767)",
     },
     PlayPacketSpec {
         id: 49,

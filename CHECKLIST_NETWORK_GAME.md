@@ -93,7 +93,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundSetCarriedItemPacket` (0x35): slot short
 - [ ] `ServerboundPickItemFromBlockPacket` and `ServerboundPickItemFromEntityPacket`: creative-mode middle-click
 - [ ] `ServerboundEditBookPacket` (0x14): hand, pages list, optional title
-- [ ] `ServerboundRenameItemPacket` (0x25): name string
+- [x] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
 - [x] `ServerboundSelectTradePacket` (0x33): item number VarInt
 - [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
 - [ ] `ServerboundSetCreativeModeSlotPacket` (0x2D): slot short, item
