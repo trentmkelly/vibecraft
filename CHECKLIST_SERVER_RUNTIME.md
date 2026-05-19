@@ -22,11 +22,11 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Support `--pidFile`.
 - [x] Initialize `server.properties` and `eula.txt` before normal startup.
 - [x] Refuse startup until `eula=true`.
-- [ ] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
+- [x] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
 - [x] Install process-level crash and panic handlers.
 - [x] Emit crash reports with useful environment, thread, and world state.
-- [ ] Implement graceful shutdown from console, signal, stop command, and JVM-style shutdown hook equivalents.
-- [ ] Save all worlds, players, scoreboards, advancements, raids, maps, and server state during shutdown.
+- [x] Implement graceful shutdown from console, signal, stop command, and JVM-style shutdown hook equivalents.
+- [x] Save all worlds, players, scoreboards, advancements, raids, maps, and server state during shutdown.
 - [x] Add a Mineflayer shutdown/restart test that joins in offline mode, mutates visible player state, stops the server cleanly, restarts, and verifies reconnect plus persisted position, inventory, and stats.
 - [x] Add a Mineflayer crash-after-login recovery test that joins in offline mode, waits for the first save boundary, terminates the process, restarts, and verifies vanilla-compatible reconnect behavior and no corrupted player/world files.
 - [x] Add a Mineflayer startup-race test that begins connecting during bootstrap in offline mode and verifies the bot is either held until readiness or rejected with the same timing/message as official `server.jar`.
@@ -38,7 +38,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Handle corrupted world metadata with vanilla-compatible refusal paths.
 - [x] Detect incompatible world versions before loading.
 - [x] Provide safe-mode datapack loading.
-- [ ] Support world data upgrade and region recreation workflow.
+- [x] Support world data upgrade and region recreation workflow.
 - [x] Implement server watchdog behavior controlled by `max-tick-time`.
 
 ## Migrated From Main Checklist: Dedicated Server Configuration
@@ -129,10 +129,10 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Operational File And API Coverage
 
-- [ ] Implement `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json`, `session.lock`, `level.dat`, `level.dat_old`, region files, entity region files, POI files, playerdata, advancements, stats, icon, crash reports, logs, debug output, and generated reports.
+- [x] Implement `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json`, `session.lock`, `level.dat`, `level.dat_old`, region files, entity region files, POI files, playerdata, advancements, stats, icon, crash reports, logs, debug output, and generated reports.
 - [x] Implement RCON authentication, command execution, response fragmentation, broadcast behavior, and failure modes.
 - [x] Implement query protocol basic and full stat responses with plugin list behavior equivalent to vanilla.
 - [x] Implement JSON-RPC management methods, schemas, notifications, player DTOs, reference utilities, pending request tracking, origin checks, TLS settings, and shutdown behavior.
 - [x] Implement chase server/client debug feature or document it as intentionally unsupported with no impact on vanilla clients.
 - [x] Implement game test framework hooks enough for parity test execution or document a replacement harness.
-- [ ] Implement generated data/report tooling used to compare registries, tags, commands, packs, and worldgen definitions.
+- [x] Implement generated data/report tooling used to compare registries, tags, commands, packs, and worldgen definitions.

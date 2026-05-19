@@ -75,6 +75,7 @@ mod movement_physics;
 mod movement_validation;
 mod network;
 mod non_living_entity;
+mod operational_coverage;
 mod parity_harness;
 mod performance_benchmarks;
 mod persistence_roundtrip_tests;
