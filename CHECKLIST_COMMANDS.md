@@ -31,9 +31,9 @@
 
 ## Command Block Minecart
 
-- [ ] Implement `CommandBlockMinecart`: per-entity `CommandBlockEntity`-like logic, `delay` counter (4-tick default), activate on powered activator rail
+- [x] Implement `CommandBlockMinecart`: per-entity `CommandBlockEntity`-like logic, `delay` counter (4-tick default), activate on powered activator rail
 - [x] Implement command block minecart NBT round-trip: command, last output, track-output flag
-- [ ] Add parity test: command block minecart activates on powered activator rail at correct delay
+- [x] Add parity test: command block minecart activates on powered activator rail at correct delay
 
 ## Functions
 

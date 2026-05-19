@@ -572,6 +572,7 @@ impl SpawnerMinecartState {
 pub struct CommandBlockMinecartState {
     pub minecart: MinecartState,
     pub command: String,
+    pub success_count: i32,
     pub last_output: String,
     pub track_output: bool,
     pub last_activated_tick: i32,
@@ -584,6 +585,7 @@ impl CommandBlockMinecartState {
         Self {
             minecart: MinecartState::new(id, MinecartKind::CommandBlock),
             command: String::new(),
+            success_count: 0,
             last_output: String::new(),
             track_output: true,
             last_activated_tick: -Self::ACTIVATION_DELAY,
@@ -593,6 +595,7 @@ impl CommandBlockMinecartState {
     pub fn save_additional(&self) -> Tag {
         let mut entries = vec![
             ("Command".to_string(), Tag::String(self.command.clone())),
+            ("SuccessCount".to_string(), Tag::Int(self.success_count)),
             (
                 "TrackOutput".to_string(),
                 Tag::Byte(i8::from(self.track_output)),
@@ -610,6 +613,7 @@ impl CommandBlockMinecartState {
             return state;
         };
         state.command = get_string(entries, "Command").unwrap_or("").to_string();
+        state.success_count = get_int(entries, "SuccessCount").unwrap_or(0);
         state.track_output = get_bool(entries, "TrackOutput").unwrap_or(true);
         if state.track_output {
             state.last_output = get_string(entries, "LastOutput").unwrap_or("").to_string();
@@ -619,11 +623,30 @@ impl CommandBlockMinecartState {
 
     pub fn activate_minecart(&mut self, powered: bool, tick_count: i32) -> bool {
         if powered && tick_count - self.last_activated_tick >= Self::ACTIVATION_DELAY {
+            self.perform_command(true);
             self.last_activated_tick = tick_count;
             true
         } else {
             false
         }
+    }
+
+    pub fn perform_command(&mut self, command_blocks_enabled: bool) -> bool {
+        if self.command.eq_ignore_ascii_case("Searge") {
+            self.success_count = 1;
+            if self.track_output {
+                self.last_output = "#itzlipofutzli".to_string();
+            }
+            return true;
+        }
+        self.success_count = 0;
+        if command_blocks_enabled && !self.command.is_empty() {
+            self.success_count = 1;
+            if self.track_output {
+                self.last_output = format!("Executed command: {}", self.command);
+            }
+        }
+        true
     }
 
     pub fn can_interact(&self, player_can_use_gamemaster_blocks: bool) -> bool {
@@ -641,6 +664,13 @@ fn compound_entries(tag: &Tag) -> Option<&[(String, Tag)]> {
 fn get_string<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a str> {
     entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
         (entry, Tag::String(value)) if entry == key => Some(value.as_str()),
+        _ => None,
+    })
+}
+
+fn get_int(entries: &[(String, Tag)], key: &str) -> Option<i32> {
+    entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
+        (entry, Tag::Int(value)) if entry == key => Some(*value),
         _ => None,
     })
 }
@@ -978,7 +1008,10 @@ mod tests {
         assert_eq!(loaded_without_tracking.command, "say quiet");
         assert!(!loaded_without_tracking.track_output);
         assert_eq!(loaded_without_tracking.last_output, "");
+        command.command = "Searge".to_string();
         assert!(command.activate_minecart(true, 0));
+        assert_eq!(command.success_count, 1);
+        assert_eq!(command.last_output, "#itzlipofutzli");
         assert!(!command.activate_minecart(true, 3));
         assert!(command.activate_minecart(true, 4));
     }
