@@ -1188,6 +1188,12 @@ pub struct ClientboundSetActionBarTextPacket {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSystemChatPacket {
+    pub content: Tag,
+    pub overlay: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundTabListPacket {
     pub header: Tag,
     pub footer: Tag,
@@ -3146,6 +3152,13 @@ impl ClientboundSetSubtitleTextPacket {
 impl ClientboundSetActionBarTextPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundSystemChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.content)?;
+        write_bool(writer, self.overlay)
     }
 }
 
@@ -6759,6 +6772,16 @@ mod tests {
         .write(&mut action_bar)
         .unwrap();
         assert_eq!(action_bar, title);
+
+        let mut system_chat = Vec::new();
+        ClientboundSystemChatPacket {
+            content: title_tag.clone(),
+            overlay: true,
+        }
+        .write(&mut system_chat)
+        .unwrap();
+        assert!(system_chat.starts_with(&title));
+        assert_eq!(*system_chat.last().unwrap(), 1);
 
         let footer_tag = Tag::Compound(vec![(
             "text".to_string(),

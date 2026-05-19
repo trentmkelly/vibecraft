@@ -1413,7 +1413,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "system_chat",
         java_class: "ClientboundSystemChatPacket",
-        field_order: "unparsed",
+        field_order: "content:ComponentSerialization.TRUSTED_STREAM_CODEC as network NBT tag, overlay:bool",
     },
     PlayPacketSpec {
         id: 122,
