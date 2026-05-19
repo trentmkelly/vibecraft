@@ -195,6 +195,61 @@ pub struct JigsawBlockEntity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureBlockMode {
+    Save,
+    Load,
+    Corner,
+    Data,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureMirror {
+    None,
+    LeftRight,
+    FrontBack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureRotation {
+    None,
+    Clockwise90,
+    Clockwise180,
+    Counterclockwise90,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureRenderMode {
+    None,
+    Box,
+    BoxAndInvisibleBlocks,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureRenderableBox {
+    pub min: BlockPos,
+    pub max: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructureBlockEntity {
+    pub structure_name: Option<String>,
+    pub author: String,
+    pub metadata: String,
+    pub structure_pos: BlockPos,
+    pub structure_size: (i32, i32, i32),
+    pub mirror: StructureMirror,
+    pub rotation: StructureRotation,
+    pub mode: StructureBlockMode,
+    pub ignore_entities: bool,
+    pub strict: bool,
+    pub powered: bool,
+    pub show_air: bool,
+    pub show_bounding_box: bool,
+    pub integrity: f32,
+    pub seed: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComparatorBlockEntity {
     pub mode: ComparatorMode,
     pub output_signal: i32,
@@ -974,6 +1029,272 @@ impl JigsawBlockEntity {
             keep_jigsaws,
             start_pos: block_pos.relative(orientation_front),
         }
+    }
+}
+
+impl StructureBlockMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Save => "SAVE",
+            Self::Load => "LOAD",
+            Self::Corner => "CORNER",
+            Self::Data => "DATA",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "SAVE" | "save" => Some(Self::Save),
+            "LOAD" | "load" => Some(Self::Load),
+            "CORNER" | "corner" => Some(Self::Corner),
+            "DATA" | "data" => Some(Self::Data),
+            _ => None,
+        }
+    }
+}
+
+impl StructureMirror {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "NONE",
+            Self::LeftRight => "LEFT_RIGHT",
+            Self::FrontBack => "FRONT_BACK",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "NONE" | "none" => Some(Self::None),
+            "LEFT_RIGHT" | "left_right" => Some(Self::LeftRight),
+            "FRONT_BACK" | "front_back" => Some(Self::FrontBack),
+            _ => None,
+        }
+    }
+}
+
+impl StructureRotation {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "NONE",
+            Self::Clockwise90 => "CLOCKWISE_90",
+            Self::Clockwise180 => "CLOCKWISE_180",
+            Self::Counterclockwise90 => "COUNTERCLOCKWISE_90",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "NONE" | "none" => Some(Self::None),
+            "CLOCKWISE_90" | "clockwise_90" => Some(Self::Clockwise90),
+            "CLOCKWISE_180" | "clockwise_180" => Some(Self::Clockwise180),
+            "COUNTERCLOCKWISE_90" | "counterclockwise_90" => Some(Self::Counterclockwise90),
+            _ => None,
+        }
+    }
+}
+
+impl StructureBlockEntity {
+    pub const MAX_OFFSET_PER_AXIS: i32 = 48;
+    pub const MAX_SIZE_PER_AXIS: i32 = 48;
+
+    pub fn new(mode: StructureBlockMode) -> Self {
+        Self {
+            structure_name: None,
+            author: String::new(),
+            metadata: String::new(),
+            structure_pos: BlockPos { x: 0, y: 1, z: 0 },
+            structure_size: (0, 0, 0),
+            mirror: StructureMirror::None,
+            rotation: StructureRotation::None,
+            mode,
+            ignore_entities: true,
+            strict: false,
+            powered: false,
+            show_air: false,
+            show_bounding_box: true,
+            integrity: 1.0,
+            seed: 0,
+        }
+    }
+
+    pub fn has_structure_name(&self) -> bool {
+        self.structure_name.is_some()
+    }
+
+    pub fn structure_name(&self) -> &str {
+        self.structure_name.as_deref().unwrap_or("")
+    }
+
+    pub fn set_structure_name(&mut self, structure_name: Option<&str>) {
+        self.structure_name = structure_name
+            .filter(|name| !name.is_empty())
+            .map(ToString::to_string);
+    }
+
+    pub fn set_structure_pos(&mut self, pos: BlockPos) {
+        self.structure_pos = Self::clamp_structure_pos(pos);
+    }
+
+    pub fn set_structure_size(&mut self, size: (i32, i32, i32)) {
+        self.structure_size = Self::clamp_structure_size(size);
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "name".to_string(),
+                Tag::String(self.structure_name().to_string()),
+            ),
+            ("author".to_string(), Tag::String(self.author.clone())),
+            ("metadata".to_string(), Tag::String(self.metadata.clone())),
+            ("posX".to_string(), Tag::Int(self.structure_pos.x)),
+            ("posY".to_string(), Tag::Int(self.structure_pos.y)),
+            ("posZ".to_string(), Tag::Int(self.structure_pos.z)),
+            ("sizeX".to_string(), Tag::Int(self.structure_size.0)),
+            ("sizeY".to_string(), Tag::Int(self.structure_size.1)),
+            ("sizeZ".to_string(), Tag::Int(self.structure_size.2)),
+            (
+                "rotation".to_string(),
+                Tag::String(self.rotation.as_str().to_string()),
+            ),
+            (
+                "mirror".to_string(),
+                Tag::String(self.mirror.as_str().to_string()),
+            ),
+            (
+                "mode".to_string(),
+                Tag::String(self.mode.as_str().to_string()),
+            ),
+            (
+                "ignoreEntities".to_string(),
+                Tag::Byte(i8::from(self.ignore_entities)),
+            ),
+            ("strict".to_string(), Tag::Byte(i8::from(self.strict))),
+            ("powered".to_string(), Tag::Byte(i8::from(self.powered))),
+            ("showair".to_string(), Tag::Byte(i8::from(self.show_air))),
+            (
+                "showboundingbox".to_string(),
+                Tag::Byte(i8::from(self.show_bounding_box)),
+            ),
+            ("integrity".to_string(), Tag::Float(self.integrity)),
+            ("seed".to_string(), Tag::Long(self.seed)),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new(StructureBlockMode::Data);
+        };
+        let mut entity = Self::new(
+            get_string(entries, "mode")
+                .and_then(StructureBlockMode::from_str)
+                .unwrap_or(StructureBlockMode::Data),
+        );
+        entity.set_structure_name(get_string(entries, "name"));
+        entity.author = get_string(entries, "author").unwrap_or("").to_string();
+        entity.metadata = get_string(entries, "metadata").unwrap_or("").to_string();
+        entity.structure_pos = Self::clamp_structure_pos(BlockPos {
+            x: get_int(entries, "posX").unwrap_or(0),
+            y: get_int(entries, "posY").unwrap_or(1),
+            z: get_int(entries, "posZ").unwrap_or(0),
+        });
+        entity.structure_size = Self::clamp_structure_size((
+            get_int(entries, "sizeX").unwrap_or(0),
+            get_int(entries, "sizeY").unwrap_or(0),
+            get_int(entries, "sizeZ").unwrap_or(0),
+        ));
+        entity.rotation = get_string(entries, "rotation")
+            .and_then(StructureRotation::from_str)
+            .unwrap_or(StructureRotation::None);
+        entity.mirror = get_string(entries, "mirror")
+            .and_then(StructureMirror::from_str)
+            .unwrap_or(StructureMirror::None);
+        entity.ignore_entities = get_bool(entries, "ignoreEntities").unwrap_or(true);
+        entity.strict = get_bool(entries, "strict").unwrap_or(false);
+        entity.powered = get_bool(entries, "powered").unwrap_or(false);
+        entity.show_air = get_bool(entries, "showair").unwrap_or(false);
+        entity.show_bounding_box = get_bool(entries, "showboundingbox").unwrap_or(true);
+        entity.integrity = get_float(entries, "integrity").unwrap_or(1.0);
+        entity.seed = get_long(entries, "seed").unwrap_or(0);
+        entity
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn render_mode(&self) -> StructureRenderMode {
+        if !matches!(self.mode, StructureBlockMode::Save | StructureBlockMode::Load) {
+            StructureRenderMode::None
+        } else if self.mode == StructureBlockMode::Save && self.show_air {
+            StructureRenderMode::BoxAndInvisibleBlocks
+        } else if self.mode != StructureBlockMode::Save && !self.show_bounding_box {
+            StructureRenderMode::None
+        } else {
+            StructureRenderMode::Box
+        }
+    }
+
+    pub fn renderable_box(&self) -> StructureRenderableBox {
+        let x_origin = self.structure_pos.x;
+        let z_origin = self.structure_pos.z;
+        let y0 = self.structure_pos.y;
+        let y1 = y0 + self.structure_size.1;
+        let (x_diff, z_diff) = match self.mirror {
+            StructureMirror::LeftRight => (self.structure_size.0, -self.structure_size.2),
+            StructureMirror::FrontBack => (-self.structure_size.0, self.structure_size.2),
+            StructureMirror::None => (self.structure_size.0, self.structure_size.2),
+        };
+        let (x0, z0, x1, z1) = match self.rotation {
+            StructureRotation::Clockwise90 => {
+                let x0 = if z_diff < 0 { x_origin } else { x_origin + 1 };
+                let z0 = if x_diff < 0 { z_origin + 1 } else { z_origin };
+                (x0, z0, x0 - z_diff, z0 + x_diff)
+            }
+            StructureRotation::Clockwise180 => {
+                let x0 = if x_diff < 0 { x_origin } else { x_origin + 1 };
+                let z0 = if z_diff < 0 { z_origin } else { z_origin + 1 };
+                (x0, z0, x0 - x_diff, z0 - z_diff)
+            }
+            StructureRotation::Counterclockwise90 => {
+                let x0 = if z_diff < 0 { x_origin + 1 } else { x_origin };
+                let z0 = if x_diff < 0 { z_origin } else { z_origin + 1 };
+                (x0, z0, x0 + z_diff, z0 - x_diff)
+            }
+            StructureRotation::None => {
+                let x0 = if x_diff < 0 { x_origin + 1 } else { x_origin };
+                let z0 = if z_diff < 0 { z_origin + 1 } else { z_origin };
+                (x0, z0, x0 + x_diff, z0 + z_diff)
+            }
+        };
+        StructureRenderableBox {
+            min: BlockPos {
+                x: x0.min(x1),
+                y: y0.min(y1),
+                z: z0.min(z1),
+            },
+            max: BlockPos {
+                x: x0.max(x1),
+                y: y0.max(y1),
+                z: z0.max(z1),
+            },
+        }
+    }
+
+    fn clamp_structure_pos(pos: BlockPos) -> BlockPos {
+        BlockPos {
+            x: pos.x.clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
+            y: pos.y.clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
+            z: pos.z.clamp(-Self::MAX_OFFSET_PER_AXIS, Self::MAX_OFFSET_PER_AXIS),
+        }
+    }
+
+    fn clamp_structure_size(size: (i32, i32, i32)) -> (i32, i32, i32) {
+        (
+            size.0.clamp(0, Self::MAX_SIZE_PER_AXIS),
+            size.1.clamp(0, Self::MAX_SIZE_PER_AXIS),
+            size.2.clamp(0, Self::MAX_SIZE_PER_AXIS),
+        )
     }
 }
 
@@ -3620,6 +3941,13 @@ fn get_long(entries: &[(String, Tag)], key: &str) -> Option<i64> {
     })
 }
 
+fn get_float(entries: &[(String, Tag)], key: &str) -> Option<f32> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::Float(value) if name == key => Some(*value),
+        _ => None,
+    })
+}
+
 fn get_byte(entries: &[(String, Tag)], key: &str) -> Option<i8> {
     entries.iter().find_map(|(name, value)| match value {
         Tag::Byte(value) if name == key => Some(*value),
@@ -4510,6 +4838,65 @@ mod tests {
         assert_eq!(single_page.get_redstone_signal(), 15);
         single_page.clear_content();
         assert_eq!(single_page.save_additional(), Tag::Compound(Vec::new()));
+    }
+
+    #[test]
+    fn structure_block_entity_round_trips_bounds_and_render_box() {
+        let mut structure = StructureBlockEntity::new(StructureBlockMode::Save);
+        assert!(!structure.has_structure_name());
+        assert_eq!(structure.structure_name(), "");
+        structure.set_structure_name(Some("minecraft:village/plains/houses/plains_small_house_1"));
+        structure.author = "Builder".to_string();
+        structure.metadata = "data".to_string();
+        structure.set_structure_pos(BlockPos { x: 99, y: -99, z: 7 });
+        structure.set_structure_size((50, -2, 12));
+        structure.mirror = StructureMirror::LeftRight;
+        structure.rotation = StructureRotation::Clockwise90;
+        structure.ignore_entities = false;
+        structure.strict = true;
+        structure.powered = true;
+        structure.show_air = true;
+        structure.show_bounding_box = false;
+        structure.integrity = 0.65;
+        structure.seed = 12345;
+
+        assert_eq!(structure.structure_pos, BlockPos { x: 48, y: -48, z: 7 });
+        assert_eq!(structure.structure_size, (48, 0, 12));
+        assert_eq!(structure.render_mode(), StructureRenderMode::BoxAndInvisibleBlocks);
+        assert_eq!(
+            structure.renderable_box(),
+            StructureRenderableBox {
+                min: BlockPos { x: 48, y: -48, z: 7 },
+                max: BlockPos { x: 60, y: -48, z: 55 },
+            }
+        );
+
+        let saved = structure.save_additional();
+        assert_eq!(StructureBlockEntity::load_additional(&saved), structure);
+        assert_eq!(structure.get_update_tag(), saved);
+
+        let loaded = StructureBlockEntity::load_additional(&Tag::Compound(vec![
+            ("name".to_string(), Tag::String(String::new())),
+            ("posX".to_string(), Tag::Int(-99)),
+            ("posY".to_string(), Tag::Int(2)),
+            ("posZ".to_string(), Tag::Int(99)),
+            ("sizeX".to_string(), Tag::Int(-1)),
+            ("sizeY".to_string(), Tag::Int(64)),
+            ("sizeZ".to_string(), Tag::Int(9)),
+            ("rotation".to_string(), Tag::String("CLOCKWISE_180".to_string())),
+            ("mirror".to_string(), Tag::String("FRONT_BACK".to_string())),
+            ("mode".to_string(), Tag::String("LOAD".to_string())),
+            ("showboundingbox".to_string(), Tag::Byte(0)),
+        ]));
+        assert_eq!(loaded.structure_name, None);
+        assert_eq!(loaded.structure_pos, BlockPos { x: -48, y: 2, z: 48 });
+        assert_eq!(loaded.structure_size, (0, 48, 9));
+        assert_eq!(loaded.rotation, StructureRotation::Clockwise180);
+        assert_eq!(loaded.mirror, StructureMirror::FrontBack);
+        assert_eq!(loaded.mode, StructureBlockMode::Load);
+        assert_eq!(loaded.render_mode(), StructureRenderMode::None);
+        assert!(loaded.ignore_entities);
+        assert_eq!(loaded.integrity, 1.0);
     }
 
     #[test]
