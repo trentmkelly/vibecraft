@@ -163,6 +163,7 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "flate2",
+ "libc",
  "serde_json",
  "sha1",
 ]

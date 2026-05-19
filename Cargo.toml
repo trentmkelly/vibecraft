@@ -7,5 +7,6 @@ license = "UNLICENSED"
 [dependencies]
 aes = "0.8"
 flate2 = "1"
+libc = "0.2"
 serde_json = "1"
 sha1 = "0.10"

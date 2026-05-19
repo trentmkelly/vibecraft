@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use std::fs;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
 use std::path::{Component, Path, PathBuf};
 
 use crate::storage::nbt::{
@@ -8,6 +11,8 @@ use crate::storage::nbt::{
 };
 
 use super::datafix::require_current_world_data_version;
+
+const SESSION_LOCK_MARKER: &[u8] = "\u{2603}".as_bytes();
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldLayout {
@@ -136,22 +141,12 @@ impl WorldLayout {
         }
     }
 
-    pub fn write_session_lock(&self, token: i64) -> std::io::Result<()> {
-        fs::create_dir_all(&self.root)?;
-        fs::write(self.session_lock(), token.to_be_bytes())
+    pub fn acquire_session_lock(&self) -> std::io::Result<SessionLock> {
+        SessionLock::acquire(&self.root)
     }
 
-    pub fn read_session_lock(&self) -> std::io::Result<i64> {
-        let bytes = fs::read(self.session_lock())?;
-        if bytes.len() != 8 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "session.lock must contain one big-endian i64",
-            ));
-        }
-        let mut token = [0u8; 8];
-        token.copy_from_slice(&bytes);
-        Ok(i64::from_be_bytes(token))
+    pub fn is_session_locked(&self) -> std::io::Result<bool> {
+        SessionLock::is_locked(&self.root)
     }
 
     pub fn save_level_dat(&self, tag: &Tag) -> std::io::Result<()> {
@@ -323,6 +318,108 @@ impl WorldLayout {
     }
 }
 
+#[derive(Debug)]
+pub struct SessionLock {
+    file: File,
+}
+
+impl SessionLock {
+    pub fn acquire(dir: &Path) -> std::io::Result<Self> {
+        fs::create_dir_all(dir)?;
+        let lock_path = dir.join("session.lock");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&lock_path)?;
+        file.set_len(0)?;
+        file.write_all(SESSION_LOCK_MARKER)?;
+        file.sync_all()?;
+
+        lock_file_exclusive_nonblocking(&file, &lock_path)?;
+        Ok(Self { file })
+    }
+
+    pub fn is_locked(dir: &Path) -> std::io::Result<bool> {
+        let lock_path = dir.join("session.lock");
+        let file = match OpenOptions::new().write(true).open(&lock_path) {
+            Ok(file) => file,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => return Ok(true),
+            Err(err) => return Err(err),
+        };
+
+        match try_lock_file_exclusive_nonblocking(&file) {
+            Ok(()) => {
+                unlock_file(&file)?;
+                Ok(false)
+            }
+            Err(err) if is_would_block_lock_error(&err) => Ok(true),
+            Err(err) => Err(err),
+        }
+    }
+}
+
+impl Drop for SessionLock {
+    fn drop(&mut self) {
+        let _ = unlock_file(&self.file);
+    }
+}
+
+fn lock_file_exclusive_nonblocking(file: &File, lock_path: &Path) -> std::io::Result<()> {
+    try_lock_file_exclusive_nonblocking(file).map_err(|err| {
+        if is_would_block_lock_error(&err) {
+            std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                format!(
+                    "{}: already locked (possibly by other Minecraft instance?)",
+                    lock_path.display()
+                ),
+            )
+        } else {
+            err
+        }
+    })
+}
+
+#[cfg(unix)]
+fn try_lock_file_exclusive_nonblocking(file: &File) -> std::io::Result<()> {
+    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(unix)]
+fn unlock_file(file: &File) -> std::io::Result<()> {
+    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(unix))]
+fn try_lock_file_exclusive_nonblocking(_file: &File) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "session.lock file locking is only implemented on Unix targets",
+    ))
+}
+
+#[cfg(not(unix))]
+fn unlock_file(_file: &File) -> std::io::Result<()> {
+    Ok(())
+}
+
+fn is_would_block_lock_error(err: &std::io::Error) -> bool {
+    err.kind() == std::io::ErrorKind::WouldBlock
+        || err.raw_os_error() == Some(libc::EWOULDBLOCK)
+        || err.raw_os_error() == Some(libc::EAGAIN)
+}
+
 fn data_version_from_level_dat(tag: &Tag) -> Option<i32> {
     let Tag::Compound(values) = tag else {
         return None;
@@ -445,18 +542,42 @@ mod tests {
     }
 
     #[test]
-    fn creates_base_dirs_and_round_trips_session_lock() {
+    fn creates_base_dirs() {
         let mut path = std::env::temp_dir();
         path.push(format!("rustcraft-world-layout-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
 
         let layout = WorldLayout::new(&path);
         layout.ensure_base_dirs().unwrap();
-        layout.write_session_lock(123456).unwrap();
 
         assert!(layout.region_dir().is_dir());
         assert!(layout.entities_dir().is_dir());
-        assert_eq!(layout.read_session_lock().unwrap(), 123456);
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn session_lock_matches_vanilla_marker_and_enforces_exclusive_lock() {
+        let mut path = std::env::temp_dir();
+        path.push(format!("rustcraft-session-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        assert!(!layout.is_session_locked().unwrap());
+
+        let lock = layout.acquire_session_lock().unwrap();
+        assert_eq!(
+            fs::read(layout.session_lock()).unwrap(),
+            "\u{2603}".as_bytes()
+        );
+        assert!(layout.is_session_locked().unwrap());
+
+        let err = layout.acquire_session_lock().unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::WouldBlock);
+        assert!(err.to_string().contains("already locked"));
+
+        drop(lock);
+        assert!(!layout.is_session_locked().unwrap());
 
         let _ = fs::remove_dir_all(&path);
     }
