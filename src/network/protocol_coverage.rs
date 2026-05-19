@@ -543,7 +543,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "use_item_on",
         java_class: "ServerboundUseItemOnPacket",
-        field_order: "unparsed",
+        field_order: "hand:enum VarInt, block_hit:BlockHitResult, sequence:VarInt",
     },
     PlayPacketSpec {
         id: 67,

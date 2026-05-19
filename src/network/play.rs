@@ -297,6 +297,26 @@ pub struct ServerboundUseItemPacket {
     pub x_rot: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BlockHitResultPacketData {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub direction: Direction3d,
+    pub click_x: f32,
+    pub click_y: f32,
+    pub click_z: f32,
+    pub inside: bool,
+    pub world_border_hit: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerboundUseItemOnPacket {
+    pub hand: ServerboundSwingHand,
+    pub block_hit: BlockHitResultPacketData,
+    pub sequence: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerboundClientCommandAction {
     PerformRespawn,
@@ -1004,6 +1024,7 @@ pub struct PlaySession {
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub last_player_action: Option<ServerboundPlayerActionPacket>,
     pub last_use_item: Option<ServerboundUseItemPacket>,
+    pub last_use_item_on: Option<ServerboundUseItemOnPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1086,6 +1107,7 @@ impl PlaySession {
             last_player_command: None,
             last_player_action: None,
             last_use_item: None,
+            last_use_item_on: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1360,6 +1382,24 @@ impl PlaySession {
                         }
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad use item packet: {err}")),
+                }
+            }
+            SERVERBOUND_USE_ITEM_ON_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundUseItemOnPacket::read(&mut input) {
+                    Ok(use_item_on) => {
+                        if matches!(use_item_on.hand, ServerboundSwingHand::Unknown(_)) {
+                            DispatchOutcome::Disconnect(
+                                "unknown use item on interaction hand".to_string(),
+                            )
+                        } else {
+                            self.last_use_item_on = Some(use_item_on);
+                            DispatchOutcome::Handled
+                        }
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad use item on packet: {err}"))
+                    }
                 }
             }
             _ => {
@@ -2304,6 +2344,21 @@ impl Direction3d {
             Self::East => 5,
         }
     }
+
+    fn from_enum_id(id: i32) -> Self {
+        match id.rem_euclid(6) {
+            0 => Self::Down,
+            1 => Self::Up,
+            2 => Self::North,
+            3 => Self::South,
+            4 => Self::West,
+            _ => Self::East,
+        }
+    }
+
+    fn to_enum_id(self) -> i32 {
+        i32::from(self.to_id())
+    }
 }
 
 impl ServerboundPlayerAction {
@@ -2403,6 +2458,49 @@ impl ServerboundUseItemPacket {
         write_var_i32(writer, self.sequence)?;
         write_f32(writer, self.y_rot)?;
         write_f32(writer, self.x_rot)
+    }
+}
+
+impl BlockHitResultPacketData {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            direction: Direction3d::from_enum_id(read_var_i32(reader)?),
+            click_x: read_f32(reader)?,
+            click_y: read_f32(reader)?,
+            click_z: read_f32(reader)?,
+            inside: read_bool(reader)?,
+            world_border_hit: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_var_i32(writer, self.direction.to_enum_id())?;
+        write_f32(writer, self.click_x)?;
+        write_f32(writer, self.click_y)?;
+        write_f32(writer, self.click_z)?;
+        write_bool(writer, self.inside)?;
+        write_bool(writer, self.world_border_hit)
+    }
+}
+
+impl ServerboundUseItemOnPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?),
+            block_hit: BlockHitResultPacketData::read(reader)?,
+            sequence: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.hand.to_id())?;
+        self.block_hit.write(writer)?;
+        write_var_i32(writer, self.sequence)
     }
 }
 
@@ -4456,6 +4554,40 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_use_item, Some(use_item));
+
+        let use_item_on = ServerboundUseItemOnPacket {
+            hand: ServerboundSwingHand::MainHand,
+            block_hit: BlockHitResultPacketData {
+                x: -12,
+                y: 64,
+                z: 34,
+                direction: Direction3d::Up,
+                click_x: 0.25,
+                click_y: 0.5,
+                click_z: 0.75,
+                inside: true,
+                world_border_hit: false,
+            },
+            sequence: 301,
+        };
+        let mut use_item_on_payload = Vec::new();
+        use_item_on.write(&mut use_item_on_payload).unwrap();
+        assert_eq!(use_item_on_payload[0], 0);
+        assert_eq!(use_item_on_payload[9], 1);
+        assert_eq!(&use_item_on_payload[22..24], &[1, 0]);
+        assert_eq!(&use_item_on_payload[24..], &[0xad, 0x02]);
+        assert_eq!(
+            ServerboundUseItemOnPacket::read(&mut cursor(use_item_on_payload.clone())).unwrap(),
+            use_item_on
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_USE_ITEM_ON_PACKET_ID,
+                use_item_on_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_use_item_on, Some(use_item_on));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
