@@ -97,7 +97,7 @@
 - [x] For every recipe type: add `assemble()` result test verifying output item ID, count, and components
 - [x] For every recipe type: add `getRemainingItems()` test verifying remainder stacks (bottles, buckets) are returned
 - [x] For every recipe type: add recipe-book-unlock test verifying `RecipeHolder` is marked unlocked after crafting
-- [ ] For every recipe type: add client-recipe-sync test verifying the recipe packet payload matches the format expected by the 26.1.2 client
+- [x] For every recipe type: add client-recipe-sync test verifying the recipe packet payload matches the format expected by the 26.1.2 client
 - [ ] Add Mineflayer crafting/recipe-book test: unlock recipes, craft in 2×2 and 3×3 grids, open a workstation, verify recipe sync and result slots against vanilla
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Recipe Coverage

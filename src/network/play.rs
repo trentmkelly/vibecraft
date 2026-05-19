@@ -8261,6 +8261,14 @@ mod tests {
         }
     }
 
+    fn stack(count: i32, item_id: i32) -> RawItemStack {
+        RawItemStack {
+            count,
+            item_id: Some(item_id),
+            components: RawDataComponentPatch::empty(),
+        }
+    }
+
     #[test]
     fn play_packet_registry_matches_game_protocol_order_and_counts() {
         let registry = PlayProtocolRegistry::new();
@@ -8362,6 +8370,160 @@ mod tests {
         );
         assert_eq!(registry.serverbound().last(), Some(&"custom_click_action"));
         assert_eq!(registry.clientbound().last(), Some(&"show_dialog"));
+    }
+
+    #[test]
+    fn recipe_book_add_packet_matches_vanilla_display_and_slot_stream_order() {
+        let mut payload = Vec::new();
+        ClientboundRecipeBookAddPacket {
+            entries: vec![
+                RecipeBookAddEntry::new(
+                    RecipeDisplayEntryData {
+                        id: 0,
+                        display: RecipeDisplayData::CraftingShapeless {
+                            ingredients: vec![
+                                SlotDisplayData::Item { item_id: 1 },
+                                SlotDisplayData::Tag {
+                                    tag: Identifier::parse("minecraft:planks").unwrap(),
+                                },
+                            ],
+                            result: SlotDisplayData::ItemStack { stack: stack(1, 2) },
+                            crafting_station: SlotDisplayData::Item { item_id: 3 },
+                        },
+                        group: None,
+                        category_id: 0,
+                        crafting_requirements: None,
+                    },
+                    false,
+                    false,
+                ),
+                RecipeBookAddEntry::new(
+                    RecipeDisplayEntryData {
+                        id: 1,
+                        display: RecipeDisplayData::CraftingShaped {
+                            width: 2,
+                            height: 2,
+                            ingredients: vec![
+                                SlotDisplayData::Empty,
+                                SlotDisplayData::Item { item_id: 4 },
+                                SlotDisplayData::WithRemainder {
+                                    input: Box::new(SlotDisplayData::Item { item_id: 5 }),
+                                    remainder: Box::new(SlotDisplayData::ItemStack {
+                                        stack: stack(1, 6),
+                                    }),
+                                },
+                                SlotDisplayData::Composite(vec![
+                                    SlotDisplayData::Item { item_id: 7 },
+                                    SlotDisplayData::Tag {
+                                        tag: Identifier::parse("minecraft:logs").unwrap(),
+                                    },
+                                ]),
+                            ],
+                            result: SlotDisplayData::Item { item_id: 8 },
+                            crafting_station: SlotDisplayData::Item { item_id: 9 },
+                        },
+                        group: Some(0),
+                        category_id: 1,
+                        crafting_requirements: Some(vec![
+                            RecipeIngredientData::DirectItems(vec![4]),
+                            RecipeIngredientData::Tag(Identifier::parse("minecraft:wool").unwrap()),
+                        ]),
+                    },
+                    true,
+                    true,
+                ),
+                RecipeBookAddEntry::new(
+                    RecipeDisplayEntryData {
+                        id: 2,
+                        display: RecipeDisplayData::Furnace {
+                            ingredient: SlotDisplayData::WithAnyPotion(Box::new(
+                                SlotDisplayData::Item { item_id: 10 },
+                            )),
+                            fuel: SlotDisplayData::AnyFuel,
+                            result: SlotDisplayData::ItemStack {
+                                stack: stack(2, 11),
+                            },
+                            crafting_station: SlotDisplayData::Item { item_id: 12 },
+                            duration: 200,
+                            experience_bits: 1.0f32.to_bits(),
+                        },
+                        group: None,
+                        category_id: 2,
+                        crafting_requirements: None,
+                    },
+                    false,
+                    false,
+                ),
+                RecipeBookAddEntry::new(
+                    RecipeDisplayEntryData {
+                        id: 3,
+                        display: RecipeDisplayData::Stonecutter {
+                            ingredient: SlotDisplayData::OnlyWithComponent {
+                                contents: Box::new(SlotDisplayData::Item { item_id: 13 }),
+                                component_type_id: 14,
+                            },
+                            result: SlotDisplayData::Dyed {
+                                dye: Box::new(SlotDisplayData::Item { item_id: 15 }),
+                                target: Box::new(SlotDisplayData::Item { item_id: 16 }),
+                            },
+                            crafting_station: SlotDisplayData::Item { item_id: 17 },
+                        },
+                        group: None,
+                        category_id: 3,
+                        crafting_requirements: None,
+                    },
+                    false,
+                    false,
+                ),
+                RecipeBookAddEntry::new(
+                    RecipeDisplayEntryData {
+                        id: 4,
+                        display: RecipeDisplayData::Smithing {
+                            template: SlotDisplayData::Item { item_id: 18 },
+                            base: SlotDisplayData::SmithingTrim {
+                                base: Box::new(SlotDisplayData::Item { item_id: 19 }),
+                                material: Box::new(SlotDisplayData::Item { item_id: 20 }),
+                                pattern_id: 21,
+                            },
+                            addition: SlotDisplayData::Item { item_id: 22 },
+                            result: SlotDisplayData::Item { item_id: 24 },
+                            crafting_station: SlotDisplayData::Item { item_id: 23 },
+                        },
+                        group: None,
+                        category_id: 4,
+                        crafting_requirements: None,
+                    },
+                    false,
+                    false,
+                ),
+            ],
+            replace: true,
+        }
+        .write(&mut payload)
+        .unwrap();
+
+        assert_eq!(
+            payload,
+            [
+                vec![5],
+                vec![0, 0, 2, 4, 1, 6, 16],
+                b"minecraft:planks".to_vec(),
+                vec![5, 1, 2, 0, 0, 4, 3, 0, 0, 0, 0],
+                vec![1, 1, 2, 2, 4, 0, 4, 4, 9, 4, 5, 5, 1, 6, 0, 0, 10, 2, 4, 7, 6, 14],
+                b"minecraft:logs".to_vec(),
+                vec![4, 8, 4, 9, 1, 1, 1, 2, 2, 4, 0, 14],
+                b"minecraft:wool".to_vec(),
+                vec![3],
+                vec![
+                    2, 2, 2, 4, 10, 1, 5, 2, 11, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2,
+                    0, 0
+                ],
+                vec![3, 3, 3, 4, 13, 14, 7, 4, 15, 4, 16, 4, 17, 0, 3, 0, 0],
+                vec![4, 4, 4, 18, 8, 4, 19, 4, 20, 21, 4, 22, 4, 24, 4, 23, 0, 4, 0, 0],
+                vec![1],
+            ]
+            .concat()
+        );
     }
 
     #[test]
