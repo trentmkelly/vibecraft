@@ -5,6 +5,7 @@ import {
   loadConfigurationRegistryCodecAudit,
   readCodecAuditSources
 } from './configuration_registry_codec_audit.mjs'
+import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
 
 test('configuration registry codec audit covers every synchronized registry', async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
@@ -32,6 +33,28 @@ test('configuration registry codec audit records field evidence for every synchr
       entry.notes.length > 0 || (!entry.emitted && entry.omission),
       `${entry.registry} needs a note explaining manual/extracted codec evidence or omission evidence`
     )
+  }
+})
+
+test('synced registry unit manifest asserts counts, client IDs, and codec NBT fields', async () => {
+  const audit = await loadConfigurationRegistryCodecAudit()
+  const synced = audit.filter(entry => entry.emitted)
+
+  for (const entry of synced) {
+    assert.equal(
+      typeof configurationCompletionManifest.elementCounts[entry.registry],
+      'number',
+      `${entry.registry} must have an exact element count`
+    )
+    assert.ok(
+      configurationCompletionManifest.elementCounts[entry.registry] > 0,
+      `${entry.registry} must not be represented by an empty synced registry`
+    )
+    for (const element of configurationCompletionManifest.requiredElements[entry.registry] ?? []) {
+      assert.equal(typeof element, 'string', `${entry.registry} client-referenced IDs must be explicit strings`)
+      assert.ok(element.startsWith('minecraft:'), `${entry.registry} client-referenced ID ${element} must be namespaced`)
+    }
+    assert.ok(entry.requiredFields.length > 0, `${entry.registry} needs decompiled NBT field names`)
   }
 })
 

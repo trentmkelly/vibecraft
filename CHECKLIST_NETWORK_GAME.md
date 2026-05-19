@@ -381,7 +381,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Sync `minecraft:timeline` during configuration or document and verify why the client accepts it omitted for the current milestone.
 - [x] Sync `minecraft:damage_type` tags during configuration, including `minecraft:is_fire`.
 - [x] Sync `minecraft:banner_pattern` tags during configuration, including every `minecraft:pattern_item/*` tag used by banner pattern items.
-- [ ] Add unit tests for each synced registry that assert exact element counts, client-referenced IDs, and NBT field names expected by the decompiled network/direct codecs.
+- [x] Add unit tests for each synced registry that assert exact element counts, client-referenced IDs, and NBT field names expected by the decompiled network/direct codecs.
 - [x] Add unit tests for each synced tag registry that assert required tag names and entry indices match the local registry order.
 - [ ] Mark the raw 26.1.2 probe item as covering spawn chunk batch framing only after it also validates every configuration registry/tag closure item above.
 - [x] Add a Mineflayer configuration-state test that receives registries, tags, enabled features, known packs, and finish-configuration in vanilla order.
