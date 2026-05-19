@@ -90,7 +90,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ServerboundContainerClickPacket` (0x0C): window ID byte, state ID VarInt, slot short, button byte, click type VarInt, changed slots map, carried item
 - [ ] `ServerboundContainerClosePacket` (0x0D): window ID byte
-- [x] `ServerboundSetCarriedItemPacket` (0x2B): slot short
+- [x] `ServerboundSetCarriedItemPacket` (0x35): slot short
 - [ ] `ServerboundPickItemFromBlockPacket` and `ServerboundPickItemFromEntityPacket`: creative-mode middle-click
 - [ ] `ServerboundEditBookPacket` (0x14): hand, pages list, optional title
 - [ ] `ServerboundRenameItemPacket` (0x25): name string
@@ -190,18 +190,18 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundUseItemOnPacket` (0x36): hand, hit result (block pos, direction, hit vector, inside flag), sequence VarInt
 - [ ] `ServerboundUseItemPacket` (0x37): hand, sequence VarInt, yaw/pitch
 - [ ] `ServerboundPlayerActionPacket` (0x1D): action (start-dig, abort-dig, stop-dig, drop-all, drop-one, release-use, swap-held), block pos, face direction, sequence VarInt
-- [x] `ServerboundSwingPacket` (0x2E): hand VarInt
+- [x] `ServerboundSwingPacket` (0x3F): hand VarInt
 - [ ] `ServerboundPlayerCommandPacket` (0x1E): entity ID, action (start-sneaking, stop-sneaking, leave-bed, start-sprinting, stop-sprinting, start-riding-jump, stop-riding-jump, open-inventory, start-fall-flying), jump-boost int
 
 ## Player Movement (Serverbound)
 
-- [ ] `ServerboundMovePlayerPacket.Pos` (0x1B): pos X/Y/Z, on-ground bool, horizontal-collision bool
-- [ ] `ServerboundMovePlayerPacket.PosRot` (0x1C): pos X/Y/Z, yaw/pitch, on-ground bool, horizontal-collision bool
-- [ ] `ServerboundMovePlayerPacket.Rot` (0x1D): yaw/pitch, on-ground bool, horizontal-collision bool
-- [ ] `ServerboundMovePlayerPacket.StatusOnly` (0x1E): on-ground bool, horizontal-collision bool
-- [ ] `ServerboundMoveVehiclePacket` (0x1F): pos X/Y/Z, yaw, pitch
+- [x] `ServerboundMovePlayerPacket.Pos` (0x1E): pos X/Y/Z, on-ground bool, horizontal-collision bool
+- [x] `ServerboundMovePlayerPacket.PosRot` (0x1F): pos X/Y/Z, yaw/pitch, on-ground bool, horizontal-collision bool
+- [x] `ServerboundMovePlayerPacket.Rot` (0x20): yaw/pitch, on-ground bool, horizontal-collision bool
+- [x] `ServerboundMovePlayerPacket.StatusOnly` (0x21): on-ground bool, horizontal-collision bool
+- [ ] `ServerboundMoveVehiclePacket` (0x22): pos X/Y/Z, yaw, pitch
 - [x] `ServerboundPaddleBoatPacket` (0x23): left-paddle, right-paddle booleans
-- [x] `ServerboundPlayerInputPacket` (0x21): single-byte `Input.STREAM_CODEC` bitset for forward, backward, left, right, jump, shift, and sprint flags (26.1.2 format)
+- [x] `ServerboundPlayerInputPacket` (0x2B): single-byte `Input.STREAM_CODEC` bitset for forward, backward, left, right, jump, shift, and sprint flags (26.1.2 format)
 - [x] `ServerboundPlayerLoadedPacket` (0x2C): empty payload
 - [ ] `ClientboundPlayerPositionPacket` (0x40): pos X/Y/Z, velocity X/Y/Z, yaw, pitch, relative flags (4-byte INT bitmask — not VarInt), teleport ID VarInt
 

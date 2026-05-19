@@ -2492,8 +2492,20 @@ impl ServerboundMovePlayerPacket {
         writer.write_all(&[pack_move_flags(self.on_ground, self.horizontal_collision)])
     }
 
+    pub fn write_pos<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.write_shape(writer, MoveShape::Pos)
+    }
+
     pub fn write_pos_rot<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.write_shape(writer, MoveShape::PosRot)
+    }
+
+    pub fn write_rot<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.write_shape(writer, MoveShape::Rot)
+    }
+
+    pub fn write_status_only<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.write_shape(writer, MoveShape::StatusOnly)
     }
 }
 
@@ -3747,6 +3759,68 @@ mod tests {
         assert!(decoded.horizontal_collision);
         assert!(decoded.has_position);
         assert!(decoded.has_rotation);
+    }
+
+    #[test]
+    fn move_player_packet_shapes_match_vanilla_field_layouts() {
+        let movement = ServerboundMovePlayerPacket {
+            x: 1.25,
+            y: 65.0,
+            z: -2.5,
+            y_rot: 90.0,
+            x_rot: 30.0,
+            on_ground: true,
+            horizontal_collision: true,
+            has_position: true,
+            has_rotation: true,
+        };
+
+        let mut pos = Vec::new();
+        movement.write_pos(&mut pos).unwrap();
+        assert_eq!(pos.len(), 25);
+        let decoded_pos =
+            ServerboundMovePlayerPacket::read_shape(&mut cursor(pos), MoveShape::Pos).unwrap();
+        assert_eq!(decoded_pos.x, 1.25);
+        assert_eq!(decoded_pos.y, 65.0);
+        assert_eq!(decoded_pos.z, -2.5);
+        assert_eq!(decoded_pos.y_rot, 0.0);
+        assert!(decoded_pos.on_ground);
+        assert!(decoded_pos.horizontal_collision);
+        assert!(decoded_pos.has_position);
+        assert!(!decoded_pos.has_rotation);
+
+        let mut pos_rot = Vec::new();
+        movement.write_pos_rot(&mut pos_rot).unwrap();
+        assert_eq!(pos_rot.len(), 33);
+        let decoded_pos_rot =
+            ServerboundMovePlayerPacket::read_shape(&mut cursor(pos_rot), MoveShape::PosRot)
+                .unwrap();
+        assert_eq!(decoded_pos_rot.x, 1.25);
+        assert_eq!(decoded_pos_rot.y_rot, 90.0);
+        assert!(decoded_pos_rot.has_position);
+        assert!(decoded_pos_rot.has_rotation);
+
+        let mut rot = Vec::new();
+        movement.write_rot(&mut rot).unwrap();
+        assert_eq!(rot.len(), 9);
+        let decoded_rot =
+            ServerboundMovePlayerPacket::read_shape(&mut cursor(rot), MoveShape::Rot).unwrap();
+        assert_eq!(decoded_rot.x, 0.0);
+        assert_eq!(decoded_rot.y_rot, 90.0);
+        assert!(decoded_rot.horizontal_collision);
+        assert!(!decoded_rot.has_position);
+        assert!(decoded_rot.has_rotation);
+
+        let mut status_only = Vec::new();
+        movement.write_status_only(&mut status_only).unwrap();
+        assert_eq!(status_only, vec![3]);
+        let decoded_status =
+            ServerboundMovePlayerPacket::read_shape(&mut cursor(status_only), MoveShape::StatusOnly)
+                .unwrap();
+        assert!(decoded_status.on_ground);
+        assert!(decoded_status.horizontal_collision);
+        assert!(!decoded_status.has_position);
+        assert!(!decoded_status.has_rotation);
     }
 
     #[test]
