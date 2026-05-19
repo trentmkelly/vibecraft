@@ -466,6 +466,14 @@ mod tests {
         assert_eq!(
             plan_movement(MovementContext {
                 portal: PortalContact::End,
+                ..MovementContext::default()
+            })
+            .portal_action,
+            Some(PortalAction::EnterEndPortal)
+        );
+        assert_eq!(
+            plan_movement(MovementContext {
+                portal: PortalContact::End,
                 portal_cooldown: 4,
                 ..MovementContext::default()
             })

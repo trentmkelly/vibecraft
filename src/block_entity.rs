@@ -153,6 +153,9 @@ pub struct BedBlockEntity {
     pub color: DyeColor,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EndPortalBlockEntity;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
@@ -502,6 +505,12 @@ impl BedBlockEntity {
         Some(Self { color })
     }
 
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(Vec::new())
+    }
+}
+
+impl EndPortalBlockEntity {
     pub fn save_additional(&self) -> Tag {
         Tag::Compound(Vec::new())
     }
@@ -1645,6 +1654,32 @@ mod tests {
             Tag::Compound(vec![
                 ("components".to_string(), Tag::Compound(Vec::new())),
                 ("id".to_string(), Tag::String("bed".to_string())),
+                ("x".to_string(), Tag::Int(pos().x)),
+                ("y".to_string(), Tag::Int(pos().y)),
+                ("z".to_string(), Tag::Int(pos().z)),
+            ])
+        );
+    }
+
+    #[test]
+    fn end_portal_block_entity_is_zero_data_portal_placeholder() {
+        let portal =
+            BlockEntity::new(BlockEntityTypeId::EndPortal, pos(), "minecraft:end_portal").unwrap();
+        assert_eq!(portal.ty, BlockEntityTypeId::EndPortal);
+        assert_eq!(type_info(BlockEntityTypeId::EndPortal).key, "end_portal");
+        assert_eq!(
+            type_info(BlockEntityTypeId::EndPortal).valid_blocks,
+            &["minecraft:end_portal"]
+        );
+        assert_eq!(
+            EndPortalBlockEntity.save_additional(),
+            Tag::Compound(Vec::new())
+        );
+        assert_eq!(
+            portal.save_with_full_metadata(),
+            Tag::Compound(vec![
+                ("components".to_string(), Tag::Compound(Vec::new())),
+                ("id".to_string(), Tag::String("end_portal".to_string())),
                 ("x".to_string(), Tag::Int(pos().x)),
                 ("y".to_string(), Tag::Int(pos().y)),
                 ("z".to_string(), Tag::Int(pos().z)),
