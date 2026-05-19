@@ -24,8 +24,7 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    unpack_block_position, ClientboundLevelChunkPacketData,
-    ClientboundLevelChunkWithLightPacket,
+    unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, CommonPlayerSpawnInfo, GameMode,
     CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
     CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
@@ -3985,10 +3984,31 @@ fn load_favicon(path: &Path) -> io::Result<Option<String>> {
     }
 
     let bytes = fs::read(path)?;
+    let (width, height) = png_dimensions(&bytes)?;
+    if width != 64 || height != 64 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("server-icon.png must be 64x64, got {width}x{height}"),
+        ));
+    }
     Ok(Some(format!(
         "data:image/png;base64,{}",
         encode_base64(&bytes)
     )))
+}
+
+fn png_dimensions(bytes: &[u8]) -> io::Result<(u32, u32)> {
+    const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+    if bytes.len() < 24 || &bytes[..8] != PNG_SIGNATURE || &bytes[12..16] != b"IHDR" {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "server-icon.png must be a PNG with an IHDR header",
+        ));
+    }
+
+    let width = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
+    let height = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
+    Ok((width, height))
 }
 
 pub fn status_json(properties: &ServerProperties, favicon: Option<&str>) -> String {
@@ -4066,7 +4086,7 @@ mod tests {
         banner_pattern_nbt, cat_sound_variant_nbt, chat_type_nbt, chicken_sound_variant_nbt,
         chunk_batch_size, chunk_window, cow_sound_variant_nbt, encode_base64, escape_json_string,
         handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
-        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
+        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response, load_favicon,
         newly_visible_chunks, pig_sound_variant_nbt, read_packet, status_json, trim_material_nbt,
         trim_pattern_nbt, vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
         visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
@@ -4105,8 +4125,9 @@ mod tests {
     use crate::storage::nbt::Tag;
     use crate::{biome, damage_type, equipment_trim, presentation_data};
     use std::collections::BTreeSet;
+    use std::fs;
     use std::io::{self, Cursor, Read, Write};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     struct SynchronizedRegistryManifestEntry {
         registry_id: &'static str,
@@ -4291,11 +4312,50 @@ mod tests {
     }
 
     #[test]
+    fn server_icon_loader_requires_64_by_64_png_and_encodes_data_uri() {
+        let path = temp_status_test_path("server-icon-64.png");
+        fs::write(&path, png_header(64, 64)).unwrap();
+
+        let favicon = load_favicon(&path).unwrap().unwrap();
+        assert!(favicon.starts_with("data:image/png;base64,"));
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn server_icon_loader_rejects_wrong_png_dimensions() {
+        let path = temp_status_test_path("server-icon-32.png");
+        fs::write(&path, png_header(32, 64)).unwrap();
+
+        let error = load_favicon(&path).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("64x64"));
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn encodes_base64_padding_cases() {
         assert_eq!(encode_base64(b""), "");
         assert_eq!(encode_base64(b"f"), "Zg==");
         assert_eq!(encode_base64(b"fo"), "Zm8=");
         assert_eq!(encode_base64(b"foo"), "Zm9v");
+    }
+
+    fn temp_status_test_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("rustcraft-status-{}-{name}", std::process::id()))
+    }
+
+    fn png_header(width: u32, height: u32) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+        bytes.extend_from_slice(&13_u32.to_be_bytes());
+        bytes.extend_from_slice(b"IHDR");
+        bytes.extend_from_slice(&width.to_be_bytes());
+        bytes.extend_from_slice(&height.to_be_bytes());
+        bytes.extend_from_slice(&[8, 6, 0, 0, 0]);
+        bytes.extend_from_slice(&0_u32.to_be_bytes());
+        bytes
     }
 
     #[test]
