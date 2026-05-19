@@ -1273,6 +1273,57 @@ pub struct ClientboundSetScorePacket {
     pub number_format: Option<NumberFormat>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundSetPlayerTeamPacket {
+    pub name: String,
+    pub method: TeamPacketMethod,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TeamPacketMethod {
+    Create {
+        parameters: TeamPacketParameters,
+        players: Vec<String>,
+    },
+    Remove,
+    Update {
+        parameters: TeamPacketParameters,
+    },
+    AddPlayers {
+        players: Vec<String>,
+    },
+    RemovePlayers {
+        players: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TeamPacketParameters {
+    pub display_name: Tag,
+    pub options: u8,
+    pub nametag_visibility: TeamVisibility,
+    pub collision_rule: TeamCollisionRule,
+    pub color_id: i32,
+    pub prefix: Tag,
+    pub suffix: Tag,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TeamVisibility {
+    Always = 0,
+    Never = 1,
+    HideForOtherTeams = 2,
+    HideForOwnTeam = 3,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TeamCollisionRule {
+    Always = 0,
+    Never = 1,
+    PushOtherTeams = 2,
+    PushOwnTeam = 3,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundResourcePackPopPacket {
     pub id: Option<Uuid>,
@@ -3462,6 +3513,55 @@ impl NumberFormat {
             }
         }
     }
+}
+
+impl ClientboundSetPlayerTeamPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, 32767)?;
+        match &self.method {
+            TeamPacketMethod::Create {
+                parameters,
+                players,
+            } => {
+                writer.write_all(&[0])?;
+                parameters.write(writer)?;
+                write_team_players(writer, players)
+            }
+            TeamPacketMethod::Remove => writer.write_all(&[1]),
+            TeamPacketMethod::Update { parameters } => {
+                writer.write_all(&[2])?;
+                parameters.write(writer)
+            }
+            TeamPacketMethod::AddPlayers { players } => {
+                writer.write_all(&[3])?;
+                write_team_players(writer, players)
+            }
+            TeamPacketMethod::RemovePlayers { players } => {
+                writer.write_all(&[4])?;
+                write_team_players(writer, players)
+            }
+        }
+    }
+}
+
+impl TeamPacketParameters {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.display_name)?;
+        writer.write_all(&[self.options])?;
+        write_var_i32(writer, self.nametag_visibility as i32)?;
+        write_var_i32(writer, self.collision_rule as i32)?;
+        write_var_i32(writer, self.color_id)?;
+        write_network_tag(writer, &self.prefix)?;
+        write_network_tag(writer, &self.suffix)
+    }
+}
+
+fn write_team_players<W: Write>(writer: &mut W, players: &[String]) -> io::Result<()> {
+    write_var_i32(writer, players.len() as i32)?;
+    for player in players {
+        write_string(writer, player, 32767)?;
+    }
+    Ok(())
 }
 
 impl ClientboundResourcePackPopPacket {
@@ -7294,6 +7394,55 @@ mod tests {
         );
         assert!(set_score.windows(3).any(|window| window == [0x02, 1, 10]));
         assert_eq!(&set_score[set_score.len() - 3..], &[0, 1, 0]);
+
+        let team_params = TeamPacketParameters {
+            display_name: Tag::Compound(vec![("text".to_string(), Tag::String("Red".to_string()))]),
+            options: 0b11,
+            nametag_visibility: TeamVisibility::HideForOtherTeams,
+            collision_rule: TeamCollisionRule::PushOwnTeam,
+            color_id: 12,
+            prefix: Tag::Compound(vec![("text".to_string(), Tag::String("[".to_string()))]),
+            suffix: Tag::Compound(vec![("text".to_string(), Tag::String("]".to_string()))]),
+        };
+        let mut team_create = Vec::new();
+        ClientboundSetPlayerTeamPacket {
+            name: "red".to_string(),
+            method: TeamPacketMethod::Create {
+                parameters: team_params.clone(),
+                players: vec!["Alex".to_string(), "Steve".to_string()],
+            },
+        }
+        .write(&mut team_create)
+        .unwrap();
+        assert_eq!(&team_create[..5], &[3, b'r', b'e', b'd', 0]);
+        assert!(team_create.windows(4).any(|window| window == [3, 2, 3, 12]));
+        assert!(team_create.ends_with(b"\x05Steve"));
+
+        let mut team_update = Vec::new();
+        ClientboundSetPlayerTeamPacket {
+            name: "red".to_string(),
+            method: TeamPacketMethod::Update {
+                parameters: team_params,
+            },
+        }
+        .write(&mut team_update)
+        .unwrap();
+        assert_eq!(&team_update[..5], &[3, b'r', b'e', b'd', 2]);
+        assert!(!team_update.ends_with(b"Steve"));
+
+        let mut team_remove_players = Vec::new();
+        ClientboundSetPlayerTeamPacket {
+            name: "red".to_string(),
+            method: TeamPacketMethod::RemovePlayers {
+                players: vec!["Alex".to_string()],
+            },
+        }
+        .write(&mut team_remove_players)
+        .unwrap();
+        assert_eq!(
+            team_remove_players,
+            [vec![3], b"red".to_vec(), vec![4, 1, 4], b"Alex".to_vec()].concat()
+        );
 
         let mut boss_add = Vec::new();
         ClientboundBossEventPacket {

@@ -1329,7 +1329,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_player_team",
         java_class: "ClientboundSetPlayerTeamPacket",
-        field_order: "unparsed",
+        field_order: "name:String, method:byte, if create/update parameters(displayName:trusted Component network NBT tag, options:byte, nametagVisibility:Team.Visibility VarInt, collisionRule:Team.CollisionRule VarInt, color:ChatFormatting enum VarInt, prefix:trusted Component network NBT tag, suffix:trusted Component network NBT tag), if create/join/leave players:List<String>",
     },
     PlayPacketSpec {
         id: 110,
