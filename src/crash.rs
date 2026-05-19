@@ -102,7 +102,7 @@ impl CrashReport {
 
     pub fn write_to_dir(&self, dir: &Path) -> std::io::Result<PathBuf> {
         fs::create_dir_all(dir)?;
-        let path = dir.join(format!("crash-{}.txt", timestamp()));
+        let path = dir.join(format!("crash-{}-server.txt", timestamp()));
         fs::write(&path, self.render())?;
         Ok(path)
     }
@@ -118,6 +118,7 @@ fn timestamp() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::CrashReport;
+    use std::fs;
 
     #[test]
     fn rendered_crash_report_contains_required_sections() {
@@ -136,5 +137,26 @@ mod tests {
         assert!(rendered.contains("-- System Details --"));
         assert!(rendered.contains("World State: not loaded"));
         assert!(rendered.contains("-- Backtrace --"));
+    }
+
+    #[test]
+    fn writes_vanilla_named_server_crash_report_file() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-crash-report-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+
+        let report = CrashReport {
+            title: "boom".to_string(),
+            details: vec![("Thread".to_string(), "main".to_string())],
+            backtrace: "trace".to_string(),
+        };
+
+        let path = report.write_to_dir(&dir).unwrap();
+        let file_name = path.file_name().unwrap().to_string_lossy();
+        assert!(file_name.starts_with("crash-"));
+        assert!(file_name.ends_with("-server.txt"));
+        assert!(fs::read_to_string(path).unwrap().contains("Description: boom"));
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }
