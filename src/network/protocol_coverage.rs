@@ -1133,7 +1133,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "resource_pack_push",
         java_class: "ClientboundResourcePackPushPacket",
-        field_order: "unparsed",
+        field_order: "id:UUID, url:String, hash:String(max 40), required:bool, prompt:Optional<trusted context-free Component network NBT tag>",
     },
     PlayPacketSpec {
         id: 82,

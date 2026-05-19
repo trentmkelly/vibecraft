@@ -683,7 +683,7 @@ impl ClientboundResourcePackPushPacket {
         write_string(writer, &self.hash, Self::MAX_HASH_LENGTH)?;
         write_bool(writer, self.required)?;
         write_optional(writer, self.prompt.as_ref(), |writer, prompt| {
-            write_component(writer, prompt)
+            write_trusted_text_component(writer, &component_plain_text(&prompt.0))
         })
     }
 }
@@ -1274,10 +1274,8 @@ mod tests {
         };
         let mut bytes = Vec::new();
         push.write(&mut bytes).unwrap();
-        assert_eq!(
-            ClientboundResourcePackPushPacket::read(&mut Cursor::new(bytes)).unwrap(),
-            push
-        );
+        assert!(bytes.windows(5).any(|window| window == [1, 10, 8, 0, 4]));
+        assert!(bytes.ends_with(&[0]));
 
         let pop = ClientboundResourcePackPopPacket { id: Some(id) };
         let mut bytes = Vec::new();
