@@ -88,7 +88,9 @@ export function createConfigurationRegistryCodecAudit (closureReport) {
 }
 
 export async function loadConfigurationRegistryCodecAudit () {
-  return createConfigurationRegistryCodecAudit(await loadConfigurationRegistryClosureReport())
+  const audit = createConfigurationRegistryCodecAudit(await loadConfigurationRegistryClosureReport())
+  const sources = await readCodecAuditSources(audit)
+  return audit.map(entry => enrichCodecAuditEntry(entry, sources.get(entry.sourceFile) ?? ''))
 }
 
 export async function readCodecAuditSources (audit) {
@@ -97,6 +99,70 @@ export async function readCodecAuditSources (audit) {
     return [sourceFile, await readFile(sourceFile, 'utf8')]
   }))
   return new Map(pairs)
+}
+
+export function enrichCodecAuditEntry (entry, source) {
+  const extracted = extractCodecFields(source)
+  const requiredFields = entry.requiredFields.length > 0
+    ? entry.requiredFields
+    : extracted.requiredFields
+  const optionalFields = unique([
+    ...entry.optionalFields,
+    ...extracted.optionalFields.filter(field => !entry.requiredFields.includes(field))
+  ])
+  const holderFields = unique([...entry.holderFields, ...extracted.holderFields])
+  const tagFields = unique([...entry.tagFields, ...extracted.tagFields])
+  const notes = [...entry.notes]
+  if (entry.requiredFields.length === 0 && requiredFields.length > 0) {
+    notes.push('Required fields were extracted from decompiled fieldOf(...) declarations.')
+  }
+  if (entry.optionalFields.length === 0 && optionalFields.length > 0) {
+    notes.push('Optional/defaulted fields were extracted from decompiled optionalFieldOf(...) declarations.')
+  }
+
+  return {
+    ...entry,
+    requiredFields,
+    optionalFields,
+    holderFields,
+    tagFields,
+    codecFieldSource: source ? 'decompiled-source' : 'missing-source',
+    notes
+  }
+}
+
+export function extractCodecFields (source) {
+  const requiredFields = []
+  const optionalFields = []
+  const holderFields = []
+  const tagFields = []
+
+  for (const match of source.matchAll(/(?:optional)?fieldOf\("([^"]+)"/g)) {
+    const prefix = source.slice(Math.max(0, match.index - 96), match.index)
+    const field = match[1]
+    if (prefix.includes('optional')) {
+      optionalFields.push(field)
+    } else {
+      requiredFields.push(field)
+    }
+    if (prefix.includes('RegistryCodecs') || prefix.includes('HolderSet') || prefix.includes('Holder.CODEC')) {
+      holderFields.push(field)
+    }
+    if (prefix.includes('TagKey') || prefix.includes('TagCodec')) {
+      tagFields.push(field)
+    }
+  }
+
+  return {
+    requiredFields: unique(requiredFields),
+    optionalFields: unique(optionalFields),
+    holderFields: unique(holderFields),
+    tagFields: unique(tagFields)
+  }
+}
+
+function unique (values) {
+  return [...new Set(values)]
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -12,9 +12,27 @@ test('configuration registry codec audit covers every synchronized registry', as
   assert.equal(audit.length, 28, '26.1.2 synchronized registry count changed')
   assert.deepEqual(audit.filter(entry => !entry.sourceFile), [], 'each registry needs a decompiled codec source file')
   assert.deepEqual(audit.filter(entry => entry.shape !== 'network-compound' && entry.shape !== 'direct-compound'), [])
+  assert.deepEqual(audit.filter(entry => entry.codecFieldSource !== 'decompiled-source'), [])
 
   const missingOmissionEvidence = audit.filter(entry => !entry.emitted && !entry.omission)
   assert.deepEqual(missingOmissionEvidence, [], 'omitted registries need documented milestone evidence')
+})
+
+test('configuration registry codec audit records field evidence for every synchronized registry', async () => {
+  const audit = await loadConfigurationRegistryCodecAudit()
+
+  const missingRequiredFieldEvidence = audit.filter(entry => entry.emitted && entry.requiredFields.length === 0)
+  assert.deepEqual(missingRequiredFieldEvidence, [], 'each synchronized registry needs required codec fields from decomp')
+
+  for (const entry of audit) {
+    assert.ok(Array.isArray(entry.optionalFields), `${entry.registry} optional fields must be recorded`)
+    assert.ok(Array.isArray(entry.holderFields), `${entry.registry} holder fields must be recorded`)
+    assert.ok(Array.isArray(entry.tagFields), `${entry.registry} tag fields must be recorded`)
+    assert.ok(
+      entry.notes.length > 0 || (!entry.emitted && entry.omission),
+      `${entry.registry} needs a note explaining manual/extracted codec evidence or omission evidence`
+    )
+  }
 })
 
 test('configuration registry codec audit source files contain the audited codec declarations', async () => {
