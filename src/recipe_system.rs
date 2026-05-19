@@ -400,7 +400,7 @@ impl CookingKind {
         match self {
             CookingKind::Smelting => 200,
             CookingKind::Blasting | CookingKind::Smoking => 100,
-            CookingKind::CampfireCooking => 600,
+            CookingKind::CampfireCooking => 100,
         }
     }
 
@@ -963,7 +963,7 @@ mod tests {
             (CookingKind::Smelting, 200),
             (CookingKind::Blasting, 100),
             (CookingKind::Smoking, 100),
-            (CookingKind::CampfireCooking, 600),
+            (CookingKind::CampfireCooking, 100),
         ] {
             let recipe = RecipeKind::Cooking {
                 kind,

@@ -72,10 +72,10 @@
 
 ## Cooking Recipes
 
-- [ ] Implement `SmeltingRecipe`: recipe type `minecraft:smelting`, base cooking time 200 ticks, `CookingBookCategory`
-- [ ] Implement `BlastingRecipe`: recipe type `minecraft:blasting`, base cooking time 100 ticks
-- [ ] Implement `SmokingRecipe`: recipe type `minecraft:smoking`, base cooking time 100 ticks
-- [ ] Implement `CampfireCookingRecipe`: recipe type `minecraft:campfire_cooking`, base cooking time 600 ticks, no fuel required
+- [x] Implement `SmeltingRecipe`: recipe type `minecraft:smelting`, base cooking time 200 ticks, `CookingBookCategory`
+- [x] Implement `BlastingRecipe`: recipe type `minecraft:blasting`, base cooking time 100 ticks
+- [x] Implement `SmokingRecipe`: recipe type `minecraft:smoking`, base cooking time 100 ticks
+- [x] Implement `CampfireCookingRecipe`: recipe type `minecraft:campfire_cooking`, base cooking time 100 ticks in 26.1.2, no fuel required
 - [ ] Implement `experience` field: XP stored in furnace, released on item extraction
 - [ ] Implement `FuelValues` registry: fuel item → burn time mapping matching vanilla defaults
 - [ ] Add unit test: cooking recipe cook time, XP per result, and fuel interaction for representative items
