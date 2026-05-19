@@ -11,3 +11,5 @@
 /server.properties
 /usercache.json
 /harness/mineflayer/node_modules/
+/libraries/
+/versions/

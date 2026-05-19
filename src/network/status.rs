@@ -37,34 +37,33 @@ use crate::network::login::{
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
     block_state_name_network_id, unpack_block_position, ClientboundLevelChunkPacketData,
-    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData,
-    ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket,
-    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, GameMode,
-    RawDataComponentPatch, RawItemStack, ServerboundSwingHand, ServerboundUseItemOnPacket,
-    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
-    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
-    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
-    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
-    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID,
-    SERVERBOUND_CHAT_PACKET_ID, SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
-    SERVERBOUND_CLIENT_COMMAND_PACKET_ID, SERVERBOUND_CLIENT_INFORMATION_PACKET_ID,
-    SERVERBOUND_CLIENT_TICK_END_PACKET_ID, SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
-    SERVERBOUND_CONTAINER_CLICK_PACKET_ID, SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
-    SERVERBOUND_KEEP_ALIVE_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID, SERVERBOUND_PLAYER_ACTION_PACKET_ID,
-    SERVERBOUND_PLAYER_COMMAND_PACKET_ID, SERVERBOUND_PLAYER_INPUT_PACKET_ID,
-    SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
-    SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
+    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
+    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
+    CommonPlayerSpawnInfo, Direction3d, GameMode, RawDataComponentPatch, RawItemStack,
+    ServerboundSwingHand, ServerboundUseItemOnPacket, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
+    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
+    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
+    SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
+    SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
+    SERVERBOUND_CONTAINER_CLOSE_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+    SERVERBOUND_PLAYER_ACTION_PACKET_ID, SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
+    SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
+    SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
@@ -1580,7 +1579,6 @@ fn handle_login_connection(
         (wc.rain_level, wc.thunder_level)
     };
 
-
     write_minimal_play_join(
         stream,
         compression,
@@ -1761,7 +1759,13 @@ fn handle_login_connection(
                 }
                 if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
                     let packet = ServerboundUseItemOnPacket::read(&mut input)?;
-                    handle_use_item_on(stream, compression, &mut play_state, &world_layout, &packet)?;
+                    handle_use_item_on(
+                        stream,
+                        compression,
+                        &mut play_state,
+                        &world_layout,
+                        &packet,
+                    )?;
                     continue;
                 }
                 if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
@@ -2109,7 +2113,14 @@ fn handle_use_item_on(
     }
 
     // Persist the new block state into the region file.
-    place_block_in_region(world_layout, target_chunk, target_x, target_y, target_z, item_name);
+    place_block_in_region(
+        world_layout,
+        target_chunk,
+        target_x,
+        target_y,
+        target_z,
+        item_name,
+    );
 
     // Acknowledge the client's predictive block change.
     write_framed_packet_with_compression(
@@ -2190,10 +2201,7 @@ fn process_item_pickups(
         if !entity.can_be_picked_up_by(player_uuid) {
             continue;
         }
-        if !item_entity::in_pickup_range(
-            state.x, state.y, state.z,
-            entity.x, entity.y, entity.z,
-        ) {
+        if !item_entity::in_pickup_range(state.x, state.y, state.z, entity.x, entity.y, entity.z) {
             continue;
         }
 
@@ -2814,13 +2822,27 @@ fn write_minimal_play_join(
         compression,
         CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
         |payload| {
-            payload.write_all(&[0])?;
-            write_var_i32(payload, 0)?;
+            payload.write_all(&[0])?; // container ID = player inventory (InventoryMenu.CONTAINER_ID)
+            write_var_i32(payload, play_state.inventory_state_id)?;
             write_var_i32(payload, 46)?;
-            for _ in 0..46 {
-                write_var_i32(payload, 0)?;
+            for container_slot in 0..46usize {
+                let raw = inventory_internal_slot(container_slot)
+                    .and_then(|inv_slot| {
+                        let stack = play_state.inventory.get(inv_slot);
+                        if stack.is_empty() {
+                            None
+                        } else {
+                            item_protocol_id(stack.item_id()).map(|pid| RawItemStack {
+                                count: stack.count(),
+                                item_id: Some(pid),
+                                components: RawDataComponentPatch::empty(),
+                            })
+                        }
+                    })
+                    .unwrap_or_else(RawItemStack::empty);
+                raw.write_optional_untrusted(payload)?;
             }
-            write_var_i32(payload, 0)
+            RawItemStack::empty().write_optional_untrusted(payload) // carried item
         },
     )?;
     write_framed_packet_with_compression(
@@ -4157,6 +4179,31 @@ fn place_block_in_region(
 
 /// Returns the (dx, dy, dz) unit offset for a face direction.
 /// Java: Direction.getNormal()
+/// Maps a `ContainerSetContent` container slot index (0-45) for container 0 (the player
+/// inventory) to the corresponding `PlayerInventory` internal slot index, or `None` for
+/// crafting/result slots which have no persistent inventory backing.
+///
+/// Java: `InventoryMenu` slot layout:
+///   0        → crafting result  (no inventory backing)
+///   1–4      → crafting grid    (no inventory backing)
+///   5–8      → armor HEAD/CHEST/LEGS/FEET (inventory indices 39/38/37/36)
+///   9–35     → main inventory rows (same index)
+///   36–44    → hotbar           (inventory indices 0–8)
+///   45       → offhand          (inventory index 40 = SLOT_OFFHAND)
+fn inventory_internal_slot(container_slot: usize) -> Option<usize> {
+    match container_slot {
+        0..=4 => None,           // crafting result + 2×2 grid — no persistent backing
+        5 => Some(39),           // HEAD armor
+        6 => Some(38),           // CHEST armor
+        7 => Some(37),           // LEGS armor
+        8 => Some(36),           // FEET armor
+        9..=35 => Some(container_slot), // main inventory (indices match)
+        36..=44 => Some(container_slot - 36), // hotbar → items[0..=8]
+        45 => Some(40),          // offhand (SLOT_OFFHAND)
+        _ => None,
+    }
+}
+
 fn direction_offset(dir: Direction3d) -> (i32, i32, i32) {
     match dir {
         Direction3d::Down => (0, -1, 0),
@@ -4852,14 +4899,8 @@ fn day_timeline_nbt() -> Tag {
             ]),
         ),
         // showInCommands=false → encoded as plain Tag::Int(ticks).
-        (
-            "minecraft:roll_village_siege".to_string(),
-            Tag::Int(18000),
-        ),
-        (
-            "minecraft:wake_up_from_sleep".to_string(),
-            Tag::Int(0),
-        ),
+        ("minecraft:roll_village_siege".to_string(), Tag::Int(18000)),
+        ("minecraft:wake_up_from_sleep".to_string(), Tag::Int(0)),
     ]);
 
     Tag::Compound(vec![
@@ -4876,9 +4917,18 @@ fn day_timeline_nbt() -> Tag {
                 ("minecraft:visual/star_angle".to_string(), star_angle),
                 ("minecraft:visual/fog_color".to_string(), fog_color),
                 ("minecraft:visual/sky_color".to_string(), sky_color),
-                ("minecraft:visual/sky_light_color".to_string(), sky_light_color),
-                ("minecraft:visual/sky_light_factor".to_string(), sky_light_factor),
-                ("minecraft:visual/star_brightness".to_string(), star_brightness),
+                (
+                    "minecraft:visual/sky_light_color".to_string(),
+                    sky_light_color,
+                ),
+                (
+                    "minecraft:visual/sky_light_factor".to_string(),
+                    sky_light_factor,
+                ),
+                (
+                    "minecraft:visual/star_brightness".to_string(),
+                    star_brightness,
+                ),
                 ("minecraft:visual/cloud_color".to_string(), cloud_color),
                 (
                     "minecraft:visual/sunrise_sunset_color".to_string(),
@@ -4929,7 +4979,10 @@ fn moon_timeline_nbt() -> Tag {
         ("period_ticks".to_string(), Tag::Int(192000)),
         (
             "tracks".to_string(),
-            Tag::Compound(vec![("minecraft:visual/moon_phase".to_string(), moon_phase)]),
+            Tag::Compound(vec![(
+                "minecraft:visual/moon_phase".to_string(),
+                moon_phase,
+            )]),
         ),
     ])
 }
@@ -6260,9 +6313,8 @@ mod tests {
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
         write_visible_spawn_terrain_block_state_container, write_world_clock_registry_packet,
-        CompressionState, GameMode,
-        ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
-        BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
+        CompressionState, GameMode, ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
+        BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
         DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
         GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS, MAX_PACKET_SIZE,
@@ -7600,7 +7652,9 @@ mod tests {
 
     /// Builds a minimal PlaySessionState with only the fields needed for NBT round-trip
     /// tests, seeding inventory with known items.
-    fn session_state_with_inventory(items: &[(&'static str, i32, usize)]) -> super::PlaySessionState {
+    fn session_state_with_inventory(
+        items: &[(&'static str, i32, usize)],
+    ) -> super::PlaySessionState {
         let mut inventory = PlayerInventory::new();
         let loaded: Vec<(usize, crate::item_stack::ItemStack)> = items
             .iter()
@@ -7807,10 +7861,10 @@ mod tests {
         );
         let ids = status_registry_entry_ids_ordered(write_vanilla_timeline_registry_packet);
         assert_eq!(ids.len(), 4);
-        assert_eq!(ids[0], "minecraft:day");             // ID 0
-        assert_eq!(ids[1], "minecraft:moon");            // ID 1
+        assert_eq!(ids[0], "minecraft:day"); // ID 0
+        assert_eq!(ids[1], "minecraft:moon"); // ID 1
         assert_eq!(ids[2], "minecraft:villager_schedule"); // ID 2
-        assert_eq!(ids[3], "minecraft:early_game");      // ID 3
+        assert_eq!(ids[3], "minecraft:early_game"); // ID 3
     }
 
     #[test]
@@ -7822,7 +7876,10 @@ mod tests {
             field_value(&nbt, "clock"),
             Some(Tag::String(v)) if v == "minecraft:overworld"
         ));
-        assert!(matches!(field_value(&nbt, "period_ticks"), Some(Tag::Int(24000))));
+        assert!(matches!(
+            field_value(&nbt, "period_ticks"),
+            Some(Tag::Int(24000))
+        ));
 
         let tracks = compound_field(&nbt, "tracks");
 
@@ -7889,7 +7946,10 @@ mod tests {
             field_value(&nbt, "clock"),
             Some(Tag::String(v)) if v == "minecraft:overworld"
         ));
-        assert!(matches!(field_value(&nbt, "period_ticks"), Some(Tag::Int(192000))));
+        assert!(matches!(
+            field_value(&nbt, "period_ticks"),
+            Some(Tag::Int(192000))
+        ));
         let tracks = compound_field(&nbt, "tracks");
         assert!(field_value(tracks, "minecraft:visual/moon_phase").is_some());
         assert!(
@@ -7927,7 +7987,10 @@ mod tests {
             field_value(&nbt, "clock"),
             Some(Tag::String(v)) if v == "minecraft:overworld"
         ));
-        assert!(matches!(field_value(&nbt, "period_ticks"), Some(Tag::Int(24000))));
+        assert!(matches!(
+            field_value(&nbt, "period_ticks"),
+            Some(Tag::Int(24000))
+        ));
         assert!(
             field_value(&nbt, "tracks").is_none(),
             "all villager_schedule tracks are non-syncable; tracks field must be absent"
@@ -7993,7 +8056,10 @@ mod tests {
             Some(Tag::String(v)) if v == "#ccffffff"
         ));
         assert!(
-            matches!(field_value(attributes, "minecraft:visual/cloud_height"), Some(Tag::Float(_))),
+            matches!(
+                field_value(attributes, "minecraft:visual/cloud_height"),
+                Some(Tag::Float(_))
+            ),
             "cloud_height must be a float"
         );
         assert!(matches!(
@@ -8015,8 +8081,9 @@ mod tests {
 
         let mut found_timeline = false;
         for _ in 0..group_count {
-            let registry_id =
-                crate::network::codec::read_identifier(&mut cursor).unwrap().to_string();
+            let registry_id = crate::network::codec::read_identifier(&mut cursor)
+                .unwrap()
+                .to_string();
             let tag_count = read_var_i32(&mut cursor).unwrap();
             if registry_id == "minecraft:timeline" {
                 found_timeline = true;
@@ -8024,8 +8091,9 @@ mod tests {
 
                 // First tag: #minecraft:in_overworld → [villager_schedule=2, day=0, moon=1, early_game=3].
                 // Pre-expanded by server; IDs correspond to write_vanilla_timeline_registry_packet order.
-                let tag_id =
-                    crate::network::codec::read_identifier(&mut cursor).unwrap().to_string();
+                let tag_id = crate::network::codec::read_identifier(&mut cursor)
+                    .unwrap()
+                    .to_string();
                 assert_eq!(tag_id, "minecraft:in_overworld");
                 let entry_count = read_var_i32(&mut cursor).unwrap();
                 assert_eq!(entry_count, 4);
@@ -8035,8 +8103,9 @@ mod tests {
                 assert_eq!(ids, vec![2, 0, 1, 3]);
 
                 // Second tag: #minecraft:universal → [villager_schedule=2].
-                let tag_id2 =
-                    crate::network::codec::read_identifier(&mut cursor).unwrap().to_string();
+                let tag_id2 = crate::network::codec::read_identifier(&mut cursor)
+                    .unwrap()
+                    .to_string();
                 assert_eq!(tag_id2, "minecraft:universal");
                 let entry_count2 = read_var_i32(&mut cursor).unwrap();
                 assert_eq!(entry_count2, 1);
@@ -8052,6 +8121,9 @@ mod tests {
                 }
             }
         }
-        assert!(found_timeline, "tags packet must include minecraft:timeline group");
+        assert!(
+            found_timeline,
+            "tags packet must include minecraft:timeline group"
+        );
     }
 }
