@@ -18,6 +18,7 @@ use crate::network::common::{
     ServerLinkType,
 };
 use crate::network::compression::CompressionState;
+use crate::network::configuration::ClientboundCodeOfConductPacket;
 use crate::network::login::{
     ClientboundLoginCompressionPacket, ClientboundLoginDisconnectPacket, LoginSession,
     ServerboundHelloPacket, ServerboundLoginAcknowledgedPacket,
@@ -71,6 +72,7 @@ const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 const CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 14;
 const CLIENTBOUND_CONFIGURATION_SERVER_LINKS_PACKET_ID: i32 = 16;
+const CLIENTBOUND_CONFIGURATION_CODE_OF_CONDUCT_PACKET_ID: i32 = 18;
 const SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID: i32 = 0;
 const SERVERBOUND_CONFIGURATION_COOKIE_RESPONSE_PACKET_ID: i32 = 1;
 const SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID: i32 = 2;
@@ -1342,6 +1344,20 @@ fn handle_login_connection(
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         "selected known packs",
     )?;
+    if let Some(code_of_conduct) = load_code_of_conduct_for_language(properties, "en_us")? {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_CONFIGURATION_CODE_OF_CONDUCT_PACKET_ID,
+            |payload| ClientboundCodeOfConductPacket { code_of_conduct }.write(payload),
+        )?;
+        wait_for_configuration_packet(
+            stream,
+            compression,
+            SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID,
+            "code of conduct acceptance",
+        )?;
+    }
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -1874,6 +1890,84 @@ fn bug_report_server_links_packet(
             link: link.to_string(),
         }],
     })
+}
+
+fn load_code_of_conduct_for_language(
+    properties: &ServerProperties,
+    client_language: &str,
+) -> io::Result<Option<String>> {
+    if !properties.code_of_conduct {
+        return Ok(None);
+    }
+    let texts = read_code_of_conducts(Path::new("codeofconduct"))?;
+    if texts.is_empty() {
+        return Ok(None);
+    }
+    let language = client_language.to_lowercase();
+    Ok(texts
+        .get(&language)
+        .or_else(|| texts.get("en_us"))
+        .or_else(|| texts.values().next())
+        .cloned())
+}
+
+fn read_code_of_conducts(dir: &Path) -> io::Result<HashMap<String, String>> {
+    let metadata = fs::metadata(dir)?;
+    if !metadata.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "codeofconduct is not a directory",
+        ));
+    }
+    let canonical_dir = fs::canonicalize(dir)?;
+    let mut texts = HashMap::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let Some(language) = filename.strip_suffix(".txt") else {
+            continue;
+        };
+        let parent = fs::canonicalize(&path)?
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "invalid codeofconduct path")
+            })?;
+        if parent != canonical_dir {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "codeofconduct file links outside allowed directory",
+            ));
+        }
+        let text = fs::read_to_string(&path)?;
+        let text = strip_minecraft_formatting(&text.lines().collect::<Vec<_>>().join("\n"));
+        texts.insert(language.to_lowercase(), text);
+    }
+    Ok(texts)
+}
+
+fn strip_minecraft_formatting(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '§' {
+            match chars.peek().copied() {
+                Some(code)
+                    if code.is_ascii_hexdigit()
+                        || matches!(code.to_ascii_lowercase(), 'k'..='o' | 'r') =>
+                {
+                    chars.next();
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        out.push(ch);
+    }
+    out
 }
 
 fn wait_for_configuration_packet<R: Read>(
@@ -4124,11 +4218,12 @@ mod tests {
         chicken_sound_variant_nbt, chunk_batch_size, chunk_window, cow_sound_variant_nbt,
         encode_base64, escape_json_string, handle_legacy_status_connection, instrument_nbt,
         jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
-        legacy_version1_response, load_favicon, login_access_disconnect_reason, login_host_ip,
-        newly_visible_chunks, packed_chunk_pos, pig_sound_variant_nbt, read_packet, status_json,
-        trim_material_nbt, trim_pattern_nbt, vanilla_baseline_biome_nbt,
-        visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
-        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
+        legacy_version1_response, load_code_of_conduct_for_language, load_favicon,
+        login_access_disconnect_reason, login_host_ip, newly_visible_chunks, packed_chunk_pos,
+        pig_sound_variant_nbt, read_code_of_conducts, read_packet, status_json,
+        strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
+        vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
+        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count, visible_spawn_terrain_height,
         wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
         write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
@@ -4197,6 +4292,51 @@ mod tests {
 
         properties.set("bug-report-link", "not a uri");
         assert!(bug_report_server_links_packet(&properties).is_none());
+    }
+
+    #[test]
+    fn code_of_conduct_loader_strips_formatting_and_applies_language_fallback() {
+        let mut root = std::env::temp_dir();
+        root.push(format!("rustcraft-codeofconduct-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir(&root).unwrap();
+        let code_dir = root.join("codeofconduct");
+        fs::create_dir(&code_dir).unwrap();
+        fs::write(code_dir.join("en_us.txt"), "§aEnglish\nRules").unwrap();
+        fs::write(code_dir.join("fr_fr.txt"), "§cRegles").unwrap();
+        fs::write(code_dir.join("ignored.md"), "nope").unwrap();
+
+        let texts = read_code_of_conducts(&code_dir).unwrap();
+        assert_eq!(
+            texts.get("en_us").map(String::as_str),
+            Some("English\nRules")
+        );
+        assert_eq!(texts.get("fr_fr").map(String::as_str), Some("Regles"));
+        assert!(!texts.contains_key("ignored"));
+        assert_eq!(strip_minecraft_formatting("A§lB§rC"), "ABC");
+
+        let previous = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&root).unwrap();
+
+        let mut properties = ServerProperties::load_or_default(Path::new(
+            "definitely-missing-test-server.properties",
+        ))
+        .unwrap();
+        assert!(load_code_of_conduct_for_language(&properties, "fr_fr")
+            .unwrap()
+            .is_none());
+        properties.set("enable-code-of-conduct", "true");
+        assert_eq!(
+            load_code_of_conduct_for_language(&properties, "fr_fr").unwrap(),
+            Some("Regles".to_string())
+        );
+        assert_eq!(
+            load_code_of_conduct_for_language(&properties, "es_es").unwrap(),
+            Some("English\nRules".to_string())
+        );
+
+        std::env::set_current_dir(previous).unwrap();
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

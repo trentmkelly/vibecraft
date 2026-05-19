@@ -62,7 +62,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `server-ip`.
 - [x] Implement mutable `allow-flight`.
 - [x] Implement mutable `motd`.
-- [ ] Implement `enable-code-of-conduct`.
+- [x] Implement `enable-code-of-conduct`.
 - [x] Implement `bug-report-link`.
 - [x] Implement mutable `force-gamemode`.
 - [x] Implement mutable `enforce-whitelist`.
