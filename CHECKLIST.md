@@ -39,7 +39,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 - [ ] Milestone 8: vanilla datapacks, registries, recipes, loot, tags, and reload.
 - [ ] Milestone 9: deterministic overworld/nether/end generation.
 - [ ] Milestone 10: full entity set, AI, combat, spawning, bosses, raids, and trading.
-- [ ] Milestone 11: complete command parity and command test coverage.
+- [x] Milestone 11: complete command parity and command test coverage.
 - [ ] Milestone 12: online-mode authentication, secure profiles, signed chat, and reporting-related metadata.
 - [ ] Milestone 13: management server, dialogs, transfers, waypoints, timelines, and version-specific 26.1.2 features.
 - [ ] Milestone 14: broad vanilla parity validation using automated black-box comparisons.
