@@ -186,7 +186,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "command_suggestion",
         java_class: "ServerboundCommandSuggestionPacket",
-        field_order: "unparsed",
+        field_order: "id:VarInt, command:utf8 max 32500",
     },
     PlayPacketSpec {
         id: 16,

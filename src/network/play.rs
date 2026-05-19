@@ -381,6 +381,12 @@ pub struct ServerboundContainerButtonClickPacket {
     pub button_id: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundCommandSuggestionPacket {
+    pub id: i32,
+    pub command: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundPickItemFromBlockPacket {
     pub x: i32,
@@ -1137,6 +1143,7 @@ pub struct PlaySession {
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
+    pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
     pub last_pick_item_from_block: Option<ServerboundPickItemFromBlockPacket>,
@@ -1232,6 +1239,7 @@ impl PlaySession {
             last_set_beacon: None,
             last_select_trade: None,
             last_rename_item: None,
+            last_command_suggestion: None,
             last_container_close: None,
             last_container_button_click: None,
             last_pick_item_from_block: None,
@@ -1366,6 +1374,18 @@ impl PlaySession {
                     Ok(_) => DispatchOutcome::Handled,
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad chunk batch received: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundCommandSuggestionPacket::read(&mut input) {
+                    Ok(suggestion) => {
+                        self.last_command_suggestion = Some(suggestion);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad command suggestion packet: {err}"))
                     }
                 }
             }
@@ -2940,6 +2960,20 @@ impl ServerboundContainerButtonClickPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)?;
         write_var_i32(writer, self.button_id)
+    }
+}
+
+impl ServerboundCommandSuggestionPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            id: read_var_i32(reader)?,
+            command: read_string(reader, 32500)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_string(writer, &self.command, 32500)
     }
 }
 
@@ -4658,10 +4692,17 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_PLAYER_LOADED_PACKET_ID, Vec::new())),
             DispatchOutcome::Handled
         );
+        let mut command_suggestion = Vec::new();
+        ServerboundCommandSuggestionPacket {
+            id: 7,
+            command: "/ti".to_string(),
+        }
+        .write(&mut command_suggestion)
+        .unwrap();
         assert_eq!(
             session.handle_decoded(decoded(
                 SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
-                Vec::new()
+                command_suggestion
             )),
             DispatchOutcome::Handled
         );
@@ -5327,6 +5368,35 @@ mod tests {
             session.last_container_button_click,
             Some(container_button_click)
         );
+
+        let command_suggestion = ServerboundCommandSuggestionPacket {
+            id: 128,
+            command: "/time set day".to_string(),
+        };
+        let mut command_suggestion_payload = Vec::new();
+        command_suggestion
+            .write(&mut command_suggestion_payload)
+            .unwrap();
+        assert_eq!(
+            command_suggestion_payload,
+            vec![
+                0x80, 0x01, 13, b'/', b't', b'i', b'm', b'e', b' ', b's', b'e', b't', b' ', b'd',
+                b'a', b'y'
+            ]
+        );
+        assert_eq!(
+            ServerboundCommandSuggestionPacket::read(&mut cursor(command_suggestion_payload.clone()))
+                .unwrap(),
+            command_suggestion
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+                command_suggestion_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_command_suggestion, Some(command_suggestion));
 
         let pick_item_from_block = ServerboundPickItemFromBlockPacket {
             x: -12,
