@@ -10,6 +10,10 @@ use crate::special_block::{
 };
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
+use crate::vibration::{
+    redstone_strength_for_distance, tick_vibration, vibration_frequency, VibrationData,
+    VibrationInfo, VibrationTickAction, NO_VIBRATION_FREQUENCY,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BlockEntityTypeId {
@@ -479,6 +483,33 @@ pub enum CampfireTickResult {
     NoChange,
     Changed,
     Cooked { slot: usize, item: PotItemStack },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SculkSensorPhase {
+    Listening,
+    Ticking,
+    VibrationDone,
+    Cooldown,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SculkSensorBlockEntity {
+    pub vibration_data: VibrationData,
+    pub last_vibration_frequency: u8,
+    pub phase: SculkSensorPhase,
+    pub listener_radius: i32,
+    pub power: u8,
+    pub active_ticks: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SculkSensorTickResult {
+    None,
+    Particle { travel_time_in_ticks: i32 },
+    Activate { frequency: u8, redstone: u8 },
+    Cooldown,
+    Deactivate,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3168,6 +3199,202 @@ impl CampfireBlockEntity {
     }
 }
 
+impl SculkSensorPhase {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Listening => "listening",
+            Self::Ticking => "ticking",
+            Self::VibrationDone => "vibration_done",
+            Self::Cooldown => "cooldown",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "listening" => Some(Self::Listening),
+            "ticking" => Some(Self::Ticking),
+            "vibration_done" => Some(Self::VibrationDone),
+            "cooldown" => Some(Self::Cooldown),
+            _ => None,
+        }
+    }
+}
+
+impl SculkSensorBlockEntity {
+    pub const DEFAULT_LAST_VIBRATION_FREQUENCY: u8 = 0;
+    pub const LISTENER_RADIUS: i32 = 8;
+    pub const ACTIVE_TICKS: i32 = 30;
+    pub const COOLDOWN_TICKS: i32 = 10;
+
+    pub fn new() -> Self {
+        Self {
+            vibration_data: VibrationData::new(),
+            last_vibration_frequency: Self::DEFAULT_LAST_VIBRATION_FREQUENCY,
+            phase: SculkSensorPhase::Listening,
+            listener_radius: Self::LISTENER_RADIUS,
+            power: 0,
+            active_ticks: 0,
+        }
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "last_vibration_frequency".to_string(),
+                Tag::Int(i32::from(self.last_vibration_frequency)),
+            ),
+            ("listener".to_string(), self.listener_tag()),
+            (
+                "phase".to_string(),
+                Tag::String(self.phase.as_str().to_string()),
+            ),
+            ("power".to_string(), Tag::Byte(self.power as i8)),
+            ("active_ticks".to_string(), Tag::Int(self.active_ticks)),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let Some(entries) = compound_entries(tag) else {
+            return Self::new();
+        };
+        let mut sensor = Self::new();
+        sensor.last_vibration_frequency = get_int(entries, "last_vibration_frequency")
+            .unwrap_or(0)
+            .clamp(0, 15) as u8;
+        sensor.phase = get_string(entries, "phase")
+            .and_then(SculkSensorPhase::from_str)
+            .unwrap_or(SculkSensorPhase::Listening);
+        sensor.power = get_byte(entries, "power").unwrap_or(0).clamp(0, 15) as u8;
+        sensor.active_ticks = get_int(entries, "active_ticks").unwrap_or(0).max(0);
+        if let Some(listener_tag) = entries.iter().find(|(name, _)| name == "listener") {
+            sensor.vibration_data = vibration_data_from_tag(&listener_tag.1);
+        }
+        sensor
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn can_receive_vibration(&self, event_id: &str, sensor_can_activate: bool) -> bool {
+        sensor_can_activate
+            && self.phase == SculkSensorPhase::Listening
+            && vibration_frequency(event_id) != NO_VIBRATION_FREQUENCY
+    }
+
+    pub fn queue_vibration(&mut self, vibration: VibrationInfo, game_time: i64) -> bool {
+        if !self.can_receive_vibration(vibration.event.id, true) {
+            return false;
+        }
+        self.vibration_data
+            .selector
+            .add_candidate(vibration, game_time);
+        true
+    }
+
+    pub fn receive_vibration(
+        &mut self,
+        event_id: &str,
+        distance: f32,
+    ) -> Option<SculkSensorTickResult> {
+        if !self.can_receive_vibration(event_id, true) {
+            return None;
+        }
+        let frequency = vibration_frequency(event_id);
+        let redstone = redstone_strength_for_distance(distance, self.listener_radius);
+        self.last_vibration_frequency = frequency;
+        self.power = redstone;
+        self.phase = SculkSensorPhase::VibrationDone;
+        self.active_ticks = Self::ACTIVE_TICKS;
+        Some(SculkSensorTickResult::Activate {
+            frequency,
+            redstone,
+        })
+    }
+
+    pub fn tick(&mut self, game_time: i64) -> SculkSensorTickResult {
+        match self.phase {
+            SculkSensorPhase::Listening | SculkSensorPhase::Ticking => {
+                match tick_vibration(&mut self.vibration_data, game_time) {
+                    VibrationTickAction::Selected {
+                        travel_time_in_ticks,
+                        ..
+                    } => {
+                        self.phase = SculkSensorPhase::Ticking;
+                        SculkSensorTickResult::Particle {
+                            travel_time_in_ticks,
+                        }
+                    }
+                    VibrationTickAction::ReloadParticle {
+                        travel_time_in_ticks,
+                    } => SculkSensorTickResult::Particle {
+                        travel_time_in_ticks,
+                    },
+                    VibrationTickAction::Received {
+                        event_id,
+                        frequency,
+                    } => {
+                        let distance = 0.0;
+                        let redstone =
+                            redstone_strength_for_distance(distance, self.listener_radius);
+                        self.last_vibration_frequency = frequency;
+                        self.power = redstone;
+                        self.phase = SculkSensorPhase::VibrationDone;
+                        self.active_ticks = Self::ACTIVE_TICKS;
+                        let _ = event_id;
+                        SculkSensorTickResult::Activate {
+                            frequency,
+                            redstone,
+                        }
+                    }
+                    VibrationTickAction::None => SculkSensorTickResult::None,
+                }
+            }
+            SculkSensorPhase::VibrationDone => {
+                self.active_ticks = self.active_ticks.saturating_sub(1);
+                if self.active_ticks == 0 {
+                    self.phase = SculkSensorPhase::Cooldown;
+                    self.active_ticks = Self::COOLDOWN_TICKS;
+                    SculkSensorTickResult::Cooldown
+                } else {
+                    SculkSensorTickResult::None
+                }
+            }
+            SculkSensorPhase::Cooldown => {
+                self.active_ticks = self.active_ticks.saturating_sub(1);
+                if self.active_ticks == 0 {
+                    self.phase = SculkSensorPhase::Listening;
+                    self.power = 0;
+                    SculkSensorTickResult::Deactivate
+                } else {
+                    SculkSensorTickResult::None
+                }
+            }
+        }
+    }
+
+    fn listener_tag(&self) -> Tag {
+        let mut fields = vec![
+            (
+                "travel_time_in_ticks".to_string(),
+                Tag::Int(self.vibration_data.travel_time_in_ticks),
+            ),
+            (
+                "reload_vibration_particle".to_string(),
+                Tag::Byte(i8::from(self.vibration_data.reload_vibration_particle)),
+            ),
+        ];
+        if let Some(vibration) = &self.vibration_data.current_vibration {
+            fields.push((
+                "event".to_string(),
+                Tag::String(vibration.event.id.to_string()),
+            ));
+            fields.push(("distance".to_string(), Tag::Float(vibration.distance)));
+        }
+        Tag::Compound(fields)
+    }
+}
+
 impl BellBlockEntity {
     pub const EVENT_RING: i32 = 1;
     pub const DURATION: i32 = 50;
@@ -4371,6 +4598,27 @@ fn block_pos_from_tag(tag: &Tag) -> Option<BlockPos> {
         }),
         _ => None,
     }
+}
+
+fn vibration_data_from_tag(tag: &Tag) -> VibrationData {
+    let Some(entries) = compound_entries(tag) else {
+        return VibrationData::new();
+    };
+    let mut data = VibrationData::new();
+    data.travel_time_in_ticks = get_int(entries, "travel_time_in_ticks").unwrap_or(0).max(0);
+    data.reload_vibration_particle =
+        get_bool(entries, "reload_vibration_particle").unwrap_or(false);
+    if let Some(event) = get_string(entries, "event").and_then(crate::game_event::game_event_by_id)
+    {
+        data.current_vibration = Some(VibrationInfo {
+            event,
+            distance: get_float(entries, "distance").unwrap_or(0.0),
+            pos: crate::entity_physics::Vec3::ZERO,
+            source_entity: None,
+            projectile_owner: None,
+        });
+    }
+    data
 }
 
 fn tag_int_or_zero(tag: &Tag) -> i32 {
@@ -6134,6 +6382,81 @@ mod tests {
         assert!(campfire.items.iter().all(Option::is_none));
         assert_eq!(campfire.cooldown_tick(), vec![CampfireTickResult::Changed]);
         assert_eq!(campfire.cooking_progress[0], 3);
+    }
+
+    #[test]
+    fn sculk_sensor_block_entity_tracks_vibration_phase_frequency_and_power() {
+        assert_eq!(SculkSensorBlockEntity::LISTENER_RADIUS, 8);
+        assert_eq!(SculkSensorBlockEntity::DEFAULT_LAST_VIBRATION_FREQUENCY, 0);
+
+        let mut sensor = SculkSensorBlockEntity::new();
+        assert!(sensor.can_receive_vibration("minecraft:step", true));
+        assert!(!sensor.can_receive_vibration("minecraft:unknown", true));
+        assert!(!sensor.can_receive_vibration("minecraft:step", false));
+
+        assert_eq!(
+            sensor.receive_vibration("minecraft:block_place", 3.2),
+            Some(SculkSensorTickResult::Activate {
+                frequency: 13,
+                redstone: 9,
+            })
+        );
+        assert_eq!(sensor.last_vibration_frequency, 13);
+        assert_eq!(sensor.power, 9);
+        assert_eq!(sensor.phase, SculkSensorPhase::VibrationDone);
+        assert!(!sensor.can_receive_vibration("minecraft:step", true));
+        for _ in 0..SculkSensorBlockEntity::ACTIVE_TICKS - 1 {
+            assert_eq!(sensor.tick(0), SculkSensorTickResult::None);
+        }
+        assert_eq!(sensor.tick(0), SculkSensorTickResult::Cooldown);
+        assert_eq!(sensor.phase, SculkSensorPhase::Cooldown);
+        for _ in 0..SculkSensorBlockEntity::COOLDOWN_TICKS - 1 {
+            assert_eq!(sensor.tick(0), SculkSensorTickResult::None);
+        }
+        assert_eq!(sensor.tick(0), SculkSensorTickResult::Deactivate);
+        assert_eq!(sensor.phase, SculkSensorPhase::Listening);
+        assert_eq!(sensor.power, 0);
+
+        let mut delayed = SculkSensorBlockEntity::new();
+        let event = crate::game_event::game_event_by_id("minecraft:entity_damage").unwrap();
+        assert!(delayed.queue_vibration(
+            VibrationInfo {
+                event,
+                distance: 2.9,
+                pos: crate::entity_physics::Vec3::ZERO,
+                source_entity: Some("zombie".to_string()),
+                projectile_owner: None,
+            },
+            5,
+        ));
+        assert_eq!(delayed.tick(5), SculkSensorTickResult::None);
+        assert_eq!(
+            delayed.tick(6),
+            SculkSensorTickResult::Particle {
+                travel_time_in_ticks: 2
+            }
+        );
+        assert_eq!(delayed.phase, SculkSensorPhase::Ticking);
+        assert_eq!(delayed.tick(7), SculkSensorTickResult::None);
+        assert_eq!(
+            delayed.tick(8),
+            SculkSensorTickResult::Activate {
+                frequency: 7,
+                redstone: 15,
+            }
+        );
+        assert_eq!(delayed.last_vibration_frequency, 7);
+
+        let saved = delayed.save_additional();
+        let loaded = SculkSensorBlockEntity::load_additional(&saved);
+        assert_eq!(
+            loaded.last_vibration_frequency,
+            delayed.last_vibration_frequency
+        );
+        assert_eq!(loaded.phase, delayed.phase);
+        assert_eq!(loaded.power, delayed.power);
+        assert_eq!(loaded.active_ticks, delayed.active_ticks);
+        assert_eq!(delayed.get_update_tag(), saved);
     }
 
     #[test]
