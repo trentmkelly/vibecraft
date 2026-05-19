@@ -74,6 +74,66 @@ pub const PIG_METADATA: &[EntityMetadataField] = &[
     field("Pig", 20, "DATA_SOUND_VARIANT_ID", "PIG_SOUND_VARIANT"),
 ];
 
+pub const ALLAY_METADATA: &[EntityMetadataField] = &[
+    field("Allay", 16, "DATA_DANCING", "BOOLEAN"),
+    field("Allay", 17, "DATA_CAN_DUPLICATE", "BOOLEAN"),
+];
+
+pub const ARMADILLO_METADATA: &[EntityMetadataField] =
+    &[field("Armadillo", 18, "ARMADILLO_STATE", "ARMADILLO_STATE")];
+
+pub const AXOLOTL_METADATA: &[EntityMetadataField] = &[
+    field("Axolotl", 18, "DATA_VARIANT", "INT"),
+    field("Axolotl", 19, "DATA_PLAYING_DEAD", "BOOLEAN"),
+    field("Axolotl", 20, "FROM_BUCKET", "BOOLEAN"),
+];
+
+pub const BEE_METADATA: &[EntityMetadataField] = &[
+    field("Bee", 18, "DATA_FLAGS_ID", "BYTE"),
+    field("Bee", 19, "DATA_ANGER_END_TIME", "LONG"),
+];
+
+pub const CAT_METADATA: &[EntityMetadataField] = &[
+    field("Cat", 20, "DATA_VARIANT_ID", "CAT_VARIANT"),
+    field("Cat", 21, "IS_LYING", "BOOLEAN"),
+    field("Cat", 22, "RELAX_STATE_ONE", "BOOLEAN"),
+    field("Cat", 23, "DATA_COLLAR_COLOR", "INT"),
+    field("Cat", 24, "DATA_SOUND_VARIANT_ID", "CAT_SOUND_VARIANT"),
+];
+
+pub const CHICKEN_METADATA: &[EntityMetadataField] = &[
+    field("Chicken", 18, "DATA_VARIANT_ID", "CHICKEN_VARIANT"),
+    field(
+        "Chicken",
+        19,
+        "DATA_SOUND_VARIANT_ID",
+        "CHICKEN_SOUND_VARIANT",
+    ),
+];
+
+pub const COW_METADATA: &[EntityMetadataField] = &[
+    field("Cow", 18, "DATA_VARIANT_ID", "COW_VARIANT"),
+    field("Cow", 19, "DATA_SOUND_VARIANT_ID", "COW_SOUND_VARIANT"),
+];
+
+pub const FROG_METADATA: &[EntityMetadataField] = &[
+    field("Frog", 18, "DATA_VARIANT_ID", "FROG_VARIANT"),
+    field("Frog", 19, "DATA_TONGUE_TARGET_ID", "OPTIONAL_UNSIGNED_INT"),
+];
+
+pub const SNIFFER_METADATA: &[EntityMetadataField] = &[
+    field("Sniffer", 18, "DATA_STATE", "SNIFFER_STATE"),
+    field("Sniffer", 19, "DATA_DROP_SEED_AT_TICK", "INT"),
+];
+
+pub const WOLF_METADATA: &[EntityMetadataField] = &[
+    field("Wolf", 20, "DATA_INTERESTED_ID", "BOOLEAN"),
+    field("Wolf", 21, "DATA_COLLAR_COLOR", "INT"),
+    field("Wolf", 22, "DATA_ANGER_END_TIME", "LONG"),
+    field("Wolf", 23, "DATA_VARIANT_ID", "WOLF_VARIANT"),
+    field("Wolf", 24, "DATA_SOUND_VARIANT_ID", "WOLF_SOUND_VARIANT"),
+];
+
 pub const ZOMBIE_METADATA: &[EntityMetadataField] = &[
     field("Zombie", 16, "DATA_BABY_ID", "BOOLEAN"),
     field("Zombie", 17, "DATA_SPECIAL_TYPE_ID", "INT"),
@@ -90,7 +150,18 @@ pub const ENTITY_METADATA_CLASSES: &[EntityMetadataClass] = &[
     class("AgeableMob", Some("PathfinderMob"), AGEABLE_MOB_METADATA),
     class("Animal", Some("AgeableMob"), &[]),
     class("TamableAnimal", Some("Animal"), TAMABLE_ANIMAL_METADATA),
+    class("AbstractCow", Some("Animal"), &[]),
+    class("Allay", Some("PathfinderMob"), ALLAY_METADATA),
+    class("Armadillo", Some("Animal"), ARMADILLO_METADATA),
+    class("Axolotl", Some("Animal"), AXOLOTL_METADATA),
+    class("Bee", Some("Animal"), BEE_METADATA),
+    class("Cat", Some("TamableAnimal"), CAT_METADATA),
+    class("Chicken", Some("Animal"), CHICKEN_METADATA),
+    class("Cow", Some("AbstractCow"), COW_METADATA),
+    class("Frog", Some("Animal"), FROG_METADATA),
     class("Pig", Some("Animal"), PIG_METADATA),
+    class("Sniffer", Some("Animal"), SNIFFER_METADATA),
+    class("Wolf", Some("TamableAnimal"), WOLF_METADATA),
     class("Zombie", Some("Monster"), ZOMBIE_METADATA),
 ];
 
@@ -178,6 +249,46 @@ mod tests {
         assert_eq!(zombie[15].accessor, "DATA_MOB_FLAGS_ID");
         assert_eq!(zombie[16].accessor, "DATA_BABY_ID");
         assert_eq!(zombie[18].accessor, "DATA_DROWNED_CONVERSION_ID");
+    }
+
+    #[test]
+    fn common_animal_subclasses_follow_decompiled_accessor_order() {
+        let allay = inherited_metadata_fields("Allay").unwrap();
+        assert_eq!(allay[15].accessor, "DATA_MOB_FLAGS_ID");
+        assert_eq!(allay[16].accessor, "DATA_DANCING");
+        assert_eq!(allay[17].accessor, "DATA_CAN_DUPLICATE");
+
+        let cat = inherited_metadata_fields("Cat").unwrap();
+        assert_eq!(cat[18].accessor, "DATA_FLAGS_ID");
+        assert_eq!(cat[19].accessor, "DATA_OWNERUUID_ID");
+        assert_eq!(cat[20].accessor, "DATA_VARIANT_ID");
+        assert_eq!(cat[24].serializer, "CAT_SOUND_VARIANT");
+
+        let wolf = inherited_metadata_fields("Wolf").unwrap();
+        assert_eq!(wolf[20].accessor, "DATA_INTERESTED_ID");
+        assert_eq!(wolf[22].serializer, "LONG");
+        assert_eq!(wolf[24].serializer, "WOLF_SOUND_VARIANT");
+
+        let axolotl = inherited_metadata_fields("Axolotl").unwrap();
+        assert_eq!(axolotl[18].accessor, "DATA_VARIANT");
+        assert_eq!(axolotl[20].accessor, "FROM_BUCKET");
+    }
+
+    #[test]
+    fn variant_animals_use_post_ageable_indexes() {
+        for class_name in ["Chicken", "Cow", "Frog", "Pig", "Sniffer"] {
+            let fields = inherited_metadata_fields(class_name).unwrap();
+            assert_eq!(fields[16].accessor, "DATA_BABY_ID");
+            assert_eq!(fields[17].accessor, "AGE_LOCKED");
+            assert_eq!(fields[18].class_name, class_name);
+        }
+
+        let armadillo = inherited_metadata_fields("Armadillo").unwrap();
+        assert_eq!(armadillo[18].serializer, "ARMADILLO_STATE");
+
+        let bee = inherited_metadata_fields("Bee").unwrap();
+        assert_eq!(bee[18].accessor, "DATA_FLAGS_ID");
+        assert_eq!(bee[19].serializer, "LONG");
     }
 
     #[test]
