@@ -107,7 +107,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode configuration reload test that edits `server.properties`, runs the vanilla-equivalent reload path where supported, reconnects the bot, and verifies which properties do and do not take effect without restart.
 - [ ] Add a Mineflayer offline-mode secure-profile toggle test that verifies `enforce-secure-profile=false` never blocks generated offline bots and that `true` matches official `server.jar` behavior for unsigned Mineflayer clients.
 - [ ] Implement `enforce-secure-profile`.
-- [ ] Implement `log-ips`.
+- [x] Implement `log-ips`.
 - [ ] Implement mutable `pause-when-empty-seconds`.
 - [ ] Implement `level-seed`, `generate-structures`, `generator-settings`, and `level-type`.
 - [ ] Implement mutable `accepts-transfers`.

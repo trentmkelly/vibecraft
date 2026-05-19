@@ -891,6 +891,11 @@ pub fn run_status_server(
                 let world_root = Arc::clone(&world_root);
                 let player_access = Arc::clone(&player_access);
                 let remote_ip = peer_addr.ip().to_string();
+                let remote_for_log = if properties.log_ips {
+                    remote_ip.clone()
+                } else {
+                    "<redacted>".to_string()
+                };
                 thread::spawn(move || {
                     if let Err(err) = handle_status_connection(
                         stream,
@@ -902,7 +907,7 @@ pub fn run_status_server(
                         world_seed,
                         &remote_ip,
                     ) {
-                        eprintln!("status connection error: {err}");
+                        eprintln!("status connection error from {remote_for_log}: {err}");
                     }
                 });
             }
