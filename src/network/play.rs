@@ -936,6 +936,172 @@ pub struct EntityDataValue {
     pub encoded_payload: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum EntityMetadataValue {
+    Byte(i8),
+    VarInt(i32),
+    VarLong(i64),
+    Float(f32),
+    String(String),
+    Component(Vec<u8>),
+    OptionalComponent(Option<Vec<u8>>),
+    ItemStack(RawItemStack),
+    Boolean(bool),
+    Rotations(Rotations),
+    BlockPos(BlockPosition),
+    OptionalBlockPos(Option<BlockPosition>),
+    Direction(DirectionData),
+    OptionalLivingEntityReference(Option<i32>),
+    BlockState(i32),
+    OptionalBlockState(Option<i32>),
+    Particle(RawParticleOptions),
+    Particles(Vec<RawParticleOptions>),
+    VillagerData(VillagerData),
+    OptionalUnsignedInt(Option<i32>),
+    Pose(PoseData),
+    CatVariant(i32),
+    CatSoundVariant(i32),
+    CowVariant(i32),
+    CowSoundVariant(i32),
+    WolfVariant(i32),
+    WolfSoundVariant(i32),
+    FrogVariant(i32),
+    PigVariant(i32),
+    PigSoundVariant(i32),
+    ChickenVariant(i32),
+    ChickenSoundVariant(i32),
+    ZombieNautilusVariant(i32),
+    OptionalGlobalPos(Option<GlobalPosData>),
+    PaintingVariant(i32),
+    SnifferState(SnifferStateData),
+    ArmadilloState(ArmadilloStateData),
+    CopperGolemState(CopperGolemStateData),
+    WeatheringCopperState(WeatheringCopperStateData),
+    Vector3f(Vector3fData),
+    Quaternionf(QuaternionfData),
+    ResolvableProfile(Vec<u8>),
+    HumanoidArm(HumanoidArmData),
+    Raw {
+        serializer_id: i32,
+        encoded_payload: Vec<u8>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rotations {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockPosition {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalPosData {
+    pub dimension: Identifier,
+    pub pos: BlockPosition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vector3fData {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct QuaternionfData {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub w: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VillagerData {
+    pub villager_type: i32,
+    pub profession: i32,
+    pub level: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectionData {
+    Down,
+    Up,
+    North,
+    South,
+    West,
+    East,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoseData {
+    Standing,
+    FallFlying,
+    Sleeping,
+    Swimming,
+    SpinAttack,
+    Crouching,
+    LongJumping,
+    Dying,
+    Croaking,
+    UsingTongue,
+    Sitting,
+    Roaring,
+    Sniffing,
+    Emerging,
+    Digging,
+    Sliding,
+    Shooting,
+    Inhaling,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnifferStateData {
+    Idling,
+    FeelingHappy,
+    Scenting,
+    Sniffing,
+    Searching,
+    Digging,
+    Rising,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArmadilloStateData {
+    Idle,
+    Rolling,
+    Scared,
+    Unrolling,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CopperGolemStateData {
+    Unoxidized,
+    Exposed,
+    Weathered,
+    Oxidized,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeatheringCopperStateData {
+    Unaffected,
+    Exposed,
+    Weathered,
+    Oxidized,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HumanoidArmData {
+    Left,
+    Right,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ClientboundSetEntityMotionPacket {
     pub id: i32,
@@ -3384,10 +3550,285 @@ impl ClientboundSetEntityDataPacket {
 }
 
 impl EntityDataValue {
+    pub fn typed(index: u8, value: EntityMetadataValue) -> io::Result<Self> {
+        let serializer_id = value.serializer_id();
+        let mut encoded_payload = Vec::new();
+        value.write_payload(&mut encoded_payload)?;
+        Ok(Self {
+            index,
+            serializer_id,
+            encoded_payload,
+        })
+    }
+
+    pub fn raw(index: u8, serializer_id: i32, encoded_payload: Vec<u8>) -> Self {
+        Self {
+            index,
+            serializer_id,
+            encoded_payload,
+        }
+    }
+
     fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[self.index])?;
         write_var_i32(writer, self.serializer_id)?;
         writer.write_all(&self.encoded_payload)
+    }
+}
+
+impl EntityMetadataValue {
+    fn serializer_id(&self) -> i32 {
+        match self {
+            Self::Byte(_) => 0,
+            Self::VarInt(_) => 1,
+            Self::VarLong(_) => 2,
+            Self::Float(_) => 3,
+            Self::String(_) => 4,
+            Self::Component(_) => 5,
+            Self::OptionalComponent(_) => 6,
+            Self::ItemStack(_) => 7,
+            Self::Boolean(_) => 8,
+            Self::Rotations(_) => 9,
+            Self::BlockPos(_) => 10,
+            Self::OptionalBlockPos(_) => 11,
+            Self::Direction(_) => 12,
+            Self::OptionalLivingEntityReference(_) => 13,
+            Self::BlockState(_) => 14,
+            Self::OptionalBlockState(_) => 15,
+            Self::Particle(_) => 16,
+            Self::Particles(_) => 17,
+            Self::VillagerData(_) => 18,
+            Self::OptionalUnsignedInt(_) => 19,
+            Self::Pose(_) => 20,
+            Self::CatVariant(_) => 21,
+            Self::CatSoundVariant(_) => 22,
+            Self::CowVariant(_) => 23,
+            Self::CowSoundVariant(_) => 24,
+            Self::WolfVariant(_) => 25,
+            Self::WolfSoundVariant(_) => 26,
+            Self::FrogVariant(_) => 27,
+            Self::PigVariant(_) => 28,
+            Self::PigSoundVariant(_) => 29,
+            Self::ChickenVariant(_) => 30,
+            Self::ChickenSoundVariant(_) => 31,
+            Self::ZombieNautilusVariant(_) => 32,
+            Self::OptionalGlobalPos(_) => 33,
+            Self::PaintingVariant(_) => 34,
+            Self::SnifferState(_) => 35,
+            Self::ArmadilloState(_) => 36,
+            Self::CopperGolemState(_) => 37,
+            Self::WeatheringCopperState(_) => 38,
+            Self::Vector3f(_) => 39,
+            Self::Quaternionf(_) => 40,
+            Self::ResolvableProfile(_) => 41,
+            Self::HumanoidArm(_) => 42,
+            Self::Raw { serializer_id, .. } => *serializer_id,
+        }
+    }
+
+    fn write_payload<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Byte(value) => write_i8(writer, *value),
+            Self::VarInt(value) => write_var_i32(writer, *value),
+            Self::VarLong(value) => write_var_i64(writer, *value),
+            Self::Float(value) => write_f32(writer, *value),
+            Self::String(value) => write_string(writer, value, 32767),
+            Self::Component(payload) | Self::ResolvableProfile(payload) => {
+                writer.write_all(payload)
+            }
+            Self::OptionalComponent(value) => write_optional_raw_payload(writer, value.as_deref()),
+            Self::ItemStack(stack) => stack.write_optional_untrusted(writer),
+            Self::Boolean(value) => write_bool(writer, *value),
+            Self::Rotations(value) => {
+                write_f32(writer, value.x)?;
+                write_f32(writer, value.y)?;
+                write_f32(writer, value.z)
+            }
+            Self::BlockPos(pos) => write_metadata_block_pos(writer, *pos),
+            Self::OptionalBlockPos(pos) => write_optional(writer, pos.as_ref(), |writer, pos| {
+                write_metadata_block_pos(writer, *pos)
+            }),
+            Self::Direction(direction) => write_var_i32(writer, direction.id()),
+            Self::OptionalLivingEntityReference(entity_id) => {
+                write_optional_entity_reference(writer, *entity_id)
+            }
+            Self::BlockState(state_id) => write_var_i32(writer, *state_id),
+            Self::OptionalBlockState(state_id) => write_var_i32(writer, state_id.unwrap_or(0)),
+            Self::Particle(particle) => particle.write(writer),
+            Self::Particles(particles) => {
+                write_var_i32(writer, particles.len() as i32)?;
+                for particle in particles {
+                    particle.write(writer)?;
+                }
+                Ok(())
+            }
+            Self::VillagerData(data) => {
+                write_var_i32(writer, data.villager_type)?;
+                write_var_i32(writer, data.profession)?;
+                write_var_i32(writer, data.level)
+            }
+            Self::OptionalUnsignedInt(value) => write_var_i32(writer, value.map_or(0, |v| v + 1)),
+            Self::Pose(pose) => write_var_i32(writer, pose.id()),
+            Self::CatVariant(id)
+            | Self::CatSoundVariant(id)
+            | Self::CowVariant(id)
+            | Self::CowSoundVariant(id)
+            | Self::WolfVariant(id)
+            | Self::WolfSoundVariant(id)
+            | Self::FrogVariant(id)
+            | Self::PigVariant(id)
+            | Self::PigSoundVariant(id)
+            | Self::ChickenVariant(id)
+            | Self::ChickenSoundVariant(id)
+            | Self::ZombieNautilusVariant(id)
+            | Self::PaintingVariant(id) => write_var_i32(writer, *id),
+            Self::OptionalGlobalPos(global_pos) => {
+                write_optional(writer, global_pos.as_ref(), |writer, global_pos| {
+                    write_identifier(writer, &global_pos.dimension)?;
+                    write_metadata_block_pos(writer, global_pos.pos)
+                })
+            }
+            Self::SnifferState(state) => write_var_i32(writer, state.id()),
+            Self::ArmadilloState(state) => write_var_i32(writer, state.id()),
+            Self::CopperGolemState(state) => write_var_i32(writer, state.id()),
+            Self::WeatheringCopperState(state) => write_var_i32(writer, state.id()),
+            Self::Vector3f(value) => {
+                write_f32(writer, value.x)?;
+                write_f32(writer, value.y)?;
+                write_f32(writer, value.z)
+            }
+            Self::Quaternionf(value) => {
+                write_f32(writer, value.x)?;
+                write_f32(writer, value.y)?;
+                write_f32(writer, value.z)?;
+                write_f32(writer, value.w)
+            }
+            Self::HumanoidArm(arm) => write_var_i32(writer, arm.id()),
+            Self::Raw {
+                encoded_payload, ..
+            } => writer.write_all(encoded_payload),
+        }
+    }
+}
+
+impl DirectionData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Down => 0,
+            Self::Up => 1,
+            Self::North => 2,
+            Self::South => 3,
+            Self::West => 4,
+            Self::East => 5,
+        }
+    }
+}
+
+impl PoseData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Standing => 0,
+            Self::FallFlying => 1,
+            Self::Sleeping => 2,
+            Self::Swimming => 3,
+            Self::SpinAttack => 4,
+            Self::Crouching => 5,
+            Self::LongJumping => 6,
+            Self::Dying => 7,
+            Self::Croaking => 8,
+            Self::UsingTongue => 9,
+            Self::Sitting => 10,
+            Self::Roaring => 11,
+            Self::Sniffing => 12,
+            Self::Emerging => 13,
+            Self::Digging => 14,
+            Self::Sliding => 15,
+            Self::Shooting => 16,
+            Self::Inhaling => 17,
+        }
+    }
+}
+
+impl SnifferStateData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Idling => 0,
+            Self::FeelingHappy => 1,
+            Self::Scenting => 2,
+            Self::Sniffing => 3,
+            Self::Searching => 4,
+            Self::Digging => 5,
+            Self::Rising => 6,
+        }
+    }
+}
+
+impl ArmadilloStateData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Idle => 0,
+            Self::Rolling => 1,
+            Self::Scared => 2,
+            Self::Unrolling => 3,
+        }
+    }
+}
+
+impl CopperGolemStateData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Unoxidized => 0,
+            Self::Exposed => 1,
+            Self::Weathered => 2,
+            Self::Oxidized => 3,
+        }
+    }
+}
+
+impl WeatheringCopperStateData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Unaffected => 0,
+            Self::Exposed => 1,
+            Self::Weathered => 2,
+            Self::Oxidized => 3,
+        }
+    }
+}
+
+impl HumanoidArmData {
+    fn id(self) -> i32 {
+        match self {
+            Self::Left => 0,
+            Self::Right => 1,
+        }
+    }
+}
+
+fn write_metadata_block_pos<W: Write>(writer: &mut W, pos: BlockPosition) -> io::Result<()> {
+    write_block_position(writer, pos.x, pos.y, pos.z)
+}
+
+fn write_optional_raw_payload<W: Write>(writer: &mut W, payload: Option<&[u8]>) -> io::Result<()> {
+    match payload {
+        Some(payload) => {
+            write_bool(writer, true)?;
+            writer.write_all(payload)
+        }
+        None => write_bool(writer, false),
+    }
+}
+
+fn write_optional_entity_reference<W: Write>(
+    writer: &mut W,
+    entity_id: Option<i32>,
+) -> io::Result<()> {
+    match entity_id {
+        Some(entity_id) => {
+            write_bool(writer, true)?;
+            write_var_i32(writer, entity_id)
+        }
+        None => write_bool(writer, false),
     }
 }
 
@@ -8174,6 +8615,163 @@ mod tests {
             panic!("expected effect packet");
         };
         assert_eq!(effect.flags, MobEffectFlags(14));
+    }
+
+    #[test]
+    fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
+        let component = vec![0x08, b'{', b'}'];
+        let stack = RawItemStack {
+            count: 2,
+            item_id: Some(5),
+            components: RawDataComponentPatch::empty(),
+        };
+        let values = vec![
+            EntityDataValue::typed(0, EntityMetadataValue::Byte(-1)).unwrap(),
+            EntityDataValue::typed(1, EntityMetadataValue::VarInt(300)).unwrap(),
+            EntityDataValue::typed(2, EntityMetadataValue::VarLong(300)).unwrap(),
+            EntityDataValue::typed(3, EntityMetadataValue::Float(1.5)).unwrap(),
+            EntityDataValue::typed(4, EntityMetadataValue::String("abc".to_string())).unwrap(),
+            EntityDataValue::typed(5, EntityMetadataValue::Component(component.clone())).unwrap(),
+            EntityDataValue::typed(6, EntityMetadataValue::OptionalComponent(Some(component)))
+                .unwrap(),
+            EntityDataValue::typed(7, EntityMetadataValue::ItemStack(stack)).unwrap(),
+            EntityDataValue::typed(8, EntityMetadataValue::Boolean(true)).unwrap(),
+            EntityDataValue::typed(
+                9,
+                EntityMetadataValue::Rotations(Rotations {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                }),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                10,
+                EntityMetadataValue::BlockPos(BlockPosition { x: 1, y: 2, z: 3 }),
+            )
+            .unwrap(),
+            EntityDataValue::typed(11, EntityMetadataValue::OptionalBlockPos(None)).unwrap(),
+            EntityDataValue::typed(12, EntityMetadataValue::Direction(DirectionData::East))
+                .unwrap(),
+            EntityDataValue::typed(
+                13,
+                EntityMetadataValue::OptionalLivingEntityReference(Some(42)),
+            )
+            .unwrap(),
+            EntityDataValue::typed(14, EntityMetadataValue::BlockState(9)).unwrap(),
+            EntityDataValue::typed(15, EntityMetadataValue::OptionalBlockState(None)).unwrap(),
+            EntityDataValue::typed(
+                16,
+                EntityMetadataValue::Particle(RawParticleOptions {
+                    particle_id: 3,
+                    data: vec![0xaa],
+                }),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                17,
+                EntityMetadataValue::Particles(vec![RawParticleOptions {
+                    particle_id: 4,
+                    data: vec![0xbb],
+                }]),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                18,
+                EntityMetadataValue::VillagerData(VillagerData {
+                    villager_type: 1,
+                    profession: 2,
+                    level: 3,
+                }),
+            )
+            .unwrap(),
+            EntityDataValue::typed(19, EntityMetadataValue::OptionalUnsignedInt(Some(4))).unwrap(),
+            EntityDataValue::typed(20, EntityMetadataValue::Pose(PoseData::Crouching)).unwrap(),
+            EntityDataValue::typed(21, EntityMetadataValue::CatVariant(5)).unwrap(),
+            EntityDataValue::typed(22, EntityMetadataValue::CatSoundVariant(6)).unwrap(),
+            EntityDataValue::typed(23, EntityMetadataValue::CowVariant(7)).unwrap(),
+            EntityDataValue::typed(24, EntityMetadataValue::CowSoundVariant(8)).unwrap(),
+            EntityDataValue::typed(25, EntityMetadataValue::WolfVariant(9)).unwrap(),
+            EntityDataValue::typed(26, EntityMetadataValue::WolfSoundVariant(10)).unwrap(),
+            EntityDataValue::typed(27, EntityMetadataValue::FrogVariant(11)).unwrap(),
+            EntityDataValue::typed(28, EntityMetadataValue::PigVariant(12)).unwrap(),
+            EntityDataValue::typed(29, EntityMetadataValue::PigSoundVariant(13)).unwrap(),
+            EntityDataValue::typed(30, EntityMetadataValue::ChickenVariant(14)).unwrap(),
+            EntityDataValue::typed(31, EntityMetadataValue::ChickenSoundVariant(15)).unwrap(),
+            EntityDataValue::typed(32, EntityMetadataValue::ZombieNautilusVariant(16)).unwrap(),
+            EntityDataValue::typed(
+                33,
+                EntityMetadataValue::OptionalGlobalPos(Some(GlobalPosData {
+                    dimension: Identifier::parse("minecraft:overworld").unwrap(),
+                    pos: BlockPosition { x: 1, y: 2, z: 3 },
+                })),
+            )
+            .unwrap(),
+            EntityDataValue::typed(34, EntityMetadataValue::PaintingVariant(17)).unwrap(),
+            EntityDataValue::typed(
+                35,
+                EntityMetadataValue::SnifferState(SnifferStateData::Digging),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                36,
+                EntityMetadataValue::ArmadilloState(ArmadilloStateData::Rolling),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                37,
+                EntityMetadataValue::CopperGolemState(CopperGolemStateData::Weathered),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                38,
+                EntityMetadataValue::WeatheringCopperState(WeatheringCopperStateData::Oxidized),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                39,
+                EntityMetadataValue::Vector3f(Vector3fData {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                }),
+            )
+            .unwrap(),
+            EntityDataValue::typed(
+                40,
+                EntityMetadataValue::Quaternionf(QuaternionfData {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                    w: 4.0,
+                }),
+            )
+            .unwrap(),
+            EntityDataValue::typed(41, EntityMetadataValue::ResolvableProfile(vec![0])).unwrap(),
+            EntityDataValue::typed(42, EntityMetadataValue::HumanoidArm(HumanoidArmData::Right))
+                .unwrap(),
+        ];
+
+        assert_eq!(
+            values
+                .iter()
+                .map(|value| value.serializer_id)
+                .collect::<Vec<_>>(),
+            (0..=42).collect::<Vec<_>>()
+        );
+
+        let mut payload = Vec::new();
+        ClientboundSetEntityDataPacket {
+            id: 99,
+            packed_items: values,
+        }
+        .write(&mut payload)
+        .unwrap();
+        assert_eq!(&payload[..3], &[99, 0, 0]);
+        assert_eq!(payload.last(), Some(&0xff));
+        assert!(payload.windows(3).any(|window| window == [33, 33, 1]));
+        assert!(payload.windows(3).any(|window| window == [40, 40, 0x3f]));
+        assert!(payload.windows(3).any(|window| window == [42, 42, 1]));
     }
 
     #[test]
