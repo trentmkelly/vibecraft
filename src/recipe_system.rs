@@ -908,6 +908,26 @@ mod tests {
             Some(ItemAmount::one("minecraft:crafting_table"))
         );
 
+        let asymmetric = RecipeKind::Shaped {
+            width: 2,
+            height: 1,
+            pattern: vec![
+                Some(IngredientSpec::Item("minecraft:stick")),
+                Some(IngredientSpec::Item("minecraft:coal")),
+            ],
+            result: ItemAmount::one("minecraft:torch"),
+        };
+        assert!(asymmetric.matches(
+            2,
+            1,
+            &[Some("minecraft:stick"), Some("minecraft:coal")]
+        ));
+        assert!(!asymmetric.matches(
+            2,
+            1,
+            &[Some("minecraft:coal"), Some("minecraft:stick")]
+        ));
+
         let shapeless = RecipeKind::Shapeless {
             ingredients: vec![
                 IngredientSpec::Item("minecraft:gunpowder"),

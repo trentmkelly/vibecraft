@@ -52,8 +52,8 @@
 - [ ] Implement `ShapelessRecipe`: unordered `List<Ingredient>` matching, `matches()` via subset check with item-count consumption
 - [ ] Implement `TransmuteRecipe`: shaped/shapeless recipe that transforms an item to a new type while preserving certain components (e.g., `minecraft:transmute`)
 - [ ] Implement `ImbueRecipe`: imbue enchantment or effect onto an item via crafting
-- [ ] Add unit test: shaped recipe matches correct grid position, rejects wrong orientation
-- [ ] Add unit test: shapeless recipe accepts any ingredient ordering, respects count requirements
+- [x] Add unit test: shaped recipe matches correct grid position, rejects wrong orientation
+- [x] Add unit test: shapeless recipe accepts any ingredient ordering, respects count requirements
 - [ ] Add unit test: transmute recipe preserves expected components on result
 
 ## Special Crafting Recipes
