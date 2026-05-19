@@ -80,6 +80,7 @@
 
 - [x] Implement `SpawnerBlockEntity`: `SpawnData` (entity NBT, custom spawn rules), `nextSpawnData` pool (weighted random), `requiredPlayerRange` (16 blocks default), delay, `minSpawnDelay`/`maxSpawnDelay`, `spawnCount`, `maxNearbyEntities`, activation (player within range), mob-cap check, no-sky-access check
 - [x] Implement `TrialSpawnerBlockEntity`: state machine (INACTIVE → WAITING_FOR_PLAYERS → ACTIVE → WAITING_FOR_REWARD_EJECTION → COOLDOWN), normal vs. ominous config, `detectedPlayers` set per trial, ejection slot positions, `TrialSpawnerConfig` from data
+- [x] Implement `VaultBlockEntity`: state machine (INACTIVE ↔ ACTIVE → UNLOCKING → EJECTING), `VaultConfig` (loot table, activation/deactivation range, key item, display override), rewarded-player set, shared display item, connected players, item ejection queue, update tag with shared data only
 - [x] Implement `JigsawBlockEntity`: joint type, target pool, name, final-state, selection priority, placement priority, orientation hint
 - [x] Implement `StructureBlockEntity`: mode (SAVE/LOAD/CORNER/DATA), structure name, position offset, size, mirror, rotation, integrity, seed, show-bounding-box flag, `structureBlockSize` limits
 - [x] Implement `TheEndGatewayBlockEntity`: age counter, exact-teleport flag (`exactTeleport`), exit position, beam animation (ray shot toward exit on teleport use)
@@ -87,6 +88,7 @@
 - [x] Implement `TestBlockEntity` and `TestInstanceBlockEntity`: game-test framework support
 - [x] Add parity test: spawner delay and entity cycling after NBT save/load; mob-cap check prevents overcrowding
 - [x] Add parity test: trial spawner state machine transitions (activation, cooldown duration, ominous vs. normal config)
+- [x] Add parity test: vault key insert, duplicate rewarded-player rejection, state delays, reward ejection order, shared-data update tag, save/load
 
 ## Decorative / Lore Block Entities
 
@@ -133,7 +135,7 @@
 - [ ] Add Mineflayer randomizable-container tests that open generated chests, barrels, dispensers, droppers, and shulker boxes before and after reconnect, verifying loot-table realization happens once, custom names/locks are enforced, and comparator-visible contents match vanilla.
 - [x] Implement sign and text block entities: `SignBlockEntity`, `HangingSignBlockEntity`, `LecternBlockEntity`, and book/sign filtering, editing, waxed state, front/back text, click commands, and command execution permissions.
 - [x] Implement utility block entities: `BeaconBlockEntity`, `BrewingStandBlockEntity`, `CrafterBlockEntity`, `EnchantingTableBlockEntity`, `JukeboxBlockEntity`, `ComparatorBlockEntity`, `DaylightDetectorBlockEntity`, and `CommandBlockEntity`.
-- [x] Implement world/system block entities: `SpawnerBlockEntity`, `TrialSpawnerBlockEntity`, `JigsawBlockEntity`, `StructureBlockEntity`, `TheEndGatewayBlockEntity`, `TheEndPortalBlockEntity`, `TestBlockEntity`, and `TestInstanceBlockEntity`.
+- [x] Implement world/system block entities: `SpawnerBlockEntity`, `TrialSpawnerBlockEntity`, `VaultBlockEntity`, `JigsawBlockEntity`, `StructureBlockEntity`, `TheEndGatewayBlockEntity`, `TheEndPortalBlockEntity`, `TestBlockEntity`, and `TestInstanceBlockEntity`.
 - [x] Implement decorative/lore block entities: `BannerBlockEntity`, `BedBlockEntity`, `BrushableBlockEntity`, `DecoratedPotBlockEntity`, `SkullBlockEntity`, `BellBlockEntity`, and `CopperGolemStatueBlockEntity`.
 - [x] Implement mob/environment block entities: `BeehiveBlockEntity`, `ConduitBlockEntity`, `CampfireBlockEntity`, `SculkSensorBlockEntity`, `CalibratedSculkSensorBlockEntity`, `SculkCatalystBlockEntity`, `SculkShriekerBlockEntity`, and `CreakingHeartBlockEntity`.
 - [ ] For every block entity, add tests for placement, ticking, GUI open/close, save/load, chunk unload/reload, comparator output, network update tag, `/data` command access, and destruction drops.

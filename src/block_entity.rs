@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::block_update::{BlockPos, Direction};
 use crate::map_state::DyeColor;
@@ -547,6 +547,58 @@ pub struct TrialSpawnerBlockEntity {
     pub ejecting_loot_table: Option<String>,
     pub spin: f64,
     pub old_spin: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VaultStateModel {
+    Inactive,
+    Active,
+    Unlocking,
+    Ejecting,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VaultConfigModel {
+    pub loot_table: String,
+    pub activation_range: f64,
+    pub deactivation_range: f64,
+    pub key_item: PotItemStack,
+    pub override_loot_table_to_display: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VaultBlockEntity {
+    pub state: VaultStateModel,
+    pub is_ominous: bool,
+    pub config: VaultConfigModel,
+    pub rewarded_players: BTreeSet<String>,
+    pub connected_players: BTreeSet<String>,
+    pub display_item: Option<PotItemStack>,
+    pub items_to_eject: Vec<PotItemStack>,
+    pub total_ejections_needed: i32,
+    pub state_updating_resumes_at: i64,
+    pub last_insert_fail_timestamp: i64,
+    pub connected_particles_range: f64,
+    pub current_spin: f32,
+    pub previous_spin: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VaultTickResult {
+    Waiting,
+    StateChanged(VaultStateModel),
+    EjectedItem(PotItemStack),
+    EjectionFinished,
+    DisplayItemCycled(Option<PotItemStack>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VaultInsertResult {
+    IgnoredInactive,
+    WrongKey { expected: String },
+    AlreadyRewarded,
+    Unlocking { items_to_eject: usize },
+    EmptyReward,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4309,6 +4361,361 @@ impl TrialSpawnerBlockEntity {
         spawner.ejecting_loot_table =
             get_string(entries, "ejecting_loot_table").map(ToString::to_string);
         spawner
+    }
+}
+
+impl VaultStateModel {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Inactive => "inactive",
+            Self::Active => "active",
+            Self::Unlocking => "unlocking",
+            Self::Ejecting => "ejecting",
+        }
+    }
+
+    fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "inactive" => Some(Self::Inactive),
+            "active" => Some(Self::Active),
+            "unlocking" => Some(Self::Unlocking),
+            "ejecting" => Some(Self::Ejecting),
+            _ => None,
+        }
+    }
+
+    pub fn light_level(self) -> i32 {
+        match self {
+            Self::Inactive => 6,
+            Self::Active | Self::Unlocking | Self::Ejecting => 12,
+        }
+    }
+}
+
+impl Default for VaultConfigModel {
+    fn default() -> Self {
+        Self {
+            loot_table: "minecraft:chests/trial_chambers/reward".to_string(),
+            activation_range: 4.0,
+            deactivation_range: 4.5,
+            key_item: PotItemStack {
+                item_id: "minecraft:trial_key".to_string(),
+                count: 1,
+            },
+            override_loot_table_to_display: None,
+        }
+    }
+}
+
+impl VaultConfigModel {
+    fn to_tag(&self) -> Tag {
+        let mut fields = vec![
+            (
+                "loot_table".to_string(),
+                Tag::String(self.loot_table.clone()),
+            ),
+            (
+                "activation_range".to_string(),
+                Tag::Double(self.activation_range),
+            ),
+            (
+                "deactivation_range".to_string(),
+                Tag::Double(self.deactivation_range),
+            ),
+            ("key_item".to_string(), pot_item_to_tag(&self.key_item, 0)),
+        ];
+        if let Some(table) = &self.override_loot_table_to_display {
+            fields.push((
+                "override_loot_table_to_display".to_string(),
+                Tag::String(table.clone()),
+            ));
+        }
+        Tag::Compound(fields)
+    }
+
+    fn from_tag(tag: &Tag) -> Self {
+        let mut config = Self::default();
+        let Some(entries) = compound_entries(tag) else {
+            return config;
+        };
+        config.loot_table = get_string(entries, "loot_table")
+            .unwrap_or(&config.loot_table)
+            .to_string();
+        config.activation_range =
+            get_double(entries, "activation_range").unwrap_or(config.activation_range);
+        config.deactivation_range =
+            get_double(entries, "deactivation_range").unwrap_or(config.deactivation_range);
+        if let Some((_, tag)) = entries.iter().find(|(name, _)| name == "key_item") {
+            config.key_item = pot_item_from_tag(tag).unwrap_or(config.key_item);
+        }
+        config.override_loot_table_to_display =
+            get_string(entries, "override_loot_table_to_display").map(ToString::to_string);
+        config
+    }
+}
+
+impl Default for VaultBlockEntity {
+    fn default() -> Self {
+        Self {
+            state: VaultStateModel::Inactive,
+            is_ominous: false,
+            config: VaultConfigModel::default(),
+            rewarded_players: BTreeSet::new(),
+            connected_players: BTreeSet::new(),
+            display_item: None,
+            items_to_eject: Vec::new(),
+            total_ejections_needed: 0,
+            state_updating_resumes_at: 0,
+            last_insert_fail_timestamp: 0,
+            connected_particles_range: VaultConfigModel::default().deactivation_range,
+            current_spin: 0.0,
+            previous_spin: 0.0,
+        }
+    }
+}
+
+impl VaultBlockEntity {
+    pub const UNLOCKING_DELAY_TICKS: i64 = 14;
+    pub const STATE_UPDATE_RATE_TICKS: i64 = 20;
+    pub const INSERT_FAIL_SOUND_BUFFER_TICKS: i64 = 15;
+    pub const MAX_REWARDED_PLAYERS: usize = 128;
+
+    pub fn tick_client(&mut self) {
+        self.previous_spin = self.current_spin;
+        self.current_spin = (self.current_spin + 10.0).rem_euclid(360.0);
+    }
+
+    pub fn tick_server(
+        &mut self,
+        game_time: i64,
+        detected_players: &[String],
+        display_roll: Option<PotItemStack>,
+    ) -> VaultTickResult {
+        if game_time % 20 == 0 && self.state == VaultStateModel::Active {
+            self.display_item = display_roll;
+            return VaultTickResult::DisplayItemCycled(self.display_item.clone());
+        }
+        if game_time < self.state_updating_resumes_at {
+            return VaultTickResult::Waiting;
+        }
+        match self.state {
+            VaultStateModel::Inactive => {
+                self.update_connected_players(detected_players, self.config.activation_range);
+                self.state_updating_resumes_at = game_time + Self::STATE_UPDATE_RATE_TICKS;
+                if self.connected_players.is_empty() {
+                    VaultTickResult::Waiting
+                } else {
+                    self.state = VaultStateModel::Active;
+                    VaultTickResult::StateChanged(self.state)
+                }
+            }
+            VaultStateModel::Active => {
+                self.update_connected_players(detected_players, self.config.deactivation_range);
+                self.state_updating_resumes_at = game_time + Self::STATE_UPDATE_RATE_TICKS;
+                if self.connected_players.is_empty() {
+                    self.state = VaultStateModel::Inactive;
+                    self.display_item = None;
+                    VaultTickResult::StateChanged(self.state)
+                } else {
+                    VaultTickResult::Waiting
+                }
+            }
+            VaultStateModel::Unlocking => {
+                self.state = VaultStateModel::Ejecting;
+                self.state_updating_resumes_at = game_time + Self::STATE_UPDATE_RATE_TICKS;
+                VaultTickResult::StateChanged(self.state)
+            }
+            VaultStateModel::Ejecting => {
+                if let Some(item) = self.items_to_eject.pop() {
+                    self.display_item = self.items_to_eject.last().cloned();
+                    self.state_updating_resumes_at = game_time + Self::STATE_UPDATE_RATE_TICKS;
+                    VaultTickResult::EjectedItem(item)
+                } else {
+                    self.total_ejections_needed = 0;
+                    self.update_connected_players(detected_players, self.config.deactivation_range);
+                    self.state = if self.connected_players.is_empty() {
+                        VaultStateModel::Inactive
+                    } else {
+                        VaultStateModel::Active
+                    };
+                    VaultTickResult::EjectionFinished
+                }
+            }
+        }
+    }
+
+    pub fn try_insert_key(
+        &mut self,
+        player: impl Into<String>,
+        inserted: &PotItemStack,
+        rewards: Vec<PotItemStack>,
+        game_time: i64,
+    ) -> VaultInsertResult {
+        if self.state == VaultStateModel::Inactive {
+            return VaultInsertResult::IgnoredInactive;
+        }
+        if inserted.item_id != self.config.key_item.item_id
+            || inserted.count < self.config.key_item.count
+        {
+            if game_time >= self.last_insert_fail_timestamp + Self::INSERT_FAIL_SOUND_BUFFER_TICKS {
+                self.last_insert_fail_timestamp = game_time;
+            }
+            return VaultInsertResult::WrongKey {
+                expected: self.config.key_item.item_id.clone(),
+            };
+        }
+        let player = player.into();
+        if self.rewarded_players.contains(&player) {
+            if game_time >= self.last_insert_fail_timestamp + Self::INSERT_FAIL_SOUND_BUFFER_TICKS {
+                self.last_insert_fail_timestamp = game_time;
+            }
+            return VaultInsertResult::AlreadyRewarded;
+        }
+        if rewards.is_empty() {
+            return VaultInsertResult::EmptyReward;
+        }
+        self.items_to_eject = rewards;
+        self.total_ejections_needed = self.items_to_eject.len() as i32;
+        self.display_item = self.items_to_eject.last().cloned();
+        self.state = VaultStateModel::Unlocking;
+        self.state_updating_resumes_at = game_time + Self::UNLOCKING_DELAY_TICKS;
+        self.add_rewarded_player(player);
+        VaultInsertResult::Unlocking {
+            items_to_eject: self.items_to_eject.len(),
+        }
+    }
+
+    fn add_rewarded_player(&mut self, player: String) {
+        self.rewarded_players.insert(player);
+        while self.rewarded_players.len() > Self::MAX_REWARDED_PLAYERS {
+            if let Some(first) = self.rewarded_players.iter().next().cloned() {
+                self.rewarded_players.remove(&first);
+            }
+        }
+    }
+
+    fn update_connected_players(&mut self, detected_players: &[String], range: f64) {
+        self.connected_players = detected_players
+            .iter()
+            .filter(|player| !self.rewarded_players.contains(*player))
+            .cloned()
+            .collect();
+        self.connected_particles_range = range;
+    }
+
+    pub fn save_additional(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "state".to_string(),
+                Tag::String(self.state.as_str().to_string()),
+            ),
+            (
+                "is_ominous".to_string(),
+                Tag::Byte(i8::from(self.is_ominous)),
+            ),
+            ("config".to_string(), self.config.to_tag()),
+            ("shared_data".to_string(), self.shared_data_tag()),
+            ("server_data".to_string(), self.server_data_tag()),
+        ])
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        Tag::Compound(vec![("shared_data".to_string(), self.shared_data_tag())])
+    }
+
+    fn shared_data_tag(&self) -> Tag {
+        let mut fields = vec![
+            (
+                "connected_players".to_string(),
+                string_list_tag(self.connected_players.iter().cloned()),
+            ),
+            (
+                "connected_particles_range".to_string(),
+                Tag::Double(self.connected_particles_range),
+            ),
+        ];
+        if let Some(item) = &self.display_item {
+            fields.push(("display_item".to_string(), pot_item_to_tag(item, 0)));
+        }
+        Tag::Compound(fields)
+    }
+
+    fn server_data_tag(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "rewarded_players".to_string(),
+                string_list_tag(self.rewarded_players.iter().cloned()),
+            ),
+            (
+                "state_updating_resumes_at".to_string(),
+                Tag::Long(self.state_updating_resumes_at),
+            ),
+            (
+                "items_to_eject".to_string(),
+                Tag::List(
+                    self.items_to_eject
+                        .iter()
+                        .enumerate()
+                        .map(|(slot, item)| pot_item_to_tag(item, slot as i8))
+                        .collect(),
+                ),
+            ),
+            (
+                "total_ejections_needed".to_string(),
+                Tag::Int(self.total_ejections_needed),
+            ),
+        ])
+    }
+
+    pub fn load_additional(tag: &Tag) -> Self {
+        let mut vault = Self::default();
+        let Some(entries) = compound_entries(tag) else {
+            return vault;
+        };
+        vault.state = get_string(entries, "state")
+            .and_then(VaultStateModel::from_str)
+            .unwrap_or(VaultStateModel::Inactive);
+        vault.is_ominous = get_byte(entries, "is_ominous").unwrap_or(0) != 0;
+        if let Some((_, tag)) = entries.iter().find(|(name, _)| name == "config") {
+            vault.config = VaultConfigModel::from_tag(tag);
+        }
+        if let Some(shared) = entries
+            .iter()
+            .find(|(name, _)| name == "shared_data")
+            .and_then(|(_, tag)| compound_entries(tag))
+        {
+            vault.connected_players = string_list_field(shared, "connected_players")
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            vault.connected_particles_range = get_double(shared, "connected_particles_range")
+                .unwrap_or(vault.config.deactivation_range);
+            vault.display_item = shared
+                .iter()
+                .find(|(name, _)| name == "display_item")
+                .and_then(|(_, tag)| pot_item_from_tag(tag));
+        }
+        if let Some(server) = entries
+            .iter()
+            .find(|(name, _)| name == "server_data")
+            .and_then(|(_, tag)| compound_entries(tag))
+        {
+            vault.rewarded_players = string_list_field(server, "rewarded_players")
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            vault.state_updating_resumes_at =
+                get_long(server, "state_updating_resumes_at").unwrap_or(0);
+            vault.total_ejections_needed = get_int(server, "total_ejections_needed").unwrap_or(0);
+            if let Some(Tag::List(items)) = server
+                .iter()
+                .find(|(name, _)| name == "items_to_eject")
+                .map(|(_, tag)| tag)
+            {
+                vault.items_to_eject = items.iter().filter_map(pot_item_from_tag).collect();
+            }
+        }
+        vault
     }
 }
 
@@ -8164,6 +8571,10 @@ fn string_list_field(entries: &[(String, Tag)], key: &str) -> Option<Vec<String>
     })
 }
 
+fn string_list_tag(values: impl IntoIterator<Item = String>) -> Tag {
+    Tag::List(values.into_iter().map(Tag::String).collect())
+}
+
 fn int_range_field(entries: &[(String, Tag)], key: &str) -> Option<(i32, i32)> {
     let values = get_int_array(entries, key)?;
     (values.len() == 2).then_some((values[0], values[1]))
@@ -8172,6 +8583,13 @@ fn int_range_field(entries: &[(String, Tag)], key: &str) -> Option<(i32, i32)> {
 fn get_float(entries: &[(String, Tag)], key: &str) -> Option<f32> {
     entries.iter().find_map(|(name, value)| match value {
         Tag::Float(value) if name == key => Some(*value),
+        _ => None,
+    })
+}
+
+fn get_double(entries: &[(String, Tag)], key: &str) -> Option<f64> {
+    entries.iter().find_map(|(name, value)| match value {
+        Tag::Double(value) if name == key => Some(*value),
         _ => None,
     })
 }
@@ -8271,6 +8689,19 @@ fn weighted_spawn_data(values: &[SpawnDataModel], roll: usize) -> Option<&SpawnD
         }
     }
     values.last()
+}
+
+fn pot_item_to_tag(item: &PotItemStack, slot: i8) -> Tag {
+    let mut tag = match item.to_tag() {
+        Tag::Compound(entries) => entries,
+        _ => Vec::new(),
+    };
+    tag.push(("Slot".to_string(), Tag::Byte(slot)));
+    Tag::Compound(tag)
+}
+
+fn pot_item_from_tag(tag: &Tag) -> Option<PotItemStack> {
+    PotItemStack::from_tag(tag)
 }
 
 fn tag_long_or_zero(tag: &Tag) -> i64 {
@@ -9804,6 +10235,202 @@ mod tests {
 
         let saved = spawner.save_additional();
         assert_eq!(TrialSpawnerBlockEntity::load_additional(&saved), spawner);
+    }
+
+    #[test]
+    fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java() {
+        let mut vault = VaultBlockEntity::default();
+        assert_eq!(vault.state, VaultStateModel::Inactive);
+        assert_eq!(vault.state.light_level(), 6);
+        assert_eq!(vault.config.activation_range, 4.0);
+        assert_eq!(vault.config.deactivation_range, 4.5);
+        assert_eq!(vault.config.key_item.item_id, "minecraft:trial_key");
+
+        assert_eq!(
+            vault.try_insert_key(
+                "player-a",
+                &PotItemStack {
+                    item_id: "minecraft:trial_key".to_string(),
+                    count: 1,
+                },
+                vec![PotItemStack {
+                    item_id: "minecraft:diamond".to_string(),
+                    count: 1,
+                }],
+                0,
+            ),
+            VaultInsertResult::IgnoredInactive
+        );
+
+        assert_eq!(
+            vault.tick_server(20, &["player-a".to_string()], None),
+            VaultTickResult::StateChanged(VaultStateModel::Active)
+        );
+        assert_eq!(
+            vault.connected_particles_range,
+            vault.config.activation_range
+        );
+        assert!(vault.connected_players.contains("player-a"));
+
+        assert_eq!(
+            vault.try_insert_key(
+                "player-a",
+                &PotItemStack {
+                    item_id: "minecraft:stick".to_string(),
+                    count: 1,
+                },
+                vec![PotItemStack {
+                    item_id: "minecraft:diamond".to_string(),
+                    count: 1,
+                }],
+                21,
+            ),
+            VaultInsertResult::WrongKey {
+                expected: "minecraft:trial_key".to_string(),
+            }
+        );
+        assert_eq!(vault.last_insert_fail_timestamp, 21);
+
+        assert_eq!(
+            vault.try_insert_key(
+                "player-a",
+                &PotItemStack {
+                    item_id: "minecraft:trial_key".to_string(),
+                    count: 1,
+                },
+                vec![
+                    PotItemStack {
+                        item_id: "minecraft:emerald".to_string(),
+                        count: 2,
+                    },
+                    PotItemStack {
+                        item_id: "minecraft:diamond".to_string(),
+                        count: 1,
+                    },
+                ],
+                22,
+            ),
+            VaultInsertResult::Unlocking { items_to_eject: 2 }
+        );
+        assert_eq!(vault.state, VaultStateModel::Unlocking);
+        assert_eq!(vault.state_updating_resumes_at, 36);
+        assert_eq!(
+            vault.display_item,
+            Some(PotItemStack {
+                item_id: "minecraft:diamond".to_string(),
+                count: 1,
+            })
+        );
+        assert!(vault.rewarded_players.contains("player-a"));
+
+        assert_eq!(
+            vault.try_insert_key(
+                "player-a",
+                &PotItemStack {
+                    item_id: "minecraft:trial_key".to_string(),
+                    count: 1,
+                },
+                vec![PotItemStack {
+                    item_id: "minecraft:gold_ingot".to_string(),
+                    count: 1,
+                }],
+                37,
+            ),
+            VaultInsertResult::AlreadyRewarded
+        );
+
+        assert_eq!(
+            vault.tick_server(35, &["player-a".to_string()], None),
+            VaultTickResult::Waiting
+        );
+        assert_eq!(
+            vault.tick_server(36, &["player-a".to_string()], None),
+            VaultTickResult::StateChanged(VaultStateModel::Ejecting)
+        );
+        assert_eq!(
+            vault.tick_server(56, &["player-a".to_string()], None),
+            VaultTickResult::EjectedItem(PotItemStack {
+                item_id: "minecraft:diamond".to_string(),
+                count: 1,
+            })
+        );
+        assert_eq!(
+            vault.display_item,
+            Some(PotItemStack {
+                item_id: "minecraft:emerald".to_string(),
+                count: 2,
+            })
+        );
+        assert_eq!(
+            vault.tick_server(76, &["player-a".to_string()], None),
+            VaultTickResult::EjectedItem(PotItemStack {
+                item_id: "minecraft:emerald".to_string(),
+                count: 2,
+            })
+        );
+        assert_eq!(
+            vault.tick_server(96, &["player-a".to_string()], None),
+            VaultTickResult::EjectionFinished
+        );
+        assert_eq!(vault.state, VaultStateModel::Inactive);
+
+        for index in 0..130 {
+            vault.add_rewarded_player(format!("player-{index:03}"));
+        }
+        assert_eq!(
+            vault.rewarded_players.len(),
+            VaultBlockEntity::MAX_REWARDED_PLAYERS
+        );
+        assert!(!vault.rewarded_players.contains("player-000"));
+        assert!(vault.rewarded_players.contains("player-129"));
+
+        vault.state = VaultStateModel::Active;
+        assert_eq!(
+            vault.tick_server(
+                120,
+                &["player-new".to_string()],
+                Some(PotItemStack {
+                    item_id: "minecraft:apple".to_string(),
+                    count: 1,
+                }),
+            ),
+            VaultTickResult::DisplayItemCycled(Some(PotItemStack {
+                item_id: "minecraft:apple".to_string(),
+                count: 1,
+            }))
+        );
+        vault.tick_client();
+        assert_eq!(vault.previous_spin, 0.0);
+        assert_eq!(vault.current_spin, 10.0);
+
+        let update_tag = vault.get_update_tag();
+        let update_entries = compound_entries(&update_tag).unwrap();
+        assert!(update_entries.iter().any(|(name, _)| name == "shared_data"));
+        assert!(!update_entries
+            .iter()
+            .any(|(name, _)| name == "server_data" || name == "config"));
+
+        let saved = vault.save_additional();
+        let loaded = VaultBlockEntity::load_additional(&saved);
+        assert_eq!(loaded.state, vault.state);
+        assert_eq!(loaded.is_ominous, vault.is_ominous);
+        assert_eq!(loaded.config, vault.config);
+        assert_eq!(loaded.rewarded_players, vault.rewarded_players);
+        assert_eq!(loaded.connected_players, vault.connected_players);
+        assert_eq!(loaded.display_item, vault.display_item);
+        assert_eq!(loaded.items_to_eject, vault.items_to_eject);
+        assert_eq!(loaded.total_ejections_needed, vault.total_ejections_needed);
+        assert_eq!(
+            loaded.state_updating_resumes_at,
+            vault.state_updating_resumes_at
+        );
+        assert_eq!(
+            loaded.connected_particles_range,
+            vault.connected_particles_range
+        );
+        assert_eq!(loaded.last_insert_fail_timestamp, 0);
+        assert_eq!(loaded.current_spin, 0.0);
+        assert_eq!(loaded.previous_spin, 0.0);
     }
 
     #[test]
