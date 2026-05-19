@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeSet;
+
 use crate::inventory::same_item_same_components;
 use crate::item_stack::ItemStack;
-use crate::recipe_system::RecipeMap;
+use crate::recipe_system::{CraftingStack, RecipeMap};
 
 pub const INVENTORY_SIZE: usize = 36;
 pub const HOTBAR_SIZE: usize = 9;
@@ -703,6 +705,8 @@ pub struct InventoryMenu {
     player: PlayerInventory,
     crafting: CraftingGrid,
     recipes: RecipeMap,
+    unlocked_recipes: BTreeSet<&'static str>,
+    recipe_unlock_events: Vec<&'static str>,
 }
 
 impl CraftingGrid {
@@ -748,12 +752,7 @@ impl CraftingGrid {
         if result.is_empty() {
             return ItemStack::empty();
         }
-        for slot in &mut self.slots {
-            if !slot.is_empty() {
-                slot.shrink(1);
-            }
-        }
-        self.update_result(recipes);
+        self.consume_inputs_and_refresh(recipes);
         result
     }
 
@@ -788,6 +787,41 @@ impl CraftingGrid {
             self.recipe_id = None;
             self.result = ItemStack::empty();
         }
+    }
+
+    fn consume_inputs_and_refresh(&mut self, recipes: &RecipeMap) {
+        let remaining_items = self
+            .recipe_id
+            .and_then(|recipe_id| recipes.by_key(recipe_id))
+            .map(|holder| {
+                let input = self
+                    .slots
+                    .iter()
+                    .map(|stack| {
+                        (!stack.is_empty()).then(|| CraftingStack {
+                            item: stack.item_id(),
+                            count: stack.count() as u32,
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                holder.recipe.get_remaining_items(&input)
+            })
+            .unwrap_or_else(|| vec![None; self.slots.len()]);
+
+        for (slot, remainder) in self.slots.iter_mut().zip(remaining_items) {
+            if !slot.is_empty() {
+                slot.shrink(1);
+            }
+            if let Some(remainder) = remainder {
+                let remainder_stack = ItemStack::new(remainder.item, remainder.count as i32);
+                if slot.is_empty() {
+                    *slot = remainder_stack;
+                } else if same_item_same_components(slot, &remainder_stack) {
+                    slot.grow(remainder_stack.count());
+                }
+            }
+        }
+        self.update_result(recipes);
     }
 }
 
@@ -834,6 +868,8 @@ impl InventoryMenu {
             player,
             crafting: CraftingGrid::two_by_two(),
             recipes,
+            unlocked_recipes: BTreeSet::new(),
+            recipe_unlock_events: Vec::new(),
         }
     }
 
@@ -843,6 +879,10 @@ impl InventoryMenu {
 
     pub fn crafting_grid(&self) -> &CraftingGrid {
         &self.crafting
+    }
+
+    pub fn recipe_unlock_events(&self) -> &[&'static str] {
+        &self.recipe_unlock_events
     }
 
     pub fn get_slot(&self, slot: usize) -> Option<ItemStack> {
@@ -881,6 +921,21 @@ impl InventoryMenu {
         (0..Self::SLOT_COUNT)
             .map(|slot| self.get_slot(slot).unwrap_or_else(ItemStack::empty))
             .collect()
+    }
+
+    pub fn take_result(&mut self) -> ItemStack {
+        let Some(recipe_id) = self.crafting.recipe_id() else {
+            return ItemStack::empty();
+        };
+        let result = self.crafting.result().clone();
+        if result.is_empty() {
+            return ItemStack::empty();
+        }
+        self.crafting.consume_inputs_and_refresh(&self.recipes);
+        if self.unlocked_recipes.insert(recipe_id) {
+            self.recipe_unlock_events.push(recipe_id);
+        }
+        result
     }
 }
 
@@ -922,6 +977,15 @@ mod tests {
                         )),
                     ],
                     result: crate::recipe_system::ItemAmount::one("minecraft:crafting_table"),
+                },
+            },
+            crate::recipe_system::RecipeHolder {
+                id: "minecraft:test_bucket_recipe",
+                recipe: crate::recipe_system::RecipeKind::Shapeless {
+                    ingredients: vec![crate::recipe_system::IngredientSpec::Item(
+                        "minecraft:water_bucket",
+                    )],
+                    result: crate::recipe_system::ItemAmount::one("minecraft:clay"),
                 },
             },
             crate::recipe_system::RecipeHolder {
@@ -1178,6 +1242,31 @@ mod tests {
             &ItemStack::new("minecraft:apple", 2)
         );
         assert_eq!(menu.all_slots().len(), 46);
+    }
+
+    #[test]
+    fn inventory_menu_result_take_consumes_inputs_remainders_and_unlocks_recipe_once() {
+        let mut menu = InventoryMenu::new(PlayerInventory::new(), crafting_test_recipes());
+
+        assert!(menu.set_slot(1, ItemStack::new("minecraft:water_bucket", 1)));
+        assert_eq!(menu.get_slot(0).unwrap().item_id(), "minecraft:clay");
+        let result = menu.take_result();
+        assert_eq!(result.item_id(), "minecraft:clay");
+        assert_eq!(menu.get_slot(1).unwrap().item_id(), "minecraft:bucket");
+        assert!(menu.get_slot(0).unwrap().is_empty());
+        assert_eq!(
+            menu.recipe_unlock_events(),
+            &["minecraft:test_bucket_recipe"]
+        );
+
+        menu.set_slot(1, ItemStack::new("minecraft:water_bucket", 1));
+        let second = menu.take_result();
+        assert_eq!(second.item_id(), "minecraft:clay");
+        assert_eq!(
+            menu.recipe_unlock_events(),
+            &["minecraft:test_bucket_recipe"],
+            "recipe-book unlock should be emitted only for first craft"
+        );
     }
 
     #[test]

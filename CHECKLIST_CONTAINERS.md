@@ -56,7 +56,7 @@
 
 - [x] **Implement `InventoryMenu` slot layout**: `player_inventory::InventoryMenu` owns a `PlayerInventory` + `CraftingGrid` and exposes vanilla `InventoryMenu` slots: result=0, crafting grid=1-4, armor head/chest/legs/feet=5-8, main storage=9-35, hotbar=36-44, offhand=45. Reads/writes delegate to the backing inventory or grid, and slot 0 rejects placement.
 
-- [ ] **Implement `ResultSlot` on-take side effects**: when the player picks up from slot 0, after returning the assembled stack: (a) call `shrink(1)` on every non-empty crafting-grid slot; (b) call `default_crafting_remaining_items` from `recipe_system.rs` to get remainder items (buckets, bottles, etc.) and place each back into the corresponding grid slot; (c) re-run `CraftingGrid::update_result` so the result slot refreshes or clears; (d) queue a recipe-book-unlock event for the matched recipe holder ID (see recipe-book step below).
+- [x] **Implement `ResultSlot` on-take side effects**: `InventoryMenu::take_result()` returns the assembled stack, shrinks each non-empty crafting-grid slot, applies `RecipeKind::get_remaining_items()` / default crafting remainders such as bucket returns, refreshes the result, and records a first-craft recipe-book unlock event for the matched recipe holder ID.
 
 - [ ] **Thread per-player state ID through the click handler**: add `container_state_id: u32` to the play-session state in `network/play.rs`; seed it to 0 on login; after each call to `apply_scripted_packet` that returns `accepted = true`, increment it.
 
@@ -77,7 +77,7 @@
 ### Tests
 
 - [x] Unit test: `CraftingGrid::update_result` - `crafting_grid_updates_result_and_consumes_inputs_after_take` covers one oak log producing 4 oak planks, empty result after taking output, two-stick shapeless matching, and an incomplete shaped crafting-table pattern producing no result
-- [ ] Unit test: `InventoryMenu` slot 0 rejects `safe_insert`; `safe_take` from slot 0 shrinks each non-empty grid slot by 1, places remainders back, then re-runs recipe match
+- [x] Unit test: `InventoryMenu` slot 0 rejects insert/take side effects - `inventory_menu_maps_vanilla_slots_to_backing_inventory_and_crafting_grid` verifies result-slot placement rejection, and `inventory_menu_result_take_consumes_inputs_remainders_and_unlocks_recipe_once` verifies result take shrinks inputs, returns bucket remainders, refreshes the result, and emits the recipe unlock only once
 - [ ] Unit test: `InventoryMenu` zone-aware `quick_move` places crafting result into hotbar before storage; shifts a hotbar item into storage when hotbar is full
 - [ ] Parity test (full network round-trip): place one log into grid slot 1 → server sends `ContainerSetSlot` slot 0 with 4 planks → client takes result → server sends `ContainerSetSlot` slot 0 empty and slot 1 empty
 - [ ] Add parity test: 2×2 crafting grid result update on each slot change, recipe unlocking, remainder handling
