@@ -1378,14 +1378,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "sound_entity",
         java_class: "ClientboundSoundEntityPacket",
-        field_order: "unparsed",
+        field_order: "sound:Holder<SoundEvent> (registered id+1 or direct id 0 + Identifier + optional fixed_range), source:SoundSource enum VarInt, entity_id:VarInt, volume:float, pitch:float, seed:long",
     },
     PlayPacketSpec {
         id: 117,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "sound",
         java_class: "ClientboundSoundPacket",
-        field_order: "unparsed",
+        field_order: "sound:Holder<SoundEvent> (registered id+1 or direct id 0 + Identifier + optional fixed_range), source:SoundSource enum VarInt, x/y/z:int fixed point (*8), volume:float, pitch:float, seed:long",
     },
     PlayPacketSpec {
         id: 118,

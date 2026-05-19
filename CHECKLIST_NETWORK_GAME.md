@@ -151,8 +151,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Sound / Particle Packets
 
-- [ ] `ClientboundSoundPacket` (0x65): sound holder (registered ID VarInt or inline sound event), source VarInt, pos X/Y/Z fixed-point, volume, pitch, seed long
-- [ ] `ClientboundSoundEntityPacket` (0x66): same but entity ID instead of position
+- [x] `ClientboundSoundPacket` (0x65): sound holder (registered ID + 1 or inline sound event), source VarInt, pos X/Y/Z fixed-point ints, volume, pitch, seed long
+- [x] `ClientboundSoundEntityPacket` (0x66): sound holder (registered ID + 1 or inline sound event), source VarInt, entity ID VarInt, volume, pitch, seed long
 - [x] `ClientboundStopSoundPacket` (0x77): flags byte, optional sound source enum, optional sound identifier
 - [x] `ClientboundNamedSoundEffectPacket`: not present in 26.1.2 Java `GamePacketTypes`; handled by `ClientboundSoundPacket`
 - [ ] `ClientboundLevelParticlesPacket` (0x29): particle type VarInt, long distance bool, pos X/Y/Z, offset X/Y/Z, max speed, count, particle data (varies by type); verify all ~100 particle type data shapes

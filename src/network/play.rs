@@ -5,7 +5,7 @@ use std::io::{self, Read, Write};
 
 use crate::network::codec::{
     read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
-    write_identifier, write_string, write_uuid, Uuid,
+    write_identifier, write_optional, write_string, write_uuid, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
@@ -1296,13 +1296,24 @@ pub struct ClientboundSetTitlesAnimationPacket {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundSoundPacket {
-    pub sound_id: i32,
+    pub sound: SoundEventHolder,
     pub source_id: i32,
     pub position: Vec3,
     pub volume: f32,
     pub pitch: f32,
     pub seed: i64,
     pub entity_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SoundEventHolder {
+    Registered {
+        id: i32,
+    },
+    Direct {
+        location: Identifier,
+        fixed_range: Option<f32>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2990,6 +3001,52 @@ impl ClientboundSetTitlesAnimationPacket {
         write_i32(writer, self.fade_in)?;
         write_i32(writer, self.stay)?;
         write_i32(writer, self.fade_out)
+    }
+}
+
+impl SoundEventHolder {
+    fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Registered { id } => write_var_i32(writer, id + 1),
+            Self::Direct {
+                location,
+                fixed_range,
+            } => {
+                write_var_i32(writer, 0)?;
+                write_identifier(writer, location)?;
+                write_optional(writer, fixed_range.as_ref(), |writer, range| {
+                    write_f32(writer, *range)
+                })
+            }
+        }
+    }
+}
+
+impl ClientboundSoundPacket {
+    pub fn write_position<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.sound.write(writer)?;
+        write_var_i32(writer, self.source_id)?;
+        write_i32(writer, (self.position.x * 8.0) as i32)?;
+        write_i32(writer, (self.position.y * 8.0) as i32)?;
+        write_i32(writer, (self.position.z * 8.0) as i32)?;
+        write_f32(writer, self.volume)?;
+        write_f32(writer, self.pitch)?;
+        write_i64(writer, self.seed)
+    }
+
+    pub fn write_entity<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let entity_id = self.entity_id.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "sound entity packet requires an entity id",
+            )
+        })?;
+        self.sound.write(writer)?;
+        write_var_i32(writer, self.source_id)?;
+        write_var_i32(writer, entity_id)?;
+        write_f32(writer, self.volume)?;
+        write_f32(writer, self.pitch)?;
+        write_i64(writer, self.seed)
     }
 }
 
@@ -6100,7 +6157,7 @@ mod tests {
                 fade_out: Some(20),
             }),
             PlayInstruction::Sound(ClientboundSoundPacket {
-                sound_id: 1,
+                sound: SoundEventHolder::Registered { id: 1 },
                 source_id: 2,
                 position: Vec3::ZERO,
                 volume: 1.0,
@@ -6958,6 +7015,53 @@ mod tests {
         assert_eq!(&look_at[9..17], &64.5_f64.to_be_bytes());
         assert_eq!(&look_at[17..25], &(-7.25_f64).to_be_bytes());
         assert_eq!(&look_at[25..], &[1, 33, 0]);
+
+        let mut sound_position = Vec::new();
+        ClientboundSoundPacket {
+            sound: SoundEventHolder::Registered { id: 5 },
+            source_id: SoundSource::Blocks as i32,
+            position: Vec3 {
+                x: 1.25,
+                y: -2.5,
+                z: 3.0,
+            },
+            volume: 0.75,
+            pitch: 1.25,
+            seed: -9,
+            entity_id: None,
+        }
+        .write_position(&mut sound_position)
+        .unwrap();
+        assert_eq!(&sound_position[..2], &[6, 4]);
+        assert_eq!(&sound_position[2..6], &10_i32.to_be_bytes());
+        assert_eq!(&sound_position[6..10], &(-20_i32).to_be_bytes());
+        assert_eq!(&sound_position[10..14], &24_i32.to_be_bytes());
+        assert_eq!(&sound_position[14..18], &0.75_f32.to_be_bytes());
+        assert_eq!(&sound_position[18..22], &1.25_f32.to_be_bytes());
+        assert_eq!(&sound_position[22..30], &(-9_i64).to_be_bytes());
+
+        let mut direct_sound_entity = Vec::new();
+        ClientboundSoundPacket {
+            sound: SoundEventHolder::Direct {
+                location: Identifier::parse("minecraft:test.sound").unwrap(),
+                fixed_range: Some(16.0),
+            },
+            source_id: SoundSource::Players as i32,
+            position: Vec3::ZERO,
+            volume: 1.0,
+            pitch: 0.5,
+            seed: 42,
+            entity_id: Some(300),
+        }
+        .write_entity(&mut direct_sound_entity)
+        .unwrap();
+        assert_eq!(&direct_sound_entity[..3], &[0, 20, b'm']);
+        assert!(direct_sound_entity
+            .windows(5)
+            .any(|window| window == [1, 0x41, 0x80, 0, 0]));
+        assert!(direct_sound_entity
+            .windows(2)
+            .any(|window| window == [0xac, 0x02]));
 
         let mut stop_sound = Vec::new();
         ClientboundStopSoundPacket {
