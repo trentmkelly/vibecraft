@@ -43,8 +43,8 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 ## Migrated From Main Checklist: Dedicated Server Configuration
 
-- [ ] Parse and write `server.properties` with vanilla defaults.
-- [ ] Preserve unknown property keys when rewriting configuration.
+- [x] Parse and write `server.properties` with vanilla defaults.
+- [x] Preserve unknown property keys when rewriting configuration.
 - [ ] Implement `online-mode`.
 - [ ] Add a Mineflayer offline-mode login test using a generated bot profile and default `server.properties`.
 - [ ] Add a Mineflayer offline-mode login test matrix covering `online-mode=false`, `enforce-secure-profile=false`, default port selection, and generated world directory setup.
@@ -59,7 +59,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode bind-address test that verifies bots can connect through `localhost`, explicit `server-ip`, randomized ports, and rejected addresses with vanilla-compatible socket or kick behavior.
 - [ ] Add a Mineflayer offline-mode compression-property login test that verifies first join succeeds with `network-compression-threshold=-1`, `0`, small positive values, and the vanilla default while preserving packet ordering.
 - [ ] Implement `prevent-proxy-connections`.
-- [ ] Implement `server-ip`.
+- [x] Implement `server-ip`.
 - [ ] Implement mutable `allow-flight`.
 - [ ] Implement mutable `motd`.
 - [ ] Implement `enable-code-of-conduct`.
@@ -68,13 +68,13 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `enforce-whitelist`.
 - [ ] Implement mutable `difficulty`.
 - [ ] Implement mutable `gamemode`.
-- [ ] Implement `level-name`.
-- [ ] Implement `server-port`.
+- [x] Implement `level-name`.
+- [x] Implement `server-port`.
 - [ ] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
 - [ ] Implement legacy `announce-player-achievements` migration behavior.
-- [ ] Implement `enable-query` and `query.port`.
-- [ ] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
-- [ ] Implement `hardcore`.
+- [x] Implement `enable-query` and `query.port`.
+- [x] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
+- [x] Implement `hardcore`.
 - [ ] Implement `use-native-transport` or document the equivalent transport decision.
 - [ ] Implement mutable `spawn-protection`.
 - [ ] Implement mutable `op-permission-level`.
@@ -86,8 +86,8 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `simulation-distance`.
 - [ ] Implement mutable `max-players`.
 - [ ] Add a Mineflayer max-player enforcement test that fills available slots in offline mode and verifies the extra bot receives the vanilla full-server disconnect message.
-- [ ] Implement `network-compression-threshold`.
-- [ ] Implement `broadcast-rcon-to-ops`.
+- [x] Implement `network-compression-threshold`.
+- [x] Implement `broadcast-rcon-to-ops`.
 - [ ] Implement `broadcast-console-to-ops`.
 - [ ] Implement clamped `max-world-size`.
 - [ ] Implement `sync-chunk-writes`.
@@ -98,7 +98,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `entity-broadcast-range-percentage`.
 - [ ] Implement `text-filtering-config` and `text-filtering-version`.
 - [ ] Implement server resource pack fields: id, URL, SHA-1, legacy hash, required flag, prompt component.
-- [ ] Implement initial datapack enabled/disabled pack lists.
+- [x] Implement initial datapack enabled/disabled pack lists.
 - [ ] Implement mutable `player-idle-timeout`.
 - [ ] Implement mutable `status-heartbeat-interval`.
 - [ ] Implement mutable `white-list`.
