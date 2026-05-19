@@ -37,8 +37,8 @@
 
 ## Functions
 
-- [ ] Implement function loading from `data/*/function/**/*.mcfunction` files: parse each line as a command or comment (`#`)
-- [ ] Implement function tags from `data/*/tags/function/*.json`: ordered list of function IDs, `#minecraft:tick` and `#minecraft:load` special tags
+- [x] Implement function loading from `data/*/function/**/*.mcfunction` files: parse each line as a command or comment (`#`)
+- [x] Implement function tags from `data/*/tags/function/*.json`: ordered list of function IDs, `#minecraft:tick` and `#minecraft:load` special tags
 - [ ] Implement `#minecraft:tick` invocation: call all tagged functions every server tick
 - [ ] Implement `#minecraft:load` invocation: call all tagged functions on world load and datapack reload
 - [x] Implement `/function <id>` command: execute a named function with the invoker's command source stack
@@ -47,10 +47,10 @@
 - [ ] Implement function-argument type in Brigadier argument list for `/function` command autocompletion
 - [x] Implement scheduled functions via `/schedule function <id> <time> [append|replace]`: deferred single execution at game-time + delay
 - [x] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
-- [ ] Implement nested function execution depth limit (vanilla limit: 32 nesting levels) with error on overflow
+- [ ] Implement function execution quota/fork limiting using `maxCommandChainLength` / `max_command_sequence_length`, `maxCommandForkCount` / `max_command_forks`, and vanilla queue overflow behavior
 - [ ] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
 - [ ] Add parity test: macro function variable substitution with entity/storage/block NBT source
-- [ ] Add parity test: nested function depth limit error at vanilla boundary
+- [ ] Add parity test: command function execution stops at the vanilla game-rule sequence/fork limits and queue-overflow boundary
 
 ## Command Testing (Mineflayer / Integration)
 

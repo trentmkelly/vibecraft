@@ -836,6 +836,195 @@ pub struct CommandFunctionTag {
     pub functions: Vec<String>,
 }
 
+const MAX_COMMAND_FUNCTION_LINE_LENGTH: usize = 2_000_000;
+
+pub fn load_command_functions_from_resources<'a>(
+    resources: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<Vec<CommandFunctionDefinition>, String> {
+    let mut functions = Vec::new();
+    for (path, contents) in resources {
+        let Some(id) = function_id_from_path(path, ".mcfunction", "function")? else {
+            continue;
+        };
+        functions.push(parse_command_function(&id, contents)?);
+    }
+    Ok(functions)
+}
+
+pub fn load_command_function_tags_from_resources<'a>(
+    resources: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<Vec<CommandFunctionTag>, String> {
+    let mut tags = Vec::new();
+    for (path, contents) in resources {
+        let Some(id) = function_id_from_path(path, ".json", "tags/function")? else {
+            continue;
+        };
+        let value: serde_json::Value = serde_json::from_str(contents)
+            .map_err(|err| format!("Failed to parse function tag {id}: {err}"))?;
+        let values = value
+            .get("values")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| format!("Function tag {id} is missing values array"))?;
+        let mut functions = Vec::new();
+        for value in values {
+            match value {
+                serde_json::Value::String(function) => {
+                    let (parsed, tag) = parse_schedule_function(function)
+                        .map_err(|_| format!("Invalid function tag value {function:?} in {id}"))?;
+                    functions.push(if tag { format!("#{parsed}") } else { parsed });
+                }
+                serde_json::Value::Object(object) => {
+                    let function = object
+                        .get("id")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| format!("Function tag {id} has object value without id"))?;
+                    let (parsed, tag) = parse_schedule_function(function)
+                        .map_err(|_| format!("Invalid function tag value {function:?} in {id}"))?;
+                    functions.push(if tag { format!("#{parsed}") } else { parsed });
+                }
+                _ => return Err(format!("Function tag {id} contains a non-string value")),
+            }
+        }
+        tags.push(CommandFunctionTag { id, functions });
+    }
+    Ok(tags)
+}
+
+fn parse_command_function(id: &str, contents: &str) -> Result<CommandFunctionDefinition, String> {
+    parse_resource_identifier(id).map_err(|_| format!("Invalid function id {id}"))?;
+    let mut commands = Vec::new();
+    let mut macro_parameters = Vec::new();
+    let mut lines = contents.lines().enumerate();
+    while let Some((line_index, raw_line)) = lines.next() {
+        let line_number = line_index + 1;
+        let mut line = raw_line.trim().to_string();
+        if should_concatenate_next_function_line(&line) {
+            loop {
+                if line.pop() != Some('\\') {
+                    return Err(format!("Invalid function line continuation in {id}"));
+                }
+                let Some((_, next_line)) = lines.next() else {
+                    return Err(format!("Line continuation at end of function {id}"));
+                };
+                line.push_str(next_line.trim());
+                check_function_line_length(id, &line)?;
+                if !should_concatenate_next_function_line(&line) {
+                    break;
+                }
+            }
+        }
+        check_function_line_length(id, &line)?;
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(command) = line.strip_prefix('/') {
+            let hint = command.split_whitespace().next().unwrap_or_default();
+            return Err(format!(
+                "Invalid leading slash in function {id} line {line_number}; use '{hint}' without '/'"
+            ));
+        }
+        if let Some(macro_line) = line.strip_prefix('$') {
+            let parameters = parse_function_macro_variables(id, line_number, macro_line)?;
+            for parameter in parameters {
+                if !macro_parameters.contains(&parameter) {
+                    macro_parameters.push(parameter);
+                }
+            }
+            commands.push(macro_line.to_string());
+        } else {
+            commands.push(line);
+        }
+    }
+    Ok(CommandFunctionDefinition {
+        id: id.to_string(),
+        commands,
+        macro_parameters,
+    })
+}
+
+fn should_concatenate_next_function_line(line: &str) -> bool {
+    line.ends_with('\\')
+}
+
+fn check_function_line_length(id: &str, line: &str) -> Result<(), String> {
+    if line.len() > MAX_COMMAND_FUNCTION_LINE_LENGTH {
+        Err(format!(
+            "Command too long in function {id}: {} characters",
+            line.len()
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn parse_function_macro_variables(
+    id: &str,
+    line_number: usize,
+    line: &str,
+) -> Result<Vec<String>, String> {
+    let mut variables = Vec::new();
+    let mut start = 0usize;
+    while let Some(relative_index) = line[start..].find('$') {
+        let index = start + relative_index;
+        if line.as_bytes().get(index + 1) != Some(&b'(') {
+            start = index + 1;
+            continue;
+        }
+        let Some(relative_end) = line[index + 2..].find(')') else {
+            return Err(format!(
+                "Unterminated macro variable in function {id} line {line_number}"
+            ));
+        };
+        let end = index + 2 + relative_end;
+        let variable = &line[index + 2..end];
+        if variable.is_empty()
+            || variable
+                .bytes()
+                .any(|byte| !byte.is_ascii_alphanumeric() && byte != b'_')
+        {
+            return Err(format!(
+                "Invalid macro variable {variable:?} in function {id} line {line_number}"
+            ));
+        }
+        variables.push(variable.to_string());
+        start = end + 1;
+    }
+    if variables.is_empty() {
+        return Err(format!(
+            "Macro function line in {id} line {line_number} has no variables"
+        ));
+    }
+    Ok(variables)
+}
+
+fn function_id_from_path(
+    path: &str,
+    suffix: &str,
+    directory: &str,
+) -> Result<Option<String>, String> {
+    let Some(rest) = path.strip_prefix("data/") else {
+        return Ok(None);
+    };
+    let Some((namespace, rest)) = rest.split_once('/') else {
+        return Ok(None);
+    };
+    let Some(rest) = rest
+        .strip_prefix(directory)
+        .and_then(|rest| rest.strip_prefix('/'))
+    else {
+        return Ok(None);
+    };
+    let Some(path_id) = rest.strip_suffix(suffix) else {
+        return Ok(None);
+    };
+    if path_id.is_empty() {
+        return Err(format!("Empty function id in path {path}"));
+    }
+    let id = parse_resource_identifier(&format!("{namespace}:{path_id}"))
+        .map_err(|_| format!("Invalid function resource path {path}"))?;
+    Ok(Some(id))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedFunctionCall {
     pub id: String,
@@ -12078,7 +12267,8 @@ pub fn command_required_permission(command: &str) -> PermissionLevel {
 mod tests {
     use super::{
         command_required_permission, command_usage, entity_position, entity_ref,
-        execute_builtin_command, player_team, players_allied, team_allows_collision,
+        execute_builtin_command, load_command_function_tags_from_resources,
+        load_command_functions_from_resources, player_team, players_allied, team_allows_collision,
         team_allows_friendly_damage, team_allows_visibility, visible_command_usages, ActiveEffect,
         AdvancementDefinition, AttributeModifierState, AttributeOperation, AvatarProfile,
         BiomeEntry, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
@@ -12479,6 +12669,71 @@ mod tests {
             ),
             Err(CommandError::InvalidSyntax)
         );
+    }
+
+    #[test]
+    fn command_function_resources_parse_vanilla_lines_macros_and_tags() {
+        let functions = load_command_functions_from_resources([
+            (
+                "data/example/function/tools/start.mcfunction",
+                "  # comment\nsay one\\\n two\n$give @s minecraft:$(item)\n",
+            ),
+            (
+                "data/example/tags/function/load.json",
+                r##"{"values":["example:tools/start",{"id":"#example:nested","required":false}]}"##,
+            ),
+            ("data/example/function/ignored.txt", "say ignored"),
+        ])
+        .unwrap();
+        assert_eq!(
+            functions,
+            vec![CommandFunctionDefinition {
+                id: "example:tools/start".to_string(),
+                commands: vec![
+                    "say onetwo".to_string(),
+                    "give @s minecraft:$(item)".to_string()
+                ],
+                macro_parameters: vec!["item".to_string()],
+            }]
+        );
+
+        let tags = load_command_function_tags_from_resources([(
+            "data/example/tags/function/load.json",
+            r##"{"values":["example:tools/start",{"id":"#example:nested","required":false}]}"##,
+        )])
+        .unwrap();
+        assert_eq!(
+            tags,
+            vec![CommandFunctionTag {
+                id: "example:load".to_string(),
+                functions: vec![
+                    "example:tools/start".to_string(),
+                    "#example:nested".to_string()
+                ],
+            }]
+        );
+    }
+
+    #[test]
+    fn command_function_resources_reject_vanilla_parse_errors() {
+        assert!(load_command_functions_from_resources([(
+            "data/example/function/slash.mcfunction",
+            "/say no"
+        )])
+        .unwrap_err()
+        .contains("Invalid leading slash"));
+        assert!(load_command_functions_from_resources([(
+            "data/example/function/bad_macro.mcfunction",
+            "$say no variables"
+        )])
+        .unwrap_err()
+        .contains("has no variables"));
+        assert!(load_command_functions_from_resources([(
+            "data/example/function/unterminated.mcfunction",
+            "say one\\"
+        )])
+        .unwrap_err()
+        .contains("Line continuation at end"));
     }
 
     #[test]
