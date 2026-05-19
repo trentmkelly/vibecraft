@@ -4124,6 +4124,7 @@ mod tests {
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
         DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
         GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS,
+        MAX_PACKET_SIZE,
         POPPY_BLOCK_STATE_ID, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
@@ -4147,6 +4148,23 @@ mod tests {
         expected_entry_count: usize,
         java_network_shape: &'static str,
         write_packet: fn(&mut Vec<u8>) -> io::Result<()>,
+    }
+
+    #[test]
+    fn read_packet_rejects_negative_and_oversized_lengths_before_allocating() {
+        let mut negative = Vec::new();
+        write_var_i32(&mut negative, -1).unwrap();
+        assert_eq!(
+            read_packet(&mut Cursor::new(negative)).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        let mut oversized = Vec::new();
+        write_var_i32(&mut oversized, (MAX_PACKET_SIZE + 1) as i32).unwrap();
+        assert_eq!(
+            read_packet(&mut Cursor::new(oversized)).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
     }
 
     const SYNCHRONIZED_REGISTRY_MANIFEST: &[SynchronizedRegistryManifestEntry] = &[
