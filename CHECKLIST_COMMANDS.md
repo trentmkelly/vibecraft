@@ -105,33 +105,33 @@
 - [ ] Implement `/jfr`.
 - [x] Implement `/kick`, `/kill`, `/list`.
 - [x] Implement `/locate`.
-- [ ] Implement `/loot`.
-- [ ] Implement `/msg`, `/teammsg`, `/say`, `/tellraw`.
-- [ ] Implement `/particle`.
+- [x] Implement `/loot`.
+- [x] Implement `/msg`, `/teammsg`, `/say`, `/tellraw`.
+- [x] Implement `/particle`.
 - [ ] Implement `/perf`.
 - [ ] Implement `/place`.
 - [ ] Implement `/playsound` and `/stopsound`.
-- [ ] Implement `/publish`.
+- [x] Implement `/publish`.
 - [x] Implement `/raid`.
 - [x] Implement `/random`.
 - [x] Implement `/recipe`.
-- [ ] Implement `/reload`.
-- [ ] Implement `/return`.
-- [ ] Implement `/ride`.
-- [ ] Implement `/rotate`.
-- [ ] Implement `/save-all`, `/save-off`, `/save-on`.
-- [ ] Implement `/schedule`.
+- [x] Implement `/reload`.
+- [x] Implement `/return`.
+- [x] Implement `/ride`.
+- [x] Implement `/rotate`.
+- [x] Implement `/save-all`, `/save-off`, `/save-on`.
+- [x] Implement `/schedule`.
 - [x] Implement `/scoreboard`.
 - [x] Implement `/seed`.
 - [ ] Implement `/serverpack`.
-- [ ] Implement `/setblock`.
+- [x] Implement `/setblock`.
 - [ ] Implement `/setidletimeout`.
 - [ ] Implement `/spawnpoint`, `/setworldspawn`.
 - [ ] Implement `/spawn_armor_trims`.
-- [ ] Implement `/spectate`.
+- [x] Implement `/spectate`.
 - [x] Implement `/spreadplayers`.
 - [ ] Implement `/stop`.
-- [ ] Implement `/stopwatch`.
+- [x] Implement `/stopwatch`.
 - [x] Implement `/summon`.
 - [ ] Implement `/swing`.
 - [x] Implement `/tag`.
@@ -156,16 +156,16 @@
 - [ ] Add Mineflayer offline-mode command-result consistency tests that run commands from console, op bot, non-op bot, command block, and function context, then compare success count, feedback visibility, and player-observed side effects.
 - [x] Add command-model command-result fallback coverage for non-op denial, op self-target side effects, repeated no-op success counts, console explicit-target execution, feedback keys, and admin broadcast flags while live bot command execution remains incomplete.
 - [ ] Implement `/tick`.
-- [ ] Implement `/time`.
-- [ ] Implement `/title`.
+- [x] Implement `/time`.
+- [x] Implement `/title`.
 - [ ] Implement `/transfer`.
-- [ ] Implement `/trigger`.
+- [x] Implement `/trigger`.
 - [ ] Implement `/version`.
 - [ ] Implement `/warden_spawn_tracker`.
 - [ ] Implement `/waypoint`.
-- [ ] Implement `/weather`.
+- [x] Implement `/weather`.
 - [ ] Implement `/whitelist`.
-- [ ] Implement `/worldborder`.
+- [x] Implement `/worldborder`.
 - [ ] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions.
 - [ ] Validate command parse trees and results against vanilla command dumps and scripted execution tests.
 - [ ] Add Mineflayer chat and command tests covering signed/unsigned chat fallback, system messages, command feedback, suggestions, and tab completion in offline mode.
