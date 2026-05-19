@@ -603,6 +603,14 @@ impl MerchantContainer {
         }
     }
 
+    pub fn can_trade(&self) -> bool {
+        self.active_offer.is_some()
+    }
+
+    pub fn prepare_trade(&mut self) {
+        self.update_sell_item();
+    }
+
     pub fn result(&self) -> &ItemStack {
         &self.slots[2]
     }
@@ -1261,11 +1269,60 @@ mod tests {
         let mut container = MerchantContainer::new(vec![offer]);
         container.set_payment(0, ItemStack::new("minecraft:emerald", 2));
 
+        assert!(container.can_trade());
         assert_eq!(container.result().item_id(), "minecraft:apple");
         assert_eq!(container.future_xp(), 3);
         assert_eq!(container.take_result().count(), 4);
+        assert!(!container.can_trade());
         assert!(container.result().is_empty());
         assert!(container.offer(0).unwrap().is_out_of_stock());
+
+        container.prepare_trade();
+        assert!(!container.can_trade());
+        assert!(container.result().is_empty());
+    }
+
+    #[test]
+    fn merchant_container_respects_selection_hint_and_payment_slots() {
+        let cheap = MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 1),
+            None,
+            ItemStack::new("minecraft:apple", 1),
+            8,
+            1,
+            0.0,
+        );
+        let specific = MerchantOffer::new(
+            ItemCost::new("minecraft:emerald", 1),
+            Some(ItemCost::new("minecraft:book", 1)),
+            ItemStack::new("minecraft:written_book", 1),
+            8,
+            5,
+            0.0,
+        );
+        let mut container = MerchantContainer::new(vec![cheap, specific]);
+
+        container.set_selection_hint(1);
+        container.set_payment(0, ItemStack::new("minecraft:emerald", 1));
+        container.set_payment(1, ItemStack::new("minecraft:book", 1));
+        assert!(container.can_trade());
+        assert_eq!(container.active_offer(), container.offer(1));
+        assert_eq!(container.result().item_id(), "minecraft:written_book");
+        assert_eq!(container.future_xp(), 5);
+
+        container.set_payment(1, ItemStack::empty());
+        container.set_payment(0, ItemStack::empty());
+        container.set_payment(1, ItemStack::new("minecraft:emerald", 1));
+        container.prepare_trade();
+        assert!(container.can_trade());
+        assert_eq!(container.active_offer(), container.offer(0));
+        assert_eq!(container.result().item_id(), "minecraft:apple");
+
+        container.set_payment(1, ItemStack::empty());
+        container.set_payment(0, ItemStack::new("minecraft:dirt", 1));
+        assert!(!container.can_trade());
+        assert!(container.result().is_empty());
+        assert_eq!(container.future_xp(), 0);
     }
 
     #[test]

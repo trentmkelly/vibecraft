@@ -122,7 +122,7 @@
 ## Merchant Menu
 
 - [ ] Implement `MerchantMenu`: 3-slot `MerchantContainer` (input-left, input-right, result), player inventory appended; offer index tracking; `MerchantResultSlot` on-take side effects (decrement trade use count, XP grant to villager)
-- [ ] Implement `MerchantContainer`: offer selection, `canTrade()` validation, `prepareTrade()` result slot update on input change
+- [x] Implement `MerchantContainer`: offer selection, `canTrade()` validation, `prepareTrade()` result slot update on input change
 - [ ] Implement offer selection: clicking offer from offer list updates inputs; `selectOffer(index)` packet
 - [ ] Implement demand mechanics: `priceMultiplier`, `demand`, `specialPrice` modification; `specialPrice` from hero-of-the-village effect
 - [ ] Implement trade-use counting: `uses` increment, `maxUses`, `rewardExp` flag
