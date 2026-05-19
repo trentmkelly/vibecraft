@@ -230,7 +230,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundConfigurationAcknowledgedPacket` (0x10): empty terminal payload; triggers play→configuration ack
 - [x] `ClientboundPingPacket` (0x3D): ID int
 - [x] `ServerboundPongPacket` (0x2D): ID int
-- [ ] `ClientboundDisconnectPacket` (0x1B): reason component
+- [x] `ClientboundDisconnectPacket` (0x20 in 26.1.2 play/common): reason component via `ComponentSerialization.TRUSTED_CONTEXT_FREE_STREAM_CODEC` network NBT tag
 - [x] `ServerboundSignUpdatePacket` (0x3D): block pos, is-front-text bool, 4 UTF-8 lines capped at 384 chars each
 - [x] `ServerboundJigsawGeneratePacket` (0x1B): block pos, levels VarInt, keep-jigsaws bool
 - [x] `ServerboundSetStructureBlockPacket` (0x3B): block pos, update type enum, mode enum, name, clamped offset/size bytes, mirror/rotation enums, metadata string capped at 128 chars, clamped integrity, seed VarLong, flags byte (ignore-entities=1, show-air=2, show-bounding-box=4, strict=8)

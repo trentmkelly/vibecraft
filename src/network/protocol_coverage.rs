@@ -789,7 +789,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "disconnect",
         java_class: "ClientboundDisconnectPacket",
-        field_order: "unparsed",
+        field_order: "reason:ComponentSerialization.TRUSTED_CONTEXT_FREE_STREAM_CODEC as network NBT tag",
     },
     PlayPacketSpec {
         id: 33,
