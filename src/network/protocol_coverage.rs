@@ -1112,21 +1112,21 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "remove_mob_effect",
         java_class: "ClientboundRemoveMobEffectPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, effect:MobEffect registry holder VarInt",
     },
     PlayPacketSpec {
         id: 79,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "reset_score",
         java_class: "ClientboundResetScorePacket",
-        field_order: "unparsed",
+        field_order: "owner:utf, objective_name:nullable utf",
     },
     PlayPacketSpec {
         id: 80,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "resource_pack_pop",
         java_class: "ClientboundResourcePackPopPacket",
-        field_order: "unparsed",
+        field_order: "id:optional UUID",
     },
     PlayPacketSpec {
         id: 81,
@@ -1252,7 +1252,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_display_objective",
         java_class: "ClientboundSetDisplayObjectivePacket",
-        field_order: "unparsed",
+        field_order: "slot:DisplaySlot enum VarInt, objective_name:utf",
     },
     PlayPacketSpec {
         id: 99,

@@ -69,7 +69,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement entity metadata indexes for every entity type hierarchy (Entity, LivingEntity, Mob, PathfinderMob, Animal, Player, each monster/animal subtype)
 - [ ] `ClientboundUpdateAttributesPacket` (0x72): entity ID, attribute list (ID, base value, modifier list with UUID/amount/operation)
 - [ ] `ClientboundUpdateMobEffectPacket` (0x73): entity ID, effect ID VarInt, amplifier byte, duration VarInt, flags byte (ambient/visible/show-icon/blend)
-- [ ] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
+- [x] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
 - [x] `ClientboundAnimatePacket` (0x02): entity ID VarInt, animation unsigned byte (0=swing-main, 2=wake-up, 3=swing-off, 4=critical, 5=magic-critical)
 - [ ] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)
 
@@ -130,10 +130,10 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Scoreboard / Team Packets
 
-- [ ] `ClientboundSetDisplayObjectivePacket` (0x55): slot byte, objective name string
+- [x] `ClientboundSetDisplayObjectivePacket` (0x55): slot byte, objective name string
 - [ ] `ClientboundSetObjectivePacket` (0x56): objective name, mode byte (0=add, 1=remove, 2=change), optional display name/criteria/render-type/number-format
 - [ ] `ClientboundSetScorePacket` (0x5A): owner string, objective name, score VarInt, optional display name, optional number format
-- [ ] `ClientboundResetScorePacket` (0x42): owner string, optional objective name
+- [x] `ClientboundResetScorePacket` (0x42): owner string, optional objective name
 - [ ] `ClientboundSetPlayerTeamPacket` (0x5B): team name, method byte (0=create, 1=remove, 2=update, 3=add-players, 4=remove-players), team data for create/update (display name, options bitmask, name-tag visibility, collision rule, color VarInt, prefix, suffix), player list for add/remove
 
 ## Bossbar Packet
@@ -218,7 +218,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Resource State Packets
 
-- [ ] `ClientboundResourcePackPopPacket`: resource pack UUID
+- [x] `ClientboundResourcePackPopPacket`: optional resource pack UUID
 - [ ] `ClientboundResourcePackPushPacket`: UUID, URL, hash, required, optional prompt component
 - [x] `ServerboundResourcePackPacket` (0x31): UUID, action enum VarInt (`SUCCESSFULLY_LOADED`, `DECLINED`, `FAILED_DOWNLOAD`, `ACCEPTED`, `DOWNLOADED`, `INVALID_URL`, `FAILED_RELOAD`, `DISCARDED`)
 

@@ -1014,6 +1014,12 @@ pub struct ClientboundUpdateMobEffectPacket {
 pub struct MobEffectFlags(pub u8);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundRemoveMobEffectPacket {
+    pub entity_id: i32,
+    pub effect_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundAnimatePacket {
     pub id: i32,
     pub action: EntityAnimation,
@@ -1120,6 +1126,23 @@ pub struct ClientboundAdvancementsPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundAwardStatsPacket {
     pub stats: Vec<(Identifier, i32)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundResetScorePacket {
+    pub owner: String,
+    pub objective_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSetDisplayObjectivePacket {
+    pub slot: i32,
+    pub objective_name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundResourcePackPopPacket {
+    pub id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2830,6 +2853,45 @@ impl MobEffectFlags {
                 | (if show_icon { Self::SHOW_ICON.0 } else { 0 })
                 | (if blend { Self::BLEND.0 } else { 0 }),
         )
+    }
+}
+
+impl ClientboundRemoveMobEffectPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.effect_id)
+    }
+}
+
+impl ClientboundResetScorePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.owner, 32767)?;
+        match &self.objective_name {
+            Some(objective_name) => {
+                write_bool(writer, true)?;
+                write_string(writer, objective_name, 32767)
+            }
+            None => write_bool(writer, false),
+        }
+    }
+}
+
+impl ClientboundSetDisplayObjectivePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.slot)?;
+        write_string(writer, &self.objective_name, 32767)
+    }
+}
+
+impl ClientboundResourcePackPopPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self.id {
+            Some(id) => {
+                write_bool(writer, true)?;
+                write_uuid(writer, id)
+            }
+            None => write_bool(writer, false),
+        }
     }
 }
 
@@ -6182,6 +6244,48 @@ mod tests {
             .write(&mut start_configuration)
             .unwrap();
         assert!(start_configuration.is_empty());
+
+        let mut remove_effect = Vec::new();
+        ClientboundRemoveMobEffectPacket {
+            entity_id: 129,
+            effect_id: 5,
+        }
+        .write(&mut remove_effect)
+        .unwrap();
+        assert_eq!(remove_effect, vec![0x81, 0x01, 5]);
+
+        let mut reset_score = Vec::new();
+        ClientboundResetScorePacket {
+            owner: "Alex".to_string(),
+            objective_name: Some("kills".to_string()),
+        }
+        .write(&mut reset_score)
+        .unwrap();
+        assert_eq!(
+            reset_score,
+            [vec![4], b"Alex".to_vec(), vec![1, 5], b"kills".to_vec()].concat()
+        );
+
+        let mut display_objective = Vec::new();
+        ClientboundSetDisplayObjectivePacket {
+            slot: 1,
+            objective_name: "sidebar".to_string(),
+        }
+        .write(&mut display_objective)
+        .unwrap();
+        assert_eq!(
+            display_objective,
+            [vec![1, 7], b"sidebar".to_vec()].concat()
+        );
+
+        let mut pack_pop = Vec::new();
+        ClientboundResourcePackPopPacket {
+            id: Some(Uuid([3; 16])),
+        }
+        .write(&mut pack_pop)
+        .unwrap();
+        assert_eq!(pack_pop[0], 1);
+        assert_eq!(&pack_pop[1..], &[3; 16]);
     }
 
     #[test]
