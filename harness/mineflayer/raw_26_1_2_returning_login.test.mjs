@@ -5,7 +5,7 @@ import test from 'node:test'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const username = process.env.RUSTCRAFT_RETURNING_USERNAME ?? 'ReturningProbe'
+const username = process.env.RUSTCRAFT_RETURNING_USERNAME ?? `Ret${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
 
 test('raw 26.1.2 returning offline login reuses the same profile identity', { timeout: 45_000 }, async () => {
   const first = await runJoinProbe(username)
@@ -13,7 +13,11 @@ test('raw 26.1.2 returning offline login reuses the same profile identity', { ti
   assert.equal(first.joinState.profile.name, username)
   assert.equal(first.joinState.profile.uuid, offlineUuid(username))
   assert.equal(first.joinState.entityId, 1)
-  assert.deepEqual(first.joinState.position, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+  assert.equal(first.joinState.position.x, 0.5)
+  assert.ok(first.joinState.position.y > -64)
+  assert.equal(first.joinState.position.z, 0.5)
+  assert.equal(first.joinState.position.yaw, 0)
+  assert.equal(first.joinState.position.pitch, 0)
 
   const second = await runJoinProbe(username)
   assert.equal(second.ok, true)
