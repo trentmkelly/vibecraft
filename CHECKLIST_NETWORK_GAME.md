@@ -297,7 +297,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add a Mineflayer offline-mode login reconnect-during-configuration test that drops the TCP connection after login success but before finish-configuration, reconnects, and verifies stale profile/session cleanup.
 - [ ] Add a Mineflayer offline-mode login disconnect-matrix test that drops the bot at handshake, login start, login success, configuration start, known-packs exchange, and finish-configuration, then verifies server cleanup and log messages.
 - [ ] Add a Mineflayer offline-mode login retry test that intentionally fails the first attempt with a forced disconnect, immediately retries with the same generated profile, and verifies vanilla-compatible recovery without manual sleeps.
-- [ ] Add a Mineflayer offline-mode login state-machine invariant test that asserts no play, chat, command, movement, or inventory packet is accepted before the vanilla state transition that permits it.
+- [x] Add a Mineflayer offline-mode login state-machine invariant test that asserts no play, chat, command, movement, or inventory packet is accepted before the vanilla state transition that permits it.
 - [x] Implement configuration state.
 - [ ] Add a raw 26.1.2 offline-mode configuration/play-entry probe that asserts enabled features, registry identities, non-empty required registries, damage-type tags, finish-configuration, play login, held slot, position, teleport acknowledgement, and player-loaded framing while Mineflayer lacks 26.1.2 protocol support.
 - [ ] Replace incremental vanilla-client crash chasing with a complete configuration registry closure pass derived from `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`.
