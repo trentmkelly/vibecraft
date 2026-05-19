@@ -1153,7 +1153,14 @@ pub struct ClientboundAdvancementsPacket {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundAwardStatsPacket {
-    pub stats: Vec<(Identifier, i32)>,
+    pub stats: Vec<AwardedStat>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AwardedStat {
+    pub stat_type_id: i32,
+    pub stat_value_id: i32,
+    pub value: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -5252,6 +5259,18 @@ impl ClientboundPlayerAbilitiesPacket {
     }
 }
 
+impl ClientboundAwardStatsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.stats.len() as i32)?;
+        for stat in &self.stats {
+            write_var_i32(writer, stat.stat_type_id)?;
+            write_var_i32(writer, stat.stat_value_id)?;
+            write_var_i32(writer, stat.value)?;
+        }
+        Ok(())
+    }
+}
+
 impl ClientboundPingPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut bytes = [0u8; 4];
@@ -5884,7 +5903,11 @@ mod tests {
                 removed: Vec::new(),
             }),
             PlayInstruction::AwardStats(ClientboundAwardStatsPacket {
-                stats: vec![(Identifier::parse("minecraft:jump").unwrap(), 3)],
+                stats: vec![AwardedStat {
+                    stat_type_id: 8,
+                    stat_value_id: 23,
+                    value: 3,
+                }],
             }),
             PlayInstruction::GameRuleValues(ClientboundGameRuleValuesPacket {
                 values: BTreeMap::from([(
@@ -6515,6 +6538,18 @@ mod tests {
         .write(&mut update_effect)
         .unwrap();
         assert_eq!(update_effect, vec![0x81, 0x01, 5, 2, 0xd8, 0x04, 0x0d]);
+
+        let mut award_stats = Vec::new();
+        ClientboundAwardStatsPacket {
+            stats: vec![AwardedStat {
+                stat_type_id: 8,
+                stat_value_id: 23,
+                value: 300,
+            }],
+        }
+        .write(&mut award_stats)
+        .unwrap();
+        assert_eq!(award_stats, vec![1, 8, 23, 0xac, 0x02]);
 
         let mut reset_score = Vec::new();
         ClientboundResetScorePacket {

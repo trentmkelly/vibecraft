@@ -586,7 +586,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "award_stats",
         java_class: "ClientboundAwardStatsPacket",
-        field_order: "unparsed",
+        field_order: "stats:Map<Stat(stat_type:VarInt, stat_value:VarInt), value:VarInt>",
     },
     PlayPacketSpec {
         id: 4,

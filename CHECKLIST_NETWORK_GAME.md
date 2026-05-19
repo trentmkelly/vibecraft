@@ -174,7 +174,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Player Abilities / Stats / Game Mode Packets
 
 - [x] `ClientboundPlayerAbilitiesPacket` (0x40): flags byte (invulnerable/flying/allow-flying/instant-build), flying speed float, walking speed float
-- [ ] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt → value VarInt)
+- [x] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt -> value VarInt)
 - [x] `ClientboundSetExperiencePacket` (0x56): experience-progress float, total-experience VarInt, level VarInt
 - [x] `ClientboundSetHealthPacket` (0x58): health float, food VarInt, saturation float
 - [x] `ClientboundGameEventPacket` (0x26): event unsigned byte and float parameter (also covers mode-change event 3 = change game mode)

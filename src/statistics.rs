@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::network::play::ClientboundAwardStatsPacket;
+use crate::network::play::{AwardedStat, ClientboundAwardStatsPacket};
 use crate::registry::Identifier;
 
 pub const STAT_TYPE_CATEGORIES_26_1_2: &[&str] = &[
@@ -95,6 +95,8 @@ pub const CUSTOM_STATS_26_1_2: &[&str] = &[
     "minecraft:interact_with_smithing_table",
 ];
 
+pub const CUSTOM_STAT_TYPE_NETWORK_ID_26_1_2: i32 = 8;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StatKey {
     pub category: Identifier,
@@ -162,7 +164,7 @@ impl StatisticsCounter {
             .filter_map(|stat| {
                 self.values
                     .get(stat)
-                    .map(|value| (stat_identifier(stat), *value))
+                    .and_then(|value| stat_network_value(stat, *value))
             })
             .collect();
         self.dirty.clear();
@@ -225,13 +227,18 @@ fn normalize_identifier(value: &str) -> Result<Identifier, String> {
     Identifier::parse(&value)
 }
 
-fn stat_identifier(stat: &StatKey) -> Identifier {
-    Identifier::parse(&format!(
-        "{}.{}",
-        stat.category.to_string().replace(':', "."),
-        stat.value.to_string().replace(':', ".")
-    ))
-    .expect("stat objective identifiers are normalized")
+fn stat_network_value(stat: &StatKey, value: i32) -> Option<AwardedStat> {
+    if stat.category.to_string() != "minecraft:custom" {
+        return None;
+    }
+    let stat_value_id = CUSTOM_STATS_26_1_2
+        .iter()
+        .position(|known| *known == stat.value.to_string())? as i32;
+    Some(AwardedStat {
+        stat_type_id: CUSTOM_STAT_TYPE_NETWORK_ID_26_1_2,
+        stat_value_id,
+        value,
+    })
 }
 
 fn matching_brace(input: &str, open: usize) -> Result<usize, String> {
@@ -352,10 +359,11 @@ mod tests {
         assert_eq!(packet.stats.len(), 1);
         assert_eq!(
             packet.stats[0],
-            (
-                Identifier::parse("minecraft.custom.minecraft.jump").unwrap(),
-                i32::MAX
-            )
+            AwardedStat {
+                stat_type_id: CUSTOM_STAT_TYPE_NETWORK_ID_26_1_2,
+                stat_value_id: 23,
+                value: i32::MAX,
+            }
         );
         assert!(counter.drain_dirty_packet().stats.is_empty());
         counter.mark_all_dirty();
