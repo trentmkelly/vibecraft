@@ -91,7 +91,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundContainerClickPacket` (0x0C): window ID byte, state ID VarInt, slot short, button byte, click type VarInt, changed slots map, carried item
 - [x] `ServerboundContainerClosePacket` (0x13): container ID VarInt
 - [x] `ServerboundSetCarriedItemPacket` (0x35): slot short
-- [ ] `ServerboundPickItemFromBlockPacket` and `ServerboundPickItemFromEntityPacket`: creative-mode middle-click
+- [x] `ServerboundPickItemFromBlockPacket` (0x24): block pos, include-data bool; `ServerboundPickItemFromEntityPacket` (0x25): entity ID VarInt, include-data bool
 - [ ] `ServerboundEditBookPacket` (0x14): hand, pages list, optional title
 - [x] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
 - [x] `ServerboundSelectTradePacket` (0x33): item number VarInt

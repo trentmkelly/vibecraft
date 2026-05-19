@@ -43,6 +43,8 @@ pub const SERVERBOUND_KEEP_ALIVE_PACKET_ID: i32 = 28;
 pub const SERVERBOUND_PLAYER_ACTION_PACKET_ID: i32 = 41;
 pub const SERVERBOUND_PLAYER_COMMAND_PACKET_ID: i32 = 42;
 pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
+pub const SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID: i32 = 36;
+pub const SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID: i32 = 37;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
@@ -375,6 +377,20 @@ pub struct ServerboundContainerClosePacket {
 pub struct ServerboundContainerButtonClickPacket {
     pub container_id: i32,
     pub button_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPickItemFromBlockPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub include_data: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPickItemFromEntityPacket {
+    pub entity_id: i32,
+    pub include_data: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1101,6 +1117,8 @@ pub struct PlaySession {
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
+    pub last_pick_item_from_block: Option<ServerboundPickItemFromBlockPacket>,
+    pub last_pick_item_from_entity: Option<ServerboundPickItemFromEntityPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1192,6 +1210,8 @@ impl PlaySession {
             last_rename_item: None,
             last_container_close: None,
             last_container_button_click: None,
+            last_pick_item_from_block: None,
+            last_pick_item_from_entity: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1411,6 +1431,30 @@ impl PlaySession {
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad paddle boat packet: {err}"))
                     }
+                }
+            }
+            SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPickItemFromBlockPacket::read(&mut input) {
+                    Ok(pick) => {
+                        self.last_pick_item_from_block = Some(pick);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad pick item from block packet: {err}"
+                    )),
+                }
+            }
+            SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPickItemFromEntityPacket::read(&mut input) {
+                    Ok(pick) => {
+                        self.last_pick_item_from_entity = Some(pick);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad pick item from entity packet: {err}"
+                    )),
                 }
             }
             SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
@@ -2846,6 +2890,37 @@ impl ServerboundContainerButtonClickPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)?;
         write_var_i32(writer, self.button_id)
+    }
+}
+
+impl ServerboundPickItemFromBlockPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            include_data: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_bool(writer, self.include_data)
+    }
+}
+
+impl ServerboundPickItemFromEntityPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            entity_id: read_var_i32(reader)?,
+            include_data: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_bool(writer, self.include_data)
     }
 }
 
@@ -5149,6 +5224,61 @@ mod tests {
         assert_eq!(
             session.last_container_button_click,
             Some(container_button_click)
+        );
+
+        let pick_item_from_block = ServerboundPickItemFromBlockPacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            include_data: true,
+        };
+        let mut pick_block_payload = Vec::new();
+        pick_item_from_block
+            .write(&mut pick_block_payload)
+            .unwrap();
+        assert_eq!(pick_block_payload.len(), 9);
+        assert_eq!(pick_block_payload[8], 1);
+        assert_eq!(
+            ServerboundPickItemFromBlockPacket::read(&mut cursor(pick_block_payload.clone()))
+                .unwrap(),
+            pick_item_from_block
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID,
+                pick_block_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_pick_item_from_block,
+            Some(pick_item_from_block)
+        );
+
+        let pick_item_from_entity = ServerboundPickItemFromEntityPacket {
+            entity_id: 128,
+            include_data: false,
+        };
+        let mut pick_entity_payload = Vec::new();
+        pick_item_from_entity
+            .write(&mut pick_entity_payload)
+            .unwrap();
+        assert_eq!(pick_entity_payload, vec![0x80, 0x01, 0]);
+        assert_eq!(
+            ServerboundPickItemFromEntityPacket::read(&mut cursor(pick_entity_payload.clone()))
+                .unwrap(),
+            pick_item_from_entity
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID,
+                pick_entity_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_pick_item_from_entity,
+            Some(pick_item_from_entity)
         );
 
         let mut change_difficulty = Vec::new();

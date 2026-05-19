@@ -333,14 +333,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "pick_item_from_block",
         java_class: "ServerboundPickItemFromBlockPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, include_data:bool",
     },
     PlayPacketSpec {
         id: 37,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "pick_item_from_entity",
         java_class: "ServerboundPickItemFromEntityPacket",
-        field_order: "unparsed",
+        field_order: "id:VarInt, include_data:bool",
     },
     PlayPacketSpec {
         id: 38,
