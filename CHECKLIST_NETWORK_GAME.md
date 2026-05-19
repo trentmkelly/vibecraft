@@ -209,7 +209,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [x] `ClientboundBlockUpdatePacket` (0x08): block pos, block state VarInt
 - [x] `ClientboundSectionBlocksUpdatePacket` (0x47): section pos long, VarInt count, packed VarLong entries (`block_state_id << 12 | packed_section_pos`)
-- [ ] `ClientboundBlockEntityDataPacket` (0x07): block pos, type VarInt, NBT tag
+- [x] `ClientboundBlockEntityDataPacket` (0x07): block pos, block entity type registry VarInt, trusted compound NBT tag
 - [x] `ClientboundBlockEventPacket` (0x07): block pos, action unsigned byte, param unsigned byte, block type VarInt
 - [x] `ClientboundBlockDestructionPacket` (0x05): entity ID VarInt, block pos, progress unsigned byte (0-9, 10=done)
 - [ ] `ClientboundExplodePacket` (0x1D): pos X/Y/Z, radius, affected blocks list (byte offsets), player velocity X/Y/Z, block interaction VarInt, small explosion particle, large explosion particle, sound

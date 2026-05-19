@@ -12,7 +12,7 @@ use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, 
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
 use crate::registry::Identifier;
 use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
-use crate::storage::nbt::Tag;
+use crate::storage::nbt::{write_named_tag, Tag};
 use crate::storage::region::ChunkPos;
 
 pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
@@ -1412,6 +1412,15 @@ pub struct SectionBlockUpdate {
 pub struct ClientboundSectionBlocksUpdatePacket {
     pub section_pos: SectionPos,
     pub updates: Vec<SectionBlockUpdate>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClientboundBlockEntityDataPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub block_entity_type_id: i32,
+    pub tag: Tag,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5243,6 +5252,14 @@ impl ClientboundBlockUpdatePacket {
     }
 }
 
+impl ClientboundBlockEntityDataPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_var_i32(writer, self.block_entity_type_id)?;
+        write_network_compound_tag(writer, &self.tag)
+    }
+}
+
 impl ClientboundLevelEventPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_i32(writer, self.event_type)?;
@@ -5514,6 +5531,17 @@ fn read_i64<R: Read>(reader: &mut R) -> io::Result<i64> {
 
 fn write_i64<W: Write>(writer: &mut W, value: i64) -> io::Result<()> {
     writer.write_all(&value.to_be_bytes())
+}
+
+fn write_network_compound_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
+    match tag {
+        Tag::Compound(fields) if fields.is_empty() => writer.write_all(&[0]),
+        Tag::Compound(_) => write_named_tag(writer, "", tag),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "network compound tag payload must be a compound",
+        )),
+    }
 }
 
 fn read_length_prefixed_bytes<R: Read>(reader: &mut R, max_size: usize) -> io::Result<Vec<u8>> {
@@ -6613,6 +6641,25 @@ mod tests {
             &0x0000_0400_003f_fffe_i64.to_be_bytes()
         );
         assert_eq!(&section_blocks[8..], &[1, 0xbc, 0xd5, 0x1d]);
+
+        let mut block_entity = Vec::new();
+        ClientboundBlockEntityDataPacket {
+            x: 1,
+            y: 64,
+            z: -2,
+            block_entity_type_id: 1,
+            tag: Tag::Compound(Vec::new()),
+        }
+        .write(&mut block_entity)
+        .unwrap();
+        assert_eq!(
+            block_entity,
+            [
+                pack_block_position(1, 64, -2).to_be_bytes().to_vec(),
+                vec![1, 0],
+            ]
+            .concat()
+        );
 
         let mut reset_score = Vec::new();
         ClientboundResetScorePacket {

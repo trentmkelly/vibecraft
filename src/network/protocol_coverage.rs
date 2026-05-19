@@ -607,7 +607,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "block_entity_data",
         java_class: "ClientboundBlockEntityDataPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, type:registry VarInt, tag:trusted compound tag",
     },
     PlayPacketSpec {
         id: 7,
