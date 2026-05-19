@@ -5617,7 +5617,7 @@ fn storage_palette_entry_is_air(tag: &Tag) -> bool {
     }
 }
 
-fn block_state_name_network_id(name: &str) -> Option<i32> {
+pub fn block_state_name_network_id(name: &str) -> Option<i32> {
     Some(match name {
         "minecraft:air" => 0,
         "minecraft:stone" => 1,

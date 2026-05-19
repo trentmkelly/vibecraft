@@ -36,38 +36,40 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    unpack_block_position, ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
-    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
-    ClientboundSetTimePacket, ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, GameMode,
-    RawDataComponentPatch, RawItemStack, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
-    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
-    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
-    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
-    SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
-    SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
-    SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
-    SERVERBOUND_CONTAINER_CLOSE_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
-    SERVERBOUND_PLAYER_ACTION_PACKET_ID, SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
-    SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
-    SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
+    block_state_name_network_id, unpack_block_position, ClientboundLevelChunkPacketData,
+    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData,
+    ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket,
+    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, GameMode,
+    RawDataComponentPatch, RawItemStack, ServerboundSwingHand, ServerboundUseItemOnPacket,
+    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
+    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID,
+    SERVERBOUND_CHAT_PACKET_ID, SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
+    SERVERBOUND_CLIENT_COMMAND_PACKET_ID, SERVERBOUND_CLIENT_INFORMATION_PACKET_ID,
+    SERVERBOUND_CLIENT_TICK_END_PACKET_ID, SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+    SERVERBOUND_CONTAINER_CLICK_PACKET_ID, SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
+    SERVERBOUND_KEEP_ALIVE_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID, SERVERBOUND_PLAYER_ACTION_PACKET_ID,
+    SERVERBOUND_PLAYER_COMMAND_PACKET_ID, SERVERBOUND_PLAYER_INPUT_PACKET_ID,
+    SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
+    SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
-use crate::player_inventory::{InventoryAddResult, PlayerInventory};
+use crate::player_inventory::{InventoryAddResult, PlayerInventory, SLOT_OFFHAND};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
 use crate::storage::chunk::LevelChunk;
@@ -1006,10 +1008,6 @@ pub fn run_status_server(
     let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
     let initial_weather = load_server_weather_state(&world_root)
         .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
-    eprintln!(
-        "[DEBUG clock] Initial state: game_time={} overworld.total_ticks={} overworld.rate={}",
-        initial_clock.game_time, initial_clock.overworld.total_ticks, initial_clock.overworld.rate
-    );
     let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
     let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
 
@@ -1514,6 +1512,15 @@ fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
         write_world_clock_registry_packet,
     )?;
+    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java:125,160
+    // Registries.TIMELINE uses Timeline.NETWORK_CODEC (syncable tracks only).
+    // Must be sent before the tags packet so timeline tag IDs can reference these entries.
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        write_vanilla_timeline_registry_packet,
+    )?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -1572,16 +1579,7 @@ fn handle_login_connection(
         let wc = weather.lock().unwrap();
         (wc.rain_level, wc.thunder_level)
     };
-    eprintln!(
-        "[DEBUG clock] Join snapshot: game_time={} clocks={:?} rain={:.3} thunder={:.3}",
-        join_game_time,
-        join_clock_data
-            .iter()
-            .map(|(id, s)| format!("id={}(ticks={},rate={})", id, s.total_ticks, s.rate))
-            .collect::<Vec<_>>(),
-        join_rain_level,
-        join_thunder_level
-    );
+
 
     write_minimal_play_join(
         stream,
@@ -1608,7 +1606,6 @@ fn handle_login_connection(
     let mut last_sent_rain_level = join_rain_level;
     let mut last_sent_thunder_level = join_thunder_level;
     let mut last_time_sync = Instant::now();
-    let mut time_sync_count: u64 = 0;
     let mut entity_id_counter: i32 = 1; // player has entity ID 1; start here so first drop = 2
     let mut rate_limiter =
         PacketRateLimiter::new(properties.rate_limit_packets_per_second, Instant::now());
@@ -1633,10 +1630,6 @@ fn handle_login_connection(
         // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
         if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
             let game_time = clock.lock().unwrap().heartbeat_game_time();
-            time_sync_count += 1;
-            if time_sync_count <= 3 {
-                eprintln!("[DEBUG clock] Heartbeat #{time_sync_count}: game_time={game_time}");
-            }
             write_framed_packet_with_compression(
                 stream,
                 compression,
@@ -1764,6 +1757,11 @@ fn handle_login_connection(
                 }
                 if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
                     write_command_suggestions_response(stream, compression, &mut input)?;
+                    continue;
+                }
+                if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
+                    let packet = ServerboundUseItemOnPacket::read(&mut input)?;
+                    handle_use_item_on(stream, compression, &mut play_state, &world_layout, &packet)?;
                     continue;
                 }
                 if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
@@ -1930,7 +1928,6 @@ fn handle_login_connection(
                         | SERVERBOUND_PLAYER_LOADED_PACKET_ID
                         | SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID
                         | SERVERBOUND_SWING_PACKET_ID
-                        | SERVERBOUND_USE_ITEM_ON_PACKET_ID
                         | SERVERBOUND_USE_ITEM_PACKET_ID
                 ) {
                     continue;
@@ -2022,6 +2019,149 @@ fn update_play_session_state<R: Read>(
         }
         _ => Ok(false),
     }
+}
+
+/// Handles a block-placement request from the client.
+///
+/// Java: ServerPlayerGameMode.useItemOn() → BlockItem.place() → Level.setBlock()
+fn handle_use_item_on(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    world_layout: &WorldLayout,
+    packet: &ServerboundUseItemOnPacket,
+) -> io::Result<()> {
+    // Spectators cannot place blocks.
+    // Java: ServerPlayerGameMode.useItemOn() — spectators are blocked before reaching here.
+    let send_ack = |p: &mut Vec<u8>| write_var_i32(p, packet.sequence);
+    if state.game_mode == GameMode::Spectator {
+        return write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+            send_ack,
+        );
+    }
+
+    // Resolve the held item from the correct hand.
+    // Java: ServerPlayerGameMode.useItemOn() calls player.getItemInHand(hand).
+    let held_slot = match packet.hand {
+        ServerboundSwingHand::MainHand => state.selected_slot as usize,
+        ServerboundSwingHand::OffHand => SLOT_OFFHAND,
+        ServerboundSwingHand::Unknown(_) => {
+            return write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+                send_ack,
+            );
+        }
+    };
+    let held_item = state.inventory.get(held_slot).clone();
+    if held_item.is_empty() {
+        return write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+            send_ack,
+        );
+    }
+
+    let item_name = held_item.item_id();
+
+    // Only proceed if the item has a known placeable block state.
+    // Java: BlockItem.place() — only items backed by a Block can place.
+    let Some(block_state_id) = block_state_name_network_id(item_name) else {
+        return write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+            send_ack,
+        );
+    };
+
+    // Compute the target block position: one step in the clicked face direction.
+    // Java: BlockItem.getPlacementState() → PlacementContext → clicked_pos.relative(face)
+    let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
+    let target_x = packet.block_hit.x + dx;
+    let target_y = packet.block_hit.y + dy;
+    let target_z = packet.block_hit.z + dz;
+    let target_chunk = ChunkPos {
+        x: target_x.div_euclid(16),
+        z: target_z.div_euclid(16),
+    };
+
+    // Allow placement only into air or blocks with destroy_time == 0 (short_grass, flowers, …).
+    // Java: BlockItem.place() → can_replace() checks existing block's properties.
+    let existing = read_block_at(world_layout, target_chunk, target_x, target_y, target_z);
+    let is_replaceable = existing.as_deref().map_or(true, |name| {
+        representative_state_definition(name)
+            .map(|def| def.physical.destroy_time == 0.0)
+            .unwrap_or(false)
+    });
+    if !is_replaceable {
+        return write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+            send_ack,
+        );
+    }
+
+    // Persist the new block state into the region file.
+    place_block_in_region(world_layout, target_chunk, target_x, target_y, target_z, item_name);
+
+    // Acknowledge the client's predictive block change.
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+        send_ack,
+    )?;
+
+    // Push the authoritative block state to the client.
+    let packed_pos = block_pos_as_long(target_x, target_y, target_z);
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |p| {
+            p.write_all(&packed_pos.to_be_bytes())?;
+            write_var_i32(p, block_state_id)
+        },
+    )?;
+
+    // Survival and adventure modes consume one item from the player's hand.
+    // Java: ItemStack.consume(1, player) called by BlockItem after a successful place.
+    if state.game_mode != GameMode::Creative {
+        state.inventory.remove(held_slot, 1);
+        let stack = state.inventory.get(held_slot);
+        let raw = if stack.is_empty() {
+            RawItemStack::empty()
+        } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+            RawItemStack {
+                count: stack.count(),
+                item_id: Some(pid),
+                components: RawDataComponentPatch::empty(),
+            }
+        } else {
+            RawItemStack::empty()
+        };
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+            |p| {
+                ClientboundSetPlayerInventoryPacket {
+                    slot: held_slot as i32,
+                    contents: raw,
+                }
+                .write(p)
+            },
+        )?;
+    }
+
+    Ok(())
 }
 
 /// Checks whether the player is currently standing over any dropped item entities and,
@@ -2227,6 +2367,22 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             Tag::Int(game_mode_legacy_id(mode)),
         ));
     }
+    // Serialize the hotbar and main inventory (slots 0-35) as a TAG_List of TAG_Compound
+    // entries, matching vanilla's player NBT format.
+    // Java: ServerPlayer.addAdditionalSaveData() → Inventory.save()
+    let inventory_items: Vec<Tag> = state
+        .inventory
+        .saved_items()
+        .into_iter()
+        .map(|(slot, stack)| {
+            Tag::Compound(vec![
+                ("Slot".to_string(), Tag::Byte(slot as i8)),
+                ("id".to_string(), Tag::String(stack.item_id().to_string())),
+                ("count".to_string(), Tag::Int(stack.count())),
+            ])
+        })
+        .collect();
+    values.push(("Inventory".to_string(), Tag::List(inventory_items)));
     Tag::Compound(values)
 }
 
@@ -2284,6 +2440,37 @@ fn play_session_state_from_nbt(tag: &Tag, default_game_mode: GameMode) -> Option
         Some(Tag::Int(value)) => Some(game_mode_from_legacy_id(*value)),
         _ => None,
     };
+    // Restore hotbar and main inventory (slots 0-35) from the TAG_List written by
+    // play_session_state_to_nbt.
+    // Java: ServerPlayer.readAdditionalSaveData() → Inventory.load()
+    let mut inventory = PlayerInventory::new();
+    if let Some(Tag::List(items)) = compound_tag(compound, "Inventory") {
+        let mut loaded: Vec<(usize, ItemStack)> = Vec::new();
+        for item_tag in items {
+            if let Tag::Compound(fields) = item_tag {
+                let slot = match compound_tag(fields, "Slot") {
+                    Some(Tag::Byte(b)) => *b as u8 as usize,
+                    _ => continue,
+                };
+                let id = match compound_tag(fields, "id") {
+                    Some(Tag::String(s)) => s.as_str(),
+                    _ => continue,
+                };
+                let count = match compound_tag(fields, "count") {
+                    Some(Tag::Int(c)) => *c,
+                    _ => 1,
+                };
+                if let Some(static_name) = item_static_name(id) {
+                    if slot < 36 && count > 0 {
+                        loaded.push((slot, ItemStack::new(static_name, count)));
+                    }
+                }
+            }
+        }
+        if !loaded.is_empty() {
+            inventory.load_items(&loaded);
+        }
+    }
     Some(PlaySessionState {
         x: *x,
         y: *y,
@@ -2302,7 +2489,7 @@ fn play_session_state_from_nbt(tag: &Tag, default_game_mode: GameMode) -> Option
         previous_game_mode,
         // Dropped items are session-local and not persisted to NBT.
         dropped_items: Vec::new(),
-        inventory: PlayerInventory::new(),
+        inventory,
         inventory_state_id: 0,
     })
 }
@@ -2644,30 +2831,18 @@ fn write_minimal_play_join(
     )?;
     // Full clock sync so the client's Timeline system can start rendering the sky.
     // Java: ServerClockManager.createFullSyncPacket() — sent during ServerLevel.sendLevelInfo()
-    {
-        let packet = ClientboundSetTimePacket {
-            game_time: clock_game_time,
-            clock_updates: clock_data.iter().cloned().collect(),
-        };
-        let mut packet_bytes: Vec<u8> = Vec::new();
-        packet.write(&mut packet_bytes)?;
-        eprintln!(
-            "[DEBUG clock] SetTimePacket on join: game_time={} entries={} bytes={}",
-            clock_game_time,
-            clock_data.len(),
-            packet_bytes
-                .iter()
-                .map(|b| format!("{b:02X}"))
-                .collect::<Vec<_>>()
-                .join(" ")
-        );
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_SET_TIME_PACKET_ID,
-            |payload| payload.write_all(&packet_bytes),
-        )?;
-    }
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_TIME_PACKET_ID,
+        |payload| {
+            ClientboundSetTimePacket {
+                game_time: clock_game_time,
+                clock_updates: clock_data.iter().cloned().collect(),
+            }
+            .write(payload)
+        },
+    )?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -3957,6 +4132,42 @@ fn break_block_in_region(
     old_name
 }
 
+/// Places a block at (bx, by, bz) in the region file and saves the chunk.
+///
+/// Returns true on success, false if the region file could not be opened.
+/// Java: Level.setBlock() → ChunkAccess.setBlockState()
+fn place_block_in_region(
+    layout: &WorldLayout,
+    chunk_pos: ChunkPos,
+    bx: i32,
+    by: i32,
+    bz: i32,
+    block_name: &str,
+) -> bool {
+    let region_dir = layout.region_dir();
+    let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) else {
+        return false;
+    };
+    let mut chunk = load_chunk(layout, chunk_pos);
+    chunk.set_block_state(bx, by, bz, block_name);
+    let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
+    let _ = region.write_chunk_nbt(chunk_pos, "", &nbt);
+    true
+}
+
+/// Returns the (dx, dy, dz) unit offset for a face direction.
+/// Java: Direction.getNormal()
+fn direction_offset(dir: Direction3d) -> (i32, i32, i32) {
+    match dir {
+        Direction3d::Down => (0, -1, 0),
+        Direction3d::Up => (0, 1, 0),
+        Direction3d::North => (0, 0, -1),
+        Direction3d::South => (0, 0, 1),
+        Direction3d::West => (-1, 0, 0),
+        Direction3d::East => (1, 0, 0),
+    }
+}
+
 fn visual_terrain_block_at(bx: i32, by: i32, bz: i32) -> Option<&'static str> {
     let chunk_x = bx.div_euclid(16);
     let chunk_z = bz.div_euclid(16);
@@ -4144,7 +4355,7 @@ fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Re
 }
 
 fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_var_i32(writer, 2)?;
+    write_var_i32(writer, 3)?;
     write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
     write_var_i32(writer, DAMAGE_TYPE_TAGS.len() as i32)?;
     for (tag, entries) in DAMAGE_TYPE_TAGS {
@@ -4175,6 +4386,33 @@ fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> 
             write_var_i32(writer, index as i32)?;
         }
     }
+    // Timeline tags: required for the client to resolve the `timelines` HolderSet in the
+    // dimension type (which references "#minecraft:in_overworld") and the `#minecraft:universal`
+    // nested tag.
+    //
+    // IDs match the order entries are sent in write_vanilla_timeline_registry_packet:
+    //   day=0, moon=1, villager_schedule=2, early_game=3
+    //
+    // Java refs:
+    //   data/minecraft/tags/timeline/in_overworld.json  → [#universal, day, moon, early_game]
+    //   data/minecraft/tags/timeline/universal.json     → [villager_schedule]
+    // Tags are pre-expanded by the server (nested tag #universal resolved to its elements).
+    write_identifier(writer, &Identifier::parse("minecraft:timeline").unwrap())?;
+    // Two tags: #minecraft:in_overworld and #minecraft:universal.
+    write_var_i32(writer, 2)?;
+    // #minecraft:in_overworld expands to [villager_schedule=2, day=0, moon=1, early_game=3].
+    write_identifier(
+        writer,
+        &Identifier::parse("minecraft:in_overworld").unwrap(),
+    )?;
+    write_var_i32(writer, 4)?;
+    for id in [2i32, 0, 1, 3] {
+        write_var_i32(writer, id)?;
+    }
+    // #minecraft:universal expands to [villager_schedule=2].
+    write_identifier(writer, &Identifier::parse("minecraft:universal").unwrap())?;
+    write_var_i32(writer, 1)?;
+    write_var_i32(writer, 2)?; // villager_schedule = ID 2
     Ok(())
 }
 
@@ -4305,9 +4543,6 @@ fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io::Res
 /// Java: net/minecraft/resources/RegistryDataLoader.java:125,160 — WORLD_CLOCK is a
 /// datapack-loaded registry that must be synced to clients during the configuration phase.
 fn write_world_clock_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    eprintln!(
-        "[DEBUG clock] Sending minecraft:world_clock registry (2 entries: overworld=0, the_end=1)"
-    );
     write_identifier(writer, &Identifier::parse("minecraft:world_clock").unwrap())?;
     write_var_i32(writer, 2)?; // minecraft:overworld (ID 0) and minecraft:the_end (ID 1)
     for name in ["overworld", "the_end"] {
@@ -4319,7 +4554,439 @@ fn write_world_clock_registry_packet<W: Write>(writer: &mut W) -> io::Result<()>
         // WorldClock is a zero-field record; its NBT codec encodes as an empty compound.
         write_network_nbt(writer, &Tag::Compound(vec![]))?;
     }
-    eprintln!("[DEBUG clock] minecraft:world_clock registry sent OK");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Timeline registry helpers
+// ---------------------------------------------------------------------------
+//
+// Java refs:
+//   net/minecraft/world/timeline/Timeline.java:49 — NETWORK_CODEC filters to syncable tracks
+//   net/minecraft/util/Keyframe.java:8–11         — {ticks: int, value: T} compound
+//   net/minecraft/util/KeyframeTrack.java:21–29   — {keyframes: [...], ease: EasingType}
+//   net/minecraft/world/timeline/AttributeTrack.java:16–18 — modifier dispatch + KeyframeTrack
+//   net/minecraft/util/EasingType.java             — linear omitted (default); cubic_bezier compound
+//   net/minecraft/world/attribute/AttributeTypes.java — value codecs per type
+//   net/minecraft/world/attribute/modifier/ColorModifier.java — ArgbModifier.argumentCodec
+//   net/minecraft/world/attribute/modifier/FloatModifier.java — Simple.argumentCodec = FLOAT
+//   net/minecraft/world/attribute/modifier/BooleanModifier.java — argumentCodec = BOOL
+//   net/minecraft/world/attribute/EnvironmentAttributes.java — .syncable() marks network tracks
+//   data/minecraft/timeline/*.json                 — authoritative keyframe data
+
+/// Builds a keyframe compound for a 32-bit float value.
+/// Java: Keyframe.codec(Codec.FLOAT) → RecordCodecBuilder {ticks: INT, value: FLOAT}
+fn timeline_keyframe_f32(ticks: i32, value: f32) -> Tag {
+    Tag::Compound(vec![
+        ("ticks".to_string(), Tag::Int(ticks)),
+        ("value".to_string(), Tag::Float(value)),
+    ])
+}
+
+/// Builds a keyframe compound for a string value (hex colour, enum name).
+/// Java: Keyframe.codec(STRING) → RecordCodecBuilder {ticks: INT, value: STRING}
+fn timeline_keyframe_str(ticks: i32, value: &str) -> Tag {
+    Tag::Compound(vec![
+        ("ticks".to_string(), Tag::Int(ticks)),
+        ("value".to_string(), Tag::String(value.to_string())),
+    ])
+}
+
+/// Builds a keyframe compound for a boolean value.
+/// Java: Codec.BOOL encodes as ByteTag (1 = true, 0 = false) in NbtOps.
+fn timeline_keyframe_bool(ticks: i32, value: bool) -> Tag {
+    Tag::Compound(vec![
+        ("ticks".to_string(), Tag::Int(ticks)),
+        ("value".to_string(), Tag::Byte(value as i8)),
+    ])
+}
+
+/// Builds a keyframe compound for a raw 32-bit signed integer value.
+/// Java: ARGB_COLOR type with multiply modifier — ArgbModifier.argumentCodec selects
+/// Codec.INT when alpha == 0xFF (fully opaque). Keyframe value → Tag::Int.
+fn timeline_keyframe_i32(ticks: i32, value: i32) -> Tag {
+    Tag::Compound(vec![
+        ("ticks".to_string(), Tag::Int(ticks)),
+        ("value".to_string(), Tag::Int(value)),
+    ])
+}
+
+/// Builds an `ease` compound for a cubic-bezier easing function.
+/// Java: EasingType.CubicBezier.CODEC → {cubic_bezier: [x1, y1, x2, y2]}
+fn cubic_bezier_ease(x1: f32, y1: f32, x2: f32, y2: f32) -> Tag {
+    Tag::Compound(vec![(
+        "cubic_bezier".to_string(),
+        Tag::List(vec![
+            Tag::Float(x1),
+            Tag::Float(y1),
+            Tag::Float(x2),
+            Tag::Float(y2),
+        ]),
+    )])
+}
+
+/// Builds a track compound from modifier, keyframes, and optional ease.
+/// Java: AttributeTrack.createCodec — modifier field absent for `override` (the default),
+/// present for any other modifier. Ease field absent when LINEAR (the default).
+fn timeline_track(modifier: Option<&str>, keyframes: Vec<Tag>, ease: Option<Tag>) -> Tag {
+    let mut fields = Vec::new();
+    if let Some(m) = modifier {
+        fields.push(("modifier".to_string(), Tag::String(m.to_string())));
+    }
+    fields.push(("keyframes".to_string(), Tag::List(keyframes)));
+    if let Some(e) = ease {
+        fields.push(("ease".to_string(), e));
+    }
+    Tag::Compound(fields)
+}
+
+/// Builds the NBT compound for `minecraft:day` filtered to syncable tracks only.
+/// Java: data/minecraft/timeline/day.json; Timeline.NETWORK_CODEC removes non-syncable tracks.
+fn day_timeline_nbt() -> Tag {
+    // symmetricCubicBezier(0.362, 0.241) — shared by sun, moon, and star angle tracks.
+    let sym_bezier = cubic_bezier_ease(0.362, 0.241, 0.638, 0.759);
+
+    // Celestial angle tracks: ANGLE_DEGREES type, override modifier → Codec.FLOAT keyframes.
+    let sun_angle = timeline_track(
+        None,
+        vec![
+            timeline_keyframe_f32(6000, 360.0),
+            timeline_keyframe_f32(6000, 0.0),
+        ],
+        Some(sym_bezier.clone()),
+    );
+    let moon_angle = timeline_track(
+        None,
+        vec![
+            timeline_keyframe_f32(6000, 540.0),
+            timeline_keyframe_f32(6000, 180.0),
+        ],
+        Some(sym_bezier.clone()),
+    );
+    let star_angle = timeline_track(
+        None,
+        vec![
+            timeline_keyframe_f32(6000, 360.0),
+            timeline_keyframe_f32(6000, 0.0),
+        ],
+        Some(sym_bezier),
+    );
+
+    // RGB colour tracks: multiply modifier → RgbModifier.argumentCodec = STRING_RGB_COLOR.
+    // Primary encoder of STRING_RGB_COLOR is hexColor(6) → Tag::String("#rrggbb").
+    let fog_color = timeline_track(
+        Some("multiply"),
+        vec![
+            timeline_keyframe_str(133, "#ffffff"),
+            timeline_keyframe_str(11867, "#ffffff"),
+            timeline_keyframe_str(13670, "#0f0f16"),
+            timeline_keyframe_str(22330, "#0f0f16"),
+        ],
+        None,
+    );
+    let sky_color = timeline_track(
+        Some("multiply"),
+        vec![
+            timeline_keyframe_str(133, "#ffffff"),
+            timeline_keyframe_str(11867, "#ffffff"),
+            timeline_keyframe_str(13670, "#000000"),
+            timeline_keyframe_str(22330, "#000000"),
+        ],
+        None,
+    );
+    let sky_light_color = timeline_track(
+        Some("multiply"),
+        vec![
+            timeline_keyframe_str(730, "#ffffff"),
+            timeline_keyframe_str(11270, "#ffffff"),
+            timeline_keyframe_str(13140, "#7a7aff"),
+            timeline_keyframe_str(22860, "#7a7aff"),
+        ],
+        None,
+    );
+
+    // Float tracks: multiply/maximum modifier → FloatModifier.Simple.argumentCodec = Codec.FLOAT.
+    let sky_light_factor = timeline_track(
+        Some("multiply"),
+        vec![
+            timeline_keyframe_f32(730, 1.0),
+            timeline_keyframe_f32(11270, 1.0),
+            timeline_keyframe_f32(13140, 0.24),
+            timeline_keyframe_f32(22860, 0.24),
+        ],
+        None,
+    );
+    // gameplay/sky_light_level is syncable (SKY_LIGHT_LEVEL has .notPositional().syncable()).
+    let sky_light_level = timeline_track(
+        Some("multiply"),
+        vec![
+            timeline_keyframe_f32(133, 1.0),
+            timeline_keyframe_f32(11867, 1.0),
+            timeline_keyframe_f32(13670, 0.266_666_68),
+            timeline_keyframe_f32(22330, 0.266_666_68),
+        ],
+        None,
+    );
+    let star_brightness = timeline_track(
+        Some("maximum"),
+        vec![
+            timeline_keyframe_f32(92, 0.037),
+            timeline_keyframe_f32(627, 0.0),
+            timeline_keyframe_f32(11373, 0.0),
+            timeline_keyframe_f32(11732, 0.016),
+            timeline_keyframe_f32(11959, 0.044),
+            timeline_keyframe_f32(12399, 0.143),
+            timeline_keyframe_f32(12729, 0.258),
+            timeline_keyframe_f32(13228, 0.5),
+            timeline_keyframe_f32(22772, 0.5),
+            timeline_keyframe_f32(23032, 0.364),
+            timeline_keyframe_f32(23356, 0.225),
+            timeline_keyframe_f32(23758, 0.101),
+        ],
+        None,
+    );
+
+    // ARGB colour: multiply modifier → ArgbModifier.argumentCodec = Either<STRING_ARGB, Codec.INT>.
+    // When alpha == 0xFF: Either.right → Codec.INT → Tag::Int.
+    // -1 = 0xFFFFFFFF (white); -15132378 = 0xFF1A1A26 (night-tinted dark grey).
+    let cloud_color = timeline_track(
+        Some("multiply"),
+        vec![
+            timeline_keyframe_i32(133, -1),
+            timeline_keyframe_i32(11867, -1),
+            timeline_keyframe_i32(13670, -15132378),
+            timeline_keyframe_i32(22330, -15132378),
+        ],
+        None,
+    );
+
+    // ARGB colour: override modifier → OverrideModifier.argumentCodec = STRING_ARGB_COLOR.
+    // Primary encoder is hexColor(8) → Tag::String("#aarrggbb").
+    let sunrise_sunset_color = timeline_track(
+        None,
+        vec![
+            timeline_keyframe_str(71, "#5fefa333"),
+            timeline_keyframe_str(310, "#29f5ba33"),
+            timeline_keyframe_str(565, "#06fbd433"),
+            timeline_keyframe_str(730, "#00ffe533"),
+            timeline_keyframe_str(11270, "#00ffe533"),
+            timeline_keyframe_str(11397, "#04fcd833"),
+            timeline_keyframe_str(11522, "#0ff9cb33"),
+            timeline_keyframe_str(11690, "#29f5ba33"),
+            timeline_keyframe_str(11929, "#5fefa333"),
+            timeline_keyframe_str(12243, "#b1e78733"),
+            timeline_keyframe_str(12358, "#cce47e33"),
+            timeline_keyframe_str(12512, "#e9e07233"),
+            timeline_keyframe_str(12613, "#f6dd6b33"),
+            timeline_keyframe_str(12732, "#feda6333"),
+            timeline_keyframe_str(12841, "#fed75c33"),
+            timeline_keyframe_str(13035, "#ecd25133"),
+            timeline_keyframe_str(13252, "#c1cc4733"),
+            timeline_keyframe_str(13775, "#36be3733"),
+            timeline_keyframe_str(13888, "#1fbb3533"),
+            timeline_keyframe_str(14039, "#09b73333"),
+            timeline_keyframe_str(14192, "#00b33333"),
+            timeline_keyframe_str(21807, "#00b23333"),
+            timeline_keyframe_str(21961, "#09b73333"),
+            timeline_keyframe_str(22112, "#1fbb3533"),
+            timeline_keyframe_str(22225, "#36be3733"),
+            timeline_keyframe_str(22748, "#c1cc4733"),
+            timeline_keyframe_str(22965, "#ecd25133"),
+            timeline_keyframe_str(23159, "#fed75c33"),
+            timeline_keyframe_str(23272, "#feda6333"),
+            timeline_keyframe_str(23488, "#e9e07233"),
+            timeline_keyframe_str(23642, "#cce47e33"),
+            timeline_keyframe_str(23757, "#b1e78733"),
+        ],
+        None,
+    );
+
+    // Boolean tracks: OR modifier → BooleanModifier.OR.argumentCodec = Codec.BOOL → Tag::Byte.
+    let firefly_bush_sounds = timeline_track(
+        Some("or"),
+        vec![
+            timeline_keyframe_bool(12600, true),
+            timeline_keyframe_bool(23401, false),
+        ],
+        None,
+    );
+    let creaking_active = timeline_track(
+        Some("or"),
+        vec![
+            timeline_keyframe_bool(12600, true),
+            timeline_keyframe_bool(23401, false),
+        ],
+        None,
+    );
+
+    // Time markers are preserved by NETWORK_CODEC (filterSyncableTracks only touches tracks).
+    // TimeMarkerInfo.CODEC: showInCommands=true → Compound{ticks, show_in_commands};
+    //                       showInCommands=false → Tag::Int(ticks).
+    let time_markers = Tag::Compound(vec![
+        (
+            "minecraft:day".to_string(),
+            Tag::Compound(vec![
+                ("ticks".to_string(), Tag::Int(1000)),
+                ("show_in_commands".to_string(), Tag::Byte(1)),
+            ]),
+        ),
+        (
+            "minecraft:midnight".to_string(),
+            Tag::Compound(vec![
+                ("ticks".to_string(), Tag::Int(18000)),
+                ("show_in_commands".to_string(), Tag::Byte(1)),
+            ]),
+        ),
+        (
+            "minecraft:night".to_string(),
+            Tag::Compound(vec![
+                ("ticks".to_string(), Tag::Int(13000)),
+                ("show_in_commands".to_string(), Tag::Byte(1)),
+            ]),
+        ),
+        (
+            "minecraft:noon".to_string(),
+            Tag::Compound(vec![
+                ("ticks".to_string(), Tag::Int(6000)),
+                ("show_in_commands".to_string(), Tag::Byte(1)),
+            ]),
+        ),
+        // showInCommands=false → encoded as plain Tag::Int(ticks).
+        (
+            "minecraft:roll_village_siege".to_string(),
+            Tag::Int(18000),
+        ),
+        (
+            "minecraft:wake_up_from_sleep".to_string(),
+            Tag::Int(0),
+        ),
+    ]);
+
+    Tag::Compound(vec![
+        (
+            "clock".to_string(),
+            Tag::String("minecraft:overworld".to_string()),
+        ),
+        ("period_ticks".to_string(), Tag::Int(24000)),
+        (
+            "tracks".to_string(),
+            Tag::Compound(vec![
+                ("minecraft:visual/sun_angle".to_string(), sun_angle),
+                ("minecraft:visual/moon_angle".to_string(), moon_angle),
+                ("minecraft:visual/star_angle".to_string(), star_angle),
+                ("minecraft:visual/fog_color".to_string(), fog_color),
+                ("minecraft:visual/sky_color".to_string(), sky_color),
+                ("minecraft:visual/sky_light_color".to_string(), sky_light_color),
+                ("minecraft:visual/sky_light_factor".to_string(), sky_light_factor),
+                ("minecraft:visual/star_brightness".to_string(), star_brightness),
+                ("minecraft:visual/cloud_color".to_string(), cloud_color),
+                (
+                    "minecraft:visual/sunrise_sunset_color".to_string(),
+                    sunrise_sunset_color,
+                ),
+                (
+                    "minecraft:gameplay/sky_light_level".to_string(),
+                    sky_light_level,
+                ),
+                (
+                    "minecraft:audio/firefly_bush_sounds".to_string(),
+                    firefly_bush_sounds,
+                ),
+                (
+                    "minecraft:gameplay/creaking_active".to_string(),
+                    creaking_active,
+                ),
+            ]),
+        ),
+        ("time_markers".to_string(), time_markers),
+    ])
+}
+
+/// Builds the NBT compound for `minecraft:moon` filtered to syncable tracks only.
+/// Java: data/minecraft/timeline/moon.json; surface_slime_spawn_chance is non-syncable and
+/// filtered out. Only visual/moon_phase (MOON_PHASE type, syncable) survives.
+fn moon_timeline_nbt() -> Tag {
+    // MoonPhase.CODEC = StringRepresentable.fromEnum → encodes as Tag::String name.
+    let moon_phase = timeline_track(
+        None,
+        vec![
+            timeline_keyframe_str(0, "full_moon"),
+            timeline_keyframe_str(24000, "waning_gibbous"),
+            timeline_keyframe_str(48000, "third_quarter"),
+            timeline_keyframe_str(72000, "waning_crescent"),
+            timeline_keyframe_str(96000, "new_moon"),
+            timeline_keyframe_str(120000, "waxing_crescent"),
+            timeline_keyframe_str(144000, "first_quarter"),
+            timeline_keyframe_str(168000, "waxing_gibbous"),
+        ],
+        None,
+    );
+    Tag::Compound(vec![
+        (
+            "clock".to_string(),
+            Tag::String("minecraft:overworld".to_string()),
+        ),
+        ("period_ticks".to_string(), Tag::Int(192000)),
+        (
+            "tracks".to_string(),
+            Tag::Compound(vec![("minecraft:visual/moon_phase".to_string(), moon_phase)]),
+        ),
+    ])
+}
+
+/// Builds the NBT compound for `minecraft:villager_schedule`.
+/// Java: data/minecraft/timeline/villager_schedule.json; both tracks (villager_activity,
+/// baby_villager_activity) are non-syncable → filtered out. Tracks field absent (equals
+/// default Map.of()); only clock and period_ticks remain.
+fn villager_schedule_timeline_nbt() -> Tag {
+    Tag::Compound(vec![
+        (
+            "clock".to_string(),
+            Tag::String("minecraft:overworld".to_string()),
+        ),
+        ("period_ticks".to_string(), Tag::Int(24000)),
+    ])
+}
+
+/// Builds the NBT compound for `minecraft:early_game`.
+/// Java: data/minecraft/timeline/early_game.json; can_pillager_patrol_spawn is non-syncable
+/// → filtered out. No period_ticks in source data. Only the clock field remains.
+fn early_game_timeline_nbt() -> Tag {
+    Tag::Compound(vec![(
+        "clock".to_string(),
+        Tag::String("minecraft:overworld".to_string()),
+    )])
+}
+
+/// Sends the `minecraft:timeline` registry during configuration.
+///
+/// The client uses timeline data to drive all sky rendering (sun/moon angles, sky colour,
+/// fog colour, star brightness, etc.) via its Timeline evaluation system. Without this
+/// registry the client's `timelines` field in the dimension type cannot be resolved and
+/// all sky colours remain black (default EnvironmentAttribute values).
+///
+/// Entry IDs (used by the tags packet): day=0, moon=1, villager_schedule=2, early_game=3.
+///
+/// Java refs:
+///   net/minecraft/resources/RegistryDataLoader.java:125,160 — TIMELINE in sync registry list
+///   net/minecraft/world/timeline/Timeline.java:49 — NETWORK_CODEC = filterSyncableTracks
+fn write_vanilla_timeline_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    write_identifier(writer, &Identifier::parse("minecraft:timeline").unwrap())?;
+    write_var_i32(writer, 4)?; // day=0, moon=1, villager_schedule=2, early_game=3
+    let entries: &[(&str, fn() -> Tag)] = &[
+        ("day", day_timeline_nbt),
+        ("moon", moon_timeline_nbt),
+        ("villager_schedule", villager_schedule_timeline_nbt),
+        ("early_game", early_game_timeline_nbt),
+    ];
+    for (name, build_nbt) in entries {
+        write_identifier(
+            writer,
+            &Identifier::parse(&format!("minecraft:{name}")).unwrap(),
+        )?;
+        write_bool(writer, true)?;
+        write_network_nbt(writer, &build_nbt())?;
+    }
     Ok(())
 }
 
@@ -4629,6 +5296,42 @@ fn dimension_type_nbt(dimension_type: &str) -> Tag {
 }
 
 fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
+    // `attributes` encodes via EnvironmentAttributeMap.NETWORK_CODEC (syncable only).
+    // Each entry uses EnvironmentAttributeMap.Entry.createCodec: override modifier →
+    // Either.left(value) → attribute.valueCodec() directly.
+    //
+    // Syncable visual attributes from data/minecraft/dimension_type/overworld.json:
+    //   RGB_COLOR  → ExtraCodecs.STRING_RGB_COLOR   → hexColor(6) → Tag::String "#rrggbb"
+    //   ARGB_COLOR → ExtraCodecs.STRING_ARGB_COLOR  → hexColor(8) → Tag::String "#aarrggbb"
+    //   FLOAT      → Codec.FLOAT                    → Tag::Float
+    //
+    // Non-syncable gameplay/audio attributes (bed_rule, nether_portal_spawns_piglin,
+    // respawn_anchor_works) are filtered out by NETWORK_CODEC and must be omitted here.
+    // Audio attributes (ambient_sounds, background_music) are syncable but their complex
+    // codec structs are not yet implemented; clients fall back to their EMPTY defaults.
+    let attributes = Tag::Compound(vec![
+        (
+            "minecraft:visual/sky_color".to_string(),
+            Tag::String("#78a7ff".to_string()),
+        ),
+        (
+            "minecraft:visual/fog_color".to_string(),
+            Tag::String("#c0d8ff".to_string()),
+        ),
+        (
+            "minecraft:visual/cloud_color".to_string(),
+            Tag::String("#ccffffff".to_string()),
+        ),
+        (
+            "minecraft:visual/cloud_height".to_string(),
+            Tag::Float(192.33),
+        ),
+        (
+            "minecraft:visual/ambient_light_color".to_string(),
+            Tag::String("#0a0a0a".to_string()),
+        ),
+    ]);
+
     Tag::Compound(vec![
         ("has_skylight".to_string(), Tag::Byte(1)),
         (
@@ -4657,6 +5360,23 @@ fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
             ]),
         ),
         ("monster_spawn_block_light_limit".to_string(), Tag::Int(0)),
+        // `timelines`: HolderSet<Timeline> reference. The tag "#minecraft:in_overworld"
+        // is resolved by the client using the timeline tags sent in the tags packet.
+        // Java: DimensionType.NETWORK_CODEC — RegistryCodecs.homogeneousList(TIMELINE)
+        //       → HolderSet.TagKey encodes as Tag::String("#<tag-id>").
+        (
+            "timelines".to_string(),
+            Tag::String("#minecraft:in_overworld".to_string()),
+        ),
+        // `default_clock`: which world clock drives the timeline for this dimension.
+        // Java: WorldClock.CODEC = RegistryFixedCodec → Tag::String("<registry-key>").
+        (
+            "default_clock".to_string(),
+            Tag::String("minecraft:overworld".to_string()),
+        ),
+        // `attributes`: static base values for syncable EnvironmentAttributes.
+        // The timeline tracks multiply/add to these base values at runtime on the client.
+        ("attributes".to_string(), attributes),
     ])
 }
 
@@ -5511,20 +6231,22 @@ mod tests {
     use super::{
         banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt, chat_type_nbt,
         chicken_sound_variant_nbt, chunk_batch_size, chunk_window, cow_sound_variant_nbt,
-        encode_base64, escape_json_string, handle_legacy_status_connection, instrument_nbt,
-        jukebox_song_nbt, legacy_disconnect_packet, legacy_version0_response,
-        legacy_version1_response, load_code_of_conduct_for_language, load_favicon,
-        login_access_disconnect_reason, login_host_ip, newly_visible_chunks, packed_chunk_pos,
-        pig_sound_variant_nbt, read_code_of_conducts, read_packet, status_json,
+        day_timeline_nbt, early_game_timeline_nbt, encode_base64, escape_json_string,
+        handle_legacy_status_connection, instrument_nbt, jukebox_song_nbt,
+        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
+        load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
+        login_host_ip, moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt,
+        packed_chunk_pos, pig_sound_variant_nbt, play_session_state_from_nbt,
+        play_session_state_to_nbt, read_code_of_conducts, read_packet, status_json,
         strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
-        vanilla_baseline_biome_nbt, visible_spawn_surface_feature_id,
-        visible_spawn_surface_top_block_id, visible_spawn_terrain_block_count,
-        visible_spawn_terrain_height, wait_for_configuration_packet, wolf_sound_variant_nbt,
-        write_framed_packet, write_legacy_string, write_minimal_biome_registry_packet,
+        vanilla_baseline_biome_nbt, villager_schedule_timeline_nbt,
+        visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
+        visible_spawn_terrain_block_count, visible_spawn_terrain_height,
+        wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
+        write_legacy_string, write_minimal_biome_registry_packet,
         write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
-        write_minimal_trim_material_registry_packet, write_status_pong_packet,
-        write_world_clock_registry_packet,
-        write_vanilla_banner_pattern_registry_packet,
+        write_minimal_trim_material_registry_packet, write_minimal_update_tags_packet,
+        write_status_pong_packet, write_vanilla_banner_pattern_registry_packet,
         write_vanilla_cat_sound_variant_registry_packet, write_vanilla_cat_variant_registry_packet,
         write_vanilla_chat_type_registry_packet,
         write_vanilla_chicken_sound_variant_registry_packet,
@@ -5533,11 +6255,12 @@ mod tests {
         write_vanilla_frog_variant_registry_packet, write_vanilla_instrument_registry_packet,
         write_vanilla_jukebox_song_registry_packet, write_vanilla_painting_variant_registry_packet,
         write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
-        write_vanilla_trim_pattern_registry_packet,
+        write_vanilla_timeline_registry_packet, write_vanilla_trim_pattern_registry_packet,
         write_vanilla_wolf_sound_variant_registry_packet,
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
-        write_visible_spawn_terrain_block_state_container, CompressionState,
+        write_visible_spawn_terrain_block_state_container, write_world_clock_registry_packet,
+        CompressionState, GameMode,
         ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
         BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
@@ -5548,10 +6271,12 @@ mod tests {
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
         STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
     };
+    use crate::item_stack::ItemStack;
     use crate::network::codec::write_identifier;
     use crate::network::common::{ServerLinkLabel, ServerLinkType};
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::varint::{read_var_i32, write_var_i32};
+    use crate::player_inventory::PlayerInventory;
     use crate::registry::Identifier;
     use crate::server_properties::ServerProperties;
     use crate::storage::nbt::Tag;
@@ -6873,6 +7598,169 @@ mod tests {
         assert_eq!(read_var_i32(&mut cursor).unwrap(), 0);
     }
 
+    /// Builds a minimal PlaySessionState with only the fields needed for NBT round-trip
+    /// tests, seeding inventory with known items.
+    fn session_state_with_inventory(items: &[(&'static str, i32, usize)]) -> super::PlaySessionState {
+        let mut inventory = PlayerInventory::new();
+        let loaded: Vec<(usize, crate::item_stack::ItemStack)> = items
+            .iter()
+            .map(|(id, count, slot)| (*slot, ItemStack::new(id, *count)))
+            .collect();
+        inventory.load_items(&loaded);
+        super::PlaySessionState {
+            x: 1.0,
+            y: 64.0,
+            z: -1.0,
+            yaw: 0.0,
+            pitch: 0.0,
+            on_ground: true,
+            selected_slot: 0,
+            health: 20.0,
+            food_level: 20,
+            food_saturation: 5.0,
+            xp_progress: 0.0,
+            xp_level: 0,
+            xp_total: 0,
+            game_mode: GameMode::Survival,
+            previous_game_mode: None,
+            dropped_items: Vec::new(),
+            inventory,
+            inventory_state_id: 0,
+        }
+    }
+
+    #[test]
+    fn play_session_state_nbt_round_trip_preserves_empty_inventory() {
+        // An empty inventory should serialise as an empty Inventory list and
+        // deserialise back without error.
+        let state = session_state_with_inventory(&[]);
+        let tag = play_session_state_to_nbt(&state);
+        let restored = play_session_state_from_nbt(&tag, GameMode::Survival).unwrap();
+        assert!(
+            restored.inventory.saved_items().is_empty(),
+            "expected empty inventory after round-trip"
+        );
+    }
+
+    #[test]
+    fn play_session_state_nbt_round_trip_preserves_hotbar_and_main_inventory() {
+        // Slot 0 (hotbar), slot 9 (main inventory row 1), slot 35 (last main slot).
+        // Java: Inventory saves slots 0-35 — all three must survive the round-trip.
+        let original_items = &[
+            ("minecraft:dirt", 64, 0usize),
+            ("minecraft:stone", 32, 9),
+            ("minecraft:sand", 16, 35),
+        ];
+        let state = session_state_with_inventory(original_items);
+        let tag = play_session_state_to_nbt(&state);
+        let restored = play_session_state_from_nbt(&tag, GameMode::Survival).unwrap();
+
+        let saved = restored.inventory.saved_items();
+        assert_eq!(saved.len(), 3, "expected exactly 3 items after round-trip");
+
+        for (id, count, slot) in original_items {
+            let found = saved.iter().find(|(s, _)| s == slot);
+            let found = found.unwrap_or_else(|| panic!("slot {slot} missing after round-trip"));
+            assert_eq!(found.1.item_id(), *id, "item id mismatch at slot {slot}");
+            assert_eq!(found.1.count(), *count, "count mismatch at slot {slot}");
+        }
+    }
+
+    #[test]
+    fn play_session_state_nbt_round_trip_ignores_out_of_range_slots() {
+        // Slots >= 36 (armour, offhand, etc.) are outside the main inventory range
+        // and must be silently dropped during deserialisation.
+        // Java: Inventory.load() only writes to slots 0-35.
+        let tag = Tag::Compound(vec![
+            ("DataVersion".to_string(), Tag::Int(4791)),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![Tag::Double(0.0), Tag::Double(64.0), Tag::Double(0.0)]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(0.0), Tag::Float(0.0)]),
+            ),
+            (
+                "Motion".to_string(),
+                Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)]),
+            ),
+            ("OnGround".to_string(), Tag::Byte(1)),
+            ("Health".to_string(), Tag::Float(20.0)),
+            ("foodLevel".to_string(), Tag::Int(20)),
+            ("foodSaturationLevel".to_string(), Tag::Float(5.0)),
+            ("XpLevel".to_string(), Tag::Int(0)),
+            ("XpP".to_string(), Tag::Float(0.0)),
+            ("XpTotal".to_string(), Tag::Int(0)),
+            ("SelectedItemSlot".to_string(), Tag::Int(0)),
+            ("playerGameType".to_string(), Tag::Int(0)),
+            (
+                "Inventory".to_string(),
+                Tag::List(vec![
+                    // Valid slot
+                    Tag::Compound(vec![
+                        ("Slot".to_string(), Tag::Byte(0)),
+                        ("id".to_string(), Tag::String("minecraft:dirt".to_string())),
+                        ("count".to_string(), Tag::Int(1)),
+                    ]),
+                    // Out-of-range slot (armour slot 100) — must be ignored
+                    Tag::Compound(vec![
+                        ("Slot".to_string(), Tag::Byte(100u8 as i8)),
+                        ("id".to_string(), Tag::String("minecraft:stone".to_string())),
+                        ("count".to_string(), Tag::Int(1)),
+                    ]),
+                ]),
+            ),
+        ]);
+        let restored = play_session_state_from_nbt(&tag, GameMode::Survival).unwrap();
+        let saved = restored.inventory.saved_items();
+        assert_eq!(saved.len(), 1, "only the in-range slot should survive");
+        assert_eq!(saved[0].0, 0);
+        assert_eq!(saved[0].1.item_id(), "minecraft:dirt");
+    }
+
+    #[test]
+    fn play_session_state_nbt_inventory_tag_matches_vanilla_format() {
+        // Verify the serialised TAG_List contains TAG_Compound entries with the
+        // exact field names used by vanilla: "Slot" (TAG_Byte), "id" (TAG_String),
+        // "count" (TAG_Int).  This is the wire format read back by the Java server
+        // when loading player data.
+        let state = session_state_with_inventory(&[("minecraft:stone", 5, 3)]);
+        let tag = play_session_state_to_nbt(&state);
+        let Tag::Compound(fields) = &tag else {
+            panic!("expected compound tag");
+        };
+        let inventory_tag = fields
+            .iter()
+            .find_map(|(name, value)| (name == "Inventory").then_some(value))
+            .expect("Inventory tag missing");
+        let Tag::List(items) = inventory_tag else {
+            panic!("Inventory must be a TAG_List");
+        };
+        assert_eq!(items.len(), 1);
+        let Tag::Compound(item_fields) = &items[0] else {
+            panic!("inventory entry must be TAG_Compound");
+        };
+        let slot = item_fields
+            .iter()
+            .find_map(|(n, v)| (n == "Slot").then_some(v))
+            .expect("Slot missing");
+        assert!(matches!(slot, Tag::Byte(3)), "Slot must be TAG_Byte(3)");
+        let id = item_fields
+            .iter()
+            .find_map(|(n, v)| (n == "id").then_some(v))
+            .expect("id missing");
+        assert!(
+            matches!(id, Tag::String(s) if s == "minecraft:stone"),
+            "id must be TAG_String"
+        );
+        let count = item_fields
+            .iter()
+            .find_map(|(n, v)| (n == "count").then_some(v))
+            .expect("count missing");
+        assert!(matches!(count, Tag::Int(5)), "count must be TAG_Int(5)");
+    }
+
     #[derive(Debug)]
     struct CursorStream {
         read: Cursor<Vec<u8>>,
@@ -6903,5 +7791,267 @@ mod tests {
         fn flush(&mut self) -> std::io::Result<()> {
             Ok(())
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Timeline registry and dimension-type sky-fix tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn timeline_registry_sends_four_entries_in_correct_order() {
+        // Java: data/minecraft/timeline/ has day, early_game, moon, villager_schedule.
+        // Registry order (0–3) must match the IDs used in the timeline tags packet.
+        assert_eq!(
+            status_registry_id(write_vanilla_timeline_registry_packet),
+            "minecraft:timeline"
+        );
+        let ids = status_registry_entry_ids_ordered(write_vanilla_timeline_registry_packet);
+        assert_eq!(ids.len(), 4);
+        assert_eq!(ids[0], "minecraft:day");             // ID 0
+        assert_eq!(ids[1], "minecraft:moon");            // ID 1
+        assert_eq!(ids[2], "minecraft:villager_schedule"); // ID 2
+        assert_eq!(ids[3], "minecraft:early_game");      // ID 3
+    }
+
+    #[test]
+    fn day_timeline_contains_syncable_tracks_and_omits_non_syncable() {
+        // Java: Timeline.NETWORK_CODEC calls filterSyncableTracks, removing any track whose
+        // EnvironmentAttribute does not have .syncable() set.
+        let nbt = day_timeline_nbt();
+        assert!(matches!(
+            field_value(&nbt, "clock"),
+            Some(Tag::String(v)) if v == "minecraft:overworld"
+        ));
+        assert!(matches!(field_value(&nbt, "period_ticks"), Some(Tag::Int(24000))));
+
+        let tracks = compound_field(&nbt, "tracks");
+
+        // Syncable visual/audio/gameplay tracks that must be present.
+        assert!(field_value(tracks, "minecraft:visual/sun_angle").is_some());
+        assert!(field_value(tracks, "minecraft:visual/moon_angle").is_some());
+        assert!(field_value(tracks, "minecraft:visual/star_angle").is_some());
+        assert!(field_value(tracks, "minecraft:visual/fog_color").is_some());
+        assert!(field_value(tracks, "minecraft:visual/sky_color").is_some());
+        assert!(field_value(tracks, "minecraft:visual/sky_light_color").is_some());
+        assert!(field_value(tracks, "minecraft:visual/sky_light_factor").is_some());
+        assert!(field_value(tracks, "minecraft:visual/star_brightness").is_some());
+        assert!(field_value(tracks, "minecraft:visual/cloud_color").is_some());
+        assert!(field_value(tracks, "minecraft:visual/sunrise_sunset_color").is_some());
+        assert!(field_value(tracks, "minecraft:gameplay/sky_light_level").is_some());
+        assert!(field_value(tracks, "minecraft:audio/firefly_bush_sounds").is_some());
+        assert!(field_value(tracks, "minecraft:gameplay/creaking_active").is_some());
+
+        // Non-syncable tracks must be absent.
+        assert!(field_value(tracks, "minecraft:gameplay/monsters_burn").is_none());
+        assert!(field_value(tracks, "minecraft:gameplay/bees_stay_in_hive").is_none());
+        assert!(field_value(tracks, "minecraft:gameplay/eyeblossom_open").is_none());
+    }
+
+    #[test]
+    fn day_timeline_sun_angle_track_uses_cubic_bezier_easing() {
+        // Java: Timelines.java:53 — SUN_ANGLE uses EasingType.symmetricCubicBezier(0.362, 0.241).
+        // That easing should be present in the track's `ease` field as {cubic_bezier: [...]}.
+        let nbt = day_timeline_nbt();
+        let tracks = compound_field(&nbt, "tracks");
+        let sun_angle = compound_field(tracks, "minecraft:visual/sun_angle");
+        let ease = compound_field(sun_angle, "ease");
+        let bezier = field_value(ease, "cubic_bezier");
+        assert!(
+            matches!(bezier, Some(Tag::List(_))),
+            "sun_angle ease must contain cubic_bezier list"
+        );
+    }
+
+    #[test]
+    fn day_timeline_cloud_color_uses_int_encoding_for_fully_opaque_argb() {
+        // Java: ArgbModifier.argumentCodec selects Codec.INT when alpha == 0xFF → Tag::Int.
+        // Day cloud_color keyframe at tick 133 = -1 (0xFFFFFFFF, white).
+        let nbt = day_timeline_nbt();
+        let tracks = compound_field(&nbt, "tracks");
+        let cloud_color = compound_field(tracks, "minecraft:visual/cloud_color");
+        let Tag::List(keyframes) = field_value(cloud_color, "keyframes").unwrap() else {
+            panic!("cloud_color keyframes must be a list");
+        };
+        let first_value = field_value(&keyframes[0], "value").unwrap();
+        assert!(
+            matches!(first_value, Tag::Int(_)),
+            "cloud_color keyframe values must be Tag::Int (ArgbModifier, alpha=0xFF)"
+        );
+        assert_eq!(first_value, &Tag::Int(-1)); // 0xFFFFFFFF = white
+    }
+
+    #[test]
+    fn moon_timeline_has_moon_phase_track_and_192000_period() {
+        // Java: data/minecraft/timeline/moon.json — period_ticks=192000, one syncable track.
+        // surface_slime_spawn_chance is non-syncable and filtered out.
+        let nbt = moon_timeline_nbt();
+        assert!(matches!(
+            field_value(&nbt, "clock"),
+            Some(Tag::String(v)) if v == "minecraft:overworld"
+        ));
+        assert!(matches!(field_value(&nbt, "period_ticks"), Some(Tag::Int(192000))));
+        let tracks = compound_field(&nbt, "tracks");
+        assert!(field_value(tracks, "minecraft:visual/moon_phase").is_some());
+        assert!(
+            field_value(tracks, "minecraft:gameplay/surface_slime_spawn_chance").is_none(),
+            "surface_slime_spawn_chance is non-syncable and must be filtered out"
+        );
+    }
+
+    #[test]
+    fn moon_timeline_moon_phase_keyframes_are_string_encoded() {
+        // Java: MoonPhase.CODEC = StringRepresentable.fromEnum → Tag::String.
+        let nbt = moon_timeline_nbt();
+        let tracks = compound_field(&nbt, "tracks");
+        let moon_phase = compound_field(tracks, "minecraft:visual/moon_phase");
+        let Tag::List(keyframes) = field_value(moon_phase, "keyframes").unwrap() else {
+            panic!("moon_phase keyframes must be a list");
+        };
+        assert_eq!(keyframes.len(), 8, "8 moon phases");
+        assert!(matches!(
+            field_value(&keyframes[0], "value"),
+            Some(Tag::String(v)) if v == "full_moon"
+        ));
+        assert!(matches!(
+            field_value(&keyframes[4], "value"),
+            Some(Tag::String(v)) if v == "new_moon"
+        ));
+    }
+
+    #[test]
+    fn villager_schedule_timeline_has_no_tracks_after_syncable_filter() {
+        // Java: data/minecraft/timeline/villager_schedule.json — villager_activity and
+        // baby_villager_activity are both non-syncable → tracks field is absent entirely.
+        let nbt = villager_schedule_timeline_nbt();
+        assert!(matches!(
+            field_value(&nbt, "clock"),
+            Some(Tag::String(v)) if v == "minecraft:overworld"
+        ));
+        assert!(matches!(field_value(&nbt, "period_ticks"), Some(Tag::Int(24000))));
+        assert!(
+            field_value(&nbt, "tracks").is_none(),
+            "all villager_schedule tracks are non-syncable; tracks field must be absent"
+        );
+    }
+
+    #[test]
+    fn early_game_timeline_has_no_period_ticks_and_no_tracks() {
+        // Java: data/minecraft/timeline/early_game.json — no period_ticks field; one track
+        // (can_pillager_patrol_spawn) that is non-syncable → both fields absent.
+        let nbt = early_game_timeline_nbt();
+        assert!(matches!(
+            field_value(&nbt, "clock"),
+            Some(Tag::String(v)) if v == "minecraft:overworld"
+        ));
+        assert!(
+            field_value(&nbt, "period_ticks").is_none(),
+            "early_game has no period_ticks in source data"
+        );
+        assert!(
+            field_value(&nbt, "tracks").is_none(),
+            "can_pillager_patrol_spawn is non-syncable; tracks field must be absent"
+        );
+    }
+
+    #[test]
+    fn overworld_dimension_type_has_timelines_clock_and_attributes() {
+        // These three fields are required for the client to render a non-black sky.
+        // They were absent before the sky fix, causing a permanently black sky on join.
+        let nbt = overworld_dimension_type_nbt(false);
+
+        // `timelines`: HolderSet tag reference resolved by the client using the tags packet.
+        assert!(
+            matches!(
+                field_value(&nbt, "timelines"),
+                Some(Tag::String(v)) if v == "#minecraft:in_overworld"
+            ),
+            "timelines must reference the #minecraft:in_overworld tag"
+        );
+
+        // `default_clock`: drives the timeline evaluation for this dimension.
+        assert!(
+            matches!(
+                field_value(&nbt, "default_clock"),
+                Some(Tag::String(v)) if v == "minecraft:overworld"
+            ),
+            "default_clock must be minecraft:overworld"
+        );
+
+        // `attributes`: static base values that the timeline tracks multiply/add to.
+        let attributes = compound_field(&nbt, "attributes");
+
+        assert!(matches!(
+            field_value(attributes, "minecraft:visual/sky_color"),
+            Some(Tag::String(v)) if v == "#78a7ff"
+        ));
+        assert!(matches!(
+            field_value(attributes, "minecraft:visual/fog_color"),
+            Some(Tag::String(v)) if v == "#c0d8ff"
+        ));
+        assert!(matches!(
+            field_value(attributes, "minecraft:visual/cloud_color"),
+            Some(Tag::String(v)) if v == "#ccffffff"
+        ));
+        assert!(
+            matches!(field_value(attributes, "minecraft:visual/cloud_height"), Some(Tag::Float(_))),
+            "cloud_height must be a float"
+        );
+        assert!(matches!(
+            field_value(attributes, "minecraft:visual/ambient_light_color"),
+            Some(Tag::String(v)) if v == "#0a0a0a"
+        ));
+    }
+
+    #[test]
+    fn update_tags_packet_includes_timeline_group_with_correct_ids() {
+        // The tags packet must include a minecraft:timeline group so the client can resolve
+        // the "#minecraft:in_overworld" HolderSet reference in the dimension type.
+        let mut payload = Vec::new();
+        write_minimal_update_tags_packet(&mut payload).unwrap();
+        let mut cursor = Cursor::new(payload);
+
+        let group_count = read_var_i32(&mut cursor).unwrap();
+        assert_eq!(group_count, 3, "tags packet must have 3 registry groups");
+
+        let mut found_timeline = false;
+        for _ in 0..group_count {
+            let registry_id =
+                crate::network::codec::read_identifier(&mut cursor).unwrap().to_string();
+            let tag_count = read_var_i32(&mut cursor).unwrap();
+            if registry_id == "minecraft:timeline" {
+                found_timeline = true;
+                assert_eq!(tag_count, 2);
+
+                // First tag: #minecraft:in_overworld → [villager_schedule=2, day=0, moon=1, early_game=3].
+                // Pre-expanded by server; IDs correspond to write_vanilla_timeline_registry_packet order.
+                let tag_id =
+                    crate::network::codec::read_identifier(&mut cursor).unwrap().to_string();
+                assert_eq!(tag_id, "minecraft:in_overworld");
+                let entry_count = read_var_i32(&mut cursor).unwrap();
+                assert_eq!(entry_count, 4);
+                let ids: Vec<i32> = (0..entry_count)
+                    .map(|_| read_var_i32(&mut cursor).unwrap())
+                    .collect();
+                assert_eq!(ids, vec![2, 0, 1, 3]);
+
+                // Second tag: #minecraft:universal → [villager_schedule=2].
+                let tag_id2 =
+                    crate::network::codec::read_identifier(&mut cursor).unwrap().to_string();
+                assert_eq!(tag_id2, "minecraft:universal");
+                let entry_count2 = read_var_i32(&mut cursor).unwrap();
+                assert_eq!(entry_count2, 1);
+                assert_eq!(read_var_i32(&mut cursor).unwrap(), 2);
+            } else {
+                // Skip tags for other registry groups.
+                for _ in 0..tag_count {
+                    crate::network::codec::read_identifier(&mut cursor).unwrap();
+                    let entry_count = read_var_i32(&mut cursor).unwrap();
+                    for _ in 0..entry_count {
+                        read_var_i32(&mut cursor).unwrap();
+                    }
+                }
+            }
+        }
+        assert!(found_timeline, "tags packet must include minecraft:timeline group");
     }
 }
