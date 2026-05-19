@@ -270,7 +270,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "jigsaw_generate",
         java_class: "ServerboundJigsawGeneratePacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, levels:VarInt, keep_jigsaws:bool",
     },
     PlayPacketSpec {
         id: 28,

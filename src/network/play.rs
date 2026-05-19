@@ -30,6 +30,7 @@ pub const SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID: i32 = 15;
 pub const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID: i32 = 16;
 pub const SERVERBOUND_CONTAINER_CLICK_PACKET_ID: i32 = 18;
 pub const SERVERBOUND_CONTAINER_CLOSE_PACKET_ID: i32 = 19;
+pub const SERVERBOUND_JIGSAW_GENERATE_PACKET_ID: i32 = 27;
 pub const SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID: i32 = 29;
 pub const SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID: i32 = 30;
 pub const SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID: i32 = 31;
@@ -323,6 +324,15 @@ pub struct ServerboundUseItemOnPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundPongPacket {
     pub id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundJigsawGeneratePacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub levels: i32,
+    pub keep_jigsaws: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1042,6 +1052,7 @@ pub struct PlaySession {
     pub last_use_item: Option<ServerboundUseItemPacket>,
     pub last_use_item_on: Option<ServerboundUseItemOnPacket>,
     pub last_pong: Option<ServerboundPongPacket>,
+    pub last_jigsaw_generate: Option<ServerboundJigsawGeneratePacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1126,6 +1137,7 @@ impl PlaySession {
             last_use_item: None,
             last_use_item_on: None,
             last_pong: None,
+            last_jigsaw_generate: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1267,6 +1279,18 @@ impl PlaySession {
                     Err(err) => DispatchOutcome::Disconnect(format!(
                         "bad configuration acknowledged packet: {err}"
                     )),
+                }
+            }
+            SERVERBOUND_JIGSAW_GENERATE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundJigsawGeneratePacket::read(&mut input) {
+                    Ok(jigsaw) => {
+                        self.last_jigsaw_generate = Some(jigsaw);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad jigsaw generate packet: {err}"))
+                    }
                 }
             }
             SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID => {
@@ -2566,6 +2590,25 @@ impl ServerboundConfigurationAcknowledgedPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         Ok(())
+    }
+}
+
+impl ServerboundJigsawGeneratePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            levels: read_var_i32(reader)?,
+            keep_jigsaws: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_var_i32(writer, self.levels)?;
+        write_bool(writer, self.keep_jigsaws)
     }
 }
 
@@ -4714,6 +4757,30 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.state, PlayState::Reconfiguring);
+
+        let mut jigsaw_generate = Vec::new();
+        let jigsaw_packet = ServerboundJigsawGeneratePacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            levels: 7,
+            keep_jigsaws: true,
+        };
+        jigsaw_packet.write(&mut jigsaw_generate).unwrap();
+        assert_eq!(jigsaw_generate.len(), 10);
+        assert_eq!(&jigsaw_generate[8..], &[7, 1]);
+        assert_eq!(
+            ServerboundJigsawGeneratePacket::read(&mut cursor(jigsaw_generate.clone())).unwrap(),
+            jigsaw_packet
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_JIGSAW_GENERATE_PACKET_ID,
+                jigsaw_generate
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_jigsaw_generate, Some(jigsaw_packet));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
