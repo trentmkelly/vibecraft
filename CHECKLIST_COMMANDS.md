@@ -74,10 +74,10 @@
 
 ## Migrated From Main Checklist: Commands And Functions
 
-- [ ] Implement Brigadier-compatible command tree, parsing, suggestions, redirects, forks, permissions, and signed arguments.
-- [ ] Implement command source stack, execution context, result propagation, `/execute` semantics, return values, and function continuation.
-- [ ] Implement selector parsing, entity predicates, score predicates, NBT predicates, range predicates, sort/order, limits, and current entity context.
-- [ ] Implement all server command classes found under `net/minecraft/server/commands`.
+- [x] Implement Brigadier-compatible command tree, parsing, suggestions, redirects, forks, permissions, and signed arguments.
+- [x] Implement command source stack, execution context, result propagation, `/execute` semantics, return values, and function continuation.
+- [x] Implement selector parsing, entity predicates, score predicates, NBT predicates, range predicates, sort/order, limits, and current entity context.
+- [x] Implement all server command classes found under `net/minecraft/server/commands`.
 - [x] Implement `/advancement`.
 - [x] Implement `/attribute`.
 - [x] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
