@@ -165,7 +165,7 @@
 - [x] Implement every NBT tag type: end, byte, short, int, long, float, double, byte array, string, list, compound, int array, and long array.
 - [x] Implement NBT IO, size accounting, recursion/depth limits, streaming visitors, field selectors, SNBT parser, SNBT printer, text component visitor, and error reporting.
 - [ ] Implement `LevelStorageSource`, `LevelStorageAccess`, `PrimaryLevelData`, `DerivedLevelData`, `ServerLevelData`, `WorldData`, `LevelSummary`, `LevelVersion`, and session locking.
-- [ ] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths.
+- [x] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths — `storage::saved_data` implements cached dirty saved-data wrappers plus namespaced command storage, `PlayerDataStorage` wraps vanilla `playerdata/<uuid>.dat`/`.dat_old` save-load and corrupt backup paths, `tag_value` covers Java-style input/output helpers, and `WorldLayout` exposes level resource paths; covered by focused `storage::saved_data`, `storage::tag_value`, and `player_data_storage` tests
 - [ ] Implement loot storage classes: loot tables, pools, parameters, contexts, validation context, built-in table IDs, container component manipulation, and validation reporting.
 - [ ] Implement a datafix strategy covering schemas and fixes for blocks, block entities, entities, items, chunks, POIs, options, advancements, stats, scoreboards, structures, text components, villager data, worldgen settings, and versioned renames.
 - [x] If a full DataFixerUpper-compatible pipeline is deferred, add explicit blockers preventing unsafe loading of worlds requiring unsupported migrations.

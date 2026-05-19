@@ -40,6 +40,11 @@ pub struct WorldLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerDataStorage {
+    layout: WorldLayout,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LevelDirectory {
     path: PathBuf,
 }
@@ -800,6 +805,32 @@ impl WorldLayout {
     }
 }
 
+impl PlayerDataStorage {
+    pub fn new(layout: WorldLayout) -> Self {
+        Self { layout }
+    }
+
+    pub fn player_data_file(&self, uuid: &str) -> PathBuf {
+        self.layout.player_data_file(uuid)
+    }
+
+    pub fn player_data_old_file(&self, uuid: &str) -> PathBuf {
+        self.layout.player_data_old_file(uuid)
+    }
+
+    pub fn save(&self, uuid: &str, tag: &Tag) -> std::io::Result<()> {
+        self.layout.save_player_data(uuid, tag)
+    }
+
+    pub fn load(&self, uuid: &str) -> std::io::Result<Tag> {
+        self.layout.load_player_data(uuid)
+    }
+
+    pub fn backup_corrupt_player_data(&self, uuid: &str, suffix: &str) -> std::io::Result<()> {
+        self.layout.backup_corrupt_player_data(uuid, suffix)
+    }
+}
+
 impl LevelVersion {
     pub fn parse_level_dat(tag: &Tag) -> Option<Self> {
         let data = level_dat_data_compound(tag)?;
@@ -1179,7 +1210,7 @@ fn durable_write_with_backup(
 
 #[cfg(test)]
 mod tests {
-    use super::{LevelStorageSource, WorldLayout};
+    use super::{LevelStorageSource, PlayerDataStorage, WorldLayout};
     use std::fs;
 
     #[test]
@@ -1548,6 +1579,37 @@ mod tests {
             })
             .count();
         assert_eq!(corrupt_backups, 1);
+
+        let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn player_data_storage_wraps_layout_save_load_backup_paths() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "rustcraft-player-data-storage-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&path);
+
+        let layout = WorldLayout::new(&path);
+        let storage = PlayerDataStorage::new(layout.clone());
+        let uuid = "00000000-0000-0000-0000-000000000003";
+        let player = crate::storage::nbt::Tag::Compound(vec![(
+            "Score".to_string(),
+            crate::storage::nbt::Tag::Int(5),
+        )]);
+
+        storage.save(uuid, &player).unwrap();
+        assert_eq!(storage.load(uuid).unwrap(), player);
+        assert_eq!(
+            storage.player_data_file(uuid),
+            layout.player_data_file(uuid)
+        );
+        assert_eq!(
+            storage.player_data_old_file(uuid),
+            layout.player_data_old_file(uuid)
+        );
 
         let _ = fs::remove_dir_all(&path);
     }
