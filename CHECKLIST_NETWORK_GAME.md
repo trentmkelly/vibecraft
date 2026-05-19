@@ -392,8 +392,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement cookie state.
 - [ ] Implement game/play state.
 - [ ] Implement all 227 packet classes represented under `net/minecraft/network/protocol`.
-- [ ] Implement protocol transition from handshake to status.
-- [ ] Implement protocol transition from handshake to login.
+- [x] Implement protocol transition from handshake to status.
+- [x] Implement protocol transition from handshake to login.
 - [ ] Implement login start, encryption request/response, compression, login success, and disconnect.
 - [ ] Implement online-mode authentication against Mojang/Yggdrasil services.
 - [ ] Implement offline-mode UUID derivation.
@@ -432,12 +432,12 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Protocol Packet Families
 
-- [ ] Handshake protocol: implement the 1 packet under `network/protocol/handshake`, including next-state validation and invalid-intent disconnect behavior.
-- [ ] Status protocol: implement the 2 packets under `network/protocol/status`, including status request/response and ping latency.
-- [ ] Ping protocol: implement the 2 packets under `network/protocol/ping`, including payload echo and timeout behavior.
+- [x] Handshake protocol: implement the 1 packet under `network/protocol/handshake`, including next-state validation and invalid-intent disconnect behavior.
+- [x] Status protocol: implement the 2 packets under `network/protocol/status`, including status request/response and ping latency.
+- [x] Ping protocol: implement the 2 packets under `network/protocol/ping`, including payload echo and timeout behavior.
 - [ ] Login protocol: implement the 9 packets under `network/protocol/login`, including login start, hello/encryption, custom query, compression, success, acknowledgment, cookie request/response, and disconnect.
 - [ ] Configuration protocol: implement the 7 packets under `network/protocol/configuration`, including registries, tags, feature flags, known packs, code of conduct, reset chat, and finish configuration.
-- [ ] Cookie protocol: implement the 2 packets under `network/protocol/cookie`, including cookie request and response correlation.
+- [x] Cookie protocol: implement the 2 packets under `network/protocol/cookie`, including cookie request and response correlation.
 - [ ] Common protocol: implement the 19 packets under `network/protocol/common`, including keepalive, custom payloads, resource packs, server links, dialogs, ping/pong, tags, transfer, cookies, disconnect, and client information.
 - [ ] Game protocol: implement the 182 packets under `network/protocol/game`, grouped into join/respawn, chunks/light, entity lifecycle, entity movement, metadata, inventory/container, recipes, commands/suggestions, chat, scoreboard/team, bossbar, world border, sounds, particles, maps, titles, debug samples, game tests, player abilities, interactions, movement, block/entity actions, resource state, and disconnect.
 - [ ] For each packet family, record packet ID, direction, state, field order, codecs, optional fields, registry dependencies, version gates, compression behavior, and disconnect behavior for malformed input.
