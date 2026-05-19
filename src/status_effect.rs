@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::storage::nbt::Tag;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectCategory {
     Beneficial,
@@ -297,7 +299,7 @@ pub fn status_effect(id: &str) -> Option<&'static StatusEffectDef> {
     STATUS_EFFECTS.iter().find(|effect| effect.id == id)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StatusEffectInstance {
     pub id: &'static str,
     pub duration: i32,
@@ -306,6 +308,7 @@ pub struct StatusEffectInstance {
     pub visible: bool,
     pub show_icon: bool,
     pub hidden: Option<Box<StatusEffectInstance>>,
+    pub factor_calculation_data: Option<Tag>,
 }
 
 impl StatusEffectInstance {
@@ -318,6 +321,7 @@ impl StatusEffectInstance {
             visible: true,
             show_icon: true,
             hidden: None,
+            factor_calculation_data: None,
         }
     }
 
@@ -511,7 +515,7 @@ pub fn serialization_flags(ambient: bool, visible: bool, show_icon: bool) -> u8 
 ///
 /// Source: `MobEffectInstance.save(DataOutput)` / `MobEffectInstance.load(DataInput)`
 /// from `decompiled-server-26.1.2/net/minecraft/world/effect/MobEffectInstance.java`
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StatusEffectNbt {
     pub id: String,
     pub amplifier: u8,
@@ -520,6 +524,7 @@ pub struct StatusEffectNbt {
     pub show_particles: bool,
     pub show_icon: bool,
     pub hidden_effect: Option<Box<StatusEffectNbt>>,
+    pub factor_calculation_data: Option<Tag>,
 }
 
 impl StatusEffectNbt {
@@ -536,6 +541,7 @@ impl StatusEffectNbt {
                 .hidden
                 .as_ref()
                 .map(|h| Box::new(Self::from_instance(h))),
+            factor_calculation_data: instance.factor_calculation_data.clone(),
         }
     }
 
@@ -553,6 +559,7 @@ impl StatusEffectNbt {
             visible: self.show_particles,
             show_icon: self.show_icon,
             hidden: None,
+            factor_calculation_data: self.factor_calculation_data.clone(),
         };
         if let Some(hidden_nbt) = &self.hidden_effect {
             instance.hidden = hidden_nbt.to_instance().map(Box::new);
@@ -696,6 +703,10 @@ mod tests {
         original.ambient = true;
         original.visible = false;
         original.show_icon = false;
+        original.factor_calculation_data = Some(Tag::Compound(vec![(
+            "ticks_active".to_string(),
+            Tag::Int(42),
+        )]));
         original.hidden = Some(Box::new(StatusEffectInstance::new(
             "minecraft:speed",
             400,
@@ -710,6 +721,13 @@ mod tests {
         assert!(!nbt.show_particles);
         assert!(!nbt.show_icon);
         assert!(nbt.hidden_effect.is_some());
+        assert_eq!(
+            nbt.factor_calculation_data,
+            Some(Tag::Compound(vec![(
+                "ticks_active".to_string(),
+                Tag::Int(42),
+            )]))
+        );
         let hidden = nbt.hidden_effect.as_ref().unwrap();
         assert_eq!(hidden.amplifier, 0);
         assert_eq!(hidden.duration, 400);
@@ -721,6 +739,13 @@ mod tests {
         assert!(restored.ambient);
         assert!(!restored.visible);
         assert!(!restored.show_icon);
+        assert_eq!(
+            restored.factor_calculation_data,
+            Some(Tag::Compound(vec![(
+                "ticks_active".to_string(),
+                Tag::Int(42),
+            )]))
+        );
         let restored_hidden = restored.hidden.as_ref().unwrap();
         assert_eq!(restored_hidden.amplifier, 0);
         assert_eq!(restored_hidden.duration, 400);
@@ -749,6 +774,7 @@ mod tests {
             show_particles: true,
             show_icon: true,
             hidden_effect: None,
+            factor_calculation_data: None,
         };
         let partial = deserialize_active_effects(&[unknown]);
         assert!(partial.is_empty());

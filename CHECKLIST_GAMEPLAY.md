@@ -82,9 +82,9 @@
   - [ ] Weaving: spawn cobweb on death
   - [ ] Wind Charged: explode on death with wind burst
   - [ ] Darkness: darkness visual effect, sculk catalyst adjacency
-- [ ] Implement effect ambient flag (beacon-given effects show less intrusive particles)
-- [ ] Implement effect serialization in playerdata NBT (`active_effects` list with `id`, `amplifier`, `duration`, `ambient`, `show_particles`, `show_icon`, `hidden_effect`, `factor_calculation_data`)
-- [ ] Add parity test: regeneration tick interval per amplifier matches vanilla for amplifier 0, 1, 4
+- [x] Implement effect ambient flag (beacon-given effects show less intrusive particles) — `status_effect::particle_alpha` and mob-effect packet flag helpers model ambient particle opacity/flags and are covered by `particles_icons_flags_and_serialization_are_visible_to_clients`
+- [x] Implement effect serialization in playerdata NBT (`active_effects` list with `id`, `amplifier`, `duration`, `ambient`, `show_particles`, `show_icon`, `hidden_effect`, `factor_calculation_data`) — `StatusEffectNbt` now preserves all listed fields, hidden effects, and factor calculation data through active-effect list serialization/deserialization
+- [x] Add parity test: regeneration tick interval per amplifier matches vanilla for amplifier 0, 1, 4 — `regeneration_tick_interval_per_amplifier_matches_vanilla` covers amplifier 0, 1, and 4 intervals plus full-health no-op behavior
 
 ## Weather, Time, and Day-Night Cycle
 
