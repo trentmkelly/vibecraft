@@ -2622,8 +2622,23 @@ fn process_item_pickups(
                     };
                     raw.write_optional_untrusted(payload)?;
                 }
-                // Cursor item — always empty immediately after a ground pickup.
-                RawItemStack::empty().write_optional_untrusted(payload)
+                // Cursor (carried) item — must reflect the actual server state.
+                // The player may have an item on their cursor (picked up via an earlier
+                // ContainerClick) at the same time a ground pickup fires; sending empty
+                // here would wipe the cursor on the client and make the held item vanish.
+                let carried = &state.carried_item;
+                let raw_carried = if carried.is_empty() {
+                    RawItemStack::empty()
+                } else if let Some(pid) = item_protocol_id(carried.item_id()) {
+                    RawItemStack {
+                        count: carried.count(),
+                        item_id: Some(pid),
+                        components: RawDataComponentPatch::empty(),
+                    }
+                } else {
+                    RawItemStack::empty()
+                };
+                raw_carried.write_optional_untrusted(payload)
             },
         )?;
     }
