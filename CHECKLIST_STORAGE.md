@@ -107,15 +107,15 @@
 
 ## Migrated From Main Checklist: World Storage
 
-- [ ] Implement world folder layout.
-- [ ] Implement `level.dat`, `level.dat_old`, and session lock behavior.
+- [x] Implement world folder layout.
+- [x] Implement `level.dat`, `level.dat_old`, and session lock behavior.
 - [ ] Implement NBT binary format, compressed NBT, SNBT where needed, and visitor/traversal utilities.
-- [ ] Implement DataVersion tracking.
+- [x] Implement DataVersion tracking.
 - [ ] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.
 - [x] Implement region file format `.mca`.
 - [x] Implement region compression types used by 26.1.2.
 - [ ] Implement chunk serialization for blocks, biomes, heightmaps, block entities, entities, structures, ticks, lights, and post-processing.
-- [ ] Implement player data files.
+- [x] Implement player data files.
 - [ ] Add a Mineflayer playerdata round-trip test that changes position, rotation, inventory, selected slot, health, food, XP, game mode, recipe book, and stats, disconnects, then reconnects in offline mode and verifies persistence.
 - [x] Add raw 26.1.2 playerdata fallback coverage that sends movement, disconnects, restarts, and verifies the reconnect spawn position and rotation are loaded from compressed `playerdata/<uuid>.dat` while Mineflayer lacks target-protocol play support.
 - [x] Add raw 26.1.2 selected-hotbar-slot persistence fallback coverage that sends `serverbound/minecraft:set_carried_item`, saves `SelectedItemSlot`, restarts, and verifies reconnect emits the saved `clientbound/minecraft:set_held_slot` while Mineflayer lacks target-protocol play support.
