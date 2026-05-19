@@ -1035,6 +1035,79 @@ pub struct QueuedFunctionCall {
     pub permission_level: PermissionLevel,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerFunctionTickState {
+    pub post_reload: bool,
+    pub tick_tag: String,
+    pub load_tag: String,
+}
+
+impl Default for ServerFunctionTickState {
+    fn default() -> Self {
+        Self {
+            post_reload: true,
+            tick_tag: "minecraft:tick".to_string(),
+            load_tag: "minecraft:load".to_string(),
+        }
+    }
+}
+
+pub fn queue_server_function_tick(
+    command_state: &mut ServerCommandState,
+    function_state: &mut ServerFunctionTickState,
+    runs_normally: bool,
+) -> Vec<String> {
+    if !runs_normally {
+        return Vec::new();
+    }
+    let mut queued = Vec::new();
+    if function_state.post_reload {
+        function_state.post_reload = false;
+        queued.extend(queue_function_tag_for_game_loop(
+            command_state,
+            &function_state.load_tag,
+        ));
+    }
+    queued.extend(queue_function_tag_for_game_loop(
+        command_state,
+        &function_state.tick_tag,
+    ));
+    queued
+}
+
+pub fn queue_function_tag_for_game_loop(
+    state: &mut ServerCommandState,
+    tag_id: &str,
+) -> Vec<String> {
+    let Some(tag) = state.function_tags.iter().find(|tag| tag.id == tag_id) else {
+        return Vec::new();
+    };
+    let function_ids = tag.functions.clone();
+    let mut queued = Vec::new();
+    for id in function_ids {
+        if id.starts_with('#') {
+            continue;
+        }
+        if let Some(function) = state
+            .available_functions
+            .iter()
+            .find(|function| function.id == id)
+            .cloned()
+        {
+            state.queued_functions.push(QueuedFunctionCall {
+                id: function.id.clone(),
+                commands: function.commands,
+                arguments: None,
+                source_dimension: state.command_source_dimension.clone(),
+                suppressed_output: true,
+                permission_level: PermissionLevel::Gamemasters,
+            });
+            queued.push(function.id);
+        }
+    }
+    queued
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RespawnData {
     pub dimension: String,
@@ -12268,13 +12341,14 @@ mod tests {
     use super::{
         command_required_permission, command_usage, entity_position, entity_ref,
         execute_builtin_command, load_command_function_tags_from_resources,
-        load_command_functions_from_resources, player_team, players_allied, team_allows_collision,
-        team_allows_friendly_damage, team_allows_visibility, visible_command_usages, ActiveEffect,
-        AdvancementDefinition, AttributeModifierState, AttributeOperation, AvatarProfile,
-        BiomeEntry, BlockPos, BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay,
-        ChaseEvent, ChaseSession, ChatCommandKind, ChunkPos, CloneFilter, CloneMode,
-        CommandAvailability, CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable,
-        CommandError, CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
+        load_command_functions_from_resources, player_team, players_allied,
+        queue_server_function_tick, team_allows_collision, team_allows_friendly_damage,
+        team_allows_visibility, visible_command_usages, ActiveEffect, AdvancementDefinition,
+        AttributeModifierState, AttributeOperation, AvatarProfile, BiomeEntry, BlockPos,
+        BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession,
+        ChatCommandKind, ChunkPos, CloneFilter, CloneMode, CommandAvailability,
+        CommandBlockItemSlot, CommandEntityItemSlot, CommandEntityLootTable, CommandError,
+        CommandFunctionDefinition, CommandFunctionTag, CommandItemEnchantment,
         CommandItemModifierEvent, CommandItemStack, CommandItemTarget, CommandLocatableEntry,
         CommandLocateResult, CommandLootSource, CommandLootTable, CommandLootTarget,
         CommandPlayerInventory, CommandRaidEvent, CommandRaidState, DamageCommandSource,
@@ -12287,10 +12361,10 @@ mod tests {
         PublishRequest, QueuedFunctionCall, ReloadRequest, RespawnData, ReturnCommandEvent,
         RideCommandEvent, RotationMode, RotationRequest, SaveAllRequest, ScheduledFunction,
         ScoreboardDisplaySlot, ScoreboardObjective, ScoreboardPersistence, ScoreboardScore,
-        ServerCommandState, ServerPackCommandEvent, ServerPackPushRequest, SetBlockMode,
-        SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState, SwingCommandEvent,
-        TeamMembership, TeamState, TitleCommandAction, TitleTextKind, Vec3, VersionInfo,
-        WardenSpawnTrackerState, WaypointState, WeatherMode,
+        ServerCommandState, ServerFunctionTickState, ServerPackCommandEvent, ServerPackPushRequest,
+        SetBlockMode, SoundCommandEvent, SoundSource, StopSoundRequest, StopwatchState,
+        SwingCommandEvent, TeamMembership, TeamState, TitleCommandAction, TitleTextKind, Vec3,
+        VersionInfo, WardenSpawnTrackerState, WaypointState, WeatherMode,
     };
     use crate::player_access::NameAndId;
     use crate::storage::nbt::Tag;
@@ -12734,6 +12808,66 @@ mod tests {
         )])
         .unwrap_err()
         .contains("Line continuation at end"));
+    }
+
+    #[test]
+    fn server_function_tick_queues_load_once_then_tick_when_running() {
+        let mut command_state = ServerCommandState {
+            command_source_dimension: "minecraft:overworld".to_string(),
+            available_functions: vec![
+                CommandFunctionDefinition {
+                    id: "minecraft:load/init".to_string(),
+                    commands: vec!["say load".to_string()],
+                    macro_parameters: Vec::new(),
+                },
+                CommandFunctionDefinition {
+                    id: "minecraft:tick/loop".to_string(),
+                    commands: vec!["say tick".to_string()],
+                    macro_parameters: Vec::new(),
+                },
+            ],
+            function_tags: vec![
+                CommandFunctionTag {
+                    id: "minecraft:load".to_string(),
+                    functions: vec!["minecraft:load/init".to_string()],
+                },
+                CommandFunctionTag {
+                    id: "minecraft:tick".to_string(),
+                    functions: vec![
+                        "minecraft:tick/loop".to_string(),
+                        "#minecraft:nested".to_string(),
+                    ],
+                },
+            ],
+            ..ServerCommandState::default()
+        };
+        let mut function_state = ServerFunctionTickState::default();
+
+        assert!(
+            queue_server_function_tick(&mut command_state, &mut function_state, false).is_empty()
+        );
+        assert!(function_state.post_reload);
+
+        assert_eq!(
+            queue_server_function_tick(&mut command_state, &mut function_state, true),
+            vec![
+                "minecraft:load/init".to_string(),
+                "minecraft:tick/loop".to_string()
+            ]
+        );
+        assert!(!function_state.post_reload);
+        assert_eq!(command_state.queued_functions.len(), 2);
+        assert!(command_state
+            .queued_functions
+            .iter()
+            .all(|call| call.suppressed_output
+                && call.permission_level == PermissionLevel::Gamemasters));
+
+        assert_eq!(
+            queue_server_function_tick(&mut command_state, &mut function_state, true),
+            vec!["minecraft:tick/loop".to_string()]
+        );
+        assert_eq!(command_state.queued_functions.len(), 3);
     }
 
     #[test]

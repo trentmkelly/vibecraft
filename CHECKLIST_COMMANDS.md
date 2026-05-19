@@ -39,8 +39,8 @@
 
 - [x] Implement function loading from `data/*/function/**/*.mcfunction` files: parse each line as a command or comment (`#`)
 - [x] Implement function tags from `data/*/tags/function/*.json`: ordered list of function IDs, `#minecraft:tick` and `#minecraft:load` special tags
-- [ ] Implement `#minecraft:tick` invocation: call all tagged functions every server tick
-- [ ] Implement `#minecraft:load` invocation: call all tagged functions on world load and datapack reload
+- [x] Implement `#minecraft:tick` invocation: call all tagged functions every server tick
+- [x] Implement `#minecraft:load` invocation: call all tagged functions on world load and datapack reload
 - [x] Implement `/function <id>` command: execute a named function with the invoker's command source stack
 - [ ] Implement function-level return values: `/return` command sets the function result used by `/execute` return predicates
 - [ ] Implement macro functions (26.1.2): `$` prefix lines in `.mcfunction` accept macro arguments, `$(variable)` substitution; `/function <id> with <entity|block|storage>` syntax
