@@ -246,7 +246,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Migrated From Main Checklist: Network Transport
 
-- [ ] Implement TCP listener on configured host and port.
+- [x] Implement TCP listener on configured host and port.
 - [ ] Add a Mineflayer/raw connection smoke test that verifies TCP accept, handshake, and clean disconnect on a local offline-mode server while Mineflayer play support lags 26.1.2.
 - [ ] Add a Mineflayer/raw reconnect smoke test that connects, disconnects cleanly, reconnects with the same offline username, and verifies the old connection is fully removed.
 - [ ] Add a Mineflayer/raw offline-mode login cancellation test that closes the client immediately after login success, during registry sync, and during first chunk delivery, then verifies the next login with the same name is not rejected as duplicate.
@@ -257,35 +257,35 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add a Mineflayer parallel-offline-login transport test that starts several generated bots in the same tick window and verifies handshake/login packets are isolated per connection with no cross-bot profile, compression, or keepalive leakage.
 - [ ] Add a Mineflayer offline-mode login transport-framing test that captures raw packet boundaries around handshake, login success, compression enablement, and configuration entry, then compares official-vs-RustCraft framing and disconnect behavior.
 - [ ] Add a Mineflayer offline-mode half-open login test that leaves a bot socket idle after TCP connect, after handshake, and after login start, then verifies vanilla-compatible timeout, slot cleanup, and later successful login.
-- [ ] Implement Netty-equivalent pipeline behavior: frame decode, packet decode, compression, encryption, packet encode, frame encode.
-- [ ] Implement VarInt and VarLong exactly.
-- [ ] Implement string, identifier, UUID, optional, collection, enum, bitset, NBT, component, and registry-aware byte buffer codecs.
+- [x] Implement Netty-equivalent pipeline behavior: frame decode, packet decode, compression, encryption, packet encode, frame encode.
+- [x] Implement VarInt and VarLong exactly.
+- [x] Implement string, identifier, UUID, optional, collection, enum, bitset, NBT, component, and registry-aware byte buffer codecs.
 - [ ] Implement packet size limits and malformed packet disconnect behavior.
 - [ ] Implement legacy ping/status compatibility if still accepted by 26.1.2 clients.
-- [ ] Implement compression threshold negotiation and zlib payload handling.
-- [ ] Implement AES/CFB8 encryption after login key exchange.
+- [x] Implement compression threshold negotiation and zlib payload handling.
+- [x] Implement AES/CFB8 encryption after login key exchange.
 - [ ] Implement rate limiting and packet flood kicking.
 - [ ] Implement local memory connection equivalent if needed for integrated tests.
-- [ ] Implement bundled packet packing/unpacking.
-- [ ] Implement cookie request/response packets.
-- [ ] Implement transfer packets.
-- [ ] Implement custom payload channels and known payload validation.
-- [ ] Implement keepalive and timeout handling for all relevant protocol states.
+- [x] Implement bundled packet packing/unpacking.
+- [x] Implement cookie request/response packets.
+- [x] Implement transfer packets.
+- [x] Implement custom payload channels and known payload validation.
+- [x] Implement keepalive and timeout handling for all relevant protocol states.
 - [ ] Add a Mineflayer/raw keepalive test that stays connected for multiple heartbeat intervals and verifies no false timeout or duplicate keepalive response handling.
 - [ ] Add a Mineflayer malformed-client-behavior test that uses Mineflayer packet hooks to send unexpected status, login, configuration, and play packets in offline mode and verifies vanilla-compatible disconnect reasons.
 - [ ] Add a Mineflayer compression-threshold test that logs in offline mode with disabled, low, and default thresholds, then verifies packet flow still reaches play state and large packets are decoded correctly.
-- [ ] Implement packet listener dispatch and main-thread handoff rules.
-- [ ] Implement disconnect messages and close ordering matching vanilla closely enough for clients.
+- [x] Implement packet listener dispatch and main-thread handoff rules.
+- [x] Implement disconnect messages and close ordering matching vanilla closely enough for clients.
 
 ## Migrated From Main Checklist: Protocol State Parity
 
-- [ ] Implement handshake state.
-- [ ] Implement status state.
+- [x] Implement handshake state.
+- [x] Implement status state.
 - [ ] Add a Mineflayer/raw 26.1.2 status/ping test that validates MOTD, version, player counts, and latency ping echo shape while Mineflayer play support lags the target protocol.
 - [ ] Add a Mineflayer/raw status test that compares hidden-player-count and disabled-status behavior against the decompiled 26.1.2 status handshake behavior.
 - [ ] Add a Mineflayer/raw status-to-login transition test that pings the server, immediately logs in offline mode from the same harness process, and verifies the status socket cleanup cannot corrupt the login connection.
-- [ ] Implement ping state.
-- [ ] Implement login state.
+- [x] Implement ping state.
+- [x] Implement login state.
 - [ ] Add a Mineflayer offline-mode login test that reaches login success without Yggdrasil, encryption, or secure-profile requirements.
 - [ ] Add a Mineflayer offline-mode login test that asserts no session-server HTTP calls are made, no encryption request is sent, and no profile-key packet is required before login success.
 - [ ] Add a Mineflayer offline-mode login-order test that captures handshake, login start, compression negotiation, login success, login acknowledgment, configuration packets, finish configuration, and join game ordering against official `server.jar`.
@@ -298,7 +298,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add a Mineflayer offline-mode login disconnect-matrix test that drops the bot at handshake, login start, login success, configuration start, known-packs exchange, and finish-configuration, then verifies server cleanup and log messages.
 - [ ] Add a Mineflayer offline-mode login retry test that intentionally fails the first attempt with a forced disconnect, immediately retries with the same generated profile, and verifies vanilla-compatible recovery without manual sleeps.
 - [ ] Add a Mineflayer offline-mode login state-machine invariant test that asserts no play, chat, command, movement, or inventory packet is accepted before the vanilla state transition that permits it.
-- [ ] Implement configuration state.
+- [x] Implement configuration state.
 - [ ] Add a raw 26.1.2 offline-mode configuration/play-entry probe that asserts enabled features, registry identities, non-empty required registries, damage-type tags, finish-configuration, play login, held slot, position, teleport acknowledgement, and player-loaded framing while Mineflayer lacks 26.1.2 protocol support.
 - [ ] Replace incremental vanilla-client crash chasing with a complete configuration registry closure pass derived from `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`.
 - [ ] Add a generated synchronized-registry closure report that lists every `RegistryDataLoader.SYNCHRONIZED_REGISTRIES` entry, current RustCraft status, packet source function, codec source file, expected vanilla element count, tag count, and whether the raw probe or Mineflayer can validate it.
