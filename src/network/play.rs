@@ -56,6 +56,7 @@ pub const SERVERBOUND_RESOURCE_PACK_PACKET_ID: i32 = 49;
 pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
+pub const SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID: i32 = 54;
 pub const SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID: i32 = 55;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
@@ -366,6 +367,25 @@ pub struct ServerboundSignUpdatePacket {
 pub struct ServerboundSetBeaconPacket {
     pub primary_effect_id: Option<i32>,
     pub secondary_effect_id: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandBlockMode {
+    Sequence,
+    Auto,
+    Redstone,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetCommandBlockPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub command: String,
+    pub mode: CommandBlockMode,
+    pub track_output: bool,
+    pub conditional: bool,
+    pub automatic: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1157,6 +1177,7 @@ pub struct PlaySession {
     pub last_jigsaw_generate: Option<ServerboundJigsawGeneratePacket>,
     pub last_sign_update: Option<ServerboundSignUpdatePacket>,
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
+    pub last_set_command_block: Option<ServerboundSetCommandBlockPacket>,
     pub last_set_command_minecart: Option<ServerboundSetCommandMinecartPacket>,
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
@@ -1256,6 +1277,7 @@ impl PlaySession {
             last_jigsaw_generate: None,
             last_sign_update: None,
             last_set_beacon: None,
+            last_set_command_block: None,
             last_set_command_minecart: None,
             last_select_trade: None,
             last_rename_item: None,
@@ -1675,6 +1697,18 @@ impl PlaySession {
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad set beacon packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSetCommandBlockPacket::read(&mut input) {
+                    Ok(command) => {
+                        self.last_set_command_block = Some(command);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad set command block packet: {err}"))
                     }
                 }
             }
@@ -2977,6 +3011,57 @@ impl ServerboundSetBeaconPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         Self::write_optional_mob_effect(writer, self.primary_effect_id)?;
         Self::write_optional_mob_effect(writer, self.secondary_effect_id)
+    }
+}
+
+impl CommandBlockMode {
+    fn from_id(id: i32) -> io::Result<Self> {
+        match id {
+            0 => Ok(Self::Sequence),
+            1 => Ok(Self::Auto),
+            2 => Ok(Self::Redstone),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid command block mode {id}"),
+            )),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::Sequence => 0,
+            Self::Auto => 1,
+            Self::Redstone => 2,
+        }
+    }
+}
+
+impl ServerboundSetCommandBlockPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        let command = read_string(reader, 32767)?;
+        let mode = CommandBlockMode::from_id(read_var_i32(reader)?)?;
+        let flags = read_u8(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            command,
+            mode,
+            track_output: flags & 1 != 0,
+            conditional: flags & 2 != 0,
+            automatic: flags & 4 != 0,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_string(writer, &self.command, 32767)?;
+        write_var_i32(writer, self.mode.to_id())?;
+        let flags = (if self.track_output { 1 } else { 0 })
+            | (if self.conditional { 2 } else { 0 })
+            | (if self.automatic { 4 } else { 0 });
+        writer.write_all(&[flags])
     }
 }
 
@@ -4763,6 +4848,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID, vec![1])),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID, vec![0; 8])),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5504,6 +5593,40 @@ mod tests {
         assert_eq!(
             session.last_resource_pack_response,
             Some(resource_pack_response)
+        );
+
+        let command_block = ServerboundSetCommandBlockPacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            command: "say hi".to_string(),
+            mode: CommandBlockMode::Redstone,
+            track_output: true,
+            conditional: false,
+            automatic: true,
+        };
+        let mut command_block_payload = Vec::new();
+        command_block.write(&mut command_block_payload).unwrap();
+        assert_eq!(command_block_payload.len(), 17);
+        assert_eq!(&command_block_payload[8..], &[6, b's', b'a', b'y', b' ', b'h', b'i', 2, 5]);
+        assert_eq!(
+            ServerboundSetCommandBlockPacket::read(&mut cursor(command_block_payload.clone()))
+                .unwrap(),
+            command_block
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID,
+                command_block_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_set_command_block, Some(command_block));
+        assert!(
+            ServerboundSetCommandBlockPacket::read(&mut cursor(vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0
+            ]))
+            .is_err()
         );
 
         let command_minecart = ServerboundSetCommandMinecartPacket {

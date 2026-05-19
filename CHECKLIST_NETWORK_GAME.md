@@ -234,7 +234,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundSignUpdatePacket` (0x3D): block pos, is-front-text bool, 4 UTF-8 lines capped at 384 chars each
 - [x] `ServerboundJigsawGeneratePacket` (0x1B): block pos, levels VarInt, keep-jigsaws bool
 - [ ] `ServerboundSetStructureBlockPacket` (0x2F): block pos, update type, mode, offset, size, mirror, rotation, name, metadata, integrity, seed, flags
-- [ ] `ServerboundSetCommandBlockPacket` (0x29): block pos, command, mode VarInt, flags byte
+- [x] `ServerboundSetCommandBlockPacket` (0x36): block pos, command UTF-8 string, mode enum VarInt, flags byte (track-output=1, conditional=2, automatic=4)
 - [x] `ServerboundSetCommandMinecartPacket` (0x37): entity ID VarInt, command UTF-8 string, track-output bool
 - [x] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
 

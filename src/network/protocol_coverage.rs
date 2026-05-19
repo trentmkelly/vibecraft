@@ -459,7 +459,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_command_block",
         java_class: "ServerboundSetCommandBlockPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, command:utf8 max 32767, mode:CommandBlockEntity.Mode enum VarInt, flags:u8(track_output=1, conditional=2, automatic=4)",
     },
     PlayPacketSpec {
         id: 55,
