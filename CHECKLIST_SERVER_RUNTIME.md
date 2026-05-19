@@ -89,7 +89,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `network-compression-threshold`.
 - [x] Implement `broadcast-rcon-to-ops`.
 - [ ] Implement `broadcast-console-to-ops`.
-- [ ] Implement clamped `max-world-size`.
+- [x] Implement clamped `max-world-size`.
 - [ ] Implement `sync-chunk-writes`.
 - [ ] Implement `region-file-compression` with at least deflate parity.
 - [ ] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
