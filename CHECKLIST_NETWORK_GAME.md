@@ -182,6 +182,9 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Interactions / Block / Entity Actions (Serverbound)
 
+- [x] `ServerboundChangeDifficultyPacket` (0x04): difficulty enum byte
+- [x] `ServerboundClientTickEndPacket` (0x0D): empty payload
+- [x] `ServerboundLockDifficultyPacket` (0x1D): locked bool
 - [ ] `ServerboundInteractPacket` (0x1A): entity ID, interaction type (attack/interact/interact-at with optional hand and hit position), using-secondary-action bool
 - [ ] `ServerboundUseItemOnPacket` (0x36): hand, hit result (block pos, direction, hit vector, inside flag), sequence VarInt
 - [ ] `ServerboundUseItemPacket` (0x37): hand, sequence VarInt, yaw/pitch
@@ -198,6 +201,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundMoveVehiclePacket` (0x1F): pos X/Y/Z, yaw, pitch
 - [x] `ServerboundPaddleBoatPacket` (0x23): left-paddle, right-paddle booleans
 - [x] `ServerboundPlayerInputPacket` (0x21): single-byte `Input.STREAM_CODEC` bitset for forward, backward, left, right, jump, shift, and sprint flags (26.1.2 format)
+- [x] `ServerboundPlayerLoadedPacket` (0x2C): empty payload
 - [ ] `ClientboundPlayerPositionPacket` (0x40): pos X/Y/Z, velocity X/Y/Z, yaw, pitch, relative flags (4-byte INT bitmask — not VarInt), teleport ID VarInt
 
 ## Block / Entity Action Packets (Clientbound)
