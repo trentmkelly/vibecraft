@@ -1507,6 +1507,53 @@ mod tests {
     }
 
     #[test]
+    fn save_load_round_trip_preserves_generic_fields_for_every_type() {
+        for info in BLOCK_ENTITY_TYPES {
+            let block_state = info
+                .valid_blocks
+                .first()
+                .expect("every block entity type has at least one valid block");
+            let mut entity = BlockEntity::new(info.id, pos(), block_state).unwrap();
+            entity
+                .custom_data
+                .insert("CustomInt".to_string(), Tag::Int(42));
+            entity.components.insert(
+                "minecraft:custom_name".to_string(),
+                Tag::String("\"Round Trip\"".to_string()),
+            );
+
+            let tag = entity.save_with_full_metadata();
+            let loaded = load_static(pos(), block_state, &tag).unwrap();
+
+            assert_eq!(loaded.ty, entity.ty, "type failed for {}", info.key);
+            assert_eq!(loaded.pos, entity.pos, "position failed for {}", info.key);
+            assert_eq!(
+                loaded.block_state, entity.block_state,
+                "block state failed for {}",
+                info.key
+            );
+            assert_eq!(
+                loaded.custom_data, entity.custom_data,
+                "custom data failed for {}",
+                info.key
+            );
+            assert_eq!(
+                loaded.components, entity.components,
+                "components failed for {}",
+                info.key
+            );
+            assert!(
+                !loaded.has_level,
+                "level attachment leaked for {}",
+                info.key
+            );
+            assert!(!loaded.removed, "removed flag leaked for {}", info.key);
+            assert!(!loaded.changed, "changed flag leaked for {}", info.key);
+            assert_eq!(loaded.tick_count, 0, "tick count leaked for {}", info.key);
+        }
+    }
+
+    #[test]
     fn wrong_chunk_positions_are_corrected_like_vanilla() {
         let tag = Tag::Compound(vec![
             ("x".to_string(), Tag::Int(34)),
