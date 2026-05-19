@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::base_entity::Vec3;
 use crate::item_stack::ItemStack;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,12 +42,48 @@ pub struct Menu {
     pub hotbar: Vec<ItemStack>,
     pub creative: bool,
     pub dropped: Vec<ItemStack>,
+    pub validity: MenuValidity,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SlotChange {
     pub slot: usize,
     pub stack: ItemStack,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MenuValidity {
+    Always,
+    Block {
+        expected_block: &'static str,
+        pos: BlockPos,
+        distance_buffer: f64,
+    },
+    BlockEntity {
+        expected_block_entity_id: i32,
+        pos: BlockPos,
+        distance_buffer: f64,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockPos {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuTickContext<'a> {
+    pub player_position: Vec3,
+    pub block_at_menu_pos: Option<&'a str>,
+    pub block_entity_at_menu_pos: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuTickResult {
+    StillValid,
+    CloseMenu,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -289,6 +326,12 @@ impl Default for ContainerSynchronizer {
     }
 }
 
+impl Default for MenuValidity {
+    fn default() -> Self {
+        Self::Always
+    }
+}
+
 impl Menu {
     pub fn new(slot_count: usize) -> Self {
         Self {
@@ -304,6 +347,65 @@ impl Menu {
             hotbar: vec![ItemStack::empty(); 9],
             creative: false,
             dropped: Vec::new(),
+            validity: MenuValidity::Always,
+        }
+    }
+
+    pub fn with_block_validity(
+        mut self,
+        expected_block: &'static str,
+        pos: BlockPos,
+        distance_buffer: f64,
+    ) -> Self {
+        self.validity = MenuValidity::Block {
+            expected_block,
+            pos,
+            distance_buffer,
+        };
+        self
+    }
+
+    pub fn with_block_entity_validity(
+        mut self,
+        expected_block_entity_id: i32,
+        pos: BlockPos,
+        distance_buffer: f64,
+    ) -> Self {
+        self.validity = MenuValidity::BlockEntity {
+            expected_block_entity_id,
+            pos,
+            distance_buffer,
+        };
+        self
+    }
+
+    pub fn still_valid(&self, ctx: &MenuTickContext<'_>) -> bool {
+        match self.validity {
+            MenuValidity::Always => true,
+            MenuValidity::Block {
+                expected_block,
+                pos,
+                distance_buffer,
+            } => {
+                ctx.block_at_menu_pos == Some(expected_block)
+                    && is_within_block_interaction_range(ctx.player_position, pos, distance_buffer)
+            }
+            MenuValidity::BlockEntity {
+                expected_block_entity_id,
+                pos,
+                distance_buffer,
+            } => {
+                ctx.block_entity_at_menu_pos == Some(expected_block_entity_id)
+                    && is_within_block_interaction_range(ctx.player_position, pos, distance_buffer)
+            }
+        }
+    }
+
+    pub fn tick_validity(&self, ctx: &MenuTickContext<'_>) -> MenuTickResult {
+        if self.still_valid(ctx) {
+            MenuTickResult::StillValid
+        } else {
+            MenuTickResult::CloseMenu
         }
     }
 
@@ -675,6 +777,20 @@ pub fn same_stack(a: &ItemStack, b: &ItemStack) -> bool {
     same_item_same_components(a, b) && a.count() == b.count()
 }
 
+pub fn is_within_block_interaction_range(
+    player_position: Vec3,
+    pos: BlockPos,
+    buffer: f64,
+) -> bool {
+    let center_x = pos.x as f64 + 0.5;
+    let center_y = pos.y as f64 + 0.5;
+    let center_z = pos.z as f64 + 0.5;
+    let dx = player_position.x - center_x;
+    let dy = player_position.y - center_y;
+    let dz = player_position.z - center_z;
+    dx * dx + dy * dy + dz * dz <= buffer * buffer
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -931,6 +1047,87 @@ mod tests {
                 }),
                 ContainerListenerEvent::DataChanged(DataChange { id: 0, value: 12 })
             ]
+        );
+    }
+
+    #[test]
+    fn still_valid_keeps_player_inventory_open_but_closes_invalid_block_menus() {
+        let player_inventory = Menu::new(0);
+        let far_context = MenuTickContext {
+            player_position: Vec3 {
+                x: 100.0,
+                y: 64.0,
+                z: 100.0,
+            },
+            block_at_menu_pos: None,
+            block_entity_at_menu_pos: None,
+        };
+        assert_eq!(
+            player_inventory.tick_validity(&far_context),
+            MenuTickResult::StillValid
+        );
+
+        let pos = BlockPos { x: 1, y: 64, z: 1 };
+        let crafting_menu = Menu::new(0).with_block_validity("minecraft:crafting_table", pos, 4.0);
+        let nearby_valid = MenuTickContext {
+            player_position: Vec3 {
+                x: 1.5,
+                y: 64.5,
+                z: 4.5,
+            },
+            block_at_menu_pos: Some("minecraft:crafting_table"),
+            block_entity_at_menu_pos: None,
+        };
+        assert_eq!(
+            crafting_menu.tick_validity(&nearby_valid),
+            MenuTickResult::StillValid
+        );
+
+        let wrong_block = MenuTickContext {
+            block_at_menu_pos: Some("minecraft:air"),
+            ..nearby_valid.clone()
+        };
+        assert_eq!(
+            crafting_menu.tick_validity(&wrong_block),
+            MenuTickResult::CloseMenu
+        );
+
+        let too_far = MenuTickContext {
+            player_position: Vec3 {
+                x: 6.0,
+                y: 64.5,
+                z: 1.5,
+            },
+            ..nearby_valid
+        };
+        assert_eq!(
+            crafting_menu.tick_validity(&too_far),
+            MenuTickResult::CloseMenu
+        );
+    }
+
+    #[test]
+    fn still_valid_block_entity_requires_same_entity_and_range() {
+        let pos = BlockPos { x: 3, y: 65, z: 3 };
+        let chest_menu = Menu::new(0).with_block_entity_validity(17, pos, 4.0);
+        let valid = MenuTickContext {
+            player_position: Vec3 {
+                x: 3.5,
+                y: 65.5,
+                z: 3.5,
+            },
+            block_at_menu_pos: Some("minecraft:chest"),
+            block_entity_at_menu_pos: Some(17),
+        };
+        assert!(chest_menu.still_valid(&valid));
+
+        let replaced = MenuTickContext {
+            block_entity_at_menu_pos: Some(18),
+            ..valid
+        };
+        assert_eq!(
+            chest_menu.tick_validity(&replaced),
+            MenuTickResult::CloseMenu
         );
     }
 }
