@@ -60,13 +60,13 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode compression-property login test that verifies first join succeeds with `network-compression-threshold=-1`, `0`, small positive values, and the vanilla default while preserving packet ordering.
 - [x] Implement `prevent-proxy-connections`.
 - [x] Implement `server-ip`.
-- [ ] Implement mutable `allow-flight`.
+- [x] Implement mutable `allow-flight`.
 - [x] Implement mutable `motd`.
 - [ ] Implement `enable-code-of-conduct`.
 - [ ] Implement `bug-report-link`.
 - [x] Implement mutable `force-gamemode`.
 - [x] Implement mutable `enforce-whitelist`.
-- [ ] Implement mutable `difficulty`.
+- [x] Implement mutable `difficulty`.
 - [x] Implement mutable `gamemode`.
 - [x] Implement `level-name`.
 - [x] Implement `server-port`.
@@ -76,8 +76,8 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
 - [x] Implement `hardcore`.
 - [x] Implement `use-native-transport` or document the equivalent transport decision.
-- [ ] Implement mutable `spawn-protection`.
-- [ ] Implement mutable `op-permission-level`.
+- [x] Implement mutable `spawn-protection`.
+- [x] Implement mutable `op-permission-level`.
 - [ ] Implement `function-permission-level`.
 - [x] Implement `max-tick-time`.
 - [ ] Implement `max-chained-neighbor-updates`.
@@ -95,22 +95,22 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
 - [x] Implement mutable `enable-status`.
 - [x] Implement mutable `hide-online-players`.
-- [ ] Implement mutable `entity-broadcast-range-percentage`.
+- [x] Implement mutable `entity-broadcast-range-percentage`.
 - [ ] Implement `text-filtering-config` and `text-filtering-version`.
 - [ ] Implement server resource pack fields: id, URL, SHA-1, legacy hash, required flag, prompt component.
 - [x] Implement initial datapack enabled/disabled pack lists.
-- [ ] Implement mutable `player-idle-timeout`.
-- [ ] Implement mutable `status-heartbeat-interval`.
-- [ ] Implement mutable `white-list`.
+- [x] Implement mutable `player-idle-timeout`.
+- [x] Implement mutable `status-heartbeat-interval`.
+- [x] Implement mutable `white-list`.
 - [ ] Add Mineflayer whitelist tests for offline-mode allow, deny, runtime `/whitelist reload`, and `enforce-whitelist` toggles.
 - [ ] Add Mineflayer mutable-property tests that change MOTD, difficulty, gamemode, view-distance, simulation-distance, idle timeout, and whitelist settings at runtime, then verify existing and reconnecting offline-mode bots observe vanilla-compatible state.
 - [ ] Add a Mineflayer offline-mode configuration reload test that edits `server.properties`, runs the vanilla-equivalent reload path where supported, reconnects the bot, and verifies which properties do and do not take effect without restart.
 - [ ] Add a Mineflayer offline-mode secure-profile toggle test that verifies `enforce-secure-profile=false` never blocks generated offline bots and that `true` matches official `server.jar` behavior for unsigned Mineflayer clients.
 - [ ] Implement `enforce-secure-profile`.
 - [x] Implement `log-ips`.
-- [ ] Implement mutable `pause-when-empty-seconds`.
+- [x] Implement mutable `pause-when-empty-seconds`.
 - [ ] Implement `level-seed`, `generate-structures`, `generator-settings`, and `level-type`.
-- [ ] Implement mutable `accepts-transfers`.
+- [x] Implement mutable `accepts-transfers`.
 
 ## Migrated From Main Checklist: Core Runtime Model
 
