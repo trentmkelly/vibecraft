@@ -271,6 +271,12 @@ impl LevelDirectory {
     pub fn lock_file(&self) -> PathBuf {
         self.layout().session_lock()
     }
+
+    pub fn load_summary(&self) -> std::io::Result<LevelSummary> {
+        let layout = self.layout();
+        let tag = layout.load_level_dat_with_backup()?;
+        LevelSummary::from_level_dat(self, &tag, layout.is_session_locked()?)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,6 +296,26 @@ impl LevelCandidates {
     pub fn levels(&self) -> &[LevelDirectory] {
         &self.levels
     }
+
+    pub fn summaries(&self) -> Vec<std::io::Result<LevelSummary>> {
+        self.levels
+            .iter()
+            .map(LevelDirectory::load_summary)
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelSummary {
+    pub directory_name: String,
+    pub level_name: String,
+    pub version: LevelVersion,
+    pub game_type: LevelGameType,
+    pub hardcore: bool,
+    pub cheats: bool,
+    pub requires_manual_conversion: bool,
+    pub icon_file: PathBuf,
+    pub locked: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -371,6 +397,10 @@ impl LevelStorageSource {
         }
         levels.sort_by_key(LevelDirectory::directory_name);
         Ok(LevelCandidates::new(levels))
+    }
+
+    pub fn load_level_summaries(&self) -> std::io::Result<Vec<std::io::Result<LevelSummary>>> {
+        Ok(self.find_level_candidates()?.summaries())
     }
 
     pub fn validate_and_create_access(
@@ -573,6 +603,9 @@ pub struct ServerLevelDataView {
     pub seed: i64,
 }
 
+pub type WorldData = WorldDataView;
+pub type ServerLevelData = ServerLevelDataView;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct DerivedLevelData {
     world_data: WorldDataView,
@@ -645,6 +678,46 @@ impl DerivedLevelData {
 
     pub fn dimension_seed(&self) -> i64 {
         self.wrapped.seed
+    }
+}
+
+impl LevelSummary {
+    pub fn from_level_dat(
+        directory: &LevelDirectory,
+        tag: &Tag,
+        locked: bool,
+    ) -> std::io::Result<Self> {
+        let data = level_dat_data_compound(tag).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "level.dat root is not compound",
+            )
+        })?;
+        let version = LevelVersion::parse_level_dat(tag).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "level.dat missing version data",
+            )
+        })?;
+        let level_name = compound_string(data, "LevelName")
+            .map(str::to_string)
+            .unwrap_or_else(|| directory.directory_name());
+        let game_type = compound_i32(data, "GameType")
+            .and_then(LevelGameType::from_id)
+            .unwrap_or(LevelGameType::Survival);
+
+        Ok(Self {
+            directory_name: directory.directory_name(),
+            level_name,
+            version,
+            game_type,
+            hardcore: compound_bool(data, "hardcore").unwrap_or(false),
+            cheats: compound_bool(data, "allowCommands").unwrap_or(false),
+            requires_manual_conversion: compound_bool(data, "requiresManualConversion")
+                .unwrap_or(false),
+            icon_file: directory.icon_file(),
+            locked,
+        })
     }
 }
 
@@ -1633,6 +1706,13 @@ mod tests {
         let candidates = source.find_level_candidates().unwrap();
         assert_eq!(candidates.levels().len(), 1);
         assert_eq!(candidates.levels()[0].directory_name(), "world_one");
+        let summaries = candidates.summaries();
+        assert_eq!(summaries.len(), 1);
+        let summary = summaries[0].as_ref().unwrap();
+        assert_eq!(summary.directory_name, "world_one");
+        assert_eq!(summary.level_name, "World One");
+        assert_eq!(summary.game_type, super::LevelGameType::Survival);
+        assert!(!summary.locked);
         assert!(source.level_exists("world_one"));
         assert!(!source.level_exists("../escape"));
 
