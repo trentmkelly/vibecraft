@@ -60,6 +60,7 @@ pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
 pub const SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID: i32 = 54;
 pub const SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID: i32 = 55;
+pub const SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID: i32 = 59;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
@@ -395,6 +396,58 @@ pub struct ServerboundSetCommandMinecartPacket {
     pub entity_id: i32,
     pub command: String,
     pub track_output: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureBlockUpdateType {
+    UpdateData,
+    SaveArea,
+    LoadArea,
+    ScanArea,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureBlockMode {
+    Save,
+    Load,
+    Corner,
+    Data,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureMirror {
+    None,
+    LeftRight,
+    FrontBack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureRotation {
+    None,
+    Clockwise90,
+    Clockwise180,
+    Counterclockwise90,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServerboundSetStructureBlockPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub update_type: StructureBlockUpdateType,
+    pub mode: StructureBlockMode,
+    pub name: String,
+    pub offset: [i8; 3],
+    pub size: [u8; 3],
+    pub mirror: StructureMirror,
+    pub rotation: StructureRotation,
+    pub data: String,
+    pub integrity: f32,
+    pub seed: i64,
+    pub ignore_entities: bool,
+    pub strict: bool,
+    pub show_air: bool,
+    pub show_bounding_box: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1202,6 +1255,7 @@ pub struct PlaySession {
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
     pub last_set_command_block: Option<ServerboundSetCommandBlockPacket>,
     pub last_set_command_minecart: Option<ServerboundSetCommandMinecartPacket>,
+    pub last_set_structure_block: Option<ServerboundSetStructureBlockPacket>,
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
     pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
@@ -1304,6 +1358,7 @@ impl PlaySession {
             last_set_beacon: None,
             last_set_command_block: None,
             last_set_command_minecart: None,
+            last_set_structure_block: None,
             last_select_trade: None,
             last_rename_item: None,
             last_command_suggestion: None,
@@ -1768,6 +1823,18 @@ impl PlaySession {
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!(
                         "bad set command minecart packet: {err}"
+                    )),
+                }
+            }
+            SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundSetStructureBlockPacket::read(&mut input) {
+                    Ok(structure) => {
+                        self.last_set_structure_block = Some(structure);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!(
+                        "bad set structure block packet: {err}"
                     )),
                 }
             }
@@ -3128,6 +3195,154 @@ impl ServerboundSetCommandMinecartPacket {
     }
 }
 
+impl StructureBlockUpdateType {
+    fn from_id(id: i32) -> io::Result<Self> {
+        match id {
+            0 => Ok(Self::UpdateData),
+            1 => Ok(Self::SaveArea),
+            2 => Ok(Self::LoadArea),
+            3 => Ok(Self::ScanArea),
+            _ => Err(invalid_data("invalid structure block update type")),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::UpdateData => 0,
+            Self::SaveArea => 1,
+            Self::LoadArea => 2,
+            Self::ScanArea => 3,
+        }
+    }
+}
+
+impl StructureBlockMode {
+    fn from_id(id: i32) -> io::Result<Self> {
+        match id {
+            0 => Ok(Self::Save),
+            1 => Ok(Self::Load),
+            2 => Ok(Self::Corner),
+            3 => Ok(Self::Data),
+            _ => Err(invalid_data("invalid structure block mode")),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::Save => 0,
+            Self::Load => 1,
+            Self::Corner => 2,
+            Self::Data => 3,
+        }
+    }
+}
+
+impl StructureMirror {
+    fn from_id(id: i32) -> io::Result<Self> {
+        match id {
+            0 => Ok(Self::None),
+            1 => Ok(Self::LeftRight),
+            2 => Ok(Self::FrontBack),
+            _ => Err(invalid_data("invalid structure mirror")),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::None => 0,
+            Self::LeftRight => 1,
+            Self::FrontBack => 2,
+        }
+    }
+}
+
+impl StructureRotation {
+    fn from_id(id: i32) -> io::Result<Self> {
+        match id.rem_euclid(4) {
+            0 => Ok(Self::None),
+            1 => Ok(Self::Clockwise90),
+            2 => Ok(Self::Clockwise180),
+            _ => Ok(Self::Counterclockwise90),
+        }
+    }
+
+    fn to_id(self) -> i32 {
+        match self {
+            Self::None => 0,
+            Self::Clockwise90 => 1,
+            Self::Clockwise180 => 2,
+            Self::Counterclockwise90 => 3,
+        }
+    }
+}
+
+impl ServerboundSetStructureBlockPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        let update_type = StructureBlockUpdateType::from_id(read_var_i32(reader)?)?;
+        let mode = StructureBlockMode::from_id(read_var_i32(reader)?)?;
+        let name = read_string(reader, 32767)?;
+        let offset = [
+            read_clamped_i8(reader, -48, 48)?,
+            read_clamped_i8(reader, -48, 48)?,
+            read_clamped_i8(reader, -48, 48)?,
+        ];
+        let size = [
+            read_clamped_i8(reader, 0, 48)? as u8,
+            read_clamped_i8(reader, 0, 48)? as u8,
+            read_clamped_i8(reader, 0, 48)? as u8,
+        ];
+        let mirror = StructureMirror::from_id(read_var_i32(reader)?)?;
+        let rotation = StructureRotation::from_id(read_var_i32(reader)?)?;
+        let data = read_string(reader, 128)?;
+        let integrity = read_f32(reader)?.clamp(0.0, 1.0);
+        let seed = read_var_i64(reader)?;
+        let flags = read_u8(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            update_type,
+            mode,
+            name,
+            offset,
+            size,
+            mirror,
+            rotation,
+            data,
+            integrity,
+            seed,
+            ignore_entities: flags & 1 != 0,
+            strict: flags & 8 != 0,
+            show_air: flags & 2 != 0,
+            show_bounding_box: flags & 4 != 0,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_var_i32(writer, self.update_type.to_id())?;
+        write_var_i32(writer, self.mode.to_id())?;
+        write_string(writer, &self.name, 32767)?;
+        for value in self.offset {
+            writer.write_all(&[value as u8])?;
+        }
+        for value in self.size {
+            writer.write_all(&[value])?;
+        }
+        write_var_i32(writer, self.mirror.to_id())?;
+        write_var_i32(writer, self.rotation.to_id())?;
+        write_string(writer, &self.data, 128)?;
+        write_f32(writer, self.integrity)?;
+        write_var_i64(writer, self.seed)?;
+        let flags = (if self.ignore_entities { 1 } else { 0 })
+            | (if self.show_air { 2 } else { 0 })
+            | (if self.show_bounding_box { 4 } else { 0 })
+            | (if self.strict { 8 } else { 0 });
+        writer.write_all(&[flags])
+    }
+}
+
 impl ServerboundSelectTradePacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
@@ -3872,6 +4087,14 @@ fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
     let mut byte = [0u8; 1];
     reader.read_exact(&mut byte)?;
     Ok(byte[0])
+}
+
+fn read_clamped_i8<R: Read>(reader: &mut R, min: i8, max: i8) -> io::Result<i8> {
+    Ok((read_u8(reader)? as i8).clamp(min, max))
+}
+
+fn invalid_data(message: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn expect_empty_payload<R: Read>(reader: &mut R) -> io::Result<()> {
@@ -5062,6 +5285,10 @@ mod tests {
             session.handle_decoded(decoded(SERVERBOUND_INTERACT_PACKET_ID, vec![1, 0])),
             DispatchOutcome::Disconnect(_)
         ));
+        assert!(matches!(
+            session.handle_decoded(decoded(SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID, vec![0; 8])),
+            DispatchOutcome::Disconnect(_)
+        ));
     }
 
     #[test]
@@ -5906,6 +6133,73 @@ mod tests {
             ]))
             .is_err()
         );
+
+        let structure_block = ServerboundSetStructureBlockPacket {
+            x: -12,
+            y: 64,
+            z: 34,
+            update_type: StructureBlockUpdateType::LoadArea,
+            mode: StructureBlockMode::Load,
+            name: "demo:house".to_string(),
+            offset: [-2, 3, 4],
+            size: [5, 6, 7],
+            mirror: StructureMirror::FrontBack,
+            rotation: StructureRotation::Counterclockwise90,
+            data: "metadata".to_string(),
+            integrity: 0.75,
+            seed: 128,
+            ignore_entities: true,
+            strict: true,
+            show_air: false,
+            show_bounding_box: true,
+        };
+        let mut structure_block_payload = Vec::new();
+        structure_block.write(&mut structure_block_payload).unwrap();
+        assert_eq!(
+            &structure_block_payload[8..],
+            &[
+                2, 1, 10, b'd', b'e', b'm', b'o', b':', b'h', b'o', b'u', b's', b'e',
+                0xfe, 3, 4, 5, 6, 7, 2, 3, 8, b'm', b'e', b't', b'a', b'd', b'a',
+                b't', b'a', 0x3f, 0x40, 0, 0, 0x80, 0x01, 13
+            ]
+        );
+        assert_eq!(
+            ServerboundSetStructureBlockPacket::read(&mut cursor(
+                structure_block_payload.clone()
+            ))
+            .unwrap(),
+            structure_block
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
+                structure_block_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(
+            session.last_set_structure_block,
+            Some(structure_block)
+        );
+
+        let clamped_structure = ServerboundSetStructureBlockPacket::read(&mut cursor(vec![
+            0, 0, 0, 0, 0, 0, 0, 0, // BlockPos
+            0, 0, 0, // update type, mode, empty name
+            200, 60, 255, // offset clamps to -48, 48, -1
+            255, 60, 10, // size clamps to 0, 48, 10
+            0, 7, 0, // mirror, wrapped rotation, empty data
+            0x3f, 0xc0, 0, 0, // integrity 1.5 clamps to 1.0
+            0, 15,
+        ]))
+        .unwrap();
+        assert_eq!(clamped_structure.offset, [-48, 48, -1]);
+        assert_eq!(clamped_structure.size, [0, 48, 10]);
+        assert_eq!(clamped_structure.rotation, StructureRotation::Counterclockwise90);
+        assert_eq!(clamped_structure.integrity, 1.0);
+        assert!(clamped_structure.ignore_entities);
+        assert!(clamped_structure.strict);
+        assert!(clamped_structure.show_air);
+        assert!(clamped_structure.show_bounding_box);
 
         let command_minecart = ServerboundSetCommandMinecartPacket {
             entity_id: 128,

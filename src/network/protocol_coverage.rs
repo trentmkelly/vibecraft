@@ -494,7 +494,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_structure_block",
         java_class: "ServerboundSetStructureBlockPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, update_type:enum VarInt, mode:StructureMode enum VarInt, name:utf8, offset:3 i8 clamped -48..48, size:3 i8 clamped 0..48, mirror:enum VarInt, rotation:enum VarInt wrap, data:utf8 max 128, integrity:f32 clamped 0..1, seed:VarLong, flags:u8(ignore_entities=1, show_air=2, show_bounding_box=4, strict=8)",
     },
     PlayPacketSpec {
         id: 60,
