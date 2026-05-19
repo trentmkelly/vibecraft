@@ -289,6 +289,14 @@ pub struct ServerboundPlayerActionPacket {
     pub sequence: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ServerboundUseItemPacket {
+    pub hand: ServerboundSwingHand,
+    pub sequence: i32,
+    pub y_rot: f32,
+    pub x_rot: f32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerboundClientCommandAction {
     PerformRespawn,
@@ -995,6 +1003,7 @@ pub struct PlaySession {
     pub last_vehicle_move: Option<ServerboundMoveVehiclePacket>,
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub last_player_action: Option<ServerboundPlayerActionPacket>,
+    pub last_use_item: Option<ServerboundUseItemPacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1076,6 +1085,7 @@ impl PlaySession {
             last_vehicle_move: None,
             last_player_command: None,
             last_player_action: None,
+            last_use_item: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1334,6 +1344,22 @@ impl PlaySession {
                         }
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad swing packet: {err}")),
+                }
+            }
+            SERVERBOUND_USE_ITEM_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundUseItemPacket::read(&mut input) {
+                    Ok(use_item) => {
+                        if matches!(use_item.hand, ServerboundSwingHand::Unknown(_)) {
+                            DispatchOutcome::Disconnect(
+                                "unknown use item interaction hand".to_string(),
+                            )
+                        } else {
+                            self.last_use_item = Some(use_item);
+                            DispatchOutcome::Handled
+                        }
+                    }
+                    Err(err) => DispatchOutcome::Disconnect(format!("bad use item packet: {err}")),
                 }
             }
             _ => {
@@ -2359,6 +2385,24 @@ impl ServerboundSwingPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.hand.to_id())
+    }
+}
+
+impl ServerboundUseItemPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?),
+            sequence: read_var_i32(reader)?,
+            y_rot: read_f32(reader)?,
+            x_rot: read_f32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.hand.to_id())?;
+        write_var_i32(writer, self.sequence)?;
+        write_f32(writer, self.y_rot)?;
+        write_f32(writer, self.x_rot)
     }
 }
 
@@ -4390,6 +4434,28 @@ mod tests {
                 hand: ServerboundSwingHand::Unknown(128),
             }
         );
+
+        let use_item = ServerboundUseItemPacket {
+            hand: ServerboundSwingHand::OffHand,
+            sequence: 300,
+            y_rot: 45.0,
+            x_rot: -10.5,
+        };
+        let mut use_item_payload = Vec::new();
+        use_item.write(&mut use_item_payload).unwrap();
+        assert_eq!(
+            use_item_payload,
+            vec![1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00]
+        );
+        assert_eq!(
+            ServerboundUseItemPacket::read(&mut cursor(use_item_payload.clone())).unwrap(),
+            use_item
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(SERVERBOUND_USE_ITEM_PACKET_ID, use_item_payload)),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_use_item, Some(use_item));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {
