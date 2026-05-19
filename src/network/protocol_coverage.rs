@@ -1154,7 +1154,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "section_blocks_update",
         java_class: "ClientboundSectionBlocksUpdatePacket",
-        field_order: "unparsed",
+        field_order: "section_pos:long, updates:VarInt count then VarLong(block_state_id << 12 | packed_section_pos)",
     },
     PlayPacketSpec {
         id: 85,

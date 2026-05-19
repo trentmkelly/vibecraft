@@ -1395,6 +1395,25 @@ pub struct ClientboundLevelChunkWithLightPacket {
     pub light_data: Option<ClientboundLightUpdatePacketData>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionPos {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SectionBlockUpdate {
+    pub packed_pos: u16,
+    pub block_state_id: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSectionBlocksUpdatePacket {
+    pub section_pos: SectionPos,
+    pub updates: Vec<SectionBlockUpdate>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundLightUpdatePacket {
     pub pos: ChunkPos,
@@ -2636,6 +2655,34 @@ impl ClientboundLevelChunkWithLightPacket {
             chunk_data: Some(ClientboundLevelChunkPacketData::from_chunk(chunk)),
             light_data: Some(light_data),
         }
+    }
+}
+
+impl SectionPos {
+    pub fn packed_long(self) -> i64 {
+        let x = (self.x as i64) & 0x3f_ffff;
+        let y = (self.y as i64) & 0x0f_ffff;
+        let z = (self.z as i64) & 0x3f_ffff;
+        (x << 42) | y | (z << 20)
+    }
+}
+
+impl ClientboundSectionBlocksUpdatePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i64(writer, self.section_pos.packed_long())?;
+        write_var_i32(writer, self.updates.len() as i32)?;
+        for update in &self.updates {
+            if update.packed_pos > 0x0fff {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "section-relative block position exceeds 12 bits",
+                ));
+            }
+            let packed_change =
+                (i64::from(update.block_state_id) << 12) | i64::from(update.packed_pos);
+            write_var_i64(writer, packed_change)?;
+        }
+        Ok(())
     }
 }
 
@@ -6550,6 +6597,22 @@ mod tests {
         .write(&mut award_stats)
         .unwrap();
         assert_eq!(award_stats, vec![1, 8, 23, 0xac, 0x02]);
+
+        let mut section_blocks = Vec::new();
+        ClientboundSectionBlocksUpdatePacket {
+            section_pos: SectionPos { x: 1, y: -2, z: 3 },
+            updates: vec![SectionBlockUpdate {
+                packed_pos: 0x0abc,
+                block_state_id: 118,
+            }],
+        }
+        .write(&mut section_blocks)
+        .unwrap();
+        assert_eq!(
+            &section_blocks[..8],
+            &0x0000_0400_003f_fffe_i64.to_be_bytes()
+        );
+        assert_eq!(&section_blocks[8..], &[1, 0xbc, 0xd5, 0x1d]);
 
         let mut reset_score = Vec::new();
         ClientboundResetScorePacket {
