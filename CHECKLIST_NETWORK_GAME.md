@@ -89,7 +89,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Inventory / Container Packets (Serverbound)
 
 - [ ] `ServerboundContainerClickPacket` (0x0C): window ID byte, state ID VarInt, slot short, button byte, click type VarInt, changed slots map, carried item
-- [ ] `ServerboundContainerClosePacket` (0x0D): window ID byte
+- [x] `ServerboundContainerClosePacket` (0x13): container ID VarInt
 - [x] `ServerboundSetCarriedItemPacket` (0x35): slot short
 - [ ] `ServerboundPickItemFromBlockPacket` and `ServerboundPickItemFromEntityPacket`: creative-mode middle-click
 - [ ] `ServerboundEditBookPacket` (0x14): hand, pages list, optional title

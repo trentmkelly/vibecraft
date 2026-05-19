@@ -366,6 +366,11 @@ pub struct ServerboundRenameItemPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundContainerClosePacket {
+    pub container_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundConfigurationAcknowledgedPacket;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1087,6 +1092,7 @@ pub struct PlaySession {
     pub last_set_beacon: Option<ServerboundSetBeaconPacket>,
     pub last_select_trade: Option<ServerboundSelectTradePacket>,
     pub last_rename_item: Option<ServerboundRenameItemPacket>,
+    pub last_container_close: Option<ServerboundContainerClosePacket>,
     pub loaded: bool,
     pub disconnect_reason: Option<String>,
 }
@@ -1176,6 +1182,7 @@ impl PlaySession {
             last_set_beacon: None,
             last_select_trade: None,
             last_rename_item: None,
+            last_container_close: None,
             loaded: false,
             disconnect_reason: None,
         }
@@ -1317,6 +1324,18 @@ impl PlaySession {
                     Err(err) => DispatchOutcome::Disconnect(format!(
                         "bad configuration acknowledged packet: {err}"
                     )),
+                }
+            }
+            SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundContainerClosePacket::read(&mut input) {
+                    Ok(close) => {
+                        self.last_container_close = Some(close);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad container close packet: {err}"))
+                    }
                 }
             }
             SERVERBOUND_JIGSAW_GENERATE_PACKET_ID => {
@@ -2780,6 +2799,18 @@ impl ServerboundRenameItemPacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_string(writer, &self.name, 32767)
+    }
+}
+
+impl ServerboundContainerClosePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            container_id: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)
     }
 }
 
@@ -5036,6 +5067,26 @@ mod tests {
             DispatchOutcome::Handled
         );
         assert_eq!(session.last_rename_item, Some(rename_item));
+
+        let container_close = ServerboundContainerClosePacket { container_id: 128 };
+        let mut container_close_payload = Vec::new();
+        container_close
+            .write(&mut container_close_payload)
+            .unwrap();
+        assert_eq!(container_close_payload, vec![0x80, 0x01]);
+        assert_eq!(
+            ServerboundContainerClosePacket::read(&mut cursor(container_close_payload.clone()))
+                .unwrap(),
+            container_close
+        );
+        assert_eq!(
+            session.handle_decoded(decoded(
+                SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
+                container_close_payload
+            )),
+            DispatchOutcome::Handled
+        );
+        assert_eq!(session.last_container_close, Some(container_close));
 
         let mut change_difficulty = Vec::new();
         ClientboundChangeDifficultyPacket {

@@ -214,7 +214,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "container_close",
         java_class: "ServerboundContainerClosePacket",
-        field_order: "unparsed",
+        field_order: "container_id:VarInt",
     },
     PlayPacketSpec {
         id: 20,
