@@ -351,6 +351,57 @@ export function summarizeCommandResultConsistencyEvidence(evidence, scenarios = 
   return { ok: Object.values(steps).every(Boolean), steps }
 }
 
+export function commandSuggestionScenario(options = {}) {
+  return {
+    permissionLevels: options.permissionLevels ?? [0, 2, 3, 4],
+    steps: [
+      'root-command-tree',
+      'argument-suggestions',
+      'permission-filtering',
+      'signed-command-metadata',
+      'tab-completion-ordering'
+    ],
+    probes: [
+      '',
+      'gamemode ',
+      'tell ',
+      'execute '
+    ]
+  }
+}
+
+export function commandSuggestionManifest(options = {}) {
+  const scenario = commandSuggestionScenario(options)
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    comparedAgainst: 'official-server.jar',
+    permissionLevels: scenario.permissionLevels,
+    probes: scenario.probes,
+    steps: scenario.steps
+  }
+}
+
+export function summarizeCommandSuggestionEvidence(evidence, scenario = commandSuggestionScenario()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'command_suggestion')
+    .map(event => [event.summary?.[0], event.summary?.[1] ?? {}]))
+  const root = observations.get('root-command-tree')
+  const args = observations.get('argument-suggestions')
+  const permissions = observations.get('permission-filtering')
+  const signed = observations.get('signed-command-metadata')
+  const ordering = observations.get('tab-completion-ordering')
+  const steps = {
+    'root-command-tree': root?.matchesVanilla === true,
+    'argument-suggestions': scenario.probes.every(probe => (args?.probes ?? []).includes(probe)),
+    'permission-filtering': scenario.permissionLevels.every(level =>
+      (permissions?.levels ?? []).includes(level)),
+    'signed-command-metadata': signed?.matchesVanilla === true,
+    'tab-completion-ordering': ordering?.stableVanillaOrder === true
+  }
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 export function summarizeListLoginStateEvidence(evidence, scenarios = listLoginStateScenarios()) {
   const observations = new Map((evidence.timeline ?? [])
     .filter(event => event.name === 'list_command')

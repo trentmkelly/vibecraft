@@ -6,6 +6,8 @@ import {
   commandResultConsistencyManifest,
   commandResultConsistencyScenarios,
   commandScenarioManifest,
+  commandSuggestionManifest,
+  commandSuggestionScenario,
   commandPermissionReloadManifest,
   commandPermissionReloadScenario,
   loginGatedCommandManifest,
@@ -20,6 +22,7 @@ import {
   summarizeCommandBeforeReadyEvidence,
   summarizeCommandPermissionReloadEvidence,
   summarizeCommandResultConsistencyEvidence,
+  summarizeCommandSuggestionEvidence,
   summarizeLoginGatedCommandEvidence,
   summarizeListLoginStateEvidence,
   summarizeTeleportCommandEvidence,
@@ -325,4 +328,36 @@ test('summarizeCommandResultConsistencyEvidence requires counts, feedback visibi
   assert.equal(summarizeCommandResultConsistencyEvidence(evidence, scenarios).ok, true)
   evidence.timeline[4].summary[2].sideEffects = []
   assert.equal(summarizeCommandResultConsistencyEvidence(evidence, scenarios).ok, false)
+})
+
+test('commandSuggestionManifest covers command tree, arguments, permissions, signed metadata, and ordering', () => {
+  const manifest = commandSuggestionManifest()
+
+  assert.equal(manifest.comparedAgainst, 'official-server.jar')
+  assert.deepEqual(manifest.steps, [
+    'root-command-tree',
+    'argument-suggestions',
+    'permission-filtering',
+    'signed-command-metadata',
+    'tab-completion-ordering'
+  ])
+  assert.ok(manifest.probes.includes('gamemode '))
+  assert.ok(manifest.permissionLevels.includes(4))
+})
+
+test('summarizeCommandSuggestionEvidence requires vanilla-matched suggestions and metadata', () => {
+  const scenario = commandSuggestionScenario()
+  const evidence = {
+    timeline: [
+      { name: 'command_suggestion', summary: ['root-command-tree', { matchesVanilla: true }] },
+      { name: 'command_suggestion', summary: ['argument-suggestions', { probes: scenario.probes }] },
+      { name: 'command_suggestion', summary: ['permission-filtering', { levels: scenario.permissionLevels }] },
+      { name: 'command_suggestion', summary: ['signed-command-metadata', { matchesVanilla: true }] },
+      { name: 'command_suggestion', summary: ['tab-completion-ordering', { stableVanillaOrder: true }] }
+    ]
+  }
+
+  assert.equal(summarizeCommandSuggestionEvidence(evidence, scenario).ok, true)
+  evidence.timeline[3].summary[1].matchesVanilla = false
+  assert.equal(summarizeCommandSuggestionEvidence(evidence, scenario).ok, false)
 })
