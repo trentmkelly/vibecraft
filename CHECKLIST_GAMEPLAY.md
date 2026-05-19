@@ -141,7 +141,7 @@
 
 ## Migrated From Main Checklist: Damage, Combat, Effects, And Attributes
 
-- [ ] Implement damage sources and datapack-driven damage types.
+- [x] Implement damage sources and datapack-driven damage types.
 - [ ] Implement armor, toughness, enchantment protection, shields, absorption, invulnerability frames, knockback, thorns, blocking, critical hits, sweeping, projectile damage, explosions, fall, drowning, fire, freezing, void, suffocation, cactus, sweet berry, dripstone, world border, magic, starvation, and command damage.
 - [x] Add Mineflayer combat/damage tests for melee, projectile, fall, fire, drowning, void, shield blocking, armor mitigation, invulnerability frames, and vanilla-compatible damage/death messages.
 - [ ] Implement all status effects, instant effects, ambient/particles/icon behavior, ticking, curative behavior where applicable, and serialization.
