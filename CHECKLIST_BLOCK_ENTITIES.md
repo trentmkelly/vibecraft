@@ -24,7 +24,7 @@
 - [x] Implement `BlockEntity.handleUpdateTag(tag)` applying the network-received subset on the simulated client side: `BlockEntity::handle_update_tag()` replaces custom data/components from the network tag while ignoring metadata fields (`id`, `x`, `y`, `z`); covered by `handle_update_tag_applies_network_subset_without_metadata`
 - [x] Implement `BlockEntityTicker` dispatch: server-tick and client-tick registrations independently null-checked per type: `BlockEntity::tick(client_side)` checks `BlockEntityTypeInfo.tick_kind`, level attachment, and removal state; covered by `ticking_requires_level_side_match_and_not_removed`
 - [ ] Implement `BlockEntityType` registry with `validBlocks` set and version-compatible NBT deserialization via `DataFixer`
-- [ ] Implement `TickingBlockEntity` wrapper used by `ServerLevel` to schedule ticking block entities
+- [x] Implement `TickingBlockEntity` wrapper used by `ServerLevel` to schedule ticking block entities: `TickingBlockEntity` wraps a `BlockEntity`, exposes `tick()`, `is_removed()`, `pos()`, and `type_key()` for scheduler integration, and delegates side-aware ticking; covered by `ticking_block_entity_wrapper_exposes_scheduler_shape`
 - [ ] Add unit test: save NBT → load NBT round-trip preserves all fields for every block entity type
 - [ ] Add unit test: `getUpdateTag()` returns only the intended subset for each type (not more, not less)
 

@@ -95,6 +95,12 @@ pub struct ClientboundBlockEntityDataPacket {
     pub tag: Tag,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TickingBlockEntity {
+    pub entity: BlockEntity,
+    pub client_side: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TestBlockMode {
     Start,
@@ -1145,6 +1151,31 @@ impl BlockEntity {
     }
 }
 
+impl TickingBlockEntity {
+    pub fn new(entity: BlockEntity, client_side: bool) -> Self {
+        Self {
+            entity,
+            client_side,
+        }
+    }
+
+    pub fn tick(&mut self) -> bool {
+        self.entity.tick(self.client_side)
+    }
+
+    pub fn is_removed(&self) -> bool {
+        self.entity.removed
+    }
+
+    pub fn pos(&self) -> BlockPos {
+        self.entity.pos
+    }
+
+    pub fn type_key(&self) -> &'static str {
+        type_info(self.entity.ty).key
+    }
+}
+
 pub fn load_static(
     pos: BlockPos,
     block_state: &str,
@@ -1445,6 +1476,24 @@ mod tests {
         conduit.set_level();
         assert!(conduit.tick(false));
         assert!(conduit.tick(true));
+    }
+
+    #[test]
+    fn ticking_block_entity_wrapper_exposes_scheduler_shape() {
+        let mut furnace =
+            BlockEntity::new(BlockEntityTypeId::Furnace, pos(), "minecraft:furnace").unwrap();
+        furnace.set_level();
+        let mut ticker = TickingBlockEntity::new(furnace, false);
+
+        assert_eq!(ticker.pos(), pos());
+        assert_eq!(ticker.type_key(), "furnace");
+        assert!(!ticker.is_removed());
+        assert!(ticker.tick());
+        assert_eq!(ticker.entity.tick_count, 1);
+
+        ticker.entity.set_removed();
+        assert!(ticker.is_removed());
+        assert!(!ticker.tick());
     }
 
     #[test]
