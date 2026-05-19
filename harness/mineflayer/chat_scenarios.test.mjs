@@ -1,9 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  chatCommandScenario,
+  chatCommandScenarioManifest,
   chatScenarioManifest,
   observeChatScenario,
-  offlineChatScenarios
+  offlineChatScenarios,
+  summarizeChatCommandEvidence
 } from './chat_scenarios.mjs'
 
 test('offlineChatScenarios cover public, private, formatted, death, advancement, and malformed disconnect cases', () => {
@@ -60,4 +63,37 @@ test('chatScenarioManifest serializes offline chat metadata', () => {
   assert.equal(manifest.auth, 'offline')
   assert.equal(manifest.scenarios.length, 6)
   assert.ok(manifest.scenarios.some(scenario => scenario.name === 'privateMessage'))
+})
+
+test('chatCommandScenarioManifest covers chat fallbacks, feedback, suggestions, and tab completion', () => {
+  const manifest = chatCommandScenarioManifest({ sender: 'Steve', target: 'Alex' })
+
+  assert.deepEqual(manifest.steps, [
+    'signed-chat-fallback',
+    'unsigned-chat-fallback',
+    'system-messages',
+    'command-feedback',
+    'suggestions',
+    'tab-completion'
+  ])
+  assert.ok(manifest.commands.includes('/tell Alex secret'))
+  assert.equal(manifest.target, 'Alex')
+})
+
+test('summarizeChatCommandEvidence requires chat fallbacks, feedback, suggestions, and tab completion', () => {
+  const scenario = chatCommandScenario({ sender: 'Steve', target: 'Alex' })
+  const evidence = {
+    timeline: [
+      { name: 'chat_command', summary: ['signed-chat-fallback', { accepted: true }] },
+      { name: 'chat_command', summary: ['unsigned-chat-fallback', { accepted: true }] },
+      { name: 'chat_command', summary: ['suggestions', { includesRoot: true }] },
+      { name: 'chat_command', summary: ['tab-completion', { includesTarget: 'Alex' }] },
+      { name: 'message', summary: ['commands.message.display'] },
+      { name: 'message', summary: ['commands.me.success'] }
+    ]
+  }
+
+  assert.equal(summarizeChatCommandEvidence(evidence, scenario).ok, true)
+  evidence.timeline[3].summary[1].includesTarget = 'Steve'
+  assert.equal(summarizeChatCommandEvidence(evidence, scenario).ok, false)
 })

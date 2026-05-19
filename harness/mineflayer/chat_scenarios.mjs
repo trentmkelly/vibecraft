@@ -47,6 +47,60 @@ export function chatScenarioManifest(options = {}) {
   }
 }
 
+export function chatCommandScenario(options = {}) {
+  const sender = options.sender ?? 'RustCraftBot'
+  const target = options.target ?? 'RustCraftBot1'
+  return {
+    sender,
+    target,
+    steps: [
+      'signed-chat-fallback',
+      'unsigned-chat-fallback',
+      'system-messages',
+      'command-feedback',
+      'suggestions',
+      'tab-completion'
+    ],
+    commands: [
+      `/tell ${target} secret`,
+      '/me waves',
+      '/help list'
+    ]
+  }
+}
+
+export function chatCommandScenarioManifest(options = {}) {
+  const scenario = chatCommandScenario(options)
+  return {
+    mode: 'offline',
+    auth: 'offline',
+    sender: scenario.sender,
+    target: scenario.target,
+    commands: scenario.commands,
+    steps: scenario.steps
+  }
+}
+
+export function summarizeChatCommandEvidence(evidence, scenario = chatCommandScenario()) {
+  const observations = new Map((evidence.timeline ?? [])
+    .filter(event => event.name === 'chat_command')
+    .map(event => [event.summary?.[0], event.summary?.[1] ?? {}]))
+  const messages = (evidence.timeline ?? [])
+    .filter(event => event.name === 'message')
+    .flatMap(event => event.summary?.map(String) ?? [])
+  const steps = {
+    'signed-chat-fallback': observations.get('signed-chat-fallback')?.accepted === true,
+    'unsigned-chat-fallback': observations.get('unsigned-chat-fallback')?.accepted === true,
+    'system-messages': messages.some(message => message.includes('chat.type.system') ||
+      message.includes('commands.message.display')),
+    'command-feedback': messages.some(message => message.includes('commands.me.success') ||
+      message.includes('commands.help.success')),
+    suggestions: observations.get('suggestions')?.includesRoot === true,
+    'tab-completion': observations.get('tab-completion')?.includesTarget === scenario.target
+  }
+  return { ok: Object.values(steps).every(Boolean), steps }
+}
+
 function chatScenario(name, expectedText, options = {}) {
   return {
     name,
