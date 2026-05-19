@@ -63,6 +63,17 @@ export const registryCodecAuditOverrides = new Map([
       'Enchantment.DIRECT_CODEC is registry-backed and can reference item holder sets and enchantment holder sets.',
       'Default item component initialization currently does not require a concrete enchantment holder before first play-state entry.'
     ]
+  }],
+  ['minecraft:world_clock', {
+    shape: 'direct-compound',
+    requiredFields: ['<unit>'],
+    optionalFields: [],
+    directOnlyFields: [],
+    holderFields: [],
+    tagFields: [],
+    notes: [
+      'WorldClock.DIRECT_CODEC is MapCodec.unitCodec(WorldClock::new), so each registry element encodes as an empty compound with no named NBT fields.'
+    ]
   }]
 ])
 

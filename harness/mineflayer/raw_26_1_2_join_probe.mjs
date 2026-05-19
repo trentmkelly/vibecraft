@@ -260,7 +260,9 @@ const expectedRegistries = [
   'minecraft:pig_variant',
   'minecraft:wolf_sound_variant',
   'minecraft:wolf_variant',
-  'minecraft:zombie_nautilus_variant'
+  'minecraft:zombie_nautilus_variant',
+  'minecraft:world_clock',
+  'minecraft:timeline'
 ]
 
 const minimumRegistryElements = new Map([
@@ -281,8 +283,10 @@ const minimumRegistryElements = new Map([
   ['minecraft:painting_variant', 51],
   ['minecraft:pig_sound_variant', 3],
   ['minecraft:pig_variant', 3],
+  ['minecraft:timeline', 4],
   ['minecraft:trim_material', 11],
   ['minecraft:trim_pattern', 18],
+  ['minecraft:world_clock', 2],
   ['minecraft:wolf_sound_variant', 7],
   ['minecraft:wolf_variant', 9],
   ['minecraft:zombie_nautilus_variant', 2]

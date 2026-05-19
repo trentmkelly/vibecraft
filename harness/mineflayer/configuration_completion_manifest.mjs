@@ -23,7 +23,9 @@ export const configurationCompletionManifest = {
     'minecraft:damage_type',
     'minecraft:banner_pattern',
     'minecraft:jukebox_song',
-    'minecraft:instrument'
+    'minecraft:instrument',
+    'minecraft:world_clock',
+    'minecraft:timeline'
   ],
   elementCounts: {
     'minecraft:banner_pattern': 43,
@@ -43,8 +45,10 @@ export const configurationCompletionManifest = {
     'minecraft:painting_variant': 51,
     'minecraft:pig_sound_variant': 3,
     'minecraft:pig_variant': 3,
+    'minecraft:timeline': 4,
     'minecraft:trim_material': 11,
     'minecraft:trim_pattern': 18,
+    'minecraft:world_clock': 2,
     'minecraft:wolf_sound_variant': 7,
     'minecraft:wolf_variant': 9,
     'minecraft:zombie_nautilus_variant': 2

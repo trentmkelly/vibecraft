@@ -56,22 +56,6 @@ export const documentedRegistryOmissions = new Map([
       next: 'Sync or transcript-verify omission before dialog packet tests.'
     }
   ],
-  [
-    'minecraft:world_clock',
-    {
-      milestone: 'void-world join',
-      evidence: ['No current first-join packet or item initializer requires a world clock element.'],
-      next: 'Verify against official transcript before time/timeline feature work.'
-    }
-  ],
-  [
-    'minecraft:timeline',
-    {
-      milestone: 'void-world join',
-      evidence: ['No current first-join packet or item initializer requires a timeline element.'],
-      next: 'Verify against official transcript before timeline feature work.'
-    }
-  ]
 ])
 
 export const requiredPlayEntryEvidence = [
@@ -133,7 +117,9 @@ const packetSourceFunctionByRegistry = new Map([
   ['minecraft:damage_type', 'write_minimal_damage_type_registry_packet'],
   ['minecraft:banner_pattern', 'write_vanilla_banner_pattern_registry_packet'],
   ['minecraft:jukebox_song', 'write_vanilla_jukebox_song_registry_packet'],
-  ['minecraft:instrument', 'write_vanilla_instrument_registry_packet']
+  ['minecraft:instrument', 'write_vanilla_instrument_registry_packet'],
+  ['minecraft:world_clock', 'write_world_clock_registry_packet'],
+  ['minecraft:timeline', 'write_vanilla_timeline_registry_packet']
 ])
 
 function registryConstantToId (constant) {

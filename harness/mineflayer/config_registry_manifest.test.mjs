@@ -35,14 +35,6 @@ const documentedOmissions = new Map([
     'minecraft:dialog',
     'Dialog registry sync is deferred until server-driven dialog packets are exercised in play-state tests.'
   ],
-  [
-    'minecraft:world_clock',
-    'Experimental world clock registry sync is deferred until a vanilla transcript proves it is required for the current join milestone.'
-  ],
-  [
-    'minecraft:timeline',
-    'Experimental timeline registry sync is deferred until a vanilla transcript proves it is required for the current join milestone.'
-  ]
 ])
 
 const playEntryEvidence = [
