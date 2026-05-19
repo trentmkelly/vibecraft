@@ -125,7 +125,7 @@
 - [x] For every GUI-bearing block entity: add open-menu / container-id / close test verifying correct `MenuType` and initial slot contents
 - [x] For every block entity with a comparator output: add signal level test across all boundary states
 - [x] For every block entity: add `/data get block` NBT access test via command model or unit test
-- [ ] For every block entity: add destruction drop test (correct tool, Silk Touch, explosion, correct drops including stored items)
+- [x] For every block entity: add destruction drop test (correct tool, Silk Touch, explosion, correct drops including stored items)
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Block Entity Coverage
 
@@ -138,4 +138,4 @@
 - [x] Implement world/system block entities: `SpawnerBlockEntity`, `TrialSpawnerBlockEntity`, `VaultBlockEntity`, `JigsawBlockEntity`, `StructureBlockEntity`, `TheEndGatewayBlockEntity`, `TheEndPortalBlockEntity`, `TestBlockEntity`, and `TestInstanceBlockEntity`.
 - [x] Implement decorative/lore block entities: `BannerBlockEntity`, `BedBlockEntity`, `BrushableBlockEntity`, `DecoratedPotBlockEntity`, `SkullBlockEntity`, `BellBlockEntity`, and `CopperGolemStatueBlockEntity`.
 - [x] Implement mob/environment block entities: `BeehiveBlockEntity`, `ConduitBlockEntity`, `CampfireBlockEntity`, `SculkSensorBlockEntity`, `CalibratedSculkSensorBlockEntity`, `SculkCatalystBlockEntity`, `SculkShriekerBlockEntity`, and `CreakingHeartBlockEntity`.
-- [ ] For every block entity, add tests for placement, ticking, GUI open/close, save/load, chunk unload/reload, comparator output, network update tag, `/data` command access, and destruction drops.
+- [x] For every block entity, add tests for placement, ticking, GUI open/close, save/load, chunk unload/reload, comparator output, network update tag, `/data` command access, and destruction drops.

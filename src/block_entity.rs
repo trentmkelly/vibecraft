@@ -126,6 +126,20 @@ pub struct BlockEntityMenuClose {
     pub container_id: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockEntityDestructionContext {
+    pub correct_tool: bool,
+    pub silk_touch: bool,
+    pub explosion_survives: bool,
+    pub do_tile_drops: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockEntityDestructionDrops {
+    pub block_item: Option<String>,
+    pub stored_items: Vec<PotItemStack>,
+}
+
 impl BlockEntityMenuOpen {
     pub fn close(self) -> BlockEntityMenuClose {
         BlockEntityMenuClose {
@@ -8355,6 +8369,26 @@ impl BlockEntity {
         self.save_with_full_metadata()
     }
 
+    pub fn destruction_drops(
+        &self,
+        context: BlockEntityDestructionContext,
+    ) -> BlockEntityDestructionDrops {
+        if !context.do_tile_drops || !context.explosion_survives {
+            return BlockEntityDestructionDrops {
+                block_item: None,
+                stored_items: Vec::new(),
+            };
+        }
+
+        let block_item = (context.correct_tool || context.silk_touch)
+            .then(|| block_item_from_state(&self.block_state).to_string());
+        let stored_items = stored_item_drops_from_tag(&self.save_without_metadata());
+        BlockEntityDestructionDrops {
+            block_item,
+            stored_items,
+        }
+    }
+
     pub fn get_update_tag(&self) -> Tag {
         match self.ty {
             BlockEntityTypeId::Chest
@@ -8544,6 +8578,36 @@ fn inventory_comparator_output(items: &[Option<PotItemStack>]) -> u8 {
         .sum::<f32>()
         / items.len().max(1) as f32;
     (1 + (fullness * 14.0).floor() as u8).min(MAX_SIGNAL)
+}
+
+fn block_item_from_state(block_state: &str) -> &str {
+    block_state.split('[').next().unwrap_or(block_state)
+}
+
+fn stored_item_drops_from_tag(tag: &Tag) -> Vec<PotItemStack> {
+    let Some(entries) = compound_entries(tag) else {
+        return Vec::new();
+    };
+    let mut drops = Vec::new();
+
+    if let Some(Tag::List(items)) = entries
+        .iter()
+        .find(|(key, _)| key == "Items")
+        .map(|(_, tag)| tag)
+    {
+        drops.extend(items.iter().filter_map(PotItemStack::from_tag));
+    }
+
+    for key in ["item", "Book", "RecordItem"] {
+        if let Some(item) = entries
+            .iter()
+            .find(|(name, _)| name == key)
+            .and_then(|(_, tag)| PotItemStack::from_tag(tag))
+        {
+            drops.push(item);
+        }
+    }
+    drops
 }
 
 fn container_items_tag(items: &[Option<PotItemStack>]) -> Tag {
@@ -12831,6 +12895,113 @@ mod tests {
             assert_eq!(
                 loaded.components, entity.components,
                 "{} components",
+                info.key
+            );
+        }
+    }
+
+    #[test]
+    fn destruction_drops_cover_tool_silk_explosion_gamerule_and_stored_items_for_every_type() {
+        let correct_tool = BlockEntityDestructionContext {
+            correct_tool: true,
+            silk_touch: false,
+            explosion_survives: true,
+            do_tile_drops: true,
+        };
+        let silk_touch = BlockEntityDestructionContext {
+            correct_tool: false,
+            silk_touch: true,
+            explosion_survives: true,
+            do_tile_drops: true,
+        };
+        let wrong_tool = BlockEntityDestructionContext {
+            correct_tool: false,
+            silk_touch: false,
+            explosion_survives: true,
+            do_tile_drops: true,
+        };
+        let explosion_consumed = BlockEntityDestructionContext {
+            correct_tool: true,
+            silk_touch: false,
+            explosion_survives: false,
+            do_tile_drops: true,
+        };
+        let tile_drops_disabled = BlockEntityDestructionContext {
+            correct_tool: true,
+            silk_touch: false,
+            explosion_survives: true,
+            do_tile_drops: false,
+        };
+
+        for info in BLOCK_ENTITY_TYPES {
+            let block_state = info
+                .valid_blocks
+                .first()
+                .expect("every block entity type has at least one valid block");
+            let mut entity = BlockEntity::new(info.id, pos(), block_state).unwrap();
+            entity.custom_data.insert(
+                "Items".to_string(),
+                Tag::List(vec![stack("minecraft:apple", 2).to_tag()]),
+            );
+            entity
+                .custom_data
+                .insert("item".to_string(), stack("minecraft:diamond", 1).to_tag());
+            entity.custom_data.insert(
+                "Book".to_string(),
+                stack("minecraft:written_book", 1).to_tag(),
+            );
+            entity.custom_data.insert(
+                "RecordItem".to_string(),
+                stack("minecraft:music_disc_13", 1).to_tag(),
+            );
+
+            assert_eq!(
+                entity.destruction_drops(correct_tool).block_item.as_deref(),
+                Some(block_item_from_state(block_state)),
+                "{} correct-tool block drop",
+                info.key
+            );
+            assert_eq!(
+                entity.destruction_drops(silk_touch).block_item.as_deref(),
+                Some(block_item_from_state(block_state)),
+                "{} silk-touch block drop",
+                info.key
+            );
+
+            let wrong_tool_drops = entity.destruction_drops(wrong_tool);
+            assert_eq!(
+                wrong_tool_drops.block_item, None,
+                "{} wrong-tool block drop",
+                info.key
+            );
+            assert_eq!(
+                wrong_tool_drops.stored_items,
+                vec![
+                    stack("minecraft:apple", 2),
+                    stack("minecraft:diamond", 1),
+                    stack("minecraft:written_book", 1),
+                    stack("minecraft:music_disc_13", 1),
+                ],
+                "{} stored item drops",
+                info.key
+            );
+
+            assert_eq!(
+                entity.destruction_drops(explosion_consumed),
+                BlockEntityDestructionDrops {
+                    block_item: None,
+                    stored_items: Vec::new(),
+                },
+                "{} explosion consumed drops",
+                info.key
+            );
+            assert_eq!(
+                entity.destruction_drops(tile_drops_disabled),
+                BlockEntityDestructionDrops {
+                    block_item: None,
+                    stored_items: Vec::new(),
+                },
+                "{} doTileDrops=false drops",
                 info.key
             );
         }

@@ -14,7 +14,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 - [ ] Complete everything in [CHECKLIST_STORAGE.md](CHECKLIST_STORAGE.md) for world storage, NBT, datafixing, and persisted files, then mark this off.
 - [ ] Complete everything in [CHECKLIST_WORLDGEN.md](CHECKLIST_WORLDGEN.md) for dimensions, chunk generation, chunk streaming, and vanilla worldgen parity, then mark this off.
 - [x] Complete everything in [CHECKLIST_BLOCKS.md](CHECKLIST_BLOCKS.md) for blocks, block states, block behavior, and block-entity integration, then mark this off.
-- [ ] Complete everything in [CHECKLIST_BLOCK_ENTITIES.md](CHECKLIST_BLOCK_ENTITIES.md) for block entity implementations, then mark this off.
+- [x] Complete everything in [CHECKLIST_BLOCK_ENTITIES.md](CHECKLIST_BLOCK_ENTITIES.md) for block entity implementations, then mark this off.
 - [x] Complete everything in [CHECKLIST_ITEMS.md](CHECKLIST_ITEMS.md) for items, inventories, item stacks, and crafting integration, then mark this off.
 - [ ] Complete everything in [CHECKLIST_CONTAINERS.md](CHECKLIST_CONTAINERS.md) for container menus and inventory transaction behavior, then mark this off.
 - [x] Complete everything in [CHECKLIST_RECIPES.md](CHECKLIST_RECIPES.md) for recipe loading and execution, then mark this off.
