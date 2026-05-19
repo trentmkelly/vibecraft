@@ -7,15 +7,15 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Implement root registry infrastructure matching `Registries` and `BuiltInRegistries`.
 - [x] Implement resource keys, identifiers, holder references, holder sets, tags, and lifecycle metadata.
 - [x] Implement frozen and mutable registry access phases.
-- [ ] Implement registry serialization/deserialization with data pack override behavior.
-- [ ] Implement bootstrapping for built-in registries before datapacks load.
+- [x] Implement registry serialization/deserialization with data pack override behavior.
+- [x] Implement bootstrapping for built-in registries before datapacks load.
 - [x] Implement datapack-driven dynamic registries.
-- [ ] Implement registry sync during configuration state.
-- [ ] Implement exact registry IDs and element ordering expected by clients.
+- [x] Implement registry sync during configuration state.
+- [x] Implement exact registry IDs and element ordering expected by clients.
 - [ ] Add a Mineflayer registry-sync test that captures configuration packets during offline-mode login and compares registry IDs, tag contents, known packs, and enabled feature order against official `server.jar`.
 - [ ] Add a Mineflayer registry-login-diff test that runs the same offline-mode bot against RustCraft and official `server.jar`, then emits a compact registry/configuration diff whenever play-state entry fails.
 - [ ] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions.
-- [ ] Implement codecs for JSON/NBT/network forms of registry-backed values.
+- [x] Implement codecs for JSON/NBT/network forms of registry-backed values.
 - [x] Implement feature flag registry and enabled-feature negotiation.
 - [x] Implement default enabled feature set for 26.1.2.
 - [x] Implement tag loading, replacement, optional entries, and error reporting.
