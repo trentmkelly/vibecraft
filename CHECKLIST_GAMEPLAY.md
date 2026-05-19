@@ -95,7 +95,7 @@
 - [ ] Implement lightning strike: random strike rate during thunderstorm, entity spawn chance (skeleton horse trap, pig→ZombifiedPiglin), entity conversion, fire starting, channeling enchantment trident
 - [x] Implement skylight effect of weather: CLEAR = 15, RAIN = 10, THUNDER = 10 — `weather::effective_sky_light` maps clear/rain/thunder to 15/10/10 and `sky_darken_amount_matches_vanilla_clear_rain_thunder` verifies the parity values
 - [x] Add Mineflayer weather tests: rain/thunder transitions triggered by `/weather`, lightning `ClientboundLevelEventPacket` observed by bot, weather command feedback, client state after reconnect
-- [ ] Implement sleep mechanics: `SleepStatus` counting sleeping players, `anyPlayersSleeping()` threshold (≥50% in multiplayer, or gamerule `playersSleepingPercentage`), morning transition (day time set to `24000`), `doInsomnia` gamerule gate, insomnia counter reset on sleep
+- [x] Implement sleep mechanics: `SleepStatus` counting sleeping players, `anyPlayersSleeping()` threshold (≥50% in multiplayer, or gamerule `playersSleepingPercentage`), morning transition (day time set to `24000`), `doInsomnia` gamerule gate, insomnia counter reset on sleep — `world_time.rs` models sleeper counts/thresholds, deep-sleep gating, wake-up time marker jumps, weather reset, and phantom-insomnia counters; covered by the sleep test group
 - [x] Add parity test: time-of-day jumps to correct morning value on sleep-skip, not just dawn (0)
 
 ## World Border
