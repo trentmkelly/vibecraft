@@ -88,7 +88,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer max-player enforcement test that fills available slots in offline mode and verifies the extra bot receives the vanilla full-server disconnect message.
 - [x] Implement `network-compression-threshold`.
 - [x] Implement `broadcast-rcon-to-ops`.
-- [ ] Implement `broadcast-console-to-ops`.
+- [x] Implement `broadcast-console-to-ops`.
 - [x] Implement clamped `max-world-size`.
 - [ ] Implement `sync-chunk-writes`.
 - [x] Implement `region-file-compression` with at least deflate parity.

@@ -9,6 +9,8 @@ pub struct CommandFeedbackContext {
     pub source_name: String,
     pub source_accepts_feedback: bool,
     pub source_silent: bool,
+    pub source_informs_admins: bool,
+    pub source_is_server: bool,
     pub send_command_feedback_rule: bool,
     pub log_admin_commands_rule: bool,
     pub admins: Vec<String>,
@@ -20,10 +22,26 @@ impl CommandFeedbackContext {
             source_name: "Server".to_string(),
             source_accepts_feedback: true,
             source_silent: false,
+            source_informs_admins: true,
+            source_is_server: true,
             send_command_feedback_rule: true,
             log_admin_commands_rule: true,
             admins: Vec::new(),
         }
+    }
+
+    pub fn with_console_broadcast(mut self, enabled: bool) -> Self {
+        self.source_name = "Server".to_string();
+        self.source_is_server = true;
+        self.source_informs_admins = enabled;
+        self
+    }
+
+    pub fn with_rcon_broadcast(mut self, enabled: bool) -> Self {
+        self.source_name = "Rcon".to_string();
+        self.source_is_server = false;
+        self.source_informs_admins = enabled;
+        self
     }
 }
 
@@ -84,32 +102,33 @@ pub fn route_command_feedback(
 ) -> Result<CommandFeedbackPlan, String> {
     let component = format_command_feedback(result, args)?;
     let mut packets = Vec::new();
-    if context.source_accepts_feedback
-        && context.send_command_feedback_rule
-        && !context.source_silent
-    {
+    if context.source_accepts_feedback && !context.source_silent {
         packets.push(CommandFeedbackPacket {
             target: FeedbackTarget::Source,
             overlay: false,
             component: component.clone(),
         });
     }
-    if result.broadcast_to_admins && context.log_admin_commands_rule && !context.source_silent {
+    if result.broadcast_to_admins && context.source_informs_admins && !context.source_silent {
         let admin_component = admin_broadcast_component(&context.source_name, component.clone());
-        for admin in &context.admins {
-            if admin != &context.source_name {
-                packets.push(CommandFeedbackPacket {
-                    target: FeedbackTarget::Admin(admin.clone()),
-                    overlay: false,
-                    component: admin_component.clone(),
-                });
+        if context.send_command_feedback_rule {
+            for admin in &context.admins {
+                if admin != &context.source_name {
+                    packets.push(CommandFeedbackPacket {
+                        target: FeedbackTarget::Admin(admin.clone()),
+                        overlay: false,
+                        component: admin_component.clone(),
+                    });
+                }
             }
         }
-        packets.push(CommandFeedbackPacket {
-            target: FeedbackTarget::Log,
-            overlay: false,
-            component: admin_component,
-        });
+        if !context.source_is_server && context.log_admin_commands_rule {
+            packets.push(CommandFeedbackPacket {
+                target: FeedbackTarget::Log,
+                overlay: false,
+                component: admin_component,
+            });
+        }
     }
     Ok(CommandFeedbackPlan {
         success_count: result.success_count,
@@ -216,12 +235,14 @@ mod tests {
     #[test]
     fn routes_feedback_to_source_admins_and_log_when_vanilla_broadcast_flag_is_set() {
         let context = CommandFeedbackContext {
-            source_name: "Console".to_string(),
+            source_name: "Rcon".to_string(),
             source_accepts_feedback: true,
             source_silent: false,
+            source_informs_admins: true,
+            source_is_server: false,
             send_command_feedback_rule: true,
             log_admin_commands_rule: true,
-            admins: vec!["Alex".to_string(), "Console".to_string()],
+            admins: vec!["Alex".to_string(), "Rcon".to_string()],
         };
         let plan =
             route_command_feedback(&result("commands.save.success", true), &[], &context).unwrap();
@@ -237,13 +258,13 @@ mod tests {
             plan.packets[1]
                 .component
                 .render_plain(&translations(), &ResolutionContext::default()),
-            "[Console: Saved the game]"
+            "[Rcon: Saved the game]"
         );
     }
 
     #[test]
     fn gamerules_and_silent_sources_suppress_the_same_routes_as_vanilla() {
-        let mut context = CommandFeedbackContext::console();
+        let mut context = CommandFeedbackContext::console().with_rcon_broadcast(true);
         context.send_command_feedback_rule = false;
         context.admins = vec!["Alex".to_string()];
         let plan =
@@ -253,16 +274,58 @@ mod tests {
                 .iter()
                 .map(|packet| &packet.target)
                 .collect::<Vec<_>>(),
-            vec![
-                &FeedbackTarget::Admin("Alex".to_string()),
-                &FeedbackTarget::Log
-            ]
+            vec![&FeedbackTarget::Source, &FeedbackTarget::Log]
         );
 
         context.source_silent = true;
         let silent =
             route_command_feedback(&result("commands.save.success", true), &[], &context).unwrap();
         assert!(silent.packets.is_empty());
+    }
+
+    #[test]
+    fn console_and_rcon_broadcast_properties_gate_admin_notifications_like_vanilla() {
+        let mut console = CommandFeedbackContext::console().with_console_broadcast(false);
+        console.admins = vec!["Alex".to_string()];
+        let console_plan =
+            route_command_feedback(&result("commands.save.success", true), &[], &console).unwrap();
+        assert_eq!(
+            console_plan
+                .packets
+                .iter()
+                .map(|packet| &packet.target)
+                .collect::<Vec<_>>(),
+            vec![&FeedbackTarget::Source]
+        );
+
+        let mut rcon = CommandFeedbackContext::console().with_rcon_broadcast(false);
+        rcon.admins = vec!["Alex".to_string()];
+        let rcon_plan =
+            route_command_feedback(&result("commands.save.success", true), &[], &rcon).unwrap();
+        assert_eq!(
+            rcon_plan
+                .packets
+                .iter()
+                .map(|packet| &packet.target)
+                .collect::<Vec<_>>(),
+            vec![&FeedbackTarget::Source]
+        );
+
+        rcon = rcon.with_rcon_broadcast(true);
+        let broadcast_plan =
+            route_command_feedback(&result("commands.save.success", true), &[], &rcon).unwrap();
+        assert_eq!(
+            broadcast_plan
+                .packets
+                .iter()
+                .map(|packet| &packet.target)
+                .collect::<Vec<_>>(),
+            vec![
+                &FeedbackTarget::Source,
+                &FeedbackTarget::Admin("Alex".to_string()),
+                &FeedbackTarget::Log
+            ]
+        );
     }
 
     #[test]
