@@ -23261,17 +23261,8 @@ pub fn parse_flat_generator_settings_value(
     let biome = json_string_field(object, "biome")?.to_string();
     let add_lakes = json_bool_field(object, "lakes")?;
     let decoration = json_bool_field(object, "features")?;
-    let structure_overrides = json_required(object, "structure_overrides")?
-        .as_array()
-        .ok_or_else(|| "structure_overrides must be an array".to_string())?
-        .iter()
-        .map(|entry| {
-            entry
-                .as_str()
-                .map(str::to_string)
-                .ok_or_else(|| "structure_overrides entries must be strings".to_string())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let structure_overrides =
+        parse_structure_overrides(json_required(object, "structure_overrides")?)?;
     let layers = json_required(object, "layers")?
         .as_array()
         .ok_or_else(|| "layers must be an array".to_string())?
@@ -23293,6 +23284,23 @@ pub fn parse_flat_generator_settings_value(
         decoration,
         layers,
     })
+}
+
+fn parse_structure_overrides(value: &serde_json::Value) -> Result<Vec<String>, String> {
+    if let Some(single) = value.as_str() {
+        return Ok(vec![single.to_string()]);
+    }
+    value
+        .as_array()
+        .ok_or_else(|| "structure_overrides must be a string or array".to_string())?
+        .iter()
+        .map(|entry| {
+            entry
+                .as_str()
+                .map(str::to_string)
+                .ok_or_else(|| "structure_overrides entries must be strings".to_string())
+        })
+        .collect()
 }
 
 fn dimension_order_key(id: &str) -> (u8, &str) {

@@ -3,6 +3,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use crate::worldgen::{parse_flat_generator_settings_value, parse_world_preset_json};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WorldgenResourceKind {
     Biome,
@@ -93,7 +95,7 @@ fn validate_worldgen_object(
         }
         WorldgenResourceKind::FlatLevelGeneratorPreset => {
             require_value(object, "display")?;
-            require_object(object, "settings")?;
+            parse_flat_generator_settings_value(require_object_value(object, "settings")?)?;
         }
         WorldgenResourceKind::MultiNoiseBiomeSourceParameterList => {
             if !object.contains_key("preset") && !object.contains_key("parameters") {
@@ -133,6 +135,8 @@ fn validate_worldgen_object(
         }
         WorldgenResourceKind::WorldPreset => {
             require_object(object, "dimensions")?;
+            let raw = serde_json::Value::Object(object.clone());
+            parse_world_preset_json(&raw.to_string())?;
         }
     }
     Ok(())
@@ -199,9 +203,16 @@ fn require_object<'a>(
     object: &'a serde_json::Map<String, serde_json::Value>,
     field: &str,
 ) -> Result<&'a serde_json::Map<String, serde_json::Value>, String> {
-    require_value(object, field)?
+    require_object_value(object, field)?
         .as_object()
         .ok_or_else(|| format!("{field} must be an object"))
+}
+
+fn require_object_value<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<&'a serde_json::Value, String> {
+    require_value(object, field)
 }
 
 fn require_array<'a>(
