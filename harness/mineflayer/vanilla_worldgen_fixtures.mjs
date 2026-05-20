@@ -15,6 +15,58 @@ export const OVERWORLD_PARITY_MATRIX_CHUNKS = [
   { x: 16, z: 16 }
 ]
 
+export const OVERWORLD_TARGET_FIXTURE_CHUNKS = [
+  {
+    id: 'overworld_ocean_target',
+    category: 'ocean_target',
+    seed: 8675309n,
+    chunks: [{ x: -42, z: 19 }, { x: -41, z: 19 }, { x: -42, z: 20 }],
+    notes: 'Ocean-target chunks for water surface, ocean-floor heightmaps, seagrass/kelp feature palettes, and fluid-heavy terrain parity.'
+  },
+  {
+    id: 'overworld_mountain_target',
+    category: 'mountain_target',
+    seed: 8675309n,
+    chunks: [{ x: 54, z: -37 }, { x: 55, z: -37 }, { x: 54, z: -36 }],
+    notes: 'Mountain-target chunks for high terrain, steep surface rules, snow/stone strata, cave exposure, and heightmap parity.'
+  },
+  {
+    id: 'overworld_river_target',
+    category: 'river_target',
+    seed: 123456789n,
+    chunks: [{ x: -12, z: 33 }, { x: -11, z: 33 }, { x: -12, z: 34 }],
+    notes: 'River-target chunks for narrow biome transitions, water surface placement, shore material rules, and heightmap parity.'
+  },
+  {
+    id: 'overworld_cave_heavy_target',
+    category: 'cave_heavy_target',
+    seed: -1n,
+    chunks: [{ x: 22, z: 22 }, { x: 23, z: 22 }, { x: 22, z: 23 }],
+    notes: 'Cave-heavy target chunks for aquifer/carver exposure, underground section palettes, lava/water pockets, and cave opening parity.'
+  },
+  {
+    id: 'overworld_village_adjacent_target',
+    category: 'village_adjacent_target',
+    seed: 2147483647n,
+    chunks: [{ x: 8, z: -24 }, { x: 9, z: -24 }, { x: 8, z: -23 }],
+    notes: 'Village-adjacent target chunks for structure references, terrain adjustment, paths, jigsaw pieces, and inhabited surface parity.'
+  },
+  {
+    id: 'overworld_structure_adjacent_target',
+    category: 'structure_adjacent_target',
+    seed: 123456789n,
+    chunks: [{ x: -48, z: -16 }, { x: -47, z: -16 }, { x: -48, z: -15 }],
+    notes: 'Structure-adjacent target chunks for starts/references, structure boundary persistence, terrain adjustment, and chunk NBT parity.'
+  },
+  {
+    id: 'overworld_ore_vein_heavy_target',
+    category: 'ore_vein_heavy_target',
+    seed: 0n,
+    chunks: [{ x: 31, z: -31 }, { x: 32, z: -31 }, { x: 31, z: -30 }],
+    notes: 'Ore-vein-heavy target chunks for deep ore palette samples, raw ore blocks, noise-driven ore veinifier behavior, and section palette parity.'
+  }
+]
+
 export const DIMENSION_PARITY_MATRIX_SEEDS = [0n, 1n, -1n, 2147483647n]
 export const DIMENSION_PARITY_MATRIX_CHUNKS = {
   the_nether: [
@@ -59,7 +111,8 @@ export const OVERWORLD_FIXTURE_CASES = [
     seed: 123456789n,
     chunks: [{ x: 64, z: 64 }, { x: -64, z: 32 }, { x: 96, z: -96 }],
     notes: 'Far coordinate noise sample to expose large-coordinate random, climate, surface, aquifer, and carver drift.'
-  }
+  },
+  ...OVERWORLD_TARGET_FIXTURE_CHUNKS
 ]
 
 export const DIMENSION_FIXTURE_CASES = [

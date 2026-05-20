@@ -8,6 +8,7 @@ import {
   OVERWORLD_FIXTURE_CASES,
   OVERWORLD_PARITY_MATRIX_CHUNKS,
   OVERWORLD_PARITY_MATRIX_SEEDS,
+  OVERWORLD_TARGET_FIXTURE_CHUNKS,
   fixtureManifest,
   runDimensionFixtureSuite
 } from './vanilla_worldgen_fixtures.mjs'
@@ -19,13 +20,33 @@ test('overworld fixture manifest covers normal terrain parity categories', () =>
   assert(categories.has('region_boundary_negative_coords'))
   assert(categories.has('far_noise_sample'))
   assert(categories.has('explicit_overworld_seed_coordinate_matrix'))
-  assert.equal(OVERWORLD_FIXTURE_CASES.length, 7)
+  assert.equal(OVERWORLD_FIXTURE_CASES.length, 14)
   for (const fixture of OVERWORLD_FIXTURE_CASES) {
     assert.match(fixture.id, /^overworld_/)
     assert.equal(typeof fixture.seed, 'bigint')
     assert(fixture.chunks.length >= 3)
     assert(fixture.notes.length > 20)
     assert(fixture.chunks.every(chunk => (chunk.dimension ?? 'overworld') === 'overworld'))
+  }
+})
+
+test('overworld fixture manifest covers named terrain and structure targets', () => {
+  const categories = new Set(OVERWORLD_TARGET_FIXTURE_CHUNKS.map(fixture => fixture.category))
+
+  assert.deepEqual([...categories].sort(), [
+    'cave_heavy_target',
+    'mountain_target',
+    'ocean_target',
+    'ore_vein_heavy_target',
+    'river_target',
+    'structure_adjacent_target',
+    'village_adjacent_target'
+  ])
+  for (const fixture of OVERWORLD_TARGET_FIXTURE_CHUNKS) {
+    assert.equal(typeof fixture.seed, 'bigint')
+    assert.equal(fixture.chunks.length, 3)
+    assert(fixture.chunks.every(chunk => (chunk.dimension ?? 'overworld') === 'overworld'))
+    assert.match(fixture.notes, /parity/)
   }
 })
 
