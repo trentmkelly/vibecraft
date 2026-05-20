@@ -590,6 +590,17 @@ pub fn parse_vanilla_fixture_report(raw: &str) -> Result<VanillaFixtureReport, S
     Ok(VanillaFixtureReport { format, chunks })
 }
 
+pub fn load_rustcraft_worldgen_report(
+    path: impl AsRef<Path>,
+) -> Result<Vec<WorldgenChunkSignature>, String> {
+    parse_rustcraft_worldgen_report(&fs::read_to_string(path.as_ref()).map_err(|err| {
+        format!(
+            "failed to read RustCraft worldgen report {}: {err}",
+            path.as_ref().display()
+        )
+    })?)
+}
+
 pub fn parse_rustcraft_worldgen_report(raw: &str) -> Result<Vec<WorldgenChunkSignature>, String> {
     let root: Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid RustCraft report JSON: {err}"))?;
@@ -1457,6 +1468,30 @@ mod tests {
                 right: "\"minecraft:noise\"".to_string(),
             })]
         );
+    }
+
+    #[test]
+    fn rustcraft_worldgen_report_loads_from_generated_json_file() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+        let root = std::env::temp_dir().join(format!(
+            "rustcraft-worldgen-report-load-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("worldgen_chunks.json");
+        std::fs::write(&path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
+
+        let loaded = load_rustcraft_worldgen_report(&path).unwrap();
+
+        assert_eq!(loaded, vec![build_chunk_signature(&chunk)]);
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
