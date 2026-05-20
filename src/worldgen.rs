@@ -24200,6 +24200,12 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
     if chunk_generation_mob_is_animal(snap.entity_type) {
         fields.push(("InLove".to_string(), Tag::Int(0)));
     }
+    if chunk_generation_mob_is_abstract_horse(snap.entity_type) {
+        fields.push(("EatingHaystack".to_string(), Tag::Byte(0)));
+        fields.push(("Bred".to_string(), Tag::Byte(0)));
+        fields.push(("Temper".to_string(), Tag::Int(0)));
+        fields.push(("Tame".to_string(), Tag::Byte(0)));
+    }
     append_chunk_generation_mob_specific_save_fields(snap.entity_type, &mut fields);
     Tag::Compound(fields)
 }
@@ -24224,9 +24230,16 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("RabbitType".to_string(), Tag::Int(0)));
             fields.push(("MoreCarrotTicks".to_string(), Tag::Int(0)));
         }
+        "minecraft:donkey" | "minecraft:llama" | "minecraft:mule" | "minecraft:trader_llama" => {
+            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+        }
         "minecraft:sheep" => {
             fields.push(("Sheared".to_string(), Tag::Byte(0)));
             fields.push(("Color".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:skeleton_horse" => {
+            fields.push(("SkeletonTrap".to_string(), Tag::Byte(0)));
+            fields.push(("SkeletonTrapTime".to_string(), Tag::Int(0)));
         }
         _ => {}
     }
@@ -24324,6 +24337,20 @@ fn chunk_generation_mob_is_animal(entity_type: &str) -> bool {
             | "minecraft:trader_llama"
             | "minecraft:turtle"
             | "minecraft:wolf"
+            | "minecraft:zombie_horse"
+    )
+}
+
+fn chunk_generation_mob_is_abstract_horse(entity_type: &str) -> bool {
+    matches!(
+        entity_type,
+        "minecraft:camel"
+            | "minecraft:donkey"
+            | "minecraft:horse"
+            | "minecraft:llama"
+            | "minecraft:mule"
+            | "minecraft:skeleton_horse"
+            | "minecraft:trader_llama"
             | "minecraft:zombie_horse"
     )
 }
@@ -58917,6 +58944,62 @@ mod tests {
         assert!(!ageable_non_animal_fields
             .iter()
             .any(|(name, _)| name == "InLove"));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_horse_family_save_fields() {
+        let horse = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:horse",
+            width: 1.3965,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let donkey = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:donkey",
+            width: 1.3965,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let skeleton_horse = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:skeleton_horse",
+            width: 1.3965,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(horse_fields) =
+            super::chunk_generation_mob_entity_nbt(horse, "00000000-0000-0000-0000-000000000132")
+        else {
+            panic!("horse entity nbt must be a compound");
+        };
+        let Tag::Compound(donkey_fields) =
+            super::chunk_generation_mob_entity_nbt(donkey, "00000000-0000-0000-0000-000000000133")
+        else {
+            panic!("donkey entity nbt must be a compound");
+        };
+        let Tag::Compound(skeleton_horse_fields) = super::chunk_generation_mob_entity_nbt(
+            skeleton_horse,
+            "00000000-0000-0000-0000-000000000134",
+        ) else {
+            panic!("skeleton horse entity nbt must be a compound");
+        };
+
+        for field_name in ["EatingHaystack", "Bred", "Tame"] {
+            assert!(horse_fields.contains(&(field_name.to_string(), Tag::Byte(0))));
+        }
+        assert!(horse_fields.contains(&("Temper".to_string(), Tag::Int(0))));
+        assert!(donkey_fields.contains(&("ChestedHorse".to_string(), Tag::Byte(0))));
+        assert!(skeleton_horse_fields.contains(&("SkeletonTrap".to_string(), Tag::Byte(0))));
+        assert!(skeleton_horse_fields.contains(&("SkeletonTrapTime".to_string(), Tag::Int(0))));
     }
 
     #[test]
