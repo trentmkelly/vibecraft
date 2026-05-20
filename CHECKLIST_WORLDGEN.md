@@ -263,13 +263,13 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement dimension type properties, skylight, coordinate scale, infiniburn, bed/respawn behavior, raids, logical height, min Y, height, monster settings, and ambient effects.
 - [ ] Implement world options: seed, generate structures, bonus chest, demo mode.
 - [ ] Implement normal, flat, large biome, amplified, single biome, and datapack world presets if present in 26.1.2 data.
-- [ ] Implement biome registry and climate parameter selection.
-- [ ] Implement noise settings.
-- [ ] Implement density functions.
-- [ ] Implement noise routers.
-- [ ] Implement surface rules.
+- [x] Implement biome registry and climate parameter selection.
+- [x] Implement noise settings.
+- [x] Implement density functions.
+- [x] Implement noise routers.
+- [x] Implement surface rules.
 - [ ] Implement aquifers and cave generation.
-- [ ] Implement ore veinifier behavior.
+- [x] Implement ore veinifier behavior.
 - [ ] Implement carvers.
 - [ ] Implement features.
 - [ ] Implement configured features.
@@ -285,7 +285,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Add a Mineflayer spawn-area safety test that repeatedly creates seeded offline-mode worlds, joins a bot, and verifies vanilla-compatible spawn search, collision-free placement, and immediate chunk availability.
 - [x] Add raw 26.1.2 multi-seed spawn-area safety fallback coverage that repeatedly creates seeded offline-mode worlds, verifies the default spawn and first position are inside the initial chunk batch, and sends first-tick movement without retry sleeps while Mineflayer lacks target-protocol play support.
 - [ ] Implement world border effects on generation and gameplay.
-- [ ] Implement random source algorithms exactly where worldgen parity depends on them.
+- [x] Implement random source algorithms exactly where worldgen parity depends on them.
 - [ ] Validate same seed produces same chunks, biomes, structures, loot seeds, and spawn area as vanilla.
 
 ## Migrated From Main Checklist: Chunk System
