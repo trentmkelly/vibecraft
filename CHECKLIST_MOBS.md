@@ -164,7 +164,7 @@
   - [x] Implement Java-matched `Camel` movement state: 55-tick dash cooldown, 5-tick minimum dash duration, sit/stand pose tick encoding, 40/52 tick pose-transition gates, sprint speed bonus, baby/sitting dimensions, and two-passenger attachment offsets
 - [x] Implement `Chicken`: egg-laying timer (5–10 minute interval), flutter-fall (no fall damage), baby chick → adult transition
   - [x] Implement Java-matched `Chicken` egg timer/flap fall model: 6000-11999 tick egg interval, non-baby non-jockey egg gate, falling Y velocity damping, baby dimensions, jockey despawn/XP behavior, and `EggLayTime` save field
-- [ ] Implement `Cow`: mooshroom conversion via direct lightning strike, bucket milking interaction, breeding via wheat
+- [x] Implement `Cow`: mooshroom conversion via direct lightning strike, bucket milking interaction, breeding via wheat
   - [x] Implement Java-matched `Cow`/`AbstractCow`/`MushroomCow` interaction model: wheat food, adult bucket milking, baby dimensions, cow variant inheritance, mooshroom lightning toggle dedupe, and 1/1024 same-variant offspring mutation
 - [ ] Implement `Dolphin`: locate-treasure AI (swim toward nearest buried treasure within 64 blocks), grace boost on nearby player swimming, strand and suffocate on land
   - [x] Implement Java-matched `Dolphin` server-visible gates: 4800 air, 2400 moistness, dry-out damage/jump sync, fish feeding `GotFish` or baby age-up, treasure goal air/radius/stop gates, and 100-tick Dolphin's Grace refresh
@@ -185,7 +185,7 @@
 - [x] Implement `Nautilus` variants (new variant types in 26.1.2 registry): `zombie_nautilus_variant` temperate/warm registry data, default save field, and warm metadata sync match Java `ZombieNautilusVariants`/`ZombieNautilus`
 - [ ] Implement `Panda`: 7 personality traits (lazy/playful/worried/aggressive/weak/brown/normal), sneeze mechanic, rolling animation, bamboo eating
 - [ ] Implement `Parrot`: imitation of nearby mob sounds, shoulder riding, dancing to jukebox within range, cookie-poisoning death
-- [ ] Implement `Pig`: saddle+ride, carrot-on-a-stick steering and durability, lightning → ZombifiedPiglin conversion
+- [x] Implement `Pig`: saddle+ride, carrot-on-a-stick steering and durability, lightning → ZombifiedPiglin conversion
   - [x] Implement Java-matched `Pig` riding and conversion gates: saddle-slot/adult checks, carrot-on-a-stick controller gate, 140-980 tick boost timer, ridden speed boost factor, 7-damage/25-durability boost item use, breeding variant inheritance, and non-peaceful lightning conversion
 - [ ] Implement `PolarBear`: neutral until cub is nearby, aggressive to foxes, swim AI
   - [x] Implement Java-matched `PolarBear` server-visible gates: cub-protection player targeting, adult-only fox targeting and hurt alerts, standing warning attack window, 40-tick warning cooldown, 6-tick standing animation scale, 20-39s anger range, and 0.98 water slowdown
