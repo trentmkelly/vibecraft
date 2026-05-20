@@ -2105,6 +2105,19 @@ pub struct RootSystemPlacementPlan {
     pub attempted_roots: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TreeConfigurationModel {
+    pub trunk_provider: BlockStateProviderModel,
+    pub foliage_provider: BlockStateProviderModel,
+    pub dirt_provider: BlockStateProviderModel,
+    pub trunk_placer: TrunkPlacerModel,
+    pub foliage_placer: FoliagePlacerModel,
+    pub minimum_size: FeatureSizeModel,
+    pub root_placer: Option<RootPlacerModel>,
+    pub decorators: Vec<TreeDecoratorModel>,
+    pub ignore_vines: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreePlacementBlockKind {
     DirtBelowTrunk,
@@ -31789,6 +31802,76 @@ pub fn tree_can_place(
         || min_clipped_height.is_some_and(|min| clipped_tree_height >= min)
 }
 
+fn feature_size_min_clipped_height(size: FeatureSizeModel) -> Option<i32> {
+    match size {
+        FeatureSizeModel::TwoLayers {
+            min_clipped_height, ..
+        }
+        | FeatureSizeModel::ThreeLayers {
+            min_clipped_height, ..
+        } => min_clipped_height,
+    }
+}
+
+pub fn validate_tree_configuration(config: &TreeConfigurationModel) -> Result<(), String> {
+    validate_trunk_placer(config.trunk_placer)?;
+    validate_foliage_placer(config.foliage_placer)?;
+    validate_feature_size(config.minimum_size)?;
+    if let Some(root_placer) = config.root_placer {
+        validate_root_placer(root_placer)?;
+    }
+    for decorator in config.decorators.iter().copied() {
+        validate_tree_decorator(decorator)?;
+    }
+    if block_state_provider_sample(&config.trunk_provider, 0).is_none()
+        || block_state_provider_sample(&config.foliage_provider, 0).is_none()
+        || block_state_provider_sample(&config.dirt_provider, 0).is_none()
+    {
+        return Err("tree configuration providers must sample block states".to_string());
+    }
+    Ok(())
+}
+
+pub fn configured_tree_placement_plan(
+    origin: BlockPos,
+    config: &TreeConfigurationModel,
+    build_min_y: i32,
+    build_max_y: i32,
+    replaceable_rows: &[&[&str]],
+    rand_a: i32,
+    rand_b: i32,
+) -> Result<Option<TreePlacementPlan>, String> {
+    validate_tree_configuration(config)?;
+    let tree_height = trunk_placer_height(config.trunk_placer, rand_a, rand_b);
+    if !tree_can_place(
+        origin,
+        origin,
+        tree_height,
+        config.minimum_size,
+        feature_size_min_clipped_height(config.minimum_size),
+        build_min_y,
+        build_max_y,
+        replaceable_rows,
+        config.ignore_vines,
+    ) {
+        return Ok(None);
+    }
+
+    Ok(Some(simple_tree_placement_plan(
+        origin,
+        config.trunk_placer,
+        config.foliage_placer,
+        block_state_provider_sample(&config.trunk_provider, rand_a)
+            .expect("tree configuration was validated"),
+        block_state_provider_sample(&config.foliage_provider, rand_b)
+            .expect("tree configuration was validated"),
+        block_state_provider_sample(&config.dirt_provider, rand_a + rand_b)
+            .expect("tree configuration was validated"),
+        rand_a,
+        rand_b,
+    )?))
+}
+
 pub fn validate_foliage_placer(placer: FoliagePlacerModel) -> Result<FoliagePlacerModel, String> {
     if !(0..=16).contains(&placer.radius_min)
         || !(0..=16).contains(&placer.radius_max)
@@ -45907,6 +45990,97 @@ mod tests {
             block.kind == TreePlacementBlockKind::Leaves
                 && block.pos == BlockPos { x: 10, y: 68, z: 8 }
         }));
+        let tree_config = super::TreeConfigurationModel {
+            trunk_provider: BlockStateProviderModel::Simple("minecraft:oak_log"),
+            foliage_provider: BlockStateProviderModel::Simple("minecraft:oak_leaves"),
+            dirt_provider: BlockStateProviderModel::Simple("minecraft:dirt"),
+            trunk_placer: straight_trunk,
+            foliage_placer: FoliagePlacerModel {
+                offset_min: 0,
+                offset_max: 0,
+                ..blob_foliage
+            },
+            minimum_size: min_size,
+            root_placer: Some(mangrove_root),
+            decorators: vec![TreeDecoratorModel::Cocoa { probability: 0.25 }],
+            ignore_vines: false,
+        };
+        assert_eq!(super::validate_tree_configuration(&tree_config), Ok(()));
+        let full_tree_rows = [
+            &free_row[..],
+            &free_row,
+            &free_row,
+            &free_row,
+            &free_row,
+            &free_row,
+            &free_row,
+            &free_row,
+            &free_row,
+        ];
+        let configured_plan = super::configured_tree_placement_plan(
+            BlockPos { x: 8, y: 64, z: 8 },
+            &tree_config,
+            -64,
+            320,
+            &full_tree_rows,
+            1,
+            1,
+        )
+        .unwrap()
+        .expect("valid tree config should place");
+        assert!(configured_plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::DirtBelowTrunk && block.state == "minecraft:dirt"
+        }));
+        assert!(super::configured_tree_placement_plan(
+            BlockPos { x: 8, y: -64, z: 8 },
+            &tree_config,
+            -64,
+            320,
+            &full_tree_rows,
+            1,
+            1,
+        )
+        .unwrap()
+        .is_none());
+        let vine_blocked_rows = [&vine_row[..]];
+        assert!(super::configured_tree_placement_plan(
+            BlockPos { x: 8, y: 64, z: 8 },
+            &tree_config,
+            -64,
+            320,
+            &vine_blocked_rows,
+            1,
+            1,
+        )
+        .unwrap()
+        .is_none());
+        let clipped_rows = [
+            &free_row[..],
+            &free_row,
+            &free_row,
+            &free_row,
+            &free_row,
+            &stone_row,
+        ];
+        assert!(super::configured_tree_placement_plan(
+            BlockPos { x: 8, y: 64, z: 8 },
+            &tree_config,
+            -64,
+            320,
+            &clipped_rows,
+            1,
+            1,
+        )
+        .unwrap()
+        .is_some());
+        assert_eq!(
+            super::validate_tree_configuration(&super::TreeConfigurationModel {
+                decorators: vec![TreeDecoratorModel::Cocoa { probability: 1.25 }],
+                ..tree_config.clone()
+            })
+            .unwrap_err(),
+            "tree decorator probability must be in 0.0..=1.0".to_string()
+        );
         let bush_plan = super::simple_tree_placement_plan(
             BlockPos {
                 x: 20,
