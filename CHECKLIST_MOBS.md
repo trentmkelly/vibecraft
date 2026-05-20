@@ -144,7 +144,7 @@
 
 ### Zombie Family
 - [ ] Implement `Zombie`: drowning conversion to Drowned (baby cannot convert), baby zombie (5% chance, 25×faster), reinforcement summoning on hit (when `doMobSpawning` gamerule is on)
-- [ ] Implement `Drowned`: trident attack AI (throw trident only when in water/rain), swim AI, nautilus-shell attraction
+- [x] Implement `Drowned`: trident attack AI, swim AI, water/depth spawn gates, nautilus-shell offhand chance, zombie-nautilus jockey chance, spear pickup rejection
 - [x] Implement `Husk`: desert biome only, does not burn in daylight, hunger effect on hit, water conversion to Zombie, baby dimensions, loot pickup chance, camel-husk/parched rider finalize-spawn gate
 - [ ] Implement `ZombieVillager`: `conversionTime` countdown when given Weakness + golden apple, curing discounts on trade prices, profession/village preserved through conversion
 - [ ] Implement `ZombifiedPiglin`: neutral until hit, group-anger propagation (nearby ZombifiedPiglins within 67 blocks angered), portal-spawn on nether entry
