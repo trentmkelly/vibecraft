@@ -747,9 +747,7 @@ fn parse_fixture_chunk(
 
 fn parse_rustcraft_chunk_signature(value: &Value) -> Result<WorldgenChunkSignature, String> {
     Ok(WorldgenChunkSignature {
-        dimension: string_field_value(value, "dimension")
-            .unwrap_or("overworld")
-            .to_string(),
+        dimension: required_non_empty_string(value, "dimension", "RustCraft chunk")?.to_string(),
         chunk: ChunkCoord {
             x: i32_field(value, "chunkX")?,
             z: i32_field(value, "chunkZ")?,
@@ -885,6 +883,19 @@ fn string_array_field(value: &Value, field: &str) -> Result<Vec<String>, String>
 
 fn string_field_value<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
     value.get(field).and_then(Value::as_str)
+}
+
+fn required_non_empty_string<'a>(
+    value: &'a Value,
+    field: &str,
+    context: &str,
+) -> Result<&'a str, String> {
+    let raw =
+        string_field_value(value, field).ok_or_else(|| format!("{context} missing {field}"))?;
+    if raw.is_empty() {
+        return Err(format!("{context} has empty {field}"));
+    }
+    Ok(raw)
 }
 
 fn i32_field(value: &Value, field: &str) -> Result<i32, String> {
@@ -1544,6 +1555,31 @@ mod tests {
                 left: "\"minecraft:full\"".to_string(),
                 right: "\"minecraft:noise\"".to_string(),
             })]
+        );
+    }
+
+    #[test]
+    fn rustcraft_worldgen_report_requires_explicit_chunk_dimension() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let mut report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+        report["chunks"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("dimension");
+
+        assert_eq!(
+            parse_rustcraft_worldgen_report(&serde_json::to_string(&report).unwrap()).unwrap_err(),
+            "RustCraft chunk missing dimension"
+        );
+
+        report["chunks"][0]["dimension"] = Value::String(String::new());
+        assert_eq!(
+            parse_rustcraft_worldgen_report(&serde_json::to_string(&report).unwrap()).unwrap_err(),
+            "RustCraft chunk has empty dimension"
         );
     }
 
