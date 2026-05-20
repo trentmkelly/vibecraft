@@ -64,7 +64,7 @@
 - [ ] Implement `EnderMan`: holding block (pickup/place logic), teleport on water/rain, look-at-eyes anger trigger, teleport-away from projectiles, scream sound on anger
 - [ ] Implement `Endermite`: spawn from ender pearl (5% chance), 2-minute despawn timer, attacked by endermen
 - [ ] Implement `Ghast`: attack cycle (charge fireball, shoot), large hitbox (4×4×4), fire immunity, scream/shoot sounds, deflectable fireball by projectiles/swords
-- [ ] Implement `Giant`: legacy oversized zombie (no natural spawn, only `/summon`), 12-block height, no AI goals
+- [x] Implement `Giant`: legacy oversized zombie (no natural spawn, only `/summon`), 12-block height, no AI goals
 - [ ] Implement `Guardian`: laser beam targeting (beam charge, inflict damage at full charge), spikes thorns, elder spawning on death
 - [ ] Implement `MagmaCube`: split into smaller cubes on death (size-1 → 2–4 smaller), slime-family movement, fire immunity
   - [x] Implement Java-matched `MagmaCube` server-visible slime-family gates: peaceful-only spawn rejection, inherited size clamp/split offsets/counts, armor = size×3, create-attributes base speed 0.2 plus inherited size-scaled movement, always-effective-AI damage even when tiny, attack damage +2, 4x jump delay, 0.9 squish decay, `isOnFire() == false`, ground jump +0.1×size, and lava jump `0.22 + 0.05×size`.
