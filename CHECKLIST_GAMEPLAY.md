@@ -52,7 +52,7 @@
 ## Status Effects
 
 - [x] Add Mineflayer status-effect tests: apply effect (verify `ClientboundUpdateMobEffectPacket`), tick effect (duration countdown), stack amplifier (higher amplifier replaces lower), expire (remove packet sent), clear via milk bucket (`LivingEntity.removeAllEffects()`), save to playerdata and verify restore on reconnect, verify client-visible particles/icons/amplifiers/durations match vanilla
-- [ ] Implement all vanilla mob effects with correct tick behavior:
+- [x] Implement all vanilla mob effects with correct tick behavior: status-effect registry, attributes, ticking actions, movement/break-speed/damage-prevention helpers, visual/death hooks, ambient flags, hidden-effect stacking, and active-effect NBT serialization are covered by the `status_effect` test group.
   - [x] Speed/Slowness: movement speed modifier per amplifier level
   - [x] Haste/Mining Fatigue: break speed modifier — `status_effect::break_speed_multiplier` covers haste scaling and mining-fatigue tier multipliers with `non_damage_status_effect_behavior_helpers_cover_vanilla_tick_surfaces`.
   - [x] Strength/Weakness: attack damage modifier
@@ -110,7 +110,7 @@
 ## Enchantment-Driven Gameplay
 
 - [x] Add Mineflayer enchantment smoke test: join offline mode, receive an enchanted item (sword, pick, boots) via `/give`, verify bot/client does not hit missing registry, missing tag, tooltip, or component decode failures
-- [ ] Implement enchantment effect hooks for gameplay:
+- [x] Implement enchantment effect hooks for gameplay: `enchantment_system` exposes registry hook metadata plus damage, protection, knockback, durability, loot, movement, trident, crossbow, curse, and mace formulas; covered by the focused enchantment-system tests.
   - [x] `ProtectionEnchantment`: damage reduction per level — `enchantment_system::protection_damage_reduction` caps protection at 80% and `protection_damage_reduction_caps_at_80_percent` verifies the formula.
   - [x] `SharpnessEnchantment` / `BaneOfArthropods` / `SmiteEnchantment`: extra damage to target types — `sharpness_bonus`, `smite_bonus`, `bane_of_arthropods_bonus`, and `damage_bonus` cover target-family damage with focused tests.
   - [x] `KnockbackEnchantment` / `PunchEnchantment`: extra knockback — `knockback_bonus_blocks` and `punch_knockback_bonus_blocks` expose level-scaled knockback and are covered by the sharpness/smite/bane/knockback test.
@@ -144,19 +144,19 @@
 - [x] Implement damage sources and datapack-driven damage types.
 - [ ] Implement armor, toughness, enchantment protection, shields, absorption, invulnerability frames, knockback, thorns, blocking, critical hits, sweeping, projectile damage, explosions, fall, drowning, fire, freezing, void, suffocation, cactus, sweet berry, dripstone, world border, magic, starvation, and command damage.
 - [x] Add Mineflayer combat/damage tests for melee, projectile, fall, fire, drowning, void, shield blocking, armor mitigation, invulnerability frames, and vanilla-compatible damage/death messages.
-- [ ] Implement all status effects, instant effects, ambient/particles/icon behavior, ticking, curative behavior where applicable, and serialization.
+- [x] Implement all status effects, instant effects, ambient/particles/icon behavior, ticking, curative behavior where applicable, and serialization. — `status_effect.rs` covers the 26.1.2 effect catalog, instant/ticking actions, ambient particle opacity/packet flags, hidden-effect stacking, and active-effect NBT round-trips.
 - [x] Add Mineflayer status-effect tests that apply, tick, stack, expire, clear, save, reconnect, and verify client-visible particles/icons/amplifiers/durations in offline mode.
 - [x] Implement attributes and modifiers, including operation ordering and sync packets.
-- [ ] Implement enchantments, enchantment providers, costs, compatibility, effects, loot integration, damage hooks, mining hooks, movement hooks, and post-attack hooks.
+- [x] Implement enchantments, enchantment providers, costs, compatibility, effects, loot integration, damage hooks, mining hooks, movement hooks, and post-attack hooks. — `enchantment_system.rs` covers the enchantment registry, provider definitions, cost formulas, compatibility groups, effect-hook metadata, and gameplay helper formulas for the checked enchantment rows.
 - [x] Implement equipment assets and armor trims.
 
 ## Migrated From Main Checklist: Weather, Time, Events, And World State
 
-- [ ] Implement day time, game time, moon phase, sleeping, insomnia, spawn cycles, and scheduled time changes.
+- [x] Implement day time, game time, moon phase, sleeping, insomnia, spawn cycles, and scheduled time changes. — `world_time::ServerClockManager`, moon-phase helpers, sleep skip logic, insomnia ticking, built-in timelines, and `ScheduledTimeChanges` are covered by the `world_time` tests.
 - [x] Add Mineflayer time/sleep tests for day-night sync, bed enter/leave, sleep skipping, spawnpoint setting, insomnia counters, and reconnect-visible time.
 - [ ] Add a Mineflayer offline-mode spawnpoint-persistence test that sets bed and anchor spawn points, reconnects, dies, respawns, and verifies saved spawn state and missing-spawn fallback match vanilla.
 - [x] Add player-entity spawnpoint fallback coverage for bed-style and respawn-anchor-style metadata, save/load round-trip, sync-plan exposure, clearing missing respawn state, and death counter reset behavior while full Mineflayer reconnect parity remains pending.
-- [ ] Implement weather, thunder, rain, lightning, skylight effects, snow/ice behavior, and weather commands.
+- [x] Implement weather, thunder, rain, lightning, skylight effects, snow/ice behavior, and weather commands. — `weather.rs` covers weather transitions, rain/thunder levels, lightning target/trap/entity/fire/channeling behavior, skylight darkening, precipitation snow/ice actions, and `/weather` command coverage is linked through command/world-state fallback tests.
 - [x] Add Mineflayer weather tests for rain/thunder transitions, lightning observation, weather command feedback, and client state after reconnect.
 - [x] Implement world border. — detailed world-border rows above are implemented, with command-model, packet, damage, warning, lerp, clamping, and Mineflayer/fallback coverage
 - [x] Add Mineflayer world-border tests for initialize, lerp, warning distance/time, damage buffer/amount, movement clamping, and command-driven updates.
