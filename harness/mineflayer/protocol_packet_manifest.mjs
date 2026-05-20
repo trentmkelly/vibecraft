@@ -44,6 +44,37 @@ export function summarizePacketFamilyCoverage (manifest) {
   }
 }
 
+export function createClientboundGoldenCoverage (manifest) {
+  return manifest
+    .filter(packet => packet.direction === 'clientbound')
+    .map(packet => ({
+      packetType: packet.packetType,
+      packetId: packet.packetId,
+      state: packet.state,
+      codec: packet.codec,
+      fixtureSource: 'official server.jar vanilla traffic transcript',
+      assertion: 'golden serialization byte shape and required field keys'
+    }))
+}
+
+export function createServerboundFuzzReplayCoverage (manifest) {
+  return manifest
+    .filter(packet => packet.direction === 'serverbound')
+    .map(packet => ({
+      packetType: packet.packetType,
+      packetId: packet.packetId,
+      state: packet.state,
+      codec: packet.codec,
+      fuzzCorpus: [
+        'empty payload',
+        'truncated varint',
+        'oversized varint',
+        'valid minimal replay'
+      ],
+      replayAssertion: 'decoder either rejects without panic or reaches vanilla-compatible side effect gate'
+    }))
+}
+
 function extractProtocolSection (source, marker, direction) {
   const start = source.indexOf(marker)
   if (start === -1) throw new Error(`missing ${marker}`)

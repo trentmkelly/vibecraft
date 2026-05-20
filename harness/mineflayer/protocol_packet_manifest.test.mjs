@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  createClientboundGoldenCoverage,
   createPlayProtocolPacketManifest,
+  createServerboundFuzzReplayCoverage,
   loadPlayProtocolPacketManifest,
   summarizePacketFamilyCoverage
 } from './protocol_packet_manifest.mjs'
@@ -35,6 +37,21 @@ test('play protocol packet manifest extracts packet ids and codec metadata from 
   assert.ok(summary.byFamily.chunks_light > 0)
   assert.ok(summary.byFamily.inventory_container > 0)
   assert.ok(summary.byFamily.common_shared > 0)
+})
+
+test('generated packet coverage plans include every clientbound golden and serverbound fuzz replay case', async () => {
+  const manifest = await loadPlayProtocolPacketManifest()
+  const goldens = createClientboundGoldenCoverage(manifest)
+  const fuzzReplay = createServerboundFuzzReplayCoverage(manifest)
+
+  assert.equal(goldens.length, 140)
+  assert.equal(fuzzReplay.length, 69)
+  assert.equal(new Set(goldens.map(entry => entry.packetType)).size, 140)
+  assert.equal(new Set(fuzzReplay.map(entry => entry.packetType)).size, 69)
+  assert.ok(goldens.every(entry => entry.fixtureSource === 'official server.jar vanilla traffic transcript'))
+  assert.ok(goldens.every(entry => entry.assertion.includes('golden serialization')))
+  assert.ok(fuzzReplay.every(entry => entry.fuzzCorpus.length >= 4))
+  assert.ok(fuzzReplay.every(entry => entry.replayAssertion.includes('vanilla-compatible side effect')))
 })
 
 test('play protocol packet manifest reports incomplete generated metadata', () => {
