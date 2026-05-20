@@ -22843,6 +22843,250 @@ pub fn resolve_world_preset(id: &str) -> Result<ResolvedWorldPreset, String> {
     })
 }
 
+pub fn resolve_world_preset_from_registry(
+    registry: &ParsedWorldgenPresetRegistry,
+    id: &str,
+) -> Result<ResolvedWorldPreset, String> {
+    let id = static_world_preset_id(id).ok_or_else(|| format!("Unknown world preset {id}"))?;
+    let parsed = registry
+        .world_presets
+        .get(id)
+        .ok_or_else(|| format!("Missing world preset registry entry {id}"))?;
+    let overworld = parsed_level_stem(parsed, "minecraft:overworld")?;
+    let nether = parsed_level_stem(parsed, "minecraft:the_nether")?;
+    let end = parsed_level_stem(parsed, "minecraft:the_end")?;
+    Ok(ResolvedWorldPreset {
+        id,
+        overworld: resolve_parsed_level_stem("minecraft:overworld", overworld)?,
+        nether: resolve_parsed_level_stem("minecraft:the_nether", nether)?,
+        end: resolve_parsed_level_stem("minecraft:the_end", end)?,
+    })
+}
+
+fn parsed_level_stem<'a>(
+    preset: &'a ParsedWorldPreset,
+    id: &str,
+) -> Result<&'a ParsedLevelStem, String> {
+    preset
+        .dimensions
+        .stems
+        .iter()
+        .find(|(stem_id, _)| stem_id == id)
+        .map(|(_, stem)| stem)
+        .ok_or_else(|| format!("Missing dimension {id}"))
+}
+
+fn resolve_parsed_level_stem(
+    dimension: &'static str,
+    stem: &ParsedLevelStem,
+) -> Result<ResolvedLevelStem, String> {
+    let parsed_dimension = static_dimension_type(&stem.dimension_type)
+        .ok_or_else(|| format!("Unknown dimension type {}", stem.dimension_type))?;
+    if parsed_dimension != dimension {
+        return Err(format!(
+            "Dimension {dimension} has mismatched type {}",
+            stem.dimension_type
+        ));
+    }
+
+    let generator = match &stem.generator {
+        ParsedChunkGenerator::Noise {
+            biome_source,
+            settings,
+        } => {
+            let settings = builtin_noise_generator_settings(settings)
+                .ok_or_else(|| format!("Unknown noise settings {settings}"))?;
+            let (biome_source, biome_source_model) = resolve_parsed_biome_source(biome_source)?;
+            ResolvedChunkGenerator::Noise {
+                biome_source,
+                biome_source_model,
+                noise_settings: settings,
+            }
+        }
+        ParsedChunkGenerator::Flat { settings } => {
+            let biome_source_model = BiomeSourceModel::Fixed {
+                biome: static_biome_id(&settings.biome)
+                    .ok_or_else(|| format!("Unknown biome {}", settings.biome))?,
+            };
+            ResolvedChunkGenerator::Flat {
+                biome_source_model,
+                settings: flat_generator_settings_from_parsed(settings)?,
+            }
+        }
+        ParsedChunkGenerator::Debug => ResolvedChunkGenerator::Debug {
+            biome: "minecraft:plains",
+            biome_source_model: BiomeSourceModel::Fixed {
+                biome: "minecraft:plains",
+            },
+        },
+    };
+
+    Ok(ResolvedLevelStem {
+        dimension,
+        generator,
+    })
+}
+
+fn resolve_parsed_biome_source(
+    biome_source: &ParsedBiomeSource,
+) -> Result<(&'static str, BiomeSourceModel), String> {
+    match biome_source {
+        ParsedBiomeSource::MultiNoisePreset { preset } => match strip_minecraft(preset) {
+            "overworld" => Ok((
+                "minecraft:multi_noise/overworld",
+                BiomeSourceModel::MultiNoisePreset {
+                    preset: "minecraft:overworld",
+                },
+            )),
+            "nether" => Ok((
+                "minecraft:multi_noise/nether",
+                BiomeSourceModel::MultiNoisePreset {
+                    preset: "minecraft:nether",
+                },
+            )),
+            _ => Err(format!("Unknown multi-noise biome source preset {preset}")),
+        },
+        ParsedBiomeSource::TheEnd => Ok(("minecraft:the_end", BiomeSourceModel::TheEnd)),
+        ParsedBiomeSource::Fixed { biome } => {
+            let biome = static_biome_id(biome).ok_or_else(|| format!("Unknown biome {biome}"))?;
+            Ok((biome, BiomeSourceModel::Fixed { biome }))
+        }
+        ParsedBiomeSource::Checkerboard { biomes, scale } => {
+            let scale = i32::try_from(*scale)
+                .map_err(|_| format!("checkerboard scale {scale} overflows i32"))?;
+            let biomes = biomes
+                .iter()
+                .map(|biome| static_biome_id(biome).ok_or_else(|| format!("Unknown biome {biome}")))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok((
+                "minecraft:checkerboard",
+                BiomeSourceModel::Checkerboard { biomes, scale },
+            ))
+        }
+    }
+}
+
+fn flat_generator_settings_from_parsed(
+    parsed: &ParsedFlatGeneratorSettings,
+) -> Result<FlatGeneratorSettingsModel, String> {
+    let layers = parsed
+        .layers
+        .iter()
+        .map(|(height, block)| {
+            Ok(FlatLayerInfo {
+                height: *height,
+                block: static_block_id(block).ok_or_else(|| format!("Unknown block {block}"))?,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let expanded_raw = expand_flat_layers(&layers)?;
+    let mut expanded_layers = expanded_raw.clone();
+    let mut top_layer_modifications = Vec::new();
+    let void_generation = expanded_layers
+        .iter()
+        .all(|state| state.map(|block| block == "minecraft:air").unwrap_or(true));
+
+    for (y, state) in expanded_layers.iter_mut().enumerate() {
+        let Some(block) = *state else {
+            continue;
+        };
+        if !motion_blocking_block(block) {
+            *state = None;
+            top_layer_modifications.push((y, block));
+        }
+    }
+
+    let structure_overrides = parsed
+        .structure_overrides
+        .iter()
+        .map(|structure| {
+            static_structure_set_id(structure)
+                .ok_or_else(|| format!("Unknown structure override {structure}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(FlatGeneratorSettingsModel {
+        biome: static_biome_id(&parsed.biome)
+            .ok_or_else(|| format!("Unknown biome {}", parsed.biome))?,
+        structure_overrides,
+        add_lakes: parsed.add_lakes,
+        decoration: parsed.decoration,
+        layers,
+        expanded_layers,
+        top_layer_modifications,
+        void_generation,
+    })
+}
+
+fn static_world_preset_id(id: &str) -> Option<&'static str> {
+    match strip_minecraft(id) {
+        "normal" => Some("minecraft:normal"),
+        "flat" => Some("minecraft:flat"),
+        "large_biomes" => Some("minecraft:large_biomes"),
+        "amplified" => Some("minecraft:amplified"),
+        "single_biome_surface" => Some("minecraft:single_biome_surface"),
+        "debug_all_block_states" => Some("minecraft:debug_all_block_states"),
+        _ => None,
+    }
+}
+
+fn static_dimension_type(id: &str) -> Option<&'static str> {
+    match strip_minecraft(id) {
+        "overworld" => Some("minecraft:overworld"),
+        "the_nether" => Some("minecraft:the_nether"),
+        "the_end" => Some("minecraft:the_end"),
+        _ => None,
+    }
+}
+
+fn static_biome_id(id: &str) -> Option<&'static str> {
+    match strip_minecraft(id) {
+        "plains" => Some("minecraft:plains"),
+        "the_void" => Some("minecraft:the_void"),
+        "desert" => Some("minecraft:desert"),
+        "deep_ocean" => Some("minecraft:deep_ocean"),
+        "snowy_plains" => Some("minecraft:snowy_plains"),
+        "windswept_hills" => Some("minecraft:windswept_hills"),
+        _ => None,
+    }
+}
+
+fn static_block_id(id: &str) -> Option<&'static str> {
+    match strip_minecraft(id) {
+        "air" => Some("minecraft:air"),
+        "barrier" => Some("minecraft:barrier"),
+        "bedrock" => Some("minecraft:bedrock"),
+        "cobblestone" => Some("minecraft:cobblestone"),
+        "deepslate" => Some("minecraft:deepslate"),
+        "dirt" => Some("minecraft:dirt"),
+        "grass_block" => Some("minecraft:grass_block"),
+        "gravel" => Some("minecraft:gravel"),
+        "sand" => Some("minecraft:sand"),
+        "sandstone" => Some("minecraft:sandstone"),
+        "short_grass" => Some("minecraft:short_grass"),
+        "snow" => Some("minecraft:snow"),
+        "stone" => Some("minecraft:stone"),
+        "water" => Some("minecraft:water"),
+        _ => None,
+    }
+}
+
+fn static_structure_set_id(id: &str) -> Option<&'static str> {
+    match strip_minecraft(id) {
+        "desert_pyramids" => Some("minecraft:desert_pyramids"),
+        "igloos" => Some("minecraft:igloos"),
+        "mineshafts" => Some("minecraft:mineshafts"),
+        "ocean_monuments" => Some("minecraft:ocean_monuments"),
+        "ocean_ruins" => Some("minecraft:ocean_ruins"),
+        "pillager_outposts" => Some("minecraft:pillager_outposts"),
+        "ruined_portals" => Some("minecraft:ruined_portals"),
+        "shipwrecks" => Some("minecraft:shipwrecks"),
+        "strongholds" => Some("minecraft:strongholds"),
+        "villages" => Some("minecraft:villages"),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LiveChunkGenerationMode {
     Preview,
@@ -38767,6 +39011,98 @@ mod tests {
                 (2, "minecraft:cobblestone".to_string()),
                 (3, "minecraft:dirt".to_string()),
                 (1, "minecraft:grass_block".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn worldgen_preset_registry_resolves_vanilla_generators() {
+        let registry = super::load_worldgen_preset_registry(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen",
+        )
+        .unwrap();
+
+        for id in [
+            "normal",
+            "flat",
+            "large_biomes",
+            "amplified",
+            "single_biome_surface",
+            "debug_all_block_states",
+        ] {
+            let resolved = super::resolve_world_preset_from_registry(&registry, id).unwrap();
+            let builtin = super::resolve_world_preset(id).unwrap();
+            assert_eq!(resolved.id, builtin.id);
+            assert_eq!(resolved.nether, builtin.nether);
+            assert_eq!(resolved.end, builtin.end);
+            assert_eq!(resolved.overworld.dimension, builtin.overworld.dimension);
+        }
+
+        let normal = super::resolve_world_preset_from_registry(&registry, "minecraft:normal")
+            .unwrap()
+            .overworld
+            .generator;
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = normal
+        else {
+            panic!("normal preset should resolve to a noise overworld generator");
+        };
+        assert_eq!(
+            biome_source_model,
+            BiomeSourceModel::MultiNoisePreset {
+                preset: "minecraft:overworld",
+            }
+        );
+        assert_eq!(noise_settings.id, "minecraft:overworld");
+
+        let single_biome =
+            super::resolve_world_preset_from_registry(&registry, "minecraft:single_biome_surface")
+                .unwrap()
+                .overworld
+                .generator;
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = single_biome
+        else {
+            panic!("single-biome preset should resolve to a noise overworld generator");
+        };
+        assert_eq!(
+            biome_source_model,
+            BiomeSourceModel::Fixed {
+                biome: "minecraft:plains",
+            }
+        );
+        assert_eq!(noise_settings.id, "minecraft:overworld");
+
+        let flat = super::resolve_world_preset_from_registry(&registry, "minecraft:flat").unwrap();
+        let super::ResolvedChunkGenerator::Flat { settings, .. } = flat.overworld.generator else {
+            panic!("flat preset should resolve to a flat overworld generator");
+        };
+        assert_eq!(settings.biome, "minecraft:plains");
+        assert_eq!(
+            settings.structure_overrides,
+            vec!["minecraft:strongholds", "minecraft:villages"]
+        );
+        assert_eq!(
+            settings.layers,
+            vec![
+                super::FlatLayerInfo {
+                    height: 1,
+                    block: "minecraft:bedrock",
+                },
+                super::FlatLayerInfo {
+                    height: 2,
+                    block: "minecraft:dirt",
+                },
+                super::FlatLayerInfo {
+                    height: 1,
+                    block: "minecraft:grass_block",
+                },
             ]
         );
     }
