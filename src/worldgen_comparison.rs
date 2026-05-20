@@ -15,7 +15,7 @@ use crate::worldgen::{
     PLACED_FEATURE_BOOTSTRAP_SOURCES, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
     SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, WORLD_PRESETS,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -558,6 +558,68 @@ pub fn fixture_report_signatures(report: &VanillaFixtureReport) -> Vec<WorldgenC
         .cloned()
         .map(signature_from_vanilla_fixture_summary)
         .collect()
+}
+
+pub fn build_rustcraft_worldgen_report<'a>(
+    chunks: impl IntoIterator<Item = (&'a str, &'a LevelChunk)>,
+) -> Value {
+    let chunks = chunks
+        .into_iter()
+        .map(|(dimension, chunk)| {
+            rustcraft_chunk_signature_json(dimension, &build_chunk_signature(chunk))
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "format": "rustcraft-worldgen-signatures-v1",
+        "chunks": chunks,
+    })
+}
+
+pub fn rustcraft_chunk_signature_json(
+    dimension: &str,
+    signature: &WorldgenChunkSignature,
+) -> Value {
+    json!({
+        "dimension": dimension,
+        "chunkX": signature.chunk.x,
+        "chunkZ": signature.chunk.z,
+        "status": signature.status,
+        "sectionCount": signature.section_count,
+        "nonEmptySectionCount": signature.non_empty_section_count,
+        "heightmaps": signature.heightmaps.iter().map(|heightmap| {
+            (
+                heightmap.name.clone(),
+                json!({
+                    "type": "long_array",
+                    "entries": heightmap.entries,
+                    "fingerprint": heightmap.fingerprint,
+                }),
+            )
+        }).collect::<serde_json::Map<_, _>>(),
+        "structures": {
+            "startKeys": signature.structures.start_keys,
+            "referenceKeys": signature.structures.reference_keys,
+        },
+        "blockPalette": signature.block_palette,
+        "biomePalette": signature.biome_palette,
+        "payloadSha256": null,
+        "payloadFingerprint": signature.payload_fingerprint,
+        "sections": signature.sections.iter().map(|section| json!({
+            "y": section.y,
+            "blockPalette": section.block_palette,
+            "blockStatesData": {
+                "entries": section.block_data_entries,
+                "sha256": null,
+                "fingerprint": section.block_data_fingerprint,
+            },
+            "biomePalette": section.biome_palette,
+            "biomeData": {
+                "entries": section.biome_data_entries,
+                "sha256": null,
+                "fingerprint": section.biome_data_fingerprint,
+            },
+        })).collect::<Vec<_>>(),
+    })
 }
 
 fn parse_fixture_chunk(value: &Value) -> Result<VanillaFixtureChunkSummary, String> {
@@ -1146,6 +1208,71 @@ mod tests {
             .all(|diff| diff.chunk == ChunkCoord { x: 0, z: 0 }));
         assert!(diffs[0].left.contains("minecraft:full"));
         assert!(diffs[0].right.contains("minecraft:noise"));
+    }
+
+    #[test]
+    fn rustcraft_worldgen_report_uses_gate_compatible_chunk_shape() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+
+        let report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+        assert_eq!(
+            report.get("format").and_then(Value::as_str),
+            Some("rustcraft-worldgen-signatures-v1")
+        );
+        let chunks = report
+            .get("chunks")
+            .and_then(Value::as_array)
+            .expect("report should include chunks");
+        assert_eq!(chunks.len(), 1);
+        let summary = &chunks[0];
+        assert_eq!(
+            summary.get("dimension").and_then(Value::as_str),
+            Some("overworld")
+        );
+        assert_eq!(summary.get("chunkX").and_then(Value::as_i64), Some(0));
+        assert_eq!(summary.get("chunkZ").and_then(Value::as_i64), Some(0));
+        assert_eq!(
+            summary.get("status").and_then(Value::as_str),
+            Some("minecraft:full")
+        );
+        assert!(summary.get("sectionCount").and_then(Value::as_u64).unwrap() > 0);
+        assert!(summary
+            .get("heightmaps")
+            .and_then(Value::as_object)
+            .is_some());
+        assert!(summary
+            .get("structures")
+            .and_then(Value::as_object)
+            .is_some());
+        assert!(summary
+            .get("blockPalette")
+            .and_then(Value::as_array)
+            .is_some());
+        assert!(summary
+            .get("biomePalette")
+            .and_then(Value::as_array)
+            .is_some());
+        assert!(summary.get("payloadSha256").unwrap().is_null());
+        assert!(
+            summary
+                .get("payloadFingerprint")
+                .and_then(Value::as_u64)
+                .unwrap()
+                > 0
+        );
+        assert!(summary
+            .get("sections")
+            .and_then(Value::as_array)
+            .unwrap()
+            .iter()
+            .all(|section| section
+                .get("blockStatesData")
+                .and_then(Value::as_object)
+                .is_some()));
     }
 
     #[test]
