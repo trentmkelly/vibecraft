@@ -173,9 +173,9 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement `PlacedFeature` evaluation: load placement modifiers, evaluate `PlacementModifier` list in order, for each valid position invoke `ConfiguredFeature.place()`
 - [x] Implement all 26.1.2 `PlacementModifier` types: `BlockPredicateFilter`, `CountPlacement`, `RarityFilter`, `InSquarePlacement`, `HeightRangePlacement`, `HeightmapPlacement`, `BiomeFilter`, `SurfaceRelativeThresholdFilter`, `SurfaceWaterDepthFilter`, `EnvironmentScanPlacement`, `RandomOffsetPlacement`, `FixedPlacement`, `CountOnEveryLayerPlacement`, `NoiseThresholdCountPlacement`, `NoiseBasedCountPlacement`; `CarvingMaskPlacement` is not present in the 26.1.2 Java registry.
 - [x] Implement feature support primitives: `HeightProvider`, `VerticalAnchor`, `BlockPredicate`, `StateProvider` (rotated, simple, weighted), `FeatureSize` (two-layers, three-layers), trunk/foliage/root placers, tree decorators
-- [ ] Implement `FeatureSorter`: deterministic decoration ordering per biome step; seed derivation `baseSeed + featureIndex + biomeFeatureCounter`
-- [ ] Implement biome decoration ordering: `GenerationStep.Decoration` ordering (RAW_GENERATION → LAKES → LOCAL_MODIFICATIONS → UNDERGROUND_STRUCTURES → SURFACE_STRUCTURES → STRONGHOLDS → UNDERGROUND_ORES → UNDERGROUND_DECORATION → FLUID_SPRINGS → VEGETAL_DECORATION → TOP_LAYER_MODIFICATION)
-- [ ] Implement `feature-cycle` error behavior: throw exception on infinite feature recursion
+- [x] Implement `FeatureSorter`: deterministic decoration ordering per biome step; seed derivation `baseSeed + featureIndex + biomeFeatureCounter`
+- [x] Implement biome decoration ordering: `GenerationStep.Decoration` ordering (RAW_GENERATION → LAKES → LOCAL_MODIFICATIONS → UNDERGROUND_STRUCTURES → SURFACE_STRUCTURES → STRONGHOLDS → UNDERGROUND_ORES → UNDERGROUND_DECORATION → FLUID_SPRINGS → VEGETAL_DECORATION → TOP_LAYER_MODIFICATION)
+- [x] Implement `feature-cycle` error behavior: throw exception on infinite feature recursion
 - [ ] Add parity test: decoration seed at biome/chunk/step matches vanilla for a fixed overworld seed
 
 ## Individual Feature Implementations
