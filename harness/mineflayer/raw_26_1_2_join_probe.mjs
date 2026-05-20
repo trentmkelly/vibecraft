@@ -473,6 +473,22 @@ function decodeKnownPacksPacket (packet) {
   return { id: packet.id, length: packet.length, packs }
 }
 
+function decodeEnabledFeaturesPacket (packet) {
+  const count = readVarInt(packet.body)
+  if (!count) throw new Error('missing enabled feature count')
+  let offset = count.offset
+  const features = []
+  for (let i = 0; i < count.value; i++) {
+    const feature = readString(packet.body, offset)
+    offset = feature.offset
+    features.push(feature.value)
+  }
+  if (offset !== packet.body.length) {
+    throw new Error(`enabled features packet had ${packet.body.length - offset} trailing bytes`)
+  }
+  return { id: packet.id, length: packet.length, features }
+}
+
 function skipNetworkNbt (buffer, offset) {
   const type = buffer[offset++]
   if (type !== 10) throw new Error(`expected compound NBT tag, got ${type}`)
@@ -664,6 +680,8 @@ async function main () {
     const packet = await reader.nextPacket()
     if (packet.id === 7) {
       config.push(decodeRegistryPacket(packet))
+    } else if (packet.id === 12) {
+      config.push(decodeEnabledFeaturesPacket(packet))
     } else if (packet.id === 13) {
       config.push(decodeTagsPacket(packet))
     } else if (packet.id === 14) {

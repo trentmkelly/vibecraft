@@ -1,14 +1,17 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
 const here = new URL('.', import.meta.url)
 const defaultOfficialJar = path.resolve(new URL('../../../server.jar', here).pathname)
+const defaultOfficialFixture = path.resolve(new URL('fixtures/official-26.1.2-configuration-transcript.json', here).pathname)
 
 export function normalizeConfigurationTranscript (rawProbe) {
   return {
     protocolVersion: 775,
+    enabledFeaturesPacketId: (rawProbe.config ?? []).find(packet => packet.id === 12)?.id ?? null,
+    enabledFeatures: (rawProbe.config ?? []).find(packet => packet.id === 12)?.features ?? [],
     registries: (rawProbe.config ?? [])
       .filter(packet => packet.id === 7)
       .map(packet => ({
@@ -33,6 +36,14 @@ export function normalizeConfigurationTranscript (rawProbe) {
   }
 }
 
+export async function writeOfficialConfigurationTranscriptFixture (options = {}) {
+  const fixturePath = options.fixturePath ?? defaultOfficialFixture
+  const transcript = options.transcript ?? await recordOfficialServerConfigurationTranscript(options)
+  await mkdir(path.dirname(fixturePath), { recursive: true })
+  await writeFile(fixturePath, `${JSON.stringify(transcript, null, 2)}\n`)
+  return { fixturePath, transcript }
+}
+
 export function diffConfigurationTranscripts (actual, official) {
   const diffs = []
   compareSequence(diffs, 'registry order', actual.registries.map(entry => entry.registry), official.registries.map(entry => entry.registry))
@@ -54,6 +65,37 @@ export function diffConfigurationTranscripts (actual, official) {
       actualRegistry.elementIds,
       officialRegistry.elementIds
     )
+    for (const elementId of actualRegistry.elementIds ?? []) {
+      if (!officialRegistry.elementIds?.includes(elementId)) continue
+      compareSequence(
+        diffs,
+        `registry.${actualRegistry.registry}.element.${elementId}.fieldPaths`,
+        actualRegistry.elementFieldPaths[elementId] ?? [],
+        officialRegistry.elementFieldPaths[elementId] ?? []
+      )
+    }
+  }
+
+  const officialTags = new Map(official.tags.map(entry => [entry.registry, entry]))
+  for (const actualTagRegistry of actual.tags) {
+    const officialTagRegistry = officialTags.get(actualTagRegistry.registry)
+    if (!officialTagRegistry) continue
+    compareSequence(
+      diffs,
+      `tags.${actualTagRegistry.registry}.tagNames`,
+      actualTagRegistry.tags.map(tag => tag.tag),
+      officialTagRegistry.tags.map(tag => tag.tag)
+    )
+    const officialTagEntries = new Map(officialTagRegistry.tags.map(tag => [tag.tag, tag.entries]))
+    for (const tag of actualTagRegistry.tags) {
+      if (!officialTagEntries.has(tag.tag)) continue
+      compareSequence(
+        diffs,
+        `tags.${actualTagRegistry.registry}.${tag.tag}.entries`,
+        tag.entries,
+        officialTagEntries.get(tag.tag)
+      )
+    }
   }
 
   compareSequence(diffs, 'knownPacks', actual.knownPacks.map(packKey), official.knownPacks.map(packKey))
