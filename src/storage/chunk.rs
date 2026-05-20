@@ -585,6 +585,7 @@ impl LevelChunk {
                         .iter()
                         .any(|heightmap| heightmap.storage_name() == name)
                 })
+                .filter(|(_, value)| matches!(value, Tag::LongArray(_)))
                 .map(|(name, value)| (name.clone(), value.clone()))
                 .collect(),
             block_entities: compound_list_entries(
@@ -1777,10 +1778,14 @@ mod tests {
         chunk
             .heightmaps
             .insert("MOTION_BLOCKING".to_string(), Tag::LongArray(vec![2]));
+        chunk
+            .heightmaps
+            .insert("OCEAN_FLOOR_WG".to_string(), Tag::Int(3));
 
         let decoded = LevelChunk::from_nbt(pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
 
         assert!(decoded.heightmaps.contains_key("WORLD_SURFACE_WG"));
+        assert!(!decoded.heightmaps.contains_key("OCEAN_FLOOR_WG"));
         assert!(!decoded.heightmaps.contains_key("MOTION_BLOCKING"));
     }
 
