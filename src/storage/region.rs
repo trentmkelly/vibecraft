@@ -332,6 +332,14 @@ impl RegionFile {
         Ok(())
     }
 
+    pub fn flush(&self) -> io::Result<()> {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&self.path)?
+            .sync_all()
+    }
+
     pub fn write_chunk_nbt_with_compression(
         &self,
         chunk: ChunkPos,
@@ -445,6 +453,21 @@ impl RegionIoWorker {
             } else {
                 region.clear_chunk_nbt(chunk)?;
             }
+        }
+        Ok(())
+    }
+
+    pub fn synchronize_with_flush(&mut self) -> io::Result<()> {
+        let mut regions_to_flush = Vec::new();
+        for chunk in self.pending_writes.keys().copied() {
+            let region_pos = chunk.region();
+            if !regions_to_flush.contains(&region_pos) {
+                regions_to_flush.push(region_pos);
+            }
+        }
+        self.synchronize()?;
+        for region_pos in regions_to_flush {
+            RegionFile::open(&self.dir, region_pos)?.flush()?;
         }
         Ok(())
     }
@@ -722,6 +745,56 @@ mod tests {
         assert_eq!(region.read_chunk_nbt(chunk).unwrap(), None);
         assert!(!region.does_chunk_exist(chunk));
         assert!(!dir.join("c.0.0.mcc").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_synchronize_with_flush_drains_and_forces_regions() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-flush-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let first = ChunkPos { x: 0, z: 0 };
+        let second = ChunkPos { x: 32, z: 0 };
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        worker.store_chunk_nbt(
+            first,
+            "",
+            Tag::Compound(vec![("first".to_string(), Tag::Int(1))]),
+        );
+        worker.store_chunk_nbt(
+            second,
+            "",
+            Tag::Compound(vec![("second".to_string(), Tag::Int(2))]),
+        );
+
+        worker.synchronize_with_flush().unwrap();
+
+        assert_eq!(worker.pending_write_count(), 0);
+        assert_eq!(
+            RegionFile::open(&dir, first.region())
+                .unwrap()
+                .read_chunk_nbt(first)
+                .unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("first".to_string(), Tag::Int(1))])
+            ))
+        );
+        assert_eq!(
+            RegionFile::open(&dir, second.region())
+                .unwrap()
+                .read_chunk_nbt(second)
+                .unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("second".to_string(), Tag::Int(2))])
+            ))
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
