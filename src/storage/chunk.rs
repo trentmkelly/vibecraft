@@ -206,6 +206,13 @@ pub struct ChunkInitializeLightPlan {
     pub post_update_retain_data: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkLightCompletionPlan {
+    pub initial_light_correct: bool,
+    pub pre_update_propagate_light_sources: bool,
+    pub completed_light_correct: bool,
+}
+
 pub const WORLDGEN_HEIGHTMAPS: &[HeightmapKind] =
     &[HeightmapKind::OceanFloorWg, HeightmapKind::WorldSurfaceWg];
 
@@ -720,6 +727,14 @@ impl LevelChunk {
                 .collect(),
             post_update_light_enabled: lighted,
             post_update_retain_data: false,
+        }
+    }
+
+    pub fn light_completion_plan(&self, lighted: bool) -> ChunkLightCompletionPlan {
+        ChunkLightCompletionPlan {
+            initial_light_correct: false,
+            pre_update_propagate_light_sources: !lighted,
+            completed_light_correct: true,
         }
     }
 
@@ -2276,12 +2291,12 @@ mod tests {
         chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
         saved_tick_tag, string_field, unpack_postprocessing_offset, BlockStateEntry,
-        ChunkInitializeLightPlan, ChunkPyramidKind, ChunkSection, ChunkStatusTaskKind, ChunkType,
-        HeightmapKind, LevelChunk, LightLayer, LightSectionStatusUpdate, PalettedContainer,
-        QueuedSectionLightData, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
-        CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
-        LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
-        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        ChunkInitializeLightPlan, ChunkLightCompletionPlan, ChunkPyramidKind, ChunkSection,
+        ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, LightLayer,
+        LightSectionStatusUpdate, PalettedContainer, QueuedSectionLightData, SectionBlockPos,
+        TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS,
+        LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE,
+        LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -3191,6 +3206,28 @@ mod tests {
                 pre_update_section_statuses: Vec::new(),
                 post_update_light_enabled: false,
                 post_update_retain_data: false,
+            }
+        );
+    }
+
+    #[test]
+    fn level_chunk_light_completion_plan_matches_threaded_engine_order() {
+        let chunk = LevelChunk::empty(ChunkPos { x: 2, z: 5 });
+
+        assert_eq!(
+            chunk.light_completion_plan(false),
+            ChunkLightCompletionPlan {
+                initial_light_correct: false,
+                pre_update_propagate_light_sources: true,
+                completed_light_correct: true,
+            }
+        );
+        assert_eq!(
+            chunk.light_completion_plan(true),
+            ChunkLightCompletionPlan {
+                initial_light_correct: false,
+                pre_update_propagate_light_sources: false,
+                completed_light_correct: true,
             }
         );
     }
