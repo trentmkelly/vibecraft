@@ -165,7 +165,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement `CaveWorldCarver`: cave tunnel carving with sphere-widening, floor placement, lava pool at depth
 - [ ] Implement `CanyonWorldCarver`: canyon trench carving with angled ceiling
 - [ ] Implement `NetherWorldCarver`: nether cave variants
-- [ ] Implement carver execution during `ChunkGenerator.applyCarvers()`: AIR/LIQUID carving step, mask tracking to avoid double-carving
+- [x] Implement carver execution during `ChunkGenerator.applyCarvers()`: AIR/LIQUID carving step, mask tracking to avoid double-carving
 - [ ] Add parity test: cave opening at overworld coordinates known to have caves for a fixed seed
 
 ## Placed Features and Decoration

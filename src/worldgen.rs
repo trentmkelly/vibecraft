@@ -9,8 +9,8 @@ use crate::biome::{
 pub use crate::random_source::RandomAlgorithm;
 
 use crate::random_source::{
-    large_feature_seed_with_salt, random_state_named_factory, random_state_seed_factories,
-    LegacyRandom, PositionalRandomFactory, RandomSourceKind,
+    carver_seed, large_feature_seed_with_salt, random_state_named_factory,
+    random_state_seed_factories, LegacyRandom, PositionalRandomFactory, RandomSourceKind,
 };
 use crate::registry::Identifier;
 use crate::storage::chunk::{
@@ -23413,7 +23413,17 @@ pub fn generator_apply_carvers_for_stem(
     pos: ChunkPos,
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
-    generated_chunk_with_status(pos, stem, "minecraft:carvers")
+    match &stem.generator {
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            let mut chunk = generator_build_surface_for_stem(pos, stem)?;
+            let carvers = carvers_for_noise_settings(noise_settings.id);
+            apply_configured_carvers_to_chunk(&mut chunk, noise_settings, 0, carvers);
+            add_client_heightmaps_from_blocks(&mut chunk);
+            chunk.status = "minecraft:carvers".to_string();
+            Ok(chunk)
+        }
+        _ => generated_chunk_with_status(pos, stem, "minecraft:carvers"),
+    }
 }
 
 pub fn generator_apply_biome_decoration_for_stem(
@@ -28745,6 +28755,337 @@ pub fn canyon_vertical_radius(
     f64::from(factor)
         * vertical_radius
         * f64::from(0.75 + 0.25 * random_between_roll.clamp(0.0, 1.0))
+}
+
+pub fn carvers_for_noise_settings(settings_id: &str) -> &'static [&'static str] {
+    match strip_minecraft(settings_id) {
+        "nether" => NETHER_COMMON_CARVERS,
+        "end" => &[],
+        _ => OVERWORLD_COMMON_CARVERS,
+    }
+}
+
+pub fn apply_configured_carvers_to_chunk(
+    chunk: &mut LevelChunk,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    carver_ids: &[&'static str],
+) -> usize {
+    let height_context = WorldGenerationHeightContext {
+        min_y: settings.noise.min_y,
+        height: settings.noise.height,
+    };
+    let target_chunk = chunk.pos;
+    let chunk_min_x = target_chunk.x * 16;
+    let chunk_min_z = target_chunk.z * 16;
+    let mut mask = Vec::new();
+    let mut carved_blocks = 0;
+
+    for (carver_index, carver_id) in carver_ids.iter().enumerate() {
+        let Some(carver) = configured_carver(carver_id) else {
+            continue;
+        };
+        for source_chunk_x in target_chunk.x - 8..=target_chunk.x + 8 {
+            for source_chunk_z in target_chunk.z - 8..=target_chunk.z + 8 {
+                let mut random = LegacyRandom::new(carver_seed(
+                    seed,
+                    carver_index as i32,
+                    source_chunk_x,
+                    source_chunk_z,
+                ));
+                if !carver_is_start_chunk(carver, random.next_f32()) {
+                    continue;
+                }
+                carved_blocks += carve_configured_carver_from_source_chunk(
+                    chunk,
+                    height_context,
+                    carver,
+                    source_chunk_x,
+                    source_chunk_z,
+                    chunk_min_x,
+                    chunk_min_z,
+                    &mut random,
+                    &mut mask,
+                );
+            }
+        }
+    }
+
+    carved_blocks
+}
+
+fn carve_configured_carver_from_source_chunk(
+    chunk: &mut LevelChunk,
+    height_context: WorldGenerationHeightContext,
+    carver: &ConfiguredCarver,
+    source_chunk_x: i32,
+    source_chunk_z: i32,
+    target_chunk_min_x: i32,
+    target_chunk_min_z: i32,
+    random: &mut LegacyRandom,
+    mask: &mut Vec<usize>,
+) -> usize {
+    match carver.shape {
+        CarverShape::Cave {
+            horizontal_radius_multiplier,
+            vertical_radius_multiplier,
+            floor_level,
+        } => {
+            let cave_count = cave_carver_cave_count(
+                carver_cave_bound(carver.carver_type),
+                random.next_i32(),
+                random.next_i32(),
+                random.next_i32(),
+            );
+            let mut carved = 0;
+            for _ in 0..cave_count {
+                let x = f64::from(source_chunk_x * 16 + random.next_i32_bound(16));
+                let y = f64::from(sample_carver_y(carver.y, height_context, random));
+                let z = f64::from(source_chunk_z * 16 + random.next_i32_bound(16));
+                let thickness = match carver.carver_type {
+                    WorldCarverType::NetherCave => {
+                        nether_carver_thickness(random.next_f32(), random.next_f32())
+                    }
+                    _ => cave_carver_thickness(
+                        random.next_f32(),
+                        random.next_f32(),
+                        random.next_i32(),
+                        random.next_f32(),
+                        random.next_f32(),
+                    ),
+                };
+                let y_scale = sample_float_provider(carver.y_scale, random) as f64;
+                let (base_horizontal_radius, base_vertical_radius) =
+                    cave_room_radii(thickness, y_scale);
+                let horizontal_radius = base_horizontal_radius
+                    * f64::from(sample_float_provider(horizontal_radius_multiplier, random));
+                let vertical_radius = base_vertical_radius
+                    * f64::from(sample_float_provider(vertical_radius_multiplier, random));
+                carved += carve_ellipsoid_into_chunk(
+                    chunk,
+                    height_context,
+                    carver,
+                    target_chunk_min_x,
+                    target_chunk_min_z,
+                    x,
+                    y,
+                    z,
+                    horizontal_radius,
+                    vertical_radius,
+                    CarverSkipModel::Cave {
+                        floor_level: f64::from(sample_float_provider(floor_level, random)),
+                    },
+                    mask,
+                );
+            }
+            carved
+        }
+        CarverShape::Canyon {
+            vertical_rotation,
+            ref shape,
+        } => {
+            let x = f64::from(source_chunk_x * 16 + random.next_i32_bound(16));
+            let y = f64::from(sample_carver_y(carver.y, height_context, random));
+            let z = f64::from(source_chunk_z * 16 + random.next_i32_bound(16));
+            let distance = ((f64::from(settings_height_for_context(height_context)) * 0.5)
+                * f64::from(sample_float_provider(shape.distance_factor, random)))
+            .round()
+            .max(1.0) as i32;
+            let width_factors = canyon_width_factors(
+                height_context.height,
+                shape.width_smoothness,
+                &(0..height_context.height)
+                    .map(|_| (random.next_i32(), random.next_f32()))
+                    .collect::<Vec<_>>(),
+            );
+            let steps = canyon_tunnel_steps(
+                f64::from(target_chunk_min_x + 8),
+                f64::from(target_chunk_min_z + 8),
+                x,
+                y,
+                z,
+                sample_float_provider(shape.thickness, random),
+                random.next_f32() * std::f32::consts::TAU,
+                sample_float_provider(vertical_rotation, random),
+                distance,
+                sample_float_provider(carver.y_scale, random) as f64,
+                shape.vertical_radius_default_factor,
+                shape.vertical_radius_center_factor,
+                &(0..distance).map(|_| random.next_i32()).collect::<Vec<_>>(),
+                &(0..distance)
+                    .map(|_| sample_float_provider(shape.horizontal_radius_factor, random))
+                    .collect::<Vec<_>>(),
+                &(0..distance).map(|_| random.next_f32()).collect::<Vec<_>>(),
+                &(0..distance)
+                    .map(|_| {
+                        (
+                            random.next_f32(),
+                            random.next_f32(),
+                            random.next_f32(),
+                            random.next_f32(),
+                            random.next_f32(),
+                            random.next_f32(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let mut carved = 0;
+            for step in steps {
+                if !step.carve || !step.can_reach {
+                    continue;
+                }
+                carved += carve_ellipsoid_into_chunk(
+                    chunk,
+                    height_context,
+                    carver,
+                    target_chunk_min_x,
+                    target_chunk_min_z,
+                    step.x,
+                    step.y,
+                    step.z,
+                    step.horizontal_radius,
+                    step.vertical_radius,
+                    CarverSkipModel::Canyon {
+                        width_factors: &width_factors,
+                    },
+                    mask,
+                );
+            }
+            carved
+        }
+    }
+}
+
+fn settings_height_for_context(context: WorldGenerationHeightContext) -> i32 {
+    context.height.max(1)
+}
+
+fn carve_ellipsoid_into_chunk(
+    chunk: &mut LevelChunk,
+    height_context: WorldGenerationHeightContext,
+    carver: &ConfiguredCarver,
+    chunk_min_x: i32,
+    chunk_min_z: i32,
+    x: f64,
+    y: f64,
+    z: f64,
+    horizontal_radius: f64,
+    vertical_radius: f64,
+    skip_model: CarverSkipModel<'_>,
+    mask: &mut Vec<usize>,
+) -> usize {
+    let positions = carver_ellipsoid_candidate_positions(
+        chunk_min_x,
+        chunk_min_z,
+        height_context,
+        false,
+        x,
+        y,
+        z,
+        horizontal_radius,
+        vertical_radius,
+        mask,
+        false,
+        skip_model,
+    );
+    let mut carved = 0;
+    for pos in positions {
+        let Some(block) = chunk.get_block_state(pos.x, pos.y, pos.z) else {
+            continue;
+        };
+        let Some(block) = carver_static_block_name(&block) else {
+            continue;
+        };
+        let Some(outcome) = carver_carve_block(
+            carver,
+            height_context,
+            CarverBlockInput {
+                pos,
+                block,
+                was_masked: carver_mask_index(pos.x, pos.y, pos.z, height_context.min_y)
+                    .is_some_and(|index| mask.contains(&index)),
+                aquifer_state: Some("minecraft:cave_air"),
+                should_schedule_fluid_update: false,
+                debug_enabled: false,
+            },
+        ) else {
+            continue;
+        };
+        chunk.set_block_state(pos.x, pos.y, pos.z, outcome.state);
+        mask.push(outcome.mask_index);
+        carved += 1;
+    }
+    carved
+}
+
+fn sample_carver_y(
+    range: HeightRange,
+    context: WorldGenerationHeightContext,
+    random: &mut LegacyRandom,
+) -> i32 {
+    let min = range.min.resolve_y(context);
+    let max = range.max.resolve_y(context);
+    if max <= min {
+        min
+    } else {
+        min + random.next_i32_bound(max - min + 1)
+    }
+}
+
+fn sample_float_provider(provider: FloatProvider, random: &mut LegacyRandom) -> f32 {
+    match provider {
+        FloatProvider::Constant(value) => value,
+        FloatProvider::Uniform { min, max } => min + (max - min) * random.next_f32(),
+        FloatProvider::Trapezoid { min, max, plateau } => {
+            if max <= min {
+                return min;
+            }
+            let span = max - min;
+            let plateau = plateau.clamp(0.0, span);
+            let slope = (span - plateau) * 0.5;
+            let first = random.next_f32() * (slope + plateau);
+            let second = random.next_f32() * slope;
+            min + first + second
+        }
+    }
+}
+
+fn carver_static_block_name(block: &str) -> Option<&'static str> {
+    match block {
+        "minecraft:stone" => Some("minecraft:stone"),
+        "minecraft:granite" => Some("minecraft:granite"),
+        "minecraft:diorite" => Some("minecraft:diorite"),
+        "minecraft:andesite" => Some("minecraft:andesite"),
+        "minecraft:tuff" => Some("minecraft:tuff"),
+        "minecraft:calcite" => Some("minecraft:calcite"),
+        "minecraft:dirt" => Some("minecraft:dirt"),
+        "minecraft:grass_block" => Some("minecraft:grass_block"),
+        "minecraft:podzol" => Some("minecraft:podzol"),
+        "minecraft:mycelium" => Some("minecraft:mycelium"),
+        "minecraft:coarse_dirt" => Some("minecraft:coarse_dirt"),
+        "minecraft:rooted_dirt" => Some("minecraft:rooted_dirt"),
+        "minecraft:deepslate" => Some("minecraft:deepslate"),
+        "minecraft:sandstone" => Some("minecraft:sandstone"),
+        "minecraft:red_sandstone" => Some("minecraft:red_sandstone"),
+        "minecraft:sand" => Some("minecraft:sand"),
+        "minecraft:red_sand" => Some("minecraft:red_sand"),
+        "minecraft:clay" => Some("minecraft:clay"),
+        "minecraft:gravel" => Some("minecraft:gravel"),
+        "minecraft:water" => Some("minecraft:water"),
+        "minecraft:ice" => Some("minecraft:ice"),
+        "minecraft:packed_ice" => Some("minecraft:packed_ice"),
+        "minecraft:snow_block" => Some("minecraft:snow_block"),
+        "minecraft:netherrack" => Some("minecraft:netherrack"),
+        "minecraft:basalt" => Some("minecraft:basalt"),
+        "minecraft:blackstone" => Some("minecraft:blackstone"),
+        "minecraft:soul_sand" => Some("minecraft:soul_sand"),
+        "minecraft:soul_soil" => Some("minecraft:soul_soil"),
+        "minecraft:crimson_nylium" => Some("minecraft:crimson_nylium"),
+        "minecraft:warped_nylium" => Some("minecraft:warped_nylium"),
+        "minecraft:nether_wart_block" => Some("minecraft:nether_wart_block"),
+        "minecraft:warped_wart_block" => Some("minecraft:warped_wart_block"),
+        _ => None,
+    }
 }
 
 pub fn feature_type_by_id(id: &str) -> Option<&'static FeatureType> {
@@ -39866,6 +40207,42 @@ mod tests {
             super::generator_fill_from_noise_for_stem(pos, &normal.overworld).unwrap();
         assert_eq!(noise_chunk.sections.len(), 24);
         assert!(noise_chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
+    }
+
+    #[test]
+    fn generator_apply_carvers_mutates_surface_chunk_blocks() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let pos = ChunkPos { x: 1, z: -1 };
+        let surface = super::generator_build_surface_for_stem(pos, &normal.overworld)
+            .expect("surface chunk must generate before carvers");
+        let carvers = super::generator_apply_carvers_for_stem(pos, &normal.overworld)
+            .expect("carver status must execute");
+
+        assert_eq!(carvers.status, "minecraft:carvers");
+        assert_ne!(
+            surface.heightmaps.get("WORLD_SURFACE"),
+            carvers.heightmaps.get("WORLD_SURFACE"),
+            "carver execution should recompute client heightmaps after mutating blocks"
+        );
+
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let mut changed_blocks = 0;
+        'scan: for y in settings.noise.min_y..settings.noise.min_y + settings.noise.height {
+            for z in pos.z * 16..pos.z * 16 + 16 {
+                for x in pos.x * 16..pos.x * 16 + 16 {
+                    if surface.get_block_state(x, y, z) != carvers.get_block_state(x, y, z) {
+                        changed_blocks += 1;
+                        if changed_blocks >= 16 {
+                            break 'scan;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            changed_blocks >= 16,
+            "configured carvers should replace terrain blocks with cave air or lava"
+        );
     }
 
     #[test]
