@@ -406,6 +406,17 @@ impl RegionFile {
             .sync_all()
     }
 
+    pub fn close(&self) -> io::Result<()> {
+        let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
+        let file_len = file.metadata()?.len();
+        let padded_len = file_len.div_ceil(SECTOR_BYTES as u64) * SECTOR_BYTES as u64;
+        if file_len != padded_len {
+            file.seek(SeekFrom::Start(padded_len - 1))?;
+            file.write_all(&[0])?;
+        }
+        file.sync_all()
+    }
+
     pub fn write_chunk_nbt_with_compression(
         &self,
         chunk: ChunkPos,
@@ -773,7 +784,7 @@ mod tests {
         OLD_CHUNK_DATA_VERSION_CUTOFF, OLD_CHUNK_REGION_CACHE_SIZE,
     };
     use crate::storage::nbt::Tag;
-    use std::fs;
+    use std::fs::{self, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
 
     #[test]
@@ -1055,6 +1066,32 @@ mod tests {
         assert_eq!(
             region.read_location(fourth).unwrap().unwrap().sector_offset,
             3
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_close_pads_to_full_sector_and_forces_file() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-region-close-pad-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        let mut file = OpenOptions::new().write(true).open(region.path()).unwrap();
+        file.seek(SeekFrom::Start(HEADER_BYTES + 17)).unwrap();
+        file.write_all(&[1]).unwrap();
+        drop(file);
+        assert_ne!(
+            fs::metadata(region.path()).unwrap().len() % super::SECTOR_BYTES as u64,
+            0
+        );
+
+        region.close().unwrap();
+
+        assert_eq!(
+            fs::metadata(region.path()).unwrap().len() % super::SECTOR_BYTES as u64,
+            0
         );
 
         let _ = fs::remove_dir_all(&dir);
