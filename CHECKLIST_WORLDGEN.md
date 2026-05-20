@@ -261,7 +261,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 - [x] Implement overworld, nether, and end dimension defaults.
 - [x] Implement dimension type properties, skylight, coordinate scale, infiniburn, bed/respawn behavior, raids, logical height, min Y, height, monster settings, and ambient effects.
-- [ ] Implement world options: seed, generate structures, bonus chest, demo mode.
+- [x] Implement world options: seed, generate structures, bonus chest, demo mode.
 - [ ] Implement normal, flat, large biome, amplified, single biome, and datapack world presets if present in 26.1.2 data.
 - [x] Implement biome registry and climate parameter selection.
 - [x] Implement noise settings.
