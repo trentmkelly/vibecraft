@@ -53,7 +53,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement `WorldDimensions` codec: select overworld/nether/end generator from registry entries
 - [ ] Implement `WorldGenSettings`: seed, `generateStructures`, `generateBonusChest`, dimension map
 - [ ] Implement `LevelStem` codec pairing `DimensionType` holder with `ChunkGenerator`
-- [ ] Add test: `level-type=flat`, `level-type=amplified`, `level-type=large_biomes`, `level-type=single_biome_surface`, custom world preset all select correct generators
+- [x] Add test: `level-type=flat`, `level-type=amplified`, `level-type=large_biomes`, `level-type=single_biome_surface`, custom world preset all select correct generators
 
 ## Random Source Parity
 
