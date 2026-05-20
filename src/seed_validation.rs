@@ -29,6 +29,27 @@ pub struct SeedParitySample {
     pub loot_sequence_seed: Seed128,
 }
 
+pub const SEED_PARITY_MATRIX_SEEDS: &[i64] = &[0, 1, -1, 12_345, 8_675_309, i64::MAX];
+pub const SEED_PARITY_MATRIX_CHUNKS: &[ChunkCoord] = &[
+    ChunkCoord { x: 0, z: 0 },
+    ChunkCoord { x: 1, z: 0 },
+    ChunkCoord { x: 0, z: 1 },
+    ChunkCoord { x: -1, z: -1 },
+    ChunkCoord { x: 16, z: 16 },
+    ChunkCoord { x: -32, z: 32 },
+];
+
+pub fn build_seed_parity_matrix() -> Vec<SeedParitySample> {
+    SEED_PARITY_MATRIX_SEEDS
+        .iter()
+        .flat_map(|seed| {
+            SEED_PARITY_MATRIX_CHUNKS
+                .iter()
+                .map(move |chunk| build_seed_parity_sample(*seed, chunk.x, chunk.z))
+        })
+        .collect()
+}
+
 pub fn build_seed_parity_sample(seed: i64, chunk_x: i32, chunk_z: i32) -> SeedParitySample {
     let initial_spawn = initial_spawn_position(false, false, false, chunk_x, chunk_z, 64, -64, 70);
     let spawn_search_candidate =
@@ -114,7 +135,10 @@ fn evaluate_spread(random: &mut LegacyRandom, spread_type: RandomSpreadType, lim
 
 #[cfg(test)]
 mod tests {
-    use super::{build_seed_parity_sample, potential_random_spread_chunk, ChunkCoord};
+    use super::{
+        build_seed_parity_matrix, build_seed_parity_sample, potential_random_spread_chunk,
+        ChunkCoord, SEED_PARITY_MATRIX_CHUNKS, SEED_PARITY_MATRIX_SEEDS,
+    };
     use crate::random_source::Seed128;
     use crate::worldgen::RandomSpreadType;
 
@@ -162,5 +186,37 @@ mod tests {
                 hi: 6_020_237_448_238_109_111
             }
         );
+    }
+
+    #[test]
+    fn seed_parity_matrix_covers_chunks_structures_loot_and_spawn_candidates() {
+        let first = build_seed_parity_matrix();
+        let second = build_seed_parity_matrix();
+
+        assert_eq!(first, second);
+        assert_eq!(
+            first.len(),
+            SEED_PARITY_MATRIX_SEEDS.len() * SEED_PARITY_MATRIX_CHUNKS.len()
+        );
+        assert!(first
+            .iter()
+            .all(|sample| sample.structure_chunks.len() == 6));
+        assert!(first.iter().all(
+            |sample| sample.spawn_search_candidate.0 >= sample.chunk.x * 16
+                && sample.spawn_search_candidate.0 < sample.chunk.x * 16 + 24
+        ));
+        assert!(first.iter().all(
+            |sample| sample.spawn_search_candidate.1 >= sample.chunk.z * 16
+                && sample.spawn_search_candidate.1 < sample.chunk.z * 16 + 24
+        ));
+        assert!(first
+            .iter()
+            .all(|sample| sample.loot_sequence_seed.lo != 0 || sample.loot_sequence_seed.hi != 0));
+
+        let unique_structure_sets = first
+            .iter()
+            .flat_map(|sample| sample.structure_chunks.iter().map(|(id, _)| *id))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique_structure_sets.len(), 6);
     }
 }

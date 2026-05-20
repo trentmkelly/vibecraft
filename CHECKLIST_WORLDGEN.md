@@ -302,6 +302,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement world border effects on generation and gameplay.
 - [x] Implement random source algorithms exactly where worldgen parity depends on them.
 - [ ] Validate same seed produces same chunks, biomes, structures, loot seeds, and spawn area as vanilla.
+  - [x] Add a deterministic seed parity matrix over multiple seeds and chunk coordinates covering spawn search candidates, random-spread structure target chunks, decoration/feature seeds, slime seeds, and loot random-sequence seeds. Full vanilla chunk/biome/structure body parity remains pending under the parent item. References: `RustCraft/src/seed_validation.rs`.
 
 ## Migrated From Main Checklist: Chunk System
 
