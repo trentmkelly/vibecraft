@@ -331,7 +331,7 @@ impl LevelChunk {
             heightmaps: BTreeMap::new(),
             block_entities: Vec::new(),
             entities: Vec::new(),
-            structures: Tag::Compound(Vec::new()),
+            structures: empty_structures_payload(),
             upgrade_data: None,
             blending_data: None,
             below_zero_retrogen: None,
@@ -444,6 +444,13 @@ impl LevelChunk {
             light_correct: optional_bool_field(root, "isLightOn")?.unwrap_or(false),
         })
     }
+}
+
+fn empty_structures_payload() -> Tag {
+    Tag::Compound(vec![
+        ("starts".to_string(), Tag::Compound(Vec::new())),
+        ("References".to_string(), Tag::Compound(Vec::new())),
+    ])
 }
 
 impl ChunkSection {
@@ -889,6 +896,22 @@ mod tests {
         assert_eq!(decoded.fluid_ticks.len(), 1);
         assert_eq!(decoded.post_processing.len(), 1);
         assert!(decoded.light_correct);
+    }
+
+    #[test]
+    fn empty_level_chunk_uses_vanilla_structures_payload_shape() {
+        let chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        let Tag::Compound(fields) = &chunk.structures else {
+            panic!("structures payload should be a compound");
+        };
+        assert!(matches!(
+            fields.iter().find(|(name, _)| name == "starts"),
+            Some((_, Tag::Compound(starts))) if starts.is_empty()
+        ));
+        assert!(matches!(
+            fields.iter().find(|(name, _)| name == "References"),
+            Some((_, Tag::Compound(references))) if references.is_empty()
+        ));
     }
 
     #[test]
