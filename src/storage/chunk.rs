@@ -955,6 +955,27 @@ pub fn light_data_layer_get(data: Option<&[i8]>, default_value: u8, x: i32, y: i
     }
 }
 
+pub fn light_data_layer_materialize(default_value: u8) -> Vec<i8> {
+    vec![light_data_layer_pack_filled(default_value); LIGHT_DATA_LAYER_LENGTH]
+}
+
+pub fn light_data_layer_set(
+    data: &mut Option<Vec<i8>>,
+    default_value: u8,
+    x: i32,
+    y: i32,
+    z: i32,
+    value: u8,
+) {
+    let layer = data.get_or_insert_with(|| light_data_layer_materialize(default_value));
+    let index = light_data_layer_index(x, y, z);
+    let byte_index = light_data_layer_byte_index(index);
+    let shift = 4 * light_data_layer_nibble_index(index);
+    let mask = !(15_u8 << shift);
+    let byte = layer[byte_index] as u8;
+    layer[byte_index] = ((byte & mask) | ((value & 15) << shift)) as i8;
+}
+
 pub fn pack_chunk_pos_as_long(pos: ChunkPos) -> i64 {
     (i64::from(pos.x) & 0xffff_ffff) | ((i64::from(pos.z) & 0xffff_ffff) << 32)
 }
@@ -2854,6 +2875,25 @@ mod tests {
         assert_eq!(super::light_data_layer_get(Some(&data), 0, 3, 3, 4), 0x0a);
         assert_eq!(super::light_data_layer_get(None, 15, 3, 3, 4), 15);
         assert_eq!(super::light_data_layer_get(None, 18, 3, 3, 4), 2);
+    }
+
+    #[test]
+    fn light_data_layer_set_materializes_and_masks_like_vanilla() {
+        let mut data = None;
+
+        super::light_data_layer_set(&mut data, 15, 2, 3, 4, 0);
+        let data = data.as_mut().expect("setting should materialize the layer");
+
+        assert_eq!(data.len(), LIGHT_DATA_LAYER_LENGTH);
+        assert_eq!(super::light_data_layer_get(Some(data), 15, 2, 3, 4), 0);
+        assert_eq!(super::light_data_layer_get(Some(data), 15, 3, 3, 4), 15);
+
+        let mut data = Some(data.clone());
+        super::light_data_layer_set(&mut data, 15, 3, 3, 4, 18);
+        let data = data.as_ref().unwrap();
+
+        assert_eq!(super::light_data_layer_get(Some(data), 15, 3, 3, 4), 2);
+        assert_eq!(super::light_data_layer_get(Some(data), 15, 2, 3, 4), 0);
     }
 
     #[test]
