@@ -581,7 +581,7 @@ impl LevelChunk {
             structures: field(root, "structures")?.clone(),
             upgrade_data: optional_field(root, "UpgradeData").cloned(),
             blending_data: optional_field(root, "blending_data").cloned(),
-            below_zero_retrogen: optional_field(root, "below_zero_retrogen").cloned(),
+            below_zero_retrogen: optional_below_zero_retrogen(root)?,
             carving_mask: optional_long_array(root, "carving_mask")?,
             block_ticks: list_field(root, "block_ticks")?.to_vec(),
             fluid_ticks: list_field(root, "fluid_ticks")?.to_vec(),
@@ -994,6 +994,32 @@ fn optional_bool_field(compound: &[(String, Tag)], name: &str) -> Result<Option<
     }
 }
 
+fn optional_below_zero_retrogen(compound: &[(String, Tag)]) -> Result<Option<Tag>, String> {
+    let Some(tag) = optional_field(compound, "below_zero_retrogen") else {
+        return Ok(None);
+    };
+    validate_below_zero_retrogen(tag)?;
+    Ok(Some(tag.clone()))
+}
+
+fn validate_below_zero_retrogen(tag: &Tag) -> Result<(), String> {
+    let compound = compound(tag)?;
+    let target_status = string_field(compound, "target_status")?;
+    let target_status_name = target_status
+        .strip_prefix("minecraft:")
+        .unwrap_or(target_status);
+    if target_status_name == "empty" {
+        return Err("below_zero_retrogen target_status cannot be empty".to_string());
+    }
+    if chunk_status(target_status_name).is_none() {
+        return Err(format!(
+            "below_zero_retrogen target_status {target_status} is not a known chunk status"
+        ));
+    }
+    optional_long_array(compound, "missing_bedrock")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1039,7 +1065,7 @@ mod tests {
             blending_data: Some(Tag::Compound(vec![("old_noise".to_string(), Tag::Byte(1))])),
             below_zero_retrogen: Some(Tag::Compound(vec![(
                 "target_status".to_string(),
-                Tag::String("minecraft:heightmaps".to_string()),
+                Tag::String("minecraft:noise".to_string()),
             )])),
             carving_mask: Some(vec![7, 8, 9]),
             block_ticks: vec![Tag::Compound(vec![(
@@ -1098,6 +1124,79 @@ mod tests {
         let decoded = LevelChunk::from_nbt(chunk.pos, &encoded).unwrap();
         assert!(decoded.entities.is_empty());
         assert!(decoded.carving_mask.is_none());
+    }
+
+    #[test]
+    fn level_chunk_accepts_valid_below_zero_retrogen_payload() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut encoded = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut encoded else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "below_zero_retrogen".to_string(),
+            Tag::Compound(vec![
+                (
+                    "target_status".to_string(),
+                    Tag::String("minecraft:noise".to_string()),
+                ),
+                ("missing_bedrock".to_string(), Tag::LongArray(vec![3])),
+            ]),
+        ));
+
+        let decoded = LevelChunk::from_nbt(pos, &encoded).unwrap();
+
+        assert!(decoded.below_zero_retrogen.is_some());
+    }
+
+    #[test]
+    fn level_chunk_rejects_invalid_below_zero_retrogen_payloads() {
+        let pos = ChunkPos { x: 0, z: 0 };
+
+        let mut empty_status = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut empty_status else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "below_zero_retrogen".to_string(),
+            Tag::Compound(vec![(
+                "target_status".to_string(),
+                Tag::String("minecraft:empty".to_string()),
+            )]),
+        ));
+        let err = LevelChunk::from_nbt(pos, &empty_status).unwrap_err();
+        assert!(err.contains("target_status cannot be empty"));
+
+        let mut unknown_status = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut unknown_status else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "below_zero_retrogen".to_string(),
+            Tag::Compound(vec![(
+                "target_status".to_string(),
+                Tag::String("minecraft:not_a_status".to_string()),
+            )]),
+        ));
+        let err = LevelChunk::from_nbt(pos, &unknown_status).unwrap_err();
+        assert!(err.contains("not a known chunk status"));
+
+        let mut wrong_bedrock_shape = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut wrong_bedrock_shape else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "below_zero_retrogen".to_string(),
+            Tag::Compound(vec![
+                (
+                    "target_status".to_string(),
+                    Tag::String("minecraft:noise".to_string()),
+                ),
+                ("missing_bedrock".to_string(), Tag::List(Vec::new())),
+            ]),
+        ));
+        let err = LevelChunk::from_nbt(pos, &wrong_bedrock_shape).unwrap_err();
+        assert!(err.contains("NBT field missing_bedrock must be a long array"));
     }
 
     #[test]
