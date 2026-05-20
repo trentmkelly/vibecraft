@@ -564,7 +564,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "bundle",
         java_class: "ClientboundBundlePacket",
-        field_order: "unparsed",
+        field_order: "bundle delimiter packet; payload is nested packet sequence handled by BundlePacket",
     },
     PlayPacketSpec {
         id: 1,
@@ -642,7 +642,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "chunk_batch_finished",
         java_class: "ClientboundChunkBatchFinishedPacket",
-        field_order: "unparsed",
+        field_order: "batch_size:VarInt",
     },
     PlayPacketSpec {
         id: 12,
@@ -656,7 +656,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "chunks_biomes",
         java_class: "ClientboundChunksBiomesPacket",
-        field_order: "unparsed",
+        field_order: "chunk_biome_data:List(pos:ChunkPos i64, buffer:byte_array max 2097152)",
     },
     PlayPacketSpec {
         id: 14,
@@ -726,7 +726,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "custom_chat_completions",
         java_class: "ClientboundCustomChatCompletionsPacket",
-        field_order: "unparsed",
+        field_order: "action:enum VarInt, entries:List<String>",
     },
     PlayPacketSpec {
         id: 24,
@@ -740,35 +740,35 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "damage_event",
         java_class: "ClientboundDamageEventPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, source_type:DamageType holder, source_cause_id:VarInt id+1, source_direct_id:VarInt id+1, source_position:Optional<Vec3 double>",
     },
     PlayPacketSpec {
         id: 26,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "debug_block_value",
         java_class: "ClientboundDebugBlockValuePacket",
-        field_order: "unparsed",
+        field_order: "block_pos:BlockPos, update:DebugSubscription.Update",
     },
     PlayPacketSpec {
         id: 27,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "debug_chunk_value",
         java_class: "ClientboundDebugChunkValuePacket",
-        field_order: "unparsed",
+        field_order: "chunk_pos:ChunkPos i64, update:DebugSubscription.Update",
     },
     PlayPacketSpec {
         id: 28,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "debug_entity_value",
         java_class: "ClientboundDebugEntityValuePacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, update:DebugSubscription.Update",
     },
     PlayPacketSpec {
         id: 29,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "debug_event",
         java_class: "ClientboundDebugEventPacket",
-        field_order: "unparsed",
+        field_order: "event:DebugSubscription.Event",
     },
     PlayPacketSpec {
         id: 30,
@@ -845,7 +845,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "game_test_highlight_pos",
         java_class: "ClientboundGameTestHighlightPosPacket",
-        field_order: "unparsed",
+        field_order: "absolute_pos:BlockPos, relative_pos:BlockPos",
     },
     PlayPacketSpec {
         id: 41,
@@ -915,7 +915,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "low_disk_space_warning",
         java_class: "ClientboundLowDiskSpaceWarningPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 51,
@@ -951,7 +951,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "move_minecart_along_track",
         java_class: "ClientboundMoveMinecartPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt, lerp_steps:List<NewMinecartBehavior.MinecartStep>",
     },
     PlayPacketSpec {
         id: 56,
@@ -1007,7 +1007,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "place_ghost_recipe",
         java_class: "ClientboundPlaceGhostRecipePacket",
-        field_order: "unparsed",
+        field_order: "container_id:CONTAINER_ID, recipe_display:RecipeDisplay",
     },
     PlayPacketSpec {
         id: 64,
@@ -1028,14 +1028,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_combat_end",
         java_class: "ClientboundPlayerCombatEndPacket",
-        field_order: "unparsed",
+        field_order: "duration:VarInt",
     },
     PlayPacketSpec {
         id: 67,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_combat_enter",
         java_class: "ClientboundPlayerCombatEnterPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 68,
@@ -1077,7 +1077,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_rotation",
         java_class: "ClientboundPlayerRotationPacket",
-        field_order: "unparsed",
+        field_order: "y_rot:f32, relative_y:bool, x_rot:f32, relative_x:bool",
     },
     PlayPacketSpec {
         id: 74,
@@ -1161,14 +1161,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "select_advancements_tab",
         java_class: "ClientboundSelectAdvancementsTabPacket",
-        field_order: "unparsed",
+        field_order: "tab:nullable Identifier",
     },
     PlayPacketSpec {
         id: 86,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "server_data",
         java_class: "ClientboundServerDataPacket",
-        field_order: "unparsed",
+        field_order: "motd:trusted context-free Component, icon_bytes:Optional<byte_array>",
     },
     PlayPacketSpec {
         id: 87,
@@ -1450,7 +1450,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "test_instance_block_status",
         java_class: "ClientboundTestInstanceBlockStatus",
-        field_order: "unparsed",
+        field_order: "status:ComponentSerialization.STREAM_CODEC, size:Optional<Vec3i>",
     },
     PlayPacketSpec {
         id: 127,
@@ -1499,21 +1499,21 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "update_recipes",
         java_class: "ClientboundUpdateRecipesPacket",
-        field_order: "unparsed",
+        field_order: "item_sets:Map<ResourceKey<RecipePropertySet>, RecipePropertySet>, stonecutter_recipes:SelectableRecipe.SingleInputSet<StonecutterRecipe>",
     },
     PlayPacketSpec {
         id: 134,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "update_tags",
         java_class: "ClientboundUpdateTagsPacket",
-        field_order: "unparsed",
+        field_order: "tags:Map<registry ResourceKey, NetworkPayload(tags:List<Identifier, int id list>)>",
     },
     PlayPacketSpec {
         id: 135,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "projectile_power",
         java_class: "ClientboundProjectilePowerPacket",
-        field_order: "unparsed",
+        field_order: "id:VarInt, acceleration_power:f64",
     },
     PlayPacketSpec {
         id: 136,
@@ -1534,7 +1534,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "waypoint",
         java_class: "ClientboundTrackedWaypointPacket",
-        field_order: "unparsed",
+        field_order: "operation:enum VarInt, waypoint:TrackedWaypoint",
     },
     PlayPacketSpec {
         id: 139,
@@ -1744,6 +1744,18 @@ mod tests {
             assert!(
                 !spec.field_order.is_empty(),
                 "missing field order for {spec:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn play_packet_specification_has_no_unparsed_field_orders() {
+        let specs = play_packet_specs_26_1_2();
+        for spec in specs {
+            assert_ne!(
+                spec.field_order, "unparsed",
+                "{:?} {} {} still needs concrete field order",
+                spec.direction, spec.id, spec.wire_name
             );
         }
     }
