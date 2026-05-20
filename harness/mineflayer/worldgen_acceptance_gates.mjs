@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { OVERWORLD_TARGET_FIXTURE_CHUNKS } from './vanilla_worldgen_fixtures.mjs'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
 
@@ -197,8 +199,13 @@ function fixtureIssuesForPhase (phase, { overworldReport, dimensionReport }) {
 function validateOverworldReport (report) {
   if (!report) return ['missing overworld fixture report']
   const chunks = requestedChunks(report)
+  const requiredTargetCategories = OVERWORLD_TARGET_FIXTURE_CHUNKS.map(fixture => fixture.category)
+  const reportCategories = new Set((report.cases ?? []).map(fixture => fixture.category))
   const issues = []
   if (chunks.length === 0) issues.push('overworld report has no requested chunks')
+  for (const category of requiredTargetCategories) {
+    if (!reportCategories.has(category)) issues.push(`overworld report missing ${category} fixture`)
+  }
   if (!chunks.every(chunk => chunk.status === 'minecraft:full')) issues.push('not every overworld requested chunk is full')
   if (!chunks.every(chunk => chunk.sectionCount >= 1)) issues.push('overworld requested chunks are missing sections')
   if (!chunks.every(chunk => Object.keys(chunk.heightmaps ?? {}).includes('WORLD_SURFACE'))) issues.push('overworld requested chunks missing WORLD_SURFACE heightmap')

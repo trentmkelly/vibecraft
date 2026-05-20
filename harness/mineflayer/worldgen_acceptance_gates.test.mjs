@@ -66,6 +66,21 @@ test('acceptance report recognizes valid overworld and dimension fixture summari
   assert(report.phases.every(phase => phase.fixtureIssues.length === 0))
 })
 
+test('acceptance report requires named overworld target fixture categories', () => {
+  const report = validateWorldgenAcceptanceReport({
+    overworldReport: fixtureReport({
+      dimension: 'overworld',
+      cases: [{ category: 'ocean_target' }],
+      palette: ['minecraft:stone', 'minecraft:water']
+    })
+  })
+  const noiseTerrain = report.phases.find(phase => phase.id === 'noise_terrain')
+
+  assert(noiseTerrain.fixtureIssues.includes('overworld report missing mountain_target fixture'))
+  assert(noiseTerrain.fixtureIssues.includes('overworld report missing river_target fixture'))
+  assert(noiseTerrain.fixtureIssues.includes('overworld report missing ore_vein_heavy_target fixture'))
+})
+
 test('acceptance report loader reads fixture reports from disk and allows missing reports by default', async () => {
   const dir = path.join('/tmp', `rustcraft-worldgen-gate-${process.pid}`)
   await rm(dir, { recursive: true, force: true })
@@ -256,10 +271,20 @@ test('CLI can generate and compare the RustCraft report on demand', async () => 
 
 function fixtureReport ({
   dimension,
+  cases,
   palette = ['minecraft:stone'],
   heightmaps = ['WORLD_SURFACE', 'OCEAN_FLOOR', 'MOTION_BLOCKING', 'MOTION_BLOCKING_NO_LEAVES']
 }) {
   return {
+    cases: cases ?? [
+      { category: 'ocean_target' },
+      { category: 'mountain_target' },
+      { category: 'river_target' },
+      { category: 'cave_heavy_target' },
+      { category: 'village_adjacent_target' },
+      { category: 'structure_adjacent_target' },
+      { category: 'ore_vein_heavy_target' }
+    ],
     results: [{
       fixture: {
         chunks: [{ x: 0, z: 0, dimension }]
