@@ -47,6 +47,7 @@ pub struct WorldgenSourceFamilyGolden {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorldgenChunkSignature {
+    pub dimension: String,
     pub chunk: ChunkCoord,
     pub status: String,
     pub section_count: usize,
@@ -100,6 +101,7 @@ pub enum WorldgenChunkReportDiff {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VanillaFixtureChunkSummary {
+    pub dimension: String,
     pub chunk: ChunkCoord,
     pub status: String,
     pub section_count: usize,
@@ -424,6 +426,7 @@ pub fn build_chunk_signature(chunk: &LevelChunk) -> WorldgenChunkSignature {
     heightmaps.sort_by(|left, right| left.name.cmp(&right.name));
 
     WorldgenChunkSignature {
+        dimension: "overworld".to_string(),
         chunk: ChunkCoord {
             x: chunk.pos.x,
             z: chunk.pos.z,
@@ -452,6 +455,13 @@ pub fn diff_chunk_signatures(
     let chunk = left.chunk;
     let mut diffs = Vec::new();
     push_diff(&mut diffs, chunk, "chunk", &left.chunk, &right.chunk);
+    push_diff(
+        &mut diffs,
+        chunk,
+        "dimension",
+        &left.dimension,
+        &right.dimension,
+    );
     push_diff(&mut diffs, chunk, "status", &left.status, &right.status);
     push_diff(
         &mut diffs,
@@ -557,6 +567,7 @@ pub fn signature_from_vanilla_fixture_summary(
     summary: VanillaFixtureChunkSummary,
 ) -> WorldgenChunkSignature {
     WorldgenChunkSignature {
+        dimension: summary.dimension,
         chunk: summary.chunk,
         status: summary.status,
         section_count: summary.section_count,
@@ -590,9 +601,10 @@ pub fn parse_vanilla_fixture_report(raw: &str) -> Result<VanillaFixtureReport, S
         .to_string();
     let mut chunks = Vec::new();
     for result in array_field(&root, "results")? {
+        let fixture_dimensions = fixture_dimensions_by_chunk(result)?;
         for artifact in array_field(result, "artifacts")? {
             for chunk in array_field(artifact, "requestedChunks")? {
-                chunks.push(parse_fixture_chunk(chunk)?);
+                chunks.push(parse_fixture_chunk(chunk, &fixture_dimensions)?);
             }
         }
     }
@@ -696,12 +708,21 @@ pub fn rustcraft_chunk_signature_json(
     })
 }
 
-fn parse_fixture_chunk(value: &Value) -> Result<VanillaFixtureChunkSummary, String> {
+fn parse_fixture_chunk(
+    value: &Value,
+    fixture_dimensions: &BTreeMap<(i32, i32), String>,
+) -> Result<VanillaFixtureChunkSummary, String> {
+    let chunk = ChunkCoord {
+        x: i32_field(value, "chunkX")?,
+        z: i32_field(value, "chunkZ")?,
+    };
+    let dimension = fixture_dimensions
+        .get(&(chunk.x, chunk.z))
+        .cloned()
+        .unwrap_or_else(|| "overworld".to_string());
     Ok(VanillaFixtureChunkSummary {
-        chunk: ChunkCoord {
-            x: i32_field(value, "chunkX")?,
-            z: i32_field(value, "chunkZ")?,
-        },
+        dimension,
+        chunk,
         status: string_field_value(value, "status")
             .ok_or_else(|| "fixture chunk missing status".to_string())?
             .to_string(),
@@ -726,6 +747,9 @@ fn parse_fixture_chunk(value: &Value) -> Result<VanillaFixtureChunkSummary, Stri
 
 fn parse_rustcraft_chunk_signature(value: &Value) -> Result<WorldgenChunkSignature, String> {
     Ok(WorldgenChunkSignature {
+        dimension: string_field_value(value, "dimension")
+            .unwrap_or("overworld")
+            .to_string(),
         chunk: ChunkCoord {
             x: i32_field(value, "chunkX")?,
             z: i32_field(value, "chunkZ")?,
@@ -821,6 +845,22 @@ fn parse_structures(value: &Value) -> Result<WorldgenStructureSignature, String>
         start_keys: string_array_field(value, "startKeys")?,
         reference_keys: string_array_field(value, "referenceKeys")?,
     })
+}
+
+fn fixture_dimensions_by_chunk(result: &Value) -> Result<BTreeMap<(i32, i32), String>, String> {
+    let mut dimensions = BTreeMap::new();
+    let Some(fixture) = result.get("fixture") else {
+        return Ok(dimensions);
+    };
+    for chunk in array_field(fixture, "chunks")? {
+        dimensions.insert(
+            (i32_field(chunk, "x")?, i32_field(chunk, "z")?),
+            string_field_value(chunk, "dimension")
+                .unwrap_or("overworld")
+                .to_string(),
+        );
+    }
+    Ok(dimensions)
 }
 
 fn array_field<'a>(value: &'a Value, field: &str) -> Result<&'a [Value], String> {
@@ -930,10 +970,19 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
 
 fn signature_map(
     signatures: &[WorldgenChunkSignature],
-) -> BTreeMap<(i32, i32), &WorldgenChunkSignature> {
+) -> BTreeMap<(&str, i32, i32), &WorldgenChunkSignature> {
     signatures
         .iter()
-        .map(|signature| ((signature.chunk.x, signature.chunk.z), signature))
+        .map(|signature| {
+            (
+                (
+                    signature.dimension.as_str(),
+                    signature.chunk.x,
+                    signature.chunk.z,
+                ),
+                signature,
+            )
+        })
         .collect()
 }
 
@@ -1385,6 +1434,25 @@ mod tests {
     }
 
     #[test]
+    fn chunk_signature_report_diff_keys_chunks_by_dimension_and_coordinate() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let overworld = build_chunk_signature(&chunk);
+        let mut nether = overworld.clone();
+        nether.dimension = "the_nether".to_string();
+
+        assert_eq!(
+            diff_chunk_signature_reports(&[overworld.clone(), nether], &[overworld]),
+            vec![WorldgenChunkReportDiff::MissingActual {
+                chunk: ChunkCoord { x: 0, z: 0 },
+            }]
+        );
+    }
+
+    #[test]
     fn rustcraft_worldgen_report_uses_gate_compatible_chunk_shape() {
         let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
             crate::storage::region::ChunkPos { x: 0, z: 0 },
@@ -1545,6 +1613,7 @@ mod tests {
     #[test]
     fn vanilla_fixture_summary_normalizes_to_chunk_signature_for_rust_diffs() {
         let fixture = VanillaFixtureChunkSummary {
+            dimension: "overworld".to_string(),
             chunk: ChunkCoord { x: 1, z: -2 },
             status: "minecraft:full".to_string(),
             section_count: 2,
@@ -1629,6 +1698,9 @@ mod tests {
             r#"{
               "format": "rustcraft-vanilla-worldgen-fixtures-v1",
               "results": [{
+                "fixture": {
+                  "chunks": [{ "x": 0, "z": -1, "dimension": "the_nether" }]
+                },
                 "artifacts": [{
                   "requestedChunks": [{
                     "chunkX": 0,
@@ -1670,6 +1742,7 @@ mod tests {
         assert_eq!(report.format, "rustcraft-vanilla-worldgen-fixtures-v1");
         assert_eq!(report.chunks.len(), 1);
         let signatures = fixture_report_signatures(&report);
+        assert_eq!(signatures[0].dimension, "the_nether");
         assert_eq!(signatures[0].chunk, ChunkCoord { x: 0, z: -1 });
         assert_eq!(
             signatures[0].block_palette,
