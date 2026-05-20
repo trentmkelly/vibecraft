@@ -37,27 +37,28 @@ use crate::network::login::{
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
     block_state_name_network_id, build_recipe_book_add, handle_container_click,
-    unpack_block_position, ClientboundContainerSetSlotPacket, ClientboundLevelChunkPacketData,
-    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
-    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
-    CommonPlayerSpawnInfo, Direction3d, GameMode, PlayInstruction, RawDataComponentPatch,
-    RawItemStack, ServerboundContainerClickPacket, ServerboundSwingHand,
-    ServerboundUseItemOnPacket, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-    CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
-    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
-    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
-    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
-    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    unpack_block_position, ClientboundAddEntityPacket, ClientboundContainerSetSlotPacket,
+    ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
+    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
+    ClientboundSetTimePacket, ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d,
+    GameMode, PlayInstruction, RawDataComponentPatch, RawItemStack,
+    ServerboundContainerClickPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
+    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
+    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
+    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
     SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
@@ -3579,12 +3580,7 @@ fn write_play_chunk_delta(
         |_payload| Ok(()),
     )?;
     for &(x, z) in chunks {
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-            |payload| write_generated_spawn_chunk_packet(payload, x, z, world_root, world_seed),
-        )?;
+        write_generated_spawn_chunk_packets(stream, compression, x, z, world_root, world_seed)?;
     }
     write_framed_packet_with_compression(
         stream,
@@ -3800,9 +3796,49 @@ fn write_generated_spawn_chunk_packet<W: Write>(
     world_root: &Path,
     world_seed: i64,
 ) -> io::Result<()> {
+    let chunk = load_or_generate_spawn_chunk(x, z, world_root, world_seed);
+    write_generated_spawn_chunk_payload(writer, &chunk)
+}
+
+fn write_generated_spawn_chunk_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    x: i32,
+    z: i32,
+    world_root: &Path,
+    world_seed: i64,
+) -> io::Result<()> {
+    let chunk = load_or_generate_spawn_chunk(x, z, world_root, world_seed);
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
+        |payload| write_generated_spawn_chunk_payload(payload, &chunk),
+    )?;
+    for packet in generated_chunk_entity_add_packets(&chunk) {
+        write_framed_packet_with_compression(
+            writer,
+            compression,
+            CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+            |payload| packet.write(payload),
+        )?;
+    }
+    Ok(())
+}
+
+fn write_generated_spawn_chunk_payload<W: Write>(
+    writer: &mut W,
+    chunk: &LevelChunk,
+) -> io::Result<()> {
+    let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
+    let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
+    write_level_chunk_with_light_payload(writer, &packet)
+}
+
+fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i64) -> LevelChunk {
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
-    let chunk = try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
+    try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
         generate_overworld_spawn_chunk_for_preset_with_mode(
             pos,
             "normal",
@@ -3811,16 +3847,119 @@ fn write_generated_spawn_chunk_packet<W: Write>(
             true,
         )
         .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
-    });
-    let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
-    let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
-    write_level_chunk_with_light_payload(writer, &packet)
+    })
 }
 
 fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
     match std::env::var("RUSTCRAFT_WORLDGEN").as_deref() {
         Ok("real-surface") | Ok("surface") => LiveChunkGenerationMode::RealSurface,
         _ => LiveChunkGenerationMode::Preview,
+    }
+}
+
+fn generated_chunk_entity_add_packets(chunk: &LevelChunk) -> Vec<ClientboundAddEntityPacket> {
+    chunk
+        .entities
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entity)| generated_chunk_entity_add_packet(chunk.pos, index, entity))
+        .collect()
+}
+
+fn generated_chunk_entity_add_packet(
+    chunk_pos: ChunkPos,
+    index: usize,
+    entity: &Tag,
+) -> Option<ClientboundAddEntityPacket> {
+    let Tag::Compound(fields) = entity else {
+        return None;
+    };
+    let entity_type = tag_string_field(fields, "id")?;
+    let entity_type = generated_mob_entity_type_network_id(entity_type)?;
+    let uuid = uuid_from_hyphenated(tag_string_field(fields, "UUID")?).ok()?;
+    let [x, y, z] = tag_double_triplet_field(fields, "Pos")?;
+    let [yaw, pitch] = tag_float_pair_field(fields, "Rotation")?;
+    let runtime_id = generated_chunk_entity_runtime_id(chunk_pos, index);
+    Some(ClientboundAddEntityPacket::new(
+        runtime_id,
+        uuid,
+        entity_type,
+        Vec3 { x, y, z },
+        Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        (pitch, yaw),
+        yaw,
+        0,
+    ))
+}
+
+fn tag_string_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> {
+    fields.iter().find_map(|(field_name, value)| {
+        if field_name == name {
+            if let Tag::String(value) = value {
+                return Some(value.as_str());
+            }
+        }
+        None
+    })
+}
+
+fn tag_double_triplet_field(fields: &[(String, Tag)], name: &str) -> Option<[f64; 3]> {
+    fields.iter().find_map(|(field_name, value)| {
+        if field_name != name {
+            return None;
+        }
+        let Tag::List(values) = value else {
+            return None;
+        };
+        let [Tag::Double(x), Tag::Double(y), Tag::Double(z)] = values.as_slice() else {
+            return None;
+        };
+        Some([*x, *y, *z])
+    })
+}
+
+fn tag_float_pair_field(fields: &[(String, Tag)], name: &str) -> Option<[f32; 2]> {
+    fields.iter().find_map(|(field_name, value)| {
+        if field_name != name {
+            return None;
+        }
+        let Tag::List(values) = value else {
+            return None;
+        };
+        let [Tag::Float(first), Tag::Float(second)] = values.as_slice() else {
+            return None;
+        };
+        Some([*first, *second])
+    })
+}
+
+fn generated_chunk_entity_runtime_id(chunk_pos: ChunkPos, index: usize) -> i32 {
+    let x = chunk_pos.x.rem_euclid(1024);
+    let z = chunk_pos.z.rem_euclid(1024);
+    1_000_000 + x * 1_048_576 + z * 256 + (index as i32 & 0xff)
+}
+
+fn generated_mob_entity_type_network_id(entity_type: &str) -> Option<i32> {
+    match entity_type {
+        "minecraft:chicken" => Some(26),
+        "minecraft:cow" => Some(30),
+        "minecraft:donkey" => Some(36),
+        "minecraft:goat" => Some(62),
+        "minecraft:horse" => Some(66),
+        "minecraft:llama" => Some(78),
+        "minecraft:mooshroom" => Some(86),
+        "minecraft:mule" => Some(87),
+        "minecraft:panda" => Some(96),
+        "minecraft:pig" => Some(100),
+        "minecraft:polar_bear" => Some(104),
+        "minecraft:rabbit" => Some(108),
+        "minecraft:sheep" => Some(111),
+        "minecraft:trader_llama" => Some(143),
+        _ => None,
     }
 }
 
@@ -7228,9 +7367,10 @@ mod tests {
         STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
     };
     use crate::item_stack::ItemStack;
-    use crate::network::codec::write_identifier;
+    use crate::network::codec::{write_identifier, Uuid};
     use crate::network::common::{ServerLinkLabel, ServerLinkType};
     use crate::network::ping::ServerboundPingRequestPacket;
+    use crate::network::play::Vec3;
     use crate::network::varint::{read_var_i32, write_var_i32};
     use crate::player_inventory::{InventoryMenu, PlayerInventory};
     use crate::recipe_system::RecipeMap;
@@ -8542,6 +8682,51 @@ mod tests {
             heightmap_count >= 3,
             "live chunk packets should serialize generated LevelChunk heightmaps, not the legacy zero-heightmap superflat packet"
         );
+    }
+
+    #[test]
+    fn generated_chunk_entity_add_packets_reads_queued_chunk_mob_nbt() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.entities.push(Tag::Compound(vec![
+            ("id".to_string(), Tag::String("minecraft:pig".to_string())),
+            (
+                "UUID".to_string(),
+                Tag::String("00000000-0000-4000-8000-000000000123".to_string()),
+            ),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(70.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(90.0), Tag::Float(15.0)]),
+            ),
+        ]));
+
+        let packets = super::generated_chunk_entity_add_packets(&chunk);
+
+        assert_eq!(packets.len(), 1);
+        let packet = &packets[0];
+        assert_eq!(
+            packet.id,
+            super::generated_chunk_entity_runtime_id(chunk.pos, 0)
+        );
+        assert_eq!(
+            packet.uuid,
+            Uuid([0, 0, 0, 0, 0, 0, 64, 0, 128, 0, 0, 0, 0, 0, 1, 35])
+        );
+        assert_eq!(packet.entity_type, 100);
+        assert_eq!(packet.position.x, 32.9);
+        assert_eq!(packet.position.y, 70.0);
+        assert_eq!(packet.position.z, -33.0);
+        assert_eq!(packet.movement, Vec3::ZERO);
+        assert_eq!(packet.x_rot, 10);
+        assert_eq!(packet.y_rot, 64);
+        assert_eq!(packet.y_head_rot, 64);
     }
 
     #[test]
