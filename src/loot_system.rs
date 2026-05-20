@@ -369,6 +369,44 @@ pub struct LootResolution {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct AdvancementRewardLootInput {
+    pub player: String,
+    pub origin: (f64, f64, f64),
+    pub experience: i32,
+    pub loot_tables: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AdvancementRewardLootOutput {
+    pub experience: i32,
+    pub loot: Vec<LootResolution>,
+}
+
+pub fn resolve_advancement_reward_loot(
+    engine: &LootBehaviorEngine,
+    input: AdvancementRewardLootInput,
+    seed: u64,
+) -> AdvancementRewardLootOutput {
+    let loot = input
+        .loot_tables
+        .iter()
+        .enumerate()
+        .map(|(index, table)| {
+            let mut request = LootRequest::new(LootSurface::AdvancementReward, table.clone());
+            request.origin = input.origin;
+            request.actor = Some(input.player.clone());
+            request.target_entity = Some(input.player.clone());
+            engine.resolve(request, hash_seed(seed, &format!("{table}#{index}")))
+        })
+        .collect();
+
+    AdvancementRewardLootOutput {
+        experience: input.experience,
+        loot,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct LootTableResource {
     pub param_set: String,
     pub random_sequence: Option<String>,
@@ -1472,6 +1510,10 @@ fn hash_seed(base: u64, text: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::advancement_system::{
+        AdvancementDefinition, AdvancementRewards, PlayerAdvancementSet,
+    };
+    use crate::registry::Identifier;
 
     fn table_with_pool(pool: LootPool) -> LootTable {
         LootTable {
@@ -1992,6 +2034,61 @@ mod tests {
             LootDelivery::DropAt(
                 (2.0, 64.0, 3.0),
                 vec![LootStack::new("minecraft:rotten_flesh", 5)]
+            )
+        );
+    }
+
+    #[test]
+    fn advancement_reward_loot_grants_xp_and_tables_with_player_context() {
+        let mut advancements = PlayerAdvancementSet::default();
+        let definition = AdvancementDefinition::all_of(
+            "minecraft:story/mine_stone",
+            None,
+            &["stone"],
+            AdvancementRewards {
+                experience: 5,
+                loot: vec![Identifier::parse("minecraft:advancements/story/mine_stone").unwrap()],
+                recipes: Vec::new(),
+                function: None,
+            },
+            None,
+        )
+        .unwrap();
+        let reward = advancements.grant(&definition, "stone", 1).unwrap();
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:advancements/story/mine_stone",
+            table_with_pool(LootPool::single(LootEntry::Item {
+                item: "minecraft:emerald".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: vec![LootCondition::EntityProperty {
+                    key: "this_entity".to_string(),
+                    value: "Steve".to_string(),
+                }],
+                functions: Vec::new(),
+            })),
+        );
+
+        let output = resolve_advancement_reward_loot(
+            &engine,
+            AdvancementRewardLootInput {
+                player: "Steve".to_string(),
+                origin: (8.0, 65.0, 9.0),
+                experience: reward.experience,
+                loot_tables: reward.loot.iter().map(ToString::to_string).collect(),
+            },
+            44,
+        );
+
+        assert_eq!(output.experience, 5);
+        assert_eq!(output.loot.len(), 1);
+        assert_eq!(output.loot[0].param_set, LootParamSet::AdvancementReward);
+        assert_eq!(
+            output.loot[0].delivery,
+            LootDelivery::GiveToEntity(
+                "Steve".to_string(),
+                vec![LootStack::new("minecraft:emerald", 1)]
             )
         );
     }

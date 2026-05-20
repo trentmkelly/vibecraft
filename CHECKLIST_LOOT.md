@@ -103,7 +103,7 @@
 - [x] Implement chest/container loot: one-time realization from loot table; `RandomizableContainerBlockEntity.unpackLootTable()` on first open; seed stored per block entity
 - [ ] Implement fishing loot: `LootParams` with TOOL, ORIGIN; luck-of-the-sea scaling; treasure/fish/junk category tables
 - [x] Implement archaeology loot: `LootParams` with ORIGIN; brushable block table (`suspicious_sand`, `suspicious_gravel` variants per structure)
-- [ ] Implement advancement reward loot: `LootParams` with THIS_ENTITY; XP and item rewards from advancement JSON
+- [x] Implement advancement reward loot: `LootParams` with THIS_ENTITY; XP and item rewards from advancement JSON - `advancement_system` emits XP and loot-table reward events from advancement JSON/progress completion, and `resolve_advancement_reward_loot` evaluates those tables through `LootSurface::AdvancementReward` with player `THIS_ENTITY` and `ORIGIN`; covered by `advancement_reward_loot_grants_xp_and_tables_with_player_context` and `cargo test -q loot_system`.
 - [ ] Implement mob-gift loot: cat morning gift (`cat/morning_gift`), villager trades, wandering trader
 - [ ] Implement piglin bartering: `gameplay/piglin_bartering` table
 - [ ] Implement vault loot: trial-key one-use opening per player UUID; normal vs. ominous vault tables
