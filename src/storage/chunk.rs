@@ -421,6 +421,22 @@ impl LevelChunk {
         true
     }
 
+    pub fn set_block_entity_nbt(&mut self, entity_tag: Tag) -> bool {
+        let Some(pos) = block_entity_tag_pos(&entity_tag) else {
+            return false;
+        };
+        if let Some(existing) = self
+            .block_entities
+            .iter_mut()
+            .find(|tag| block_entity_tag_pos(tag) == Some(pos))
+        {
+            *existing = entity_tag;
+        } else {
+            self.block_entities.push(entity_tag);
+        }
+        true
+    }
+
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
         require_current_tag_data_version("chunk", tag)?;
         let root = compound(tag)?;
@@ -466,6 +482,15 @@ impl LevelChunk {
 
 pub fn pack_postprocessing_offset(x: i32, y: i32, z: i32) -> i16 {
     ((x & 15) | ((y & 15) << 4) | ((z & 15) << 8)) as i16
+}
+
+fn block_entity_tag_pos(tag: &Tag) -> Option<(i32, i32, i32)> {
+    let fields = compound(tag).ok()?;
+    Some((
+        int_field(fields, "x").ok()?,
+        int_field(fields, "y").ok()?,
+        int_field(fields, "z").ok()?,
+    ))
 }
 
 fn empty_structures_payload() -> Tag {
@@ -968,6 +993,37 @@ mod tests {
                 Tag::List(vec![Tag::Short(pack_postprocessing_offset(63, 0, -32))]),
             ]
         );
+    }
+
+    #[test]
+    fn level_chunk_sets_pending_block_entity_nbt_by_position() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 1, z: 1 });
+        let chest = Tag::Compound(vec![
+            ("id".to_string(), Tag::String("minecraft:chest".to_string())),
+            ("x".to_string(), Tag::Int(20)),
+            ("y".to_string(), Tag::Int(64)),
+            ("z".to_string(), Tag::Int(23)),
+            ("keep".to_string(), Tag::Byte(1)),
+        ]);
+        let barrel = Tag::Compound(vec![
+            (
+                "id".to_string(),
+                Tag::String("minecraft:barrel".to_string()),
+            ),
+            ("x".to_string(), Tag::Int(20)),
+            ("y".to_string(), Tag::Int(64)),
+            ("z".to_string(), Tag::Int(23)),
+        ]);
+        let malformed = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:furnace".to_string()),
+        )]);
+
+        assert!(chunk.set_block_entity_nbt(chest));
+        assert!(chunk.set_block_entity_nbt(barrel.clone()));
+        assert!(!chunk.set_block_entity_nbt(malformed));
+
+        assert_eq!(chunk.block_entities, vec![barrel]);
     }
 
     #[test]
