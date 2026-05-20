@@ -3984,6 +3984,48 @@ fn generated_chunk_entity_metadata_packet(
 ) -> Option<ClientboundSetEntityDataPacket> {
     let mut packed_items = Vec::new();
     match entity_type {
+        "minecraft:cat" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(cat_variant_registry_id)
+                .filter(|variant| *variant != 1)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(20, EntityMetadataValue::CatVariant(variant)).ok()?,
+                );
+            }
+            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
+                .and_then(cat_sound_variant_registry_id)
+                .filter(|sound_variant| *sound_variant != 0)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(24, EntityMetadataValue::CatSoundVariant(sound_variant))
+                        .ok()?,
+                );
+            }
+        }
+        "minecraft:chicken" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(chicken_variant_registry_id)
+                .filter(|variant| *variant != 1)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(18, EntityMetadataValue::ChickenVariant(variant))
+                        .ok()?,
+                );
+            }
+            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
+                .and_then(chicken_sound_variant_registry_id)
+                .filter(|sound_variant| *sound_variant != 0)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(
+                        19,
+                        EntityMetadataValue::ChickenSoundVariant(sound_variant),
+                    )
+                    .ok()?,
+                );
+            }
+        }
         "minecraft:cow" => {
             if let Some(variant) = tag_string_field(fields, "variant")
                 .and_then(cow_variant_registry_id)
@@ -4003,6 +4045,16 @@ fn generated_chunk_entity_metadata_packet(
                 );
             }
         }
+        "minecraft:frog" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(frog_variant_registry_id)
+                .filter(|variant| *variant != 1)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(18, EntityMetadataValue::FrogVariant(variant)).ok()?,
+                );
+            }
+        }
         "minecraft:pig" => {
             if let Some(variant) = tag_string_field(fields, "variant")
                 .and_then(pig_variant_registry_id)
@@ -4019,6 +4071,28 @@ fn generated_chunk_entity_metadata_packet(
                 packed_items.push(
                     EntityDataValue::typed(20, EntityMetadataValue::PigSoundVariant(sound_variant))
                         .ok()?,
+                );
+            }
+        }
+        "minecraft:wolf" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(wolf_variant_registry_id)
+                .filter(|variant| *variant != 3)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(23, EntityMetadataValue::WolfVariant(variant)).ok()?,
+                );
+            }
+            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
+                .and_then(wolf_sound_variant_registry_id)
+                .filter(|sound_variant| *sound_variant != 2)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(
+                        24,
+                        EntityMetadataValue::WolfSoundVariant(sound_variant),
+                    )
+                    .ok()?,
                 );
             }
         }
@@ -4045,6 +4119,48 @@ fn resource_path_id(value: &str) -> &str {
     value.strip_prefix("minecraft:").unwrap_or(value)
 }
 
+fn cat_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "all_black" => Some(0),
+        "black" => Some(1),
+        "british_shorthair" => Some(2),
+        "calico" => Some(3),
+        "jellie" => Some(4),
+        "persian" => Some(5),
+        "ragdoll" => Some(6),
+        "red" => Some(7),
+        "siamese" => Some(8),
+        "tabby" => Some(9),
+        "white" => Some(10),
+        _ => None,
+    }
+}
+
+fn cat_sound_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "classic" => Some(0),
+        "royal" => Some(1),
+        _ => None,
+    }
+}
+
+fn chicken_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "cold" => Some(0),
+        "temperate" => Some(1),
+        "warm" => Some(2),
+        _ => None,
+    }
+}
+
+fn chicken_sound_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "classic" => Some(0),
+        "picky" => Some(1),
+        _ => None,
+    }
+}
+
 fn cow_variant_registry_id(value: &str) -> Option<i32> {
     match resource_path_id(value) {
         "cold" => Some(0),
@@ -4062,11 +4178,48 @@ fn cow_sound_variant_registry_id(value: &str) -> Option<i32> {
     }
 }
 
+fn frog_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "cold" => Some(0),
+        "temperate" => Some(1),
+        "warm" => Some(2),
+        _ => None,
+    }
+}
+
 fn pig_variant_registry_id(value: &str) -> Option<i32> {
     match resource_path_id(value) {
         "cold" => Some(0),
         "temperate" => Some(1),
         "warm" => Some(2),
+        _ => None,
+    }
+}
+
+fn wolf_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "ashen" => Some(0),
+        "black" => Some(1),
+        "chestnut" => Some(2),
+        "pale" => Some(3),
+        "rusty" => Some(4),
+        "snowy" => Some(5),
+        "spotted" => Some(6),
+        "striped" => Some(7),
+        "woods" => Some(8),
+        _ => None,
+    }
+}
+
+fn wolf_sound_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "angry" => Some(0),
+        "big" => Some(1),
+        "classic" => Some(2),
+        "cute" => Some(3),
+        "grumpy" => Some(4),
+        "puglin" => Some(5),
+        "sad" => Some(6),
         _ => None,
     }
 }
@@ -9037,6 +9190,96 @@ mod tests {
                 EntityDataValue::typed(20, EntityMetadataValue::PigSoundVariant(2)).unwrap(),
             ]
         );
+    }
+
+    #[test]
+    fn generated_chunk_entity_spawn_plan_reads_non_default_chicken_variant_metadata() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.entities.push(Tag::Compound(vec![
+            (
+                "id".to_string(),
+                Tag::String("minecraft:chicken".to_string()),
+            ),
+            (
+                "UUID".to_string(),
+                Tag::String("00000000-0000-4000-8000-000000000124".to_string()),
+            ),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(70.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)]),
+            ),
+            (
+                "variant".to_string(),
+                Tag::String("minecraft:cold".to_string()),
+            ),
+            (
+                "sound_variant".to_string(),
+                Tag::String("minecraft:picky".to_string()),
+            ),
+        ]));
+
+        let plans = super::generated_chunk_entity_spawn_plans(&chunk);
+
+        assert_eq!(plans.len(), 1);
+        let metadata = plans[0]
+            .metadata
+            .as_ref()
+            .expect("non-default chicken variant data should emit metadata");
+        assert_eq!(
+            metadata.packed_items,
+            vec![
+                EntityDataValue::typed(18, EntityMetadataValue::ChickenVariant(0)).unwrap(),
+                EntityDataValue::typed(19, EntityMetadataValue::ChickenSoundVariant(1)).unwrap(),
+            ]
+        );
+    }
+
+    #[test]
+    fn generated_chunk_entity_spawn_plan_omits_default_animal_variant_metadata() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.entities.push(Tag::Compound(vec![
+            (
+                "id".to_string(),
+                Tag::String("minecraft:chicken".to_string()),
+            ),
+            (
+                "UUID".to_string(),
+                Tag::String("00000000-0000-4000-8000-000000000125".to_string()),
+            ),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(70.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)]),
+            ),
+            (
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string()),
+            ),
+            (
+                "sound_variant".to_string(),
+                Tag::String("minecraft:classic".to_string()),
+            ),
+        ]));
+
+        let plans = super::generated_chunk_entity_spawn_plans(&chunk);
+
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].metadata, None);
     }
 
     #[test]
