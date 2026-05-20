@@ -229,7 +229,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 - [ ] Implement `BelowZeroRetrogen`: upgrade old pre-1.18 chunks to include below-Y=0 terrain, carve mask blending
 - [ ] Implement terrain blending for old/new chunk boundaries: `BlendingData`, `Blender.getBlendingDataValue()`, blend alpha/offset density functions applied at old chunk edges
-- [ ] Keep chunk data fields compatible with blending from initial implementation (never skip `BlendingData` NBT fields)
+- [x] Keep chunk data fields compatible with blending from initial implementation (never skip `BlendingData` NBT fields)
 
 ## Spawn Position Parity
 
