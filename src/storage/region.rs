@@ -189,13 +189,23 @@ impl RegionFile {
         let mut file = File::open(&self.path)?;
         file.seek(SeekFrom::Start(byte_offset))?;
         let mut length_bytes = [0u8; 4];
-        file.read_exact(&mut length_bytes)?;
+        if let Err(err) = file.read_exact(&mut length_bytes) {
+            if err.kind() == io::ErrorKind::UnexpectedEof {
+                return Ok(None);
+            }
+            return Err(err);
+        }
         let data_len = u32::from_be_bytes(length_bytes) as usize;
-        if data_len == 0 {
+        if data_len == 0 || data_len > location.sector_count as usize * SECTOR_BYTES as usize - 4 {
             return Ok(None);
         }
         let mut data = vec![0u8; data_len];
-        file.read_exact(&mut data)?;
+        if let Err(err) = file.read_exact(&mut data) {
+            if err.kind() == io::ErrorKind::UnexpectedEof {
+                return Ok(None);
+            }
+            return Err(err);
+        }
         let compression_type = data[0];
         let compressed = &data[1..];
         let tag = match compression_type {
@@ -215,12 +225,7 @@ impl RegionFile {
                 Lz4Decoder::new(compressed)?.read_to_end(&mut bytes)?;
                 read_named_tag(&mut bytes.as_slice())
             }
-            _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("unsupported region compression type {compression_type}"),
-                ))
-            }
+            _ => return Ok(None),
         }?;
         Ok(Some(tag))
     }
@@ -318,6 +323,7 @@ fn encode_region_payload(
 mod tests {
     use super::{ChunkPos, RegionCompression, RegionFile, RegionLocation, RegionPos, HEADER_BYTES};
     use std::fs;
+    use std::io::{Seek, SeekFrom, Write};
 
     #[test]
     fn computes_region_positions_and_local_indexes_like_mca_files() {
@@ -441,5 +447,69 @@ mod tests {
         }
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_treats_corrupt_stream_headers_as_missing_chunks() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-corrupt-streams-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        let invalid_version = ChunkPos { x: 0, z: 0 };
+        region
+            .write_location(
+                invalid_version,
+                RegionLocation {
+                    sector_offset: 2,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(region.path(), 2, 1, 99);
+        assert_eq!(region.read_chunk_nbt(invalid_version).unwrap(), None);
+
+        let oversized_stream = ChunkPos { x: 1, z: 0 };
+        region
+            .write_location(
+                oversized_stream,
+                RegionLocation {
+                    sector_offset: 3,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(
+            region.path(),
+            3,
+            super::SECTOR_BYTES,
+            RegionCompression::Deflate.id(),
+        );
+        assert_eq!(region.read_chunk_nbt(oversized_stream).unwrap(), None);
+
+        let truncated_header = ChunkPos { x: 2, z: 0 };
+        region
+            .write_location(
+                truncated_header,
+                RegionLocation {
+                    sector_offset: 4,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        assert_eq!(region.read_chunk_nbt(truncated_header).unwrap(), None);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn write_raw_chunk_header(path: &std::path::Path, sector: u32, length: u32, version: u8) {
+        let mut file = fs::OpenOptions::new().write(true).open(path).unwrap();
+        file.seek(SeekFrom::Start(sector as u64 * super::SECTOR_BYTES as u64))
+            .unwrap();
+        file.write_all(&length.to_be_bytes()).unwrap();
+        file.write_all(&[version]).unwrap();
     }
 }
