@@ -146,7 +146,7 @@
 - [x] Implement `Zombie`: drowning conversion to Drowned (baby cannot convert), baby zombie (5% chance, speed/XP/dimensions), reinforcement summoning on hit (hard + `doMobSpawning`), villager conversion chance, fire-on-hit, loot pickup, door breaking, default equipment, chicken jockeys, Halloween headgear, and save-field gates
 - [x] Implement `Drowned`: trident attack AI, swim AI, water/depth spawn gates, nautilus-shell offhand chance, zombie-nautilus jockey chance, spear pickup rejection
 - [x] Implement `Husk`: desert biome only, does not burn in daylight, hunger effect on hit, water conversion to Zombie, baby dimensions, loot pickup chance, camel-husk/parched rider finalize-spawn gate
-- [ ] Implement `ZombieVillager`: `conversionTime` countdown when given Weakness + golden apple, curing discounts on trade prices, profession/village preserved through conversion
+- [x] Implement `ZombieVillager`: Weakness + golden apple starts 3600-6000 tick cure, special-block speedup, conversion to Villager preserving villager data/gossips/offers/XP, cured-villager reputation event for downstream discounts, baby dimensions, despawn gate, and offer reset on profession change
 - [ ] Implement `ZombifiedPiglin`: neutral until hit, group-anger propagation (nearby ZombifiedPiglins within 67 blocks angered), portal-spawn on nether entry
 - [ ] Add parity test: zombie villager cure duration and resulting price discount values
 - [ ] Add parity test: zombified piglin anger group radius and anger decay time
