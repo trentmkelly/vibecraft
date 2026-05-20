@@ -60,12 +60,12 @@
 - [x] Implement `Blaze`: fire charge burst (3 fireballs per attack cycle), hover flight AI, fire immunity, drop (blaze rod)
 - [x] Implement `Creeper`: fuse countdown (`fuseTime`), explosion on fuse complete, `ignited` NBT (flint+steel trigger), charged variant (lightning conversion), `ExplosionPower` scaling for charged
   - [x] Implement Java-matched `Creeper` server-visible state gates: default `Fuse=30`/radius 3/save fields, igniter item consume-vs-damage behavior, `ignited` forcing swell dir 1, primed sound/game event on first positive swell tick, fall-distance swell preload capped at `maxSwell - 5`, explosion on max swell, powered lightning state with 2x radius, charged-creeper loot one-shot gate, active-effect lingering cloud constants, goat target exclusion, and swelling interpolation denominator.
-- [ ] Implement `ElderGuardian`: elder curse (Mining Fatigue III, 60s) within 50 blocks, beam laser at aquatic player targets, spike thorns passive
+- [x] Implement `ElderGuardian`: elder curse (Mining Fatigue III, 6000 ticks) within 50 blocks, beam laser at aquatic player targets, spike thorns passive
 - [ ] Implement `EnderMan`: holding block (pickup/place logic), teleport on water/rain, look-at-eyes anger trigger, teleport-away from projectiles, scream sound on anger
 - [x] Implement `Endermite`: spawn from ender pearl (5% chance), 2-minute despawn timer, attacked by endermen
 - [x] Implement `Ghast`: attack cycle (charge fireball, shoot), large hitbox (4×4×4), fire immunity, scream/shoot sounds, deflectable fireball by projectiles/swords
 - [x] Implement `Giant`: legacy oversized zombie (no natural spawn, only `/summon`), 12-block height, no AI goals
-- [ ] Implement `Guardian`: laser beam targeting (beam charge, inflict damage at full charge), spikes thorns, elder spawning on death
+- [x] Implement `Guardian`: laser beam targeting (beam charge, inflict damage at full charge), spikes thorns, water spawn/pathing gates
 - [x] Implement `MagmaCube`: split into smaller cubes on death (size-1 → 2–4 smaller), slime-family movement, fire immunity
   - [x] Implement Java-matched `MagmaCube` server-visible slime-family gates: peaceful-only spawn rejection, inherited size clamp/split offsets/counts, armor = size×3, create-attributes base speed 0.2 plus inherited size-scaled movement, always-effective-AI damage even when tiny, attack damage +2, 4x jump delay, 0.9 squish decay, `isOnFire() == false`, ground jump +0.1×size, and lava jump `0.22 + 0.05×size`.
 - [x] Implement `Phantom`: insomnia prerequisite spawn (no sleep >3 days), circling-swoop attack, Java-matched no-daylight-burn behavior, phantom membrane drop, and direct nearby-player targeting rather than `MemoryModuleType.NEAREST_PLAYERS`
