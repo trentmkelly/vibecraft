@@ -24168,6 +24168,16 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
             "Rotation".to_string(),
             Tag::List(vec![Tag::Float(snap.yaw), Tag::Float(snap.pitch)]),
         ),
+        (
+            "Motion".to_string(),
+            Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)]),
+        ),
+        ("fall_distance".to_string(), Tag::Double(0.0)),
+        ("Fire".to_string(), Tag::Short(0)),
+        ("Air".to_string(), Tag::Short(300)),
+        ("OnGround".to_string(), Tag::Byte(0)),
+        ("Invulnerable".to_string(), Tag::Byte(0)),
+        ("PortalCooldown".to_string(), Tag::Int(0)),
     ])
 }
 
@@ -58670,6 +58680,16 @@ mod tests {
             "Rotation".to_string(),
             Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)])
         )));
+        assert!(fields.contains(&(
+            "Motion".to_string(),
+            Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)])
+        )));
+        assert!(fields.contains(&("fall_distance".to_string(), Tag::Double(0.0))));
+        assert!(fields.contains(&("Fire".to_string(), Tag::Short(0))));
+        assert!(fields.contains(&("Air".to_string(), Tag::Short(300))));
+        assert!(fields.contains(&("OnGround".to_string(), Tag::Byte(0))));
+        assert!(fields.contains(&("Invulnerable".to_string(), Tag::Byte(0))));
+        assert!(fields.contains(&("PortalCooldown".to_string(), Tag::Int(0))));
     }
 
     #[test]
