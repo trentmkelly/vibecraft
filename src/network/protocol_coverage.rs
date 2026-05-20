@@ -179,7 +179,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "client_information",
         java_class: "ServerboundClientInformationPacket",
-        field_order: "unparsed",
+        field_order: "language:String max 16, view_distance:i8, chat_visibility:enum VarInt, chat_colors:bool, model_customisation:u8, main_hand:enum VarInt, text_filtering_enabled:bool, allows_listing:bool, particle_status:enum VarInt",
     },
     PlayPacketSpec {
         id: 15,
@@ -228,14 +228,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "cookie_response",
         java_class: "ServerboundCookieResponsePacket",
-        field_order: "unparsed",
+        field_order: "key:Identifier, payload:Optional<bytes VarInt length max 5120>",
     },
     PlayPacketSpec {
         id: 22,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "custom_payload",
         java_class: "ServerboundCustomPayloadPacket",
-        field_order: "unparsed",
+        field_order: "payload:CustomPacketPayload (channel Identifier, minecraft:brand string or unknown payload up to 32767 bytes)",
     },
     PlayPacketSpec {
         id: 23,
@@ -277,7 +277,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "keep_alive",
         java_class: "ServerboundKeepAlivePacket",
-        field_order: "unparsed",
+        field_order: "id:i64_be",
     },
     PlayPacketSpec {
         id: 29,
@@ -347,7 +347,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "ping_request",
         java_class: "ServerboundPingRequestPacket",
-        field_order: "unparsed",
+        field_order: "time:i64_be",
     },
     PlayPacketSpec {
         id: 39,
@@ -712,7 +712,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "cookie_request",
         java_class: "ClientboundCookieRequestPacket",
-        field_order: "unparsed",
+        field_order: "key:Identifier",
     },
     PlayPacketSpec {
         id: 22,
@@ -873,7 +873,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "keep_alive",
         java_class: "ClientboundKeepAlivePacket",
-        field_order: "unparsed",
+        field_order: "id:i64_be",
     },
     PlayPacketSpec {
         id: 45,
@@ -1000,7 +1000,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "pong_response",
         java_class: "ClientboundPongResponsePacket",
-        field_order: "unparsed",
+        field_order: "time:i64_be",
     },
     PlayPacketSpec {
         id: 63,
@@ -1407,7 +1407,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "store_cookie",
         java_class: "ClientboundStoreCookiePacket",
-        field_order: "unparsed",
+        field_order: "key:Identifier, payload:bytes VarInt length max 5120",
     },
     PlayPacketSpec {
         id: 121,
@@ -1471,7 +1471,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "transfer",
         java_class: "ClientboundTransferPacket",
-        field_order: "unparsed",
+        field_order: "host:String max 32767, port:VarInt",
     },
     PlayPacketSpec {
         id: 130,
@@ -1520,14 +1520,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "custom_report_details",
         java_class: "ClientboundCustomReportDetailsPacket",
-        field_order: "unparsed",
+        field_order: "details:List max 32 of key:String max 128, value:String max 4096",
     },
     PlayPacketSpec {
         id: 137,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "server_links",
         java_class: "ClientboundServerLinksPacket",
-        field_order: "unparsed",
+        field_order: "links:List(label:known bool + known enum VarInt or custom Component, link:String max 32767)",
     },
     PlayPacketSpec {
         id: 138,
@@ -1541,14 +1541,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "clear_dialog",
         java_class: "ClientboundClearDialogPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 140,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "show_dialog",
         java_class: "ClientboundShowDialogPacket",
-        field_order: "unparsed",
+        field_order: "payload:remaining bytes max 1 MiB",
     },
 ];
 
@@ -1865,6 +1865,82 @@ mod tests {
                 .iter()
                 .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
                 .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
+            assert_eq!(
+                spec.field_order, *expected,
+                "{direction:?} {wire_name} field-order drift"
+            );
+        }
+    }
+
+    #[test]
+    fn play_packet_specification_common_packets_have_concrete_field_orders() {
+        let specs = play_packet_specs_26_1_2();
+        let checks: &[(PacketDirection, &str, &str)] = &[
+            (
+                PacketDirection::Serverbound,
+                "client_information",
+                "language:String max 16, view_distance:i8, chat_visibility:enum VarInt, chat_colors:bool, model_customisation:u8, main_hand:enum VarInt, text_filtering_enabled:bool, allows_listing:bool, particle_status:enum VarInt",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "cookie_response",
+                "key:Identifier, payload:Optional<bytes VarInt length max 5120>",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "custom_payload",
+                "payload:CustomPacketPayload (channel Identifier, minecraft:brand string or unknown payload up to 32767 bytes)",
+            ),
+            (PacketDirection::Serverbound, "keep_alive", "id:i64_be"),
+            (PacketDirection::Serverbound, "ping_request", "time:i64_be"),
+            (
+                PacketDirection::Clientbound,
+                "cookie_request",
+                "key:Identifier",
+            ),
+            (PacketDirection::Clientbound, "keep_alive", "id:i64_be"),
+            (PacketDirection::Clientbound, "pong_response", "time:i64_be"),
+            (
+                PacketDirection::Clientbound,
+                "store_cookie",
+                "key:Identifier, payload:bytes VarInt length max 5120",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "transfer",
+                "host:String max 32767, port:VarInt",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "custom_report_details",
+                "details:List max 32 of key:String max 128, value:String max 4096",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "server_links",
+                "links:List(label:known bool + known enum VarInt or custom Component, link:String max 32767)",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "clear_dialog",
+                "empty_payload",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "show_dialog",
+                "payload:remaining bytes max 1 MiB",
+            ),
+        ];
+
+        for (direction, wire_name, expected) in checks {
+            let spec = specs
+                .iter()
+                .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
+                .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
+            assert_ne!(
+                spec.field_order, "unparsed",
+                "{direction:?} {wire_name} must stay concretely documented"
+            );
             assert_eq!(
                 spec.field_order, *expected,
                 "{direction:?} {wire_name} field-order drift"
