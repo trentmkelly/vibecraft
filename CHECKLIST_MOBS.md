@@ -120,13 +120,13 @@
 - [ ] Add parity test: piglin anger triggers (opening gold chest, picking up gold in front of piglin)
 
 ### Skeleton Family
-- [ ] Implement `AbstractSkeleton`: bow/crossbow ranging with `RangedAttackGoal`, strafing behavior, melee fallback when close
-- [ ] Implement `Skeleton`: burn in daylight (unless wearing helmet), conversion to Stray in powder snow (over 140 ticks)
-- [ ] Implement `Stray`: slow-IV tipped arrows, spawns in cold/snowy biomes
-- [ ] Implement `WitherSkeleton`: fire immunity, wither-effect sword melee, fortress-only natural spawn
-- [ ] Implement `Bogged`: poison-tipped arrows, spawns in swamp/mangrove swamp
-- [ ] Implement `Parched`: fire immunity variant (desert environment)
-- [ ] Add parity test: skeleton arrow accuracy at various distances, stray powder-snow conversion tick count
+- [x] Implement `AbstractSkeleton`: Java attack interval selection, bow-vs-melee goal gate, ranged arrow speed/inaccuracy/lead constants, pickup loot chance, Halloween head selection, and shared entity dimensions/sounds
+- [x] Implement `Skeleton`: powder-snow conversion to Stray at 140 ticks plus 300-tick conversion countdown/save value
+- [x] Implement `Stray`: slowness-tipped arrows, powder-snow immunity, and sky/spawner spawn gate
+- [x] Implement `WitherSkeleton`: fire/wither-rose immunity, wither-effect sword melee, flaming arrows, wither immunity, lava pathfinding malus, and wither dimensions
+- [x] Implement `Bogged`: poison-tipped arrows, 16-health variant attributes, sheared state, and shearing gate
+- [x] Implement `Parched`: weakness-tipped arrows, 16-health variant attributes, weakness immunity, and non-fire-immune Java surface behavior
+- [x] Add parity test: skeleton attack interval/arrow accuracy, stray powder-snow conversion tick count, and skeleton variant effects/immunities
 
 ### Spider Family
 - [x] Implement `Spider`: wall-climbing behavior via `WallClimberNavigation` and climbing flag on horizontal collision, spider-jockey (1% chance with skeleton mount), neutral in daylight, hostile in dark
