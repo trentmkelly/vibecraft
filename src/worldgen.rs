@@ -1035,6 +1035,14 @@ pub struct ChunkGenerationMobSpawnAttemptPlan {
     pub z: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkGenerationMobSpawnPositionPlan {
+    pub entity_type: &'static str,
+    pub heightmap: HeightmapKind,
+    pub placement_type: &'static str,
+    pub pos: BlockPos,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkGenerationMobSpawnPlan {
     pub chunk: ChunkPos,
@@ -23748,6 +23756,101 @@ pub fn chunk_generation_mob_spawn_attempt_plan(
     }
 
     attempts
+}
+
+pub fn chunk_generation_mob_top_non_colliding_pos(
+    chunk: &LevelChunk,
+    entity_type: &'static str,
+    x: i32,
+    z: i32,
+    dimension_has_ceiling: bool,
+) -> ChunkGenerationMobSpawnPositionPlan {
+    let heightmap = spawn_placement_heightmap(entity_type);
+    let placement_type = spawn_placement_type(entity_type);
+    let local_x = x.rem_euclid(16) as usize;
+    let local_z = z.rem_euclid(16) as usize;
+    let mut y = chunk.compute_heightmap_values(heightmap)[local_z * 16 + local_x];
+
+    if dimension_has_ceiling {
+        let min_y = chunk.min_section_y * 16;
+        loop {
+            y -= 1;
+            if chunk
+                .get_block_state(x, y, z)
+                .as_deref()
+                .is_some_and(is_surface_air)
+                || y <= min_y
+            {
+                break;
+            }
+        }
+
+        loop {
+            y -= 1;
+            let is_air = chunk
+                .get_block_state(x, y, z)
+                .as_deref()
+                .is_some_and(is_surface_air);
+            if !is_air || y <= min_y {
+                break;
+            }
+        }
+    }
+
+    if placement_type == "on_ground" {
+        let below_y = y - 1;
+        if chunk
+            .get_block_state(x, below_y, z)
+            .as_deref()
+            .is_some_and(spawn_pathfindable_land_block)
+        {
+            y = below_y;
+        }
+    }
+
+    ChunkGenerationMobSpawnPositionPlan {
+        entity_type,
+        heightmap,
+        placement_type,
+        pos: BlockPos { x, y, z },
+    }
+}
+
+pub fn spawn_placement_heightmap(_entity_type: &str) -> HeightmapKind {
+    HeightmapKind::MotionBlockingNoLeaves
+}
+
+pub fn spawn_placement_type(entity_type: &str) -> &'static str {
+    match entity_type {
+        "minecraft:axolotl"
+        | "minecraft:cod"
+        | "minecraft:dolphin"
+        | "minecraft:drowned"
+        | "minecraft:elder_guardian"
+        | "minecraft:glow_squid"
+        | "minecraft:guardian"
+        | "minecraft:nautilus"
+        | "minecraft:pufferfish"
+        | "minecraft:salmon"
+        | "minecraft:squid"
+        | "minecraft:tropical_fish" => "in_water",
+        "minecraft:strider" => "in_lava",
+        "minecraft:evoker"
+        | "minecraft:fox"
+        | "minecraft:illusioner"
+        | "minecraft:panda"
+        | "minecraft:phantom"
+        | "minecraft:shulker"
+        | "minecraft:trader_llama"
+        | "minecraft:vex"
+        | "minecraft:vindicator"
+        | "minecraft:warden" => "no_restrictions",
+        _ => "on_ground",
+    }
+}
+
+fn spawn_pathfindable_land_block(block: &str) -> bool {
+    is_surface_air(block)
 }
 
 pub fn generator_base_height_for_stem(
@@ -57822,6 +57925,35 @@ mod tests {
         assert!(attempts
             .iter()
             .all(|attempt| (32..48).contains(&attempt.x) && (-48..-32).contains(&attempt.z)));
+    }
+
+    #[test]
+    fn chunk_generation_mob_top_non_colliding_pos_uses_spawn_heightmap() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let chunk_pos = ChunkPos { x: 2, z: -3 };
+        let chunk = super::generator_build_surface_for_stem(chunk_pos, &normal.overworld)
+            .expect("surface chunk should generate");
+        let x = 37;
+        let z = -37;
+
+        let plan =
+            super::chunk_generation_mob_top_non_colliding_pos(&chunk, "minecraft:pig", x, z, false);
+
+        let local_x = x.rem_euclid(16) as usize;
+        let local_z = z.rem_euclid(16) as usize;
+        let height = chunk.compute_heightmap_values(HeightmapKind::MotionBlockingNoLeaves)
+            [local_z * 16 + local_x];
+        assert_eq!(plan.entity_type, "minecraft:pig");
+        assert_eq!(plan.heightmap, HeightmapKind::MotionBlockingNoLeaves);
+        assert_eq!(plan.placement_type, "on_ground");
+        assert_eq!(plan.pos, BlockPos { x, y: height, z });
+        assert!(
+            chunk
+                .get_block_state(x, plan.pos.y - 1, z)
+                .as_deref()
+                .is_some_and(|block| !super::is_surface_air(block)),
+            "on-ground top position should stand above a non-air block"
+        );
     }
 
     #[test]
