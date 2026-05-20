@@ -134,6 +134,12 @@ impl RegionFile {
         &self.path
     }
 
+    fn external_chunk_path(&self, chunk: ChunkPos) -> Option<PathBuf> {
+        self.path
+            .parent()
+            .map(|dir| dir.join(format!("c.{}.{}.mcc", chunk.x, chunk.z)))
+    }
+
     pub fn read_location(&self, chunk: ChunkPos) -> io::Result<Option<RegionLocation>> {
         let mut file = File::open(&self.path)?;
         file.seek(SeekFrom::Start((chunk.local_index() * 4) as u64))?;
@@ -208,26 +214,18 @@ impl RegionFile {
         }
         let compression_type = data[0];
         let compressed = &data[1..];
-        let tag = match compression_type {
-            1 => {
-                let mut bytes = Vec::new();
-                GzDecoder::new(compressed).read_to_end(&mut bytes)?;
-                read_named_tag(&mut bytes.as_slice())
-            }
-            2 => {
-                let mut bytes = Vec::new();
-                ZlibDecoder::new(compressed).read_to_end(&mut bytes)?;
-                read_named_tag(&mut bytes.as_slice())
-            }
-            3 => read_named_tag(&mut compressed.as_ref()),
-            4 => {
-                let mut bytes = Vec::new();
-                Lz4Decoder::new(compressed)?.read_to_end(&mut bytes)?;
-                read_named_tag(&mut bytes.as_slice())
-            }
-            _ => return Ok(None),
-        }?;
-        Ok(Some(tag))
+        if compression_type & 0x80 != 0 {
+            let Some(external_path) = self.external_chunk_path(chunk) else {
+                return Ok(None);
+            };
+            let external = match fs::read(external_path) {
+                Ok(bytes) => bytes,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+                Err(err) => return Err(err),
+            };
+            return decode_region_payload(compression_type & 0x7F, &external);
+        }
+        decode_region_payload(compression_type, compressed)
     }
 
     pub fn write_chunk_nbt(&self, chunk: ChunkPos, name: &str, tag: &Tag) -> io::Result<()> {
@@ -317,6 +315,32 @@ fn encode_region_payload(
             "custom region compression cannot be written without an external stream",
         )),
     }
+}
+
+fn decode_region_payload(
+    compression_type: u8,
+    payload: &[u8],
+) -> io::Result<Option<(String, Tag)>> {
+    let tag = match compression_type {
+        1 => {
+            let mut bytes = Vec::new();
+            GzDecoder::new(payload).read_to_end(&mut bytes)?;
+            read_named_tag(&mut bytes.as_slice())
+        }
+        2 => {
+            let mut bytes = Vec::new();
+            ZlibDecoder::new(payload).read_to_end(&mut bytes)?;
+            read_named_tag(&mut bytes.as_slice())
+        }
+        3 => read_named_tag(&mut payload.as_ref()),
+        4 => {
+            let mut bytes = Vec::new();
+            Lz4Decoder::new(payload)?.read_to_end(&mut bytes)?;
+            read_named_tag(&mut bytes.as_slice())
+        }
+        _ => return Ok(None),
+    }?;
+    Ok(Some(tag))
 }
 
 #[cfg(test)]
@@ -511,5 +535,56 @@ mod tests {
             .unwrap();
         file.write_all(&length.to_be_bytes()).unwrap();
         file.write_all(&[version]).unwrap();
+    }
+
+    #[test]
+    fn region_file_reads_external_chunk_streams() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-external-stream-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        let chunk = ChunkPos { x: 0, z: 0 };
+        let tag = crate::storage::nbt::Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+        )]);
+        let external =
+            super::encode_region_payload("External", &tag, RegionCompression::Deflate).unwrap();
+
+        region
+            .write_location(
+                chunk,
+                RegionLocation {
+                    sector_offset: 2,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(region.path(), 2, 1, RegionCompression::Deflate.id() | 0x80);
+        fs::write(dir.join("c.0.0.mcc"), external).unwrap();
+
+        assert_eq!(
+            region.read_chunk_nbt(chunk).unwrap(),
+            Some(("External".to_string(), tag))
+        );
+
+        let missing_external = ChunkPos { x: 1, z: 0 };
+        region
+            .write_location(
+                missing_external,
+                RegionLocation {
+                    sector_offset: 3,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(region.path(), 3, 1, RegionCompression::Deflate.id() | 0x80);
+        assert_eq!(region.read_chunk_nbt(missing_external).unwrap(), None);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }
