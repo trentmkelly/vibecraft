@@ -887,6 +887,11 @@ pub fn knockback_bonus_blocks(level: i32) -> f32 {
     level as f32 * 3.0
 }
 
+/// Extra projectile knockback from Punch.
+pub fn punch_knockback_bonus_blocks(level: i32) -> f32 {
+    level as f32 * 3.0
+}
+
 /// Probability that Unbreaking prevents durability damage.
 /// Armor: 60% + (40% / (level + 1)), Tools: 100% / (level + 1)
 pub fn unbreaking_durability_skip_chance(level: i32, is_armor: bool) -> f32 {
@@ -948,6 +953,11 @@ pub fn respiration_bonus_ticks(level: i32) -> i32 {
     level * 15 * 20 // 15 seconds per level at 20 ticks/second
 }
 
+/// Aqua Affinity removes the underwater mining speed penalty.
+pub fn aqua_affinity_removes_underwater_penalty(level: i32) -> bool {
+    level >= 1
+}
+
 /// Whether the Infinity enchantment prevents arrow consumption.
 pub fn infinity_prevents_consumption(has_infinity: bool, has_arrow: bool) -> bool {
     has_infinity && has_arrow
@@ -998,6 +1008,14 @@ pub fn fire_aspect_seconds_on_fire(level: i32) -> i32 {
     level * 4
 }
 
+pub fn flame_seconds_on_fire(level: i32) -> i32 {
+    if level >= 1 {
+        5
+    } else {
+        0
+    }
+}
+
 /// FrostWalker: maximum radius in blocks around the player for freezing water.
 /// Vanilla: blocks within distance level + 2 are checked.
 pub fn frost_walker_radius(level: i32) -> i32 {
@@ -1037,6 +1055,11 @@ pub fn riptide_thrust_power(level: i32) -> f32 {
 /// MultiShot: extra projectiles fired beyond the first (always 2 extra = 3 total).
 pub fn multishot_extra_projectiles() -> i32 {
     2
+}
+
+/// Piercing: total entities an arrow can pierce, including the first hit.
+pub fn piercing_entity_limit(level: i32) -> i32 {
+    (level + 1).max(1)
 }
 
 /// QuickCharge: tick reduction in crossbow charging time per level (vanilla: 5 ticks/level).
@@ -1168,6 +1191,7 @@ mod tests {
 
         // Knockback II: 2 * 3 = 6 blocks
         assert!((knockback_bonus_blocks(2) - 6.0).abs() < 0.001);
+        assert!((punch_knockback_bonus_blocks(2) - 6.0).abs() < 0.001);
     }
 
     #[test]
@@ -1205,6 +1229,9 @@ mod tests {
         assert_eq!(impaling_bonus(3, false), 0.0);
         assert!((depth_strider_speed_factor(3) - 1.0).abs() < 0.001);
         assert!((depth_strider_speed_factor(1) - 0.333).abs() < 0.01);
+        assert!(aqua_affinity_removes_underwater_penalty(1));
+        assert!(!aqua_affinity_removes_underwater_penalty(0));
+        assert_eq!(respiration_bonus_ticks(3), 900);
     }
 
     #[test]
@@ -1226,6 +1253,8 @@ mod tests {
         assert_eq!(fire_aspect_seconds_on_fire(2), 8);
         assert_eq!(fire_aspect_seconds_on_fire(1), 4);
         assert_eq!(fire_aspect_seconds_on_fire(0), 0);
+        assert_eq!(flame_seconds_on_fire(1), 5);
+        assert_eq!(flame_seconds_on_fire(0), 0);
         // FrostWalker II: radius 4 blocks
         assert_eq!(frost_walker_radius(2), 4);
         assert_eq!(frost_walker_radius(1), 3);
@@ -1248,6 +1277,9 @@ mod tests {
         assert!((riptide_thrust_power(3) - 1.5).abs() < 0.001);
         // MultiShot always gives 2 extra (3 total)
         assert_eq!(multishot_extra_projectiles(), 2);
+        // Piercing III can pass through four entities including the first target.
+        assert_eq!(piercing_entity_limit(3), 4);
+        assert_eq!(piercing_entity_limit(0), 1);
         // QuickCharge III reduces 15 ticks
         assert_eq!(quick_charge_use_ticks_reduction(3), 15);
         // BindingCurse: survival cannot remove, creative can

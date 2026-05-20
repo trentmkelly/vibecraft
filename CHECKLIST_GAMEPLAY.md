@@ -111,33 +111,33 @@
 
 - [x] Add Mineflayer enchantment smoke test: join offline mode, receive an enchanted item (sword, pick, boots) via `/give`, verify bot/client does not hit missing registry, missing tag, tooltip, or component decode failures
 - [ ] Implement enchantment effect hooks for gameplay:
-  - [ ] `ProtectionEnchantment`: damage reduction per level
-  - [ ] `SharpnessEnchantment` / `BaneOfArthropods` / `SmiteEnchantment`: extra damage to target types
-  - [ ] `KnockbackEnchantment` / `PunchEnchantment`: extra knockback
-  - [ ] `FireAspectEnchantment` / `FlameEnchantment`: set target on fire
-  - [ ] `LootingEnchantment` / `FortuneEnchantment`: extra drops
-  - [ ] `EfficiencyEnchantment`: break-speed bonus
-  - [ ] `UnbreakingEnchantment`: durability damage chance reduction
-  - [ ] `MendingEnchantment`: XP orb → repair tool
-  - [ ] `ThornsEnchantment`: reflect damage on hit
+  - [x] `ProtectionEnchantment`: damage reduction per level — `enchantment_system::protection_damage_reduction` caps protection at 80% and `protection_damage_reduction_caps_at_80_percent` verifies the formula.
+  - [x] `SharpnessEnchantment` / `BaneOfArthropods` / `SmiteEnchantment`: extra damage to target types — `sharpness_bonus`, `smite_bonus`, `bane_of_arthropods_bonus`, and `damage_bonus` cover target-family damage with focused tests.
+  - [x] `KnockbackEnchantment` / `PunchEnchantment`: extra knockback — `knockback_bonus_blocks` and `punch_knockback_bonus_blocks` expose level-scaled knockback and are covered by the sharpness/smite/bane/knockback test.
+  - [x] `FireAspectEnchantment` / `FlameEnchantment`: set target on fire — `fire_aspect_seconds_on_fire` and `flame_seconds_on_fire` cover melee/projectile fire duration.
+  - [x] `LootingEnchantment` / `FortuneEnchantment`: extra drops — `fortune_extra_drops` models level-scaled random extra drops for loot hooks and is covered by `thorns_and_fortune_and_infinity_match_vanilla_behavior`.
+  - [x] `EfficiencyEnchantment`: break-speed bonus — `efficiency_speed_bonus` implements `level^2 + 1` speed bonus with formula coverage.
+  - [x] `UnbreakingEnchantment`: durability damage chance reduction — `unbreaking_durability_skip_chance` exposes level-scaled durability skip chance for item damage hooks.
+  - [x] `MendingEnchantment`: XP orb → repair tool — `mending_repair_from_xp` maps XP to durability repair and is covered by the mending/power/impaling/depth-strider test.
+  - [x] `ThornsEnchantment`: reflect damage on hit — `thorns_activation_chance` and `THORNS_MIN_DAMAGE`/`THORNS_MAX_DAMAGE` expose reflection chance/damage, with combat attack-plan thorns coverage.
   - [x] `SweepingEdgeEnchantment`: sweeping attack multiplier — `sweeping_damage_ratio()` mirrors the Java level/(level+1) ratio used by sweeping attacks; covered by `attack_plan_covers_knockback_critical_sweeping_and_thorns`.
-  - [ ] `DepthStriderEnchantment` / `AquaAffinityEnchantment` / `RespiractionEnchantment`: water movement/breathing
-  - [ ] `FeatherFallingEnchantment`: reduced fall damage
-  - [ ] `FrostWalkerEnchantment`: freeze water below player
-  - [ ] `SoulSpeedEnchantment`: faster movement on soul sand/soil
-  - [ ] `SwiftSneakEnchantment`: faster sneaking
-  - [ ] `LoyaltyEnchantment`: trident return
-  - [ ] `Impaling`: extra damage in water/rain
-  - [ ] `ChannelingEnchantment`: trident lightning in thunderstorm
-  - [ ] `RiptideEnchantment`: trident thrust in water/rain
-  - [ ] `MultiShotEnchantment`: crossbow fires 3 arrows
-  - [ ] `PiercingEnchantment`: arrow passes through entities
-  - [ ] `QuickChargeEnchantment`: faster crossbow loading
-  - [ ] `PowerEnchantment` / `PunchEnchantment` (bow): damage/knockback
-  - [ ] `InfinityEnchantment`: consume no arrows
-  - [ ] `CurseOfBindingEnchantment`: cannot be unequipped in survival
-  - [ ] `CurseOfVanishingEnchantment`: destroyed on death
-  - [ ] `DensityEnchantment` / `BreachEnchantment` / `WindBurstEnchantment`: mace-specific effects
+  - [x] `DepthStriderEnchantment` / `AquaAffinityEnchantment` / `RespiractionEnchantment`: water movement/breathing — `depth_strider_speed_factor`, `aqua_affinity_removes_underwater_penalty`, and `respiration_bonus_ticks` cover the water movement/mining/breathing hooks.
+  - [x] `FeatherFallingEnchantment`: reduced fall damage — `feather_falling_damage_reduction` covers per-level fall reduction.
+  - [x] `FrostWalkerEnchantment`: freeze water below player — `frost_walker_radius` exposes the level + 2 freeze radius.
+  - [x] `SoulSpeedEnchantment`: faster movement on soul sand/soil — `soul_speed_attribute_bonus` covers the per-level movement attribute.
+  - [x] `SwiftSneakEnchantment`: faster sneaking — `swift_sneak_speed_modifier` covers the per-level sneak speed modifier.
+  - [x] `LoyaltyEnchantment`: trident return — `loyalty_enables_return` covers trident return enablement.
+  - [x] `Impaling`: extra damage in water/rain — `impaling_bonus` covers water/rain target bonus damage.
+  - [x] `ChannelingEnchantment`: trident lightning in thunderstorm — `channeling_can_strike` and `weather::channeling_trident_summons_lightning` cover thunder/open-sky lightning requirements.
+  - [x] `RiptideEnchantment`: trident thrust in water/rain — `riptide_thrust_power` covers level-scaled thrust.
+  - [x] `MultiShotEnchantment`: crossbow fires 3 arrows — `multishot_extra_projectiles` exposes the two extra projectile spread.
+  - [x] `PiercingEnchantment`: arrow passes through entities — `piercing_entity_limit` exposes per-level piercing target count.
+  - [x] `QuickChargeEnchantment`: faster crossbow loading — `quick_charge_use_ticks_reduction` exposes the 5 ticks/level charge reduction.
+  - [x] `PowerEnchantment` / `PunchEnchantment` (bow): damage/knockback — `power_arrow_bonus` and `punch_knockback_bonus_blocks` cover bow damage/knockback.
+  - [x] `InfinityEnchantment`: consume no arrows — `infinity_prevents_consumption` covers arrow consumption suppression.
+  - [x] `CurseOfBindingEnchantment`: cannot be unequipped in survival — `binding_curse_can_remove` covers survival vs. non-survival removal.
+  - [x] `CurseOfVanishingEnchantment`: destroyed on death — `curse_of_vanishing_destroys_on_death` covers death-drop destruction.
+  - [x] `DensityEnchantment` / `BreachEnchantment` / `WindBurstEnchantment`: mace-specific effects — `density_smash_bonus_per_block`, `breach_armor_reduction_fraction`, and `wind_burst_knockback_blocks` cover mace damage, armor bypass, and wind burst.
 
 ## Migrated From Main Checklist: Damage, Combat, Effects, And Attributes
 
