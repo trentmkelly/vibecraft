@@ -24250,6 +24250,16 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("LastPoseTick".to_string(), Tag::Long(0)));
         }
         "minecraft:cat" | "minecraft:wolf" => {
+            let variant = if entity_type == "minecraft:cat" {
+                "minecraft:black"
+            } else {
+                "minecraft:pale"
+            };
+            fields.push(("variant".to_string(), Tag::String(variant.to_string())));
+            fields.push((
+                "sound_variant".to_string(),
+                Tag::String("minecraft:classic".to_string()),
+            ));
             fields.push(("CollarColor".to_string(), Tag::Byte(14)));
         }
         "minecraft:chicken" => {
@@ -59962,6 +59972,14 @@ mod tests {
         assert!(sheep_fields.contains(&("Sheared".to_string(), Tag::Byte(0))));
         assert!(sheep_fields.contains(&("Color".to_string(), Tag::Byte(0))));
         assert!(cat_fields.contains(&("CollarColor".to_string(), Tag::Byte(14))));
+        assert!(cat_fields.contains(&(
+            "variant".to_string(),
+            Tag::String("minecraft:black".to_string())
+        )));
+        assert!(cat_fields.contains(&(
+            "sound_variant".to_string(),
+            Tag::String("minecraft:classic".to_string())
+        )));
         assert!(chicken_fields.contains(&("IsChickenJockey".to_string(), Tag::Byte(0))));
         assert!(goat_fields.contains(&("IsScreamingGoat".to_string(), Tag::Byte(0))));
         assert!(goat_fields.contains(&("HasLeftHorn".to_string(), Tag::Byte(1))));
@@ -60035,6 +60053,15 @@ mod tests {
             yaw: 0.0,
             pitch: 0.0,
         };
+        let wolf = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:wolf",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
 
         let Tag::Compound(cow_fields) =
             super::chunk_generation_mob_entity_nbt(cow, "00000000-0000-0000-0000-000000000158")
@@ -60072,6 +60099,11 @@ mod tests {
         ) else {
             panic!("tropical fish entity nbt must be a compound");
         };
+        let Tag::Compound(wolf_fields) =
+            super::chunk_generation_mob_entity_nbt(wolf, "00000000-0000-0000-0000-000000000165")
+        else {
+            panic!("wolf entity nbt must be a compound");
+        };
 
         for fields in [&cow_fields, &pig_fields, &chicken_fields, &frog_fields] {
             assert!(fields.contains(&(
@@ -60091,6 +60123,14 @@ mod tests {
         assert!(salmon_fields.contains(&("FromBucket".to_string(), Tag::Byte(0))));
         assert!(tropical_fish_fields.contains(&("Variant".to_string(), Tag::Int(0))));
         assert!(tropical_fish_fields.contains(&("FromBucket".to_string(), Tag::Byte(0))));
+        assert!(wolf_fields.contains(&(
+            "variant".to_string(),
+            Tag::String("minecraft:pale".to_string())
+        )));
+        assert!(wolf_fields.contains(&(
+            "sound_variant".to_string(),
+            Tag::String("minecraft:classic".to_string())
+        )));
     }
 
     #[test]
