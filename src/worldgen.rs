@@ -24230,6 +24230,7 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("state".to_string(), Tag::String("idle".to_string())));
         }
         "minecraft:axolotl" => {
+            fields.push(("Variant".to_string(), Tag::Int(0)));
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
         }
         "minecraft:bee" => {
@@ -24253,6 +24254,24 @@ fn append_chunk_generation_mob_specific_save_fields(
         }
         "minecraft:chicken" => {
             fields.push(("IsChickenJockey".to_string(), Tag::Byte(0)));
+            fields.push((
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string()),
+            ));
+            fields.push((
+                "sound_variant".to_string(),
+                Tag::String("minecraft:classic".to_string()),
+            ));
+        }
+        "minecraft:cow" => {
+            fields.push((
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string()),
+            ));
+            fields.push((
+                "sound_variant".to_string(),
+                Tag::String("minecraft:classic".to_string()),
+            ));
         }
         "minecraft:creeper" => {
             fields.push(("powered".to_string(), Tag::Byte(0)));
@@ -24299,7 +24318,7 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:donkey" | "minecraft:mule" => {
             fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
         }
-        "minecraft:cod" | "minecraft:salmon" | "minecraft:tropical_fish" => {
+        "minecraft:cod" => {
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
         }
         "minecraft:dolphin" => {
@@ -24310,6 +24329,12 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("Sleeping".to_string(), Tag::Byte(0)));
             fields.push(("Sitting".to_string(), Tag::Byte(0)));
             fields.push(("Crouching".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:frog" => {
+            fields.push((
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string()),
+            ));
         }
         "minecraft:glow_squid" => {
             fields.push(("DarkTicksRemaining".to_string(), Tag::Int(0)));
@@ -24333,6 +24358,16 @@ fn append_chunk_generation_mob_specific_save_fields(
         }
         "minecraft:phantom" => {
             fields.push(("size".to_string(), Tag::Int(0)));
+        }
+        "minecraft:pig" => {
+            fields.push((
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string()),
+            ));
+            fields.push((
+                "sound_variant".to_string(),
+                Tag::String("minecraft:classic".to_string()),
+            ));
         }
         "minecraft:piglin_brute" => {
             fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
@@ -24372,6 +24407,14 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("Variant".to_string(), Tag::Int(0)));
             fields.push(("Strength".to_string(), Tag::Int(0)));
             fields.push(("DespawnDelay".to_string(), Tag::Int(47999)));
+        }
+        "minecraft:salmon" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            fields.push(("type".to_string(), Tag::String("medium".to_string())));
+        }
+        "minecraft:tropical_fish" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            fields.push(("Variant".to_string(), Tag::Int(0)));
         }
         "minecraft:turtle" => {
             fields.push((
@@ -59925,6 +59968,129 @@ mod tests {
         assert!(goat_fields.contains(&("HasRightHorn".to_string(), Tag::Byte(1))));
         assert!(rabbit_fields.contains(&("RabbitType".to_string(), Tag::Int(0))));
         assert!(rabbit_fields.contains(&("MoreCarrotTicks".to_string(), Tag::Int(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_variant_save_fields() {
+        let cow = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:cow",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let pig = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:pig",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let chicken = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:chicken",
+            width: 0.4,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let frog = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:frog",
+            width: 0.5,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let axolotl = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:axolotl",
+            width: 0.75,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let salmon = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:salmon",
+            width: 0.7,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let tropical_fish = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:tropical_fish",
+            width: 0.5,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(cow_fields) =
+            super::chunk_generation_mob_entity_nbt(cow, "00000000-0000-0000-0000-000000000158")
+        else {
+            panic!("cow entity nbt must be a compound");
+        };
+        let Tag::Compound(pig_fields) =
+            super::chunk_generation_mob_entity_nbt(pig, "00000000-0000-0000-0000-000000000159")
+        else {
+            panic!("pig entity nbt must be a compound");
+        };
+        let Tag::Compound(chicken_fields) =
+            super::chunk_generation_mob_entity_nbt(chicken, "00000000-0000-0000-0000-000000000160")
+        else {
+            panic!("chicken entity nbt must be a compound");
+        };
+        let Tag::Compound(frog_fields) =
+            super::chunk_generation_mob_entity_nbt(frog, "00000000-0000-0000-0000-000000000161")
+        else {
+            panic!("frog entity nbt must be a compound");
+        };
+        let Tag::Compound(axolotl_fields) =
+            super::chunk_generation_mob_entity_nbt(axolotl, "00000000-0000-0000-0000-000000000162")
+        else {
+            panic!("axolotl entity nbt must be a compound");
+        };
+        let Tag::Compound(salmon_fields) =
+            super::chunk_generation_mob_entity_nbt(salmon, "00000000-0000-0000-0000-000000000163")
+        else {
+            panic!("salmon entity nbt must be a compound");
+        };
+        let Tag::Compound(tropical_fish_fields) = super::chunk_generation_mob_entity_nbt(
+            tropical_fish,
+            "00000000-0000-0000-0000-000000000164",
+        ) else {
+            panic!("tropical fish entity nbt must be a compound");
+        };
+
+        for fields in [&cow_fields, &pig_fields, &chicken_fields, &frog_fields] {
+            assert!(fields.contains(&(
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string())
+            )));
+        }
+        for fields in [&cow_fields, &pig_fields, &chicken_fields] {
+            assert!(fields.contains(&(
+                "sound_variant".to_string(),
+                Tag::String("minecraft:classic".to_string())
+            )));
+        }
+        assert!(axolotl_fields.contains(&("Variant".to_string(), Tag::Int(0))));
+        assert!(axolotl_fields.contains(&("FromBucket".to_string(), Tag::Byte(0))));
+        assert!(salmon_fields.contains(&("type".to_string(), Tag::String("medium".to_string()))));
+        assert!(salmon_fields.contains(&("FromBucket".to_string(), Tag::Byte(0))));
+        assert!(tropical_fish_fields.contains(&("Variant".to_string(), Tag::Int(0))));
+        assert!(tropical_fish_fields.contains(&("FromBucket".to_string(), Tag::Byte(0))));
     }
 
     #[test]
