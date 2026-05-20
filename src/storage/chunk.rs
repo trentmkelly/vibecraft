@@ -679,6 +679,46 @@ impl LevelChunk {
         }
     }
 
+    pub fn set_structure_start_nbt(&mut self, structure_id: impl Into<String>, start: Tag) -> bool {
+        if !matches!(start, Tag::Compound(_)) {
+            return false;
+        }
+        let starts = structures_child_compound_mut(&mut self.structures, "starts");
+        let structure_id = structure_id.into();
+        match starts.iter_mut().find(|(name, _)| name == &structure_id) {
+            Some((_, existing)) => *existing = start,
+            None => starts.push((structure_id, start)),
+        }
+        true
+    }
+
+    pub fn add_structure_reference(
+        &mut self,
+        structure_id: impl Into<String>,
+        reference_pos: ChunkPos,
+    ) -> bool {
+        if chunk_pos_chessboard_distance(self.pos, reference_pos) > 8 {
+            return false;
+        }
+        let references = structures_child_compound_mut(&mut self.structures, "References");
+        let structure_id = structure_id.into();
+        let packed_reference = pack_chunk_pos_as_long(reference_pos);
+        match references
+            .iter_mut()
+            .find(|(name, _)| name == &structure_id)
+            .map(|(_, tag)| tag)
+        {
+            Some(Tag::LongArray(values)) => {
+                if !values.contains(&packed_reference) {
+                    values.push(packed_reference);
+                }
+            }
+            Some(existing) => *existing = Tag::LongArray(vec![packed_reference]),
+            None => references.push((structure_id, Tag::LongArray(vec![packed_reference]))),
+        }
+        true
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -786,6 +826,14 @@ pub fn light_data_layer_get(data: Option<&[i8]>, default_value: u8, x: i32, y: i
     }
 }
 
+pub fn pack_chunk_pos_as_long(pos: ChunkPos) -> i64 {
+    (i64::from(pos.x) & 0xffff_ffff) | ((i64::from(pos.z) & 0xffff_ffff) << 32)
+}
+
+pub fn chunk_pos_chessboard_distance(a: ChunkPos, b: ChunkPos) -> i32 {
+    (a.x - b.x).abs().max((a.z - b.z).abs())
+}
+
 fn block_entity_tag_pos(tag: &Tag) -> Option<(i32, i32, i32)> {
     let fields = compound(tag).ok()?;
     Some((
@@ -811,6 +859,34 @@ fn empty_structures_payload() -> Tag {
         ("starts".to_string(), Tag::Compound(Vec::new())),
         ("References".to_string(), Tag::Compound(Vec::new())),
     ])
+}
+
+fn structures_child_compound_mut<'a>(
+    structures: &'a mut Tag,
+    name: &str,
+) -> &'a mut Vec<(String, Tag)> {
+    if !matches!(structures, Tag::Compound(_)) {
+        *structures = empty_structures_payload();
+    }
+    let Tag::Compound(fields) = structures else {
+        unreachable!("structures payload was normalized to a compound");
+    };
+    let index = match fields.iter().position(|(field_name, _)| field_name == name) {
+        Some(index) => {
+            if !matches!(fields[index].1, Tag::Compound(_)) {
+                fields[index].1 = Tag::Compound(Vec::new());
+            }
+            index
+        }
+        None => {
+            fields.push((name.to_string(), Tag::Compound(Vec::new())));
+            fields.len() - 1
+        }
+    };
+    let Tag::Compound(child) = &mut fields[index].1 else {
+        unreachable!("structure child was normalized to a compound");
+    };
+    child
 }
 
 fn default_block_states_container() -> Tag {
@@ -2120,6 +2196,50 @@ mod tests {
             fields.iter().find(|(name, _)| name == "References"),
             Some((_, Tag::Compound(references))) if references.is_empty()
         ));
+    }
+
+    #[test]
+    fn level_chunk_stores_structure_starts_and_nearby_references() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 10, z: -10 });
+        let mineshaft = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:mineshaft".to_string()),
+        )]);
+        let village = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:village".to_string()),
+        )]);
+
+        assert!(chunk.set_structure_start_nbt("minecraft:mineshaft", mineshaft));
+        assert!(chunk.set_structure_start_nbt("minecraft:mineshaft", village.clone()));
+        assert!(!chunk.set_structure_start_nbt("minecraft:bad", Tag::List(Vec::new())));
+        assert!(chunk.add_structure_reference("minecraft:village", ChunkPos { x: 18, z: -2 }));
+        assert!(chunk.add_structure_reference("minecraft:village", ChunkPos { x: 18, z: -2 }));
+        assert!(!chunk.add_structure_reference("minecraft:village", ChunkPos { x: 19, z: -10 }));
+
+        let Tag::Compound(fields) = &chunk.structures else {
+            panic!("structures payload should be a compound");
+        };
+        assert!(matches!(
+            fields.iter().find(|(name, _)| name == "starts"),
+            Some((_, Tag::Compound(starts)))
+                if starts == &vec![("minecraft:mineshaft".to_string(), village)]
+        ));
+        assert!(matches!(
+            fields.iter().find(|(name, _)| name == "References"),
+            Some((_, Tag::Compound(references)))
+                if references == &vec![(
+                    "minecraft:village".to_string(),
+                    Tag::LongArray(vec![super::pack_chunk_pos_as_long(ChunkPos { x: 18, z: -2 })])
+                )]
+        ));
+        assert_eq!(
+            super::chunk_pos_chessboard_distance(
+                ChunkPos { x: 10, z: -10 },
+                ChunkPos { x: 18, z: -2 }
+            ),
+            8
+        );
     }
 
     #[test]
