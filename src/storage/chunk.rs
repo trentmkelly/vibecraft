@@ -99,6 +99,15 @@ pub struct ChunkGenerationLayerPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkGenerationChunkStepPlan {
+    Apply {
+        pyramid: ChunkPyramidKind,
+        generate: bool,
+    },
+    UnexpectedGeneration,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickPriority {
     ExtremelyHigh,
     VeryHigh,
@@ -1083,6 +1092,29 @@ pub fn chunk_generation_task_next_layer(
             })
         }
     }
+}
+
+pub fn chunk_generation_task_chunk_step(
+    status: &str,
+    persisted_status: Option<&str>,
+    needs_generation: bool,
+) -> Option<ChunkGenerationChunkStepPlan> {
+    let status = chunk_status(status)?;
+    let generate = persisted_status
+        .and_then(|persisted_status| chunk_status_is_after(status.id, persisted_status))
+        .unwrap_or(false);
+
+    if generate && !needs_generation {
+        return Some(ChunkGenerationChunkStepPlan::UnexpectedGeneration);
+    }
+
+    let pyramid = if generate {
+        ChunkPyramidKind::Generation
+    } else {
+        ChunkPyramidKind::Loading
+    };
+
+    Some(ChunkGenerationChunkStepPlan::Apply { pyramid, generate })
 }
 
 fn chunk_pyramid_dependencies(
@@ -2584,6 +2616,53 @@ mod tests {
         assert_eq!(
             super::chunk_generation_task_next_layer(Some("missing"), false, true),
             None
+        );
+    }
+
+    #[test]
+    fn chunk_generation_task_chunk_step_matches_java_schedule_chunk_in_layer_gate() {
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("minecraft:features", Some("carvers"), true),
+            Some(super::ChunkGenerationChunkStepPlan::Apply {
+                pyramid: ChunkPyramidKind::Generation,
+                generate: true,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("minecraft:features", Some("carvers"), false),
+            Some(super::ChunkGenerationChunkStepPlan::UnexpectedGeneration)
+        );
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("minecraft:features", Some("features"), false),
+            Some(super::ChunkGenerationChunkStepPlan::Apply {
+                pyramid: ChunkPyramidKind::Loading,
+                generate: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("minecraft:features", Some("full"), true),
+            Some(super::ChunkGenerationChunkStepPlan::Apply {
+                pyramid: ChunkPyramidKind::Loading,
+                generate: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("minecraft:features", None, true),
+            Some(super::ChunkGenerationChunkStepPlan::Apply {
+                pyramid: ChunkPyramidKind::Loading,
+                generate: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("missing", Some("features"), true),
+            None
+        );
+        assert_eq!(
+            super::chunk_generation_task_chunk_step("minecraft:features", Some("missing"), true),
+            Some(super::ChunkGenerationChunkStepPlan::Apply {
+                pyramid: ChunkPyramidKind::Loading,
+                generate: false,
+            })
         );
     }
 }
