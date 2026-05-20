@@ -295,9 +295,9 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Fix `level_chunk_with_light` heightmap encoding to use vanilla's `HEIGHTMAPS_STREAM_CODEC` map format instead of NBT compound encoding: VarInt map count, `Heightmap.Types` VarInt ids, and length-prefixed long arrays. References: `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/Heightmap.java`, `src/network/status.rs`.
 - [x] Fix `level_chunk_with_light` light update layer encoding to match `ClientboundLightUpdatePacketData.DATA_LAYER_STREAM_CODEC`: each 2048-byte sky/block light array is encoded as a length-prefixed byte array inside the update lists. References: `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundLightUpdatePacketData.java`, `decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java`, `src/network/play.rs`.
 - [x] Implement chunk statuses and generation dependencies.
-- [ ] Implement chunk ticketing.
-- [ ] Implement player chunk tracking.
-- [ ] Implement view distance and simulation distance independently.
+- [x] Implement chunk ticketing.
+- [x] Implement player chunk tracking.
+- [x] Implement view distance and simulation distance independently.
 - [ ] Implement chunk loading, generation, saving, unloading, and eviction.
 - [ ] Add a Mineflayer chunk-streaming test that joins offline mode, waits for initial chunks, changes view-distance/simulation-distance, moves across chunk boundaries, and verifies chunk load/unload events match vanilla ordering.
 - [x] Add raw 26.1.2 initial chunk-streaming fallback coverage that verifies login view/simulation distances, chunk cache radius, 3x3 spawn chunk coordinates, and chunk-batch-finished ordering while Mineflayer lacks target-protocol play support.
@@ -307,8 +307,8 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Add a Mineflayer chunk-resend regression test that reconnects an offline-mode bot in the same chunk, teleports across dimensions or long distances, and verifies stale chunks are unloaded before new terrain is accepted.
 - [x] Add raw 26.1.2 chunk reconnect-center fallback coverage that saves a far-positioned offline profile, reconnects it, and verifies chunk cache center plus the initial 3x3 chunk batch are centered on the saved player chunk instead of stale spawn chunks while Mineflayer lacks target-protocol play support.
 - [x] Add raw 26.1.2 stale-chunk unload fallback coverage that moves an offline profile across a chunk boundary and verifies old 3x3-window chunks are forgotten before the replacement terrain batch while Mineflayer lacks target-protocol play support.
-- [ ] Implement forced chunks.
-- [ ] Implement chunk map updates to players.
+- [x] Implement forced chunks.
+- [x] Implement chunk map updates to players.
 - [ ] Add a Mineflayer forced-chunk visibility test that uses `/forceload`, moves the bot away and back, and verifies chunk data remains available consistently with vanilla.
 - [x] Add raw 26.1.2 chunk return-visibility fallback coverage that moves an offline profile away and back, then verifies the original visible chunk window is restored deterministically while Mineflayer lacks target-protocol play support.
 - [ ] Implement light engine for block light and sky light.
