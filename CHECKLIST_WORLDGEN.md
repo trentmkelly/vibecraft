@@ -194,7 +194,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Structure Generation
 
-- [ ] Implement `StructureSet` placement: `ConcentricRingsStructurePlacement` (strongholds), `RandomSpreadStructurePlacement` (villages, outposts, etc.)
+- [x] Implement `StructureSet` placement: `ConcentricRingsStructurePlacement` (strongholds), `RandomSpreadStructurePlacement` (villages, outposts, etc.)
 - [ ] Implement structure-check parity: `StructureManager.getStructureAt()`, starts vs. references, `structuresBelowEverything` flag
 - [ ] Implement `Beardifier.forStructure()`: terrain adjustment for structures via density function integration
 - [ ] Implement structure start generation: `Structure.generate()`, bounding box, piece container, `StructureStart.placeInChunk()`, `JigsawStructure.generatePieces()`
