@@ -63,6 +63,7 @@ pub struct RegionIoWorker {
     pending_writes: BTreeMap<ChunkPos, PendingRegionWrite>,
     old_chunk_mask_cache: RefCell<BTreeMap<RegionPos, Vec<bool>>>,
     old_chunk_mask_lru: RefCell<VecDeque<RegionPos>>,
+    closed: bool,
 }
 
 impl ChunkPos {
@@ -432,6 +433,7 @@ impl RegionIoWorker {
             pending_writes: BTreeMap::new(),
             old_chunk_mask_cache: RefCell::new(BTreeMap::new()),
             old_chunk_mask_lru: RefCell::new(VecDeque::new()),
+            closed: false,
         })
     }
 
@@ -512,6 +514,18 @@ impl RegionIoWorker {
         for region_pos in regions_to_flush {
             RegionFile::open(&self.dir, region_pos)?.flush()?;
         }
+        Ok(())
+    }
+
+    pub fn close(&mut self) -> io::Result<()> {
+        if self.closed {
+            return Ok(());
+        }
+
+        self.synchronize_with_flush()?;
+        self.old_chunk_mask_cache.get_mut().clear();
+        self.old_chunk_mask_lru.get_mut().clear();
+        self.closed = true;
         Ok(())
     }
 
@@ -1040,6 +1054,50 @@ mod tests {
                 Tag::Compound(vec![("second".to_string(), Tag::Int(2))])
             ))
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_close_drains_pending_writes_and_clears_old_chunk_cache() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-close-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let chunk = ChunkPos { x: 0, z: 0 };
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        worker.store_chunk_nbt(
+            chunk,
+            "",
+            Tag::Compound(vec![("closed".to_string(), Tag::Int(1))]),
+        );
+        worker
+            .old_chunk_mask_for_region(RegionPos { x: 0, z: 0 })
+            .unwrap();
+        assert_eq!(worker.pending_write_count(), 1);
+        assert_eq!(worker.old_chunk_mask_cache.borrow().len(), 1);
+
+        worker.close().unwrap();
+
+        assert_eq!(worker.pending_write_count(), 0);
+        assert!(worker.old_chunk_mask_cache.borrow().is_empty());
+        assert!(worker.old_chunk_mask_lru.borrow().is_empty());
+        assert_eq!(
+            RegionFile::open(&dir, chunk.region())
+                .unwrap()
+                .read_chunk_nbt(chunk)
+                .unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("closed".to_string(), Tag::Int(1))])
+            ))
+        );
+
+        worker.close().unwrap();
+        assert_eq!(worker.pending_write_count(), 0);
 
         let _ = fs::remove_dir_all(&dir);
     }
