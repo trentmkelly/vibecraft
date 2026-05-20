@@ -403,6 +403,24 @@ impl LevelChunk {
         Tag::Compound(fields)
     }
 
+    pub fn mark_pos_for_postprocessing(&mut self, x: i32, y: i32, z: i32) -> bool {
+        let section_y = y.div_euclid(16);
+        let section_index = section_y - self.min_section_y;
+        if section_index < 0 || section_index as usize >= self.sections.len() {
+            return false;
+        }
+        let section_index = section_index as usize;
+        while self.post_processing.len() <= section_index {
+            self.post_processing.push(Tag::List(Vec::new()));
+        }
+        let packed = pack_postprocessing_offset(x, y, z);
+        match &mut self.post_processing[section_index] {
+            Tag::List(offsets) => offsets.push(Tag::Short(packed)),
+            _ => self.post_processing[section_index] = Tag::List(vec![Tag::Short(packed)]),
+        }
+        true
+    }
+
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
         require_current_tag_data_version("chunk", tag)?;
         let root = compound(tag)?;
@@ -444,6 +462,10 @@ impl LevelChunk {
             light_correct: optional_bool_field(root, "isLightOn")?.unwrap_or(false),
         })
     }
+}
+
+pub fn pack_postprocessing_offset(x: i32, y: i32, z: i32) -> i16 {
+    ((x & 15) | ((y & 15) << 4) | ((z & 15) << 8)) as i16
 }
 
 fn empty_structures_payload() -> Tag {
@@ -817,10 +839,10 @@ fn optional_bool_field(compound: &[(String, Tag)], name: &str) -> Result<Option<
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_status, chunk_status_is_or_after, BlockStateEntry, ChunkSection, ChunkStatusTaskKind,
-        ChunkType, HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos,
-        BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, SECTION_VOLUME,
-        WORLDGEN_HEIGHTMAPS,
+        chunk_status, chunk_status_is_or_after, pack_postprocessing_offset, BlockStateEntry,
+        ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, PalettedContainer,
+        SectionBlockPos, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS,
+        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -912,6 +934,40 @@ mod tests {
             fields.iter().find(|(name, _)| name == "References"),
             Some((_, Tag::Compound(references))) if references.is_empty()
         ));
+    }
+
+    #[test]
+    fn level_chunk_marks_postprocessing_offsets_by_section() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 3, z: -2 });
+        chunk.min_section_y = -1;
+        chunk.sections = vec![
+            ChunkSection {
+                y: -1,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 0,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+
+        assert!(chunk.mark_pos_for_postprocessing(48, -1, -17));
+        assert!(chunk.mark_pos_for_postprocessing(63, 0, -32));
+        assert!(!chunk.mark_pos_for_postprocessing(48, 16, -17));
+
+        assert_eq!(
+            chunk.post_processing,
+            vec![
+                Tag::List(vec![Tag::Short(pack_postprocessing_offset(48, -1, -17))]),
+                Tag::List(vec![Tag::Short(pack_postprocessing_offset(63, 0, -32))]),
+            ]
+        );
     }
 
     #[test]
