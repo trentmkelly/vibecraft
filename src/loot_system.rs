@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::block_entity::{PotItemStack, VaultBlockEntity, VaultInsertResult};
+use crate::villager_system::{VillagerProfession, WanderingTraderOffers};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootStack {
@@ -514,6 +515,58 @@ pub fn resolve_vault_unlock_loot(
         count: 1,
     };
     vault.try_insert_key(player, &inserted, rewards, game_time)
+}
+
+pub fn hero_of_the_village_gift_table(
+    profession: VillagerProfession,
+    is_baby: bool,
+) -> &'static str {
+    if is_baby {
+        return "minecraft:gameplay/hero_of_the_village/baby_gift";
+    }
+    match profession {
+        VillagerProfession::Armorer => "minecraft:gameplay/hero_of_the_village/armorer_gift",
+        VillagerProfession::Butcher => "minecraft:gameplay/hero_of_the_village/butcher_gift",
+        VillagerProfession::Cartographer => {
+            "minecraft:gameplay/hero_of_the_village/cartographer_gift"
+        }
+        VillagerProfession::Cleric => "minecraft:gameplay/hero_of_the_village/cleric_gift",
+        VillagerProfession::Farmer => "minecraft:gameplay/hero_of_the_village/farmer_gift",
+        VillagerProfession::Fisherman => "minecraft:gameplay/hero_of_the_village/fisherman_gift",
+        VillagerProfession::Fletcher => "minecraft:gameplay/hero_of_the_village/fletcher_gift",
+        VillagerProfession::Leatherworker => {
+            "minecraft:gameplay/hero_of_the_village/leatherworker_gift"
+        }
+        VillagerProfession::Librarian => "minecraft:gameplay/hero_of_the_village/librarian_gift",
+        VillagerProfession::Mason => "minecraft:gameplay/hero_of_the_village/mason_gift",
+        VillagerProfession::Shepherd => "minecraft:gameplay/hero_of_the_village/shepherd_gift",
+        VillagerProfession::Toolsmith => "minecraft:gameplay/hero_of_the_village/toolsmith_gift",
+        VillagerProfession::Weaponsmith => {
+            "minecraft:gameplay/hero_of_the_village/weaponsmith_gift"
+        }
+        VillagerProfession::None | VillagerProfession::Nitwit => {
+            "minecraft:gameplay/hero_of_the_village/unemployed_gift"
+        }
+    }
+}
+
+pub fn resolve_mob_gift_loot(
+    engine: &LootBehaviorEngine,
+    actor: impl Into<String>,
+    table: impl Into<String>,
+    origin: (f64, f64, f64),
+    seed: u64,
+) -> LootResolution {
+    let actor = actor.into();
+    let mut request = LootRequest::new(LootSurface::Gift, table.into());
+    request.origin = origin;
+    request.actor = Some(actor.clone());
+    request.target_entity = Some(actor);
+    engine.resolve(request, seed)
+}
+
+pub fn wandering_trader_reward_offers() -> WanderingTraderOffers {
+    WanderingTraderOffers::vanilla_sample()
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2547,6 +2600,63 @@ mod tests {
                 count: 1
             }]
         );
+    }
+
+    #[test]
+    fn mob_gift_loot_covers_cat_villager_and_wandering_trader_surfaces() {
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:gameplay/cat_morning_gift",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:string", 1))),
+        );
+        engine.insert_table(
+            "minecraft:gameplay/hero_of_the_village/farmer_gift",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:bread", 1))),
+        );
+        engine.insert_table(
+            "minecraft:gameplay/hero_of_the_village/baby_gift",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:poppy", 1))),
+        );
+
+        let cat = resolve_mob_gift_loot(
+            &engine,
+            "Cat",
+            "minecraft:gameplay/cat_morning_gift",
+            (5.0, 65.0, 6.0),
+            12,
+        );
+        assert_eq!(cat.param_set, LootParamSet::Gift);
+        assert_eq!(
+            cat.delivery,
+            LootDelivery::GiveToEntity(
+                "Cat".to_string(),
+                vec![LootStack::new("minecraft:string", 1)]
+            )
+        );
+
+        let farmer_table = hero_of_the_village_gift_table(VillagerProfession::Farmer, false);
+        let farmer = resolve_mob_gift_loot(&engine, "Farmer", farmer_table, (5.0, 65.0, 6.0), 13);
+        assert_eq!(
+            farmer.delivery,
+            LootDelivery::GiveToEntity(
+                "Farmer".to_string(),
+                vec![LootStack::new("minecraft:bread", 1)]
+            )
+        );
+
+        let baby_table = hero_of_the_village_gift_table(VillagerProfession::Toolsmith, true);
+        let baby = resolve_mob_gift_loot(&engine, "BabyVillager", baby_table, (5.0, 65.0, 6.0), 14);
+        assert_eq!(
+            baby.delivery,
+            LootDelivery::GiveToEntity(
+                "BabyVillager".to_string(),
+                vec![LootStack::new("minecraft:poppy", 1)]
+            )
+        );
+
+        let trader_offers = wandering_trader_reward_offers();
+        assert!(!trader_offers.generic.is_empty());
+        assert!(!trader_offers.rare.is_empty());
     }
 
     #[test]
