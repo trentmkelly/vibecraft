@@ -10,6 +10,7 @@ use crate::villager_system::{VillagerProfession, WanderingTraderOffers};
 pub struct LootStack {
     pub item: String,
     pub count: i32,
+    pub components: HashMap<String, String>,
 }
 
 impl LootStack {
@@ -17,6 +18,7 @@ impl LootStack {
         Self {
             item: item.into(),
             count,
+            components: HashMap::new(),
         }
     }
 
@@ -1411,7 +1413,51 @@ pub enum LootFunction {
         per_level: NumberProvider,
         limit: Option<i32>,
     },
+    ApplyBonus(LootBonusFormula),
     SetItem(String),
+    SetDamage(NumberProvider),
+    SetNbt(HashMap<String, String>),
+    EnchantWithLevels {
+        levels: NumberProvider,
+        options: Vec<String>,
+    },
+    EnchantRandomly(Vec<String>),
+    SmeltItem,
+    CopyName {
+        source: String,
+    },
+    CopyNbt {
+        provider: NbtProvider,
+        target: String,
+    },
+    SetContents(Vec<LootStack>),
+    ExplorationMap {
+        destination: String,
+        decoration: String,
+    },
+    FillPlayerHead,
+    CopyState(Vec<String>),
+    SetAttributes(Vec<String>),
+    SetBannerPatterns(Vec<String>),
+    SetBookContents {
+        title: String,
+        author: String,
+        pages: Vec<String>,
+    },
+    SetComponents(HashMap<String, String>),
+    SetInstrument(String),
+    SetLore(Vec<String>),
+    SetName(String),
+    SetPotion(String),
+    SetStewEffects(Vec<String>),
+    SetWrittenBookPages(Vec<String>),
+    ToggleTooltips(Vec<String>),
+    SetFireworkExplosions(Vec<String>),
+    SetFireworks {
+        flight_duration: i32,
+        explosions: Vec<String>,
+    },
+    Reference(String),
     ApplyExplosionDecay,
     Filtered {
         condition: LootCondition,
@@ -1445,9 +1491,217 @@ impl LootFunction {
                 }
                 Some(stack)
             }
+            Self::ApplyBonus(formula) => {
+                stack.count = formula.apply(stack.count, context);
+                Some(stack)
+            }
             Self::SetItem(item) => {
                 stack.item.clone_from(item);
                 Some(stack)
+            }
+            Self::SetDamage(provider) => {
+                stack.components.insert(
+                    "minecraft:damage_fraction".to_string(),
+                    provider.float(context).to_string(),
+                );
+                Some(stack)
+            }
+            Self::SetNbt(values) | Self::SetComponents(values) => {
+                stack.components.extend(values.clone());
+                Some(stack)
+            }
+            Self::EnchantWithLevels { levels, options } => {
+                let level = levels.int(context).max(1);
+                if !options.is_empty() {
+                    let index = context.random.next_i32(options.len() as i32) as usize;
+                    stack.components.insert(
+                        "minecraft:enchantments".to_string(),
+                        format!("{}:{level}", options[index]),
+                    );
+                }
+                Some(stack)
+            }
+            Self::EnchantRandomly(options) => {
+                if !options.is_empty() {
+                    let index = context.random.next_i32(options.len() as i32) as usize;
+                    stack.components.insert(
+                        "minecraft:enchantments".to_string(),
+                        format!("{}:1", options[index]),
+                    );
+                }
+                Some(stack)
+            }
+            Self::SmeltItem => {
+                if context.block_on_fire {
+                    if let Some(result) = context.smelting_results.get(&stack.item) {
+                        stack.item.clone_from(result);
+                    }
+                }
+                Some(stack)
+            }
+            Self::CopyName { source } => {
+                if let Some(name) = context.entity_properties.get(source) {
+                    stack
+                        .components
+                        .insert("minecraft:custom_name".to_string(), name.clone());
+                }
+                Some(stack)
+            }
+            Self::CopyNbt { provider, target } => {
+                if let Some(value) = provider.get(context) {
+                    stack.components.insert(target.clone(), value.to_string());
+                }
+                Some(stack)
+            }
+            Self::SetContents(contents) => {
+                stack.components.insert(
+                    "minecraft:container".to_string(),
+                    contents
+                        .iter()
+                        .map(|item| format!("{}:{}", item.item, item.count))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                Some(stack)
+            }
+            Self::ExplorationMap {
+                destination,
+                decoration,
+            } => {
+                stack.item = "minecraft:filled_map".to_string();
+                stack
+                    .components
+                    .insert("minecraft:map_destination".to_string(), destination.clone());
+                stack
+                    .components
+                    .insert("minecraft:map_decoration".to_string(), decoration.clone());
+                Some(stack)
+            }
+            Self::FillPlayerHead => {
+                if let Some(player) = context
+                    .entity_properties
+                    .get("last_damage_player")
+                    .or_else(|| context.entity_properties.get("killer_entity"))
+                {
+                    stack
+                        .components
+                        .insert("minecraft:profile".to_string(), player.clone());
+                }
+                Some(stack)
+            }
+            Self::CopyState(properties) => {
+                for property in properties {
+                    if let Some(value) = context.block_state_properties.get(property) {
+                        stack
+                            .components
+                            .insert(format!("minecraft:block_state.{property}"), value.clone());
+                    }
+                }
+                Some(stack)
+            }
+            Self::SetAttributes(attributes) => {
+                stack.components.insert(
+                    "minecraft:attribute_modifiers".to_string(),
+                    attributes.join(","),
+                );
+                Some(stack)
+            }
+            Self::SetBannerPatterns(patterns) => {
+                stack
+                    .components
+                    .insert("minecraft:banner_patterns".to_string(), patterns.join(","));
+                Some(stack)
+            }
+            Self::SetBookContents {
+                title,
+                author,
+                pages,
+            } => {
+                stack
+                    .components
+                    .insert("minecraft:written_book_title".to_string(), title.clone());
+                stack
+                    .components
+                    .insert("minecraft:written_book_author".to_string(), author.clone());
+                stack
+                    .components
+                    .insert("minecraft:written_book_pages".to_string(), pages.join("\n"));
+                Some(stack)
+            }
+            Self::SetInstrument(instrument) => {
+                stack
+                    .components
+                    .insert("minecraft:instrument".to_string(), instrument.clone());
+                Some(stack)
+            }
+            Self::SetLore(lines) => {
+                stack
+                    .components
+                    .insert("minecraft:lore".to_string(), lines.join("\n"));
+                Some(stack)
+            }
+            Self::SetName(name) => {
+                stack
+                    .components
+                    .insert("minecraft:custom_name".to_string(), name.clone());
+                Some(stack)
+            }
+            Self::SetPotion(potion) => {
+                stack
+                    .components
+                    .insert("minecraft:potion_contents".to_string(), potion.clone());
+                Some(stack)
+            }
+            Self::SetStewEffects(effects) => {
+                stack.components.insert(
+                    "minecraft:suspicious_stew_effects".to_string(),
+                    effects.join(","),
+                );
+                Some(stack)
+            }
+            Self::SetWrittenBookPages(pages) => {
+                stack.components.insert(
+                    "minecraft:writable_book_pages".to_string(),
+                    pages.join("\n"),
+                );
+                Some(stack)
+            }
+            Self::ToggleTooltips(components) => {
+                stack
+                    .components
+                    .insert("minecraft:tooltip_hidden".to_string(), components.join(","));
+                Some(stack)
+            }
+            Self::SetFireworkExplosions(explosions) => {
+                stack.components.insert(
+                    "minecraft:firework_explosion".to_string(),
+                    explosions.join(","),
+                );
+                Some(stack)
+            }
+            Self::SetFireworks {
+                flight_duration,
+                explosions,
+            } => {
+                stack.components.insert(
+                    "minecraft:fireworks".to_string(),
+                    format!("{flight_duration}:{}", explosions.join(",")),
+                );
+                Some(stack)
+            }
+            Self::Reference(name) => {
+                if let Some(functions) = context.function_references.get(name).cloned() {
+                    let mut next = Some(stack);
+                    for function in functions {
+                        next = function.apply(next?, context);
+                    }
+                    next
+                } else {
+                    context
+                        .warnings
+                        .push(format!("Unknown loot function reference {name}"));
+                    Some(stack)
+                }
             }
             Self::ApplyExplosionDecay => {
                 if let Some(radius) = context.explosion_radius {
@@ -1482,6 +1736,39 @@ impl LootFunction {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum LootBonusFormula {
+    UniformBonusCount { bonus_multiplier: i32 },
+    BinomialWithBonusCount { extra: i32, probability: f32 },
+    OreDrops,
+}
+
+impl LootBonusFormula {
+    fn apply(&self, base_count: i32, context: &mut LootContext) -> i32 {
+        let fortune = context.fortune_level.max(0);
+        match self {
+            Self::UniformBonusCount { bonus_multiplier } => {
+                let bound = fortune * (*bonus_multiplier).max(0) + 1;
+                base_count + context.random.next_i32(bound)
+            }
+            Self::BinomialWithBonusCount { extra, probability } => {
+                let rolls = fortune + (*extra).max(0);
+                let bonus = (0..rolls)
+                    .filter(|_| context.random.next_f32() < *probability)
+                    .count() as i32;
+                base_count + bonus
+            }
+            Self::OreDrops => {
+                if fortune <= 0 {
+                    return base_count;
+                }
+                let multiplier = (context.random.next_i32(fortune + 2) - 1).max(0) + 1;
+                base_count * multiplier
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LootContext {
     pub param_set: LootParamSet,
@@ -1497,6 +1784,7 @@ pub struct LootContext {
     pub killed_by_player: bool,
     pub explosion_radius: Option<f32>,
     pub game_time: i64,
+    pub block_on_fire: bool,
     pub block: Option<String>,
     pub tool: Option<String>,
     pub scores: HashMap<String, i32>,
@@ -1504,7 +1792,10 @@ pub struct LootContext {
     pub context_nbt: HashMap<String, HashMap<String, String>>,
     pub storage_nbt: HashMap<String, HashMap<String, String>>,
     pub entity_properties: HashMap<String, String>,
+    pub block_state_properties: HashMap<String, String>,
+    pub smelting_results: HashMap<String, String>,
     pub condition_references: HashSet<String>,
+    pub function_references: HashMap<String, Vec<LootFunction>>,
     pub tables: HashMap<String, LootTable>,
     pub tags: HashMap<String, Vec<String>>,
     pub dynamic_drops: HashMap<String, Vec<LootStack>>,
@@ -1530,6 +1821,7 @@ impl LootContext {
             killed_by_player: false,
             explosion_radius: None,
             game_time: 0,
+            block_on_fire: false,
             block: None,
             tool: None,
             scores: HashMap::new(),
@@ -1537,7 +1829,10 @@ impl LootContext {
             context_nbt: HashMap::new(),
             storage_nbt: HashMap::new(),
             entity_properties: HashMap::new(),
+            block_state_properties: HashMap::new(),
+            smelting_results: HashMap::new(),
             condition_references: HashSet::new(),
+            function_references: HashMap::new(),
             tables: HashMap::new(),
             tags: HashMap::new(),
             dynamic_drops: HashMap::new(),
@@ -1563,6 +1858,7 @@ impl LootContext {
             killed_by_player: self.killed_by_player,
             explosion_radius: self.explosion_radius,
             game_time: self.game_time,
+            block_on_fire: self.block_on_fire,
             block: self.block.clone(),
             tool: self.tool.clone(),
             scores: self.scores.clone(),
@@ -1570,7 +1866,10 @@ impl LootContext {
             context_nbt: self.context_nbt.clone(),
             storage_nbt: self.storage_nbt.clone(),
             entity_properties: self.entity_properties.clone(),
+            block_state_properties: self.block_state_properties.clone(),
+            smelting_results: self.smelting_results.clone(),
             condition_references: self.condition_references.clone(),
+            function_references: self.function_references.clone(),
             tables: HashMap::new(),
             tags: self.tags.clone(),
             dynamic_drops: self.dynamic_drops.clone(),
@@ -2512,6 +2811,180 @@ mod tests {
                 vec![LootStack::new("minecraft:diamond", 4)]
             )
         );
+    }
+
+    #[test]
+    fn component_loot_functions_apply_java_item_modifier_surface() {
+        let mut context = LootContext::new(LootParamSet::AllParams, 21);
+        context.block_on_fire = true;
+        context.smelting_results.insert(
+            "minecraft:raw_iron".to_string(),
+            "minecraft:iron_ingot".to_string(),
+        );
+        context
+            .entity_properties
+            .insert("block_entity_name".to_string(), "Loot Chest".to_string());
+        context
+            .entity_properties
+            .insert("last_damage_player".to_string(), "Steve".to_string());
+        context
+            .block_state_properties
+            .insert("facing".to_string(), "north".to_string());
+        context.context_nbt.insert(
+            "this_entity".to_string(),
+            HashMap::from([("CustomName".to_string(), "Dinnerbone".to_string())]),
+        );
+        context.function_references.insert(
+            "minecraft:set_marker".to_string(),
+            vec![LootFunction::SetComponents(HashMap::from([(
+                "minecraft:marker".to_string(),
+                "referenced".to_string(),
+            )]))],
+        );
+
+        let functions = LootFunction::Sequence(vec![
+            LootFunction::SmeltItem,
+            LootFunction::SetDamage(NumberProvider::Constant(0.25)),
+            LootFunction::SetNbt(HashMap::from([(
+                "minecraft:custom_data".to_string(),
+                "1b".to_string(),
+            )])),
+            LootFunction::EnchantWithLevels {
+                levels: NumberProvider::Constant(3.0),
+                options: vec!["minecraft:fortune".to_string()],
+            },
+            LootFunction::CopyName {
+                source: "block_entity_name".to_string(),
+            },
+            LootFunction::CopyNbt {
+                provider: NbtProvider::Context {
+                    target: "this_entity".to_string(),
+                    path: "CustomName".to_string(),
+                },
+                target: "minecraft:copied_name".to_string(),
+            },
+            LootFunction::SetContents(vec![LootStack::new("minecraft:apple", 2)]),
+            LootFunction::ExplorationMap {
+                destination: "minecraft:village".to_string(),
+                decoration: "red_x".to_string(),
+            },
+            LootFunction::FillPlayerHead,
+            LootFunction::CopyState(vec!["facing".to_string()]),
+            LootFunction::SetAttributes(vec!["generic.attack_damage:+1".to_string()]),
+            LootFunction::SetBannerPatterns(vec!["minecraft:stripe_bottom".to_string()]),
+            LootFunction::SetBookContents {
+                title: "Guide".to_string(),
+                author: "Alex".to_string(),
+                pages: vec!["Page 1".to_string()],
+            },
+            LootFunction::SetComponents(HashMap::from([(
+                "minecraft:rarity".to_string(),
+                "rare".to_string(),
+            )])),
+            LootFunction::SetInstrument("minecraft:ponder_goat_horn".to_string()),
+            LootFunction::SetLore(vec!["Lore".to_string()]),
+            LootFunction::SetName("Named".to_string()),
+            LootFunction::SetPotion("minecraft:healing".to_string()),
+            LootFunction::SetStewEffects(vec!["minecraft:night_vision:160".to_string()]),
+            LootFunction::SetWrittenBookPages(vec!["Draft".to_string()]),
+            LootFunction::ToggleTooltips(vec!["minecraft:enchantments".to_string()]),
+            LootFunction::SetFireworkExplosions(vec!["small_ball:red".to_string()]),
+            LootFunction::SetFireworks {
+                flight_duration: 2,
+                explosions: vec!["small_ball:red".to_string()],
+            },
+            LootFunction::Reference("minecraft:set_marker".to_string()),
+        ]);
+
+        let stack = functions
+            .apply(LootStack::new("minecraft:raw_iron", 1), &mut context)
+            .unwrap();
+
+        assert_eq!(stack.item, "minecraft:filled_map");
+        assert_eq!(stack.components["minecraft:damage_fraction"], "0.25");
+        assert_eq!(stack.components["minecraft:custom_data"], "1b");
+        assert_eq!(
+            stack.components["minecraft:enchantments"],
+            "minecraft:fortune:3"
+        );
+        assert_eq!(stack.components["minecraft:custom_name"], "Named");
+        assert_eq!(stack.components["minecraft:copied_name"], "Dinnerbone");
+        assert_eq!(stack.components["minecraft:container"], "minecraft:apple:2");
+        assert_eq!(stack.components["minecraft:profile"], "Steve");
+        assert_eq!(stack.components["minecraft:block_state.facing"], "north");
+        assert_eq!(
+            stack.components["minecraft:attribute_modifiers"],
+            "generic.attack_damage:+1"
+        );
+        assert_eq!(
+            stack.components["minecraft:banner_patterns"],
+            "minecraft:stripe_bottom"
+        );
+        assert_eq!(stack.components["minecraft:written_book_title"], "Guide");
+        assert_eq!(stack.components["minecraft:rarity"], "rare");
+        assert_eq!(
+            stack.components["minecraft:instrument"],
+            "minecraft:ponder_goat_horn"
+        );
+        assert_eq!(stack.components["minecraft:lore"], "Lore");
+        assert_eq!(
+            stack.components["minecraft:potion_contents"],
+            "minecraft:healing"
+        );
+        assert_eq!(
+            stack.components["minecraft:suspicious_stew_effects"],
+            "minecraft:night_vision:160"
+        );
+        assert_eq!(stack.components["minecraft:writable_book_pages"], "Draft");
+        assert_eq!(
+            stack.components["minecraft:tooltip_hidden"],
+            "minecraft:enchantments"
+        );
+        assert_eq!(
+            stack.components["minecraft:firework_explosion"],
+            "small_ball:red"
+        );
+        assert_eq!(stack.components["minecraft:fireworks"], "2:small_ball:red");
+        assert_eq!(stack.components["minecraft:marker"], "referenced");
+
+        let copied_name = LootFunction::CopyName {
+            source: "block_entity_name".to_string(),
+        }
+        .apply(LootStack::new("minecraft:chest", 1), &mut context)
+        .unwrap();
+        assert_eq!(
+            copied_name.components["minecraft:custom_name"],
+            "Loot Chest"
+        );
+    }
+
+    #[test]
+    fn apply_bonus_function_covers_uniform_binomial_and_ore_drop_formulas() {
+        let mut uniform = LootContext::new(LootParamSet::Block, 1);
+        uniform.fortune_level = 2;
+        let uniform_stack = LootFunction::ApplyBonus(LootBonusFormula::UniformBonusCount {
+            bonus_multiplier: 2,
+        })
+        .apply(LootStack::new("minecraft:lapis_lazuli", 1), &mut uniform)
+        .unwrap();
+        assert!((1..=5).contains(&uniform_stack.count));
+
+        let mut binomial = LootContext::new(LootParamSet::Block, 2);
+        binomial.fortune_level = 3;
+        let binomial_stack = LootFunction::ApplyBonus(LootBonusFormula::BinomialWithBonusCount {
+            extra: 1,
+            probability: 1.0,
+        })
+        .apply(LootStack::new("minecraft:redstone", 1), &mut binomial)
+        .unwrap();
+        assert_eq!(binomial_stack.count, 5);
+
+        let mut ore = LootContext::new(LootParamSet::Block, 3);
+        ore.fortune_level = 3;
+        let ore_stack = LootFunction::ApplyBonus(LootBonusFormula::OreDrops)
+            .apply(LootStack::new("minecraft:diamond", 2), &mut ore)
+            .unwrap();
+        assert!(ore_stack.count >= 2);
     }
 
     #[test]

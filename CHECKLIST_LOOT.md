@@ -37,37 +37,37 @@
 
 ## Loot Functions
 
-- [ ] Implement all loot functions:
-  - [ ] `SetItemCount` — set item stack size from number provider
-  - [ ] `LootingEnchantBonus` — bonus count per looting level
-  - [ ] `SetDamageFunction` — set durability damage fraction
-  - [ ] `SetNbtFunction` — merge NBT onto result item
-  - [ ] `EnchantWithLevels` — random enchantment at XP cost
-  - [ ] `EnchantRandomly` — single random enchantment from compatible list
-  - [ ] `SmeltItemFunction` — if context block was on fire, smelt the result
-  - [ ] `CopyNameFunction` — copy custom name from block entity to item
-  - [ ] `CopyNbtFunction` — copy NBT paths from entity/block/storage to item component
-  - [ ] `SetContents` — set container items in item component
-  - [ ] `ExplorationMapFunction` — convert map to filled exploration map to nearest structure
-  - [ ] `FillPlayerHead` — set skull owner to killer player
-  - [ ] `CopyStateFunction` — copy block state properties to item
-  - [ ] `SetAttributesFunction` — set attribute modifier components on item
-  - [ ] `SetBannerPatternFunction` — add banner pattern layers to item
-  - [ ] `SetBookContentsFunction` — set written book pages/title/author
-  - [ ] `SetComponentsFunction` — set arbitrary item data components
-  - [ ] `SetInstrumentFunction` — set goat horn instrument from tag
-  - [ ] `SetLoreFunction` — set/append lore to item
-  - [ ] `SetNameFunction` — set custom name on item
-  - [ ] `SetPotionFunction` — set potion type
-  - [ ] `SetStewEffectFunction` — set suspicious stew effects
-  - [ ] `SetWrittenBookPagesFunction` — set writable/written book pages
-  - [ ] `ToggleTooltipsFunction` — toggle tooltip component visibility
-  - [ ] `LimitCount` — clamp item count to range
-  - [ ] `ApplyBonusFunction` — ore-drop bonus formulae (uniform bonus, binomial, ore drops)
-  - [ ] `SequenceFunction` — apply multiple functions sequentially
-  - [ ] `FilteredFunction` — apply function only to matching sub-entries
-  - [ ] `ReferenceFunction` — delegate to a named item modifier resource
-  - [ ] `SetFireworkExplosionsFunction`, `SetFireworksFunction` — set firework components
+- [x] Implement all loot functions: `LootFunction` now covers count, looting/Fortune/apply-bonus formulas, item replacement, explosion decay, filtering, sequencing, references, and component-modifying item functions; covered by `component_loot_functions_apply_java_item_modifier_surface`, `apply_bonus_function_covers_uniform_binomial_and_ore_drop_formulas`, existing behavior tests, and `cargo test -q loot_system`.
+  - [x] `SetItemCount` — set item stack size from number provider
+  - [x] `LootingEnchantBonus` — bonus count per looting level
+  - [x] `SetDamageFunction` — set durability damage fraction
+  - [x] `SetNbtFunction` — merge NBT onto result item
+  - [x] `EnchantWithLevels` — random enchantment at XP cost
+  - [x] `EnchantRandomly` — single random enchantment from compatible list
+  - [x] `SmeltItemFunction` — if context block was on fire, smelt the result
+  - [x] `CopyNameFunction` — copy custom name from block entity to item
+  - [x] `CopyNbtFunction` — copy NBT paths from entity/block/storage to item component
+  - [x] `SetContents` — set container items in item component
+  - [x] `ExplorationMapFunction` — convert map to filled exploration map to nearest structure
+  - [x] `FillPlayerHead` — set skull owner to killer player
+  - [x] `CopyStateFunction` — copy block state properties to item
+  - [x] `SetAttributesFunction` — set attribute modifier components on item
+  - [x] `SetBannerPatternFunction` — add banner pattern layers to item
+  - [x] `SetBookContentsFunction` — set written book pages/title/author
+  - [x] `SetComponentsFunction` — set arbitrary item data components
+  - [x] `SetInstrumentFunction` — set goat horn instrument from tag
+  - [x] `SetLoreFunction` — set/append lore to item
+  - [x] `SetNameFunction` — set custom name on item
+  - [x] `SetPotionFunction` — set potion type
+  - [x] `SetStewEffectFunction` — set suspicious stew effects
+  - [x] `SetWrittenBookPagesFunction` — set writable/written book pages
+  - [x] `ToggleTooltipsFunction` — toggle tooltip component visibility
+  - [x] `LimitCount` — clamp item count to range
+  - [x] `ApplyBonusFunction` — ore-drop bonus formulae (uniform bonus, binomial, ore drops)
+  - [x] `SequenceFunction` — apply multiple functions sequentially
+  - [x] `FilteredFunction` — apply function only to matching sub-entries
+  - [x] `ReferenceFunction` — delegate to a named item modifier resource
+  - [x] `SetFireworkExplosionsFunction`, `SetFireworksFunction` — set firework components
 
 ## Loot Predicates
 
