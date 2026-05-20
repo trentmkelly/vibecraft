@@ -262,6 +262,41 @@ pub fn lightning_tick_roll(raining: bool, thundering: bool, random_next_100000: 
     raining && thundering && random_next_100000 == 0
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LightningEntityEffect {
+    None,
+    ConvertToZombifiedPiglin,
+    ConvertToWitch,
+    ChargeCreeper,
+}
+
+pub fn lightning_entity_effect(entity_type: &str) -> LightningEntityEffect {
+    match entity_type {
+        "minecraft:pig" => LightningEntityEffect::ConvertToZombifiedPiglin,
+        "minecraft:villager" => LightningEntityEffect::ConvertToWitch,
+        "minecraft:creeper" => LightningEntityEffect::ChargeCreeper,
+        _ => LightningEntityEffect::None,
+    }
+}
+
+pub fn lightning_starts_fire(
+    do_fire_tick: bool,
+    is_peaceful: bool,
+    target_block_is_air: bool,
+    random_next_3: i32,
+) -> bool {
+    do_fire_tick && !is_peaceful && target_block_is_air && random_next_3 == 0
+}
+
+pub fn channeling_trident_summons_lightning(
+    has_channeling: bool,
+    thundering: bool,
+    target_can_see_sky: bool,
+    hit_living_entity: bool,
+) -> bool {
+    has_channeling && thundering && target_can_see_sky && hit_living_entity
+}
+
 pub fn skeleton_horse_trap_roll(
     spawn_mobs: bool,
     effective_difficulty: f64,
@@ -330,6 +365,24 @@ pub enum SunburnableMobKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RainMobBehavior {
+    None,
+    DrownedRangedAttackEnabled,
+    PillagerPatrolAllowed,
+}
+
+pub fn rain_mob_behavior(entity_type: &str, raining: bool, can_see_sky: bool) -> RainMobBehavior {
+    if !raining || !can_see_sky {
+        return RainMobBehavior::None;
+    }
+    match entity_type {
+        "minecraft:drowned" => RainMobBehavior::DrownedRangedAttackEnabled,
+        "minecraft:pillager" => RainMobBehavior::PillagerPatrolAllowed,
+        _ => RainMobBehavior::None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MobSunburnContext {
     pub kind: SunburnableMobKind,
     pub wearing_helmet: bool,
@@ -348,6 +401,9 @@ pub struct MobSunburnContext {
 /// (tick 12542 onset, tick 23460 end) instead of the former approximation.
 /// Java: Monster.isSunBurnTick() + EnvironmentAttributes.MONSTERS_BURN Timeline track
 pub fn mob_should_burn_in_sunlight(ctx: MobSunburnContext) -> bool {
+    if !is_sun_sensitive(ctx.kind) {
+        return false;
+    }
     if ctx.raining {
         return false;
     }
@@ -572,6 +628,46 @@ mod tests {
     }
 
     #[test]
+    fn lightning_entity_fire_and_channeling_effects_match_vanilla_cases() {
+        assert_eq!(
+            lightning_entity_effect("minecraft:pig"),
+            LightningEntityEffect::ConvertToZombifiedPiglin
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:villager"),
+            LightningEntityEffect::ConvertToWitch
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:creeper"),
+            LightningEntityEffect::ChargeCreeper
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:cow"),
+            LightningEntityEffect::None
+        );
+
+        assert!(lightning_starts_fire(true, false, true, 0));
+        assert!(!lightning_starts_fire(false, false, true, 0));
+        assert!(!lightning_starts_fire(true, true, true, 0));
+        assert!(!lightning_starts_fire(true, false, false, 0));
+        assert!(!lightning_starts_fire(true, false, true, 1));
+
+        assert!(channeling_trident_summons_lightning(true, true, true, true));
+        assert!(!channeling_trident_summons_lightning(
+            false, true, true, true
+        ));
+        assert!(!channeling_trident_summons_lightning(
+            true, false, true, true
+        ));
+        assert!(!channeling_trident_summons_lightning(
+            true, true, false, true
+        ));
+        assert!(!channeling_trident_summons_lightning(
+            true, true, true, false
+        ));
+    }
+
+    #[test]
     fn sky_darken_amount_matches_vanilla_clear_rain_thunder() {
         assert_eq!(sky_darken_amount(false, false), 0);
         assert_eq!(sky_darken_amount(true, false), 5);
@@ -634,6 +730,11 @@ mod tests {
             ..clear_day_exposed
         }));
 
+        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
+            kind: SunburnableMobKind::ZombifiedPiglin,
+            ..clear_day_exposed
+        }));
+
         // Daytime check boundaries — exact vanilla values from EnvironmentAttributes.MONSTERS_BURN.
         // Java: Timelines.java:157 BooleanModifier.OR: addKeyframe(12542, false).addKeyframe(23460, true)
         assert!(is_daytime(0));
@@ -652,5 +753,25 @@ mod tests {
         assert!(is_sun_sensitive(SunburnableMobKind::Stray));
         assert!(is_sun_sensitive(SunburnableMobKind::Drowned));
         assert!(!is_sun_sensitive(SunburnableMobKind::ZombifiedPiglin));
+    }
+
+    #[test]
+    fn rain_mob_behavior_covers_drowned_and_pillager_weather_cases() {
+        assert_eq!(
+            rain_mob_behavior("minecraft:drowned", true, true),
+            RainMobBehavior::DrownedRangedAttackEnabled
+        );
+        assert_eq!(
+            rain_mob_behavior("minecraft:pillager", true, true),
+            RainMobBehavior::PillagerPatrolAllowed
+        );
+        assert_eq!(
+            rain_mob_behavior("minecraft:drowned", false, true),
+            RainMobBehavior::None
+        );
+        assert_eq!(
+            rain_mob_behavior("minecraft:pillager", true, false),
+            RainMobBehavior::None
+        );
     }
 }
