@@ -126,6 +126,13 @@ test('vanilla worldgen trace report normalizes requested chunk evidence', () => 
 
   assert.equal(report.format, 'rustcraft-vanilla-worldgen-trace-v1')
   assert.deepEqual(report.commandTrace, ['forceload add 0 0', 'save-all flush', 'stop'])
+  assert.deepEqual(report.statusTrace, [{
+    dimension: 'overworld',
+    chunkX: 0,
+    chunkZ: 0,
+    reachedStatus: 'minecraft:full',
+    source: 'saved_chunk_nbt'
+  }])
   assert.deepEqual(report.regionArtifacts[0].statusCounts, { 'minecraft:full': 1 })
   assert.deepEqual(report.requestedChunks[0], {
     dimension: 'overworld',

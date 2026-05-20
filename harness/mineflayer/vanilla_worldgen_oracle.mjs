@@ -196,6 +196,13 @@ export function buildVanillaWorldgenTraceReport (oracleResult) {
     seed: oracleResult.plan?.seed,
     levelName: oracleResult.plan?.levelName,
     commandTrace: oracleResult.plan?.commands ?? [],
+    statusTrace: requestedChunks.map(chunk => ({
+      dimension: chunk.dimension,
+      chunkX: chunk.chunkX,
+      chunkZ: chunk.chunkZ,
+      reachedStatus: chunk.finalStatus,
+      source: 'saved_chunk_nbt'
+    })),
     regionArtifacts: (oracleResult.artifacts ?? []).map(artifact => ({
       path: artifact.path,
       bytes: artifact.bytes,
