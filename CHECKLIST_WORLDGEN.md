@@ -297,6 +297,17 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
     chunk for `WorldgenRandom#setLargeFeatureSeed(levelSeed + index, sourceX,
     sourceZ)`.
 - [ ] Implement features.
+  - [x] Wire the existing tree placement model into the live `RealSurface`
+    overworld path as an initial biome-decoration pass so tree-capable biomes
+    no longer generate as completely bare terrain. This is an interim visible
+    baseline; full vanilla placed-feature ordering and tree randomness remain
+    open below.
+  - [x] Broaden the initial live tree-decoration pass beyond plains/forest to
+    common overworld tree-bearing feature ids (`trees_birch`, `trees_taiga`,
+    `trees_jungle`, `trees_savanna`, `trees_grove`, snowy/grove/old-growth
+    variants, and related windswept/water features) so newly generated
+    real-surface worlds are not globally treeless while full data-driven
+    decoration remains open.
 - [ ] Implement configured features.
 - [ ] Implement placed features.
 - [ ] Implement tree, vegetation, spring, ore, disk, lake, geode, fossil, monster room, and special feature placement behavior.

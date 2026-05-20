@@ -5371,9 +5371,7 @@ fn noise_preview_tree_blocks(
     let Some(generation) = biome_generation_settings(biome) else {
         return Vec::new();
     };
-    if !biome_has_placed_feature(generation, "trees_plains")
-        && !biome_has_placed_feature(generation, "trees_birch_and_oak_leaf_litter")
-    {
+    if !biome_has_any_tree_placed_feature(generation) {
         return Vec::new();
     }
 
@@ -5388,8 +5386,8 @@ fn noise_preview_tree_blocks(
             continue;
         }
         let tree_seed = seed.rotate_left((index as u32 + 1) * 7);
-        let forest_tree = biome_has_placed_feature(generation, "trees_birch_and_oak_leaf_litter")
-            && (tree_seed & 1) == 0;
+        let (trunk_state, leaves_state, base_height) =
+            noise_preview_tree_materials(generation, tree_seed);
         let plan = simple_tree_placement_plan(
             BlockPos {
                 x: local_x as i32,
@@ -5397,7 +5395,7 @@ fn noise_preview_tree_blocks(
                 z: local_z as i32,
             },
             TrunkPlacerModel {
-                base_height: if forest_tree { 5 } else { 4 },
+                base_height,
                 height_rand_a: 2,
                 height_rand_b: 0,
                 kind: TrunkPlacerKind::Straight,
@@ -5409,16 +5407,8 @@ fn noise_preview_tree_blocks(
                 offset_max: 0,
                 kind: FoliagePlacerKind::Blob { height: 3 },
             },
-            if forest_tree {
-                "minecraft:birch_log"
-            } else {
-                "minecraft:oak_log"
-            },
-            if forest_tree {
-                "minecraft:birch_leaves"
-            } else {
-                "minecraft:oak_leaves"
-            },
+            trunk_state,
+            leaves_state,
             "minecraft:dirt",
             (tree_seed & 0xffff) as i32,
             ((tree_seed >> 16) & 0xffff) as i32,
@@ -5441,7 +5431,20 @@ fn noise_preview_tree_origins(
     biome: &BiomeGenerationSettingsModel,
     seed: u64,
 ) -> Vec<(usize, usize)> {
-    if biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter") {
+    if biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter")
+        || biome_has_placed_feature(biome, "trees_birch")
+        || biome_has_placed_feature(biome, "trees_taiga")
+        || biome_has_placed_feature(biome, "trees_jungle")
+        || biome_has_placed_feature(biome, "trees_savanna")
+        || biome_has_placed_feature(biome, "trees_windswept_forest")
+        || biome_has_placed_feature(biome, "trees_windswept_hills")
+        || biome_has_placed_feature(biome, "trees_water")
+        || biome_has_placed_feature(biome, "trees_sparse_jungle")
+        || biome_has_placed_feature(biome, "trees_old_growth_spruce_taiga")
+        || biome_has_placed_feature(biome, "trees_old_growth_pine_taiga")
+        || biome_has_placed_feature(biome, "trees_grove")
+        || biome_has_placed_feature(biome, "trees_snowy")
+    {
         let candidates = [(4, 4), (11, 5), (6, 12), (13, 13)];
         return candidates
             .into_iter()
@@ -5460,6 +5463,57 @@ fn noise_preview_tree_origins(
         vec![(8, 8)]
     } else {
         Vec::new()
+    }
+}
+
+fn biome_has_any_tree_placed_feature(biome: &BiomeGenerationSettingsModel) -> bool {
+    [
+        "trees_plains",
+        "trees_birch_and_oak_leaf_litter",
+        "trees_birch",
+        "birch_tall",
+        "trees_taiga",
+        "trees_jungle",
+        "trees_savanna",
+        "trees_windswept_forest",
+        "trees_windswept_hills",
+        "trees_water",
+        "trees_sparse_jungle",
+        "trees_old_growth_spruce_taiga",
+        "trees_old_growth_pine_taiga",
+        "trees_grove",
+        "trees_snowy",
+        "trees_badlands",
+        "trees_meadow",
+    ]
+    .into_iter()
+    .any(|feature| biome_has_placed_feature(biome, feature))
+}
+
+fn noise_preview_tree_materials(
+    biome: &BiomeGenerationSettingsModel,
+    seed: u64,
+) -> (&'static str, &'static str, i32) {
+    if biome_has_placed_feature(biome, "trees_birch")
+        || biome_has_placed_feature(biome, "birch_tall")
+        || (biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter") && seed & 1 == 0)
+    {
+        ("minecraft:birch_log", "minecraft:birch_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_taiga")
+        || biome_has_placed_feature(biome, "trees_old_growth_spruce_taiga")
+        || biome_has_placed_feature(biome, "trees_old_growth_pine_taiga")
+        || biome_has_placed_feature(biome, "trees_grove")
+        || biome_has_placed_feature(biome, "trees_snowy")
+    {
+        ("minecraft:spruce_log", "minecraft:spruce_leaves", 6)
+    } else if biome_has_placed_feature(biome, "trees_savanna") {
+        ("minecraft:acacia_log", "minecraft:acacia_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_jungle")
+        || biome_has_placed_feature(biome, "trees_sparse_jungle")
+    {
+        ("minecraft:jungle_log", "minecraft:jungle_leaves", 6)
+    } else {
+        ("minecraft:oak_log", "minecraft:oak_leaves", 4)
     }
 }
 
@@ -23535,6 +23589,11 @@ pub fn generate_chunk_for_stem_with_mode(
                             noise_settings,
                             seed,
                         );
+                        apply_initial_tree_decoration_to_chunk(
+                            &mut chunk,
+                            biome_source_model,
+                            noise_settings,
+                        );
                         chunk
                     }
                     None => {
@@ -25294,6 +25353,11 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             biome_source_model,
                             noise_settings,
                             seed,
+                        );
+                        apply_initial_tree_decoration_to_chunk(
+                            &mut chunk,
+                            biome_source_model,
+                            noise_settings,
                         );
                         chunk
                     }
@@ -31283,6 +31347,80 @@ pub fn apply_configured_carvers_for_biome_source(
     }
 
     carved_blocks
+}
+
+fn apply_initial_tree_decoration_to_chunk(
+    chunk: &mut LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+) -> usize {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return 0;
+    }
+
+    let biome = noise_preview_biome(biome_source_model, chunk.pos);
+    let Some(generation) = biome_generation_settings(biome) else {
+        return 0;
+    };
+    if !biome_has_any_tree_placed_feature(generation) {
+        return 0;
+    }
+
+    let mut terrain_heights = [settings.sea_level + 1; 16 * 16];
+    for z in 0..16 {
+        for x in 0..16 {
+            let height = chunk
+                .heightmap_value(HeightmapKind::OceanFloorWg, x, z)
+                .or_else(|| chunk.heightmap_value(HeightmapKind::WorldSurfaceWg, x, z))
+                .unwrap_or(settings.sea_level + 1);
+            terrain_heights[z * 16 + x] = height;
+        }
+    }
+
+    let chunk_min_x = chunk.pos.x * 16;
+    let chunk_min_z = chunk.pos.z * 16;
+    let mut placed = 0;
+    for block in noise_preview_tree_blocks(chunk.pos, settings, biome, &terrain_heights) {
+        if !(0..16).contains(&block.pos.x) || !(0..16).contains(&block.pos.z) {
+            continue;
+        }
+        let world_x = chunk_min_x + block.pos.x;
+        let world_z = chunk_min_z + block.pos.z;
+        let current = chunk
+            .get_block_state(world_x, block.pos.y, world_z)
+            .unwrap_or_else(|| "minecraft:air".to_string());
+        let can_replace = match block.kind {
+            TreePlacementBlockKind::DirtBelowTrunk => matches!(
+                current.as_str(),
+                "minecraft:grass_block"
+                    | "minecraft:dirt"
+                    | "minecraft:coarse_dirt"
+                    | "minecraft:podzol"
+                    | "minecraft:rooted_dirt"
+                    | "minecraft:moss_block"
+            ),
+            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => matches!(
+                current.as_str(),
+                "minecraft:air"
+                    | "minecraft:cave_air"
+                    | "minecraft:void_air"
+                    | "minecraft:water"
+                    | "minecraft:oak_leaves"
+                    | "minecraft:birch_leaves"
+            ),
+            TreePlacementBlockKind::GroundCover => matches!(
+                current.as_str(),
+                "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+            ),
+        };
+        if !can_replace {
+            continue;
+        }
+        chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
+        placed += 1;
+    }
+
+    placed
 }
 
 pub fn pack_carving_mask_indices(indices: &[usize]) -> Vec<i64> {
@@ -44364,6 +44502,71 @@ mod tests {
                     .is_some_and(|name| name != "minecraft:air")
             }),
             "real-surface chunk should contain non-air blocks in the origin column"
+        );
+    }
+
+    #[test]
+    fn real_surface_generation_places_initial_tree_decoration() {
+        let tree_logs = [
+            "minecraft:oak_log",
+            "minecraft:birch_log",
+            "minecraft:spruce_log",
+            "minecraft:acacia_log",
+            "minecraft:jungle_log",
+        ];
+        let tree_leaves = [
+            "minecraft:oak_leaves",
+            "minecraft:birch_leaves",
+            "minecraft:spruce_leaves",
+            "minecraft:acacia_leaves",
+            "minecraft:jungle_leaves",
+        ];
+
+        let mut found_logs = 0;
+        let mut found_leaves = 0;
+        'chunks: for chunk_z in -4..=4 {
+            for chunk_x in -4..=4 {
+                let pos = ChunkPos {
+                    x: chunk_x,
+                    z: chunk_z,
+                };
+                let chunk = super::generate_overworld_chunk_for_preset_with_mode(
+                    pos,
+                    "normal",
+                    super::LiveChunkGenerationMode::RealSurface,
+                    0,
+                )
+                .expect("real-surface chunk generation should succeed while scanning for trees");
+
+                let chunk_min_x = pos.x * 16;
+                let chunk_min_z = pos.z * 16;
+                for local_z in 0..16 {
+                    for local_x in 0..16 {
+                        for y in -64..320 {
+                            let Some(state) = chunk.get_block_state(
+                                chunk_min_x + local_x,
+                                y,
+                                chunk_min_z + local_z,
+                            ) else {
+                                continue;
+                            };
+                            if tree_logs.contains(&state.as_str()) {
+                                found_logs += 1;
+                            } else if tree_leaves.contains(&state.as_str()) {
+                                found_leaves += 1;
+                            }
+                            if found_logs > 0 && found_leaves > 0 {
+                                break 'chunks;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(
+            found_logs > 0 && found_leaves > 0,
+            "real-surface generation should place visible tree logs and leaves near spawn; found_logs={found_logs}, found_leaves={found_leaves}"
         );
     }
 
