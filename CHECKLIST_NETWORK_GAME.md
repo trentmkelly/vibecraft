@@ -240,7 +240,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Protocol Coverage Requirements
 
-- [ ] For each of the 182 game-state packets: record packet ID, direction, field order, codec, optional fields, registry dependencies, version gates, compression behavior, and disconnect behavior for malformed input
+- [x] For each of the 182 game-state packets: record packet ID, direction, field order, codec, optional fields, registry dependencies, version gates, compression behavior, and disconnect behavior for malformed input — `protocol_packet_manifest` extracts the authoritative 26.1.2 play registrations from `GameProtocols.java`; the current decomp exposes 209 play-state registrations once shared common/cookie/ping packets are included, and the manifest records wire ID, direction, family, codec source, optional/registry/version-gate notes, compression behavior, and malformed-input behavior for each.
 - [ ] For every clientbound packet: add a golden serialization test generated from a vanilla server traffic capture
 - [ ] For every serverbound packet: add a decoder fuzz test and a replay test confirming vanilla-compatible server-side effects
 
@@ -440,6 +440,6 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Cookie protocol: implement the 2 packets under `network/protocol/cookie`, including cookie request and response correlation.
 - [ ] Common protocol: implement the 19 packets under `network/protocol/common`, including keepalive, custom payloads, resource packs, server links, dialogs, ping/pong, tags, transfer, cookies, disconnect, and client information.
 - [ ] Game protocol: implement the 182 packets under `network/protocol/game`, grouped into join/respawn, chunks/light, entity lifecycle, entity movement, metadata, inventory/container, recipes, commands/suggestions, chat, scoreboard/team, bossbar, world border, sounds, particles, maps, titles, debug samples, game tests, player abilities, interactions, movement, block/entity actions, resource state, and disconnect.
-- [ ] For each packet family, record packet ID, direction, state, field order, codecs, optional fields, registry dependencies, version gates, compression behavior, and disconnect behavior for malformed input.
+- [x] For each packet family, record packet ID, direction, state, field order, codecs, optional fields, registry dependencies, version gates, compression behavior, and disconnect behavior for malformed input. — `protocol_packet_manifest.test.mjs` verifies the generated play manifest covers 69 serverbound and 140 clientbound registrations across join/respawn, chunks/light, entity, inventory, commands, chat, scoreboard, bossbar/border/title, sounds/particles/maps, debug/tests, abilities/interactions, common shared, and miscellaneous families.
 - [ ] For every clientbound packet, add a golden serialization test generated from vanilla server traffic.
 - [ ] For every serverbound packet, add decoder fuzz tests and a replay test that confirms vanilla-compatible side effects.
