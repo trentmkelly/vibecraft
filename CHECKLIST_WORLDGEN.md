@@ -161,7 +161,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Carvers
 
-- [ ] Implement carver codec loading from `data/minecraft/worldgen/configured_carver/`
+- [x] Implement carver codec loading from `data/minecraft/worldgen/configured_carver/`
 - [ ] Implement `CaveWorldCarver`: cave tunnel carving with sphere-widening, floor placement, lava pool at depth
 - [ ] Implement `CanyonWorldCarver`: canyon trench carving with angled ceiling
 - [ ] Implement `NetherWorldCarver`: nether cave variants

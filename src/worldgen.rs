@@ -27004,6 +27004,248 @@ pub fn configured_carver(id: &str) -> Option<&'static ConfiguredCarver> {
     })
 }
 
+pub fn parse_configured_carver_from_json(
+    id: &'static str,
+    value: &serde_json::Value,
+) -> Result<ConfiguredCarver, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "configured carver must be a JSON object".to_string())?;
+    let carver_type = object
+        .get("type")
+        .and_then(|v| v.as_str())
+        .and_then(world_carver_type)
+        .ok_or_else(|| format!("configured carver {id} has unknown type"))?;
+    let config = object
+        .get("config")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| format!("configured carver {id} missing config object"))?;
+    let probability = json_f32(config, "probability")?;
+    let y = parse_height_range_json(
+        config
+            .get("y")
+            .ok_or_else(|| format!("configured carver {id} missing y provider"))?,
+    )?;
+    let y_scale = parse_float_provider_json(
+        config
+            .get("yScale")
+            .ok_or_else(|| format!("configured carver {id} missing yScale provider"))?,
+    )?;
+    let lava_level = parse_vertical_anchor_from_json(
+        config
+            .get("lava_level")
+            .ok_or_else(|| format!("configured carver {id} missing lava_level"))?,
+    )?;
+    let replaceable_tag = config
+        .get("replaceable")
+        .and_then(|v| v.as_str())
+        .and_then(vanilla_carver_replaceable_tag)
+        .ok_or_else(|| format!("configured carver {id} has unknown replaceable tag"))?;
+    let debug = parse_carver_debug_settings_json(config.get("debug_settings"))?;
+    let shape = match carver_type {
+        WorldCarverType::Cave | WorldCarverType::NetherCave => CarverShape::Cave {
+            horizontal_radius_multiplier: parse_float_provider_json(
+                config
+                    .get("horizontal_radius_multiplier")
+                    .ok_or_else(|| format!("configured carver {id} missing horizontal radius"))?,
+            )?,
+            vertical_radius_multiplier: parse_float_provider_json(
+                config
+                    .get("vertical_radius_multiplier")
+                    .ok_or_else(|| format!("configured carver {id} missing vertical radius"))?,
+            )?,
+            floor_level: parse_float_provider_json(
+                config
+                    .get("floor_level")
+                    .ok_or_else(|| format!("configured carver {id} missing floor_level"))?,
+            )?,
+        },
+        WorldCarverType::Canyon => {
+            let shape = config
+                .get("shape")
+                .and_then(|v| v.as_object())
+                .ok_or_else(|| format!("configured carver {id} missing canyon shape"))?;
+            CarverShape::Canyon {
+                vertical_rotation: parse_float_provider_json(
+                    config.get("vertical_rotation").ok_or_else(|| {
+                        format!("configured carver {id} missing vertical_rotation")
+                    })?,
+                )?,
+                shape: CanyonShapeConfiguration {
+                    distance_factor: parse_float_provider_json(
+                        shape.get("distance_factor").ok_or_else(|| {
+                            format!("configured carver {id} missing distance_factor")
+                        })?,
+                    )?,
+                    thickness: parse_float_provider_json(
+                        shape
+                            .get("thickness")
+                            .ok_or_else(|| format!("configured carver {id} missing thickness"))?,
+                    )?,
+                    width_smoothness: json_i32(shape, "width_smoothness")?,
+                    horizontal_radius_factor: parse_float_provider_json(
+                        shape.get("horizontal_radius_factor").ok_or_else(|| {
+                            format!("configured carver {id} missing horizontal_radius_factor")
+                        })?,
+                    )?,
+                    vertical_radius_default_factor: json_f32(
+                        shape,
+                        "vertical_radius_default_factor",
+                    )?,
+                    vertical_radius_center_factor: json_f32(
+                        shape,
+                        "vertical_radius_center_factor",
+                    )?,
+                },
+            }
+        }
+    };
+
+    Ok(ConfiguredCarver {
+        id,
+        carver_type,
+        probability,
+        y,
+        y_scale,
+        lava_level,
+        debug,
+        replaceable_tag,
+        shape,
+    })
+}
+
+fn parse_height_range_json(value: &serde_json::Value) -> Result<HeightRange, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "height range provider must be an object".to_string())?;
+    let provider_type = object
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("minecraft:constant")
+        .strip_prefix("minecraft:")
+        .unwrap_or_else(|| {
+            object
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("constant")
+        });
+    match provider_type {
+        "uniform" => Ok(HeightRange {
+            min: parse_vertical_anchor_from_json(
+                object
+                    .get("min_inclusive")
+                    .ok_or_else(|| "uniform height range missing min_inclusive".to_string())?,
+            )?,
+            max: parse_vertical_anchor_from_json(
+                object
+                    .get("max_inclusive")
+                    .ok_or_else(|| "uniform height range missing max_inclusive".to_string())?,
+            )?,
+        }),
+        "constant" => {
+            let value = parse_vertical_anchor_from_json(
+                object
+                    .get("value")
+                    .ok_or_else(|| "constant height range missing value".to_string())?,
+            )?;
+            Ok(HeightRange {
+                min: value,
+                max: value,
+            })
+        }
+        other => Err(format!("unsupported carver height provider {other}")),
+    }
+}
+
+fn parse_float_provider_json(value: &serde_json::Value) -> Result<FloatProvider, String> {
+    if let Some(number) = value.as_f64() {
+        return Ok(FloatProvider::Constant(number as f32));
+    }
+    let object = value
+        .as_object()
+        .ok_or_else(|| "float provider must be a number or object".to_string())?;
+    let provider_type = object
+        .get("type")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "float provider object missing type".to_string())?
+        .strip_prefix("minecraft:")
+        .unwrap_or_else(|| object.get("type").and_then(|v| v.as_str()).unwrap());
+    match provider_type {
+        "uniform" => Ok(FloatProvider::Uniform {
+            min: json_f32(object, "min_inclusive")?,
+            max: json_f32(object, "max_exclusive")?,
+        }),
+        "trapezoid" => Ok(FloatProvider::Trapezoid {
+            min: json_f32(object, "min")?,
+            max: json_f32(object, "max")?,
+            plateau: json_f32(object, "plateau")?,
+        }),
+        other => Err(format!("unsupported float provider {other}")),
+    }
+}
+
+fn parse_carver_debug_settings_json(
+    value: Option<&serde_json::Value>,
+) -> Result<CarverDebugSettings, String> {
+    let Some(object) = value.and_then(|v| v.as_object()) else {
+        return Ok(CarverDebugSettings {
+            enabled: false,
+            barrier_state: "minecraft:air",
+        });
+    };
+    let barrier_state = object
+        .get("air_state")
+        .and_then(|state| state.get("Name"))
+        .and_then(|name| name.as_str())
+        .and_then(vanilla_carver_debug_state)
+        .ok_or_else(|| "carver debug settings missing air_state.Name".to_string())?;
+    Ok(CarverDebugSettings {
+        enabled: false,
+        barrier_state,
+    })
+}
+
+fn vanilla_carver_replaceable_tag(tag: &str) -> Option<&'static str> {
+    match tag {
+        "#minecraft:overworld_carver_replaceables" => {
+            Some("#minecraft:overworld_carver_replaceables")
+        }
+        "#minecraft:nether_carver_replaceables" => Some("#minecraft:nether_carver_replaceables"),
+        _ => None,
+    }
+}
+
+fn vanilla_carver_debug_state(name: &str) -> Option<&'static str> {
+    match name {
+        "minecraft:crimson_button" => Some("minecraft:crimson_button"),
+        "minecraft:oak_button" => Some("minecraft:oak_button"),
+        "minecraft:warped_button" => Some("minecraft:warped_button"),
+        _ => None,
+    }
+}
+
+fn json_f32(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<f32, String> {
+    object
+        .get(field)
+        .and_then(|value| value.as_f64())
+        .map(|value| value as f32)
+        .ok_or_else(|| format!("missing numeric field {field}"))
+}
+
+fn json_i32(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<i32, String> {
+    object
+        .get(field)
+        .and_then(|value| value.as_i64())
+        .map(|value| value as i32)
+        .ok_or_else(|| format!("missing integer field {field}"))
+}
+
 pub fn world_carver_type(id: &str) -> Option<WorldCarverType> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     WORLD_CARVER_TYPES
@@ -40108,6 +40350,30 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn configured_carver_json_codec_matches_vanilla_registry_files() {
+        let dir = "../decompiled-server-26.1.2/data/minecraft/worldgen/configured_carver";
+        for id in [
+            "minecraft:cave",
+            "minecraft:cave_extra_underground",
+            "minecraft:canyon",
+            "minecraft:nether_cave",
+        ] {
+            let path = format!("{}/{}.json", dir, id.strip_prefix("minecraft:").unwrap());
+            let raw = std::fs::read_to_string(&path)
+                .unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+            let json: serde_json::Value = serde_json::from_str(&raw)
+                .unwrap_or_else(|err| panic!("failed to parse {path}: {err}"));
+            let parsed = super::parse_configured_carver_from_json(id, &json)
+                .unwrap_or_else(|err| panic!("failed to decode {path}: {err}"));
+            assert_eq!(
+                parsed,
+                *super::configured_carver(id).unwrap(),
+                "{id} JSON codec output must match the builtin configured carver"
+            );
+        }
     }
 
     #[test]
