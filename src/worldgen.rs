@@ -29159,80 +29159,36 @@ fn carve_configured_carver_from_source_chunk(
             vertical_rotation,
             ref shape,
         } => {
+            let max_distance = (4 * 2 - 1) << 4;
             let x = f64::from(source_chunk_x * 16 + random.next_i32_bound(16));
             let y = f64::from(sample_carver_y(carver.y, height_context, random));
             let z = f64::from(source_chunk_z * 16 + random.next_i32_bound(16));
-            let distance = ((f64::from(settings_height_for_context(height_context)) * 0.5)
-                * f64::from(sample_float_provider(shape.distance_factor, random)))
-            .round()
-            .max(1.0) as i32;
-            let width_factors = canyon_width_factors(
-                height_context.height,
-                shape.width_smoothness,
-                &(0..height_context.height)
-                    .map(|_| (random.next_i32(), random.next_f32()))
-                    .collect::<Vec<_>>(),
-            );
-            let steps = canyon_tunnel_steps(
-                f64::from(target_chunk_min_x + 8),
-                f64::from(target_chunk_min_z + 8),
+            let horizontal_rotation = random.next_f32() * std::f32::consts::TAU;
+            let vertical_rotation = sample_float_provider(vertical_rotation, random);
+            let y_scale = sample_float_provider(carver.y_scale, random) as f64;
+            let thickness = sample_float_provider(shape.thickness, random);
+            let distance =
+                (max_distance as f32 * sample_float_provider(shape.distance_factor, random)) as i32;
+            carve_canyon_tunnel_into_chunk(
+                chunk,
+                height_context,
+                carver,
+                target_chunk_min_x,
+                target_chunk_min_z,
+                random.next_i64(),
                 x,
                 y,
                 z,
-                sample_float_provider(shape.thickness, random),
-                random.next_f32() * std::f32::consts::TAU,
-                sample_float_provider(vertical_rotation, random),
+                thickness,
+                horizontal_rotation,
+                vertical_rotation,
                 distance,
-                sample_float_provider(carver.y_scale, random) as f64,
-                shape.vertical_radius_default_factor,
-                shape.vertical_radius_center_factor,
-                &(0..distance).map(|_| random.next_i32()).collect::<Vec<_>>(),
-                &(0..distance)
-                    .map(|_| sample_float_provider(shape.horizontal_radius_factor, random))
-                    .collect::<Vec<_>>(),
-                &(0..distance).map(|_| random.next_f32()).collect::<Vec<_>>(),
-                &(0..distance)
-                    .map(|_| {
-                        (
-                            random.next_f32(),
-                            random.next_f32(),
-                            random.next_f32(),
-                            random.next_f32(),
-                            random.next_f32(),
-                            random.next_f32(),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            );
-            let mut carved = 0;
-            for step in steps {
-                if !step.carve || !step.can_reach {
-                    continue;
-                }
-                carved += carve_ellipsoid_into_chunk(
-                    chunk,
-                    height_context,
-                    carver,
-                    target_chunk_min_x,
-                    target_chunk_min_z,
-                    step.x,
-                    step.y,
-                    step.z,
-                    step.horizontal_radius,
-                    step.vertical_radius,
-                    CarverSkipModel::Canyon {
-                        width_factors: &width_factors,
-                    },
-                    mask,
-                );
-            }
-            carved
+                y_scale,
+                shape,
+                mask,
+            )
         }
     }
-}
-
-fn settings_height_for_context(context: WorldGenerationHeightContext) -> i32 {
-    context.height.max(1)
 }
 
 fn carve_ellipsoid_into_chunk(
@@ -29424,6 +29380,116 @@ fn carve_cave_tunnel_into_chunk(
     }
 
     carved
+}
+
+#[allow(clippy::too_many_arguments)]
+fn carve_canyon_tunnel_into_chunk(
+    chunk: &mut LevelChunk,
+    height_context: WorldGenerationHeightContext,
+    carver: &ConfiguredCarver,
+    chunk_min_x: i32,
+    chunk_min_z: i32,
+    tunnel_seed: i64,
+    mut x: f64,
+    mut y: f64,
+    mut z: f64,
+    thickness: f32,
+    mut horizontal_rotation: f32,
+    mut vertical_rotation: f32,
+    distance: i32,
+    y_scale: f64,
+    shape: &CanyonShapeConfiguration,
+    mask: &mut Vec<usize>,
+) -> usize {
+    if distance < 1 {
+        return 0;
+    }
+    let mut random = LegacyRandom::new(tunnel_seed);
+    let width_factors = canyon_width_factors_from_random(
+        height_context.height,
+        shape.width_smoothness,
+        &mut random,
+    );
+    let chunk_middle_x = f64::from(chunk_min_x + 8);
+    let chunk_middle_z = f64::from(chunk_min_z + 8);
+    let mut y_rota = 0.0_f32;
+    let mut x_rota = 0.0_f32;
+    let mut carved = 0;
+
+    for current_step in 0..distance {
+        let base_horizontal_radius = 1.5
+            + f64::from((current_step as f32 * std::f32::consts::PI / distance as f32).sin())
+                * f64::from(thickness);
+        let horizontal_radius = base_horizontal_radius
+            * f64::from(sample_float_provider(
+                shape.horizontal_radius_factor,
+                &mut random,
+            ));
+        let vertical_radius = canyon_vertical_radius(
+            shape.vertical_radius_default_factor,
+            shape.vertical_radius_center_factor,
+            base_horizontal_radius * y_scale,
+            distance,
+            current_step,
+            random.next_f32(),
+        );
+        let xc = vertical_rotation.cos();
+        x += f64::from(horizontal_rotation.cos() * xc);
+        y += f64::from(vertical_rotation.sin());
+        z += f64::from(horizontal_rotation.sin() * xc);
+        vertical_rotation *= 0.7;
+        vertical_rotation += x_rota * 0.05;
+        horizontal_rotation += y_rota * 0.05;
+        x_rota *= 0.8;
+        y_rota *= 0.5;
+        x_rota += (random.next_f32() - random.next_f32()) * random.next_f32() * 2.0;
+        y_rota += (random.next_f32() - random.next_f32()) * random.next_f32() * 4.0;
+
+        if random.next_i32_bound(4) == 0 {
+            continue;
+        }
+        let can_reach = (x - chunk_middle_x) * (x - chunk_middle_x)
+            + (z - chunk_middle_z) * (z - chunk_middle_z)
+            - f64::from(distance - current_step).powi(2)
+            <= f64::from(thickness + 18.0).powi(2);
+        if !can_reach {
+            return carved;
+        }
+        carved += carve_ellipsoid_into_chunk(
+            chunk,
+            height_context,
+            carver,
+            chunk_min_x,
+            chunk_min_z,
+            x,
+            y,
+            z,
+            horizontal_radius,
+            vertical_radius,
+            CarverSkipModel::Canyon {
+                width_factors: &width_factors,
+            },
+            mask,
+        );
+    }
+
+    carved
+}
+
+fn canyon_width_factors_from_random(
+    depth: i32,
+    width_smoothness: i32,
+    random: &mut LegacyRandom,
+) -> Vec<f32> {
+    let mut factors = Vec::new();
+    let mut width_factor = 1.0_f32;
+    for y_index in 0..depth.max(0) {
+        if y_index == 0 || width_smoothness <= 0 || random.next_i32_bound(width_smoothness) == 0 {
+            width_factor = 1.0 + random.next_f32() * random.next_f32();
+        }
+        factors.push(width_factor * width_factor);
+    }
+    factors
 }
 
 fn sample_carver_y(
@@ -40871,10 +40937,78 @@ mod tests {
             "cave tunnel carving should record mask bits"
         );
         assert!(
-            (48..=80).any(|y| (0..16).any(|z| (0..16).any(
-                |x| chunk.get_block_state(x, y, z).as_deref() == Some("minecraft:cave_air")
-            ))),
+            (48..=80).any(|y| (0..16).any(|z| (0..16)
+                .any(|x| chunk.get_block_state(x, y, z).as_deref() == Some("minecraft:cave_air")))),
             "cave tunnel carving should replace at least one local stone block with cave air"
+        );
+    }
+
+    #[test]
+    fn canyon_tunnel_carver_mutates_chunk_blocks_and_mask() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut chunk = LevelChunk::empty(pos);
+        let height_context = WorldGenerationHeightContext {
+            min_y: -64,
+            height: 384,
+        };
+        chunk.min_section_y = 2;
+        chunk.sections = (2..=5)
+            .map(|section_y| ChunkSection {
+                y: section_y,
+                block_states: PalettedContainer::single(
+                    Tag::Compound(vec![(
+                        "Name".to_string(),
+                        Tag::String("minecraft:stone".to_string()),
+                    )]),
+                    SECTION_VOLUME,
+                )
+                .to_nbt(),
+                biomes: PalettedContainer::single(
+                    Tag::String("minecraft:plains".to_string()),
+                    BIOME_SECTION_VOLUME,
+                )
+                .to_nbt(),
+                block_light: None,
+                sky_light: Some(vec![-1; 2048]),
+            })
+            .collect();
+
+        let canyon = super::configured_carver("canyon").unwrap();
+        let CarverShape::Canyon { shape, .. } = canyon.shape else {
+            panic!("canyon configured carver must use canyon shape");
+        };
+        let mut mask = Vec::new();
+        let carved = super::carve_canyon_tunnel_into_chunk(
+            &mut chunk,
+            height_context,
+            canyon,
+            0,
+            0,
+            98_765,
+            8.0,
+            56.0,
+            8.0,
+            4.0,
+            0.0,
+            0.0,
+            32,
+            3.0,
+            &shape,
+            &mut mask,
+        );
+
+        assert!(
+            carved > 0,
+            "canyon tunnel walking should carve stone blocks"
+        );
+        assert!(
+            !mask.is_empty(),
+            "canyon tunnel carving should record mask bits"
+        );
+        assert!(
+            (32..=80).any(|y| (0..16).any(|z| (0..16)
+                .any(|x| chunk.get_block_state(x, y, z).as_deref() == Some("minecraft:cave_air")))),
+            "canyon tunnel carving should replace at least one local stone block with cave air"
         );
     }
 
