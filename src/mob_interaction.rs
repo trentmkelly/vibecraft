@@ -1924,6 +1924,224 @@ pub fn strider_is_on_fire() -> bool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitchAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitchRangedAttack {
+    pub potion: &'static str,
+    pub clear_target: bool,
+    pub velocity: f32,
+    pub inaccuracy: f32,
+    pub throw_sound: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitchDrinkStart {
+    pub potion: &'static str,
+    pub using_item: bool,
+    pub speed_modifier: f32,
+    pub drink_sound: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitchDrinkFinish {
+    pub using_item: bool,
+    pub clear_main_hand: bool,
+    pub apply_potion_effects: bool,
+    pub game_event: &'static str,
+    pub remove_speed_modifier: bool,
+}
+
+pub const WITCH_MAX_HEALTH: f32 = 26.0;
+pub const WITCH_MOVEMENT_SPEED: f32 = 0.25;
+pub const WITCH_DRINKING_SPEED_MODIFIER: f32 = -0.25;
+pub const WITCH_RANGED_ATTACK_SPEED: f32 = 1.0;
+pub const WITCH_RANGED_ATTACK_INTERVAL_TICKS: i32 = 60;
+pub const WITCH_RANGED_ATTACK_RADIUS: f32 = 10.0;
+pub const WITCH_RANDOM_STROLL_SPEED: f32 = 1.0;
+pub const WITCH_LOOK_AT_PLAYER_RANGE: f32 = 8.0;
+pub const WITCH_ATTACK_PLAYER_RANDOM_INTERVAL: i32 = 10;
+pub const WITCH_WATER_BREATHING_CHANCE: f32 = 0.15;
+pub const WITCH_FIRE_RESISTANCE_CHANCE: f32 = 0.15;
+pub const WITCH_HEALING_CHANCE: f32 = 0.05;
+pub const WITCH_SWIFTNESS_CHANCE: f32 = 0.5;
+pub const WITCH_SWIFTNESS_DISTANCE_SQR: f32 = 121.0;
+pub const WITCH_THROW_SLOWNESS_DISTANCE: f64 = 8.0;
+pub const WITCH_THROW_POISON_MIN_HEALTH: f32 = 8.0;
+pub const WITCH_THROW_WEAKNESS_DISTANCE: f64 = 3.0;
+pub const WITCH_THROW_WEAKNESS_CHANCE: f32 = 0.25;
+pub const WITCH_RAIDER_HEALING_HEALTH: f32 = 4.0;
+pub const WITCH_CLOSE_THROW_VELOCITY: f32 = 0.45;
+pub const WITCH_FAR_THROW_VELOCITY: f32 = 0.75;
+pub const WITCH_THROW_CLOSE_DISTANCE: f64 = 2.0;
+pub const WITCH_THROW_INACCURACY: f32 = 8.0;
+pub const WITCH_PARTICLE_EVENT_ID: u8 = 15;
+pub const WITCH_PARTICLE_CHANCE: f32 = 7.5E-4;
+pub const WITCH_PARTICLE_MIN_COUNT: i32 = 10;
+pub const WITCH_PARTICLE_RANDOM_BOUND: i32 = 35;
+pub const WITCH_RESISTANT_DAMAGE_SCALE: f32 = 0.15;
+pub const WITCH_CAN_BE_RAID_LEADER: bool = false;
+pub const WITCH_RAID_BUFFS_APPLIED: bool = false;
+
+pub fn witch_attributes() -> WitchAttributes {
+    WitchAttributes {
+        max_health: WITCH_MAX_HEALTH,
+        movement_speed: WITCH_MOVEMENT_SPEED,
+    }
+}
+
+pub fn witch_heal_raiders_goal_enabled(
+    has_active_raid: bool,
+    target_entity_type: &'static str,
+) -> bool {
+    has_active_raid && target_entity_type != "minecraft:witch"
+}
+
+pub fn witch_attack_players_enabled(heal_raiders_cooldown: i32) -> bool {
+    heal_raiders_cooldown <= 0
+}
+
+pub fn witch_select_drink_potion(
+    water_roll: f32,
+    fire_roll: f32,
+    heal_roll: f32,
+    speed_roll: f32,
+    eye_in_water: bool,
+    has_water_breathing: bool,
+    on_fire_or_fire_damage: bool,
+    has_fire_resistance: bool,
+    health: f32,
+    max_health: f32,
+    target_present: bool,
+    has_speed: bool,
+    target_distance_sqr: f32,
+) -> Option<&'static str> {
+    if water_roll < WITCH_WATER_BREATHING_CHANCE && eye_in_water && !has_water_breathing {
+        Some("minecraft:water_breathing")
+    } else if fire_roll < WITCH_FIRE_RESISTANCE_CHANCE
+        && on_fire_or_fire_damage
+        && !has_fire_resistance
+    {
+        Some("minecraft:fire_resistance")
+    } else if heal_roll < WITCH_HEALING_CHANCE && health < max_health {
+        Some("minecraft:healing")
+    } else if speed_roll < WITCH_SWIFTNESS_CHANCE
+        && target_present
+        && !has_speed
+        && target_distance_sqr > WITCH_SWIFTNESS_DISTANCE_SQR
+    {
+        Some("minecraft:swiftness")
+    } else {
+        None
+    }
+}
+
+pub fn witch_start_drinking(potion: Option<&'static str>, silent: bool) -> Option<WitchDrinkStart> {
+    potion.map(|potion| WitchDrinkStart {
+        potion,
+        using_item: true,
+        speed_modifier: WITCH_DRINKING_SPEED_MODIFIER,
+        drink_sound: (!silent).then_some("minecraft:entity.witch.drink"),
+    })
+}
+
+pub fn witch_finish_drinking(
+    item_is_potion: bool,
+    potion_contents_present: bool,
+) -> WitchDrinkFinish {
+    WitchDrinkFinish {
+        using_item: false,
+        clear_main_hand: true,
+        apply_potion_effects: item_is_potion && potion_contents_present,
+        game_event: "minecraft:drink",
+        remove_speed_modifier: true,
+    }
+}
+
+pub fn witch_ranged_attack(
+    drinking_potion: bool,
+    target_is_raider: bool,
+    target_health: f32,
+    target_has_slowness: bool,
+    target_has_poison: bool,
+    target_has_weakness: bool,
+    horizontal_distance: f64,
+    weakness_roll: f32,
+    silent: bool,
+) -> Option<WitchRangedAttack> {
+    if drinking_potion {
+        return None;
+    }
+
+    let (potion, clear_target) = if target_is_raider {
+        (
+            if target_health <= WITCH_RAIDER_HEALING_HEALTH {
+                "minecraft:healing"
+            } else {
+                "minecraft:regeneration"
+            },
+            true,
+        )
+    } else if horizontal_distance >= WITCH_THROW_SLOWNESS_DISTANCE && !target_has_slowness {
+        ("minecraft:slowness", false)
+    } else if target_health >= WITCH_THROW_POISON_MIN_HEALTH && !target_has_poison {
+        ("minecraft:poison", false)
+    } else if horizontal_distance <= WITCH_THROW_WEAKNESS_DISTANCE
+        && !target_has_weakness
+        && weakness_roll < WITCH_THROW_WEAKNESS_CHANCE
+    {
+        ("minecraft:weakness", false)
+    } else {
+        ("minecraft:harming", false)
+    };
+
+    Some(WitchRangedAttack {
+        potion,
+        clear_target,
+        velocity: if horizontal_distance <= WITCH_THROW_CLOSE_DISTANCE {
+            WITCH_CLOSE_THROW_VELOCITY
+        } else {
+            WITCH_FAR_THROW_VELOCITY
+        },
+        inaccuracy: WITCH_THROW_INACCURACY,
+        throw_sound: (!silent).then_some("minecraft:entity.witch.throw"),
+    })
+}
+
+pub fn witch_projectile_y_adjustment(horizontal_distance: f64) -> f64 {
+    horizontal_distance * 0.2
+}
+
+pub fn witch_damage_after_magic_absorb(
+    source_is_self: bool,
+    witch_resistant_damage_type: bool,
+    damage_after_super: f32,
+) -> f32 {
+    if source_is_self {
+        0.0
+    } else if witch_resistant_damage_type {
+        damage_after_super * WITCH_RESISTANT_DAMAGE_SCALE
+    } else {
+        damage_after_super
+    }
+}
+
+pub fn witch_particle_count(random_0_to_34: i32) -> i32 {
+    random_0_to_34.rem_euclid(WITCH_PARTICLE_RANDOM_BOUND) + WITCH_PARTICLE_MIN_COUNT
+}
+
+pub fn witch_finalize_can_join_raid(spawn_reason_natural: bool) -> bool {
+    !spawn_reason_natural
+}
+
+pub fn witch_ravager_rider_in_java_26_1_2() -> bool {
+    false
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GiantAttributes {
     pub max_health: f32,
     pub movement_speed: f32,
@@ -8456,6 +8674,147 @@ mod tests {
         );
         assert!(strider_is_sensitive_to_water());
         assert!(!strider_is_on_fire());
+    }
+
+    #[test]
+    fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
+        assert_eq!(
+            witch_attributes(),
+            WitchAttributes {
+                max_health: 26.0,
+                movement_speed: 0.25,
+            }
+        );
+        assert_eq!(WITCH_RANGED_ATTACK_SPEED, 1.0);
+        assert_eq!(WITCH_RANGED_ATTACK_INTERVAL_TICKS, 60);
+        assert_eq!(WITCH_RANGED_ATTACK_RADIUS, 10.0);
+        assert_eq!(WITCH_RANDOM_STROLL_SPEED, 1.0);
+        assert_eq!(WITCH_LOOK_AT_PLAYER_RANGE, 8.0);
+        assert!(witch_heal_raiders_goal_enabled(true, "minecraft:pillager"));
+        assert!(!witch_heal_raiders_goal_enabled(true, "minecraft:witch"));
+        assert!(!witch_heal_raiders_goal_enabled(
+            false,
+            "minecraft:pillager"
+        ));
+        assert!(witch_attack_players_enabled(0));
+        assert!(!witch_attack_players_enabled(1));
+
+        assert_eq!(
+            witch_select_drink_potion(
+                0.149, 1.0, 1.0, 1.0, true, false, false, false, 26.0, 26.0, false, false, 0.0,
+            ),
+            Some("minecraft:water_breathing")
+        );
+        assert_eq!(
+            witch_select_drink_potion(
+                1.0, 0.149, 1.0, 1.0, false, false, true, false, 26.0, 26.0, false, false, 0.0,
+            ),
+            Some("minecraft:fire_resistance")
+        );
+        assert_eq!(
+            witch_select_drink_potion(
+                1.0, 1.0, 0.049, 1.0, false, false, false, false, 25.0, 26.0, false, false, 0.0,
+            ),
+            Some("minecraft:healing")
+        );
+        assert_eq!(
+            witch_select_drink_potion(
+                1.0, 1.0, 1.0, 0.499, false, false, false, false, 26.0, 26.0, true, false, 121.1,
+            ),
+            Some("minecraft:swiftness")
+        );
+        assert_eq!(
+            witch_select_drink_potion(
+                0.15, 0.15, 0.05, 0.5, true, false, true, false, 25.0, 26.0, true, false, 122.0,
+            ),
+            None
+        );
+        assert_eq!(
+            witch_start_drinking(Some("minecraft:healing"), false),
+            Some(WitchDrinkStart {
+                potion: "minecraft:healing",
+                using_item: true,
+                speed_modifier: -0.25,
+                drink_sound: Some("minecraft:entity.witch.drink"),
+            })
+        );
+        assert_eq!(witch_start_drinking(None, false), None);
+        assert_eq!(
+            witch_finish_drinking(true, true),
+            WitchDrinkFinish {
+                using_item: false,
+                clear_main_hand: true,
+                apply_potion_effects: true,
+                game_event: "minecraft:drink",
+                remove_speed_modifier: true,
+            }
+        );
+        assert!(!witch_finish_drinking(true, false).apply_potion_effects);
+
+        assert_eq!(
+            witch_ranged_attack(true, false, 20.0, false, false, false, 10.0, 0.0, false),
+            None
+        );
+        assert_eq!(
+            witch_ranged_attack(false, true, 4.0, false, false, false, 1.0, 1.0, false),
+            Some(WitchRangedAttack {
+                potion: "minecraft:healing",
+                clear_target: true,
+                velocity: 0.45,
+                inaccuracy: 8.0,
+                throw_sound: Some("minecraft:entity.witch.throw"),
+            })
+        );
+        assert_eq!(
+            witch_ranged_attack(false, true, 4.1, false, false, false, 4.0, 1.0, true)
+                .unwrap()
+                .potion,
+            "minecraft:regeneration"
+        );
+        assert_eq!(
+            witch_ranged_attack(false, false, 20.0, false, false, false, 8.0, 1.0, false)
+                .unwrap()
+                .potion,
+            "minecraft:slowness"
+        );
+        assert_eq!(
+            witch_ranged_attack(false, false, 8.0, true, false, false, 4.0, 1.0, false)
+                .unwrap()
+                .potion,
+            "minecraft:poison"
+        );
+        assert_eq!(
+            witch_ranged_attack(false, false, 7.9, true, true, false, 3.0, 0.249, false)
+                .unwrap()
+                .potion,
+            "minecraft:weakness"
+        );
+        assert_eq!(
+            witch_ranged_attack(false, false, 7.9, true, true, false, 3.0, 0.25, false)
+                .unwrap()
+                .potion,
+            "minecraft:harming"
+        );
+        assert_eq!(
+            witch_ranged_attack(false, false, 20.0, true, false, false, 2.0, 1.0, false)
+                .unwrap()
+                .velocity,
+            0.45
+        );
+        assert_eq!(witch_projectile_y_adjustment(8.0), 1.6);
+
+        assert_eq!(witch_damage_after_magic_absorb(true, true, 10.0), 0.0);
+        assert_eq!(witch_damage_after_magic_absorb(false, true, 10.0), 1.5);
+        assert_eq!(witch_damage_after_magic_absorb(false, false, 10.0), 10.0);
+        assert_eq!(WITCH_PARTICLE_EVENT_ID, 15);
+        assert_eq!(WITCH_PARTICLE_CHANCE, 7.5E-4);
+        assert_eq!(witch_particle_count(0), 10);
+        assert_eq!(witch_particle_count(34), 44);
+        assert!(!WITCH_CAN_BE_RAID_LEADER);
+        assert!(!WITCH_RAID_BUFFS_APPLIED);
+        assert!(!witch_finalize_can_join_raid(true));
+        assert!(witch_finalize_can_join_raid(false));
+        assert!(!witch_ravager_rider_in_java_26_1_2());
     }
 
     #[test]

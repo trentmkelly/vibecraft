@@ -77,7 +77,7 @@
   - [x] Implement Java-matched `Slime` server-visible size and split gates: size clamp 1..127, natural spawn sizes 1/2/4, save `Size=size-1` plus `wasOnGround`, max-health `size²`, movement speed `0.2 + 0.1×size`, attack damage/xp = size, tiny harmless gate, 2-4 half-size death split children with Java offsets, squish/landing particle timing, spawn surface/swamp and slime-chunk gates, jump-delay/aggressive-delay math, float-goal/move-control gates, and passenger attachment/sound-volume constants.
 - [x] Implement `Strider`: lava walking, saddle+ride with warped-fungus-on-a-stick steering, suffocating cold-block state, attraction to warped fungus, jockey spawn rolls
 - [x] Implement `Vex`: summoned by evoker (3 per cast, nearby-count gate), phase through solid blocks, 30–119 second limited life after summon
-- [ ] Implement `Witch`: splash potion attack (harm/slowness/weakness/poison selection by context), self-healing with instant-health/fire-resistance/water-breathing/swiftness potions, raid rider on Ravager
+- [x] Implement `Witch`: splash potion attack (harm/slowness/weakness/poison selection by context), self-healing with instant-health/fire-resistance/water-breathing/swiftness potions, raid healer targeting; note 26.1.2 raid Ravager riders are not witches
 - [x] Implement `Zoglin`: permanent hostile target filtering, Hoglin conversion into Zoglin after 300 Overworld/End ticks, HoglinBase knockback attack, no regular zombification state
 
 ### Breeze
