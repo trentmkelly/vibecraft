@@ -3816,14 +3816,34 @@ fn write_generated_spawn_chunk_packets<W: Write>(
         |payload| write_generated_spawn_chunk_payload(payload, &chunk),
     )?;
     for packet in generated_chunk_entity_add_packets(&chunk) {
-        write_framed_packet_with_compression(
-            writer,
-            compression,
-            CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-            |payload| packet.write(payload),
-        )?;
+        write_generated_chunk_entity_spawn_packets(writer, compression, &packet)?;
     }
     Ok(())
+}
+
+fn write_generated_chunk_entity_spawn_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    packet: &ClientboundAddEntityPacket,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        |_| Ok(()),
+    )?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+        |payload| packet.write(payload),
+    )?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        |_| Ok(()),
+    )
 }
 
 fn write_generated_spawn_chunk_payload<W: Write>(
@@ -7370,7 +7390,10 @@ mod tests {
     use crate::network::codec::{write_identifier, Uuid};
     use crate::network::common::{ServerLinkLabel, ServerLinkType};
     use crate::network::ping::ServerboundPingRequestPacket;
-    use crate::network::play::Vec3;
+    use crate::network::play::{
+        ClientboundAddEntityPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+    };
     use crate::network::varint::{read_var_i32, write_var_i32};
     use crate::player_inventory::{InventoryMenu, PlayerInventory};
     use crate::recipe_system::RecipeMap;
@@ -8727,6 +8750,50 @@ mod tests {
         assert_eq!(packet.x_rot, 10);
         assert_eq!(packet.y_rot, 64);
         assert_eq!(packet.y_head_rot, 64);
+    }
+
+    #[test]
+    fn generated_chunk_entity_spawn_packets_are_bundle_wrapped() {
+        let packet = ClientboundAddEntityPacket::new(
+            42,
+            Uuid([1; 16]),
+            100,
+            Vec3 {
+                x: 1.0,
+                y: 65.0,
+                z: 2.0,
+            },
+            Vec3::ZERO,
+            (0.0, 90.0),
+            90.0,
+            0,
+        );
+        let mut output = Vec::new();
+
+        super::write_generated_chunk_entity_spawn_packets(
+            &mut output,
+            CompressionState::disabled(),
+            &packet,
+        )
+        .expect("generated mob pairing should serialize");
+
+        let mut frames = Vec::new();
+        let mut input = &output[..];
+        while !input.is_empty() {
+            let frame_len = read_var_i32(&mut input).unwrap() as usize;
+            let mut frame = vec![0; frame_len];
+            input.read_exact(&mut frame).unwrap();
+            let mut payload = &frame[..];
+            frames.push(read_var_i32(&mut payload).unwrap());
+        }
+        assert_eq!(
+            frames,
+            vec![
+                CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+                CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+                CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID
+            ]
+        );
     }
 
     #[test]
