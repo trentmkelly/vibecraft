@@ -11,6 +11,9 @@ pub const CHUNK_WIDTH: i32 = 16;
 pub const SECTION_VOLUME: usize = 16 * 16 * 16;
 pub const BIOME_SECTION_VOLUME: usize = 4 * 4 * 4;
 pub const LIGHT_DATA_LAYER_LENGTH: usize = 2048;
+pub const LIGHT_DATA_LAYER_NIBBLE_COUNT: usize = 4096;
+pub const LIGHT_DATA_LAYER_WIDTH: usize = 16;
+pub const LIGHT_DATA_LAYER_ROW_SIZE: usize = 128;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SectionBlockPos {
@@ -620,6 +623,34 @@ pub fn pack_postprocessing_offset(x: i32, y: i32, z: i32) -> i16 {
     ((x & 15) | ((y & 15) << 4) | ((z & 15) << 8)) as i16
 }
 
+pub fn light_data_layer_index(x: i32, y: i32, z: i32) -> usize {
+    (((y & 15) << 8) | ((z & 15) << 4) | (x & 15)) as usize
+}
+
+pub fn light_data_layer_byte_index(index: usize) -> usize {
+    index >> 1
+}
+
+pub fn light_data_layer_nibble_index(index: usize) -> usize {
+    index & 1
+}
+
+pub fn light_data_layer_pack_filled(value: u8) -> i8 {
+    let value = value & 15;
+    (value | (value << 4)) as i8
+}
+
+pub fn light_data_layer_get(data: Option<&[i8]>, default_value: u8, x: i32, y: i32, z: i32) -> u8 {
+    let index = light_data_layer_index(x, y, z);
+    match data {
+        Some(data) => {
+            let byte = data[light_data_layer_byte_index(index)] as u8;
+            (byte >> (4 * light_data_layer_nibble_index(index))) & 15
+        }
+        None => default_value & 15,
+    }
+}
+
 fn block_entity_tag_pos(tag: &Tag) -> Option<(i32, i32, i32)> {
     let fields = compound(tag).ok()?;
     Some((
@@ -1215,6 +1246,7 @@ mod tests {
         saved_tick_tag, string_field, BlockStateEntry, ChunkSection, ChunkStatusTaskKind,
         ChunkType, HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos, TickPriority,
         BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
+        LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
         SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
@@ -1698,6 +1730,35 @@ mod tests {
         );
         assert_eq!(chunk.sections[1].sky_light.as_ref().unwrap()[0], 15);
         assert!(chunk.light_correct);
+    }
+
+    #[test]
+    fn light_data_layer_nibble_indexing_matches_vanilla() {
+        assert_eq!(LIGHT_DATA_LAYER_WIDTH, 16);
+        assert_eq!(LIGHT_DATA_LAYER_ROW_SIZE, 128);
+        assert_eq!(LIGHT_DATA_LAYER_LENGTH, 2048);
+        assert_eq!(LIGHT_DATA_LAYER_NIBBLE_COUNT, 4096);
+
+        let index = super::light_data_layer_index(2, 3, 4);
+        assert_eq!(index, 0x342);
+        assert_eq!(super::light_data_layer_byte_index(index), 0x1a1);
+        assert_eq!(super::light_data_layer_nibble_index(index), 0);
+
+        let odd_index = super::light_data_layer_index(3, 3, 4);
+        assert_eq!(odd_index, 0x343);
+        assert_eq!(super::light_data_layer_byte_index(odd_index), 0x1a1);
+        assert_eq!(super::light_data_layer_nibble_index(odd_index), 1);
+
+        assert_eq!(super::light_data_layer_pack_filled(0), 0x00);
+        assert_eq!(super::light_data_layer_pack_filled(15), -1);
+        assert_eq!(super::light_data_layer_pack_filled(18), 0x22);
+
+        let mut data = vec![0_i8; LIGHT_DATA_LAYER_LENGTH];
+        data[0x1a1] = 0xab_u8 as i8;
+        assert_eq!(super::light_data_layer_get(Some(&data), 0, 2, 3, 4), 0x0b);
+        assert_eq!(super::light_data_layer_get(Some(&data), 0, 3, 3, 4), 0x0a);
+        assert_eq!(super::light_data_layer_get(None, 15, 3, 3, 4), 15);
+        assert_eq!(super::light_data_layer_get(None, 18, 3, 3, 4), 2);
     }
 
     #[test]
