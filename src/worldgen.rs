@@ -3671,6 +3671,16 @@ pub struct UpgradeDataModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BelowZeroRetrogenModel {
+    pub target_status_field: &'static str,
+    pub missing_bedrock_field: &'static str,
+    pub upgrade_min_y: i32,
+    pub upgrade_height: i32,
+    pub max_generated_bedrock_y: i32,
+    pub retained_biomes: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpawnSelectionConstants {
     pub initial_chunk_search_radius: i32,
     pub player_spawn_ticket_radius: i32,
@@ -15696,6 +15706,19 @@ pub const UPGRADE_DATA_MODEL: UpgradeDataModel = UpgradeDataModel {
     tag_neighbor_fluid_ticks: "neighbor_fluid_ticks",
     block_fixers: &["blacklist", "default", "chest", "leaves", "stem_block"],
     chunky_fixers: &["leaves"],
+};
+
+pub const BELOW_ZERO_RETROGEN_MODEL: BelowZeroRetrogenModel = BelowZeroRetrogenModel {
+    target_status_field: "target_status",
+    missing_bedrock_field: "missing_bedrock",
+    upgrade_min_y: -64,
+    upgrade_height: 64,
+    max_generated_bedrock_y: 4,
+    retained_biomes: &[
+        "minecraft:lush_caves",
+        "minecraft:dripstone_caves",
+        "minecraft:deep_dark",
+    ],
 };
 
 pub const SPAWN_SELECTION_CONSTANTS: SpawnSelectionConstants = SpawnSelectionConstants {
@@ -37195,6 +37218,62 @@ pub fn blending_output_for_old_height(
     }
 }
 
+pub fn below_zero_replace_old_bedrock_action(y: i32, state: &str) -> Option<&'static str> {
+    (0..=BELOW_ZERO_RETROGEN_MODEL.max_generated_bedrock_y)
+        .contains(&y)
+        .then_some(state)
+        .filter(|state| *state == "minecraft:bedrock")
+        .map(|_| "minecraft:deepslate")
+}
+
+pub fn below_zero_missing_bedrock_bit_index(x: i32, z: i32) -> usize {
+    ((z & 15) * 16 + (x & 15)) as usize
+}
+
+pub fn below_zero_has_bedrock_hole(missing_bedrock: &[u64], x: i32, z: i32) -> bool {
+    let bit = below_zero_missing_bedrock_bit_index(x, z);
+    missing_bedrock
+        .get(bit / 64)
+        .is_some_and(|word| (word & (1_u64 << (bit % 64))) != 0)
+}
+
+pub fn below_zero_bedrock_mask_air_columns(
+    min_y: i32,
+    max_y: i32,
+    missing_bedrock: &[u64],
+) -> Vec<FeaturePlacementBlock> {
+    let mut blocks = Vec::new();
+    for x in 0..16 {
+        for z in 0..16 {
+            if below_zero_has_bedrock_hole(missing_bedrock, x, z) {
+                for y in min_y..=max_y {
+                    blocks.push(FeaturePlacementBlock {
+                        pos: BlockPos { x, y, z },
+                        state: "minecraft:air",
+                    });
+                }
+            }
+        }
+    }
+    blocks
+}
+
+pub fn below_zero_retrogen_biome(
+    upgrading: bool,
+    resolved_biome: &'static str,
+    existing_chunk_biome_at_y0: &'static str,
+) -> &'static str {
+    if upgrading
+        && !BELOW_ZERO_RETROGEN_MODEL
+            .retained_biomes
+            .contains(&resolved_biome)
+    {
+        existing_chunk_biome_at_y0
+    } else {
+        resolved_biome
+    }
+}
+
 pub fn initial_spawn_position(
     debug_only_half_world: bool,
     debug_world_recreate: bool,
@@ -57089,6 +57168,84 @@ mod tests {
             &["blacklist", "default", "chest", "leaves", "stem_block"]
         );
         assert_eq!(UPGRADE_DATA_MODEL.chunky_fixers, &["leaves"]);
+
+        assert_eq!(
+            super::BELOW_ZERO_RETROGEN_MODEL.target_status_field,
+            "target_status"
+        );
+        assert_eq!(
+            super::BELOW_ZERO_RETROGEN_MODEL.missing_bedrock_field,
+            "missing_bedrock"
+        );
+        assert_eq!(super::BELOW_ZERO_RETROGEN_MODEL.upgrade_min_y, -64);
+        assert_eq!(super::BELOW_ZERO_RETROGEN_MODEL.upgrade_height, 64);
+        assert_eq!(super::BELOW_ZERO_RETROGEN_MODEL.max_generated_bedrock_y, 4);
+        assert_eq!(
+            super::BELOW_ZERO_RETROGEN_MODEL.retained_biomes,
+            &[
+                "minecraft:lush_caves",
+                "minecraft:dripstone_caves",
+                "minecraft:deep_dark"
+            ]
+        );
+        assert_eq!(
+            super::below_zero_replace_old_bedrock_action(4, "minecraft:bedrock"),
+            Some("minecraft:deepslate")
+        );
+        assert_eq!(
+            super::below_zero_replace_old_bedrock_action(5, "minecraft:bedrock"),
+            None
+        );
+        assert_eq!(
+            super::below_zero_replace_old_bedrock_action(4, "minecraft:stone"),
+            None
+        );
+        assert_eq!(super::below_zero_missing_bedrock_bit_index(1, 2), 33);
+        assert_eq!(super::below_zero_missing_bedrock_bit_index(17, 18), 33);
+        let missing_bedrock = [1_u64 << 33];
+        assert!(super::below_zero_has_bedrock_hole(&missing_bedrock, 1, 2));
+        assert!(!super::below_zero_has_bedrock_hole(&missing_bedrock, 2, 2));
+        assert_eq!(
+            super::below_zero_bedrock_mask_air_columns(-1, 1, &missing_bedrock),
+            vec![
+                super::FeaturePlacementBlock {
+                    pos: BlockPos { x: 1, y: -1, z: 2 },
+                    state: "minecraft:air"
+                },
+                super::FeaturePlacementBlock {
+                    pos: BlockPos { x: 1, y: 0, z: 2 },
+                    state: "minecraft:air"
+                },
+                super::FeaturePlacementBlock {
+                    pos: BlockPos { x: 1, y: 1, z: 2 },
+                    state: "minecraft:air"
+                }
+            ]
+        );
+        assert_eq!(
+            super::below_zero_retrogen_biome(
+                true,
+                "minecraft:plains",
+                "minecraft:old_growth_birch_forest"
+            ),
+            "minecraft:old_growth_birch_forest"
+        );
+        assert_eq!(
+            super::below_zero_retrogen_biome(
+                true,
+                "minecraft:lush_caves",
+                "minecraft:old_growth_birch_forest"
+            ),
+            "minecraft:lush_caves"
+        );
+        assert_eq!(
+            super::below_zero_retrogen_biome(
+                false,
+                "minecraft:plains",
+                "minecraft:old_growth_birch_forest"
+            ),
+            "minecraft:plains"
+        );
     }
 
     #[test]
