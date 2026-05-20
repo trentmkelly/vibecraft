@@ -719,6 +719,19 @@ impl LevelChunk {
         true
     }
 
+    pub fn heightmaps_to_prime(&self) -> Vec<HeightmapKind> {
+        chunk_status(&self.status)
+            .map(|status| {
+                status
+                    .heightmaps_after
+                    .iter()
+                    .copied()
+                    .filter(|heightmap| !self.heightmaps.contains_key(heightmap.storage_name()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -2714,6 +2727,37 @@ mod tests {
         assert!(decoded.heightmaps.contains_key("WORLD_SURFACE_WG"));
         assert!(!decoded.heightmaps.contains_key("OCEAN_FLOOR_WG"));
         assert!(!decoded.heightmaps.contains_key("MOTION_BLOCKING"));
+    }
+
+    #[test]
+    fn level_chunk_reports_missing_status_heightmaps_to_prime() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.status = "minecraft:full".to_string();
+        chunk
+            .heightmaps
+            .insert("WORLD_SURFACE".to_string(), Tag::LongArray(vec![1]));
+        chunk
+            .heightmaps
+            .insert("OCEAN_FLOOR".to_string(), Tag::LongArray(vec![2]));
+
+        assert_eq!(
+            chunk.heightmaps_to_prime(),
+            vec![
+                HeightmapKind::MotionBlocking,
+                HeightmapKind::MotionBlockingNoLeaves,
+            ]
+        );
+
+        chunk.status = "minecraft:surface".to_string();
+
+        assert_eq!(
+            chunk.heightmaps_to_prime(),
+            vec![HeightmapKind::OceanFloorWg, HeightmapKind::WorldSurfaceWg,]
+        );
+
+        chunk.status = "minecraft:not_a_status".to_string();
+
+        assert!(chunk.heightmaps_to_prime().is_empty());
     }
 
     #[test]
