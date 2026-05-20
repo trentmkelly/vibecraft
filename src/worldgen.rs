@@ -24197,7 +24197,24 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
         fields.push(("ForcedAge".to_string(), Tag::Int(0)));
         fields.push(("AgeLocked".to_string(), Tag::Byte(0)));
     }
+    append_chunk_generation_mob_specific_save_fields(snap.entity_type, &mut fields);
     Tag::Compound(fields)
+}
+
+fn append_chunk_generation_mob_specific_save_fields(
+    entity_type: &str,
+    fields: &mut Vec<(String, Tag)>,
+) {
+    match entity_type {
+        "minecraft:cat" | "minecraft:wolf" => {
+            fields.push(("CollarColor".to_string(), Tag::Byte(14)));
+        }
+        "minecraft:sheep" => {
+            fields.push(("Sheared".to_string(), Tag::Byte(0)));
+            fields.push(("Color".to_string(), Tag::Byte(0)));
+        }
+        _ => {}
+    }
 }
 
 fn chunk_generation_mob_default_health(entity_type: &str) -> f32 {
@@ -58812,6 +58829,43 @@ mod tests {
         assert!(!fields.iter().any(|(name, _)| name == "AgeLocked"));
         assert!(fields.contains(&("Health".to_string(), Tag::Float(20.0))));
         assert!(fields.contains(&("CanPickUpLoot".to_string(), Tag::Byte(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_stable_animal_specific_save_fields() {
+        let sheep = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:sheep",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let cat = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:cat",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(sheep_fields) =
+            super::chunk_generation_mob_entity_nbt(sheep, "00000000-0000-0000-0000-000000000125")
+        else {
+            panic!("sheep entity nbt must be a compound");
+        };
+        let Tag::Compound(cat_fields) =
+            super::chunk_generation_mob_entity_nbt(cat, "00000000-0000-0000-0000-000000000126")
+        else {
+            panic!("cat entity nbt must be a compound");
+        };
+
+        assert!(sheep_fields.contains(&("Sheared".to_string(), Tag::Byte(0))));
+        assert!(sheep_fields.contains(&("Color".to_string(), Tag::Byte(0))));
+        assert!(cat_fields.contains(&("CollarColor".to_string(), Tag::Byte(14))));
     }
 
     #[test]
