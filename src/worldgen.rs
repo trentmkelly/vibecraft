@@ -1153,6 +1153,12 @@ pub struct ParsedFlatGeneratorSettings {
     pub layers: Vec<(i32, String)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedWorldgenPresetRegistry {
+    pub world_presets: BTreeMap<String, ParsedWorldPreset>,
+    pub flat_level_generator_presets: BTreeMap<String, ParsedFlatGeneratorSettings>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
@@ -23205,6 +23211,63 @@ pub fn parse_world_preset_json(raw: &str) -> Result<ParsedWorldPreset, String> {
     Ok(ParsedWorldPreset { dimensions })
 }
 
+pub fn load_worldgen_preset_registry(
+    worldgen_root: impl AsRef<std::path::Path>,
+) -> Result<ParsedWorldgenPresetRegistry, String> {
+    let worldgen_root = worldgen_root.as_ref();
+    Ok(ParsedWorldgenPresetRegistry {
+        world_presets: load_world_preset_directory(&worldgen_root.join("world_preset"))?,
+        flat_level_generator_presets: load_flat_level_generator_preset_directory(
+            &worldgen_root.join("flat_level_generator_preset"),
+        )?,
+    })
+}
+
+fn load_world_preset_directory(
+    directory: &std::path::Path,
+) -> Result<BTreeMap<String, ParsedWorldPreset>, String> {
+    load_json_directory(directory, |raw| parse_world_preset_json(raw))
+}
+
+fn load_flat_level_generator_preset_directory(
+    directory: &std::path::Path,
+) -> Result<BTreeMap<String, ParsedFlatGeneratorSettings>, String> {
+    load_json_directory(directory, |raw| {
+        let value: serde_json::Value = serde_json::from_str(raw)
+            .map_err(|err| format!("invalid flat level generator preset JSON: {err}"))?;
+        let object = json_object(&value, "flat level generator preset")?;
+        parse_flat_generator_settings_value(json_required(object, "settings")?)
+    })
+}
+
+fn load_json_directory<T>(
+    directory: &std::path::Path,
+    parse: impl Fn(&str) -> Result<T, String>,
+) -> Result<BTreeMap<String, T>, String> {
+    let entries = std::fs::read_dir(directory)
+        .map_err(|err| format!("failed to read {}: {err}", directory.display()))?;
+    let mut loaded = BTreeMap::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("failed to read directory entry: {err}"))?;
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+            continue;
+        }
+        let stem = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .ok_or_else(|| format!("invalid JSON file name {}", path.display()))?;
+        let id = format!("minecraft:{stem}");
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
+        let parsed = parse(&raw).map_err(|err| format!("{}: {err}", path.display()))?;
+        loaded.insert(id, parsed);
+    }
+
+    Ok(loaded)
+}
+
 pub fn parse_world_dimensions_value(
     value: &serde_json::Value,
 ) -> Result<ParsedWorldDimensions, String> {
@@ -38649,6 +38712,62 @@ mod tests {
                     ],
                 },
             }
+        );
+    }
+
+    #[test]
+    fn worldgen_preset_registry_loads_vanilla_world_and_flat_presets() {
+        let registry = super::load_worldgen_preset_registry(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen",
+        )
+        .unwrap();
+
+        assert_eq!(registry.world_presets.len(), 6);
+        assert_eq!(registry.flat_level_generator_presets.len(), 9);
+        assert!(registry.world_presets.contains_key("minecraft:normal"));
+        assert!(registry.world_presets.contains_key("minecraft:flat"));
+        assert!(registry
+            .flat_level_generator_presets
+            .contains_key("minecraft:classic_flat"));
+        assert!(registry
+            .flat_level_generator_presets
+            .contains_key("minecraft:bottomless_pit"));
+
+        let normal = registry.world_presets.get("minecraft:normal").unwrap();
+        assert_eq!(
+            normal.dimensions.stems[0].1.generator,
+            super::ParsedChunkGenerator::Noise {
+                biome_source: super::ParsedBiomeSource::MultiNoisePreset {
+                    preset: "minecraft:overworld".to_string(),
+                },
+                settings: "minecraft:overworld".to_string(),
+            }
+        );
+
+        let debug = registry
+            .world_presets
+            .get("minecraft:debug_all_block_states")
+            .unwrap();
+        assert_eq!(
+            debug.dimensions.stems[0].1.generator,
+            super::ParsedChunkGenerator::Debug
+        );
+
+        let bottomless_pit = registry
+            .flat_level_generator_presets
+            .get("minecraft:bottomless_pit")
+            .unwrap();
+        assert_eq!(
+            bottomless_pit.structure_overrides,
+            vec!["minecraft:villages".to_string()]
+        );
+        assert_eq!(
+            bottomless_pit.layers,
+            vec![
+                (2, "minecraft:cobblestone".to_string()),
+                (3, "minecraft:dirt".to_string()),
+                (1, "minecraft:grass_block".to_string()),
+            ]
         );
     }
 
