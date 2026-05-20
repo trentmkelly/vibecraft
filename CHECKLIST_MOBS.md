@@ -184,6 +184,7 @@
 - [ ] Implement `PolarBear`: neutral until cub is nearby, aggressive to foxes, swim AI
   - [x] Implement Java-matched `PolarBear` server-visible gates: cub-protection player targeting, adult-only fox targeting and hurt alerts, standing warning attack window, 40-tick warning cooldown, 6-tick standing animation scale, 20-39s anger range, and 0.98 water slowdown
 - [ ] Implement `Rabbit`: farmland/carrot-griefing AI, toast skin (username-triggered), killer bunny variant (only via `/summon`+NBT)
+  - [x] Implement Java-matched `Rabbit` server-visible variant and garden gates: legacy ids 0/1/2/3/4/5/99, biome spawn weights, offspring variant inheritance, evil-rabbit attack/armor deltas, 40-tick carrot raid cooldown, carrot age decrement/destroy behavior, jump timing, baby dimensions, and non-evil avoid goals
 - [ ] Implement `Sheep`: color-based wool drop, regrow wool after eating grass (`EatGrassGoal`), dyeing via dye item interaction
 - [ ] Implement `Sniffer`: sniff animation, ancient-seed dropping at discovered location, digging-up animation, egg hatching, sniffing-exploration AI
 - [ ] Implement `Squid`/`GlowSquid`: ink-squirt flee mechanic, glow squid dark-rendering effect, glowing while alive
