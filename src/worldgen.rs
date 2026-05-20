@@ -26102,24 +26102,30 @@ pub fn surface_condition_test(
             surface_depth_multiplier,
             add_stone_depth,
         } => {
-            let mut threshold = anchor.resolve_y(*height_context)
+            let threshold = anchor.resolve_y(*height_context)
                 + context.surface_depth * *surface_depth_multiplier;
-            if *add_stone_depth {
-                threshold += context.stone_depth_above;
-            }
-            context.y >= threshold
+            let block_y = context.y
+                + if *add_stone_depth {
+                    context.stone_depth_above
+                } else {
+                    0
+                };
+            block_y >= threshold
         }
         SurfaceConditionSource::Water {
             offset,
             surface_depth_multiplier,
             add_stone_depth,
         } => {
-            let mut threshold =
+            let threshold =
                 context.water_height + *offset + context.surface_depth * *surface_depth_multiplier;
-            if *add_stone_depth {
-                threshold += context.stone_depth_above;
-            }
-            context.water_height == i32::MIN || context.y >= threshold
+            let block_y = context.y
+                + if *add_stone_depth {
+                    context.stone_depth_above
+                } else {
+                    0
+                };
+            context.water_height == i32::MIN || block_y >= threshold
         }
         SurfaceConditionSource::StoneDepth {
             offset,
@@ -26423,12 +26429,15 @@ fn dyn_surface_condition_test(
             surface_depth_multiplier,
             add_stone_depth,
         } => {
-            let mut threshold =
+            let threshold =
                 anchor.resolve_y(state.heights) + state.surface_depth * surface_depth_multiplier;
-            if *add_stone_depth {
-                threshold += state.stone_depth_above;
-            }
-            state.block_y >= threshold
+            let block_y = state.block_y
+                + if *add_stone_depth {
+                    state.stone_depth_above
+                } else {
+                    0
+                };
+            block_y >= threshold
         }
         DynSurfaceCondition::Water {
             offset,
@@ -26438,12 +26447,15 @@ fn dyn_surface_condition_test(
             if state.water_height == i32::MIN {
                 return true; // no water column → block is above any water
             }
-            let mut threshold =
+            let threshold =
                 state.water_height + offset + state.surface_depth * surface_depth_multiplier;
-            if *add_stone_depth {
-                threshold += state.stone_depth_above;
-            }
-            state.block_y >= threshold
+            let block_y = state.block_y
+                + if *add_stone_depth {
+                    state.stone_depth_above
+                } else {
+                    0
+                };
+            block_y >= threshold
         }
         DynSurfaceCondition::StoneDepth {
             offset,
@@ -39711,6 +39723,35 @@ mod tests {
             &heights
         ));
         assert!(super::surface_condition_test(
+            &SurfaceConditionSource::Water {
+                offset: 0,
+                surface_depth_multiplier: 0,
+                add_stone_depth: true,
+            },
+            &SurfaceMaterialContext {
+                y: 61,
+                water_height: 63,
+                stone_depth_above: 2,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        assert!(!super::surface_condition_test(
+            &SurfaceConditionSource::Water {
+                offset: 1,
+                surface_depth_multiplier: 1,
+                add_stone_depth: true,
+            },
+            &SurfaceMaterialContext {
+                y: 63,
+                water_height: 63,
+                surface_depth: 2,
+                stone_depth_above: 2,
+                ..quiet_desert_floor
+            },
+            &heights
+        ));
+        assert!(super::surface_condition_test(
             &SurfaceConditionSource::StoneDepth {
                 offset: 0,
                 add_surface_depth: true,
@@ -39723,6 +39764,33 @@ mod tests {
                 ..quiet_desert_floor
             },
             &heights
+        ));
+        let dynamic_water_state = super::BuildSurfaceColumnState {
+            seed: quiet_desert_floor.seed,
+            algorithm: quiet_desert_floor.random_algorithm,
+            heights,
+            block_x: quiet_desert_floor.x,
+            block_z: quiet_desert_floor.z,
+            surface_depth: 0,
+            surface_secondary: quiet_desert_floor.noise,
+            steep: quiet_desert_floor.steep,
+            hole: quiet_desert_floor.hole,
+            min_surface_level: quiet_desert_floor.preliminary_surface_y,
+            block_y: 61,
+            water_height: 63,
+            stone_depth_above: 2,
+            stone_depth_below: quiet_desert_floor.stone_depth_below,
+            biome: quiet_desert_floor.biome.to_string(),
+            temperature: quiet_desert_floor.temperature,
+        };
+        assert!(super::dyn_surface_condition_test(
+            &super::DynSurfaceCondition::Water {
+                offset: 0,
+                surface_depth_multiplier: 0,
+                add_stone_depth: true,
+            },
+            &dynamic_water_state,
+            BUILTIN_NOISE_GENERATOR_SETTINGS[0],
         ));
         assert!(!super::surface_condition_test(
             &SurfaceConditionSource::StoneDepth {
