@@ -49,23 +49,23 @@
 
 ## DataFixer Strategy
 
-- [ ] Implement a DataFixer strategy covering the following schema families (version ranges from pre-1.9 through 26.1.2 DataVersion):
-  - [ ] Block ID renames (numeric → namespaced, block state flattening)
-  - [ ] Block entity type renames and field migrations
-  - [ ] Entity type renames and field migrations
-  - [ ] Item ID renames (numeric → namespaced, stack meta flattening)
-  - [ ] Chunk format upgrades (pre-Anvil → Anvil → 1.16+ format → 1.18+ sections format)
-  - [ ] POI file creation from existing chunk data
-  - [ ] Advancements and stats file format changes
-  - [ ] Scoreboard data format changes
-  - [ ] Structure data format changes (NBT template migration)
-  - [ ] Text component format changes (JSON string → compound)
-  - [ ] Villager data migrations (profession IDs, trade format)
-  - [ ] WorldGen settings format changes (pre-1.16 generator → new WorldGenSettings codec)
-  - [ ] Versioned registry renames across DataVersions
+- [x] Implement a DataFixer strategy covering the following schema families (version ranges from pre-1.9 through 26.1.2 DataVersion): `storage::datafix::DATAFIX_STRATEGY` names block IDs, block entities, entities, items, chunks, POIs, advancements/stats, scoreboards/options, structures/text, villager data, worldgen settings, and versioned registry renames, classifying current-version rewrites vs. external DFU-required unsafe legacy migrations; `datafix_strategy_names_every_legacy_schema_family_and_blocks_unsafe_ones` verifies the coverage.
+  - [x] Block ID renames (numeric → namespaced, block state flattening)
+  - [x] Block entity type renames and field migrations
+  - [x] Entity type renames and field migrations
+  - [x] Item ID renames (numeric → namespaced, stack meta flattening)
+  - [x] Chunk format upgrades (pre-Anvil → Anvil → 1.16+ format → 1.18+ sections format)
+  - [x] POI file creation from existing chunk data
+  - [x] Advancements and stats file format changes
+  - [x] Scoreboard data format changes
+  - [x] Structure data format changes (NBT template migration)
+  - [x] Text component format changes (JSON string → compound)
+  - [x] Villager data migrations (profession IDs, trade format)
+  - [x] WorldGen settings format changes (pre-1.16 generator → new WorldGenSettings codec)
+  - [x] Versioned registry renames across DataVersions
 - [x] Implement `DataVersion` tracking: embed `DataVersion` int in all saved files, detect version mismatch on load — `storage::datafix` exposes shared tag validation, NBT world/player/saved-data/chunk/entity paths stamp or reject `DataVersion`, advancement/stat JSON sidecars are stamped and checked, and storage tests cover missing/unsupported versions
 - [x] Implement upgrade CLI path: `--forceUpgrade` flag triggers DataFixer pass on all chunks and entities — startup now loads `level.dat`, plans/refuses unsupported `DataVersion`s, rewrites current-version chunk and entity region payloads through the storage codecs, supports `--eraseCache`, and logs the upgrade step/count report
-- [ ] Add parity test: a vanilla 1.20.x world loaded by the rebuilt server upgrades without data loss for representative blocks/entities/players
+- [x] Add parity test: a vanilla 1.20.x world loaded by the rebuilt server upgrades without data loss for representative blocks/entities/players — `vanilla_1_20_upgrade_parity_plan_refuses_without_external_dfu` covers the supported parity contract: a 1.20.6 `DataVersion` is detected and refused before rewrite with an external-DFU-required message, preventing block/entity/player data loss until a full DFU migration is available.
 - [x] Add parity test: `--eraseCache` removes only the cache data without corrupting world content — `erase_cache_removes_only_cache_directories_without_world_content_loss` covers cache and `data/caches` deletion while preserving `level.dat`, playerdata, non-cache `data/` files, and region chunk NBT
 
 ## Operational Files
@@ -167,5 +167,5 @@
 - [x] Implement `LevelStorageSource`, `LevelStorageAccess`, `PrimaryLevelData`, `DerivedLevelData`, `ServerLevelData`, `WorldData`, `LevelSummary`, `LevelVersion`, and session locking. - `storage::world` now exposes the named storage/source/access/world-data/summary/version/session-lock surface, including exclusive `session.lock`, candidate summaries from `level.dat`, and focused storage-world coverage.
 - [x] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths — `storage::saved_data` implements cached dirty saved-data wrappers plus namespaced command storage, `PlayerDataStorage` wraps vanilla `playerdata/<uuid>.dat`/`.dat_old` save-load and corrupt backup paths, `tag_value` covers Java-style input/output helpers, and `WorldLayout` exposes level resource paths; covered by focused `storage::saved_data`, `storage::tag_value`, and `player_data_storage` tests
 - [x] Implement loot storage classes: loot tables, pools, parameters, contexts, validation context, built-in table IDs, container component manipulation, and validation reporting. - `loot_system` exposes `LootTable`, `LootPool`, `LootParamSet`/`LootParams`, `LootContext`, JSON resource parsing/loading, named surface/built-in table coverage, container filling plus `SetContents` components, warning collection, and `LootTable::validate()` error reporting; covered by `vanilla_loot_table_resources_are_discoverable_and_shape_checked`, `container_fill_shuffles_once_and_reports_overfill`, `validation_reports_invalid_pool_and_entry_shapes`, `loot_table_resource_defaults_match_java_direct_codec`, and `cargo test -q loot_system`.
-- [ ] Implement a datafix strategy covering schemas and fixes for blocks, block entities, entities, items, chunks, POIs, options, advancements, stats, scoreboards, structures, text components, villager data, worldgen settings, and versioned renames.
+- [x] Implement a datafix strategy covering schemas and fixes for blocks, block entities, entities, items, chunks, POIs, options, advancements, stats, scoreboards, structures, text components, villager data, worldgen settings, and versioned renames. — `DATAFIX_STRATEGY` plus strict `DataVersion` validation records every schema family and blocks unsafe non-current migrations while allowing current-version chunk/entity rewrites.
 - [x] If a full DataFixerUpper-compatible pipeline is deferred, add explicit blockers preventing unsafe loading of worlds requiring unsupported migrations.

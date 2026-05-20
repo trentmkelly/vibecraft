@@ -49,6 +49,83 @@ pub struct WorldUpgradeRewriteReport {
     pub entity_chunk_count: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DataFixStrategyAction {
+    NativeCurrentVersionRewrite,
+    ExternalDfuRequired,
+    VersionStampedJsonValidation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DataFixStrategyFamily {
+    pub family: &'static str,
+    pub covered_surfaces: &'static [&'static str],
+    pub action: DataFixStrategyAction,
+}
+
+pub const DATAFIX_STRATEGY: &[DataFixStrategyFamily] = &[
+    DataFixStrategyFamily {
+        family: "block_id_renames_and_flattening",
+        covered_surfaces: &["level_chunk.block_states", "level_chunk.palette"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "block_entity_renames_and_fields",
+        covered_surfaces: &["level_chunk.block_entities", "data/*.dat"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "entity_renames_and_fields",
+        covered_surfaces: &["entities/r.*.mca"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "item_renames_and_stack_flattening",
+        covered_surfaces: &["playerdata", "entities", "block_entities", "containers"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "chunk_format_upgrades",
+        covered_surfaces: &["region/r.*.mca", "entities/r.*.mca"],
+        action: DataFixStrategyAction::NativeCurrentVersionRewrite,
+    },
+    DataFixStrategyFamily {
+        family: "poi_creation",
+        covered_surfaces: &["poi/r.*.mca", "region/r.*.mca"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "advancements_and_stats",
+        covered_surfaces: &["advancements/*.json", "stats/*.json"],
+        action: DataFixStrategyAction::VersionStampedJsonValidation,
+    },
+    DataFixStrategyFamily {
+        family: "scoreboards_and_options",
+        covered_surfaces: &["data/scoreboard.dat", "options.txt"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "structures_and_text_components",
+        covered_surfaces: &["generated/**/*.nbt", "text_components"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "villager_data",
+        covered_surfaces: &["entities", "playerdata.trades"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "worldgen_settings",
+        covered_surfaces: &["level.dat.WorldGenSettings"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+    DataFixStrategyFamily {
+        family: "versioned_registry_renames",
+        covered_surfaces: &["level.dat", "chunks", "saved_data"],
+        action: DataFixStrategyAction::ExternalDfuRequired,
+    },
+];
+
 impl WorldUpgradeReport {
     pub fn refusal_message(&self) -> Option<String> {
         match self.decision {
@@ -250,7 +327,8 @@ mod tests {
     use super::{
         check_world_data_version, plan_compatible_world_upgrade, plan_world_upgrade,
         require_current_world_data_version, run_world_upgrade, DataFixDecision,
-        WorldUpgradeOptions, WorldUpgradeStep, TARGET_DATA_VERSION,
+        DataFixStrategyAction, WorldUpgradeOptions, WorldUpgradeStep, DATAFIX_STRATEGY,
+        TARGET_DATA_VERSION,
     };
     use crate::storage::chunk::LevelChunk;
     use crate::storage::entities::ChunkEntities;
@@ -279,6 +357,39 @@ mod tests {
         );
         let err = require_current_world_data_version(TARGET_DATA_VERSION - 1).unwrap_err();
         assert!(err.contains("will not perform unsafe migrations"));
+    }
+
+    #[test]
+    fn datafix_strategy_names_every_legacy_schema_family_and_blocks_unsafe_ones() {
+        let families = DATAFIX_STRATEGY
+            .iter()
+            .map(|family| family.family)
+            .collect::<Vec<_>>();
+        for required in [
+            "block_id_renames_and_flattening",
+            "block_entity_renames_and_fields",
+            "entity_renames_and_fields",
+            "item_renames_and_stack_flattening",
+            "chunk_format_upgrades",
+            "poi_creation",
+            "advancements_and_stats",
+            "scoreboards_and_options",
+            "structures_and_text_components",
+            "villager_data",
+            "worldgen_settings",
+            "versioned_registry_renames",
+        ] {
+            assert!(families.contains(&required), "missing {required}");
+        }
+        assert!(DATAFIX_STRATEGY
+            .iter()
+            .all(|family| !family.covered_surfaces.is_empty()));
+        assert!(DATAFIX_STRATEGY
+            .iter()
+            .any(|family| family.action == DataFixStrategyAction::NativeCurrentVersionRewrite));
+        assert!(DATAFIX_STRATEGY
+            .iter()
+            .any(|family| family.action == DataFixStrategyAction::ExternalDfuRequired));
     }
 
     #[test]
@@ -345,6 +456,31 @@ mod tests {
             ]
         );
         assert!(old
+            .refusal_message()
+            .unwrap()
+            .contains("external DataFixerUpper-compatible tooling"));
+    }
+
+    #[test]
+    fn vanilla_1_20_upgrade_parity_plan_refuses_without_external_dfu() {
+        let vanilla_1_20_6_data_version = 3839;
+        let report = plan_compatible_world_upgrade(
+            vanilla_1_20_6_data_version,
+            WorldUpgradeOptions {
+                force_upgrade: true,
+                erase_cache: false,
+                recreate_region_files: true,
+            },
+        );
+        assert!(!report.safe_to_load);
+        assert_eq!(
+            report.steps,
+            vec![
+                WorldUpgradeStep::ScanWorld,
+                WorldUpgradeStep::ValidateDataVersion,
+            ]
+        );
+        assert!(report
             .refusal_message()
             .unwrap()
             .contains("external DataFixerUpper-compatible tooling"));

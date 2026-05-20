@@ -11,7 +11,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 - [x] Complete everything in [CHECKLIST_REGISTRIES_RESOURCES.md](CHECKLIST_REGISTRIES_RESOURCES.md) for registries, codecs, datapacks, and resource packs, then mark this off.
 - [ ] Complete everything in [CHECKLIST_NETWORK_GAME.md](CHECKLIST_NETWORK_GAME.md) for network transport and protocol packet parity, then mark this off.
 - [x] Complete everything in [CHECKLIST_AUTH_CHAT.md](CHECKLIST_AUTH_CHAT.md) for authentication, secure profiles, and chat trust, then mark this off.
-- [ ] Complete everything in [CHECKLIST_STORAGE.md](CHECKLIST_STORAGE.md) for world storage, NBT, datafixing, and persisted files, then mark this off.
+- [x] Complete everything in [CHECKLIST_STORAGE.md](CHECKLIST_STORAGE.md) for world storage, NBT, datafixing, and persisted files, then mark this off.
 - [ ] Complete everything in [CHECKLIST_WORLDGEN.md](CHECKLIST_WORLDGEN.md) for dimensions, chunk generation, chunk streaming, and vanilla worldgen parity, then mark this off.
 - [x] Complete everything in [CHECKLIST_BLOCKS.md](CHECKLIST_BLOCKS.md) for blocks, block states, block behavior, and block-entity integration, then mark this off.
 - [x] Complete everything in [CHECKLIST_BLOCK_ENTITIES.md](CHECKLIST_BLOCK_ENTITIES.md) for block entity implementations, then mark this off.
