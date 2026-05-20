@@ -82,7 +82,7 @@ use crate::storage::world::WorldLayout;
 use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomDurations};
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
 use crate::worldgen::{
-    generate_overworld_chunk_for_preset, generate_overworld_chunk_for_preset_with_mode,
+    generate_overworld_chunk_for_preset, generate_overworld_spawn_chunk_for_preset_with_mode,
     LiveChunkGenerationMode,
 };
 
@@ -3803,11 +3803,12 @@ fn write_generated_spawn_chunk_packet<W: Write>(
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
     let chunk = try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
-        generate_overworld_chunk_for_preset_with_mode(
+        generate_overworld_spawn_chunk_for_preset_with_mode(
             pos,
             "normal",
             live_chunk_generation_mode(),
             world_seed,
+            true,
         )
         .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
     });

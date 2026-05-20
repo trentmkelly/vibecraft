@@ -1011,7 +1011,7 @@ pub struct BiomeDecorationFeaturePlan {
     pub feature_calls: Vec<BiomeDecorationFeatureCall>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpawnOriginalMobsPlan {
     pub center: ChunkPos,
     pub biome_sample_pos: BlockPos,
@@ -23672,7 +23672,79 @@ pub fn generator_spawn_original_mobs_for_stem(
     pos: ChunkPos,
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
-    generated_chunk_with_status(pos, stem, "minecraft:spawn")
+    generator_spawn_original_mobs_for_stem_with_seed(pos, stem, 0, true)
+}
+
+pub fn generator_spawn_original_mobs_for_stem_with_seed(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+    world_seed: i64,
+    spawn_mobs_game_rule: bool,
+) -> Result<LevelChunk, String> {
+    let mut chunk = generator_apply_biome_decoration_for_stem(pos, stem)?;
+    apply_spawn_original_mobs_to_generated_chunk(
+        &mut chunk,
+        stem,
+        world_seed,
+        spawn_mobs_game_rule,
+    );
+    chunk.status = "minecraft:spawn".to_string();
+    Ok(chunk)
+}
+
+pub fn apply_spawn_original_mobs_to_generated_chunk(
+    chunk: &mut LevelChunk,
+    stem: &ResolvedLevelStem,
+    world_seed: i64,
+    spawn_mobs_game_rule: bool,
+) -> usize {
+    let Some(plan) = spawn_original_mobs_plan_for_stem(world_seed, chunk.pos, stem) else {
+        return 0;
+    };
+    let Some(biome) = spawn_original_mobs_biome_generation_settings(stem, plan, world_seed) else {
+        return 0;
+    };
+    let mut random = RandomSourceKind::new(
+        plan.decoration_seed,
+        crate::random_source::RandomAlgorithm::Legacy,
+    );
+    let spawn_plan =
+        chunk_generation_mob_spawn_plan(chunk.pos, biome, spawn_mobs_game_rule, &mut random);
+    let mut spawned = 0;
+
+    for batch in spawn_plan.batches {
+        spawned += apply_chunk_generation_mob_batch_to_chunk(chunk, batch, false, &mut random, &[]);
+    }
+
+    spawned
+}
+
+fn spawn_original_mobs_biome_generation_settings(
+    stem: &ResolvedLevelStem,
+    plan: SpawnOriginalMobsPlan,
+    world_seed: i64,
+) -> Option<&'static BiomeGenerationSettingsModel> {
+    let ResolvedChunkGenerator::Noise {
+        biome_source_model,
+        noise_settings,
+        ..
+    } = &stem.generator
+    else {
+        return None;
+    };
+    let router_id = noise_router_id_for_settings(**noise_settings);
+    let router = builtin_noise_router(router_id)
+        .map(|entry| entry.router)
+        .unwrap_or(NONE_NOISE_ROUTER);
+    let sampler = ClimateSampler::from_noise_router(&router, world_seed, **noise_settings);
+    let biome = get_biome(
+        biome_source_model,
+        plan.biome_sample_pos.x.div_euclid(4),
+        plan.biome_sample_pos.y.div_euclid(4),
+        plan.biome_sample_pos.z.div_euclid(4),
+        &sampler,
+    )?;
+    biome_generation_settings(biome)
 }
 
 pub fn spawn_original_mobs_plan_for_stem(
@@ -24152,11 +24224,16 @@ pub fn apply_chunk_generation_mob_batch_to_chunk(
                             batch.entity_type,
                             spawn_rules_pos,
                         ) {
-                            if let Some(uuid) = uuids.get(spawned) {
-                                if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
-                                    spawned += 1;
-                                    success = true;
-                                }
+                            let generated_uuid;
+                            let uuid = if let Some(uuid) = uuids.get(spawned) {
+                                *uuid
+                            } else {
+                                generated_uuid = create_insecure_uuid(random);
+                                generated_uuid.as_str()
+                            };
+                            if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
+                                spawned += 1;
+                                success = true;
                             }
                         }
                     }
@@ -24454,6 +24531,25 @@ pub fn generate_overworld_chunk_for_preset_with_mode(
 ) -> Result<LevelChunk, String> {
     let preset = resolve_world_preset(preset_id)?;
     generate_chunk_for_stem_with_mode(pos, &preset.overworld, mode, seed)
+}
+
+pub fn generate_overworld_spawn_chunk_for_preset_with_mode(
+    pos: ChunkPos,
+    preset_id: &str,
+    mode: LiveChunkGenerationMode,
+    seed: i64,
+    spawn_mobs_game_rule: bool,
+) -> Result<LevelChunk, String> {
+    let preset = resolve_world_preset(preset_id)?;
+    let mut chunk = generate_chunk_for_stem_with_mode(pos, &preset.overworld, mode, seed)?;
+    apply_spawn_original_mobs_to_generated_chunk(
+        &mut chunk,
+        &preset.overworld,
+        seed,
+        spawn_mobs_game_rule,
+    );
+    chunk.status = "minecraft:spawn".to_string();
+    Ok(chunk)
 }
 
 pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
@@ -58612,6 +58708,47 @@ mod tests {
             "UUID".to_string(),
             Tag::String("00000000-0000-0000-0000-000000000456".to_string())
         )));
+    }
+
+    #[test]
+    fn apply_chunk_generation_mob_batch_to_chunk_generates_missing_uuids() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let mut chunk =
+            super::generator_build_surface_for_stem(ChunkPos { x: 2, z: -3 }, &normal.overworld)
+                .expect("surface chunk should generate");
+        let batch = super::ChunkGenerationMobSpawnBatchPlan {
+            category: "creature",
+            entity_type: "minecraft:pig",
+            count: 1,
+            start_x: 37,
+            start_z: -37,
+        };
+        let mut random = crate::random_source::RandomSourceKind::new(
+            1,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+
+        let spawned = super::apply_chunk_generation_mob_batch_to_chunk(
+            &mut chunk,
+            batch,
+            false,
+            &mut random,
+            &[],
+        );
+
+        assert_eq!(spawned, 1);
+        let Tag::Compound(fields) = &chunk.entities[0] else {
+            panic!("queued entity must be a compound");
+        };
+        let uuid = fields
+            .iter()
+            .find_map(|(name, value)| match (name.as_str(), value) {
+                ("UUID", Tag::String(uuid)) => Some(uuid),
+                _ => None,
+            })
+            .expect("generated entity should have a UUID");
+        assert_eq!(uuid.len(), 36);
+        assert_eq!(&uuid[14..15], "4");
     }
 
     #[test]
