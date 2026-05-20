@@ -255,6 +255,40 @@ impl RegionFile {
         decode_region_payload(compression_type, compressed)
     }
 
+    pub fn does_chunk_exist(&self, chunk: ChunkPos) -> bool {
+        self.does_chunk_exist_inner(chunk).unwrap_or(false)
+    }
+
+    fn does_chunk_exist_inner(&self, chunk: ChunkPos) -> io::Result<bool> {
+        let Some(location) = self.read_location(chunk)? else {
+            return Ok(false);
+        };
+        let byte_offset = location.sector_offset as u64 * SECTOR_BYTES as u64;
+        let mut file = File::open(&self.path)?;
+        file.seek(SeekFrom::Start(byte_offset))?;
+        let mut header = [0_u8; 5];
+        if file.read_exact(&mut header).is_err() {
+            return Ok(false);
+        }
+        let length = u32::from_be_bytes(header[0..4].try_into().unwrap());
+        let version_id = header[4];
+        if version_id & 0x80 != 0 {
+            if !RegionCompression::is_valid_id(version_id & 0x7f) {
+                return Ok(false);
+            }
+            let Some(external_path) = self.external_chunk_path(chunk) else {
+                return Ok(false);
+            };
+            return Ok(external_path.is_file());
+        }
+        if !RegionCompression::is_valid_id(version_id) || length == 0 {
+            return Ok(false);
+        }
+        let stream_length = i64::from(length) - 1;
+        Ok(stream_length >= 0
+            && stream_length <= i64::from(SECTOR_BYTES) * i64::from(location.sector_count))
+    }
+
     pub fn write_chunk_nbt(&self, chunk: ChunkPos, name: &str, tag: &Tag) -> io::Result<()> {
         self.write_chunk_nbt_with_compression(chunk, name, tag, RegionCompression::DEFAULT)
     }
@@ -675,6 +709,65 @@ mod tests {
             .unwrap();
         write_raw_chunk_header(region.path(), 3, 1, RegionCompression::Deflate.id() | 0x80);
         assert_eq!(region.read_chunk_nbt(missing_external).unwrap(), None);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_chunk_existence_matches_vanilla_stream_header_checks() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("rustcraft-region-existence-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        let tag = crate::storage::nbt::Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+        )]);
+        let valid = ChunkPos { x: 0, z: 0 };
+        region.write_chunk_nbt(valid, "Valid", &tag).unwrap();
+        assert!(region.does_chunk_exist(valid));
+
+        let invalid_version = ChunkPos { x: 1, z: 0 };
+        region
+            .write_location(
+                invalid_version,
+                RegionLocation {
+                    sector_offset: 3,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(region.path(), 3, 1, 99);
+        assert!(!region.does_chunk_exist(invalid_version));
+
+        let zero_length = ChunkPos { x: 2, z: 0 };
+        region
+            .write_location(
+                zero_length,
+                RegionLocation {
+                    sector_offset: 4,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(region.path(), 4, 0, RegionCompression::Deflate.id());
+        assert!(!region.does_chunk_exist(zero_length));
+
+        let external = ChunkPos { x: 3, z: 0 };
+        region
+            .write_location(
+                external,
+                RegionLocation {
+                    sector_offset: 5,
+                    sector_count: 1,
+                },
+            )
+            .unwrap();
+        write_raw_chunk_header(region.path(), 5, 1, RegionCompression::Deflate.id() | 0x80);
+        assert!(!region.does_chunk_exist(external));
+        fs::write(dir.join("c.3.0.mcc"), [1, 2, 3]).unwrap();
+        assert!(region.does_chunk_exist(external));
 
         let _ = fs::remove_dir_all(&dir);
     }
