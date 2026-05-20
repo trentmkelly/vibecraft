@@ -597,6 +597,36 @@ impl LevelChunk {
         true
     }
 
+    pub fn highest_generated_status(&self) -> Option<&'static str> {
+        let persisted = chunk_status(&self.status)?.id;
+        match self
+            .below_zero_retrogen
+            .as_ref()
+            .and_then(below_zero_retrogen_target_status)
+        {
+            Some(target) => chunk_status_max(persisted, target),
+            None => Some(persisted),
+        }
+    }
+
+    pub fn set_persisted_status(&mut self, status: impl Into<String>) -> bool {
+        let status = status.into();
+        let Some(normalized_status) = chunk_status(&status).map(|status| status.id) else {
+            return false;
+        };
+        self.status = normalized_status.to_string();
+        if self
+            .below_zero_retrogen
+            .as_ref()
+            .and_then(below_zero_retrogen_target_status)
+            .and_then(|target| chunk_status_is_or_after(normalized_status, target))
+            .unwrap_or(false)
+        {
+            self.below_zero_retrogen = None;
+        }
+        true
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -1677,6 +1707,12 @@ fn validate_below_zero_retrogen(tag: &Tag) -> Result<(), String> {
     Ok(())
 }
 
+fn below_zero_retrogen_target_status(tag: &Tag) -> Option<&'static str> {
+    let compound = compound(tag).ok()?;
+    let target_status = string_field(compound, "target_status").ok()?;
+    chunk_status(target_status).map(|status| status.id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1892,6 +1928,46 @@ mod tests {
         let decoded = LevelChunk::from_nbt(pos, &encoded).unwrap();
 
         assert!(decoded.below_zero_retrogen.is_some());
+    }
+
+    #[test]
+    fn level_chunk_highest_generated_status_accounts_for_below_zero_retrogen() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.status = "minecraft:noise".to_string();
+        chunk.below_zero_retrogen = Some(Tag::Compound(vec![
+            (
+                "target_status".to_string(),
+                Tag::String("minecraft:carvers".to_string()),
+            ),
+            ("missing_bedrock".to_string(), Tag::LongArray(Vec::new())),
+        ]));
+
+        assert_eq!(chunk.highest_generated_status(), Some("minecraft:carvers"));
+
+        chunk.status = "minecraft:features".to_string();
+
+        assert_eq!(chunk.highest_generated_status(), Some("minecraft:features"));
+    }
+
+    #[test]
+    fn level_chunk_set_persisted_status_clears_completed_below_zero_retrogen() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.below_zero_retrogen = Some(Tag::Compound(vec![
+            (
+                "target_status".to_string(),
+                Tag::String("minecraft:carvers".to_string()),
+            ),
+            ("missing_bedrock".to_string(), Tag::LongArray(Vec::new())),
+        ]));
+
+        assert!(chunk.set_persisted_status("noise"));
+        assert_eq!(chunk.status, "minecraft:noise");
+        assert!(chunk.below_zero_retrogen.is_some());
+        assert!(chunk.set_persisted_status("minecraft:carvers"));
+        assert_eq!(chunk.status, "minecraft:carvers");
+        assert!(chunk.below_zero_retrogen.is_none());
+        assert!(!chunk.set_persisted_status("minecraft:not_a_status"));
+        assert_eq!(chunk.status, "minecraft:carvers");
     }
 
     #[test]
