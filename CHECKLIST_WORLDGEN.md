@@ -314,7 +314,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement light engine for block light and sky light.
 - [ ] Implement block updates caused by chunk load and generation.
 - [x] Implement inhabited time.
-- [ ] Implement random ticks.
+- [x] Implement random ticks.
 - [x] Implement scheduled block and fluid ticks.
 - [x] Implement post-processing and upgrade data.
 - [ ] Implement chunk task scheduling and prioritization.
