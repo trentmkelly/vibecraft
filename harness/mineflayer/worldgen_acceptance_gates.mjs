@@ -275,6 +275,10 @@ function comparableRustcraftChunks (report) {
     const chunkX = chunk.chunkX ?? chunk.x
     const chunkZ = chunk.chunkZ ?? chunk.z
     const label = `${chunkX ?? '<missing>'},${chunkZ ?? '<missing>'}`
+    if (!Number.isInteger(chunkX) || !Number.isInteger(chunkZ)) {
+      issues.push(`RustCraft chunk ${label} missing integer coordinates`)
+      return []
+    }
     if (typeof chunk.dimension !== 'string' || chunk.dimension.length === 0) {
       issues.push(`RustCraft chunk ${label} missing dimension`)
       return []

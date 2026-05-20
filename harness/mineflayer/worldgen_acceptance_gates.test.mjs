@@ -229,6 +229,31 @@ test('RustCraft worldgen comparison rejects chunks without explicit dimensions',
   ])
 })
 
+test('RustCraft worldgen comparison rejects chunks without integer coordinates', () => {
+  const vanilla = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+  const missingCoordinate = rustcraftReport({
+    dimension: 'overworld',
+    palette: ['minecraft:water', 'minecraft:stone']
+  })
+  delete missingCoordinate.chunks[0].chunkX
+
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingCoordinate), {
+    ok: false,
+    comparedChunks: 0,
+    leftChunks: 1,
+    rightChunks: 0,
+    issues: ['RustCraft chunk <missing>,0 missing integer coordinates']
+  })
+
+  missingCoordinate.chunks[0].x = 0.5
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingCoordinate).issues, [
+    'RustCraft chunk 0.5,0 missing integer coordinates'
+  ])
+})
+
 test('accepted vanilla snapshot catches RustCraft worldgen drift', async () => {
   const acceptedPath = path.join(
     path.dirname(new URL(import.meta.url).pathname),
