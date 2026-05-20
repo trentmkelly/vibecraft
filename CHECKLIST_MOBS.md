@@ -160,6 +160,7 @@
 - [ ] Implement `Cow`: mooshroom conversion via direct lightning strike, bucket milking interaction, breeding via wheat
   - [x] Implement Java-matched `Cow`/`AbstractCow`/`MushroomCow` interaction model: wheat food, adult bucket milking, baby dimensions, cow variant inheritance, mooshroom lightning toggle dedupe, and 1/1024 same-variant offspring mutation
 - [ ] Implement `Dolphin`: locate-treasure AI (swim toward nearest buried treasure within 64 blocks), grace boost on nearby player swimming, strand and suffocate on land
+  - [x] Implement Java-matched `Dolphin` server-visible gates: 4800 air, 2400 moistness, dry-out damage/jump sync, fish feeding `GotFish` or baby age-up, treasure goal air/radius/stop gates, and 100-tick Dolphin's Grace refresh
 - [ ] Implement equine family: `AbstractHorse` (taming, `temper`, inventory, saddle, rider), `Horse` (armor slot, variants), `Donkey`/`Mule` (chest attachment), `ZombieHorse`, `SkeletonHorse` (trap activation), `Llama` (chest, carpet decoration, spit attack, caravan following), `TraderLlama`
 - [ ] Implement feline family: `Cat` (gifts after player sleeps, biome-variant spawning, scared of players until tamed), `Ocelot` (chest-sitting prevention, trusts after fish feeding)
 - [ ] Implement fish family: `Cod`, `Salmon`, `TropicalFish` (pattern/color variants, 2400 variant IDs), `Pufferfish` (inflation stages 0/1/2, poisonous contact at stage 2); all with `BucketableEntity`
