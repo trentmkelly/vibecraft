@@ -176,7 +176,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement `FeatureSorter`: deterministic decoration ordering per biome step; seed derivation `baseSeed + featureIndex + biomeFeatureCounter`
 - [x] Implement biome decoration ordering: `GenerationStep.Decoration` ordering (RAW_GENERATION → LAKES → LOCAL_MODIFICATIONS → UNDERGROUND_STRUCTURES → SURFACE_STRUCTURES → STRONGHOLDS → UNDERGROUND_ORES → UNDERGROUND_DECORATION → FLUID_SPRINGS → VEGETAL_DECORATION → TOP_LAYER_MODIFICATION)
 - [x] Implement `feature-cycle` error behavior: throw exception on infinite feature recursion
-- [ ] Add parity test: decoration seed at biome/chunk/step matches vanilla for a fixed overworld seed
+- [x] Add parity test: decoration seed at biome/chunk/step matches vanilla for a fixed overworld seed
 
 ## Individual Feature Implementations
 

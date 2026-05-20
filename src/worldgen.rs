@@ -43865,6 +43865,33 @@ mod tests {
     }
 
     #[test]
+    fn decoration_seed_for_fixed_biome_chunk_and_step_matches_vanilla() {
+        let plains = super::biome_generation_settings("plains").unwrap();
+        let sorted = super::build_features_per_step(&[plains.feature_steps], true).unwrap();
+        let plan = super::biome_decoration_feature_plan(
+            12_345,
+            4,
+            -7,
+            -4,
+            &sorted,
+            &[plains.feature_steps],
+        );
+        let trees = plan
+            .feature_calls
+            .iter()
+            .find(|call| call.feature == "minecraft:trees_plains")
+            .expect("plains decoration should schedule trees_plains");
+
+        assert_eq!(plan.decoration_seed, -3_791_487_430_447_585_527);
+        assert_eq!(
+            trees.step_index,
+            GenerationDecorationStep::VegetalDecoration as usize
+        );
+        assert_eq!(trees.global_feature_index, 3);
+        assert_eq!(trees.seed, -3_791_487_430_447_495_524);
+    }
+
+    #[test]
     fn biome_decoration_structure_calls_use_per_step_indices_before_features() {
         let decoration_seed = crate::random_source::decoration_seed(
             12_345,
