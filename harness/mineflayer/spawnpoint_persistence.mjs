@@ -13,6 +13,15 @@ export function createSpawnpointPersistencePlan(options = {}) {
       difficulty: 'normal',
       'spawn-protection': '0'
     },
+    compareAgainst: ['vanilla-26.1.2', 'rustcraft'],
+    assertions: [
+      'bed-spawn-saved-to-playerdata',
+      'anchor-spawn-saved-to-playerdata',
+      'spawnpoint-restored-before-first-visible-spawn-after-reconnect',
+      'death-respawn-uses-valid-bed-spawn',
+      'death-respawn-uses-charged-anchor-spawn',
+      'missing-or-invalid-spawn-falls-back-to-world-spawn'
+    ],
     steps: [
       'set-bed-spawnpoint',
       'set-respawn-anchor-spawnpoint',
@@ -55,24 +64,63 @@ export function recordSpawnEvent(session, action, details = {}) {
 }
 
 export function planBedSpawnSet(username, bedPos, dimension) {
-  return { action: 'spawn.bed.set', username, bedPos, dimension }
+  return {
+    action: 'spawn.bed.set',
+    username,
+    bedPos,
+    dimension,
+    expectedSavedFields: {
+      spawn_dimension: dimension,
+      spawn_x: bedPos.x,
+      spawn_y: bedPos.y,
+      spawn_z: bedPos.z,
+      spawn_forced: false
+    }
+  }
 }
 
-export function planAnchorSpawnSet(username, anchorPos, dimension) {
-  return { action: 'spawn.anchor.set', username, anchorPos, dimension }
+export function planAnchorSpawnSet(username, anchorPos, dimension, charges = 4) {
+  return {
+    action: 'spawn.anchor.set',
+    username,
+    anchorPos,
+    dimension,
+    charges,
+    expectedSavedFields: {
+      spawn_dimension: dimension,
+      spawn_x: anchorPos.x,
+      spawn_y: anchorPos.y,
+      spawn_z: anchorPos.z,
+      spawn_forced: false
+    }
+  }
 }
 
 export function planDeathRespawn(spawnType, expectedPos) {
   return {
     action: spawnType === 'bed' ? 'spawn.die.bed_respawn' : 'spawn.die.anchor_respawn',
     spawnType,
-    expectedPos
+    expectedPos,
+    assertions: [
+      'death-screen-observed',
+      'client-respawn-packet-observed',
+      'post-respawn-position-matches-spawnpoint',
+      'abilities-and-game-mode-restored-after-respawn'
+    ]
   }
 }
 
 // Vanilla fallback: if bed/anchor missing or obstructed, respawn at world spawn
 export function planMissingSpawnFallback(reason) {
-  return { action: 'spawn.fallback.world_spawn', reason }
+  return {
+    action: 'spawn.fallback.world_spawn',
+    reason,
+    assertions: [
+      'invalid-spawn-state-cleared-or-ignored',
+      'world-spawn-position-used',
+      'missing-spawn-message-or-packet-matches-vanilla'
+    ]
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
