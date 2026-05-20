@@ -191,6 +191,7 @@ export function buildVanillaWorldgenTraceReport (oracleResult) {
   const requestedChunks = (oracleResult.artifacts ?? [])
     .flatMap(artifact => (artifact.requestedChunks ?? []).map(chunk => traceChunk(artifact, chunk)))
     .sort((left, right) => left.dimension.localeCompare(right.dimension) || left.chunkX - right.chunkX || left.chunkZ - right.chunkZ)
+  const traceCompleteness = buildTraceCompleteness(requestedChunks)
   return {
     format: 'rustcraft-vanilla-worldgen-trace-v1',
     seed: oracleResult.plan?.seed,
@@ -210,6 +211,7 @@ export function buildVanillaWorldgenTraceReport (oracleResult) {
       chunkCount: artifact.chunkCount,
       statusCounts: artifact.statusCounts ?? {}
     })),
+    traceCompleteness,
     requestedChunks
   }
 }
@@ -262,6 +264,56 @@ function featureBlockPaletteCounts (chunk) {
     counts[block] = 0
   }
   return Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)))
+}
+
+function buildTraceCompleteness (requestedChunks) {
+  const chunkIssues = requestedChunks
+    .map(chunk => ({
+      dimension: chunk.dimension,
+      chunkX: chunk.chunkX,
+      chunkZ: chunk.chunkZ,
+      missingFields: missingTraceFields(chunk)
+    }))
+    .filter(chunk => chunk.missingFields.length > 0)
+
+  return {
+    complete: chunkIssues.length === 0,
+    chunkIssues
+  }
+}
+
+function missingTraceFields (chunk) {
+  const missing = []
+  if (!chunk.finalStatus) missing.push('finalStatus')
+  if (!hasObjectEntries(chunk.heightmaps)) missing.push('heightmaps')
+  if (!Array.isArray(chunk.biomePalette) || chunk.biomePalette.length === 0) missing.push('biomePalette')
+  if (!Number.isInteger(chunk.sectionCount)) missing.push('sectionCount')
+  if (!Number.isInteger(chunk.nonEmptySectionCount)) missing.push('nonEmptySectionCount')
+  if (!Array.isArray(chunk.sectionPalettes) || chunk.sectionPalettes.length === 0) {
+    missing.push('sectionPalettes')
+  } else {
+    for (const section of chunk.sectionPalettes) {
+      if (!Array.isArray(section.blockPalette) || section.blockPalette.length === 0) missing.push('sectionPalettes.blockPalette')
+      if (!Array.isArray(section.biomePalette) || section.biomePalette.length === 0) missing.push('sectionPalettes.biomePalette')
+      if (section.blockStatesData === null) missing.push('sectionPalettes.blockStatesData')
+      if (section.biomeData === null) missing.push('sectionPalettes.biomeData')
+    }
+  }
+  if (!chunk.structures || !Array.isArray(chunk.structures.startKeys) || !Array.isArray(chunk.structures.referenceKeys)) {
+    missing.push('structures')
+  }
+  if (!isPlainObject(chunk.featureBlockPaletteCounts)) missing.push('featureBlockPaletteCounts')
+  if (!Number.isInteger(chunk.serializedChunkNbt?.payloadBytes)) missing.push('serializedChunkNbt.payloadBytes')
+  if (!chunk.serializedChunkNbt?.payloadSha256) missing.push('serializedChunkNbt.payloadSha256')
+  return [...new Set(missing)].sort()
+}
+
+function hasObjectEntries (value) {
+  return isPlainObject(value) && Object.keys(value).length > 0
+}
+
+function isPlainObject (value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 function isFeatureLikeBlock (block) {

@@ -134,6 +134,10 @@ test('vanilla worldgen trace report normalizes requested chunk evidence', () => 
     source: 'saved_chunk_nbt'
   }])
   assert.deepEqual(report.regionArtifacts[0].statusCounts, { 'minecraft:full': 1 })
+  assert.deepEqual(report.traceCompleteness, {
+    complete: true,
+    chunkIssues: []
+  })
   assert.deepEqual(report.requestedChunks[0], {
     dimension: 'overworld',
     chunkX: 0,
@@ -166,4 +170,45 @@ test('vanilla worldgen trace report normalizes requested chunk evidence', () => 
       payloadSha256: 'b'.repeat(64)
     }
   })
+})
+
+test('vanilla worldgen trace report flags incomplete requested chunk evidence', () => {
+  const report = buildVanillaWorldgenTraceReport({
+    plan: {
+      seed: '0',
+      levelName: 'world',
+      commands: ['forceload add 0 0', 'save-all flush', 'stop']
+    },
+    artifacts: [{
+      path: 'world/dimensions/minecraft/overworld/region/r.0.0.mca',
+      bytes: 8192,
+      sha256: 'a'.repeat(64),
+      chunkCount: 1,
+      requestedChunks: [{
+        chunkX: 0,
+        chunkZ: 0,
+        sections: [{}]
+      }]
+    }]
+  })
+
+  assert.equal(report.traceCompleteness.complete, false)
+  assert.deepEqual(report.traceCompleteness.chunkIssues, [{
+    dimension: 'overworld',
+    chunkX: 0,
+    chunkZ: 0,
+    missingFields: [
+      'biomePalette',
+      'finalStatus',
+      'heightmaps',
+      'nonEmptySectionCount',
+      'sectionCount',
+      'sectionPalettes.biomeData',
+      'sectionPalettes.biomePalette',
+      'sectionPalettes.blockPalette',
+      'sectionPalettes.blockStatesData',
+      'serializedChunkNbt.payloadBytes',
+      'serializedChunkNbt.payloadSha256'
+    ]
+  }])
 })
