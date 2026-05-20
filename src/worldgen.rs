@@ -5467,6 +5467,20 @@ fn noise_preview_tree_origins(
                 [10, 11][index]
             }
             NoisePreviewTreeCountKind::Moderate => 2 + random_next_i32_bound(&mut random, 3),
+            NoisePreviewTreeCountKind::FlowerForest => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [6, 7][index]
+            }
+            NoisePreviewTreeCountKind::DenseCanopy => 16,
+            NoisePreviewTreeCountKind::Cherry => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [10, 11][index]
+            }
+            NoisePreviewTreeCountKind::Swamp => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [2, 3][index]
+            }
+            NoisePreviewTreeCountKind::Mangrove => 25,
         };
 
         for _ in 0..count {
@@ -5484,6 +5498,11 @@ enum NoisePreviewTreeCountKind {
     SparsePlains,
     DenseForest,
     Moderate,
+    FlowerForest,
+    DenseCanopy,
+    Cherry,
+    Swamp,
+    Mangrove,
 }
 
 fn noise_preview_tree_feature_count_kind(feature: &str) -> Option<NoisePreviewTreeCountKind> {
@@ -5492,6 +5511,13 @@ fn noise_preview_tree_feature_count_kind(feature: &str) -> Option<NoisePreviewTr
         "trees_birch_and_oak_leaf_litter" | "trees_birch" | "trees_taiga" => {
             Some(NoisePreviewTreeCountKind::DenseForest)
         }
+        "trees_flower_forest" => Some(NoisePreviewTreeCountKind::FlowerForest),
+        "dark_forest_vegetation" | "pale_garden_vegetation" => {
+            Some(NoisePreviewTreeCountKind::DenseCanopy)
+        }
+        "trees_cherry" => Some(NoisePreviewTreeCountKind::Cherry),
+        "trees_swamp" | "trees_windswept_savanna" => Some(NoisePreviewTreeCountKind::Swamp),
+        "trees_mangrove" => Some(NoisePreviewTreeCountKind::Mangrove),
         "birch_tall"
         | "trees_jungle"
         | "trees_savanna"
@@ -5528,6 +5554,13 @@ fn biome_has_any_tree_placed_feature(biome: &BiomeGenerationSettingsModel) -> bo
         "trees_snowy",
         "trees_badlands",
         "trees_meadow",
+        "trees_flower_forest",
+        "dark_forest_vegetation",
+        "pale_garden_vegetation",
+        "trees_cherry",
+        "trees_swamp",
+        "trees_windswept_savanna",
+        "trees_mangrove",
     ]
     .into_iter()
     .any(|feature| biome_has_placed_feature(biome, feature))
@@ -5537,7 +5570,15 @@ fn noise_preview_tree_materials(
     biome: &BiomeGenerationSettingsModel,
     seed: u64,
 ) -> (&'static str, &'static str, i32) {
-    if biome_has_placed_feature(biome, "trees_birch")
+    if biome_has_placed_feature(biome, "trees_cherry") {
+        ("minecraft:cherry_log", "minecraft:cherry_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_mangrove") {
+        ("minecraft:mangrove_log", "minecraft:mangrove_leaves", 6)
+    } else if biome_has_placed_feature(biome, "pale_garden_vegetation") {
+        ("minecraft:pale_oak_log", "minecraft:pale_oak_leaves", 5)
+    } else if biome_has_placed_feature(biome, "dark_forest_vegetation") {
+        ("minecraft:dark_oak_log", "minecraft:dark_oak_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_birch")
         || biome_has_placed_feature(biome, "birch_tall")
         || (biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter") && seed & 1 == 0)
     {
@@ -5549,7 +5590,9 @@ fn noise_preview_tree_materials(
         || biome_has_placed_feature(biome, "trees_snowy")
     {
         ("minecraft:spruce_log", "minecraft:spruce_leaves", 6)
-    } else if biome_has_placed_feature(biome, "trees_savanna") {
+    } else if biome_has_placed_feature(biome, "trees_savanna")
+        || biome_has_placed_feature(biome, "trees_windswept_savanna")
+    {
         ("minecraft:acacia_log", "minecraft:acacia_leaves", 5)
     } else if biome_has_placed_feature(biome, "trees_jungle")
         || biome_has_placed_feature(biome, "trees_sparse_jungle")
@@ -31456,15 +31499,17 @@ fn apply_initial_tree_decoration_to_chunk(
                     | "minecraft:rooted_dirt"
                     | "minecraft:moss_block"
             ),
-            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => matches!(
-                current.as_str(),
-                "minecraft:air"
-                    | "minecraft:cave_air"
-                    | "minecraft:void_air"
-                    | "minecraft:water"
-                    | "minecraft:oak_leaves"
-                    | "minecraft:birch_leaves"
-            ),
+            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
+                matches!(
+                    current.as_str(),
+                    "minecraft:air"
+                        | "minecraft:cave_air"
+                        | "minecraft:void_air"
+                        | "minecraft:water"
+                        | "minecraft:oak_leaves"
+                        | "minecraft:birch_leaves"
+                ) || block_matches_tag(current.as_str(), "minecraft:leaves")
+            }
             TreePlacementBlockKind::GroundCover => matches!(
                 current.as_str(),
                 "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
@@ -45216,6 +45261,44 @@ mod tests {
         assert!(forest
             .iter()
             .any(|block| block.state == "minecraft:birch_log"));
+        let cherry = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            0,
+            settings,
+            "minecraft:cherry_grove",
+            &terrain_heights,
+        );
+        let swamp = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            0,
+            settings,
+            "minecraft:swamp",
+            &terrain_heights,
+        );
+        let mangrove = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            0,
+            settings,
+            "minecraft:mangrove_swamp",
+            &terrain_heights,
+        );
+        let dark_forest = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            0,
+            settings,
+            "minecraft:dark_forest",
+            &terrain_heights,
+        );
+        assert!(cherry
+            .iter()
+            .any(|block| block.state == "minecraft:cherry_log"));
+        assert!(swamp.iter().any(|block| block.state == "minecraft:oak_log"));
+        assert!(mangrove
+            .iter()
+            .any(|block| block.state == "minecraft:mangrove_log"));
+        assert!(dark_forest
+            .iter()
+            .any(|block| block.state == "minecraft:dark_oak_log"));
         assert!(unknown.is_empty());
     }
 

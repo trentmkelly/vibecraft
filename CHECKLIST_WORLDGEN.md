@@ -321,6 +321,19 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
     `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_plains.json`,
     `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_birch_and_oak_leaf_litter.json`,
     `src/worldgen.rs`.
+  - [x] Extend the live tree-decoration bridge to additional Java vegetation
+    placed features used by current typed overworld biomes, including
+    `dark_forest_vegetation`, `pale_garden_vegetation`,
+    `trees_flower_forest`, `trees_cherry`, `trees_swamp`,
+    `trees_windswept_savanna`, and `trees_mangrove`, with their vanilla
+    count/weighted-count gates and matching visible wood/leaf palettes.
+    References:
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/dark_forest_vegetation.json`,
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/pale_garden_vegetation.json`,
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_cherry.json`,
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_swamp.json`,
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_mangrove.json`,
+    `src/worldgen.rs`.
 - [ ] Implement configured features.
 - [ ] Implement placed features.
 - [ ] Implement tree, vegetation, spring, ore, disk, lake, geode, fossil, monster room, and special feature placement behavior.
