@@ -10,6 +10,9 @@ use crate::biome::BUILTIN_BIOMES;
 use crate::block_catalog::TOP_LEVEL_BLOCK_CLASSES;
 use crate::command_tree::{vanilla_like_tree, CommandNodeKind};
 use crate::item_catalog::ITEM_SOURCE_SURFACE;
+use crate::storage::region::ChunkPos;
+use crate::worldgen::generate_overworld_chunk_for_preset;
+use crate::worldgen_comparison::build_rustcraft_worldgen_report;
 
 pub fn generate_reports(root: impl AsRef<Path>) -> Result<PathBuf, String> {
     let report_dir = root.as_ref().join("reports");
@@ -26,6 +29,10 @@ pub fn generate_reports(root: impl AsRef<Path>) -> Result<PathBuf, String> {
     write_json(report_dir.join("biomes.json"), &biomes_report())?;
     write_json(report_dir.join("blocks.json"), &blocks_report())?;
     write_json(report_dir.join("items.json"), &items_report())?;
+    write_json(
+        report_dir.join("worldgen_chunks.json"),
+        &worldgen_chunks_report()?,
+    )?;
     write_json(tag_dir.join("block").join("mineable.json"), &empty_tag())?;
     write_json(tag_dir.join("item").join("tools.json"), &empty_tag())?;
     Ok(report_dir)
@@ -93,6 +100,17 @@ fn items_report() -> Value {
     })
 }
 
+fn worldgen_chunks_report() -> Result<Value, String> {
+    let chunks = [
+        generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "flat")?,
+        generate_overworld_chunk_for_preset(ChunkPos { x: 1, z: 0 }, "flat")?,
+        generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")?,
+    ];
+    Ok(build_rustcraft_worldgen_report(
+        chunks.iter().map(|chunk| ("overworld", chunk)),
+    ))
+}
+
 fn ids_with_protocol<'a>(ids: impl Iterator<Item = &'a str>) -> BTreeMap<&'a str, Value> {
     ids.enumerate()
         .map(|(protocol_id, id)| (id, json!({ "protocol_id": protocol_id })))
@@ -150,6 +168,7 @@ mod tests {
             "biomes.json",
             "blocks.json",
             "items.json",
+            "worldgen_chunks.json",
         ] {
             let path = report_dir.join(file);
             assert!(path.is_file(), "missing {}", path.display());
@@ -177,6 +196,15 @@ mod tests {
                 .len(),
             65
         );
+        let worldgen: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(report_dir.join("worldgen_chunks.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            worldgen["format"].as_str(),
+            Some("rustcraft-worldgen-signatures-v1")
+        );
+        assert_eq!(worldgen["chunks"].as_array().unwrap().len(), 3);
 
         let _ = std::fs::remove_dir_all(&root);
     }

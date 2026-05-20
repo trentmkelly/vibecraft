@@ -457,6 +457,7 @@ mod tests {
         assert!(Path::new("generated/reports/biomes.json").is_file());
         assert!(Path::new("generated/reports/blocks.json").is_file());
         assert!(Path::new("generated/reports/items.json").is_file());
+        assert!(Path::new("generated/reports/worldgen_chunks.json").is_file());
         assert!(Path::new("generated/data/minecraft/tags/block/mineable.json").is_file());
         assert!(!Path::new("eula.txt").exists());
     }
