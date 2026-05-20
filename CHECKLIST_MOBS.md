@@ -156,6 +156,7 @@
 - [ ] Implement `Bee`: pollination flight from flower to hive, honey level increment (0–5), honeycomb drop on shear, sting → death, hive memory `MemoryModuleType.BEE_HIVE_REMEMBERED`, anger propagation
 - [ ] Implement `Camel`: sitting/standing animation with transition ticks, dash ability cooldown, two-passenger riding with separate seat offsets
 - [ ] Implement `Chicken`: egg-laying timer (5–10 minute interval), flutter-fall (no fall damage), baby chick → adult transition
+  - [x] Implement Java-matched `Chicken` egg timer/flap fall model: 6000-11999 tick egg interval, non-baby non-jockey egg gate, falling Y velocity damping, baby dimensions, jockey despawn/XP behavior, and `EggLayTime` save field
 - [ ] Implement `Cow`: mooshroom conversion via direct lightning strike, bucket milking interaction, breeding via wheat
 - [ ] Implement `Dolphin`: locate-treasure AI (swim toward nearest buried treasure within 64 blocks), grace boost on nearby player swimming, strand and suffocate on land
 - [ ] Implement equine family: `AbstractHorse` (taming, `temper`, inventory, saddle, rider), `Horse` (armor slot, variants), `Donkey`/`Mule` (chest attachment), `ZombieHorse`, `SkeletonHorse` (trap activation), `Llama` (chest, carpet decoration, spit attack, caravan following), `TraderLlama`

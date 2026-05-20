@@ -359,6 +359,102 @@ pub fn axolotl_play_dead_memory_on_hurt(context: AxolotlHurtContext) -> Option<i
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChickenState {
+    pub egg_time: i32,
+    pub is_chicken_jockey: bool,
+    pub flap: f32,
+    pub flap_speed: f32,
+    pub flapping: f32,
+    pub delta_y: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChickenTickEvent {
+    None,
+    LayEgg,
+}
+
+pub const CHICKEN_EGG_TIME_MIN: i32 = 6000;
+pub const CHICKEN_EGG_TIME_RANDOM_BOUND: i32 = 6000;
+pub const CHICKEN_ADULT_WIDTH: f32 = 0.4;
+pub const CHICKEN_ADULT_HEIGHT: f32 = 0.7;
+pub const CHICKEN_BABY_WIDTH: f32 = 0.3;
+pub const CHICKEN_BABY_HEIGHT: f32 = 0.4;
+pub const CHICKEN_BABY_EYE_HEIGHT: f32 = 0.28;
+pub const CHICKEN_JOCKEY_BASE_EXPERIENCE: i32 = 10;
+
+impl ChickenState {
+    pub fn new(random_egg_offset: i32) -> Self {
+        Self {
+            egg_time: chicken_next_egg_time(random_egg_offset),
+            is_chicken_jockey: false,
+            flap: 0.0,
+            flap_speed: 0.0,
+            flapping: 1.0,
+            delta_y: 0.0,
+        }
+    }
+
+    pub fn tick(
+        &mut self,
+        on_ground: bool,
+        alive: bool,
+        baby: bool,
+        server_level: bool,
+        next_random_egg_offset: i32,
+    ) -> ChickenTickEvent {
+        self.flap_speed += if on_ground { -0.3 } else { 1.2 };
+        self.flap_speed = self.flap_speed.clamp(0.0, 1.0);
+        if !on_ground && self.flapping < 1.0 {
+            self.flapping = 1.0;
+        }
+        self.flapping *= 0.9;
+        if !on_ground && self.delta_y < 0.0 {
+            self.delta_y *= 0.6;
+        }
+        self.flap += self.flapping * 2.0;
+
+        if server_level && alive && !baby && !self.is_chicken_jockey {
+            self.egg_time -= 1;
+            if self.egg_time <= 0 {
+                self.egg_time = chicken_next_egg_time(next_random_egg_offset);
+                return ChickenTickEvent::LayEgg;
+            }
+        }
+
+        ChickenTickEvent::None
+    }
+
+    pub fn remove_when_far_away(self) -> bool {
+        self.is_chicken_jockey
+    }
+
+    pub fn base_experience_reward(self, super_reward: i32) -> i32 {
+        if self.is_chicken_jockey {
+            CHICKEN_JOCKEY_BASE_EXPERIENCE
+        } else {
+            super_reward
+        }
+    }
+}
+
+pub fn chicken_next_egg_time(random_offset: i32) -> i32 {
+    CHICKEN_EGG_TIME_MIN + random_offset.clamp(0, CHICKEN_EGG_TIME_RANDOM_BOUND - 1)
+}
+
+pub fn chicken_dimensions(baby: bool) -> (f32, f32, Option<f32>) {
+    if baby {
+        (
+            CHICKEN_BABY_WIDTH,
+            CHICKEN_BABY_HEIGHT,
+            Some(CHICKEN_BABY_EYE_HEIGHT),
+        )
+    } else {
+        (CHICKEN_ADULT_WIDTH, CHICKEN_ADULT_HEIGHT, None)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
@@ -1159,6 +1255,48 @@ mod tests {
             None
         );
         assert_eq!(AXOLOTL_DRY_OUT_DAMAGE, 2.0);
+    }
+
+    #[test]
+    fn chicken_egg_flap_jockey_and_dimensions_match_java_rules() {
+        assert_eq!(chicken_next_egg_time(-1), CHICKEN_EGG_TIME_MIN);
+        assert_eq!(chicken_next_egg_time(0), 6000);
+        assert_eq!(chicken_next_egg_time(5999), 11999);
+        assert_eq!(chicken_next_egg_time(6000), 11999);
+        assert_eq!(chicken_dimensions(false), (0.4, 0.7, None));
+        assert_eq!(chicken_dimensions(true), (0.3, 0.4, Some(0.28)));
+
+        let mut chicken = ChickenState::new(0);
+        chicken.egg_time = 1;
+        chicken.delta_y = -1.0;
+        assert_eq!(
+            chicken.tick(false, true, false, true, 42),
+            ChickenTickEvent::LayEgg
+        );
+        assert_eq!(chicken.egg_time, 6042);
+        assert_eq!(chicken.flap_speed, 1.0);
+        assert_eq!(chicken.flapping, 0.9);
+        assert_eq!(chicken.delta_y, -0.6);
+        assert_eq!(chicken.flap, 1.8);
+
+        let mut baby = ChickenState::new(0);
+        baby.egg_time = 1;
+        assert_eq!(baby.tick(true, true, true, true, 0), ChickenTickEvent::None);
+        assert_eq!(baby.egg_time, 1);
+
+        let mut jockey = ChickenState::new(0);
+        jockey.is_chicken_jockey = true;
+        jockey.egg_time = 1;
+        assert_eq!(
+            jockey.tick(true, true, false, true, 0),
+            ChickenTickEvent::None
+        );
+        assert_eq!(jockey.egg_time, 1);
+        assert!(jockey.remove_when_far_away());
+        assert_eq!(
+            jockey.base_experience_reward(1),
+            CHICKEN_JOCKEY_BASE_EXPERIENCE
+        );
     }
 
     #[test]

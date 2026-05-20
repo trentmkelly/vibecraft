@@ -24545,6 +24545,7 @@ fn append_chunk_generation_mob_specific_save_fields(
         }
         "minecraft:chicken" => {
             fields.push(("IsChickenJockey".to_string(), Tag::Byte(0)));
+            fields.push(("EggLayTime".to_string(), Tag::Int(6000)));
             fields.push((
                 "variant".to_string(),
                 Tag::String("minecraft:temperate".to_string()),
@@ -62740,6 +62741,7 @@ mod tests {
             Tag::String("minecraft:classic".to_string())
         )));
         assert!(chicken_fields.contains(&("IsChickenJockey".to_string(), Tag::Byte(0))));
+        assert!(chicken_fields.contains(&("EggLayTime".to_string(), Tag::Int(6000))));
         assert!(goat_fields.contains(&("IsScreamingGoat".to_string(), Tag::Byte(0))));
         assert!(goat_fields.contains(&("HasLeftHorn".to_string(), Tag::Byte(1))));
         assert!(goat_fields.contains(&("HasRightHorn".to_string(), Tag::Byte(1))));
