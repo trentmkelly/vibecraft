@@ -37201,6 +37201,36 @@ mod tests {
             },
             64
         ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::MatchingBlockTag {
+                tag: "minecraft:air",
+            },
+            BlockPredicateContext {
+                block: "minecraft:cave_air",
+                ..grass
+            },
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::MatchingBlockTag {
+                tag: "minecraft:leaves",
+            },
+            BlockPredicateContext {
+                block: "minecraft:azalea_leaves",
+                ..grass
+            },
+            64
+        ));
+        assert!(super::block_predicate_test(
+            BlockPredicate::MatchingBlockTag {
+                tag: "minecraft:replaceable",
+            },
+            BlockPredicateContext {
+                block: "minecraft:void_air",
+                ..grass
+            },
+            64
+        ));
         assert!(!super::block_predicate_test(
             BlockPredicate::MatchingBlockTag {
                 tag: "minecraft:leaves",
@@ -37366,6 +37396,27 @@ mod tests {
                 offset_y: -1,
                 fluids: &["minecraft:water"],
             },
+            grass,
+            water_below,
+            -64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::MatchingBlocksAt {
+                offset_y: -1,
+                blocks: &["minecraft:water"],
+            },
+            grass,
+            water_below,
+            -64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::SolidAt { offset_y: -1 },
+            grass,
+            water_below,
+            -64
+        ));
+        assert!(!super::block_predicate_test_with_vertical_context(
+            BlockPredicate::ReplaceableAt { offset_y: -1 },
             grass,
             water_below,
             -64
