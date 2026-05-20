@@ -2389,6 +2389,96 @@ mod tests {
     }
 
     #[test]
+    fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
+        let data = super::PrimaryLevelData {
+            data_version: crate::storage::datafix::TARGET_DATA_VERSION,
+            level_data_version: 19133,
+            version: super::LevelVersionInfo {
+                id: crate::storage::datafix::TARGET_DATA_VERSION,
+                name: "26.1.2".to_string(),
+                series: "main".to_string(),
+                snapshot: false,
+            },
+            level_name: "New World".to_string(),
+            spawn: super::LevelSpawnData {
+                x: 0,
+                y: 64,
+                z: 0,
+                angle: 0.0,
+            },
+            game_type: super::LevelGameType::Survival,
+            difficulty: super::LevelDifficulty::Normal,
+            day_time: 0,
+            time: 0,
+            generator_name: "minecraft:normal".to_string(),
+            generator_settings: crate::storage::nbt::Tag::Compound(vec![]),
+            allow_commands: false,
+            hardcore: false,
+            initialized: true,
+            was_modded: false,
+            data_packs: super::DataPackSelection {
+                enabled: vec!["vanilla".to_string()],
+                disabled: Vec::new(),
+            },
+            scheduled_events: crate::storage::nbt::Tag::List(vec![]),
+            server_brands: vec!["vanilla".to_string()],
+            custom_boss_events: crate::storage::nbt::Tag::Compound(vec![]),
+            dragon_fight: crate::storage::nbt::Tag::Compound(vec![]),
+            scoreboard: crate::storage::nbt::Tag::Compound(vec![]),
+            game_rules: crate::storage::nbt::Tag::Compound(vec![]),
+        };
+
+        let encoded = data.to_level_dat();
+        let crate::storage::nbt::Tag::Compound(root) = &encoded else {
+            panic!("expected level.dat root compound");
+        };
+        let Some(crate::storage::nbt::Tag::Compound(values)) = root
+            .iter()
+            .find(|(name, _)| name == "Data")
+            .map(|(_, value)| value)
+        else {
+            panic!("expected Data compound");
+        };
+
+        let expected_fields = [
+            "DataVersion",
+            "version",
+            "Version",
+            "LevelName",
+            "SpawnX",
+            "SpawnY",
+            "SpawnZ",
+            "SpawnAngle",
+            "GameType",
+            "Difficulty",
+            "DayTime",
+            "Time",
+            "generatorName",
+            "generatorSettings",
+            "allowCommands",
+            "hardcore",
+            "initialized",
+            "WasModded",
+            "DataPacks",
+            "ScheduledEvents",
+            "ServerBrands",
+            "CustomBossEvents",
+            "DragonFight",
+            "scoreboard",
+            "GameRules",
+        ];
+        for field in expected_fields {
+            assert!(
+                values.iter().any(|(name, _)| name == field),
+                "missing vanilla level.dat field {field}"
+            );
+        }
+
+        let decoded = super::PrimaryLevelData::from_level_dat(&encoded).unwrap();
+        assert_eq!(decoded, data);
+    }
+
+    #[test]
     fn parses_level_version_like_vanilla_summary_data() {
         let tag = crate::storage::nbt::Tag::Compound(vec![(
             "Data".to_string(),
