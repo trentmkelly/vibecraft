@@ -33,7 +33,7 @@
 - [x] Implement `ServerPlayerGameMode.handleBlockBreakAction()`: start-dig / abort-dig / stop-dig sequence, break progress calculation per tool efficiency and haste/mining-fatigue, instant-break in creative, adventure-mode CanDestroy tag restriction
 - [x] Implement server-side block-placement validation: block-reach distance check, `canSurvive()` check on target position, entity collision check (cannot place inside entities), spawn-protection check
 - [x] Implement `Block.use()` / `Block.attack()` dispatch: route right-click to block use handler first, then item use handler, respecting `InteractionResult` (SUCCESS/CONSUME/FAIL/PASS)
-- [ ] Implement neighbor notification cascade: when a block changes, call `updateIndirectNeighbourShapes()` and `onNeighborChanged()` for all 6 adjacent blocks and their adjacent blocks (shape-update chain)
+- [x] Implement neighbor notification cascade: when a block changes, call `updateIndirectNeighbourShapes()` and `onNeighborChanged()` for all 6 adjacent blocks and their adjacent blocks (shape-update chain) — `block_update::NeighborUpdateQueue::update_shape_cascade()` now emits first-layer neighbor notifications plus the second-layer shape-update chain around each neighbor, respecting the configured chained-update limit; covered by `cargo test -q block_update`.
 - [x] Add parity test: break-speed calculation for diamond pickaxe on stone vs. dirt vs. obsidian matches vanilla ticks
 - [ ] Add parity test: neighbor update cascade when placing/breaking redstone wire propagates signal changes to all affected comparators and repeaters
 

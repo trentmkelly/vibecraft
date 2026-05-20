@@ -127,6 +127,19 @@ impl BlockPos {
     }
 }
 
+impl Direction {
+    pub const fn opposite(self) -> Self {
+        match self {
+            Self::West => Self::East,
+            Self::East => Self::West,
+            Self::Down => Self::Up,
+            Self::Up => Self::Down,
+            Self::North => Self::South,
+            Self::South => Self::North,
+        }
+    }
+}
+
 impl BlockChange {
     pub fn changed(&self) -> bool {
         self.old_block != self.new_block
@@ -212,6 +225,14 @@ impl NeighborUpdateQueue {
         }
     }
 
+    pub fn update_shape_cascade(&mut self, source: BlockPos) {
+        self.update_neighbors_at_except_from_facing(source, None);
+        for direction in UPDATE_ORDER {
+            let neighbor = source.relative(direction);
+            self.update_neighbors_at_except_from_facing(neighbor, Some(direction.opposite()));
+        }
+    }
+
     pub fn executed(&self) -> &[BlockUpdateAction] {
         &self.executed
     }
@@ -271,7 +292,7 @@ pub fn plan_chunk_block_updates_with_limit(
                 pos: change.pos,
                 moved_by_piston: change.moved_by_piston(),
             });
-            neighbors.update_neighbors_at_except_from_facing(change.pos, None);
+            neighbors.update_shape_cascade(change.pos);
         }
 
         if !change.flags.contains(UpdateFlags::SUPPRESS_ON_PLACE) {
@@ -364,7 +385,7 @@ mod tests {
                 .iter()
                 .filter(|action| matches!(action, BlockUpdateAction::NotifyNeighbor { .. }))
                 .count(),
-            6
+            36
         );
     }
 
@@ -461,12 +482,12 @@ mod tests {
                 .iter()
                 .filter(|action| matches!(action, BlockUpdateAction::NotifyNeighbor { .. }))
                 .count(),
-            6
+            36
         );
     }
 
     #[test]
-    fn neighbor_cascade_notifies_all_6_adjacent_blocks_when_block_changes() {
+    fn neighbor_cascade_notifies_adjacent_blocks_and_their_shape_neighbors() {
         use super::{
             plan_chunk_block_updates, BlockChange, BlockPos, BlockUpdateAction, Direction,
             UpdateFlags,
@@ -482,7 +503,6 @@ mod tests {
 
         let actions = plan_chunk_block_updates(&changes, |_| false, |_| false);
 
-        // Should have a NotifyNeighbor for all 6 directions
         let neighbor_notifications: Vec<_> = actions
             .iter()
             .filter_map(|a| match a {
@@ -497,11 +517,10 @@ mod tests {
 
         assert_eq!(
             neighbor_notifications.len(),
-            6,
-            "should notify all 6 adjacent blocks"
+            36,
+            "should notify all 6 adjacent blocks plus 5 shape neighbors around each"
         );
 
-        // Each adjacent block should be notified from the source position
         let directions = [
             Direction::West,
             Direction::East,
@@ -518,6 +537,18 @@ mod tests {
                     .any(|(np, src, d)| { *np == expected_pos && *src == pos && *d == dir }),
                 "missing notification for direction {:?}",
                 dir
+            );
+        }
+
+        for dir in directions {
+            let neighbor = pos.relative(dir);
+            let chained = neighbor_notifications
+                .iter()
+                .filter(|(_, src, _)| *src == neighbor)
+                .count();
+            assert_eq!(
+                chained, 5,
+                "neighbor {dir:?} should notify its adjacent shape-update chain except source"
             );
         }
     }
