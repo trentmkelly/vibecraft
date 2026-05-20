@@ -456,6 +456,91 @@ pub fn chicken_dimensions(baby: bool) -> (f32, f32, Option<f32>) {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CowInteraction {
+    FillMilkBucket,
+    Delegate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MooshroomVariant {
+    Red,
+    Brown,
+}
+
+pub const COW_FOOD_ITEM: &str = "minecraft:wheat";
+pub const COW_ADULT_WIDTH: f32 = 0.9;
+pub const COW_ADULT_HEIGHT: f32 = 1.4;
+pub const COW_BABY_WIDTH: f32 = 0.45;
+pub const COW_BABY_HEIGHT: f32 = 0.7;
+pub const COW_BABY_EYE_HEIGHT: f32 = 0.665;
+pub const MOOSHROOM_MUTATE_CHANCE: i32 = 1024;
+
+pub fn cow_interaction(item: &str, baby: bool) -> CowInteraction {
+    if item == "minecraft:bucket" && !baby {
+        CowInteraction::FillMilkBucket
+    } else {
+        CowInteraction::Delegate
+    }
+}
+
+pub fn cow_is_food(item: &str) -> bool {
+    item == COW_FOOD_ITEM
+}
+
+pub fn cow_dimensions(baby: bool) -> (f32, f32, Option<f32>) {
+    if baby {
+        (COW_BABY_WIDTH, COW_BABY_HEIGHT, Some(COW_BABY_EYE_HEIGHT))
+    } else {
+        (COW_ADULT_WIDTH, COW_ADULT_HEIGHT, None)
+    }
+}
+
+pub fn cow_breed_variant(
+    parent_variant: &'static str,
+    partner_variant: &'static str,
+    choose_parent: bool,
+) -> &'static str {
+    if choose_parent {
+        parent_variant
+    } else {
+        partner_variant
+    }
+}
+
+pub fn mooshroom_thunder_variant(
+    current: MooshroomVariant,
+    last_lightning_uuid: Option<&str>,
+    lightning_uuid: &str,
+) -> MooshroomVariant {
+    if last_lightning_uuid == Some(lightning_uuid) {
+        current
+    } else {
+        match current {
+            MooshroomVariant::Red => MooshroomVariant::Brown,
+            MooshroomVariant::Brown => MooshroomVariant::Red,
+        }
+    }
+}
+
+pub fn mooshroom_offspring_variant(
+    parent: MooshroomVariant,
+    partner: MooshroomVariant,
+    mutate_same_variant: bool,
+    choose_parent: bool,
+) -> MooshroomVariant {
+    if parent == partner && mutate_same_variant {
+        match parent {
+            MooshroomVariant::Red => MooshroomVariant::Brown,
+            MooshroomVariant::Brown => MooshroomVariant::Red,
+        }
+    } else if choose_parent {
+        parent
+    } else {
+        partner
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
     pub inflate_counter: i32,
@@ -1296,6 +1381,67 @@ mod tests {
         assert_eq!(
             jockey.base_experience_reward(1),
             CHICKEN_JOCKEY_BASE_EXPERIENCE
+        );
+    }
+
+    #[test]
+    fn cow_milking_dimensions_breeding_and_mooshroom_mutation_match_java_rules() {
+        assert!(cow_is_food("minecraft:wheat"));
+        assert!(!cow_is_food("minecraft:hay_block"));
+        assert_eq!(
+            cow_interaction("minecraft:bucket", false),
+            CowInteraction::FillMilkBucket
+        );
+        assert_eq!(
+            cow_interaction("minecraft:bucket", true),
+            CowInteraction::Delegate
+        );
+        assert_eq!(
+            cow_interaction("minecraft:bowl", false),
+            CowInteraction::Delegate
+        );
+        assert_eq!(cow_dimensions(false), (0.9, 1.4, None));
+        assert_eq!(cow_dimensions(true), (0.45, 0.7, Some(0.665)));
+
+        assert_eq!(
+            cow_breed_variant("minecraft:warm", "minecraft:cold", true),
+            "minecraft:warm"
+        );
+        assert_eq!(
+            cow_breed_variant("minecraft:warm", "minecraft:cold", false),
+            "minecraft:cold"
+        );
+
+        assert_eq!(
+            mooshroom_thunder_variant(MooshroomVariant::Red, None, "bolt-a"),
+            MooshroomVariant::Brown
+        );
+        assert_eq!(
+            mooshroom_thunder_variant(MooshroomVariant::Brown, Some("bolt-a"), "bolt-a"),
+            MooshroomVariant::Brown
+        );
+        assert_eq!(MOOSHROOM_MUTATE_CHANCE, 1024);
+        assert_eq!(
+            mooshroom_offspring_variant(MooshroomVariant::Red, MooshroomVariant::Red, true, true),
+            MooshroomVariant::Brown
+        );
+        assert_eq!(
+            mooshroom_offspring_variant(
+                MooshroomVariant::Brown,
+                MooshroomVariant::Brown,
+                true,
+                true
+            ),
+            MooshroomVariant::Red
+        );
+        assert_eq!(
+            mooshroom_offspring_variant(
+                MooshroomVariant::Red,
+                MooshroomVariant::Brown,
+                false,
+                false
+            ),
+            MooshroomVariant::Brown
         );
     }
 
