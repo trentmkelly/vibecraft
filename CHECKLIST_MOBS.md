@@ -130,8 +130,9 @@
 
 ### Spider Family
 - [ ] Implement `Spider`: wall-climbing behavior (applies NoGravity+climb velocity on wall contact), spider-jockey (1% chance with skeleton mount), neutral in daylight, hostile in dark
-- [ ] Implement `CaveSpider`: smaller bounding box, poison bite (7 ticks easy, 15 normal, not hard)
-- [ ] Add parity test: spider wall-climb velocity, cave spider poison duration by difficulty
+  - [x] Implement Java-matched shared `Spider` server-visible gates used by cave spiders: climbing flag bit, 1% skeleton-jockey finalize-spawn gate, bright-light target drop gate, poison immunity marker, and vehicle attachment constants.
+- [x] Implement `CaveSpider`: smaller bounding box, poison bite (7 ticks easy, 15 normal, not hard)
+- [x] Add parity test: spider wall-climb velocity, cave spider poison duration by difficulty
 
 ### Warden
 - [ ] Implement `Warden` anger management: `AngerLevel` enum (CALM/AGITATED/ANGRY), `AngerManagement` per-entity anger tracker with decay

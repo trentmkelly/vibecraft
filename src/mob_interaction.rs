@@ -922,6 +922,118 @@ pub fn enderman_targets_endermite() -> bool {
     ENDERMAN_TARGETS_ENDERMITES
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaveSpiderAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CaveSpiderEntityTypeSurface {
+    pub width: f32,
+    pub height: f32,
+    pub eye_height: f32,
+    pub client_tracking_range: i32,
+    pub not_in_peaceful: bool,
+}
+
+pub const SPIDER_MAX_HEALTH: f32 = 16.0;
+pub const SPIDER_MOVEMENT_SPEED: f32 = 0.3;
+pub const SPIDER_WIDTH: f32 = 1.4;
+pub const SPIDER_HEIGHT: f32 = 0.9;
+pub const SPIDER_EYE_HEIGHT: f32 = 0.65;
+pub const SPIDER_CLIENT_TRACKING_RANGE: i32 = 8;
+pub const SPIDER_CLIMBING_FLAG: u8 = 1;
+pub const SPIDER_SPECIAL_EFFECT_CHANCE: f32 = 0.1;
+pub const SPIDER_JOCKEY_RANDOM_BOUND: i32 = 100;
+pub const SPIDER_JOCKEY_RANDOM_HIT: i32 = 0;
+pub const SPIDER_ATTACK_LIGHT_BREAK_THRESHOLD: f32 = 0.5;
+pub const SPIDER_ATTACK_LIGHT_BREAK_RANDOM_BOUND: i32 = 100;
+pub const SPIDER_VEHICLE_ATTACHMENT_Y: f32 = 0.3125;
+pub const SPIDER_POISON_IMMUNE: bool = true;
+pub const CAVE_SPIDER_MAX_HEALTH: f32 = 12.0;
+pub const CAVE_SPIDER_WIDTH: f32 = 0.7;
+pub const CAVE_SPIDER_HEIGHT: f32 = 0.5;
+pub const CAVE_SPIDER_EYE_HEIGHT: f32 = 0.45;
+pub const CAVE_SPIDER_CLIENT_TRACKING_RANGE: i32 = 8;
+pub const CAVE_SPIDER_NOT_IN_PEACEFUL: bool = true;
+pub const CAVE_SPIDER_POISON_SECONDS_NORMAL: i32 = 7;
+pub const CAVE_SPIDER_POISON_SECONDS_HARD: i32 = 15;
+pub const CAVE_SPIDER_POISON_AMPLIFIER: u8 = 0;
+pub const CAVE_SPIDER_VEHICLE_ATTACHMENT_Y: f32 = 0.21875;
+
+pub fn cave_spider_attributes() -> CaveSpiderAttributes {
+    CaveSpiderAttributes {
+        max_health: CAVE_SPIDER_MAX_HEALTH,
+        movement_speed: SPIDER_MOVEMENT_SPEED,
+    }
+}
+
+pub fn cave_spider_entity_type_surface() -> CaveSpiderEntityTypeSurface {
+    CaveSpiderEntityTypeSurface {
+        width: CAVE_SPIDER_WIDTH,
+        height: CAVE_SPIDER_HEIGHT,
+        eye_height: CAVE_SPIDER_EYE_HEIGHT,
+        client_tracking_range: CAVE_SPIDER_CLIENT_TRACKING_RANGE,
+        not_in_peaceful: CAVE_SPIDER_NOT_IN_PEACEFUL,
+    }
+}
+
+pub fn cave_spider_poison_duration_ticks(
+    difficulty: &str,
+    super_hurt_succeeded: bool,
+) -> Option<i32> {
+    if !super_hurt_succeeded {
+        return None;
+    }
+    match difficulty {
+        "normal" => Some(CAVE_SPIDER_POISON_SECONDS_NORMAL * 20),
+        "hard" => Some(CAVE_SPIDER_POISON_SECONDS_HARD * 20),
+        _ => None,
+    }
+}
+
+pub fn cave_spider_finalize_spawn_preserves_group_data<T>(group_data: Option<T>) -> Option<T> {
+    group_data
+}
+
+pub fn cave_spider_vehicle_attachment_y(
+    vehicle_width: f32,
+    cave_spider_width: f32,
+    scale: f32,
+) -> Option<f32> {
+    (vehicle_width <= cave_spider_width).then_some(CAVE_SPIDER_VEHICLE_ATTACHMENT_Y * scale)
+}
+
+pub fn spider_set_climbing_flags(flags: u8, climbing: bool) -> u8 {
+    if climbing {
+        flags | SPIDER_CLIMBING_FLAG
+    } else {
+        flags & !SPIDER_CLIMBING_FLAG
+    }
+}
+
+pub fn spider_is_climbing(flags: u8) -> bool {
+    flags & SPIDER_CLIMBING_FLAG != 0
+}
+
+pub fn spider_tick_climbing_flags(flags: u8, horizontal_collision: bool) -> u8 {
+    spider_set_climbing_flags(flags, horizontal_collision)
+}
+
+pub fn spider_can_be_affected(effect_id: &str) -> bool {
+    effect_id != "minecraft:poison"
+}
+
+pub fn spider_jockey_from_finalize_spawn(random_0_to_99: i32) -> bool {
+    random_0_to_99.rem_euclid(SPIDER_JOCKEY_RANDOM_BOUND) == SPIDER_JOCKEY_RANDOM_HIT
+}
+
+pub fn spider_should_drop_target_in_light(light_value: f32, random_0_to_99: i32) -> bool {
+    light_value >= SPIDER_ATTACK_LIGHT_BREAK_THRESHOLD
+        && random_0_to_99.rem_euclid(SPIDER_ATTACK_LIGHT_BREAK_RANDOM_BOUND) == 0
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AgeState {
     pub age: i32,
@@ -5032,6 +5144,62 @@ mod tests {
         assert!(!endermite_from_ender_pearl(0.05, true));
         assert!(!endermite_from_ender_pearl(0.0, false));
         assert!(enderman_targets_endermite());
+    }
+
+    #[test]
+    fn cave_spider_dimensions_poison_and_inherited_spider_gates_match_java_rules() {
+        assert_eq!(
+            cave_spider_attributes(),
+            CaveSpiderAttributes {
+                max_health: 12.0,
+                movement_speed: 0.3,
+            }
+        );
+        assert_eq!(
+            cave_spider_entity_type_surface(),
+            CaveSpiderEntityTypeSurface {
+                width: 0.7,
+                height: 0.5,
+                eye_height: 0.45,
+                client_tracking_range: 8,
+                not_in_peaceful: true,
+            }
+        );
+
+        assert_eq!(cave_spider_poison_duration_ticks("peaceful", true), None);
+        assert_eq!(cave_spider_poison_duration_ticks("easy", true), None);
+        assert_eq!(cave_spider_poison_duration_ticks("normal", true), Some(140));
+        assert_eq!(cave_spider_poison_duration_ticks("hard", true), Some(300));
+        assert_eq!(cave_spider_poison_duration_ticks("hard", false), None);
+        assert_eq!(CAVE_SPIDER_POISON_AMPLIFIER, 0);
+
+        assert_eq!(
+            cave_spider_finalize_spawn_preserves_group_data(Some(7)),
+            Some(7)
+        );
+        assert_eq!(
+            cave_spider_vehicle_attachment_y(0.7, 0.7, 1.0),
+            Some(0.21875)
+        );
+        assert_eq!(cave_spider_vehicle_attachment_y(0.8, 0.7, 1.0), None);
+
+        let flags = spider_set_climbing_flags(0, true);
+        assert!(spider_is_climbing(flags));
+        assert!(!spider_is_climbing(spider_set_climbing_flags(flags, false)));
+        assert!(spider_is_climbing(spider_tick_climbing_flags(0, true)));
+        assert!(!spider_is_climbing(spider_tick_climbing_flags(
+            flags, false
+        )));
+        assert_eq!(SPIDER_POISON_IMMUNE, true);
+        assert!(!spider_can_be_affected("minecraft:poison"));
+        assert!(spider_can_be_affected("minecraft:speed"));
+        assert!(spider_jockey_from_finalize_spawn(0));
+        assert!(!spider_jockey_from_finalize_spawn(1));
+        assert!(spider_should_drop_target_in_light(0.5, 0));
+        assert!(!spider_should_drop_target_in_light(0.49, 0));
+        assert!(!spider_should_drop_target_in_light(0.5, 1));
+        assert_eq!(SPIDER_SPECIAL_EFFECT_CHANCE, 0.1);
+        assert_eq!(SPIDER_VEHICLE_ATTACHMENT_Y, 0.3125);
     }
 
     #[test]
