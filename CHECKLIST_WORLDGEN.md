@@ -139,11 +139,11 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Aquifer and Fluid Placement
 
-- [ ] Implement `Aquifer.NoiseBasedAquifer`: barrier noise, fluid-level flood noise, fluid-level spread noise, lava noise; place water/lava aquifer pockets based on pressure differential
-- [ ] Implement `Aquifer.FluidPicker`: `globalFluidPicker` for bedrock lava floor (y < minY+10) and sea-level water
-- [ ] Implement `AquiferStatus`: fluid type and y-level for each aquifer cell
-- [ ] Implement `update-fluid` propagation flags on `NoiseChunk` for carved/noise-filled terrain
-- [ ] Add parity test: aquifer fluid at y=-55 below sea level matches vanilla fluid type placement
+- [x] Implement `Aquifer.NoiseBasedAquifer`: barrier noise, fluid-level flood noise, fluid-level spread noise, lava noise; place water/lava aquifer pockets based on pressure differential
+- [x] Implement `Aquifer.FluidPicker`: `globalFluidPicker` for bedrock lava floor (y < -54) and sea-level water; mirrors Java `NoiseBasedChunkGenerator.createFluidPicker`
+- [x] Implement `AquiferStatus`: `FluidStatus` struct with `fluid_level` and `fluid_type`; `at(y)` returns fluid block or air
+- [x] Implement `update-fluid` propagation flags: `should_schedule_fluid_update` tracked on `NoiseBasedAquifer` (post-processing pipeline to consume it is a future chunk status concern)
+- [x] Add parity test: aquifer fluid at y=-55 below sea level is lava (global lava floor); no water at that depth; underground fluid presence verified across chunk sample
 
 ## Ore Veinifier
 
