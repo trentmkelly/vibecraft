@@ -4762,6 +4762,7 @@ pub fn flat_base_column(
 pub fn materialize_flat_chunk(pos: ChunkPos, settings: &FlatGeneratorSettingsModel) -> LevelChunk {
     let mut chunk = LevelChunk::empty(pos);
     chunk.status = "minecraft:full".to_string();
+    chunk.min_section_y = FLAT_GENERATOR_MIN_Y.div_euclid(16);
 
     let layers = &settings.expanded_layers;
     let max_layer = layers
@@ -5117,6 +5118,7 @@ pub fn materialize_noise_preview_chunk(
     let min_y = settings.noise.min_y;
     let max_y = settings.noise.min_y + settings.noise.height;
     let min_section = min_y.div_euclid(16);
+    chunk.min_section_y = min_section;
     let section_count = (settings.noise.height + 15) / 16;
     let mut terrain_heights = [settings.sea_level + 1; 16 * 16];
     for z in 0..16 {
@@ -37721,6 +37723,7 @@ fn fill_from_noise_chunk_inner(
     let height = settings.noise.height;
     let section_count = (height + 15) / 16;
     let min_section = min_y.div_euclid(16);
+    chunk.min_section_y = min_section;
 
     // Initialise all chunk sections to air.
     chunk.sections = (0..section_count)
@@ -40232,6 +40235,7 @@ mod tests {
             .expect("flat preset should generate a concrete chunk");
         assert_eq!(chunk.pos, ChunkPos { x: -3, z: 5 });
         assert_eq!(chunk.status, "minecraft:full");
+        assert_eq!(chunk.min_section_y, 0);
         assert_eq!(chunk.sections.len(), 1);
         assert!(chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
         assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
@@ -40242,6 +40246,7 @@ mod tests {
         let chunk = super::generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")
             .expect("normal preset should generate preview terrain");
         assert_eq!(chunk.status, "minecraft:full");
+        assert_eq!(chunk.min_section_y, -4);
         assert_eq!(chunk.sections.len(), 24);
         assert_eq!(chunk.sections[0].y, -4);
         assert_eq!(chunk.sections.last().unwrap().y, 19);
@@ -40277,6 +40282,7 @@ mod tests {
         .expect("real-surface mode should generate overworld surface terrain");
 
         assert_eq!(chunk.status, "minecraft:surface");
+        assert_eq!(chunk.min_section_y, -4);
         assert_eq!(chunk.sections.len(), 24);
         assert_eq!(chunk.sections[0].y, -4);
         assert_eq!(chunk.sections.last().unwrap().y, 19);
