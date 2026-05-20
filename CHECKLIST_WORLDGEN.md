@@ -284,7 +284,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Add raw 26.1.2 first-login spawn parity fallback coverage that verifies play-login world seed, flat generator flag, sea level, default spawn position, first player position, and initial chunk batch count while Mineflayer lacks target-protocol play support.
 - [ ] Add a Mineflayer spawn-area safety test that repeatedly creates seeded offline-mode worlds, joins a bot, and verifies vanilla-compatible spawn search, collision-free placement, and immediate chunk availability.
 - [x] Add raw 26.1.2 multi-seed spawn-area safety fallback coverage that repeatedly creates seeded offline-mode worlds, verifies the default spawn and first position are inside the initial chunk batch, and sends first-tick movement without retry sleeps while Mineflayer lacks target-protocol play support.
-- [ ] Implement world border effects on generation and gameplay.
+- [x] Implement world border effects on generation and gameplay.
 - [x] Implement random source algorithms exactly where worldgen parity depends on them.
 - [ ] Validate same seed produces same chunks, biomes, structures, loot seeds, and spawn area as vanilla.
 
