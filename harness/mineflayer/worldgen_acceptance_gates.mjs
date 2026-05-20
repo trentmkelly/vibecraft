@@ -122,14 +122,34 @@ export async function loadWorldgenAcceptanceReport ({
 }
 
 export function compareWorldgenFixtureReports (left, right) {
-  const leftChunks = comparableRequestedChunks(left)
-  const rightChunks = comparableRequestedChunks(right)
-  return compareComparableChunkLists(leftChunks, rightChunks, { leftLabel: 'left', rightLabel: 'right' })
+  const leftComparable = comparableRequestedChunks(left, 'left')
+  const rightComparable = comparableRequestedChunks(right, 'right')
+  const issues = [...leftComparable.issues, ...rightComparable.issues]
+  if (issues.length > 0) {
+    return {
+      ok: false,
+      comparedChunks: 0,
+      leftChunks: leftComparable.chunks.length,
+      rightChunks: rightComparable.chunks.length,
+      issues
+    }
+  }
+  return compareComparableChunkLists(leftComparable.chunks, rightComparable.chunks, { leftLabel: 'left', rightLabel: 'right' })
 }
 
 export function compareRustcraftWorldgenReport (vanillaReports, rustcraftReport) {
   const reports = Array.isArray(vanillaReports) ? vanillaReports : [vanillaReports]
-  const vanillaChunks = reports.flatMap(report => comparableRequestedChunks(report))
+  const vanilla = combineComparableResults(reports.map(report => comparableRequestedChunks(report, 'vanilla')))
+  if (vanilla.issues.length > 0) {
+    return {
+      ok: false,
+      comparedChunks: 0,
+      leftChunks: vanilla.chunks.length,
+      rightChunks: 0,
+      issues: vanilla.issues
+    }
+  }
+  const vanillaChunks = vanilla.chunks
   const rustcraft = comparableRustcraftChunks(rustcraftReport)
   if (rustcraft.issues.length > 0) {
     return {
@@ -256,17 +276,42 @@ function requestedChunks (report) {
     .flatMap(artifact => artifact.requestedChunks ?? [])
 }
 
-function comparableRequestedChunks (report) {
-  return (report?.results ?? []).flatMap(result => {
-    const fixtureByCoordinate = new Map(
-      (result.fixture?.chunks ?? []).map(chunk => [`${chunk.x},${chunk.z}`, chunk.dimension ?? 'overworld'])
-    )
-    return (result.artifacts ?? []).flatMap(artifact => (artifact.requestedChunks ?? []).map(chunk => ({
-      ...chunk,
-      dimension: fixtureByCoordinate.get(`${chunk.chunkX},${chunk.chunkZ}`) ?? 'overworld',
-      key: `${fixtureByCoordinate.get(`${chunk.chunkX},${chunk.chunkZ}`) ?? 'overworld'}:${chunk.chunkX},${chunk.chunkZ}`
-    })))
+function comparableRequestedChunks (report, label = 'fixture') {
+  const issues = []
+  const chunks = (report?.results ?? []).flatMap(result => {
+    const fixtureByCoordinate = fixtureDimensionsByCoordinate(result, issues, label)
+    return (result.artifacts ?? []).flatMap(artifact => (artifact.requestedChunks ?? []).map(chunk => {
+      const dimension = fixtureByCoordinate.get(`${chunk.chunkX},${chunk.chunkZ}`) ?? 'overworld'
+      return {
+        ...chunk,
+        dimension,
+        key: `${dimension}:${chunk.chunkX},${chunk.chunkZ}`
+      }
+    }))
   })
+  return { chunks, issues }
+}
+
+function fixtureDimensionsByCoordinate (result, issues, label) {
+  const fixtureByCoordinate = new Map()
+  for (const chunk of result.fixture?.chunks ?? []) {
+    const key = `${chunk.x},${chunk.z}`
+    const dimension = chunk.dimension ?? 'overworld'
+    const existing = fixtureByCoordinate.get(key)
+    if (existing !== undefined && existing !== dimension) {
+      issues.push(`${label} fixture has ambiguous dimensions for chunk ${key}`)
+      continue
+    }
+    fixtureByCoordinate.set(key, dimension)
+  }
+  return fixtureByCoordinate
+}
+
+function combineComparableResults (results) {
+  return {
+    chunks: results.flatMap(result => result.chunks),
+    issues: results.flatMap(result => result.issues)
+  }
 }
 
 function comparableRustcraftChunks (report) {

@@ -156,6 +156,26 @@ test('fixture stability comparison uses requested chunk stable projections', () 
   })
 })
 
+test('fixture stability comparison rejects ambiguous fixture dimensions', () => {
+  const left = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+  left.results[0].fixture.chunks.push({ x: 0, z: 0, dimension: 'the_nether' })
+  const right = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+
+  assert.deepEqual(compareWorldgenFixtureReports(left, right), {
+    ok: false,
+    comparedChunks: 0,
+    leftChunks: 1,
+    rightChunks: 1,
+    issues: ['left fixture has ambiguous dimensions for chunk 0,0']
+  })
+})
+
 test('RustCraft worldgen comparison fails closed against vanilla requested chunks', () => {
   const vanilla = fixtureReport({
     dimension: 'overworld',
