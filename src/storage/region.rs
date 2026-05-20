@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -45,6 +46,18 @@ pub enum RegionCompression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegionFile {
     path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PendingRegionWrite {
+    pub name: String,
+    pub tag: Tag,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegionIoWorker {
+    dir: PathBuf,
+    pending_writes: BTreeMap<ChunkPos, PendingRegionWrite>,
 }
 
 impl ChunkPos {
@@ -356,6 +369,50 @@ impl RegionFile {
     }
 }
 
+impl RegionIoWorker {
+    pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
+        let dir = dir.into();
+        fs::create_dir_all(&dir)?;
+        Ok(Self {
+            dir,
+            pending_writes: BTreeMap::new(),
+        })
+    }
+
+    pub fn pending_write_count(&self) -> usize {
+        self.pending_writes.len()
+    }
+
+    pub fn store_chunk_nbt(&mut self, chunk: ChunkPos, name: impl Into<String>, tag: Tag) {
+        self.pending_writes.insert(
+            chunk,
+            PendingRegionWrite {
+                name: name.into(),
+                tag,
+            },
+        );
+    }
+
+    pub fn load_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<Option<(String, Tag)>> {
+        if let Some(pending) = self.pending_writes.get(&chunk) {
+            return Ok(Some((pending.name.clone(), pending.tag.clone())));
+        }
+        RegionFile::open(&self.dir, chunk.region())?.read_chunk_nbt(chunk)
+    }
+
+    pub fn synchronize(&mut self) -> io::Result<()> {
+        let pending = std::mem::take(&mut self.pending_writes);
+        for (chunk, write) in pending {
+            RegionFile::open(&self.dir, chunk.region())?.write_chunk_nbt(
+                chunk,
+                &write.name,
+                &write.tag,
+            )?;
+        }
+        Ok(())
+    }
+}
+
 fn encode_region_payload(
     name: &str,
     tag: &Tag,
@@ -425,7 +482,11 @@ fn decode_region_payload(
 
 #[cfg(test)]
 mod tests {
-    use super::{ChunkPos, RegionCompression, RegionFile, RegionLocation, RegionPos, HEADER_BYTES};
+    use super::{
+        ChunkPos, RegionCompression, RegionFile, RegionIoWorker, RegionLocation, RegionPos,
+        HEADER_BYTES,
+    };
+    use crate::storage::nbt::Tag;
     use std::fs;
     use std::io::{Seek, SeekFrom, Write};
 
@@ -506,6 +567,80 @@ mod tests {
                 sector_offset: 2,
                 sector_count: 1,
             })
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_pending_writes_shadow_disk_and_coalesce() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-pending-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let chunk = ChunkPos { x: 2, z: 3 };
+        let region = RegionFile::open(&dir, chunk.region()).unwrap();
+        region
+            .write_chunk_nbt(
+                chunk,
+                "",
+                &Tag::Compound(vec![("old".to_string(), Tag::Int(1))]),
+            )
+            .unwrap();
+
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        assert_eq!(
+            worker.load_chunk_nbt(chunk).unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("old".to_string(), Tag::Int(1))])
+            ))
+        );
+
+        worker.store_chunk_nbt(
+            chunk,
+            "",
+            Tag::Compound(vec![("pending".to_string(), Tag::Int(2))]),
+        );
+        worker.store_chunk_nbt(
+            chunk,
+            "",
+            Tag::Compound(vec![("latest".to_string(), Tag::Int(3))]),
+        );
+
+        assert_eq!(worker.pending_write_count(), 1);
+        assert_eq!(
+            worker.load_chunk_nbt(chunk).unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("latest".to_string(), Tag::Int(3))])
+            ))
+        );
+        assert_eq!(
+            RegionFile::open(&dir, chunk.region())
+                .unwrap()
+                .read_chunk_nbt(chunk)
+                .unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("old".to_string(), Tag::Int(1))])
+            ))
+        );
+
+        worker.synchronize().unwrap();
+        assert_eq!(worker.pending_write_count(), 0);
+        assert_eq!(
+            RegionFile::open(&dir, chunk.region())
+                .unwrap()
+                .read_chunk_nbt(chunk)
+                .unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("latest".to_string(), Tag::Int(3))])
+            ))
         );
 
         let _ = fs::remove_dir_all(&dir);
