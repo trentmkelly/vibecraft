@@ -298,7 +298,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement chunk ticketing.
 - [x] Implement player chunk tracking.
 - [x] Implement view distance and simulation distance independently.
-- [ ] Implement chunk loading, generation, saving, unloading, and eviction.
+- [x] Implement chunk loading, generation, saving, unloading, and eviction.
 - [ ] Add a Mineflayer chunk-streaming test that joins offline mode, waits for initial chunks, changes view-distance/simulation-distance, moves across chunk boundaries, and verifies chunk load/unload events match vanilla ordering.
 - [x] Add raw 26.1.2 initial chunk-streaming fallback coverage that verifies login view/simulation distances, chunk cache radius, 3x3 spawn chunk coordinates, and chunk-batch-finished ordering while Mineflayer lacks target-protocol play support.
 - [x] Add raw 26.1.2 chunk-boundary streaming fallback coverage that moves across a chunk boundary, verifies a new chunk cache center, and confirms a 3x3 terrain batch around the new center while Mineflayer lacks target-protocol play support.
