@@ -3,6 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use crate::block_entity::{PotItemStack, VaultBlockEntity, VaultInsertResult};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootStack {
     pub item: String,
@@ -476,6 +478,42 @@ pub fn resolve_block_break_loot(
         };
     }
     engine.resolve(request, seed)
+}
+
+pub fn resolve_vault_unlock_loot(
+    engine: &LootBehaviorEngine,
+    vault: &mut VaultBlockEntity,
+    player: impl Into<String>,
+    inserted_key: impl Into<String>,
+    origin: (f64, f64, f64),
+    seed: u64,
+    game_time: i64,
+) -> VaultInsertResult {
+    let player = player.into();
+    let table = if vault.is_ominous {
+        "minecraft:trial_chambers/reward_ominous"
+    } else {
+        "minecraft:trial_chambers/reward"
+    };
+    let mut request = LootRequest::new(LootSurface::Vault, table);
+    request.origin = origin;
+    request.actor = Some(player.clone());
+    request.target_entity = request.actor.clone();
+    let rewards = match engine.resolve(request, seed).delivery {
+        LootDelivery::DropAt(_, stacks) => stacks
+            .into_iter()
+            .map(|stack| PotItemStack {
+                item_id: stack.item,
+                count: stack.count,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    let inserted = PotItemStack {
+        item_id: inserted_key.into(),
+        count: 1,
+    };
+    vault.try_insert_key(player, &inserted, rewards, game_time)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2420,6 +2458,94 @@ mod tests {
                 (1.0, 64.0, 2.0),
                 vec![LootStack::new("minecraft:diamond", 4)]
             )
+        );
+    }
+
+    #[test]
+    fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:trial_chambers/reward",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:emerald", 1))),
+        );
+        engine.insert_table(
+            "minecraft:trial_chambers/reward_ominous",
+            table_with_pool(LootPool::single(LootEntry::item(
+                "minecraft:ominous_bottle",
+                1,
+            ))),
+        );
+
+        let mut normal = VaultBlockEntity::default();
+        normal.state = crate::block_entity::VaultStateModel::Active;
+        assert_eq!(
+            resolve_vault_unlock_loot(
+                &engine,
+                &mut normal,
+                "player-a",
+                "minecraft:ominous_trial_key",
+                (0.0, 64.0, 0.0),
+                9,
+                20,
+            ),
+            VaultInsertResult::WrongKey {
+                expected: "minecraft:trial_key".to_string()
+            }
+        );
+        assert_eq!(
+            resolve_vault_unlock_loot(
+                &engine,
+                &mut normal,
+                "player-a",
+                "minecraft:trial_key",
+                (0.0, 64.0, 0.0),
+                9,
+                40,
+            ),
+            VaultInsertResult::Unlocking { items_to_eject: 1 }
+        );
+        assert_eq!(
+            normal.items_to_eject,
+            vec![PotItemStack {
+                item_id: "minecraft:emerald".to_string(),
+                count: 1
+            }]
+        );
+        assert_eq!(
+            resolve_vault_unlock_loot(
+                &engine,
+                &mut normal,
+                "player-a",
+                "minecraft:trial_key",
+                (0.0, 64.0, 0.0),
+                9,
+                60,
+            ),
+            VaultInsertResult::AlreadyRewarded
+        );
+
+        let mut ominous = VaultBlockEntity::default();
+        ominous.state = crate::block_entity::VaultStateModel::Active;
+        ominous.is_ominous = true;
+        ominous.config.key_item.item_id = "minecraft:ominous_trial_key".to_string();
+        assert_eq!(
+            resolve_vault_unlock_loot(
+                &engine,
+                &mut ominous,
+                "player-b",
+                "minecraft:ominous_trial_key",
+                (0.0, 64.0, 0.0),
+                10,
+                80,
+            ),
+            VaultInsertResult::Unlocking { items_to_eject: 1 }
+        );
+        assert_eq!(
+            ominous.items_to_eject,
+            vec![PotItemStack {
+                item_id: "minecraft:ominous_bottle".to_string(),
+                count: 1
+            }]
         );
     }
 
