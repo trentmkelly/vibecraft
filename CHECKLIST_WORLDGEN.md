@@ -323,7 +323,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Worldgen Source Families
 
 - [ ] Implement blending source family for old/new chunk transition data and upgrade behavior.
-- [ ] Implement block predicate source family for feature and placement constraints.
+- [x] Implement block predicate source family for feature and placement constraints.
 - [ ] Implement carver source family for cave/canyon-like terrain carving.
 - [ ] Implement feature source family, including configurations, feature sizes, foliage placers, root placers, state providers, tree decorators, and trunk placers.
   - [x] Regress Java `BlobFoliagePlacer`/`BushFoliagePlacer` canopy layer semantics in the live tree preview path, including downward `yo` iteration, sampled foliage radius/offset providers, blob top-corner skipping, bush corner skipping, and vanilla oak/birch trunk height randomness. References: `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/foliageplacers/BlobFoliagePlacer.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/foliageplacers/BushFoliagePlacer.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/foliageplacers/FoliagePlacer.java`, `decompiled-server-26.1.2/data/minecraft/worldgen/configured_feature/oak.json`, `src/worldgen.rs`.
