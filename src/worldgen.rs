@@ -24017,6 +24017,31 @@ pub fn apply_chunk_generation_mob_batch_to_chunk(
     spawned
 }
 
+pub fn create_insecure_uuid(random: &mut RandomSourceKind) -> String {
+    let most = (random_source_next_i64(random) & -61441_i64) | 16384_i64;
+    let least = (random_source_next_i64(random) & 4_611_686_018_427_387_903_i64) | i64::MIN;
+    format_uuid_from_longs(most, least)
+}
+
+fn format_uuid_from_longs(most: i64, least: i64) -> String {
+    let raw = format!("{:016x}{:016x}", most as u64, least as u64);
+    format!(
+        "{}-{}-{}-{}-{}",
+        &raw[0..8],
+        &raw[8..12],
+        &raw[12..16],
+        &raw[16..20],
+        &raw[20..32]
+    )
+}
+
+fn random_source_next_i64(random: &mut RandomSourceKind) -> i64 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_i64(),
+        RandomSourceKind::Xoroshiro(random) => random.next_i64(),
+    }
+}
+
 fn spawn_pathfindable_land_block(block: &str) -> bool {
     is_surface_air(block)
 }
@@ -58291,6 +58316,19 @@ mod tests {
             "UUID".to_string(),
             Tag::String("00000000-0000-0000-0000-000000000456".to_string())
         )));
+    }
+
+    #[test]
+    fn create_insecure_uuid_matches_mth_version_and_variant_bits() {
+        let mut random = crate::random_source::RandomSourceKind::new(
+            1,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+
+        assert_eq!(
+            super::create_insecure_uuid(&mut random),
+            "bb1ad573-19b8-4cd8-a8fb-0e6f684df992"
+        );
     }
 
     #[test]
