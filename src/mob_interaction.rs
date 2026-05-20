@@ -5586,6 +5586,21 @@ pub const AXOLOTL_PLAY_DEAD_TICKS: i32 = 200;
 pub const AXOLOTL_MAX_AIR_SUPPLY: i32 = 6000;
 pub const AXOLOTL_REHYDRATE_AIR_TICKS: i32 = 1800;
 pub const AXOLOTL_DRY_OUT_DAMAGE: f32 = 2.0;
+pub const AXOLOTL_MAX_HEALTH: f32 = 14.0;
+pub const AXOLOTL_MOVEMENT_SPEED: f32 = 1.0;
+pub const AXOLOTL_ATTACK_DAMAGE: f32 = 2.0;
+pub const AXOLOTL_STEP_HEIGHT: f32 = 1.0;
+pub const AXOLOTL_ADULT_WIDTH: f32 = 0.75;
+pub const AXOLOTL_ADULT_HEIGHT: f32 = 0.42;
+pub const AXOLOTL_ADULT_EYE_HEIGHT: f32 = 0.2751;
+pub const AXOLOTL_BABY_WIDTH: f32 = 0.5;
+pub const AXOLOTL_BABY_HEIGHT: f32 = 0.25;
+pub const AXOLOTL_BABY_EYE_HEIGHT: f32 = 0.2;
+pub const AXOLOTL_TARGET_DETECTION_DISTANCE_SQUARED: f64 = 64.0;
+pub const AXOLOTL_HUNTING_COOLDOWN_TICKS: i32 = 2400;
+pub const AXOLOTL_PLAYER_REGEN_DETECTION_RANGE: f64 = 20.0;
+pub const AXOLOTL_REGEN_BUFF_BASE_DURATION: i32 = 100;
+pub const AXOLOTL_REGEN_BUFF_MAX_DURATION: i32 = 2400;
 
 impl AxolotlState {
     pub fn new() -> Self {
@@ -5614,6 +5629,100 @@ impl AxolotlState {
         self.air_supply =
             (self.air_supply + AXOLOTL_REHYDRATE_AIR_TICKS).min(AXOLOTL_MAX_AIR_SUPPLY);
     }
+}
+
+pub fn axolotl_dimensions(baby: bool) -> (f32, f32, f32) {
+    if baby {
+        (
+            AXOLOTL_BABY_WIDTH,
+            AXOLOTL_BABY_HEIGHT,
+            AXOLOTL_BABY_EYE_HEIGHT,
+        )
+    } else {
+        (
+            AXOLOTL_ADULT_WIDTH,
+            AXOLOTL_ADULT_HEIGHT,
+            AXOLOTL_ADULT_EYE_HEIGHT,
+        )
+    }
+}
+
+pub fn axolotl_bucket_pickup_result(held_item: &str, entity_alive: bool) -> BucketPickupResult {
+    bucket_pickup_result(held_item, entity_alive)
+}
+
+pub fn axolotl_requires_custom_persistence(super_requires: bool, from_bucket: bool) -> bool {
+    super_requires || from_bucket
+}
+
+pub fn axolotl_remove_when_far_away(from_bucket: bool, has_custom_name: bool) -> bool {
+    !from_bucket && !has_custom_name
+}
+
+pub fn axolotl_bucket_saved_keys(has_hunting_cooldown: bool) -> Vec<&'static str> {
+    let mut keys = vec!["Variant", "Age", "AgeLocked"];
+    if has_hunting_cooldown {
+        keys.push("HuntingCooldown");
+    }
+    keys
+}
+
+pub fn axolotl_can_attack_target(
+    target_entity_type: &str,
+    target_in_water: bool,
+    distance_squared: f64,
+    body_has_hunting_cooldown: bool,
+    sensor_attackable: bool,
+) -> bool {
+    let hostile = matches!(
+        target_entity_type,
+        "minecraft:drowned" | "minecraft:guardian" | "minecraft:elder_guardian"
+    );
+    let hunt_target = matches!(
+        target_entity_type,
+        "minecraft:tropical_fish"
+            | "minecraft:pufferfish"
+            | "minecraft:salmon"
+            | "minecraft:cod"
+            | "minecraft:squid"
+            | "minecraft:glow_squid"
+            | "minecraft:tadpole"
+    ) && !body_has_hunting_cooldown;
+    distance_squared <= AXOLOTL_TARGET_DETECTION_DISTANCE_SQUARED
+        && target_in_water
+        && (hostile || hunt_target)
+        && sensor_attackable
+}
+
+pub fn axolotl_find_attack_target(
+    breeding: bool,
+    nearest_attackable: Option<&'static str>,
+) -> Option<&'static str> {
+    if breeding {
+        None
+    } else {
+        nearest_attackable
+    }
+}
+
+pub fn axolotl_on_stop_attacking_effects(
+    target_dead_or_dying: bool,
+    killed_by_player: bool,
+    player_within_range: bool,
+    player_regen_duration: Option<i32>,
+    player_has_mining_fatigue: bool,
+) -> (Option<i32>, bool) {
+    if !(target_dead_or_dying && killed_by_player && player_within_range) {
+        return (player_regen_duration, player_has_mining_fatigue);
+    }
+    let next_regen = match player_regen_duration {
+        Some(duration) if duration > AXOLOTL_REGEN_BUFF_MAX_DURATION - 1 => Some(duration),
+        Some(duration) => {
+            Some((duration + AXOLOTL_REGEN_BUFF_BASE_DURATION).min(AXOLOTL_REGEN_BUFF_MAX_DURATION))
+        }
+        None => Some(AXOLOTL_REGEN_BUFF_BASE_DURATION),
+    };
+    (next_regen, false)
 }
 
 pub fn axolotl_play_dead_memory_on_hurt(context: AxolotlHurtContext) -> Option<i32> {
@@ -8232,9 +8341,36 @@ mod tests {
     #[test]
     fn axolotl_play_dead_and_air_rules_match_java_gates() {
         let mut axolotl = AxolotlState::new();
+        assert_eq!(AXOLOTL_MAX_HEALTH, 14.0);
+        assert_eq!(AXOLOTL_MOVEMENT_SPEED, 1.0);
+        assert_eq!(AXOLOTL_ATTACK_DAMAGE, 2.0);
+        assert_eq!(AXOLOTL_STEP_HEIGHT, 1.0);
+        assert_eq!(axolotl_dimensions(false), (0.75, 0.42, 0.2751));
+        assert_eq!(axolotl_dimensions(true), (0.5, 0.25, 0.2));
         assert_eq!(axolotl.air_supply, AXOLOTL_MAX_AIR_SUPPLY);
         assert!(axolotl.should_play_ambient_sound());
         assert!(axolotl.can_be_seen_as_enemy(true));
+        assert_eq!(
+            axolotl_bucket_pickup_result("minecraft:water_bucket", true),
+            BucketPickupResult::FilledBucketAndDiscardEntity
+        );
+        assert_eq!(
+            axolotl_bucket_pickup_result("minecraft:bucket", true),
+            BucketPickupResult::NotApplicable
+        );
+        assert!(axolotl_requires_custom_persistence(false, true));
+        assert!(!axolotl_requires_custom_persistence(false, false));
+        assert!(!axolotl_remove_when_far_away(true, false));
+        assert!(!axolotl_remove_when_far_away(false, true));
+        assert!(axolotl_remove_when_far_away(false, false));
+        assert_eq!(
+            axolotl_bucket_saved_keys(false),
+            vec!["Variant", "Age", "AgeLocked"]
+        );
+        assert_eq!(
+            axolotl_bucket_saved_keys(true),
+            vec!["Variant", "Age", "AgeLocked", "HuntingCooldown"]
+        );
 
         axolotl.update_playing_dead_from_memory(Some(AXOLOTL_PLAY_DEAD_TICKS), false);
         assert!(axolotl.playing_dead);
@@ -8300,6 +8436,81 @@ mod tests {
             None
         );
         assert_eq!(AXOLOTL_DRY_OUT_DAMAGE, 2.0);
+        assert!(axolotl_can_attack_target(
+            "minecraft:drowned",
+            true,
+            64.0,
+            true,
+            true
+        ));
+        assert!(axolotl_can_attack_target(
+            "minecraft:cod",
+            true,
+            64.0,
+            false,
+            true
+        ));
+        assert!(!axolotl_can_attack_target(
+            "minecraft:cod",
+            true,
+            64.0,
+            true,
+            true
+        ));
+        assert!(!axolotl_can_attack_target(
+            "minecraft:cod",
+            false,
+            64.0,
+            false,
+            true
+        ));
+        assert!(!axolotl_can_attack_target(
+            "minecraft:cod",
+            true,
+            64.1,
+            false,
+            true
+        ));
+        assert!(!axolotl_can_attack_target(
+            "minecraft:zombie",
+            true,
+            10.0,
+            false,
+            true
+        ));
+        assert!(!axolotl_can_attack_target(
+            "minecraft:drowned",
+            true,
+            10.0,
+            false,
+            false
+        ));
+        assert_eq!(
+            axolotl_find_attack_target(false, Some("minecraft:cod")),
+            Some("minecraft:cod")
+        );
+        assert_eq!(
+            axolotl_find_attack_target(true, Some("minecraft:cod")),
+            None
+        );
+        assert_eq!(AXOLOTL_HUNTING_COOLDOWN_TICKS, 2400);
+        assert_eq!(AXOLOTL_PLAYER_REGEN_DETECTION_RANGE, 20.0);
+        assert_eq!(
+            axolotl_on_stop_attacking_effects(true, true, true, None, true),
+            (Some(100), false)
+        );
+        assert_eq!(
+            axolotl_on_stop_attacking_effects(true, true, true, Some(2350), true),
+            (Some(2400), false)
+        );
+        assert_eq!(
+            axolotl_on_stop_attacking_effects(true, true, true, Some(2400), true),
+            (Some(2400), false)
+        );
+        assert_eq!(
+            axolotl_on_stop_attacking_effects(true, false, true, Some(20), true),
+            (Some(20), true)
+        );
     }
 
     #[test]

@@ -155,9 +155,10 @@
 
 - [ ] Implement `Allay`: follow note-block memory, collect items matching held item, duplicate on jukebox play + amethyst shard, dancing-to-jukebox memory
 - [ ] Implement `Armadillo`: roll into ball on threat (player sprint/mount approach), scute dropping, wolf-armor crafting ingredient source
-- [ ] Implement `Axolotl`: play-dead behavior (`DeathAnimation`), attack aquatic hostiles (guardians, drowned, etc.), `BucketableEntity` bucket capture, axolotl color variants (5 types including rare blue)
+- [x] Implement `Axolotl`: play-dead behavior (`DeathAnimation`), attack aquatic hostiles (guardians, drowned, etc.), `BucketableEntity` bucket capture, axolotl color variants (5 types including rare blue)
   - [x] Implement Java-matched `Axolotl` color variant model: lucy/wild/gold/cyan common variants, rare blue variant, default lucy, and 1/1200 rare breeding chance
   - [x] Implement Java-matched `Axolotl` play-dead gates: 200-tick memory on nonfatal in-water entity damage, ambient/enemy visibility suppression, and rehydrate/max-air constants
+  - [x] Implement Java-matched `Axolotl` bucket/attack/support gates: water-bucket pickup, bucket save fields, from-bucket persistence/despawn rule, hunt target tags and cooldown, always-hostile aquatic targets, assisted-kill player regeneration/mining-fatigue removal, attributes, and baby dimensions
 - [ ] Implement `Bee`: pollination flight from flower to hive, honey level increment (0–5), honeycomb drop on shear, sting → death, hive memory `MemoryModuleType.BEE_HIVE_REMEMBERED`, anger propagation
   - [x] Implement Java-matched `Bee` server-visible state gates: roll/stung/nectar flags, saved pollination/hive counters, 20-39s anger range, sting poison/death timing, underwater damage threshold, and hive-entry conditions
 - [x] Implement `Camel`: sitting/standing animation with transition ticks, dash ability cooldown, two-passenger riding with separate seat offsets
