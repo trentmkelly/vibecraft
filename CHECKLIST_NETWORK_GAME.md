@@ -407,7 +407,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement server links and dialog packets.
 - [ ] Implement game join sequence exactly enough for vanilla client login.
 - [x] Add a Mineflayer join smoke test that waits for spawn, verifies dimension, gamemode, position, health, inventory, and tab-list identity.
-- [ ] Add a Mineflayer offline-mode login-to-spawn contract test that asserts the reusable login gate does not pass until the bot has a loaded entity, spawn position, tab-list profile, and first chunk visibility.
+- [x] Add a Mineflayer offline-mode login-to-spawn contract test that asserts the reusable login gate does not pass until the bot has a loaded entity, spawn position, tab-list profile, and first chunk visibility. — `login_to_spawn_gate` defines the official-server-backed reusable gate contract and `login_to_spawn_gate.test.mjs` verifies the gate stays closed until play login, spawn-position packets, tab-list profile, and first chunk visibility are all present.
 - [x] Add a Mineflayer offline-mode login visibility test that verifies the bot is added to tab list, spawned for nearby bots, and visible to command selectors only after the vanilla play-state boundary.
 - [x] Add raw 26.1.2 login visibility boundary fallback coverage that verifies tab-list/player visibility and play login packets are absent during configuration, then the generated offline profile appears in the play tab list with initial chunks ready while Mineflayer lacks target-protocol play support.
 - [x] Add a Mineflayer offline-mode spawn-timeout diagnostic test that forces slow chunk availability and verifies failures report last received chunk, entity ID, dimension, position, and missing readiness milestone.

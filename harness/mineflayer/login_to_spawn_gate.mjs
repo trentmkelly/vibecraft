@@ -5,6 +5,13 @@ export const LOGIN_TO_SPAWN_MILESTONES = [
   'first-chunk-visibility'
 ]
 
+export const LOGIN_TO_SPAWN_CONTRACT = {
+  name: 'mineflayer-offline-login-to-spawn',
+  comparedAgainst: 'official-server.jar',
+  gate: 'reusable-login-gate',
+  milestones: LOGIN_TO_SPAWN_MILESTONES
+}
+
 export function evaluateLoginToSpawnGate (evidence) {
   const playPackets = evidence.play ?? []
   const playIds = playPackets.map(packet => packet.id)

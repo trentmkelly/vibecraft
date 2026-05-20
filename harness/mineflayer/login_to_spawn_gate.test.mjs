@@ -3,9 +3,21 @@ import { execFile } from 'node:child_process'
 import test from 'node:test'
 import { promisify } from 'node:util'
 
-import { evaluateLoginToSpawnGate } from './login_to_spawn_gate.mjs'
+import { evaluateLoginToSpawnGate, LOGIN_TO_SPAWN_CONTRACT } from './login_to_spawn_gate.mjs'
 
 const execFileAsync = promisify(execFile)
+
+test('login-to-spawn contract names the official oracle and reusable gate milestones', () => {
+  assert.equal(LOGIN_TO_SPAWN_CONTRACT.name, 'mineflayer-offline-login-to-spawn')
+  assert.equal(LOGIN_TO_SPAWN_CONTRACT.comparedAgainst, 'official-server.jar')
+  assert.equal(LOGIN_TO_SPAWN_CONTRACT.gate, 'reusable-login-gate')
+  assert.deepEqual(LOGIN_TO_SPAWN_CONTRACT.milestones, [
+    'loaded-entity',
+    'spawn-position',
+    'tab-list-profile',
+    'first-chunk-visibility'
+  ])
+})
 
 test('login-to-spawn gate does not pass until entity, spawn, tab-list, and chunk milestones exist', () => {
   assert.equal(evaluateLoginToSpawnGate({ play: [] }).ok, false)
@@ -47,7 +59,9 @@ test('login-to-spawn gate reports stalled spawn diagnostics before first chunk v
   assert.deepEqual(gate.diagnostics.position, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
 })
 
-test('login-to-spawn gate passes against the live raw 26.1.2 join probe', async () => {
+test('login-to-spawn gate passes against the live raw 26.1.2 join probe', {
+  skip: process.env.RUSTCRAFT_RUN_LIVE_LOGIN_TO_SPAWN_TEST !== '1'
+}, async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
     ['raw_26_1_2_join_probe.mjs'],
