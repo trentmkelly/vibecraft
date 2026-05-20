@@ -95,10 +95,10 @@
 - [ ] Add parity test: creaking freeze on player gaze, movement resume on gaze loss, death on heart break
 
 ### Hoglin
-- [ ] Implement `Hoglin`: pack hunting (attack nearest non-hoglin mob or player), flee from warped fungi, respawn anchors, nether portals, and piglins
+- [x] Implement `Hoglin`: adult/baby attack gates, hunting eligibility, repellent/piglin avoidance, spawn/walk targeting, and conversion state
 - [x] Implement `HoglinBase` conversion: Hoglin → Zoglin when entering Overworld or End
-- [ ] Implement `HoglinAi` brain: pack behavior, fleeing memories
-- [ ] Add parity test: hoglin attack range, flee distance from warped fungi, zoglin conversion timing
+- [x] Implement `HoglinAi` brain: pack behavior, fleeing memories
+- [x] Add parity test: hoglin attack range, flee distance from warped fungi, zoglin conversion timing
 
 ### Illager Family
 - [ ] Implement `AbstractIllager`: shared attributes, ominous-banner captain drop (first in raid wave), `Illager.IllagerArmPose` metadata sync

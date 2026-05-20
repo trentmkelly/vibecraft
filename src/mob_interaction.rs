@@ -1283,6 +1283,33 @@ pub struct HoglinConversionTick {
     pub nausea_ticks: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HoglinAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+    pub knockback_resistance: f32,
+    pub attack_knockback: f32,
+    pub attack_damage: f32,
+    pub xp_reward: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HoglinEntityTypeSurface {
+    pub width: f32,
+    pub height: f32,
+    pub passenger_attachment_y: f32,
+    pub client_tracking_range: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HoglinAiAction {
+    SetAttackTarget,
+    SetAvoidTarget,
+    BroadcastAttackTarget,
+    BroadcastRetreat,
+    None,
+}
+
 pub const ZOGLIN_MAX_HEALTH: f32 = 40.0;
 pub const ZOGLIN_MOVEMENT_SPEED: f32 = 0.3;
 pub const ZOGLIN_KNOCKBACK_RESISTANCE: f32 = 0.6;
@@ -1308,6 +1335,45 @@ pub const ZOGLIN_STEP_SOUND_VOLUME: f32 = 0.15;
 pub const ZOGLIN_STEP_SOUND_PITCH: f32 = 1.0;
 pub const HOGLIN_CONVERSION_TIME_TICKS: i32 = 300;
 pub const HOGLIN_CONVERSION_NAUSEA_TICKS: i32 = 200;
+pub const HOGLIN_MAX_HEALTH: f32 = 40.0;
+pub const HOGLIN_MOVEMENT_SPEED: f32 = 0.3;
+pub const HOGLIN_KNOCKBACK_RESISTANCE: f32 = 0.6;
+pub const HOGLIN_ATTACK_KNOCKBACK: f32 = 1.0;
+pub const HOGLIN_ATTACK_DAMAGE: f32 = 6.0;
+pub const HOGLIN_BABY_ATTACK_DAMAGE: f32 = 0.5;
+pub const HOGLIN_XP_REWARD: i32 = 5;
+pub const HOGLIN_BABY_XP_REWARD: i32 = 3;
+pub const HOGLIN_WIDTH: f32 = 1.3964844;
+pub const HOGLIN_HEIGHT: f32 = 1.4;
+pub const HOGLIN_PASSENGER_ATTACHMENT_Y: f32 = 1.49375;
+pub const HOGLIN_CLIENT_TRACKING_RANGE: i32 = 8;
+pub const HOGLIN_BABY_RANDOM_CHANCE: f32 = 0.2;
+pub const HOGLIN_ATTACK_ANIMATION_DURATION_TICKS: i32 = 10;
+pub const HOGLIN_ATTACK_EVENT_ID: u8 = 4;
+pub const HOGLIN_ATTACK_TARGET_MEMORY_TICKS: i64 = 200;
+pub const HOGLIN_ATTACK_INTERVAL_TICKS: i32 = 40;
+pub const HOGLIN_BABY_ATTACK_INTERVAL_TICKS: i32 = 15;
+pub const HOGLIN_REPELLENT_DETECTION_HORIZONTAL: i32 = 8;
+pub const HOGLIN_REPELLENT_DETECTION_VERTICAL: i32 = 4;
+pub const HOGLIN_REPELLENT_PACIFY_TIME: i32 = 200;
+pub const HOGLIN_RETREAT_MIN_SECONDS: i32 = 5;
+pub const HOGLIN_RETREAT_MAX_SECONDS: i32 = 20;
+pub const HOGLIN_DESIRED_DISTANCE_FROM_PIGLIN_IDLING: i32 = 8;
+pub const HOGLIN_DESIRED_DISTANCE_FROM_PIGLIN_RETREATING: i32 = 15;
+pub const HOGLIN_AVOID_REPELLENT_SPEED: f32 = 1.0;
+pub const HOGLIN_RETREAT_SPEED: f32 = 1.3;
+pub const HOGLIN_BREEDING_SPEED: f32 = 0.6;
+pub const HOGLIN_IDLE_SPEED: f32 = 0.4;
+pub const HOGLIN_BABY_FOLLOW_ADULT_SPEED: f32 = 0.6;
+pub const HOGLIN_ADULT_FOLLOW_RANGE_MIN: i32 = 5;
+pub const HOGLIN_ADULT_FOLLOW_RANGE_MAX: i32 = 16;
+pub const HOGLIN_LOOK_TARGET_RANGE: f32 = 8.0;
+pub const HOGLIN_LOOK_INTERVAL_MIN_TICKS: i32 = 30;
+pub const HOGLIN_LOOK_INTERVAL_MAX_TICKS: i32 = 60;
+pub const HOGLIN_DO_NOTHING_MIN_TICKS: i32 = 30;
+pub const HOGLIN_DO_NOTHING_MAX_TICKS: i32 = 60;
+pub const HOGLIN_STEP_SOUND_VOLUME: f32 = 0.15;
+pub const HOGLIN_STEP_SOUND_PITCH: f32 = 1.0;
 
 pub fn zoglin_attributes() -> ZoglinAttributes {
     ZoglinAttributes {
@@ -1475,6 +1541,158 @@ pub fn hoglin_base_throw_target(
         z: z * cos - x * sin,
         hurt_marked: true,
     })
+}
+
+pub fn hoglin_attributes() -> HoglinAttributes {
+    HoglinAttributes {
+        max_health: HOGLIN_MAX_HEALTH,
+        movement_speed: HOGLIN_MOVEMENT_SPEED,
+        knockback_resistance: HOGLIN_KNOCKBACK_RESISTANCE,
+        attack_knockback: HOGLIN_ATTACK_KNOCKBACK,
+        attack_damage: HOGLIN_ATTACK_DAMAGE,
+        xp_reward: HOGLIN_XP_REWARD,
+    }
+}
+
+pub fn hoglin_entity_type_surface() -> HoglinEntityTypeSurface {
+    HoglinEntityTypeSurface {
+        width: HOGLIN_WIDTH,
+        height: HOGLIN_HEIGHT,
+        passenger_attachment_y: HOGLIN_PASSENGER_ATTACHMENT_Y,
+        client_tracking_range: HOGLIN_CLIENT_TRACKING_RANGE,
+    }
+}
+
+pub fn hoglin_attack_damage(baby: bool) -> f32 {
+    if baby {
+        HOGLIN_BABY_ATTACK_DAMAGE
+    } else {
+        HOGLIN_ATTACK_DAMAGE
+    }
+}
+
+pub fn hoglin_xp_reward(baby: bool) -> i32 {
+    if baby {
+        HOGLIN_BABY_XP_REWARD
+    } else {
+        HOGLIN_XP_REWARD
+    }
+}
+
+pub fn hoglin_attack_interval_ticks(baby: bool) -> i32 {
+    if baby {
+        HOGLIN_BABY_ATTACK_INTERVAL_TICKS
+    } else {
+        HOGLIN_ATTACK_INTERVAL_TICKS
+    }
+}
+
+pub fn hoglin_finalize_spawn_is_baby(random_float_0_to_1: f32) -> bool {
+    random_float_0_to_1 < HOGLIN_BABY_RANDOM_CHANCE
+}
+
+pub fn hoglin_spawn_allowed(block_below: &'static str) -> bool {
+    block_below != "minecraft:nether_wart_block"
+}
+
+pub fn hoglin_walk_target_value(near_repellent: bool, block_below: &'static str) -> f32 {
+    if near_repellent {
+        -1.0
+    } else if block_below == "minecraft:crimson_nylium" {
+        10.0
+    } else {
+        0.0
+    }
+}
+
+pub fn hoglin_can_be_hunted(adult: bool, cannot_be_hunted: bool) -> bool {
+    adult && !cannot_be_hunted
+}
+
+pub fn hoglin_can_fall_in_love(pacified: bool, super_can_fall_in_love: bool) -> bool {
+    !pacified && super_can_fall_in_love
+}
+
+pub fn hoglin_piglins_outnumber_hoglins(
+    baby: bool,
+    visible_adult_piglins: i32,
+    visible_adult_hoglins: i32,
+) -> bool {
+    !baby && visible_adult_piglins > visible_adult_hoglins + 1
+}
+
+pub fn hoglin_on_hit_target_action(
+    baby: bool,
+    target_entity_type: &'static str,
+    piglins_outnumber_hoglins: bool,
+) -> HoglinAiAction {
+    if baby {
+        HoglinAiAction::None
+    } else if target_entity_type == "minecraft:piglin" && piglins_outnumber_hoglins {
+        HoglinAiAction::BroadcastRetreat
+    } else {
+        HoglinAiAction::BroadcastAttackTarget
+    }
+}
+
+pub fn hoglin_was_hurt_action(
+    baby: bool,
+    attacker_entity_type: &'static str,
+    active_activity_avoid: bool,
+    other_target_much_further: bool,
+    sensor_attackable: bool,
+) -> HoglinAiAction {
+    if baby {
+        HoglinAiAction::SetAvoidTarget
+    } else if active_activity_avoid && attacker_entity_type == "minecraft:piglin" {
+        HoglinAiAction::None
+    } else if attacker_entity_type == "minecraft:hoglin"
+        || other_target_much_further
+        || !sensor_attackable
+    {
+        HoglinAiAction::None
+    } else {
+        HoglinAiAction::SetAttackTarget
+    }
+}
+
+pub fn hoglin_find_nearest_valid_attack_target(
+    pacified: bool,
+    breeding: bool,
+    nearest_visible_attackable_player: bool,
+) -> bool {
+    !pacified && !breeding && nearest_visible_attackable_player
+}
+
+pub fn hoglin_activity_sound(
+    activity: &'static str,
+    converting: bool,
+    near_repellent: bool,
+    client_side: bool,
+) -> Option<&'static str> {
+    if client_side {
+        None
+    } else if activity == "avoid" || converting {
+        Some("minecraft:entity.hoglin.retreat")
+    } else if activity == "fight" {
+        Some("minecraft:entity.hoglin.angry")
+    } else if near_repellent {
+        Some("minecraft:entity.hoglin.retreat")
+    } else {
+        Some("minecraft:entity.hoglin.ambient")
+    }
+}
+
+pub fn hoglin_event_attack_animation_ticks(event_id: u8) -> Option<i32> {
+    (event_id == HOGLIN_ATTACK_EVENT_ID).then_some(HOGLIN_ATTACK_ANIMATION_DURATION_TICKS)
+}
+
+pub fn hoglin_next_attack_animation_ticks(current_ticks: i32) -> i32 {
+    (current_ticks - 1).max(0)
+}
+
+pub fn hoglin_blocked_by_item_throws_target(baby: bool) -> bool {
+    !baby
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -9382,6 +9600,129 @@ mod tests {
         assert_eq!(ZOGLIN_HURT_RETARGET_DISTANCE_MARGIN, 4.0);
         assert_eq!(ZOGLIN_STEP_SOUND_VOLUME, 0.15);
         assert_eq!(ZOGLIN_STEP_SOUND_PITCH, 1.0);
+
+        assert_eq!(
+            hoglin_attributes(),
+            HoglinAttributes {
+                max_health: 40.0,
+                movement_speed: 0.3,
+                knockback_resistance: 0.6,
+                attack_knockback: 1.0,
+                attack_damage: 6.0,
+                xp_reward: 5,
+            }
+        );
+        assert_eq!(
+            hoglin_entity_type_surface(),
+            HoglinEntityTypeSurface {
+                width: 1.3964844,
+                height: 1.4,
+                passenger_attachment_y: 1.49375,
+                client_tracking_range: 8,
+            }
+        );
+        assert_eq!(hoglin_attack_damage(false), 6.0);
+        assert_eq!(hoglin_attack_damage(true), 0.5);
+        assert_eq!(hoglin_xp_reward(false), 5);
+        assert_eq!(hoglin_xp_reward(true), 3);
+        assert_eq!(hoglin_attack_interval_ticks(false), 40);
+        assert_eq!(hoglin_attack_interval_ticks(true), 15);
+        assert!(hoglin_finalize_spawn_is_baby(0.199));
+        assert!(!hoglin_finalize_spawn_is_baby(0.2));
+        assert!(!hoglin_spawn_allowed("minecraft:nether_wart_block"));
+        assert!(hoglin_spawn_allowed("minecraft:crimson_nylium"));
+        assert_eq!(
+            hoglin_walk_target_value(true, "minecraft:crimson_nylium"),
+            -1.0
+        );
+        assert_eq!(
+            hoglin_walk_target_value(false, "minecraft:crimson_nylium"),
+            10.0
+        );
+        assert_eq!(hoglin_walk_target_value(false, "minecraft:netherrack"), 0.0);
+        assert!(hoglin_can_be_hunted(true, false));
+        assert!(!hoglin_can_be_hunted(false, false));
+        assert!(!hoglin_can_be_hunted(true, true));
+        assert!(hoglin_can_fall_in_love(false, true));
+        assert!(!hoglin_can_fall_in_love(true, true));
+        assert!(hoglin_piglins_outnumber_hoglins(false, 3, 1));
+        assert!(!hoglin_piglins_outnumber_hoglins(false, 2, 1));
+        assert!(!hoglin_piglins_outnumber_hoglins(true, 3, 1));
+        assert_eq!(
+            hoglin_on_hit_target_action(false, "minecraft:piglin", true),
+            HoglinAiAction::BroadcastRetreat
+        );
+        assert_eq!(
+            hoglin_on_hit_target_action(false, "minecraft:player", false),
+            HoglinAiAction::BroadcastAttackTarget
+        );
+        assert_eq!(
+            hoglin_on_hit_target_action(true, "minecraft:player", false),
+            HoglinAiAction::None
+        );
+        assert_eq!(
+            hoglin_was_hurt_action(true, "minecraft:player", false, false, true),
+            HoglinAiAction::SetAvoidTarget
+        );
+        assert_eq!(
+            hoglin_was_hurt_action(false, "minecraft:piglin", true, false, true),
+            HoglinAiAction::None
+        );
+        assert_eq!(
+            hoglin_was_hurt_action(false, "minecraft:player", false, false, true),
+            HoglinAiAction::SetAttackTarget
+        );
+        assert_eq!(
+            hoglin_was_hurt_action(false, "minecraft:hoglin", false, false, true),
+            HoglinAiAction::None
+        );
+        assert!(hoglin_find_nearest_valid_attack_target(false, false, true));
+        assert!(!hoglin_find_nearest_valid_attack_target(true, false, true));
+        assert!(!hoglin_find_nearest_valid_attack_target(false, true, true));
+        assert_eq!(
+            hoglin_activity_sound("avoid", false, false, false),
+            Some("minecraft:entity.hoglin.retreat")
+        );
+        assert_eq!(
+            hoglin_activity_sound("fight", false, false, false),
+            Some("minecraft:entity.hoglin.angry")
+        );
+        assert_eq!(
+            hoglin_activity_sound("idle", false, true, false),
+            Some("minecraft:entity.hoglin.retreat")
+        );
+        assert_eq!(
+            hoglin_activity_sound("idle", false, false, false),
+            Some("minecraft:entity.hoglin.ambient")
+        );
+        assert_eq!(hoglin_activity_sound("fight", false, false, true), None);
+        assert_eq!(hoglin_event_attack_animation_ticks(4), Some(10));
+        assert_eq!(hoglin_event_attack_animation_ticks(3), None);
+        assert_eq!(hoglin_next_attack_animation_ticks(10), 9);
+        assert_eq!(hoglin_next_attack_animation_ticks(0), 0);
+        assert!(hoglin_blocked_by_item_throws_target(false));
+        assert!(!hoglin_blocked_by_item_throws_target(true));
+        assert_eq!(HOGLIN_REPELLENT_DETECTION_HORIZONTAL, 8);
+        assert_eq!(HOGLIN_REPELLENT_DETECTION_VERTICAL, 4);
+        assert_eq!(HOGLIN_REPELLENT_PACIFY_TIME, 200);
+        assert_eq!(HOGLIN_RETREAT_MIN_SECONDS, 5);
+        assert_eq!(HOGLIN_RETREAT_MAX_SECONDS, 20);
+        assert_eq!(HOGLIN_DESIRED_DISTANCE_FROM_PIGLIN_IDLING, 8);
+        assert_eq!(HOGLIN_DESIRED_DISTANCE_FROM_PIGLIN_RETREATING, 15);
+        assert_eq!(HOGLIN_AVOID_REPELLENT_SPEED, 1.0);
+        assert_eq!(HOGLIN_RETREAT_SPEED, 1.3);
+        assert_eq!(HOGLIN_BREEDING_SPEED, 0.6);
+        assert_eq!(HOGLIN_IDLE_SPEED, 0.4);
+        assert_eq!(HOGLIN_BABY_FOLLOW_ADULT_SPEED, 0.6);
+        assert_eq!(HOGLIN_ADULT_FOLLOW_RANGE_MIN, 5);
+        assert_eq!(HOGLIN_ADULT_FOLLOW_RANGE_MAX, 16);
+        assert_eq!(HOGLIN_LOOK_TARGET_RANGE, 8.0);
+        assert_eq!(HOGLIN_LOOK_INTERVAL_MIN_TICKS, 30);
+        assert_eq!(HOGLIN_LOOK_INTERVAL_MAX_TICKS, 60);
+        assert_eq!(HOGLIN_DO_NOTHING_MIN_TICKS, 30);
+        assert_eq!(HOGLIN_DO_NOTHING_MAX_TICKS, 60);
+        assert_eq!(HOGLIN_STEP_SOUND_VOLUME, 0.15);
+        assert_eq!(HOGLIN_STEP_SOUND_PITCH, 1.0);
 
         assert_eq!(
             hoglin_conversion_tick(299, false, false, true),
