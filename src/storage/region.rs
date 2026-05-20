@@ -201,6 +201,51 @@ impl RegionFile {
         Ok(())
     }
 
+    fn allocate_sectors(&self, sectors_needed: usize) -> io::Result<u32> {
+        if sectors_needed == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot allocate zero region sectors",
+            ));
+        }
+
+        let file_len = fs::metadata(&self.path)?.len();
+        let sector_len = (file_len as usize).div_ceil(SECTOR_BYTES as usize).max(2);
+        let mut used = vec![false; sector_len];
+        used[0] = true;
+        used[1] = true;
+
+        for index in 0..(CHUNKS_PER_REGION_AXIS * CHUNKS_PER_REGION_AXIS) as usize {
+            let chunk = ChunkPos {
+                x: (index as i32).rem_euclid(CHUNKS_PER_REGION_AXIS),
+                z: (index as i32).div_euclid(CHUNKS_PER_REGION_AXIS),
+            };
+            let Some(location) = self.read_location(chunk)? else {
+                continue;
+            };
+            let start = location.sector_offset as usize;
+            let end = start.saturating_add(location.sector_count as usize);
+            if end <= used.len() {
+                used[start..end].fill(true);
+            }
+        }
+
+        for start in 2..used.len() {
+            let end = start + sectors_needed;
+            if end <= used.len() && used[start..end].iter().all(|sector| !*sector) {
+                return Ok(start as u32);
+            }
+        }
+
+        if sector_len + sectors_needed > 0xFF_FF_FF {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "region sector offset exceeds 24-bit header field",
+            ));
+        }
+        Ok(sector_len as u32)
+    }
+
     pub fn read_location(&self, chunk: ChunkPos) -> io::Result<Option<RegionLocation>> {
         let mut file = File::open(&self.path)?;
         file.seek(SeekFrom::Start((chunk.local_index() * 4) as u64))?;
@@ -399,10 +444,8 @@ impl RegionFile {
         }
         chunk_bytes.resize(sector_count * SECTOR_BYTES as usize, 0);
 
+        let sector_start = self.allocate_sectors(sector_count)?;
         let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
-        let file_len = file.seek(SeekFrom::End(0))?;
-        let sector_start = (file_len as usize).div_ceil(SECTOR_BYTES as usize) as u32;
-        let sector_start = sector_start.max(2); // sectors 0-1 are the header
 
         file.seek(SeekFrom::Start(sector_start as u64 * SECTOR_BYTES as u64))?;
         file.write_all(&chunk_bytes)?;
@@ -936,6 +979,83 @@ mod tests {
         assert_eq!(region.read_chunk_nbt(chunk).unwrap(), None);
         assert!(!region.does_chunk_exist(chunk));
         assert!(!dir.join("c.0.0.mcc").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_reuses_freed_sectors_for_new_chunk_writes() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-sector-reuse-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        let first = ChunkPos { x: 0, z: 0 };
+        let second = ChunkPos { x: 1, z: 0 };
+        let third = ChunkPos { x: 2, z: 0 };
+        let fourth = ChunkPos { x: 3, z: 0 };
+
+        region
+            .write_chunk_nbt(
+                first,
+                "",
+                &Tag::Compound(vec![("first".to_string(), Tag::Int(1))]),
+            )
+            .unwrap();
+        region
+            .write_chunk_nbt(
+                second,
+                "",
+                &Tag::Compound(vec![("second".to_string(), Tag::Int(2))]),
+            )
+            .unwrap();
+        assert_eq!(
+            region.read_location(first).unwrap().unwrap().sector_offset,
+            2
+        );
+        assert_eq!(
+            region.read_location(second).unwrap().unwrap().sector_offset,
+            3
+        );
+
+        region.clear_chunk_nbt(first).unwrap();
+        region
+            .write_chunk_nbt(
+                third,
+                "",
+                &Tag::Compound(vec![("third".to_string(), Tag::Int(3))]),
+            )
+            .unwrap();
+        assert_eq!(
+            region.read_location(third).unwrap().unwrap().sector_offset,
+            2
+        );
+
+        region
+            .write_chunk_nbt(
+                second,
+                "",
+                &Tag::Compound(vec![("second-new".to_string(), Tag::Int(4))]),
+            )
+            .unwrap();
+        assert_eq!(
+            region.read_location(second).unwrap().unwrap().sector_offset,
+            4
+        );
+        region
+            .write_chunk_nbt(
+                fourth,
+                "",
+                &Tag::Compound(vec![("fourth".to_string(), Tag::Int(5))]),
+            )
+            .unwrap();
+        assert_eq!(
+            region.read_location(fourth).unwrap().unwrap().sector_offset,
+            3
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
