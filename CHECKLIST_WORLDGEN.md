@@ -294,7 +294,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Verify vanilla chunk-section paletted-container network serialization uses fixed-size packed long arrays without a VarInt data-array length for both block-state and biome containers, matching `readFixedSizeLongArray`/`writeFixedSizeLongArray` and preventing `level_chunk_with_light` packet over-read regressions. References: `decompiled-server-26.1.2/net/minecraft/world/level/chunk/PalettedContainer.java`, `decompiled-server-26.1.2/net/minecraft/world/level/chunk/LevelChunkSection.java`, `src/network/play.rs`.
 - [x] Fix `level_chunk_with_light` heightmap encoding to use vanilla's `HEIGHTMAPS_STREAM_CODEC` map format instead of NBT compound encoding: VarInt map count, `Heightmap.Types` VarInt ids, and length-prefixed long arrays. References: `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundLevelChunkPacketData.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/Heightmap.java`, `src/network/status.rs`.
 - [x] Fix `level_chunk_with_light` light update layer encoding to match `ClientboundLightUpdatePacketData.DATA_LAYER_STREAM_CODEC`: each 2048-byte sky/block light array is encoded as a length-prefixed byte array inside the update lists. References: `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundLightUpdatePacketData.java`, `decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java`, `src/network/play.rs`.
-- [ ] Implement chunk statuses and generation dependencies.
+- [x] Implement chunk statuses and generation dependencies.
 - [ ] Implement chunk ticketing.
 - [ ] Implement player chunk tracking.
 - [ ] Implement view distance and simulation distance independently.
