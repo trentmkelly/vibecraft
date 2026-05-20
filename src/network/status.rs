@@ -40,25 +40,26 @@ use crate::network::play::{
     unpack_block_position, ClientboundAddEntityPacket, ClientboundContainerSetSlotPacket,
     ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundRemoveEntitiesPacket,
-    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
-    CommonPlayerSpawnInfo, Direction3d, GameMode, PlayInstruction, RawDataComponentPatch,
-    RawItemStack, ServerboundContainerClickPacket, ServerboundSwingHand,
-    ServerboundUseItemOnPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-    CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
-    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
-    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
-    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
-    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    ClientboundSetEntityDataPacket, ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket,
+    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, EntityDataValue,
+    EntityMetadataValue, GameMode, PlayInstruction, RawDataComponentPatch, RawItemStack,
+    ServerboundContainerClickPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
+    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
+    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
+    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
     SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
@@ -3850,16 +3851,22 @@ fn write_generated_spawn_chunk_packets<W: Write>(
         CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
         |payload| write_generated_spawn_chunk_payload(payload, &chunk),
     )?;
-    for packet in generated_chunk_entity_add_packets(&chunk) {
-        write_generated_chunk_entity_spawn_packets(writer, compression, &packet)?;
+    for plan in generated_chunk_entity_spawn_plans(&chunk) {
+        write_generated_chunk_entity_spawn_packets(writer, compression, &plan)?;
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct GeneratedChunkEntitySpawnPlan {
+    add_entity: ClientboundAddEntityPacket,
+    metadata: Option<ClientboundSetEntityDataPacket>,
 }
 
 fn write_generated_chunk_entity_spawn_packets<W: Write>(
     writer: &mut W,
     compression: CompressionState,
-    packet: &ClientboundAddEntityPacket,
+    plan: &GeneratedChunkEntitySpawnPlan,
 ) -> io::Result<()> {
     write_framed_packet_with_compression(
         writer,
@@ -3871,8 +3878,16 @@ fn write_generated_chunk_entity_spawn_packets<W: Write>(
         writer,
         compression,
         CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-        |payload| packet.write(payload),
+        |payload| plan.add_entity.write(payload),
     )?;
+    if let Some(metadata) = &plan.metadata {
+        write_framed_packet_with_compression(
+            writer,
+            compression,
+            CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+            |payload| metadata.write(payload),
+        )?;
+    }
     write_framed_packet_with_compression(
         writer,
         compression,
@@ -3913,29 +3928,36 @@ fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
 }
 
 fn generated_chunk_entity_add_packets(chunk: &LevelChunk) -> Vec<ClientboundAddEntityPacket> {
+    generated_chunk_entity_spawn_plans(chunk)
+        .into_iter()
+        .map(|plan| plan.add_entity)
+        .collect()
+}
+
+fn generated_chunk_entity_spawn_plans(chunk: &LevelChunk) -> Vec<GeneratedChunkEntitySpawnPlan> {
     chunk
         .entities
         .iter()
         .enumerate()
-        .filter_map(|(index, entity)| generated_chunk_entity_add_packet(chunk.pos, index, entity))
+        .filter_map(|(index, entity)| generated_chunk_entity_spawn_plan(chunk.pos, index, entity))
         .collect()
 }
 
-fn generated_chunk_entity_add_packet(
+fn generated_chunk_entity_spawn_plan(
     chunk_pos: ChunkPos,
     index: usize,
     entity: &Tag,
-) -> Option<ClientboundAddEntityPacket> {
+) -> Option<GeneratedChunkEntitySpawnPlan> {
     let Tag::Compound(fields) = entity else {
         return None;
     };
-    let entity_type = tag_string_field(fields, "id")?;
-    let entity_type = generated_mob_entity_type_network_id(entity_type)?;
+    let entity_type_name = tag_string_field(fields, "id")?;
+    let entity_type = generated_mob_entity_type_network_id(entity_type_name)?;
     let uuid = uuid_from_hyphenated(tag_string_field(fields, "UUID")?).ok()?;
     let [x, y, z] = tag_double_triplet_field(fields, "Pos")?;
     let [yaw, pitch] = tag_float_pair_field(fields, "Rotation")?;
     let runtime_id = generated_chunk_entity_runtime_id(chunk_pos, index);
-    Some(ClientboundAddEntityPacket::new(
+    let add_entity = ClientboundAddEntityPacket::new(
         runtime_id,
         uuid,
         entity_type,
@@ -3948,7 +3970,64 @@ fn generated_chunk_entity_add_packet(
         (pitch, yaw),
         yaw,
         0,
-    ))
+    );
+    Some(GeneratedChunkEntitySpawnPlan {
+        add_entity,
+        metadata: generated_chunk_entity_metadata_packet(runtime_id, entity_type_name, fields),
+    })
+}
+
+fn generated_chunk_entity_metadata_packet(
+    runtime_id: i32,
+    entity_type: &str,
+    fields: &[(String, Tag)],
+) -> Option<ClientboundSetEntityDataPacket> {
+    let mut packed_items = Vec::new();
+    match entity_type {
+        "minecraft:cow" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(cow_variant_registry_id)
+                .filter(|variant| *variant != 1)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(18, EntityMetadataValue::CowVariant(variant)).ok()?,
+                );
+            }
+            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
+                .and_then(cow_sound_variant_registry_id)
+                .filter(|sound_variant| *sound_variant != 0)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(19, EntityMetadataValue::CowSoundVariant(sound_variant))
+                        .ok()?,
+                );
+            }
+        }
+        "minecraft:pig" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(pig_variant_registry_id)
+                .filter(|variant| *variant != 1)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(19, EntityMetadataValue::PigVariant(variant)).ok()?,
+                );
+            }
+            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
+                .and_then(pig_sound_variant_registry_id)
+                .filter(|sound_variant| *sound_variant != 1)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(20, EntityMetadataValue::PigSoundVariant(sound_variant))
+                        .ok()?,
+                );
+            }
+        }
+        _ => {}
+    }
+    (!packed_items.is_empty()).then_some(ClientboundSetEntityDataPacket {
+        id: runtime_id,
+        packed_items,
+    })
 }
 
 fn tag_string_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> {
@@ -3960,6 +4039,45 @@ fn tag_string_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a s
         }
         None
     })
+}
+
+fn resource_path_id(value: &str) -> &str {
+    value.strip_prefix("minecraft:").unwrap_or(value)
+}
+
+fn cow_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "cold" => Some(0),
+        "temperate" => Some(1),
+        "warm" => Some(2),
+        _ => None,
+    }
+}
+
+fn cow_sound_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "classic" => Some(0),
+        "moody" => Some(1),
+        _ => None,
+    }
+}
+
+fn pig_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "cold" => Some(0),
+        "temperate" => Some(1),
+        "warm" => Some(2),
+        _ => None,
+    }
+}
+
+fn pig_sound_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "big" => Some(0),
+        "classic" => Some(1),
+        "mini" => Some(2),
+        _ => None,
+    }
 }
 
 fn tag_double_triplet_field(fields: &[(String, Tag)], name: &str) -> Option<[f64; 3]> {
@@ -7463,8 +7581,10 @@ mod tests {
     use crate::network::common::{ServerLinkLabel, ServerLinkType};
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::play::{
-        ClientboundAddEntityPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+        ClientboundAddEntityPacket, ClientboundSetEntityDataPacket, EntityDataValue,
+        EntityMetadataValue, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
         CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
     };
     use crate::network::varint::{read_var_i32, write_var_i32};
     use crate::player_inventory::{InventoryMenu, PlayerInventory};
@@ -8826,26 +8946,29 @@ mod tests {
 
     #[test]
     fn generated_chunk_entity_spawn_packets_are_bundle_wrapped() {
-        let packet = ClientboundAddEntityPacket::new(
-            42,
-            Uuid([1; 16]),
-            100,
-            Vec3 {
-                x: 1.0,
-                y: 65.0,
-                z: 2.0,
-            },
-            Vec3::ZERO,
-            (0.0, 90.0),
-            90.0,
-            0,
-        );
+        let plan = super::GeneratedChunkEntitySpawnPlan {
+            add_entity: ClientboundAddEntityPacket::new(
+                42,
+                Uuid([1; 16]),
+                100,
+                Vec3 {
+                    x: 1.0,
+                    y: 65.0,
+                    z: 2.0,
+                },
+                Vec3::ZERO,
+                (0.0, 90.0),
+                90.0,
+                0,
+            ),
+            metadata: None,
+        };
         let mut output = Vec::new();
 
         super::write_generated_chunk_entity_spawn_packets(
             &mut output,
             CompressionState::disabled(),
-            &packet,
+            &plan,
         )
         .expect("generated mob pairing should serialize");
 
@@ -8863,6 +8986,107 @@ mod tests {
             vec![
                 CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
                 CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+                CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID
+            ]
+        );
+    }
+
+    #[test]
+    fn generated_chunk_entity_spawn_plan_reads_non_default_pig_variant_metadata() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.entities.push(Tag::Compound(vec![
+            ("id".to_string(), Tag::String("minecraft:pig".to_string())),
+            (
+                "UUID".to_string(),
+                Tag::String("00000000-0000-4000-8000-000000000123".to_string()),
+            ),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(70.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)]),
+            ),
+            (
+                "variant".to_string(),
+                Tag::String("minecraft:warm".to_string()),
+            ),
+            (
+                "sound_variant".to_string(),
+                Tag::String("minecraft:mini".to_string()),
+            ),
+        ]));
+
+        let plans = super::generated_chunk_entity_spawn_plans(&chunk);
+
+        assert_eq!(plans.len(), 1);
+        let metadata = plans[0]
+            .metadata
+            .as_ref()
+            .expect("non-default pig variant data should emit metadata");
+        assert_eq!(metadata.id, plans[0].add_entity.id);
+        assert_eq!(
+            metadata.packed_items,
+            vec![
+                EntityDataValue::typed(19, EntityMetadataValue::PigVariant(2)).unwrap(),
+                EntityDataValue::typed(20, EntityMetadataValue::PigSoundVariant(2)).unwrap(),
+            ]
+        );
+    }
+
+    #[test]
+    fn generated_chunk_entity_spawn_packets_include_non_default_metadata_in_bundle() {
+        let plan = super::GeneratedChunkEntitySpawnPlan {
+            add_entity: ClientboundAddEntityPacket::new(
+                42,
+                Uuid([1; 16]),
+                100,
+                Vec3 {
+                    x: 1.0,
+                    y: 65.0,
+                    z: 2.0,
+                },
+                Vec3::ZERO,
+                (0.0, 90.0),
+                90.0,
+                0,
+            ),
+            metadata: Some(ClientboundSetEntityDataPacket {
+                id: 42,
+                packed_items: vec![
+                    EntityDataValue::typed(19, EntityMetadataValue::PigVariant(2)).unwrap(),
+                ],
+            }),
+        };
+        let mut output = Vec::new();
+
+        super::write_generated_chunk_entity_spawn_packets(
+            &mut output,
+            CompressionState::disabled(),
+            &plan,
+        )
+        .expect("generated mob pairing with metadata should serialize");
+
+        let mut frames = Vec::new();
+        let mut input = &output[..];
+        while !input.is_empty() {
+            let frame_len = read_var_i32(&mut input).unwrap() as usize;
+            let mut frame = vec![0; frame_len];
+            input.read_exact(&mut frame).unwrap();
+            let mut payload = &frame[..];
+            frames.push(read_var_i32(&mut payload).unwrap());
+        }
+        assert_eq!(
+            frames,
+            vec![
+                CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+                CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+                CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
                 CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID
             ]
         );
