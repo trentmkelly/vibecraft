@@ -11176,6 +11176,8 @@ mod tests {
         heightmaps.insert("WORLD_SURFACE".to_string(), Tag::LongArray(vec![1, 2, 3]));
         let chunk = LevelChunk {
             pos: ChunkPos { x: 4, z: -2 },
+            min_section_y: 0,
+            last_update: 0,
             status: "minecraft:full".to_string(),
             inhabited_time: 0,
             sections: vec![ChunkSection {
@@ -11194,9 +11196,14 @@ mod tests {
             ])],
             entities: Vec::new(),
             structures: Tag::Compound(Vec::new()),
+            upgrade_data: None,
+            blending_data: None,
+            below_zero_retrogen: None,
+            carving_mask: None,
             block_ticks: Vec::new(),
             fluid_ticks: Vec::new(),
             post_processing: Vec::new(),
+            light_correct: false,
         };
         let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
         let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data.clone());

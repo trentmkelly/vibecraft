@@ -300,6 +300,8 @@ const fn status_entry(
 #[derive(Debug, Clone, PartialEq)]
 pub struct LevelChunk {
     pub pos: ChunkPos,
+    pub min_section_y: i32,
+    pub last_update: i64,
     pub status: String,
     pub inhabited_time: i64,
     pub sections: Vec<ChunkSection>,
@@ -307,15 +309,22 @@ pub struct LevelChunk {
     pub block_entities: Vec<Tag>,
     pub entities: Vec<Tag>,
     pub structures: Tag,
+    pub upgrade_data: Option<Tag>,
+    pub blending_data: Option<Tag>,
+    pub below_zero_retrogen: Option<Tag>,
+    pub carving_mask: Option<Vec<i64>>,
     pub block_ticks: Vec<Tag>,
     pub fluid_ticks: Vec<Tag>,
     pub post_processing: Vec<Tag>,
+    pub light_correct: bool,
 }
 
 impl LevelChunk {
     pub fn empty(pos: ChunkPos) -> Self {
         Self {
             pos,
+            min_section_y: 0,
+            last_update: 0,
             status: "minecraft:empty".to_string(),
             inhabited_time: 0,
             sections: Vec::new(),
@@ -323,17 +332,24 @@ impl LevelChunk {
             block_entities: Vec::new(),
             entities: Vec::new(),
             structures: Tag::Compound(Vec::new()),
+            upgrade_data: None,
+            blending_data: None,
+            below_zero_retrogen: None,
+            carving_mask: None,
             block_ticks: Vec::new(),
             fluid_ticks: Vec::new(),
             post_processing: Vec::new(),
+            light_correct: false,
         }
     }
 
     pub fn to_nbt(&self, data_version: i32) -> Tag {
-        Tag::Compound(vec![
+        let mut fields = vec![
             ("DataVersion".to_string(), Tag::Int(data_version)),
             ("xPos".to_string(), Tag::Int(self.pos.x)),
+            ("yPos".to_string(), Tag::Int(self.min_section_y)),
             ("zPos".to_string(), Tag::Int(self.pos.z)),
+            ("LastUpdate".to_string(), Tag::Long(self.last_update)),
             ("Status".to_string(), Tag::String(self.status.clone())),
             ("InhabitedTime".to_string(), Tag::Long(self.inhabited_time)),
             (
@@ -362,7 +378,29 @@ impl LevelChunk {
                 "PostProcessing".to_string(),
                 Tag::List(self.post_processing.clone()),
             ),
-        ])
+        ];
+        if let Some(upgrade_data) = &self.upgrade_data {
+            fields.push(("UpgradeData".to_string(), upgrade_data.clone()));
+        }
+        if let Some(blending_data) = &self.blending_data {
+            fields.push(("blending_data".to_string(), blending_data.clone()));
+        }
+        if let Some(below_zero_retrogen) = &self.below_zero_retrogen {
+            fields.push((
+                "below_zero_retrogen".to_string(),
+                below_zero_retrogen.clone(),
+            ));
+        }
+        if let Some(carving_mask) = &self.carving_mask {
+            fields.push((
+                "carving_mask".to_string(),
+                Tag::LongArray(carving_mask.clone()),
+            ));
+        }
+        if self.light_correct {
+            fields.push(("isLightOn".to_string(), Tag::Byte(1)));
+        }
+        Tag::Compound(fields)
     }
 
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
@@ -381,6 +419,8 @@ impl LevelChunk {
 
         Ok(Self {
             pos,
+            min_section_y: optional_int_field(root, "yPos")?.unwrap_or(0),
+            last_update: optional_long_field(root, "LastUpdate")?.unwrap_or(0),
             status: string_field(root, "Status")?.to_string(),
             inhabited_time: long_field(root, "InhabitedTime")?,
             sections: list_field(root, "sections")?
@@ -394,9 +434,14 @@ impl LevelChunk {
             block_entities: list_field(root, "block_entities")?.to_vec(),
             entities: list_field(root, "entities")?.to_vec(),
             structures: field(root, "structures")?.clone(),
+            upgrade_data: optional_field(root, "UpgradeData").cloned(),
+            blending_data: optional_field(root, "blending_data").cloned(),
+            below_zero_retrogen: optional_field(root, "below_zero_retrogen").cloned(),
+            carving_mask: optional_long_array(root, "carving_mask")?,
             block_ticks: list_field(root, "block_ticks")?.to_vec(),
             fluid_ticks: list_field(root, "fluid_ticks")?.to_vec(),
             post_processing: list_field(root, "PostProcessing")?.to_vec(),
+            light_correct: optional_bool_field(root, "isLightOn")?.unwrap_or(false),
         })
     }
 }
@@ -680,6 +725,13 @@ fn field<'a>(compound: &'a [(String, Tag)], name: &str) -> Result<&'a Tag, Strin
         .ok_or_else(|| format!("missing NBT field {name}"))
 }
 
+fn optional_field<'a>(compound: &'a [(String, Tag)], name: &str) -> Option<&'a Tag> {
+    compound
+        .iter()
+        .find(|(field_name, _)| field_name == name)
+        .map(|(_, value)| value)
+}
+
 fn byte_field(compound: &[(String, Tag)], name: &str) -> Result<i8, String> {
     match field(compound, name)? {
         Tag::Byte(value) => Ok(*value),
@@ -694,10 +746,26 @@ fn int_field(compound: &[(String, Tag)], name: &str) -> Result<i32, String> {
     }
 }
 
+fn optional_int_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i32>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::Int(value)) => Ok(Some(*value)),
+        Some(_) => Err(format!("NBT field {name} must be an int")),
+        None => Ok(None),
+    }
+}
+
 fn long_field(compound: &[(String, Tag)], name: &str) -> Result<i64, String> {
     match field(compound, name)? {
         Tag::Long(value) => Ok(*value),
         _ => Err(format!("NBT field {name} must be a long")),
+    }
+}
+
+fn optional_long_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i64>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::Long(value)) => Ok(Some(*value)),
+        Some(_) => Err(format!("NBT field {name} must be a long")),
+        None => Ok(None),
     }
 }
 
@@ -723,6 +791,22 @@ fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<
     }
 }
 
+fn optional_long_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i64>>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::LongArray(values)) => Ok(Some(values.clone())),
+        Some(_) => Err(format!("NBT field {name} must be a long array")),
+        None => Ok(None),
+    }
+}
+
+fn optional_bool_field(compound: &[(String, Tag)], name: &str) -> Result<Option<bool>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::Byte(value)) => Ok(Some(*value != 0)),
+        Some(_) => Err(format!("NBT field {name} must be a byte boolean")),
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -743,6 +827,8 @@ mod tests {
         heightmaps.insert("WORLD_SURFACE".to_string(), Tag::LongArray(vec![1, 2, 3]));
         let chunk = LevelChunk {
             pos,
+            min_section_y: -4,
+            last_update: 1234,
             status: "minecraft:full".to_string(),
             inhabited_time: 42,
             sections: vec![ChunkSection {
@@ -762,6 +848,13 @@ mod tests {
                 Tag::String("minecraft:pig".to_string()),
             )])],
             structures: Tag::Compound(vec![("starts".to_string(), Tag::Compound(Vec::new()))]),
+            upgrade_data: Some(Tag::Compound(vec![("Sides".to_string(), Tag::Int(0))])),
+            blending_data: Some(Tag::Compound(vec![("old_noise".to_string(), Tag::Byte(1))])),
+            below_zero_retrogen: Some(Tag::Compound(vec![(
+                "target_status".to_string(),
+                Tag::String("minecraft:heightmaps".to_string()),
+            )])),
+            carving_mask: Some(vec![7, 8, 9]),
             block_ticks: vec![Tag::Compound(vec![(
                 "i".to_string(),
                 Tag::String("minecraft:stone".to_string()),
@@ -771,11 +864,14 @@ mod tests {
                 Tag::String("minecraft:water".to_string()),
             )])],
             post_processing: vec![Tag::List(vec![Tag::Short(1), Tag::Short(2)])],
+            light_correct: true,
         };
 
         let decoded = LevelChunk::from_nbt(pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
 
         assert_eq!(decoded.pos, pos);
+        assert_eq!(decoded.min_section_y, -4);
+        assert_eq!(decoded.last_update, 1234);
         assert_eq!(decoded.status, "minecraft:full");
         assert_eq!(
             decoded.sections[0].block_light.as_ref().unwrap().len(),
@@ -785,9 +881,14 @@ mod tests {
         assert!(decoded.heightmaps.contains_key("WORLD_SURFACE"));
         assert_eq!(decoded.block_entities.len(), 1);
         assert_eq!(decoded.entities.len(), 1);
+        assert!(decoded.upgrade_data.is_some());
+        assert!(decoded.blending_data.is_some());
+        assert!(decoded.below_zero_retrogen.is_some());
+        assert_eq!(decoded.carving_mask, Some(vec![7, 8, 9]));
         assert_eq!(decoded.block_ticks.len(), 1);
         assert_eq!(decoded.fluid_ticks.len(), 1);
         assert_eq!(decoded.post_processing.len(), 1);
+        assert!(decoded.light_correct);
     }
 
     #[test]

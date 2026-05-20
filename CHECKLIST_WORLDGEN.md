@@ -247,7 +247,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 - [ ] Implement `ProtoChunk` with: block sections, biome sections, heightmaps (MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES, OCEAN_FLOOR, WORLD_SURFACE), carving masks (AIR/LIQUID), block entities queue, entity generation queue, structures (starts + references), ticks (block + fluid), lights (sky + block), post-processing markers, inhabited time, status field
 - [ ] Implement lighting handoff for generated chunks: sky/block light arrays match vanilla expectations after terrain/carvers/features run before LIGHT status
-- [ ] Implement region/chunk persistence compatibility: serialize generated `LevelChunk` to vanilla 26.1.2 `SerializableChunkData` NBT format with `DataVersion`, `xPos`, `zPos`, `Status`, `sections`, `block_entities`, `structures`, `Heightmaps`, `blending_data`, `below_zero_retrogen` fields
+- [x] Implement region/chunk persistence compatibility: serialize generated `LevelChunk` to vanilla 26.1.2 `SerializableChunkData` NBT format with `DataVersion`, `xPos`, `zPos`, `Status`, `sections`, `block_entities`, `structures`, `Heightmaps`, `blending_data`, `below_zero_retrogen` fields
 
 ## Worldgen Parity Testing
 
