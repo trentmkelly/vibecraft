@@ -219,7 +219,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ### Jigsaw Structure Pieces
 - [ ] Implement `JigsawPlacement`: breadth-first jigsaw placement, depth limit, joint type (aligned/rollable), projection (rigid/terrain_facing), `PoolAliasLookup`
-- [ ] Implement `SinglePoolElement`, `FeaturePoolElement`, `LegacySinglePoolElement`, `ListPoolElement`, `EmptyPoolElement`
+- [x] Implement `SinglePoolElement`, `FeaturePoolElement`, `LegacySinglePoolElement`, `ListPoolElement`, `EmptyPoolElement`
 - [x] Implement structure processor list: `BlockIgnoreProcessor`, `BlockRotProcessor`, `BlockStateMatchProcessor`, `BlockMatchProcessor`, `GravityProcessor`, `JigsawReplacementProcessor`, `LavaSubmergedBlockProcessor`, `NopProcessor`, `ProtectedBlocksProcessor`, `RuleProcessor`, `CappedProcessor`
 - [x] Implement template pool loading from `data/minecraft/worldgen/template_pool/`
 - [ ] Implement jigsaw content for villages, pillager outposts, bastions, ancient cities, trail ruins, and trial chambers from template pools and NBT structure files
