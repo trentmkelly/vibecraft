@@ -2686,6 +2686,33 @@ pub struct JigsawTemplatePoolModel {
     pub expanded_template_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedTemplatePoolRegistry {
+    pub pools: BTreeMap<String, ParsedJigsawTemplatePool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedJigsawTemplatePool {
+    pub fallback: String,
+    pub elements: Vec<ParsedJigsawTemplatePoolEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedJigsawTemplatePoolEntry {
+    pub element: ParsedJigsawPoolElement,
+    pub weight: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedJigsawPoolElement {
+    pub element_type: String,
+    pub projection: Option<String>,
+    pub location: Option<String>,
+    pub processors: Vec<String>,
+    pub feature: Option<String>,
+    pub children: Vec<ParsedJigsawPoolElement>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JigsawCandidatePoolSource {
     Target,
@@ -23504,6 +23531,132 @@ pub fn load_worldgen_preset_registry(
     })
 }
 
+pub fn load_template_pool_registry(
+    template_pool_root: impl AsRef<std::path::Path>,
+) -> Result<ParsedTemplatePoolRegistry, String> {
+    let root = template_pool_root.as_ref();
+    let mut pools = BTreeMap::new();
+    load_template_pool_directory(root, root, &mut pools)?;
+    Ok(ParsedTemplatePoolRegistry { pools })
+}
+
+fn load_template_pool_directory(
+    root: &std::path::Path,
+    directory: &std::path::Path,
+    pools: &mut BTreeMap<String, ParsedJigsawTemplatePool>,
+) -> Result<(), String> {
+    let entries = std::fs::read_dir(directory)
+        .map_err(|err| format!("failed to read template pool directory {directory:?}: {err}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("failed to read template pool entry: {err}"))?;
+        let path = entry.path();
+        if path.is_dir() {
+            load_template_pool_directory(root, &path, pools)?;
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let id = worldgen_json_id(root, &path)?;
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|err| format!("failed to read template pool JSON {path:?}: {err}"))?;
+        let value: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|err| format!("invalid template pool JSON {path:?}: {err}"))?;
+        pools.insert(id, parse_template_pool_value(&value)?);
+    }
+    Ok(())
+}
+
+pub fn parse_template_pool_value(
+    value: &serde_json::Value,
+) -> Result<ParsedJigsawTemplatePool, String> {
+    let object = json_object(value, "template pool")?;
+    let fallback = json_string_field(object, "fallback")?.to_string();
+    let elements = json_required(object, "elements")?
+        .as_array()
+        .ok_or_else(|| "template pool elements must be an array".to_string())?
+        .iter()
+        .map(|entry| {
+            let entry = json_object(entry, "template pool element entry")?;
+            let weight = json_i64_field(entry, "weight")?;
+            let weight =
+                i32::try_from(weight).map_err(|_| format!("weight {weight} overflows i32"))?;
+            Ok(ParsedJigsawTemplatePoolEntry {
+                element: parse_jigsaw_pool_element_value(json_required(entry, "element")?)?,
+                weight,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(ParsedJigsawTemplatePool { fallback, elements })
+}
+
+fn parse_jigsaw_pool_element_value(
+    value: &serde_json::Value,
+) -> Result<ParsedJigsawPoolElement, String> {
+    let object = json_object(value, "jigsaw pool element")?;
+    let element_type = json_string_field(object, "element_type")?.to_string();
+    let projection = object
+        .get("projection")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let location = object
+        .get("location")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let feature = object
+        .get("feature")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let processors = object
+        .get("processors")
+        .map(parse_template_pool_processors)
+        .transpose()?
+        .unwrap_or_default();
+    let children = object
+        .get("elements")
+        .and_then(|value| value.as_array())
+        .map(|elements| {
+            elements
+                .iter()
+                .map(parse_jigsaw_pool_element_value)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    Ok(ParsedJigsawPoolElement {
+        element_type,
+        projection,
+        location,
+        processors,
+        feature,
+        children,
+    })
+}
+
+fn parse_template_pool_processors(value: &serde_json::Value) -> Result<Vec<String>, String> {
+    if let Some(id) = value.as_str() {
+        return Ok(vec![id.to_string()]);
+    }
+    let object = json_object(value, "template pool processors")?;
+    object
+        .get("processors")
+        .and_then(|value| value.as_array())
+        .map(|processors| {
+            processors
+                .iter()
+                .map(|processor| {
+                    processor
+                        .as_str()
+                        .map(str::to_string)
+                        .ok_or_else(|| "processor entries must be strings".to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
 fn load_world_preset_directory(
     directory: &std::path::Path,
 ) -> Result<BTreeMap<String, ParsedWorldPreset>, String> {
@@ -23547,6 +23700,18 @@ fn load_json_directory<T>(
     }
 
     Ok(loaded)
+}
+
+fn worldgen_json_id(root: &std::path::Path, path: &std::path::Path) -> Result<String, String> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|err| format!("failed to relativize {}: {err}", path.display()))?;
+    let without_extension = relative.with_extension("");
+    let id_path = without_extension
+        .to_str()
+        .ok_or_else(|| format!("invalid UTF-8 path {}", path.display()))?
+        .replace('\\', "/");
+    Ok(format!("minecraft:{id_path}"))
 }
 
 pub fn parse_world_dimensions_value(
@@ -39096,6 +39261,47 @@ mod tests {
                 (3, "minecraft:dirt".to_string()),
                 (1, "minecraft:grass_block".to_string()),
             ]
+        );
+    }
+
+    #[test]
+    fn template_pool_registry_loads_vanilla_nested_pool_json() {
+        let registry = super::load_template_pool_registry(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool",
+        )
+        .unwrap();
+
+        assert!(registry.pools.contains_key("minecraft:empty"));
+        assert!(registry
+            .pools
+            .contains_key("minecraft:pillager_outpost/base_plates"));
+        assert!(registry
+            .pools
+            .contains_key("minecraft:trial_chambers/chamber/end"));
+        assert!(registry.pools.len() > 100);
+
+        let empty = registry.pools.get("minecraft:empty").unwrap();
+        assert_eq!(empty.fallback, "minecraft:empty");
+        assert!(empty.elements.is_empty());
+
+        let base_plates = registry
+            .pools
+            .get("minecraft:pillager_outpost/base_plates")
+            .unwrap();
+        assert_eq!(base_plates.fallback, "minecraft:empty");
+        assert_eq!(base_plates.elements.len(), 1);
+        assert_eq!(base_plates.elements[0].weight, 1);
+        assert_eq!(
+            base_plates.elements[0].element.element_type,
+            "minecraft:legacy_single_pool_element"
+        );
+        assert_eq!(
+            base_plates.elements[0].element.location.as_deref(),
+            Some("minecraft:pillager_outpost/base_plate")
+        );
+        assert_eq!(
+            base_plates.elements[0].element.projection.as_deref(),
+            Some("rigid")
         );
     }
 
