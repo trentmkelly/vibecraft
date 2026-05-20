@@ -693,8 +693,8 @@ impl ChunkSection {
             biomes: optional_field(compound, "biomes")
                 .cloned()
                 .unwrap_or_else(default_biomes_container),
-            block_light: optional_byte_array(compound, "BlockLight")?,
-            sky_light: optional_byte_array(compound, "SkyLight")?,
+            block_light: optional_light_array(compound, "BlockLight")?,
+            sky_light: optional_light_array(compound, "SkyLight")?,
         })
     }
 }
@@ -1094,6 +1094,21 @@ fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<
         Some((_name, _)) => Err(format!("NBT field {name} must be a byte array")),
         None => Ok(None),
     }
+}
+
+fn optional_light_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i8>>, String> {
+    optional_byte_array(compound, name)?
+        .map(|values| {
+            if values.len() == LIGHT_DATA_LAYER_LENGTH {
+                Ok(values)
+            } else {
+                Err(format!(
+                    "DataLayer should be 2048 bytes not: {} for NBT field {name}",
+                    values.len()
+                ))
+            }
+        })
+        .transpose()
 }
 
 fn optional_long_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i64>>, String> {
@@ -1862,6 +1877,28 @@ mod tests {
             default_block_states_container()
         );
         assert_eq!(decoded.sections[0].biomes, default_biomes_container());
+    }
+
+    #[test]
+    fn level_chunk_rejects_invalid_section_light_arrays_on_load() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        let (_, sections) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "sections")
+            .expect("sections should be present");
+        *sections = Tag::List(vec![Tag::Compound(vec![
+            ("Y".to_string(), Tag::Byte(0)),
+            ("BlockLight".to_string(), Tag::ByteArray(vec![0; 17])),
+        ])]);
+
+        let err = LevelChunk::from_nbt(pos, &tag).unwrap_err();
+
+        assert!(err.contains("DataLayer should be 2048 bytes not: 17"));
+        assert!(err.contains("BlockLight"));
     }
 
     #[test]
