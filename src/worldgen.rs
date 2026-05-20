@@ -24209,6 +24209,14 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
     if chunk_generation_mob_is_neutral(snap.entity_type) {
         fields.push(("anger_end_time".to_string(), Tag::Long(0)));
     }
+    if chunk_generation_mob_is_patrolling_monster(snap.entity_type) {
+        fields.push(("PatrolLeader".to_string(), Tag::Byte(0)));
+        fields.push(("Patrolling".to_string(), Tag::Byte(0)));
+    }
+    if chunk_generation_mob_is_raider(snap.entity_type) {
+        fields.push(("Wave".to_string(), Tag::Int(0)));
+        fields.push(("CanJoinRaid".to_string(), Tag::Byte(0)));
+    }
     append_chunk_generation_mob_specific_save_fields(snap.entity_type, &mut fields);
     Tag::Compound(fields)
 }
@@ -24491,6 +24499,22 @@ fn chunk_generation_mob_is_neutral(entity_type: &str) -> bool {
             | "minecraft:wolf"
             | "minecraft:zombified_piglin"
     )
+}
+
+fn chunk_generation_mob_is_patrolling_monster(entity_type: &str) -> bool {
+    matches!(
+        entity_type,
+        "minecraft:evoker"
+            | "minecraft:illusioner"
+            | "minecraft:pillager"
+            | "minecraft:ravager"
+            | "minecraft:vindicator"
+            | "minecraft:witch"
+    )
+}
+
+fn chunk_generation_mob_is_raider(entity_type: &str) -> bool {
+    chunk_generation_mob_is_patrolling_monster(entity_type)
 }
 
 pub fn queue_chunk_generation_mob_entity(
@@ -59136,6 +59160,66 @@ mod tests {
         };
 
         assert!(!zombie_fields.contains(&("anger_end_time".to_string(), Tag::Long(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_raider_patrol_save_fields() {
+        let witch = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:witch",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let ravager = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:ravager",
+            width: 1.95,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let zombie = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:zombie",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(witch_fields) =
+            super::chunk_generation_mob_entity_nbt(witch, "00000000-0000-0000-0000-000000000182")
+        else {
+            panic!("witch entity nbt must be a compound");
+        };
+        let Tag::Compound(ravager_fields) =
+            super::chunk_generation_mob_entity_nbt(ravager, "00000000-0000-0000-0000-000000000183")
+        else {
+            panic!("ravager entity nbt must be a compound");
+        };
+        let Tag::Compound(zombie_fields) =
+            super::chunk_generation_mob_entity_nbt(zombie, "00000000-0000-0000-0000-000000000184")
+        else {
+            panic!("zombie entity nbt must be a compound");
+        };
+
+        for fields in [&witch_fields, &ravager_fields] {
+            assert!(fields.contains(&("PatrolLeader".to_string(), Tag::Byte(0))));
+            assert!(fields.contains(&("Patrolling".to_string(), Tag::Byte(0))));
+            assert!(!fields.iter().any(|(name, _)| name == "patrol_target"));
+            assert!(fields.contains(&("Wave".to_string(), Tag::Int(0))));
+            assert!(fields.contains(&("CanJoinRaid".to_string(), Tag::Byte(0))));
+            assert!(!fields.iter().any(|(name, _)| name == "RaidId"));
+        }
+        assert!(!zombie_fields.contains(&("PatrolLeader".to_string(), Tag::Byte(0))));
+        assert!(!zombie_fields.contains(&("Patrolling".to_string(), Tag::Byte(0))));
+        assert!(!zombie_fields.contains(&("Wave".to_string(), Tag::Int(0))));
+        assert!(!zombie_fields.contains(&("CanJoinRaid".to_string(), Tag::Byte(0))));
     }
 
     #[test]
