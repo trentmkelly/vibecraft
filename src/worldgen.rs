@@ -39846,6 +39846,18 @@ mod tests {
             },
             &heights
         ));
+        assert!(!super::dyn_surface_condition_test(
+            &super::DynSurfaceCondition::VerticalGradient {
+                random_name: "minecraft:bedrock_floor".to_string(),
+                true_at_and_below: VerticalAnchor::Absolute(60),
+                false_at_and_above: VerticalAnchor::Absolute(70),
+            },
+            &super::BuildSurfaceColumnState {
+                block_y: 65,
+                ..dynamic_water_state
+            },
+            BUILTIN_NOISE_GENERATOR_SETTINGS[0],
+        ));
         assert_eq!(
             super::surface_rule_apply(&SurfaceRuleSource::Bandlands, &quiet_desert_floor, &heights),
             Some("minecraft:red_sand")
