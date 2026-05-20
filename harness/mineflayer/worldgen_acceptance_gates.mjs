@@ -130,7 +130,17 @@ export function compareWorldgenFixtureReports (left, right) {
 export function compareRustcraftWorldgenReport (vanillaReports, rustcraftReport) {
   const reports = Array.isArray(vanillaReports) ? vanillaReports : [vanillaReports]
   const vanillaChunks = reports.flatMap(report => comparableRequestedChunks(report))
-  const rustcraftChunks = comparableRustcraftChunks(rustcraftReport)
+  const rustcraft = comparableRustcraftChunks(rustcraftReport)
+  if (rustcraft.issues.length > 0) {
+    return {
+      ok: false,
+      comparedChunks: 0,
+      leftChunks: vanillaChunks.length,
+      rightChunks: rustcraft.chunks.length,
+      issues: rustcraft.issues
+    }
+  }
+  const rustcraftChunks = rustcraft.chunks
   return compareComparableChunkLists(vanillaChunks, rustcraftChunks, {
     leftLabel: 'vanilla',
     rightLabel: 'rustcraft'
@@ -260,11 +270,17 @@ function comparableRequestedChunks (report) {
 }
 
 function comparableRustcraftChunks (report) {
-  return (report?.chunks ?? report?.requestedChunks ?? []).map(chunk => {
+  const issues = []
+  const chunks = (report?.chunks ?? report?.requestedChunks ?? []).flatMap(chunk => {
     const chunkX = chunk.chunkX ?? chunk.x
     const chunkZ = chunk.chunkZ ?? chunk.z
-    const dimension = chunk.dimension ?? 'overworld'
-    return {
+    const label = `${chunkX ?? '<missing>'},${chunkZ ?? '<missing>'}`
+    if (typeof chunk.dimension !== 'string' || chunk.dimension.length === 0) {
+      issues.push(`RustCraft chunk ${label} missing dimension`)
+      return []
+    }
+    const dimension = chunk.dimension
+    return [{
       ...chunk,
       chunkX,
       chunkZ,
@@ -282,8 +298,9 @@ function comparableRustcraftChunks (report) {
       })),
       dimension,
       key: `${dimension}:${chunkX},${chunkZ}`
-    }
+    }]
   })
+  return { chunks, issues }
 }
 
 function stableChunkProjection (chunk) {

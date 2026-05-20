@@ -204,6 +204,31 @@ test('RustCraft worldgen comparison fails closed against vanilla requested chunk
   })
 })
 
+test('RustCraft worldgen comparison rejects chunks without explicit dimensions', () => {
+  const vanilla = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+  const missingDimension = rustcraftReport({
+    dimension: 'overworld',
+    palette: ['minecraft:water', 'minecraft:stone']
+  })
+  delete missingDimension.chunks[0].dimension
+
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingDimension), {
+    ok: false,
+    comparedChunks: 0,
+    leftChunks: 1,
+    rightChunks: 0,
+    issues: ['RustCraft chunk 0,0 missing dimension']
+  })
+
+  missingDimension.chunks[0].dimension = ''
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingDimension).issues, [
+    'RustCraft chunk 0,0 missing dimension'
+  ])
+})
+
 test('accepted vanilla snapshot catches RustCraft worldgen drift', async () => {
   const acceptedPath = path.join(
     path.dirname(new URL(import.meta.url).pathname),
