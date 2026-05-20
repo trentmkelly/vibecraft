@@ -37846,6 +37846,30 @@ mod tests {
     }
 
     #[test]
+    fn real_surface_generation_mode_depends_on_world_seed() {
+        let chunk_seed_0 = super::generate_overworld_chunk_for_preset_with_mode(
+            ChunkPos { x: 0, z: 0 },
+            "normal",
+            super::LiveChunkGenerationMode::RealSurface,
+            0,
+        )
+        .expect("real-surface mode should generate seed 0 terrain");
+        let chunk_seed_1 = super::generate_overworld_chunk_for_preset_with_mode(
+            ChunkPos { x: 0, z: 0 },
+            "normal",
+            super::LiveChunkGenerationMode::RealSurface,
+            1,
+        )
+        .expect("real-surface mode should generate seed 1 terrain");
+
+        assert_ne!(
+            chunk_seed_0.heightmaps.get("WORLD_SURFACE_WG"),
+            chunk_seed_1.heightmaps.get("WORLD_SURFACE_WG"),
+            "real-surface generation must not ignore the world seed"
+        );
+    }
+
+    #[test]
     fn generator_method_facade_exposes_vanilla_status_task_names() {
         let normal = super::resolve_world_preset("normal").unwrap();
         let pos = ChunkPos { x: 1, z: -1 };
