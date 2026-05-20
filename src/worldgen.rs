@@ -24197,6 +24197,9 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
         fields.push(("ForcedAge".to_string(), Tag::Int(0)));
         fields.push(("AgeLocked".to_string(), Tag::Byte(0)));
     }
+    if chunk_generation_mob_is_animal(snap.entity_type) {
+        fields.push(("InLove".to_string(), Tag::Int(0)));
+    }
     append_chunk_generation_mob_specific_save_fields(snap.entity_type, &mut fields);
     Tag::Compound(fields)
 }
@@ -24284,6 +24287,39 @@ fn chunk_generation_mob_is_ageable(entity_type: &str) -> bool {
             | "minecraft:rabbit"
             | "minecraft:sheep"
             | "minecraft:squid"
+            | "minecraft:strider"
+            | "minecraft:trader_llama"
+            | "minecraft:turtle"
+            | "minecraft:wolf"
+            | "minecraft:zombie_horse"
+    )
+}
+
+fn chunk_generation_mob_is_animal(entity_type: &str) -> bool {
+    matches!(
+        entity_type,
+        "minecraft:armadillo"
+            | "minecraft:axolotl"
+            | "minecraft:camel"
+            | "minecraft:cat"
+            | "minecraft:chicken"
+            | "minecraft:cow"
+            | "minecraft:donkey"
+            | "minecraft:fox"
+            | "minecraft:frog"
+            | "minecraft:goat"
+            | "minecraft:hoglin"
+            | "minecraft:horse"
+            | "minecraft:llama"
+            | "minecraft:mooshroom"
+            | "minecraft:mule"
+            | "minecraft:ocelot"
+            | "minecraft:panda"
+            | "minecraft:parrot"
+            | "minecraft:pig"
+            | "minecraft:polar_bear"
+            | "minecraft:rabbit"
+            | "minecraft:sheep"
             | "minecraft:strider"
             | "minecraft:trader_llama"
             | "minecraft:turtle"
@@ -58839,8 +58875,48 @@ mod tests {
         assert!(!fields.iter().any(|(name, _)| name == "Age"));
         assert!(!fields.iter().any(|(name, _)| name == "ForcedAge"));
         assert!(!fields.iter().any(|(name, _)| name == "AgeLocked"));
+        assert!(!fields.iter().any(|(name, _)| name == "InLove"));
         assert!(fields.contains(&("Health".to_string(), Tag::Float(20.0))));
         assert!(fields.contains(&("CanPickUpLoot".to_string(), Tag::Byte(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_animal_superclass_save_fields() {
+        let animal = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:pig",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let ageable_non_animal = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:dolphin",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(animal_fields) =
+            super::chunk_generation_mob_entity_nbt(animal, "00000000-0000-0000-0000-000000000130")
+        else {
+            panic!("animal entity nbt must be a compound");
+        };
+        let Tag::Compound(ageable_non_animal_fields) = super::chunk_generation_mob_entity_nbt(
+            ageable_non_animal,
+            "00000000-0000-0000-0000-000000000131",
+        ) else {
+            panic!("ageable non-animal entity nbt must be a compound");
+        };
+
+        assert!(animal_fields.contains(&("InLove".to_string(), Tag::Int(0))));
+        assert!(!ageable_non_animal_fields
+            .iter()
+            .any(|(name, _)| name == "InLove"));
     }
 
     #[test]
