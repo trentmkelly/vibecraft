@@ -45334,8 +45334,33 @@ mod tests {
             "min_clipped_height must be in 0..=80".to_string()
         );
         assert_eq!(
-            super::tree_decorator_type("trunk_vine"),
-            Some("minecraft:trunk_vine")
+            [
+                "trunk_vine",
+                "leave_vine",
+                "pale_moss",
+                "creaking_heart",
+                "cocoa",
+                "beehive",
+                "alter_ground",
+                "attached_to_leaves",
+                "place_on_ground",
+                "attached_to_logs",
+            ]
+            .iter()
+            .filter_map(|decorator_type| super::tree_decorator_type(decorator_type))
+            .collect::<Vec<_>>(),
+            vec![
+                "minecraft:trunk_vine",
+                "minecraft:leave_vine",
+                "minecraft:pale_moss",
+                "minecraft:creaking_heart",
+                "minecraft:cocoa",
+                "minecraft:beehive",
+                "minecraft:alter_ground",
+                "minecraft:attached_to_leaves",
+                "minecraft:place_on_ground",
+                "minecraft:attached_to_logs",
+            ]
         );
         assert_eq!(
             super::tree_decorator_type("minecraft:attached_to_logs"),
@@ -47075,6 +47100,16 @@ mod tests {
             Ok(TreeDecoratorModel::CreakingHeart { probability: 0.0 })
         );
         assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::AttachedToLeaves {
+                probability: 1.0
+            }),
+            Ok(TreeDecoratorModel::AttachedToLeaves { probability: 1.0 })
+        );
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::AttachedToLogs { probability: 0.0 }),
+            Ok(TreeDecoratorModel::AttachedToLogs { probability: 0.0 })
+        );
+        assert_eq!(
             super::validate_tree_decorator(TreeDecoratorModel::PaleMoss {
                 leaves_probability: 0.25,
                 trunk_probability: 0.5,
@@ -47098,6 +47133,13 @@ mod tests {
         assert_eq!(
             super::validate_tree_decorator(TreeDecoratorModel::Beehive { probability: 1.5 })
                 .unwrap_err(),
+            "tree decorator probability must be in 0.0..=1.0".to_string()
+        );
+        assert_eq!(
+            super::validate_tree_decorator(TreeDecoratorModel::AttachedToLogs {
+                probability: -0.1
+            })
+            .unwrap_err(),
             "tree decorator probability must be in 0.0..=1.0".to_string()
         );
         assert!(super::tree_decorator_should_place(0.25, 0.249));
