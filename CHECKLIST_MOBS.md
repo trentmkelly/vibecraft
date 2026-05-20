@@ -147,9 +147,9 @@
 - [x] Implement `Drowned`: trident attack AI, swim AI, water/depth spawn gates, nautilus-shell offhand chance, zombie-nautilus jockey chance, spear pickup rejection
 - [x] Implement `Husk`: desert biome only, does not burn in daylight, hunger effect on hit, water conversion to Zombie, baby dimensions, loot pickup chance, camel-husk/parched rider finalize-spawn gate
 - [x] Implement `ZombieVillager`: Weakness + golden apple starts 3600-6000 tick cure, special-block speedup, conversion to Villager preserving villager data/gossips/offers/XP, cured-villager reputation event for downstream discounts, baby dimensions, despawn gate, and offer reset on profession change
-- [ ] Implement `ZombifiedPiglin`: neutral until hit, group-anger propagation (nearby ZombifiedPiglins within 67 blocks angered), portal-spawn on nether entry
+- [x] Implement `ZombifiedPiglin`: neutral persistent anger (20-39s), first anger sound delay, alert-other propagation over follow range + 10Y, attacking speed modifier, spawn/obstruction rules, default golden sword/spear equipment, rest prevention, and Nether portal random-spawn gate
 - [ ] Add parity test: zombie villager cure duration and resulting price discount values
-- [ ] Add parity test: zombified piglin anger group radius and anger decay time
+- [x] Add parity test: zombified piglin anger group radius and anger decay time
 
 ## Animal Families
 
