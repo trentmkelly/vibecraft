@@ -24239,6 +24239,9 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("CannotEnterHiveTicks".to_string(), Tag::Int(0)));
             fields.push(("CropsGrownSincePollination".to_string(), Tag::Int(0)));
         }
+        "minecraft:bat" => {
+            fields.push(("BatFlags".to_string(), Tag::Byte(0)));
+        }
         "minecraft:bogged" => {
             fields.push(("sheared".to_string(), Tag::Byte(0)));
         }
@@ -24314,6 +24317,16 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:ocelot" => {
             fields.push(("Trusting".to_string(), Tag::Byte(0)));
         }
+        "minecraft:mooshroom" => {
+            fields.push(("Type".to_string(), Tag::String("red".to_string())));
+        }
+        "minecraft:panda" => {
+            fields.push(("MainGene".to_string(), Tag::String("normal".to_string())));
+            fields.push(("HiddenGene".to_string(), Tag::String("normal".to_string())));
+        }
+        "minecraft:parrot" => {
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+        }
         "minecraft:pufferfish" => {
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
             fields.push(("PuffState".to_string(), Tag::Int(0)));
@@ -24359,6 +24372,13 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("Variant".to_string(), Tag::Int(0)));
             fields.push(("Strength".to_string(), Tag::Int(0)));
             fields.push(("DespawnDelay".to_string(), Tag::Int(47999)));
+        }
+        "minecraft:turtle" => {
+            fields.push((
+                "home_pos".to_string(),
+                Tag::List(vec![Tag::Int(0), Tag::Int(0), Tag::Int(0)]),
+            ));
+            fields.push(("has_egg".to_string(), Tag::Byte(0)));
         }
         "minecraft:zoglin" => {
             fields.push(("IsBaby".to_string(), Tag::Byte(0)));
@@ -59267,6 +59287,98 @@ mod tests {
         assert!(shulker_fields.contains(&("AttachFace".to_string(), Tag::Byte(0))));
         assert!(shulker_fields.contains(&("Peek".to_string(), Tag::Byte(0))));
         assert!(shulker_fields.contains(&("Color".to_string(), Tag::Byte(16))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_additional_animal_save_fields() {
+        let bat = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:bat",
+            width: 0.5,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let mooshroom = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:mooshroom",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let panda = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:panda",
+            width: 1.3,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let parrot = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:parrot",
+            width: 0.5,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let turtle = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:turtle",
+            width: 1.2,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(bat_fields) =
+            super::chunk_generation_mob_entity_nbt(bat, "00000000-0000-0000-0000-000000000202")
+        else {
+            panic!("bat entity nbt must be a compound");
+        };
+        let Tag::Compound(mooshroom_fields) = super::chunk_generation_mob_entity_nbt(
+            mooshroom,
+            "00000000-0000-0000-0000-000000000203",
+        ) else {
+            panic!("mooshroom entity nbt must be a compound");
+        };
+        let Tag::Compound(panda_fields) =
+            super::chunk_generation_mob_entity_nbt(panda, "00000000-0000-0000-0000-000000000204")
+        else {
+            panic!("panda entity nbt must be a compound");
+        };
+        let Tag::Compound(parrot_fields) =
+            super::chunk_generation_mob_entity_nbt(parrot, "00000000-0000-0000-0000-000000000205")
+        else {
+            panic!("parrot entity nbt must be a compound");
+        };
+        let Tag::Compound(turtle_fields) =
+            super::chunk_generation_mob_entity_nbt(turtle, "00000000-0000-0000-0000-000000000206")
+        else {
+            panic!("turtle entity nbt must be a compound");
+        };
+
+        assert!(bat_fields.contains(&("BatFlags".to_string(), Tag::Byte(0))));
+        assert!(mooshroom_fields.contains(&("Type".to_string(), Tag::String("red".to_string()))));
+        assert!(!mooshroom_fields
+            .iter()
+            .any(|(name, _)| name == "stew_effects"));
+        assert!(panda_fields.contains(&("MainGene".to_string(), Tag::String("normal".to_string()))));
+        assert!(
+            panda_fields.contains(&("HiddenGene".to_string(), Tag::String("normal".to_string())))
+        );
+        assert!(parrot_fields.contains(&("Variant".to_string(), Tag::Int(0))));
+        assert!(turtle_fields.contains(&(
+            "home_pos".to_string(),
+            Tag::List(vec![Tag::Int(0), Tag::Int(0), Tag::Int(0)])
+        )));
+        assert!(turtle_fields.contains(&("has_egg".to_string(), Tag::Byte(0))));
     }
 
     #[test]
