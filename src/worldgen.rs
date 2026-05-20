@@ -1011,6 +1011,13 @@ pub struct BiomeDecorationFeaturePlan {
     pub feature_calls: Vec<BiomeDecorationFeatureCall>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnOriginalMobsPlan {
+    pub center: ChunkPos,
+    pub biome_sample_pos: BlockPos,
+    pub decoration_seed: i64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlatLayerInfo {
     pub height: i32,
@@ -23611,6 +23618,37 @@ pub fn generator_spawn_original_mobs_for_stem(
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
     generated_chunk_with_status(pos, stem, "minecraft:spawn")
+}
+
+pub fn spawn_original_mobs_plan_for_stem(
+    world_seed: i64,
+    center: ChunkPos,
+    stem: &ResolvedLevelStem,
+) -> Option<SpawnOriginalMobsPlan> {
+    match &stem.generator {
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            if noise_settings.disable_mob_generation {
+                return None;
+            }
+            let min_block_x = center.x * 16;
+            let min_block_z = center.z * 16;
+            Some(SpawnOriginalMobsPlan {
+                center,
+                biome_sample_pos: BlockPos {
+                    x: min_block_x,
+                    y: noise_settings.noise.min_y + noise_settings.noise.height,
+                    z: min_block_z,
+                },
+                decoration_seed: crate::random_source::decoration_seed(
+                    world_seed,
+                    min_block_x,
+                    min_block_z,
+                    RandomAlgorithm::Legacy,
+                ),
+            })
+        }
+        ResolvedChunkGenerator::Flat { .. } | ResolvedChunkGenerator::Debug { .. } => None,
+    }
 }
 
 pub fn generator_base_height_for_stem(
@@ -57524,6 +57562,45 @@ mod tests {
                 Some(SpawnBlockKind::Solid)
             ),
             "spawn position must stand on a solid generated block"
+        );
+    }
+
+    #[test]
+    fn spawn_original_mobs_plan_matches_noise_generator_gate() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let center = ChunkPos { x: 2, z: -3 };
+
+        let plan = super::spawn_original_mobs_plan_for_stem(1234, center, &normal.overworld)
+            .expect("overworld noise generator should spawn original mobs");
+
+        assert_eq!(plan.center, center);
+        assert_eq!(
+            plan.biome_sample_pos,
+            BlockPos {
+                x: 32,
+                y: 320,
+                z: -48,
+            }
+        );
+        assert_eq!(
+            plan.decoration_seed,
+            crate::random_source::decoration_seed(
+                1234,
+                32,
+                -48,
+                crate::random_source::RandomAlgorithm::Legacy,
+            )
+        );
+        assert_eq!(
+            super::spawn_original_mobs_plan_for_stem(1234, center, &normal.end),
+            None
+        );
+
+        let flat = super::resolve_world_preset("flat").unwrap();
+
+        assert_eq!(
+            super::spawn_original_mobs_plan_for_stem(1234, center, &flat.overworld),
+            None
         );
     }
 
