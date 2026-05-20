@@ -24237,6 +24237,18 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:chicken" => {
             fields.push(("IsChickenJockey".to_string(), Tag::Byte(0)));
         }
+        "minecraft:creeper" => {
+            fields.push(("powered".to_string(), Tag::Byte(0)));
+            fields.push(("Fuse".to_string(), Tag::Short(30)));
+            fields.push(("ExplosionRadius".to_string(), Tag::Byte(3)));
+            fields.push(("ignited".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:endermite" => {
+            fields.push(("Lifetime".to_string(), Tag::Int(0)));
+        }
+        "minecraft:ghast" => {
+            fields.push(("ExplosionPower".to_string(), Tag::Byte(1)));
+        }
         "minecraft:goat" => {
             fields.push(("IsScreamingGoat".to_string(), Tag::Byte(0)));
             fields.push(("HasLeftHorn".to_string(), Tag::Byte(1)));
@@ -24256,6 +24268,11 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:rabbit" => {
             fields.push(("RabbitType".to_string(), Tag::Int(0)));
             fields.push(("MoreCarrotTicks".to_string(), Tag::Int(0)));
+        }
+        "minecraft:ravager" => {
+            fields.push(("AttackTick".to_string(), Tag::Int(0)));
+            fields.push(("StunTick".to_string(), Tag::Int(0)));
+            fields.push(("RoarTick".to_string(), Tag::Int(0)));
         }
         "minecraft:donkey" | "minecraft:mule" => {
             fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
@@ -24290,6 +24307,10 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("SkeletonTrap".to_string(), Tag::Byte(0)));
             fields.push(("SkeletonTrapTime".to_string(), Tag::Int(0)));
         }
+        "minecraft:slime" | "minecraft:magma_cube" => {
+            fields.push(("Size".to_string(), Tag::Int(0)));
+            fields.push(("wasOnGround".to_string(), Tag::Byte(0)));
+        }
         "minecraft:snow_golem" => {
             fields.push(("Pumpkin".to_string(), Tag::Byte(1)));
         }
@@ -24298,6 +24319,9 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("Variant".to_string(), Tag::Int(0)));
             fields.push(("Strength".to_string(), Tag::Int(0)));
             fields.push(("DespawnDelay".to_string(), Tag::Int(47999)));
+        }
+        "minecraft:zoglin" => {
+            fields.push(("IsBaby".to_string(), Tag::Byte(0)));
         }
         _ => {}
     }
@@ -59250,6 +59274,109 @@ mod tests {
         assert!(horse_fields.contains(&("Variant".to_string(), Tag::Int(0))));
         assert!(iron_golem_fields.contains(&("PlayerCreated".to_string(), Tag::Byte(0))));
         assert!(snow_golem_fields.contains(&("Pumpkin".to_string(), Tag::Byte(1))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_stable_monster_save_fields() {
+        let creeper = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:creeper",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let slime = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:slime",
+            width: 0.52,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let ravager = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:ravager",
+            width: 1.95,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let ghast = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:ghast",
+            width: 4.0,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let endermite = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:endermite",
+            width: 0.4,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let zoglin = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:zoglin",
+            width: 1.3965,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(creeper_fields) =
+            super::chunk_generation_mob_entity_nbt(creeper, "00000000-0000-0000-0000-000000000146")
+        else {
+            panic!("creeper entity nbt must be a compound");
+        };
+        let Tag::Compound(slime_fields) =
+            super::chunk_generation_mob_entity_nbt(slime, "00000000-0000-0000-0000-000000000147")
+        else {
+            panic!("slime entity nbt must be a compound");
+        };
+        let Tag::Compound(ravager_fields) =
+            super::chunk_generation_mob_entity_nbt(ravager, "00000000-0000-0000-0000-000000000148")
+        else {
+            panic!("ravager entity nbt must be a compound");
+        };
+        let Tag::Compound(ghast_fields) =
+            super::chunk_generation_mob_entity_nbt(ghast, "00000000-0000-0000-0000-000000000149")
+        else {
+            panic!("ghast entity nbt must be a compound");
+        };
+        let Tag::Compound(endermite_fields) = super::chunk_generation_mob_entity_nbt(
+            endermite,
+            "00000000-0000-0000-0000-000000000150",
+        ) else {
+            panic!("endermite entity nbt must be a compound");
+        };
+        let Tag::Compound(zoglin_fields) =
+            super::chunk_generation_mob_entity_nbt(zoglin, "00000000-0000-0000-0000-000000000151")
+        else {
+            panic!("zoglin entity nbt must be a compound");
+        };
+
+        assert!(creeper_fields.contains(&("powered".to_string(), Tag::Byte(0))));
+        assert!(creeper_fields.contains(&("Fuse".to_string(), Tag::Short(30))));
+        assert!(creeper_fields.contains(&("ExplosionRadius".to_string(), Tag::Byte(3))));
+        assert!(creeper_fields.contains(&("ignited".to_string(), Tag::Byte(0))));
+        assert!(slime_fields.contains(&("Size".to_string(), Tag::Int(0))));
+        assert!(slime_fields.contains(&("wasOnGround".to_string(), Tag::Byte(0))));
+        assert!(ravager_fields.contains(&("AttackTick".to_string(), Tag::Int(0))));
+        assert!(ravager_fields.contains(&("StunTick".to_string(), Tag::Int(0))));
+        assert!(ravager_fields.contains(&("RoarTick".to_string(), Tag::Int(0))));
+        assert!(ghast_fields.contains(&("ExplosionPower".to_string(), Tag::Byte(1))));
+        assert!(endermite_fields.contains(&("Lifetime".to_string(), Tag::Int(0))));
+        assert!(zoglin_fields.contains(&("IsBaby".to_string(), Tag::Byte(0))));
     }
 
     #[test]
