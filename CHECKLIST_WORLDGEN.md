@@ -147,8 +147,8 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Ore Veinifier
 
-- [ ] Implement `OreVeinifier`: copper/iron ore veins, raw ore block placement, gap noise, positional random decisions, `VeinType` (COPPER above 0, IRON below 0)
-- [ ] Add parity test: ore vein presence at coordinates known to contain veins for a fixed seed
+- [x] Implement `OreVeinifier`: copper/iron ore veins, raw ore block placement, gap noise, positional random decisions, `VeinType` (COPPER above 0, IRON below 0)
+- [x] Add parity test: ore vein presence at coordinates known to contain veins for a fixed seed
 
 ## Surface Rules and Material Rules
 

@@ -35457,8 +35457,17 @@ impl NoiseChunk {
 
         // Collect all Interpolated-marker inner functions from the final_density
         // tree, in depth-first left-to-right order without duplicates.
+        //
+        // Java's NoiseChunk applies mapAll(this::wrap) to the *entire* NoiseRouter,
+        // so the vein density functions also get their Interpolated markers registered
+        // as trilinear interpolators. We mirror that by also collecting from the vein
+        // functions here so eval_density_fn_with_interp returns interpolated values for
+        // them rather than falling back to per-block point evaluation.
         let mut inputs: Vec<&'static DensityFunction> = Vec::new();
         collect_interpolated_inputs(noise_router.final_density, &mut inputs);
+        collect_interpolated_inputs(noise_router.vein_toggle, &mut inputs);
+        collect_interpolated_inputs(noise_router.vein_ridged, &mut inputs);
+        collect_interpolated_inputs(noise_router.vein_gap, &mut inputs);
 
         // Build the lookup map: pointer → interpolator index.
         let interp_by_ptr: HashMap<usize, usize> = inputs
@@ -35778,24 +35787,73 @@ fn fill_from_noise_chunk_inner(
 
                             let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
 
-                            // Block selection via aquifer or simplified global rule.
-                            let block: &'static str = if density > 0.0 {
-                                settings.default_block
+                            // Block selection mirrors Java's MaterialRuleList chain:
+                            //   1. aquifer.computeSubstance → fluid OR null (solid/barrier)
+                            //   2. OreVeinifier (when oreVeinsEnabled) → ore/filler OR null
+                            //   3. defaultBlock fallback
+                            //
+                            // The aquifer (or disabled-aquifer path) produces either a fluid
+                            // block (Some) or None meaning "this position is solid".  Only
+                            // solid positions are candidates for ore-vein replacement.
+                            let aquifer_substance: Option<&'static str> = if density > 0.0 {
+                                // Positive density → solid; skip aquifer call.
+                                None
                             } else if let Some(ref mut aq) = aquifer {
-                                // Noise-based aquifer: Voronoi + barrier pressure.
-                                // `None` return means barrier makes position solid.
-                                match aq.compute_substance(pos_x, pos_y, pos_z, density) {
-                                    Some(b) => b,
-                                    None => settings.default_block,
-                                }
+                                // Noise-based aquifer: returns Some(fluid) or None (barrier/solid).
+                                aq.compute_substance(pos_x, pos_y, pos_z, density)
                             } else {
-                                // Disabled aquifer: simple sea-level / bedrock-lava rule.
-                                global_fluid_status(
-                                    pos_y,
-                                    settings.sea_level,
-                                    settings.default_fluid,
+                                // Disabled aquifer: simple sea-level / global-lava rule.
+                                Some(
+                                    global_fluid_status(
+                                        pos_y,
+                                        settings.sea_level,
+                                        settings.default_fluid,
+                                    )
+                                    .at(pos_y),
                                 )
-                                .at(pos_y)
+                            };
+
+                            let block: &'static str = match aquifer_substance {
+                                Some(fluid) => fluid,
+                                None => {
+                                    // Solid slot: let OreVeinifier try to override with ore/filler.
+                                    if settings.ore_veins_enabled {
+                                        let vt = eval_density_fn_with_interp(
+                                            noise_router.vein_toggle,
+                                            &noise_chunk,
+                                            pos_x,
+                                            pos_y,
+                                            pos_z,
+                                        );
+                                        let vr = eval_density_fn_with_interp(
+                                            noise_router.vein_ridged,
+                                            &noise_chunk,
+                                            pos_x,
+                                            pos_y,
+                                            pos_z,
+                                        );
+                                        let vg = eval_density_fn_with_interp(
+                                            noise_router.vein_gap,
+                                            &noise_chunk,
+                                            pos_x,
+                                            pos_y,
+                                            pos_z,
+                                        );
+                                        ore_vein_decision_at(
+                                            factories.ore,
+                                            pos_x,
+                                            pos_y,
+                                            pos_z,
+                                            vt,
+                                            vr,
+                                            vg,
+                                            false,
+                                        )
+                                        .unwrap_or(settings.default_block)
+                                    } else {
+                                        settings.default_block
+                                    }
+                                }
                             };
 
                             if block != "minecraft:air" {
@@ -39506,6 +39564,187 @@ mod tests {
         assert_eq!(
             super::ore_vein_decision_at(legacy_ore_factory, 4, 25, -9, 0.61, -0.1, 0.0, false),
             None
+        );
+    }
+
+    /// Verifies that ore veins are integrated into solid-block placement in
+    /// `fill_from_noise_chunk`.  The OreVeinifier can place three block types per vein:
+    ///
+    /// - **Iron vein** (Y -60..=-8): deepslate_iron_ore (ore), raw_iron_block (2% raw),
+    ///   tuff (filler — most common; appears in the halo around the ore core)
+    /// - **Copper vein** (Y 0..=50): copper_ore (ore), raw_copper_block (2% raw),
+    ///   granite (filler — same halo role)
+    ///
+    /// Regular iron_ore is never placed by veins: the iron VeinType explicitly uses
+    /// deepslate_iron_ore because iron veins only spawn in the deepslate zone (Y ≤ -8).
+    /// Verifies that ore veins are integrated into solid-block placement in
+    /// `fill_from_noise_chunk`.  The OreVeinifier can place three block types per vein:
+    ///
+    /// - **Iron vein** (Y -60..=-8): deepslate_iron_ore (ore), raw_iron_block (2% raw),
+    ///   tuff (filler — most common; appears in the halo around the ore core)
+    /// - **Copper vein** (Y 0..=50): copper_ore (ore), raw_copper_block (2% raw),
+    ///   granite (filler — same halo role)
+    ///
+    /// Regular iron_ore is never placed by veins: the iron VeinType explicitly uses
+    /// deepslate_iron_ore because iron veins only spawn in the deepslate zone (Y ≤ -8).
+    ///
+    /// Strategy: the ore_veininess noise (scale 1.5) has a ~170-block wavelength, so
+    /// the near-origin region may be entirely in a low-veininess trough at seed 0.
+    /// We first scan the raw noise over a ±512-block grid (no chunk generation needed)
+    /// to locate a world position guaranteed to have high vein activity, then generate
+    /// exactly that one chunk and scan its sections efficiently (one decode per section).
+    #[test]
+    fn ore_veins_integrated_in_chunk_generation() {
+        use crate::storage::chunk::{PalettedContainer, SECTION_VOLUME};
+        use crate::storage::nbt::Tag;
+        use super::{
+            builtin_noise_generator_settings, builtin_noise_router, fill_from_noise_chunk,
+            noise_router_id_for_settings, ChunkPos, NONE_NOISE_ROUTER,
+            OVERWORLD_VEIN_TOGGLE_NOISE_DENSITY,
+        };
+
+        let settings = builtin_noise_generator_settings("minecraft:overworld")
+            .expect("overworld noise settings must exist");
+        assert!(
+            settings.ore_veins_enabled,
+            "overworld must have ore veins enabled"
+        );
+
+        let router_id = noise_router_id_for_settings(*settings);
+        let noise_router = builtin_noise_router(router_id)
+            .map(|e| e.router)
+            .unwrap_or(NONE_NOISE_ROUTER);
+
+        // Iron vein blocks (Y -60..=-8).
+        const IRON_VEIN_BLOCKS: &[&str] = &[
+            "minecraft:deepslate_iron_ore",
+            "minecraft:raw_iron_block",
+            "minecraft:tuff",
+        ];
+        // Copper vein blocks (Y 0..=50).
+        const COPPER_VEIN_BLOCKS: &[&str] = &[
+            "minecraft:copper_ore",
+            "minecraft:raw_copper_block",
+            "minecraft:granite",
+        ];
+
+        // Fast veininess probe: evaluate the raw (non-interpolated) noise without
+        // generating any chunk.  Scans a ±512 block grid at step 8 to cover many noise
+        // wavelengths (~170 blocks at scale 1.5).  Returns unique chunk positions where the
+        // toggle noise satisfies `predicate` at the given probe Y.  probe_y is chosen deep
+        // underground so blocks there are nearly always solid stone.
+        //
+        // Positive vein_toggle (> 0.4) → COPPER vein type, Y range 0..=50.
+        // Negative vein_toggle (< -0.4) → IRON vein type, Y range -60..=-8.
+        // These are the same noise; sign determines which type is active.
+        fn find_vein_chunks(
+            settings: &super::NoiseGeneratorSettings,
+            probe_y: i32,
+            predicate: impl Fn(f64) -> bool,
+        ) -> Vec<(i32, i32)> {
+            let mut results = Vec::new();
+            for z in (-512_i32..512).step_by(8) {
+                for x in (-512_i32..512).step_by(8) {
+                    let vt = OVERWORLD_VEIN_TOGGLE_NOISE_DENSITY.compute_with_noise(
+                        0,
+                        *settings,
+                        x,
+                        probe_y,
+                        z,
+                    );
+                    if predicate(vt) {
+                        let cx = x >> 4;
+                        let cz = z >> 4;
+                        if !results.contains(&(cx, cz)) {
+                            results.push((cx, cz));
+                        }
+                    }
+                }
+            }
+            results
+        }
+
+        /// Decode each relevant section once and look for any `targets` block name.
+        fn any_vein_block_in_range(
+            chunk: &crate::storage::chunk::LevelChunk,
+            y_min: i32,
+            y_max: i32,
+            targets: &[&str],
+        ) -> bool {
+            for section in &chunk.sections {
+                let s_min = section.y as i32 * 16;
+                let s_max = s_min + 15;
+                if s_max < y_min || s_min > y_max {
+                    continue;
+                }
+                let Ok(container) =
+                    PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
+                else {
+                    continue;
+                };
+                let lo = (y_min - s_min).clamp(0, 15) as usize;
+                let hi = (y_max - s_min).clamp(0, 15) as usize;
+                for local_y in lo..=hi {
+                    for local_z in 0..16_usize {
+                        for local_x in 0..16_usize {
+                            let idx = local_y * 256 + local_z * 16 + local_x;
+                            if let Some(Tag::Compound(fields)) = container.get_entry(idx) {
+                                if let Some((_, Tag::String(name))) =
+                                    fields.iter().find(|(k, _)| k == "Name")
+                                {
+                                    if targets.contains(&name.as_str()) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        }
+
+        // --- Iron vein check ---
+        // Probe at Y=-30: always solid stone/deepslate, dead centre of the iron vein Y range.
+        // Iron is selected when vein_toggle < -0.4 (negative).
+        let iron_chunks = find_vein_chunks(settings, -30, |vt| vt < -0.4);
+        assert!(
+            !iron_chunks.is_empty(),
+            "ore_veininess noise never exceeded 0.4 at Y=-30 over a ±512 block grid at seed 0 \
+             — noise setup may be broken"
+        );
+        // Take only the first 3 candidate chunks — vein zones span ~170 blocks so multiple
+        // consecutive chunks are inside the same zone; 3 is enough to hit a ridgeline.
+        let found_iron = iron_chunks.iter().take(3).any(|&(cx, cz)| {
+            let chunk =
+                fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
+            any_vein_block_in_range(&chunk, -60, -8, IRON_VEIN_BLOCKS)
+        });
+        assert!(
+            found_iron,
+            "no iron vein blocks (deepslate_iron_ore / raw_iron_block / tuff) found in \
+             the first 3 vein-zone chunks at Y=-60..=-8 — ore vein integration broken"
+        );
+
+        // --- Copper vein check ---
+        // Probe at Y=5: copper vein range is 0..=50; Y=5 is deep underground and nearly
+        // always solid stone, unlike Y=25 which can be aquifer-filled ocean water.
+        // Copper is selected when vein_toggle > 0.4 (positive).
+        let copper_chunks = find_vein_chunks(settings, 5, |vt| vt > 0.4);
+        assert!(
+            !copper_chunks.is_empty(),
+            "ore_veininess noise never exceeded 0.4 at Y=5 over a ±512 block grid at seed 0 \
+             — noise setup may be broken"
+        );
+        let found_copper = copper_chunks.iter().take(3).any(|&(cx, cz)| {
+            let chunk =
+                fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
+            any_vein_block_in_range(&chunk, 0, 50, COPPER_VEIN_BLOCKS)
+        });
+        assert!(
+            found_copper,
+            "no copper vein blocks (copper_ore / raw_copper_block / granite) found in \
+             the first 3 vein-zone chunks at Y=0..=50 — ore vein integration broken"
         );
     }
 
