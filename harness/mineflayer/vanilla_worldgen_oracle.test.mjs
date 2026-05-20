@@ -150,6 +150,10 @@ test('vanilla worldgen trace report normalizes requested chunk evidence', () => 
       referenceKeys: ['minecraft:village']
     },
     featureBlockSamples: ['minecraft:grass_block', 'minecraft:oak_log'],
+    featureBlockPaletteCounts: {
+      'minecraft:grass_block': 0,
+      'minecraft:oak_log': 1
+    },
     serializedChunkNbt: {
       payloadBytes: 1234,
       payloadSha256: 'b'.repeat(64)

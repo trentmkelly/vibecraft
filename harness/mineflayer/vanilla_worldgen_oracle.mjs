@@ -226,6 +226,7 @@ function traceChunk (artifact, chunk) {
     })),
     structures: chunk.structures ?? { startKeys: [], referenceKeys: [] },
     featureBlockSamples: featureBlockSamples(chunk),
+    featureBlockPaletteCounts: featureBlockPaletteCounts(chunk),
     serializedChunkNbt: {
       payloadBytes: chunk.payloadBytes,
       payloadSha256: chunk.payloadSha256
@@ -240,7 +241,24 @@ function dimensionFromRegionPath (regionPath) {
 }
 
 function featureBlockSamples (chunk) {
-  return [...new Set((chunk.blockPalette ?? []).filter(block => (
+  return Object.keys(featureBlockPaletteCounts(chunk))
+}
+
+function featureBlockPaletteCounts (chunk) {
+  const counts = {}
+  for (const block of (chunk.sections ?? []).flatMap(section => section.blockPalette ?? [])) {
+    if (!isFeatureLikeBlock(block)) continue
+    counts[block] = (counts[block] ?? 0) + 1
+  }
+  for (const block of chunk.blockPalette ?? []) {
+    if (!isFeatureLikeBlock(block) || counts[block] !== undefined) continue
+    counts[block] = 0
+  }
+  return Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)))
+}
+
+function isFeatureLikeBlock (block) {
+  return (
     block.includes('ore') ||
     block.includes('log') ||
     block.includes('leaves') ||
@@ -251,7 +269,7 @@ function featureBlockSamples (chunk) {
     block.includes('coral') ||
     block.includes('kelp') ||
     block.includes('seagrass')
-  )))].sort()
+  )
 }
 
 export async function listRegionFiles (root, levelName = 'world') {
