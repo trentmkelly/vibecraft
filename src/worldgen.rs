@@ -23479,7 +23479,19 @@ pub fn generator_base_height_for_stem(
             heightmap,
         )),
         ResolvedChunkGenerator::Noise { noise_settings, .. } => {
-            Ok(noise_preview_base_height(x, z, noise_settings, heightmap))
+            let chunk_pos = ChunkPos {
+                x: x.div_euclid(16),
+                z: z.div_euclid(16),
+            };
+            let chunk = generator_build_surface_for_stem(chunk_pos, stem)?;
+            Ok(generated_chunk_base_height(
+                &chunk,
+                x,
+                z,
+                noise_settings.noise.min_y,
+                noise_settings.noise.height,
+                heightmap,
+            ))
         }
         ResolvedChunkGenerator::Debug { .. } => Err(format!(
             "Debug base-height query for {} is not implemented",
@@ -23554,12 +23566,80 @@ pub fn generator_base_column_for_stem(
             FLAT_GENERATOR_GEN_DEPTH,
         )),
         ResolvedChunkGenerator::Noise { noise_settings, .. } => {
-            Ok(noise_preview_base_column(x, z, noise_settings))
+            let chunk_pos = ChunkPos {
+                x: x.div_euclid(16),
+                z: z.div_euclid(16),
+            };
+            let chunk = generator_build_surface_for_stem(chunk_pos, stem)?;
+            Ok(generated_chunk_base_column(
+                &chunk,
+                x,
+                z,
+                noise_settings.noise.min_y,
+                noise_settings.noise.height,
+            ))
         }
         ResolvedChunkGenerator::Debug { .. } => Err(format!(
             "Debug base-column query for {} is not implemented",
             stem.dimension
         )),
+    }
+}
+
+fn generated_chunk_base_height(
+    chunk: &LevelChunk,
+    x: i32,
+    z: i32,
+    min_y: i32,
+    height: i32,
+    heightmap: HeightmapKind,
+) -> i32 {
+    for y in (min_y..min_y + height).rev() {
+        let Some(block) = chunk.get_block_state(x, y, z) else {
+            continue;
+        };
+        if heightmap_opaque(heightmap, &block) {
+            return y + 1;
+        }
+    }
+    min_y
+}
+
+fn generated_chunk_base_column(
+    chunk: &LevelChunk,
+    x: i32,
+    z: i32,
+    min_y: i32,
+    height: i32,
+) -> FlatNoiseColumn {
+    let states = (0..height.max(0))
+        .map(|offset| {
+            chunk
+                .get_block_state(x, min_y + offset, z)
+                .unwrap_or_else(|| "minecraft:air".to_string())
+        })
+        .map(|block| generated_column_static_block_name(&block).unwrap_or("minecraft:air"))
+        .collect();
+    FlatNoiseColumn { min_y, states }
+}
+
+fn generated_column_static_block_name(block: &str) -> Option<&'static str> {
+    match block {
+        "minecraft:air" => Some("minecraft:air"),
+        "minecraft:bedrock" => Some("minecraft:bedrock"),
+        "minecraft:stone" => Some("minecraft:stone"),
+        "minecraft:granite" => Some("minecraft:granite"),
+        "minecraft:diorite" => Some("minecraft:diorite"),
+        "minecraft:andesite" => Some("minecraft:andesite"),
+        "minecraft:deepslate" => Some("minecraft:deepslate"),
+        "minecraft:dirt" => Some("minecraft:dirt"),
+        "minecraft:grass_block" => Some("minecraft:grass_block"),
+        "minecraft:sand" => Some("minecraft:sand"),
+        "minecraft:sandstone" => Some("minecraft:sandstone"),
+        "minecraft:gravel" => Some("minecraft:gravel"),
+        "minecraft:water" => Some("minecraft:water"),
+        "minecraft:lava" => Some("minecraft:lava"),
+        _ => None,
     }
 }
 
