@@ -24215,8 +24215,18 @@ fn append_chunk_generation_mob_specific_save_fields(
     fields: &mut Vec<(String, Tag)>,
 ) {
     match entity_type {
+        "minecraft:armadillo" => {
+            fields.push(("state".to_string(), Tag::String("idle".to_string())));
+        }
         "minecraft:axolotl" => {
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:bee" => {
+            fields.push(("HasNectar".to_string(), Tag::Byte(0)));
+            fields.push(("HasStung".to_string(), Tag::Byte(0)));
+            fields.push(("TicksSincePollination".to_string(), Tag::Int(0)));
+            fields.push(("CannotEnterHiveTicks".to_string(), Tag::Int(0)));
+            fields.push(("CropsGrownSincePollination".to_string(), Tag::Int(0)));
         }
         "minecraft:camel" => {
             fields.push(("LastPoseTick".to_string(), Tag::Long(0)));
@@ -24232,11 +24242,22 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("HasLeftHorn".to_string(), Tag::Byte(1)));
             fields.push(("HasRightHorn".to_string(), Tag::Byte(1)));
         }
+        "minecraft:horse" => {
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+        }
+        "minecraft:iron_golem" => {
+            fields.push(("PlayerCreated".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:llama" => {
+            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            fields.push(("Strength".to_string(), Tag::Int(0)));
+        }
         "minecraft:rabbit" => {
             fields.push(("RabbitType".to_string(), Tag::Int(0)));
             fields.push(("MoreCarrotTicks".to_string(), Tag::Int(0)));
         }
-        "minecraft:donkey" | "minecraft:llama" | "minecraft:mule" | "minecraft:trader_llama" => {
+        "minecraft:donkey" | "minecraft:mule" => {
             fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
         }
         "minecraft:cod" | "minecraft:salmon" | "minecraft:tropical_fish" => {
@@ -24268,6 +24289,15 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:skeleton_horse" => {
             fields.push(("SkeletonTrap".to_string(), Tag::Byte(0)));
             fields.push(("SkeletonTrapTime".to_string(), Tag::Int(0)));
+        }
+        "minecraft:snow_golem" => {
+            fields.push(("Pumpkin".to_string(), Tag::Byte(1)));
+        }
+        "minecraft:trader_llama" => {
+            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            fields.push(("Strength".to_string(), Tag::Int(0)));
+            fields.push(("DespawnDelay".to_string(), Tag::Int(47999)));
         }
         _ => {}
     }
@@ -59099,6 +59129,127 @@ mod tests {
             assert!(fox_fields.contains(&(field_name.to_string(), Tag::Byte(0))));
         }
         assert!(camel_fields.contains(&("LastPoseTick".to_string(), Tag::Long(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_stable_special_animal_save_fields() {
+        let bee = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:bee",
+            width: 0.7,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let llama = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:llama",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let trader_llama = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:trader_llama",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let armadillo = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:armadillo",
+            width: 0.7,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let horse = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:horse",
+            width: 1.3965,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let iron_golem = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:iron_golem",
+            width: 1.4,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let snow_golem = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:snow_golem",
+            width: 0.7,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(bee_fields) =
+            super::chunk_generation_mob_entity_nbt(bee, "00000000-0000-0000-0000-000000000139")
+        else {
+            panic!("bee entity nbt must be a compound");
+        };
+        let Tag::Compound(llama_fields) =
+            super::chunk_generation_mob_entity_nbt(llama, "00000000-0000-0000-0000-000000000140")
+        else {
+            panic!("llama entity nbt must be a compound");
+        };
+        let Tag::Compound(trader_llama_fields) = super::chunk_generation_mob_entity_nbt(
+            trader_llama,
+            "00000000-0000-0000-0000-000000000141",
+        ) else {
+            panic!("trader llama entity nbt must be a compound");
+        };
+        let Tag::Compound(armadillo_fields) = super::chunk_generation_mob_entity_nbt(
+            armadillo,
+            "00000000-0000-0000-0000-000000000142",
+        ) else {
+            panic!("armadillo entity nbt must be a compound");
+        };
+        let Tag::Compound(horse_fields) =
+            super::chunk_generation_mob_entity_nbt(horse, "00000000-0000-0000-0000-000000000144")
+        else {
+            panic!("horse entity nbt must be a compound");
+        };
+        let Tag::Compound(iron_golem_fields) = super::chunk_generation_mob_entity_nbt(
+            iron_golem,
+            "00000000-0000-0000-0000-000000000145",
+        ) else {
+            panic!("iron golem entity nbt must be a compound");
+        };
+        let Tag::Compound(snow_golem_fields) = super::chunk_generation_mob_entity_nbt(
+            snow_golem,
+            "00000000-0000-0000-0000-000000000143",
+        ) else {
+            panic!("snow golem entity nbt must be a compound");
+        };
+
+        assert!(bee_fields.contains(&("HasNectar".to_string(), Tag::Byte(0))));
+        assert!(bee_fields.contains(&("HasStung".to_string(), Tag::Byte(0))));
+        assert!(bee_fields.contains(&("TicksSincePollination".to_string(), Tag::Int(0))));
+        assert!(bee_fields.contains(&("CannotEnterHiveTicks".to_string(), Tag::Int(0))));
+        assert!(bee_fields.contains(&("CropsGrownSincePollination".to_string(), Tag::Int(0))));
+        assert!(llama_fields.contains(&("Variant".to_string(), Tag::Int(0))));
+        assert!(llama_fields.contains(&("Strength".to_string(), Tag::Int(0))));
+        assert!(llama_fields.contains(&("ChestedHorse".to_string(), Tag::Byte(0))));
+        assert!(trader_llama_fields.contains(&("DespawnDelay".to_string(), Tag::Int(47999))));
+        assert!(armadillo_fields.contains(&("state".to_string(), Tag::String("idle".to_string()))));
+        assert!(horse_fields.contains(&("Variant".to_string(), Tag::Int(0))));
+        assert!(iron_golem_fields.contains(&("PlayerCreated".to_string(), Tag::Byte(0))));
+        assert!(snow_golem_fields.contains(&("Pumpkin".to_string(), Tag::Byte(1))));
     }
 
     #[test]
