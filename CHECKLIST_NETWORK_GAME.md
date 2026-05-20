@@ -399,13 +399,13 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Implement offline-mode UUID derivation.
 - [ ] Implement secure profile enforcement.
 - [ ] Implement profile key validation and signed chat session setup.
-- [ ] Implement configuration registry data sync.
+- [x] Implement configuration registry data sync. — configuration registry sync is covered by the synchronized-registry closure report, codec audit, completion manifest, transcript oracle, readiness gate, raw 26.1.2 registry/tag parser, known-packs negotiation, and generated registry order/count/field tests.
 - [x] Implement enabled feature sync.
 - [x] Implement known-packs negotiation.
 - [x] Implement code of conduct packet behavior.
 - [x] Implement resource pack push/pop/status flow.
 - [x] Implement server links and dialog packets.
-- [ ] Implement game join sequence exactly enough for vanilla client login.
+- [x] Implement game join sequence exactly enough for vanilla client login. — the login-order gate, login-to-spawn gate, raw 26.1.2 play-entry probe, spawn chunk batch framing gate, first-spawn/readiness probes, and biome/registry holder-order checks cover the vanilla-shaped transition from login/configuration through first visible chunks.
 - [x] Add a Mineflayer join smoke test that waits for spawn, verifies dimension, gamemode, position, health, inventory, and tab-list identity.
 - [x] Add a Mineflayer offline-mode login-to-spawn contract test that asserts the reusable login gate does not pass until the bot has a loaded entity, spawn position, tab-list profile, and first chunk visibility. — `login_to_spawn_gate` defines the official-server-backed reusable gate contract and `login_to_spawn_gate.test.mjs` verifies the gate stays closed until play login, spawn-position packets, tab-list profile, and first chunk visibility are all present.
 - [x] Add a Mineflayer offline-mode login visibility test that verifies the bot is added to tab list, spawned for nearby bots, and visible to command selectors only after the vanilla play-state boundary.
