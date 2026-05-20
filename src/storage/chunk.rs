@@ -564,6 +564,9 @@ impl LevelChunk {
         }
 
         let status = chunk_status_field(root)?;
+        let status_heightmaps = chunk_status(&status)
+            .map(|status| status.heightmaps_after)
+            .unwrap_or(&[]);
 
         Ok(Self {
             pos,
@@ -579,6 +582,11 @@ impl LevelChunk {
             heightmaps: optional_compound_field(root, "Heightmaps")?
                 .unwrap_or(&[])
                 .iter()
+                .filter(|(name, _)| {
+                    status_heightmaps
+                        .iter()
+                        .any(|heightmap| heightmap.storage_name() == name)
+                })
                 .map(|(name, value)| (name.clone(), value.clone()))
                 .collect(),
             block_entities: optional_list_field(root, "block_entities")?.unwrap_or_default(),
@@ -1617,6 +1625,24 @@ mod tests {
         assert!(decoded.fluid_ticks.is_empty());
         assert!(decoded.post_processing.is_empty());
         assert!(matches!(decoded.structures, Tag::Compound(_)));
+    }
+
+    #[test]
+    fn level_chunk_loads_only_heightmaps_valid_for_status() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut chunk = LevelChunk::empty(pos);
+        chunk.status = "minecraft:noise".to_string();
+        chunk
+            .heightmaps
+            .insert("WORLD_SURFACE_WG".to_string(), Tag::LongArray(vec![1]));
+        chunk
+            .heightmaps
+            .insert("MOTION_BLOCKING".to_string(), Tag::LongArray(vec![2]));
+
+        let decoded = LevelChunk::from_nbt(pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
+
+        assert!(decoded.heightmaps.contains_key("WORLD_SURFACE_WG"));
+        assert!(!decoded.heightmaps.contains_key("MOTION_BLOCKING"));
     }
 
     #[test]
