@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, VecDeque};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -16,6 +17,7 @@ pub const SECTOR_BYTES: u32 = 4096;
 pub const HEADER_BYTES: u64 = 8192;
 pub const CHUNKS_PER_REGION_AXIS: i32 = 32;
 pub const OLD_CHUNK_DATA_VERSION_CUTOFF: i32 = 4295;
+pub const OLD_CHUNK_REGION_CACHE_SIZE: usize = 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkPos {
@@ -59,6 +61,8 @@ pub struct PendingRegionWrite {
 pub struct RegionIoWorker {
     dir: PathBuf,
     pending_writes: BTreeMap<ChunkPos, PendingRegionWrite>,
+    old_chunk_mask_cache: RefCell<BTreeMap<RegionPos, Vec<bool>>>,
+    old_chunk_mask_lru: RefCell<VecDeque<RegionPos>>,
 }
 
 impl ChunkPos {
@@ -426,6 +430,8 @@ impl RegionIoWorker {
         Ok(Self {
             dir,
             pending_writes: BTreeMap::new(),
+            old_chunk_mask_cache: RefCell::new(BTreeMap::new()),
+            old_chunk_mask_lru: RefCell::new(VecDeque::new()),
         })
     }
 
@@ -434,6 +440,7 @@ impl RegionIoWorker {
     }
 
     pub fn store_chunk_nbt(&mut self, chunk: ChunkPos, name: impl Into<String>, tag: Tag) {
+        self.invalidate_old_chunk_mask_cache(chunk.region());
         self.pending_writes.insert(
             chunk,
             PendingRegionWrite {
@@ -444,6 +451,7 @@ impl RegionIoWorker {
     }
 
     pub fn clear_chunk_nbt(&mut self, chunk: ChunkPos) {
+        self.invalidate_old_chunk_mask_cache(chunk.region());
         self.pending_writes.insert(
             chunk,
             PendingRegionWrite {
@@ -489,6 +497,10 @@ impl RegionIoWorker {
     }
 
     pub fn old_chunk_mask_for_region(&self, region_pos: RegionPos) -> io::Result<Vec<bool>> {
+        if let Some(mask) = self.cached_old_chunk_mask(region_pos) {
+            return Ok(mask);
+        }
+
         let mut mask = vec![false; (CHUNKS_PER_REGION_AXIS * CHUNKS_PER_REGION_AXIS) as usize];
         let min = region_pos.min_chunk_pos();
         let max = region_pos.max_chunk_pos();
@@ -503,6 +515,7 @@ impl RegionIoWorker {
                 }
             }
         }
+        self.cache_old_chunk_mask(region_pos, mask.clone());
         Ok(mask)
     }
 
@@ -545,6 +558,50 @@ impl RegionIoWorker {
         }
 
         Ok(false)
+    }
+
+    fn cached_old_chunk_mask(&self, region_pos: RegionPos) -> Option<Vec<bool>> {
+        let mask = self
+            .old_chunk_mask_cache
+            .borrow()
+            .get(&region_pos)
+            .cloned()?;
+        let mut lru = self.old_chunk_mask_lru.borrow_mut();
+        if let Some(index) = lru.iter().position(|cached| *cached == region_pos) {
+            lru.remove(index);
+        }
+        lru.push_front(region_pos);
+        Some(mask)
+    }
+
+    fn cache_old_chunk_mask(&self, region_pos: RegionPos, mask: Vec<bool>) {
+        self.old_chunk_mask_cache
+            .borrow_mut()
+            .insert(region_pos, mask);
+
+        let mut lru = self.old_chunk_mask_lru.borrow_mut();
+        if let Some(index) = lru.iter().position(|cached| *cached == region_pos) {
+            lru.remove(index);
+        }
+        lru.push_front(region_pos);
+
+        while lru.len() > OLD_CHUNK_REGION_CACHE_SIZE {
+            if let Some(expired) = lru.pop_back() {
+                self.old_chunk_mask_cache.borrow_mut().remove(&expired);
+            }
+        }
+    }
+
+    fn invalidate_old_chunk_mask_cache(&mut self, region_pos: RegionPos) {
+        self.old_chunk_mask_cache.get_mut().remove(&region_pos);
+        if let Some(index) = self
+            .old_chunk_mask_lru
+            .get_mut()
+            .iter()
+            .position(|cached| *cached == region_pos)
+        {
+            self.old_chunk_mask_lru.get_mut().remove(index);
+        }
     }
 }
 
@@ -636,7 +693,8 @@ fn decode_region_payload(
 mod tests {
     use super::{
         chunk_tag_is_old_for_blending, ChunkPos, RegionCompression, RegionFile, RegionIoWorker,
-        RegionLocation, RegionPos, HEADER_BYTES, OLD_CHUNK_DATA_VERSION_CUTOFF,
+        RegionLocation, RegionPos, CHUNKS_PER_REGION_AXIS, HEADER_BYTES,
+        OLD_CHUNK_DATA_VERSION_CUTOFF, OLD_CHUNK_REGION_CACHE_SIZE,
     };
     use crate::storage::nbt::Tag;
     use std::fs;
@@ -1052,6 +1110,46 @@ mod tests {
         assert!(!worker
             .is_old_chunk_around(ChunkPos { x: 0, z: 0 }, 0)
             .unwrap());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_caches_old_chunk_masks_with_lru_eviction_and_pending_invalidation() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-old-cache-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        let region_pos = RegionPos { x: 0, z: 0 };
+        let old_chunk = ChunkPos { x: 0, z: 0 };
+
+        let first_mask = worker.old_chunk_mask_for_region(region_pos).unwrap();
+        assert!(!first_mask[old_chunk.local_index()]);
+        assert_eq!(worker.old_chunk_mask_cache.borrow().len(), 1);
+
+        worker.store_chunk_nbt(
+            old_chunk,
+            "",
+            Tag::Compound(vec![("DataVersion".to_string(), Tag::Int(1))]),
+        );
+        assert!(worker.old_chunk_mask_for_region(region_pos).unwrap()[old_chunk.local_index()]);
+
+        let empty_mask = vec![false; (CHUNKS_PER_REGION_AXIS * CHUNKS_PER_REGION_AXIS) as usize];
+        for x in 1..=(OLD_CHUNK_REGION_CACHE_SIZE as i32 + 1) {
+            worker.cache_old_chunk_mask(RegionPos { x, z: 0 }, empty_mask.clone());
+        }
+        assert_eq!(
+            worker.old_chunk_mask_cache.borrow().len(),
+            OLD_CHUNK_REGION_CACHE_SIZE
+        );
+        assert!(!worker
+            .old_chunk_mask_cache
+            .borrow()
+            .contains_key(&region_pos));
 
         let _ = fs::remove_dir_all(&dir);
     }
