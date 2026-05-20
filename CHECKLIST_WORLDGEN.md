@@ -332,7 +332,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement height provider source family.
 - [x] Implement material rule source family.
 - [x] Implement placement modifier source family.
-- [ ] Implement preset source family for world presets and dimension presets.
+- [x] Implement preset source family for world presets and dimension presets.
 - [ ] Implement structure source family: pieces, placement, pools, structures, and template system.
 - [ ] Implement synth/noise source family used by terrain, climate, and density functions.
 - [ ] For each worldgen source family, add deterministic golden tests for seeds, registry inputs, JSON codecs, and representative chunk coordinates.
