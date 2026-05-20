@@ -38956,6 +38956,16 @@ mod tests {
     }
 
     #[test]
+    fn simplex_noise_2d_sampling_covers_both_skew_branches() {
+        let mut random = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
+        let simplex = super::simplex_noise_snapshot(&mut random);
+        let lower_triangle = super::simplex_noise_sample_2d(&simplex, 1.25, -3.5);
+        let upper_triangle = super::simplex_noise_sample_2d(&simplex, -3.5, 1.25);
+        assert!((lower_triangle - -0.18271295126292367).abs() < 1e-12);
+        assert!((upper_triangle - -0.45718095628667355).abs() < 1e-12);
+    }
+
+    #[test]
     fn simplex_noise_3d_sampling_matches_vanilla_corner_path() {
         let mut random = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
         let simplex = super::simplex_noise_snapshot(&mut random);
@@ -38963,6 +38973,27 @@ mod tests {
         let second = super::simplex_noise_sample_3d(&simplex, -12.125, 0.5, 33.25);
         assert!((first - 0.124169920267489).abs() < 1e-12);
         assert!((second - 0.29129930814264227).abs() < 1e-12);
+    }
+
+    #[test]
+    fn simplex_noise_3d_sampling_covers_all_rank_order_corner_paths() {
+        let mut random = super::RandomSourceKind::Legacy(super::LegacyRandom::new(12345));
+        let simplex = super::simplex_noise_snapshot(&mut random);
+        let samples = [
+            ((-5.0, -4.5, -2.75), -0.2787272376543217),
+            ((-5.0, -4.75, -2.5), 0.16925000482253008),
+            ((-5.0, -4.5, -3.75), -0.17981134259259166),
+            ((-5.0, -4.75, -4.5), -0.05465644531249998),
+            ((-5.0, -4.5, -4.75), 0.1639693359374999),
+            ((-5.0, -4.75, -4.25), 0.07816971450617194),
+        ];
+        for ((x, y, z), expected) in samples {
+            let actual = super::simplex_noise_sample_3d(&simplex, x, y, z);
+            assert!(
+                (actual - expected).abs() < 1e-12,
+                "simplex sample at ({x}, {y}, {z})"
+            );
+        }
     }
 
     #[test]
