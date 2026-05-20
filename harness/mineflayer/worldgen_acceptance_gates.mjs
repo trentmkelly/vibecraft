@@ -255,6 +255,7 @@ function validateDimensionReport (report) {
   if (!report) return ['missing dimension fixture report']
   const dimensions = new Set((report.results ?? []).flatMap(result => result.fixture?.chunks?.map(chunk => chunk.dimension) ?? []))
   const chunks = requestedChunks(report)
+  const requestedDimensionCounts = requestedDimensionCountsByFixture(report)
   const requiredMatrixIds = DIMENSION_FIXTURE_CASES
     .filter(fixture => fixture.category.endsWith('_multi_seed_coordinate_matrix'))
     .map(fixture => fixture.id)
@@ -262,12 +263,28 @@ function validateDimensionReport (report) {
   const issues = []
   if (!dimensions.has('the_nether')) issues.push('dimension report missing the_nether fixture')
   if (!dimensions.has('the_end')) issues.push('dimension report missing the_end fixture')
+  if ((requestedDimensionCounts.get('the_nether') ?? 0) === 0) issues.push('dimension report missing requested the_nether chunks')
+  if ((requestedDimensionCounts.get('the_end') ?? 0) === 0) issues.push('dimension report missing requested the_end chunks')
   for (const id of requiredMatrixIds) {
     if (!reportCaseIds.has(id)) issues.push(`dimension report missing ${id} fixture`)
   }
   if (chunks.length === 0) issues.push('dimension report has no requested chunks')
   if (!chunks.every(chunk => chunk.status === 'minecraft:full')) issues.push('not every dimension requested chunk is full')
   return issues
+}
+
+function requestedDimensionCountsByFixture (report) {
+  const counts = new Map()
+  for (const result of report.results ?? []) {
+    const dimensionsByCoordinate = fixtureDimensionsByCoordinate(result, [], 'dimension')
+    for (const artifact of result.artifacts ?? []) {
+      for (const chunk of artifact.requestedChunks ?? []) {
+        const dimension = dimensionsByCoordinate.get(`${chunk.chunkX},${chunk.chunkZ}`) ?? 'overworld'
+        counts.set(dimension, (counts.get(dimension) ?? 0) + 1)
+      }
+    }
+  }
+  return counts
 }
 
 function requestedChunks (report) {

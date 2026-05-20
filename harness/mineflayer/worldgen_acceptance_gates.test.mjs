@@ -100,6 +100,24 @@ test('acceptance report requires full nether and end dimension matrix fixtures',
   assert(structures.fixtureIssues.includes('dimension report missing the_end_parity_matrix_seed_2147483647 fixture'))
 })
 
+test('acceptance report requires requested chunks for both dimension fixtures', () => {
+  const endFixture = fixtureReport({ dimension: 'the_end' }).results[0]
+  endFixture.artifacts[0].requestedChunks = []
+  const report = validateWorldgenAcceptanceReport({
+    dimensionReport: {
+      cases: dimensionFixtureCases(),
+      results: [
+        ...fixtureReport({ dimension: 'the_nether' }).results,
+        endFixture
+      ]
+    }
+  })
+  const structures = report.phases.find(phase => phase.id === 'structures')
+
+  assert(structures.fixtureIssues.includes('dimension report missing requested the_end chunks'))
+  assert(!structures.fixtureIssues.includes('dimension report missing requested the_nether chunks'))
+})
+
 test('acceptance report loader reads fixture reports from disk and allows missing reports by default', async () => {
   const dir = path.join('/tmp', `rustcraft-worldgen-gate-${process.pid}`)
   await rm(dir, { recursive: true, force: true })
