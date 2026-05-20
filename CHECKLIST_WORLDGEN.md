@@ -336,8 +336,8 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement structure source family: pieces, placement, pools, structures, and template system.
 - [ ] Implement synth/noise source family used by terrain, climate, and density functions.
 - [ ] For each worldgen source family, add deterministic golden tests for seeds, registry inputs, JSON codecs, and representative chunk coordinates.
-- [ ] Add visible spawn-terrain generation for the live 26.1.2 client path by replacing the flat emitted chunk slab with deterministic low rolling grass/dirt/bedrock columns, low ridges, bare dirt patches, sparse stone/granite/diorite/andesite outcrops, short grass, and flowers across a 5x5 emitted chunk window, with packet-container regression coverage while full noise/feature parity remains pending.
-- [ ] Expand the live 26.1.2 client spawn terrain from the first visible low rolling slab into a taller deterministic terrain field with broader terraces, valleys, extra ridges, denser dirt/stone-family surface variation, and denser grass/flower cover while preserving the accepted chunk packet section layout.
+- [x] Add visible spawn-terrain generation for the live 26.1.2 client path by replacing the flat emitted chunk slab with deterministic low rolling grass/dirt/bedrock columns, low ridges, bare dirt patches, sparse stone/granite/diorite/andesite outcrops, short grass, and flowers across a 5x5 emitted chunk window, with packet-container regression coverage while full noise/feature parity remains pending.
+- [x] Expand the live 26.1.2 client spawn terrain from the first visible low rolling slab into a taller deterministic terrain field with broader terraces, valleys, extra ridges, denser dirt/stone-family surface variation, and denser grass/flower cover while preserving the accepted chunk packet section layout.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Vanilla Worldgen Parity Breakdown
 
