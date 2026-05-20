@@ -38460,6 +38460,53 @@ mod tests {
     }
 
     #[test]
+    fn preview_tree_overlay_updates_world_surface_wg_heightmap() {
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let mut terrain_heights = [0; 16 * 16];
+        for z in 0..16 {
+            for x in 0..16 {
+                terrain_heights[z * 16 + x] =
+                    super::noise_preview_terrain_height(x as i32, z as i32, settings).clamp(
+                        settings.noise.min_y + 1,
+                        settings.noise.min_y + settings.noise.height,
+                    );
+            }
+        }
+        let overlay = super::noise_preview_tree_blocks(
+            ChunkPos { x: 0, z: 0 },
+            settings,
+            "minecraft:forest",
+            &terrain_heights,
+        );
+        let tallest = overlay
+            .iter()
+            .max_by_key(|block| block.pos.y)
+            .expect("forest preview should emit visible tree blocks");
+        let column = tallest.pos.z as usize * 16 + tallest.pos.x as usize;
+
+        let chunk = super::materialize_noise_preview_chunk(
+            ChunkPos { x: 0, z: 0 },
+            &BiomeSourceModel::Fixed {
+                biome: "minecraft:forest",
+            },
+            settings,
+        );
+        let Tag::LongArray(world_surface_wg) = chunk.heightmaps.get("WORLD_SURFACE_WG").unwrap()
+        else {
+            panic!("WORLD_SURFACE_WG should be stored as a long array");
+        };
+
+        assert_eq!(
+            unpack_heightmap_column(world_surface_wg, column),
+            tallest.pos.y + 1
+        );
+        assert!(
+            tallest.pos.y + 1 > terrain_heights[column].max(settings.sea_level + 1),
+            "tree overlay should raise the world surface above terrain"
+        );
+    }
+
+    #[test]
     fn noise_preview_ground_cover_follows_biome_features() {
         let settings = super::builtin_noise_generator_settings("overworld").unwrap();
         let terrain_heights = [settings.sea_level + 8; 16 * 16];
