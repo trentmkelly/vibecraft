@@ -45394,6 +45394,9 @@ mod tests {
         assert!(super::tree_valid_pos("minecraft:oak_leaves"));
         assert!(super::tree_valid_pos("minecraft:dandelion"));
         assert!(super::tree_valid_pos("minecraft:water"));
+        assert!(super::tree_valid_pos("minecraft:vine"));
+        assert!(super::tree_valid_pos("minecraft:hanging_roots"));
+        assert!(super::tree_valid_pos("minecraft:bush"));
         assert!(super::tree_valid_pos("minecraft:pale_moss_carpet"));
         assert!(super::tree_valid_pos("minecraft:short_dry_grass"));
         assert!(!super::tree_valid_pos("minecraft:oak_sapling"));
