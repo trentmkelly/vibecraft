@@ -650,6 +650,152 @@ pub fn dolphin_grace_refresh_ticks(player_swimming: bool, random_roll: i32) -> O
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BeeState {
+    pub flags: u8,
+    pub time_since_sting: i32,
+    pub ticks_without_nectar_since_exiting_hive: i32,
+    pub stay_out_of_hive_countdown: i32,
+    pub crops_grown_since_pollination: i32,
+    pub under_water_ticks: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BeeServerStepOutcome {
+    pub drown_damage: Option<f32>,
+    pub sting_death_damage: bool,
+}
+
+pub const BEE_FLAG_ROLL: u8 = 2;
+pub const BEE_FLAG_HAS_STUNG: u8 = 4;
+pub const BEE_FLAG_HAS_NECTAR: u8 = 8;
+pub const BEE_STING_DEATH_COUNTDOWN: i32 = 1200;
+pub const BEE_TICKS_WITHOUT_NECTAR_BEFORE_GOING_HOME: i32 = 3600;
+pub const BEE_MAX_CROPS_GROWABLE: i32 = 10;
+pub const BEE_POISON_SECONDS_NORMAL: i32 = 10;
+pub const BEE_POISON_SECONDS_HARD: i32 = 18;
+pub const BEE_TOO_FAR_DISTANCE: i32 = 48;
+pub const BEE_HIVE_CLOSE_ENOUGH_DISTANCE: i32 = 2;
+pub const BEE_HIVE_SEARCH_DISTANCE: i32 = 20;
+pub const BEE_COOLDOWN_BEFORE_LOCATING_NEW_HIVE: i32 = 200;
+pub const BEE_MIN_FIND_FLOWER_RETRY_COOLDOWN: i32 = 20;
+pub const BEE_MAX_FIND_FLOWER_RETRY_COOLDOWN: i32 = 60;
+pub const BEE_PERSISTENT_ANGER_MIN_TICKS: i32 = 20 * 20;
+pub const BEE_PERSISTENT_ANGER_MAX_TICKS: i32 = 39 * 20;
+pub const BEE_DROWN_DAMAGE: f32 = 1.0;
+
+impl BeeState {
+    pub fn new() -> Self {
+        Self {
+            flags: 0,
+            time_since_sting: 0,
+            ticks_without_nectar_since_exiting_hive: 0,
+            stay_out_of_hive_countdown: 0,
+            crops_grown_since_pollination: 0,
+            under_water_ticks: 0,
+        }
+    }
+
+    pub fn has_nectar(self) -> bool {
+        self.get_flag(BEE_FLAG_HAS_NECTAR)
+    }
+
+    pub fn has_stung(self) -> bool {
+        self.get_flag(BEE_FLAG_HAS_STUNG)
+    }
+
+    pub fn is_rolling(self) -> bool {
+        self.get_flag(BEE_FLAG_ROLL)
+    }
+
+    pub fn set_has_nectar(&mut self, has_nectar: bool) {
+        if has_nectar {
+            self.ticks_without_nectar_since_exiting_hive = 0;
+        }
+        self.set_flag(BEE_FLAG_HAS_NECTAR, has_nectar);
+    }
+
+    pub fn set_has_stung(&mut self, has_stung: bool) {
+        self.set_flag(BEE_FLAG_HAS_STUNG, has_stung);
+    }
+
+    pub fn set_rolling(&mut self, rolling: bool) {
+        self.set_flag(BEE_FLAG_ROLL, rolling);
+    }
+
+    pub fn wants_to_enter_hive(
+        self,
+        pollinating: bool,
+        has_target: bool,
+        bees_stay_in_hive_environment: bool,
+        hive_near_fire: bool,
+    ) -> bool {
+        if self.stay_out_of_hive_countdown > 0 || pollinating || self.has_stung() || has_target {
+            return false;
+        }
+        (self.has_nectar()
+            || self.ticks_without_nectar_since_exiting_hive
+                > BEE_TICKS_WITHOUT_NECTAR_BEFORE_GOING_HOME
+            || bees_stay_in_hive_environment)
+            && !hive_near_fire
+    }
+
+    pub fn tick_server_ai(
+        &mut self,
+        in_water: bool,
+        sting_death_roll_hits: bool,
+    ) -> BeeServerStepOutcome {
+        if in_water {
+            self.under_water_ticks += 1;
+        } else {
+            self.under_water_ticks = 0;
+        }
+
+        let drown_damage = (self.under_water_ticks > 20).then_some(BEE_DROWN_DAMAGE);
+        let mut sting_death_damage = false;
+        if self.has_stung() {
+            self.time_since_sting += 1;
+            sting_death_damage = self.time_since_sting % 5 == 0 && sting_death_roll_hits;
+        }
+
+        if !self.has_nectar() {
+            self.ticks_without_nectar_since_exiting_hive += 1;
+        }
+
+        BeeServerStepOutcome {
+            drown_damage,
+            sting_death_damage,
+        }
+    }
+
+    pub fn tick_ai_step(&mut self, angry: bool, has_target: bool, target_distance_squared: f64) {
+        if self.stay_out_of_hive_countdown > 0 {
+            self.stay_out_of_hive_countdown -= 1;
+        }
+        self.set_rolling(angry && !self.has_stung() && has_target && target_distance_squared < 4.0);
+    }
+
+    fn set_flag(&mut self, flag: u8, value: bool) {
+        if value {
+            self.flags |= flag;
+        } else {
+            self.flags &= !flag;
+        }
+    }
+
+    fn get_flag(self, flag: u8) -> bool {
+        self.flags & flag != 0
+    }
+}
+
+pub fn bee_poison_duration_ticks(difficulty: &str) -> Option<i32> {
+    match difficulty {
+        "normal" => Some(BEE_POISON_SECONDS_NORMAL * 20),
+        "hard" => Some(BEE_POISON_SECONDS_HARD * 20),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
     pub inflate_counter: i32,
@@ -1618,6 +1764,72 @@ mod tests {
         assert_eq!(dolphin_grace_refresh_ticks(true, 0), Some(100));
         assert_eq!(dolphin_grace_refresh_ticks(true, 5), None);
         assert_eq!(dolphin_grace_refresh_ticks(false, 0), None);
+    }
+
+    #[test]
+    fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
+        let mut bee = BeeState::new();
+        assert_eq!(bee.flags, 0);
+        assert!(!bee.has_nectar());
+        assert!(!bee.has_stung());
+        assert!(!bee.is_rolling());
+        assert_eq!(BEE_FLAG_ROLL, 2);
+        assert_eq!(BEE_FLAG_HAS_STUNG, 4);
+        assert_eq!(BEE_FLAG_HAS_NECTAR, 8);
+        assert_eq!(BEE_STING_DEATH_COUNTDOWN, 1200);
+        assert_eq!(BEE_TICKS_WITHOUT_NECTAR_BEFORE_GOING_HOME, 3600);
+        assert_eq!(BEE_MAX_CROPS_GROWABLE, 10);
+        assert_eq!(BEE_TOO_FAR_DISTANCE, 48);
+        assert_eq!(BEE_HIVE_CLOSE_ENOUGH_DISTANCE, 2);
+        assert_eq!(BEE_HIVE_SEARCH_DISTANCE, 20);
+        assert_eq!(BEE_COOLDOWN_BEFORE_LOCATING_NEW_HIVE, 200);
+        assert_eq!(BEE_MIN_FIND_FLOWER_RETRY_COOLDOWN, 20);
+        assert_eq!(BEE_MAX_FIND_FLOWER_RETRY_COOLDOWN, 60);
+        assert_eq!(BEE_PERSISTENT_ANGER_MIN_TICKS, 400);
+        assert_eq!(BEE_PERSISTENT_ANGER_MAX_TICKS, 780);
+
+        bee.ticks_without_nectar_since_exiting_hive = 12;
+        bee.set_has_nectar(true);
+        assert!(bee.has_nectar());
+        assert_eq!(bee.ticks_without_nectar_since_exiting_hive, 0);
+        bee.set_has_nectar(false);
+        assert!(!bee.has_nectar());
+
+        bee.stay_out_of_hive_countdown = 1;
+        assert!(!bee.wants_to_enter_hive(false, false, true, false));
+        bee.stay_out_of_hive_countdown = 0;
+        assert!(bee.wants_to_enter_hive(false, false, true, false));
+        assert!(!bee.wants_to_enter_hive(false, false, true, true));
+        bee.set_has_stung(true);
+        assert!(!bee.wants_to_enter_hive(false, false, true, false));
+
+        bee.set_has_stung(false);
+        bee.tick_ai_step(true, true, 3.99);
+        assert!(bee.is_rolling());
+        bee.tick_ai_step(true, true, 4.0);
+        assert!(!bee.is_rolling());
+
+        for _ in 0..20 {
+            assert_eq!(
+                bee.tick_server_ai(true, false).drown_damage,
+                None,
+                "bee only takes drown damage after more than 20 underwater ticks"
+            );
+        }
+        assert_eq!(
+            bee.tick_server_ai(true, false).drown_damage,
+            Some(BEE_DROWN_DAMAGE)
+        );
+        assert_eq!(bee.tick_server_ai(false, false).drown_damage, None);
+
+        bee.set_has_stung(true);
+        bee.time_since_sting = 4;
+        let sting_outcome = bee.tick_server_ai(false, true);
+        assert!(sting_outcome.sting_death_damage);
+        assert_eq!(bee.time_since_sting, 5);
+        assert_eq!(bee_poison_duration_ticks("peaceful"), None);
+        assert_eq!(bee_poison_duration_ticks("normal"), Some(200));
+        assert_eq!(bee_poison_duration_ticks("hard"), Some(360));
     }
 
     #[test]
