@@ -183,7 +183,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement tree features: OakFeature, BirchFeature, JungleTreeFeature, AcaciaFeature, DarkOakFeature, SpruceFeature, CherryTreeFeature, MangroveTreeFeature; all trunk/foliage placers with correct randomness
 - [ ] Implement vegetation features: grass patch, flower patch, mushroom, huge mushroom, bamboo, kelp, sea grass, coral, jungle bush, nether fungi, twisting/weeping vines, small dripleaf, big dripleaf, cave vines, pointed dripstone cluster, dripstone room
 - [ ] Implement ore features: `OreFeature`, `ScatteredOreFeature`, ore placement configs for all vanilla ores
-- [ ] Implement spring features: water/lava spring pocket
+- [x] Implement spring features: water/lava spring pocket
 - [ ] Implement lake features: water/lava lake (now placed rarely)
 - [ ] Implement disk features: gravel/sand/clay disk
 - [ ] Implement geode feature: amethyst geode with cracked/budding/smooth layers
