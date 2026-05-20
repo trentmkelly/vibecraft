@@ -24717,6 +24717,12 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:zoglin" => {
             fields.push(("IsBaby".to_string(), Tag::Byte(0)));
         }
+        "minecraft:zombie_nautilus" => {
+            fields.push((
+                "variant".to_string(),
+                Tag::String("minecraft:temperate".to_string()),
+            ));
+        }
         "minecraft:drowned" | "minecraft:husk" | "minecraft:zombie" => {
             append_chunk_generation_zombie_save_fields(fields);
         }
@@ -62815,6 +62821,15 @@ mod tests {
             yaw: 0.0,
             pitch: 0.0,
         };
+        let zombie_nautilus = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:zombie_nautilus",
+            width: 1.2,
+            x: 32.5,
+            y: 62.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
 
         let Tag::Compound(cow_fields) =
             super::chunk_generation_mob_entity_nbt(cow, "00000000-0000-0000-0000-000000000158")
@@ -62857,6 +62872,12 @@ mod tests {
         else {
             panic!("wolf entity nbt must be a compound");
         };
+        let Tag::Compound(zombie_nautilus_fields) = super::chunk_generation_mob_entity_nbt(
+            zombie_nautilus,
+            "00000000-0000-0000-0000-000000000166",
+        ) else {
+            panic!("zombie nautilus entity nbt must be a compound");
+        };
 
         for fields in [&cow_fields, &pig_fields, &chicken_fields, &frog_fields] {
             assert!(fields.contains(&(
@@ -62883,6 +62904,10 @@ mod tests {
         assert!(wolf_fields.contains(&(
             "sound_variant".to_string(),
             Tag::String("minecraft:classic".to_string())
+        )));
+        assert!(zombie_nautilus_fields.contains(&(
+            "variant".to_string(),
+            Tag::String("minecraft:temperate".to_string())
         )));
     }
 

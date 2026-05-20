@@ -4323,6 +4323,17 @@ fn generated_chunk_entity_metadata_packet(
                 );
             }
         }
+        "minecraft:zombie_nautilus" => {
+            if let Some(variant) = tag_string_field(fields, "variant")
+                .and_then(zombie_nautilus_variant_registry_id)
+                .filter(|variant| *variant != 0)
+            {
+                packed_items.push(
+                    EntityDataValue::typed(21, EntityMetadataValue::ZombieNautilusVariant(variant))
+                        .ok()?,
+                );
+            }
+        }
         _ => {}
     }
     (!packed_items.is_empty()).then_some(ClientboundSetEntityDataPacket {
@@ -4460,6 +4471,14 @@ fn pig_sound_variant_registry_id(value: &str) -> Option<i32> {
     }
 }
 
+fn zombie_nautilus_variant_registry_id(value: &str) -> Option<i32> {
+    match resource_path_id(value) {
+        "temperate" => Some(0),
+        "warm" => Some(1),
+        _ => None,
+    }
+}
+
 fn tag_double_triplet_field(fields: &[(String, Tag)], name: &str) -> Option<[f64; 3]> {
     fields.iter().find_map(|(field_name, value)| {
         if field_name != name {
@@ -4547,6 +4566,7 @@ fn generated_mob_entity_type_network_id(entity_type: &str) -> Option<i32> {
         "minecraft:wolf" => Some(148),
         "minecraft:zombie" => Some(150),
         "minecraft:zombie_horse" => Some(151),
+        "minecraft:zombie_nautilus" => Some(152),
         "minecraft:zombie_villager" => Some(153),
         "minecraft:zombified_piglin" => Some(154),
         _ => None,
@@ -9470,6 +9490,51 @@ mod tests {
     }
 
     #[test]
+    fn generated_chunk_entity_spawn_plan_reads_non_default_zombie_nautilus_variant_metadata() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.entities.push(Tag::Compound(vec![
+            (
+                "id".to_string(),
+                Tag::String("minecraft:zombie_nautilus".to_string()),
+            ),
+            (
+                "UUID".to_string(),
+                Tag::String("00000000-0000-4000-8000-000000000126".to_string()),
+            ),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(62.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)]),
+            ),
+            (
+                "variant".to_string(),
+                Tag::String("minecraft:warm".to_string()),
+            ),
+        ]));
+
+        let plans = super::generated_chunk_entity_spawn_plans(&chunk);
+
+        assert_eq!(plans.len(), 1);
+        let metadata = plans[0]
+            .metadata
+            .as_ref()
+            .expect("non-default zombie nautilus variant data should emit metadata");
+        assert_eq!(
+            metadata.packed_items,
+            vec![
+                EntityDataValue::typed(21, EntityMetadataValue::ZombieNautilusVariant(1)).unwrap()
+            ]
+        );
+    }
+
+    #[test]
     fn generated_chunk_entity_spawn_plan_omits_default_animal_variant_metadata() {
         let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
         chunk.entities.push(Tag::Compound(vec![
@@ -9660,6 +9725,7 @@ mod tests {
             ("minecraft:wolf", 148),
             ("minecraft:zombie", 150),
             ("minecraft:zombie_horse", 151),
+            ("minecraft:zombie_nautilus", 152),
             ("minecraft:zombie_villager", 153),
             ("minecraft:zombified_piglin", 154),
         ];
