@@ -48,7 +48,8 @@
 The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noise-based preview terrain), not vanilla world generation. All items below represent the gap between the current scaffolding and full vanilla worldgen parity.
 
 - [x] Add guarded live worldgen mode switch (`RUSTCRAFT_WORLDGEN=preview|real-surface`); live generation now defaults to `real-surface`, with `preview` retained as the explicit scaffold fallback.
-- [ ] Raise `normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold` from the current measured 0.859504 block-type parity to the required 0.98 against `harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json`.
+- [ ] Raise `normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold` from the current measured 0.901933 block-type parity to the required 0.98 against `harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json`.
+- [ ] Raise `normal_overworld_generation_keeps_vanilla_heightmap_parity_above_threshold` from the current measured 0.407552 derived WORLD_SURFACE parity to the required 0.98 against the same fixture area.
 
 ## World Presets and Dimension Loading
 

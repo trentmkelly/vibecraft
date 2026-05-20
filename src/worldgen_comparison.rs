@@ -135,6 +135,21 @@ pub struct VanillaBlockArrayMismatchCount {
     pub count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct VanillaHeightmapParityScore {
+    pub matching_columns: usize,
+    pub total_columns: usize,
+    pub score: f64,
+    pub mismatches: Vec<VanillaHeightmapMismatchCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaHeightmapMismatchCount {
+    pub expected_height: i32,
+    pub actual_height: i32,
+    pub count: usize,
+}
+
 impl VanillaBlockArrayParityScore {
     pub fn from_counts(matching_blocks: usize, total_blocks: usize) -> Result<Self, String> {
         Self::from_counts_and_mismatches(matching_blocks, total_blocks, BTreeMap::new())
@@ -169,6 +184,41 @@ impl VanillaBlockArrayParityScore {
             matching_blocks,
             total_blocks,
             score: matching_blocks as f64 / total_blocks as f64,
+            mismatches,
+        })
+    }
+}
+
+impl VanillaHeightmapParityScore {
+    pub fn from_counts_and_mismatches(
+        matching_columns: usize,
+        total_columns: usize,
+        mismatches: BTreeMap<(i32, i32), usize>,
+    ) -> Result<Self, String> {
+        if total_columns == 0 {
+            return Err("cannot score worldgen heightmap parity without columns".to_string());
+        }
+        let mut mismatches = mismatches
+            .into_iter()
+            .map(
+                |((expected_height, actual_height), count)| VanillaHeightmapMismatchCount {
+                    expected_height,
+                    actual_height,
+                    count,
+                },
+            )
+            .collect::<Vec<_>>();
+        mismatches.sort_by(|left, right| {
+            right
+                .count
+                .cmp(&left.count)
+                .then_with(|| left.expected_height.cmp(&right.expected_height))
+                .then_with(|| left.actual_height.cmp(&right.actual_height))
+        });
+        Ok(Self {
+            matching_columns,
+            total_columns,
+            score: matching_columns as f64 / total_columns as f64,
             mismatches,
         })
     }
@@ -281,6 +331,102 @@ pub fn vanilla_worldgen_block_array_parity_score(
     )
 }
 
+pub fn vanilla_worldgen_heightmap_parity_score(
+    vanilla_fixture_json: &str,
+    actual_chunks: &[LevelChunk],
+) -> Result<VanillaHeightmapParityScore, String> {
+    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
+        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
+    let format = fixture
+        .get("format")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing format".to_string())?;
+    if format != "rustcraft-vanilla-worldgen-block-array-target-v1" {
+        return Err(format!(
+            "unsupported vanilla worldgen block-array fixture format: {format}"
+        ));
+    }
+
+    let chunks = fixture
+        .get("chunks")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
+    let mut matching_columns = 0usize;
+    let mut total_columns = 0usize;
+    let mut mismatches = BTreeMap::<(i32, i32), usize>::new();
+
+    for expected_chunk in chunks {
+        let dimension = expected_chunk
+            .get("dimension")
+            .and_then(Value::as_str)
+            .unwrap_or("overworld");
+        if dimension != "overworld" {
+            return Err(format!(
+                "unsupported vanilla worldgen block-array dimension: {dimension}"
+            ));
+        }
+        let chunk_x = json_i32_field(expected_chunk, "chunkX")?;
+        let chunk_z = json_i32_field(expected_chunk, "chunkZ")?;
+        let y_min = json_i32_field(expected_chunk, "yMin")?;
+        let y_max_exclusive = json_i32_field(expected_chunk, "yMaxExclusive")?;
+        let blocks = expected_chunk
+            .get("blocks")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                format!("vanilla fixture chunk ({chunk_x},{chunk_z}) is missing blocks")
+            })?;
+        if blocks.len() != 16 {
+            return Err(format!(
+                "vanilla fixture chunk ({chunk_x},{chunk_z}) has {} x columns, expected 16",
+                blocks.len()
+            ));
+        }
+
+        let actual = actual_chunks
+            .iter()
+            .find(|chunk| chunk.pos.x == chunk_x && chunk.pos.z == chunk_z)
+            .ok_or_else(|| format!("missing actual generated chunk ({chunk_x},{chunk_z})"))?;
+
+        for local_x in 0..16 {
+            let y_column = blocks
+                .get(local_x)
+                .and_then(Value::as_array)
+                .ok_or_else(|| {
+                    format!(
+                        "vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} is not an array"
+                    )
+                })?;
+            for local_z in 0..16 {
+                let expected_height =
+                    expected_world_surface_height(y_column, y_min, local_z, chunk_x, chunk_z)?;
+                let actual_height = actual_world_surface_height(
+                    actual,
+                    chunk_x,
+                    chunk_z,
+                    local_x as i32,
+                    local_z,
+                    y_min,
+                    y_max_exclusive,
+                );
+                if actual_height == expected_height {
+                    matching_columns += 1;
+                } else {
+                    *mismatches
+                        .entry((expected_height, actual_height))
+                        .or_default() += 1;
+                }
+                total_columns += 1;
+            }
+        }
+    }
+
+    VanillaHeightmapParityScore::from_counts_and_mismatches(
+        matching_columns,
+        total_columns,
+        mismatches,
+    )
+}
+
 pub fn vanilla_worldgen_block_array_parity_score_for_normal_overworld(
     vanilla_fixture_json: &str,
 ) -> Result<VanillaBlockArrayParityScore, String> {
@@ -325,6 +471,50 @@ pub fn vanilla_worldgen_block_array_parity_score_for_normal_overworld(
     vanilla_worldgen_block_array_parity_score(vanilla_fixture_json, &actual_chunks)
 }
 
+pub fn vanilla_worldgen_heightmap_parity_score_for_normal_overworld(
+    vanilla_fixture_json: &str,
+) -> Result<VanillaHeightmapParityScore, String> {
+    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
+        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
+    let seed = fixture
+        .get("seed")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing seed".to_string())?
+        .parse::<i64>()
+        .map_err(|err| format!("vanilla worldgen block-array fixture has invalid seed: {err}"))?;
+    let chunks = fixture
+        .get("chunks")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
+
+    let mut actual_chunks = Vec::with_capacity(chunks.len());
+    for chunk in chunks {
+        let dimension = chunk
+            .get("dimension")
+            .and_then(Value::as_str)
+            .unwrap_or("overworld");
+        if dimension != "overworld" {
+            return Err(format!(
+                "unsupported vanilla worldgen block-array dimension: {dimension}"
+            ));
+        }
+        let pos = crate::storage::region::ChunkPos {
+            x: json_i32_field(chunk, "chunkX")?,
+            z: json_i32_field(chunk, "chunkZ")?,
+        };
+        actual_chunks.push(
+            crate::worldgen::generate_overworld_chunk_for_preset_with_mode(
+                pos,
+                "normal",
+                crate::worldgen::LiveChunkGenerationMode::RealSurface,
+                seed,
+            )?,
+        );
+    }
+
+    vanilla_worldgen_heightmap_parity_score(vanilla_fixture_json, &actual_chunks)
+}
+
 fn json_i32_field(value: &Value, field: &str) -> Result<i32, String> {
     let number = value.get(field).and_then(Value::as_i64).ok_or_else(|| {
         format!("vanilla worldgen block-array fixture is missing integer {field}")
@@ -340,6 +530,57 @@ fn vanilla_block_type(block_state: &str) -> String {
         .map(|(name, _)| name)
         .unwrap_or(block_state)
         .to_string()
+}
+
+fn expected_world_surface_height(
+    y_column: &[Value],
+    y_min: i32,
+    local_z: usize,
+    chunk_x: i32,
+    chunk_z: i32,
+) -> Result<i32, String> {
+    for (y_offset, z_column) in y_column.iter().enumerate().rev() {
+        let z_column = z_column.as_array().ok_or_else(|| {
+            format!(
+                "vanilla fixture chunk ({chunk_x},{chunk_z}) y_offset={y_offset} is not an array"
+            )
+        })?;
+        let block = z_column
+            .get(local_z)
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                format!(
+                    "vanilla fixture chunk ({chunk_x},{chunk_z}) y_offset={y_offset} z={local_z} is not a block string"
+                )
+            })
+            .map(vanilla_block_type)?;
+        if block != "minecraft:air" {
+            return Ok(y_min + y_offset as i32 + 1);
+        }
+    }
+    Ok(y_min)
+}
+
+fn actual_world_surface_height(
+    chunk: &LevelChunk,
+    chunk_x: i32,
+    chunk_z: i32,
+    local_x: i32,
+    local_z: usize,
+    y_min: i32,
+    y_max_exclusive: i32,
+) -> i32 {
+    let world_x = chunk_x * 16 + local_x;
+    let world_z = chunk_z * 16 + local_z as i32;
+    for world_y in (y_min..y_max_exclusive).rev() {
+        let block = chunk
+            .get_block_state(world_x, world_y, world_z)
+            .unwrap_or_else(|| "minecraft:air".to_string());
+        if block != "minecraft:air" {
+            return world_y + 1;
+        }
+    }
+    y_min
 }
 
 pub fn build_worldgen_chunk_comparisons(
@@ -1571,6 +1812,44 @@ mod tests {
     }
 
     #[test]
+    fn vanilla_worldgen_heightmap_parity_score_counts_matching_surface_columns() {
+        let mut chunk = LevelChunk::empty(crate::storage::region::ChunkPos { x: 0, z: 0 });
+        chunk.set_block_state(0, -64, 0, "minecraft:stone");
+        chunk.set_block_state(1, -64, 0, "minecraft:dirt");
+        let mut blocks = vec![vec![vec!["minecraft:air"; 16]; 1]; 16];
+        blocks[0][0][0] = "minecraft:stone";
+        blocks[1][0][0] = "minecraft:grass_block[snowy=false]";
+        blocks[2][0][0] = "minecraft:stone";
+        let fixture = json!({
+            "format": "rustcraft-vanilla-worldgen-block-array-target-v1",
+            "seed": "0",
+            "chunks": [{
+                "dimension": "overworld",
+                "chunkX": 0,
+                "chunkZ": 0,
+                "yMin": -64,
+                "yMaxExclusive": -63,
+                "blocks": blocks
+            }]
+        })
+        .to_string();
+
+        let score = vanilla_worldgen_heightmap_parity_score(&fixture, &[chunk]).unwrap();
+
+        assert_eq!(score.matching_columns, 253);
+        assert_eq!(score.total_columns, 256);
+        assert_eq!(score.score, 253.0 / 256.0);
+        assert_eq!(
+            score.mismatches,
+            vec![VanillaHeightmapMismatchCount {
+                expected_height: -63,
+                actual_height: -64,
+                count: 3,
+            }]
+        );
+    }
+
+    #[test]
     fn normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold() {
         let score = vanilla_worldgen_block_array_parity_score_for_normal_overworld(include_str!(
             "../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"
@@ -1585,6 +1864,26 @@ mod tests {
             score.score,
             score.matching_blocks,
             score.total_blocks
+        );
+    }
+
+    #[test]
+    fn normal_overworld_generation_keeps_vanilla_heightmap_parity_above_threshold() {
+        let score = vanilla_worldgen_heightmap_parity_score_for_normal_overworld(include_str!(
+            "../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"
+        ))
+        .expect(
+            "vanilla block-array fixture should score heightmaps against generated Rust chunks",
+        );
+
+        print_vanilla_worldgen_heightmap_mismatch_counts(&score, 30);
+
+        assert!(
+            score.score >= 0.98,
+            "worldgen heightmap parity score {:.6} ({}/{}) is below required 0.98",
+            score.score,
+            score.matching_columns,
+            score.total_columns
         );
     }
 
@@ -1605,6 +1904,30 @@ mod tests {
             println!(
                 "{:>8}  expected {:<36} actual {}",
                 mismatch.count, mismatch.expected, mismatch.actual
+            );
+        }
+    }
+
+    fn print_vanilla_worldgen_heightmap_mismatch_counts(
+        score: &VanillaHeightmapParityScore,
+        limit: usize,
+    ) {
+        println!(
+            "worldgen heightmap parity score {:.6} ({}/{})",
+            score.score, score.matching_columns, score.total_columns
+        );
+        if score.mismatches.is_empty() {
+            println!("worldgen heightmap parity mismatches: none");
+            return;
+        }
+        println!(
+            "top {} worldgen heightmap parity mismatches by expected -> actual height:",
+            limit.min(score.mismatches.len())
+        );
+        for mismatch in score.mismatches.iter().take(limit) {
+            println!(
+                "{:>8}  expected {:>4}  actual {:>4}",
+                mismatch.count, mismatch.expected_height, mismatch.actual_height
             );
         }
     }
