@@ -39,26 +39,26 @@ use crate::network::play::{
     block_state_name_network_id, build_recipe_book_add, handle_container_click,
     unpack_block_position, ClientboundAddEntityPacket, ClientboundContainerSetSlotPacket,
     ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
-    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundSetPlayerInventoryPacket,
-    ClientboundSetTimePacket, ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d,
-    GameMode, PlayInstruction, RawDataComponentPatch, RawItemStack,
-    ServerboundContainerClickPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
-    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
-    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
-    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
-    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
-    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundRemoveEntitiesPacket,
+    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
+    CommonPlayerSpawnInfo, Direction3d, GameMode, PlayInstruction, RawDataComponentPatch,
+    RawItemStack, ServerboundContainerClickPacket, ServerboundSwingHand,
+    ServerboundUseItemOnPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+    CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
+    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
     SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
@@ -1959,11 +1959,13 @@ fn handle_login_connection(
                         let next_loaded_chunks =
                             chunk_window(next_chunk_x, next_chunk_z, chunk_batch_radius);
                         for stale_chunk in loaded_chunks.difference(&next_loaded_chunks) {
-                            write_forget_level_chunk_packet(
+                            write_forget_generated_spawn_chunk_packets(
                                 stream,
                                 compression,
                                 stale_chunk.0,
                                 stale_chunk.1,
+                                world_root,
+                                world_seed,
                             )?;
                         }
                         let chunks_to_send =
@@ -3651,7 +3653,7 @@ fn newly_visible_chunks(
 }
 
 fn write_forget_level_chunk_packet(
-    stream: &mut TcpStream,
+    stream: &mut impl Write,
     compression: CompressionState,
     x: i32,
     z: i32,
@@ -3661,6 +3663,39 @@ fn write_forget_level_chunk_packet(
         compression,
         CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
         |payload| payload.write_all(&packed_chunk_pos(x, z).to_be_bytes()),
+    )
+}
+
+fn write_forget_generated_spawn_chunk_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    x: i32,
+    z: i32,
+    world_root: &Path,
+    world_seed: i64,
+) -> io::Result<()> {
+    let chunk = load_or_generate_spawn_chunk(x, z, world_root, world_seed);
+    write_generated_chunk_entity_remove_packets(writer, compression, &chunk)?;
+    write_forget_level_chunk_packet(writer, compression, x, z)
+}
+
+fn write_generated_chunk_entity_remove_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    chunk: &LevelChunk,
+) -> io::Result<()> {
+    let entity_ids: Vec<i32> = generated_chunk_entity_add_packets(chunk)
+        .into_iter()
+        .map(|packet| packet.id)
+        .collect();
+    if entity_ids.is_empty() {
+        return Ok(());
+    }
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+        |payload| ClientboundRemoveEntitiesPacket { entity_ids }.write(payload),
     )
 }
 
@@ -7392,7 +7427,7 @@ mod tests {
     use crate::network::ping::ServerboundPingRequestPacket;
     use crate::network::play::{
         ClientboundAddEntityPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
     };
     use crate::network::varint::{read_var_i32, write_var_i32};
     use crate::player_inventory::{InventoryMenu, PlayerInventory};
@@ -8794,6 +8829,52 @@ mod tests {
                 CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID
             ]
         );
+    }
+
+    #[test]
+    fn generated_chunk_entity_remove_packets_use_deterministic_runtime_ids() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.entities.push(Tag::Compound(vec![
+            ("id".to_string(), Tag::String("minecraft:pig".to_string())),
+            (
+                "UUID".to_string(),
+                Tag::String("00000000-0000-4000-8000-000000000123".to_string()),
+            ),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(70.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            (
+                "Rotation".to_string(),
+                Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)]),
+            ),
+        ]));
+        let mut output = Vec::new();
+
+        super::write_generated_chunk_entity_remove_packets(
+            &mut output,
+            CompressionState::disabled(),
+            &chunk,
+        )
+        .expect("generated mob removal should serialize");
+
+        let mut frame = &output[..];
+        let frame_len = read_var_i32(&mut frame).unwrap() as usize;
+        assert_eq!(frame_len, frame.len());
+        assert_eq!(
+            read_var_i32(&mut frame).unwrap(),
+            CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID
+        );
+        assert_eq!(read_var_i32(&mut frame).unwrap(), 1);
+        assert_eq!(
+            read_var_i32(&mut frame).unwrap(),
+            super::generated_chunk_entity_runtime_id(chunk.pos, 0)
+        );
+        assert!(frame.is_empty());
     }
 
     #[test]
