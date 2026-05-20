@@ -266,7 +266,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Add deterministic parity fixtures for overworld chunks at (0,0), (1,0), (0,1), (16,16) across seeds 0, 1, -1, and a large prime for each: biome IDs, heightmap values, representative block positions
 - [ ] Add deterministic parity fixtures for nether chunks and end chunks across multiple seeds
 - [ ] Add progressive acceptance gates: real flat generator first → real noise terrain without decoration → surfaces/carvers → biome decoration → structures → full persistence/lighting parity
-- [ ] Add worldgen comparison regression tests that fail when RustCraft output diverges from a previously accepted vanilla snapshot
+- [x] Add worldgen comparison regression tests that fail when RustCraft output diverges from a previously accepted vanilla snapshot. The Mineflayer worldgen gate now includes a committed accepted vanilla snapshot fixture and verifies matching RustCraft signatures pass while palette/hash drift fails closed. References: `RustCraft/harness/mineflayer/fixtures/accepted_worldgen_snapshot.json`, `RustCraft/harness/mineflayer/worldgen_acceptance_gates.test.mjs`.
 
 ## Migrated From Main Checklist: Dimensions And World Generation
 

@@ -1,0 +1,80 @@
+{
+  "format": "rustcraft-accepted-vanilla-worldgen-snapshot-v1",
+  "results": [
+    {
+      "fixture": {
+        "seed": 0,
+        "chunks": [
+          {
+            "x": 0,
+            "z": 0,
+            "dimension": "overworld"
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "requestedChunks": [
+            {
+              "chunkX": 0,
+              "chunkZ": 0,
+              "status": "minecraft:full",
+              "sectionCount": 24,
+              "nonEmptySectionCount": 24,
+              "heightmaps": {
+                "WORLD_SURFACE": {
+                  "type": "long_array",
+                  "entries": 37
+                },
+                "OCEAN_FLOOR": {
+                  "type": "long_array",
+                  "entries": 37
+                },
+                "MOTION_BLOCKING": {
+                  "type": "long_array",
+                  "entries": 37
+                },
+                "MOTION_BLOCKING_NO_LEAVES": {
+                  "type": "long_array",
+                  "entries": 37
+                }
+              },
+              "structures": {
+                "startKeys": [],
+                "referenceKeys": []
+              },
+              "blockPalette": [
+                "minecraft:stone",
+                "minecraft:water"
+              ],
+              "biomePalette": [
+                "minecraft:plains"
+              ],
+              "payloadSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "sections": [
+                {
+                  "y": 0,
+                  "blockPalette": [
+                    "minecraft:stone",
+                    "minecraft:water"
+                  ],
+                  "blockStatesData": {
+                    "entries": 256,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  },
+                  "biomePalette": [
+                    "minecraft:plains"
+                  ],
+                  "biomeData": {
+                    "entries": 0,
+                    "sha256": null
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
 import { promisify } from 'node:util'
@@ -161,6 +161,33 @@ test('RustCraft worldgen comparison fails closed against vanilla requested chunk
     palette: ['minecraft:stone']
   })
   assert.deepEqual(compareRustcraftWorldgenReport(vanilla, divergentRust), {
+    ok: false,
+    comparedChunks: 1,
+    leftChunks: 1,
+    rightChunks: 1,
+    issues: ['chunk overworld:0,0 stable projection differs']
+  })
+})
+
+test('accepted vanilla snapshot catches RustCraft worldgen drift', async () => {
+  const acceptedPath = path.join(
+    path.dirname(new URL(import.meta.url).pathname),
+    'fixtures',
+    'accepted_worldgen_snapshot.json'
+  )
+  const accepted = JSON.parse(await readFile(acceptedPath, 'utf8'))
+  const matchingRust = rustcraftReport({
+    dimension: 'overworld',
+    palette: ['minecraft:water', 'minecraft:stone']
+  })
+
+  assert.equal(compareRustcraftWorldgenReport(accepted, matchingRust).ok, true)
+
+  const divergentRust = rustcraftReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone']
+  })
+  assert.deepEqual(compareRustcraftWorldgenReport(accepted, divergentRust), {
     ok: false,
     comparedChunks: 1,
     leftChunks: 1,
