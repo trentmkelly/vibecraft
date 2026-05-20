@@ -1259,6 +1259,225 @@ fn silverfish_java_symmetric_offsets(radius: i32) -> Vec<i32> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ZoglinAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+    pub knockback_resistance: f32,
+    pub attack_knockback: f32,
+    pub attack_damage: f32,
+    pub xp_reward: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HoglinBaseThrowVector {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub hurt_marked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HoglinConversionTick {
+    pub time_in_overworld: i32,
+    pub convert_to_zoglin: bool,
+    pub nausea_ticks: i32,
+}
+
+pub const ZOGLIN_MAX_HEALTH: f32 = 40.0;
+pub const ZOGLIN_MOVEMENT_SPEED: f32 = 0.3;
+pub const ZOGLIN_KNOCKBACK_RESISTANCE: f32 = 0.6;
+pub const ZOGLIN_ATTACK_KNOCKBACK: f32 = 1.0;
+pub const ZOGLIN_ATTACK_DAMAGE: f32 = 6.0;
+pub const ZOGLIN_BABY_ATTACK_DAMAGE: f32 = 0.5;
+pub const ZOGLIN_XP_REWARD: i32 = 5;
+pub const ZOGLIN_BABY_RANDOM_CHANCE: f32 = 0.2;
+pub const ZOGLIN_ATTACK_INTERVAL_TICKS: i32 = 40;
+pub const ZOGLIN_BABY_ATTACK_INTERVAL_TICKS: i32 = 15;
+pub const ZOGLIN_ATTACK_TARGET_MEMORY_TICKS: i64 = 200;
+pub const ZOGLIN_ATTACK_ANIMATION_DURATION_TICKS: i32 = 10;
+pub const ZOGLIN_IDLE_SPEED_MULTIPLIER: f32 = 0.4;
+pub const ZOGLIN_FIGHTING_MOVEMENT_SPEED: f32 = 0.3;
+pub const ZOGLIN_LOOK_TARGET_RANGE: f32 = 8.0;
+pub const ZOGLIN_LOOK_INTERVAL_MIN_TICKS: i32 = 30;
+pub const ZOGLIN_LOOK_INTERVAL_MAX_TICKS: i32 = 60;
+pub const ZOGLIN_DO_NOTHING_MIN_TICKS: i32 = 30;
+pub const ZOGLIN_DO_NOTHING_MAX_TICKS: i32 = 60;
+pub const ZOGLIN_HURT_RETARGET_DISTANCE_MARGIN: f32 = 4.0;
+pub const ZOGLIN_ATTACK_EVENT_ID: u8 = 4;
+pub const ZOGLIN_STEP_SOUND_VOLUME: f32 = 0.15;
+pub const ZOGLIN_STEP_SOUND_PITCH: f32 = 1.0;
+pub const HOGLIN_CONVERSION_TIME_TICKS: i32 = 300;
+pub const HOGLIN_CONVERSION_NAUSEA_TICKS: i32 = 200;
+
+pub fn zoglin_attributes() -> ZoglinAttributes {
+    ZoglinAttributes {
+        max_health: ZOGLIN_MAX_HEALTH,
+        movement_speed: ZOGLIN_MOVEMENT_SPEED,
+        knockback_resistance: ZOGLIN_KNOCKBACK_RESISTANCE,
+        attack_knockback: ZOGLIN_ATTACK_KNOCKBACK,
+        attack_damage: ZOGLIN_ATTACK_DAMAGE,
+        xp_reward: ZOGLIN_XP_REWARD,
+    }
+}
+
+pub fn zoglin_attack_damage(baby: bool) -> f32 {
+    if baby {
+        ZOGLIN_BABY_ATTACK_DAMAGE
+    } else {
+        ZOGLIN_ATTACK_DAMAGE
+    }
+}
+
+pub fn zoglin_attack_interval_ticks(baby: bool) -> i32 {
+    if baby {
+        ZOGLIN_BABY_ATTACK_INTERVAL_TICKS
+    } else {
+        ZOGLIN_ATTACK_INTERVAL_TICKS
+    }
+}
+
+pub fn zoglin_finalize_spawn_is_baby(random_float_0_to_1: f32) -> bool {
+    random_float_0_to_1 < ZOGLIN_BABY_RANDOM_CHANCE
+}
+
+pub fn zoglin_valid_attack_target(
+    target_entity_type: &'static str,
+    sensor_attackable: bool,
+) -> bool {
+    sensor_attackable
+        && target_entity_type != "minecraft:zoglin"
+        && target_entity_type != "minecraft:creeper"
+}
+
+pub fn zoglin_ambient_sound(has_attack_target: bool, client_side: bool) -> Option<&'static str> {
+    if client_side {
+        None
+    } else if has_attack_target {
+        Some("minecraft:entity.zoglin.angry")
+    } else {
+        Some("minecraft:entity.zoglin.ambient")
+    }
+}
+
+pub fn zoglin_on_hurt_should_retarget(
+    was_hurt: bool,
+    attacker_is_living: bool,
+    can_attack_attacker: bool,
+    other_target_much_further_than_current: bool,
+) -> bool {
+    was_hurt && attacker_is_living && can_attack_attacker && !other_target_much_further_than_current
+}
+
+pub fn zoglin_event_attack_animation_ticks(event_id: u8) -> Option<i32> {
+    (event_id == ZOGLIN_ATTACK_EVENT_ID).then_some(ZOGLIN_ATTACK_ANIMATION_DURATION_TICKS)
+}
+
+pub fn zoglin_next_attack_animation_ticks(current_ticks: i32) -> i32 {
+    (current_ticks - 1).max(0)
+}
+
+pub fn zoglin_blocked_by_item_throws_target(baby: bool) -> bool {
+    !baby
+}
+
+pub fn zoglin_save_is_baby_key() -> &'static str {
+    "IsBaby"
+}
+
+pub fn zoglin_is_immune_to_regular_zombification() -> bool {
+    true
+}
+
+pub fn hoglin_is_converting(
+    immune_to_zombification: bool,
+    no_ai: bool,
+    piglins_zombify_environment: bool,
+) -> bool {
+    !immune_to_zombification && !no_ai && piglins_zombify_environment
+}
+
+pub fn hoglin_conversion_tick(
+    time_in_overworld: i32,
+    immune_to_zombification: bool,
+    no_ai: bool,
+    piglins_zombify_environment: bool,
+) -> HoglinConversionTick {
+    if hoglin_is_converting(immune_to_zombification, no_ai, piglins_zombify_environment) {
+        let next = time_in_overworld + 1;
+        HoglinConversionTick {
+            time_in_overworld: next,
+            convert_to_zoglin: next > HOGLIN_CONVERSION_TIME_TICKS,
+            nausea_ticks: if next > HOGLIN_CONVERSION_TIME_TICKS {
+                HOGLIN_CONVERSION_NAUSEA_TICKS
+            } else {
+                0
+            },
+        }
+    } else {
+        HoglinConversionTick {
+            time_in_overworld: 0,
+            convert_to_zoglin: false,
+            nausea_ticks: 0,
+        }
+    }
+}
+
+pub fn hoglin_base_attack_damage(
+    body_is_baby: bool,
+    attack_damage: f32,
+    random_0_to_attack_damage_minus_1: i32,
+) -> f32 {
+    let attack_damage_int = attack_damage as i32;
+    if !body_is_baby && attack_damage_int > 0 {
+        attack_damage / 2.0 + random_0_to_attack_damage_minus_1.rem_euclid(attack_damage_int) as f32
+    } else {
+        attack_damage
+    }
+}
+
+pub fn hoglin_base_throw_target(
+    body_x: f64,
+    body_z: f64,
+    target_x: f64,
+    target_z: f64,
+    attack_knockback: f64,
+    target_knockback_resistance: f64,
+    random_y_rot_minus_10_to_10: f64,
+    random_float_0_to_1_for_horizontal: f64,
+    random_float_0_to_1_for_vertical: f64,
+) -> Option<HoglinBaseThrowVector> {
+    let effective_knockback_power = attack_knockback - target_knockback_resistance;
+    if effective_knockback_power <= 0.0 {
+        return None;
+    }
+
+    let dx = target_x - body_x;
+    let dz = target_z - body_z;
+    let length = (dx * dx + dz * dz).sqrt();
+    if length == 0.0 {
+        return Some(HoglinBaseThrowVector {
+            x: 0.0,
+            y: effective_knockback_power * random_float_0_to_1_for_vertical * 0.5,
+            z: 0.0,
+            hurt_marked: true,
+        });
+    }
+
+    let horizontal_scale =
+        effective_knockback_power * (random_float_0_to_1_for_horizontal * 0.5 + 0.2);
+    let x = dx / length * horizontal_scale;
+    let z = dz / length * horizontal_scale;
+    let cos = random_y_rot_minus_10_to_10.cos();
+    let sin = random_y_rot_minus_10_to_10.sin();
+    Some(HoglinBaseThrowVector {
+        x: x * cos + z * sin,
+        y: effective_knockback_power * random_float_0_to_1_for_vertical * 0.5,
+        z: z * cos - x * sin,
+        hurt_marked: true,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GiantAttributes {
     pub max_health: f32,
     pub movement_speed: f32,
@@ -7434,6 +7653,116 @@ mod tests {
                     action: SilverfishWakeAction::DestroyInfestedBlock,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
+        assert_eq!(
+            zoglin_attributes(),
+            ZoglinAttributes {
+                max_health: 40.0,
+                movement_speed: 0.3,
+                knockback_resistance: 0.6,
+                attack_knockback: 1.0,
+                attack_damage: 6.0,
+                xp_reward: 5,
+            }
+        );
+        assert_eq!(zoglin_attack_damage(false), 6.0);
+        assert_eq!(zoglin_attack_damage(true), 0.5);
+        assert_eq!(zoglin_attack_interval_ticks(false), 40);
+        assert_eq!(zoglin_attack_interval_ticks(true), 15);
+        assert!(zoglin_finalize_spawn_is_baby(0.199));
+        assert!(!zoglin_finalize_spawn_is_baby(0.2));
+        assert_eq!(ZOGLIN_IDLE_SPEED_MULTIPLIER, 0.4);
+        assert_eq!(ZOGLIN_FIGHTING_MOVEMENT_SPEED, 0.3);
+        assert_eq!(ZOGLIN_LOOK_TARGET_RANGE, 8.0);
+        assert_eq!(ZOGLIN_LOOK_INTERVAL_MIN_TICKS, 30);
+        assert_eq!(ZOGLIN_LOOK_INTERVAL_MAX_TICKS, 60);
+        assert_eq!(ZOGLIN_DO_NOTHING_MIN_TICKS, 30);
+        assert_eq!(ZOGLIN_DO_NOTHING_MAX_TICKS, 60);
+
+        assert!(zoglin_valid_attack_target("minecraft:player", true));
+        assert!(!zoglin_valid_attack_target("minecraft:zoglin", true));
+        assert!(!zoglin_valid_attack_target("minecraft:creeper", true));
+        assert!(!zoglin_valid_attack_target("minecraft:player", false));
+        assert_eq!(
+            zoglin_ambient_sound(false, false),
+            Some("minecraft:entity.zoglin.ambient")
+        );
+        assert_eq!(
+            zoglin_ambient_sound(true, false),
+            Some("minecraft:entity.zoglin.angry")
+        );
+        assert_eq!(zoglin_ambient_sound(true, true), None);
+        assert!(zoglin_on_hurt_should_retarget(true, true, true, false));
+        assert!(!zoglin_on_hurt_should_retarget(true, true, true, true));
+        assert_eq!(
+            zoglin_event_attack_animation_ticks(4),
+            Some(ZOGLIN_ATTACK_ANIMATION_DURATION_TICKS)
+        );
+        assert_eq!(zoglin_event_attack_animation_ticks(3), None);
+        assert_eq!(zoglin_next_attack_animation_ticks(10), 9);
+        assert_eq!(zoglin_next_attack_animation_ticks(0), 0);
+        assert!(zoglin_blocked_by_item_throws_target(false));
+        assert!(!zoglin_blocked_by_item_throws_target(true));
+        assert_eq!(zoglin_save_is_baby_key(), "IsBaby");
+        assert!(zoglin_is_immune_to_regular_zombification());
+        assert_eq!(ZOGLIN_HURT_RETARGET_DISTANCE_MARGIN, 4.0);
+        assert_eq!(ZOGLIN_STEP_SOUND_VOLUME, 0.15);
+        assert_eq!(ZOGLIN_STEP_SOUND_PITCH, 1.0);
+
+        assert_eq!(
+            hoglin_conversion_tick(299, false, false, true),
+            HoglinConversionTick {
+                time_in_overworld: 300,
+                convert_to_zoglin: false,
+                nausea_ticks: 0,
+            }
+        );
+        assert_eq!(
+            hoglin_conversion_tick(300, false, false, true),
+            HoglinConversionTick {
+                time_in_overworld: 301,
+                convert_to_zoglin: true,
+                nausea_ticks: 200,
+            }
+        );
+        assert_eq!(
+            hoglin_conversion_tick(42, true, false, true),
+            HoglinConversionTick {
+                time_in_overworld: 0,
+                convert_to_zoglin: false,
+                nausea_ticks: 0,
+            }
+        );
+        assert_eq!(
+            hoglin_conversion_tick(42, false, true, true).time_in_overworld,
+            0
+        );
+        assert_eq!(
+            hoglin_conversion_tick(42, false, false, false).time_in_overworld,
+            0
+        );
+
+        assert_eq!(hoglin_base_attack_damage(false, 6.0, 5), 8.0);
+        assert_eq!(hoglin_base_attack_damage(false, 6.0, 6), 3.0);
+        assert_eq!(hoglin_base_attack_damage(true, 0.5, 0), 0.5);
+        assert_eq!(hoglin_base_attack_damage(false, 0.0, 0), 0.0);
+
+        assert_eq!(
+            hoglin_base_throw_target(0.0, 0.0, 4.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0),
+            None
+        );
+        assert_eq!(
+            hoglin_base_throw_target(0.0, 0.0, 4.0, 0.0, 1.0, 0.25, 0.0, 0.0, 1.0),
+            Some(HoglinBaseThrowVector {
+                x: 0.15000000000000002,
+                y: 0.375,
+                z: 0.0,
+                hurt_marked: true,
+            })
         );
     }
 

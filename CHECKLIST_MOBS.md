@@ -78,7 +78,7 @@
 - [ ] Implement `Strider`: lava walking, saddle+ride with carrot-on-a-stick steering, trembling cold-biome state, attraction to warped fungus
 - [x] Implement `Vex`: summoned by evoker (3 per cast, nearby-count gate), phase through solid blocks, 30–119 second limited life after summon
 - [ ] Implement `Witch`: splash potion attack (harm/slowness/weakness/poison selection by context), self-healing with instant-health/fire-resistance/water-breathing/swiftness potions, raid rider on Ravager
-- [ ] Implement `Zoglin`: permanent hostile (converted from Hoglin entering Overworld/End), knockback attack, immunity to regular zombification
+- [x] Implement `Zoglin`: permanent hostile target filtering, Hoglin conversion into Zoglin after 300 Overworld/End ticks, HoglinBase knockback attack, no regular zombification state
 
 ### Breeze
 - [ ] Implement `Breeze` locomotion: `LongJump` behavior with momentum tracking, `Slide` ground-movement behavior
@@ -96,7 +96,7 @@
 
 ### Hoglin
 - [ ] Implement `Hoglin`: pack hunting (attack nearest non-hoglin mob or player), flee from warped fungi, respawn anchors, nether portals, and piglins
-- [ ] Implement `HoglinBase` conversion: Hoglin → Zoglin when entering Overworld or End
+- [x] Implement `HoglinBase` conversion: Hoglin → Zoglin when entering Overworld or End
 - [ ] Implement `HoglinAi` brain: pack behavior, fleeing memories
 - [ ] Add parity test: hoglin attack range, flee distance from warped fungi, zoglin conversion timing
 
