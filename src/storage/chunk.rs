@@ -187,6 +187,12 @@ pub struct QueuedSectionLightData {
     pub data: Vec<i8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LightSectionStatusUpdate {
+    pub section_y: i8,
+    pub has_only_air: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkLightHandoffPlan {
     pub retain_data: bool,
@@ -686,6 +692,16 @@ impl LevelChunk {
             retain_data: !queued_sections.is_empty(),
             queued_sections,
         }
+    }
+
+    pub fn light_section_status_updates(&self) -> Vec<LightSectionStatusUpdate> {
+        self.sections
+            .iter()
+            .map(|section| LightSectionStatusUpdate {
+                section_y: section.y,
+                has_only_air: section.has_only_air(),
+            })
+            .collect()
     }
 
     pub fn set_structure_start_nbt(&mut self, structure_id: impl Into<String>, start: Tag) -> bool {
@@ -1284,6 +1300,28 @@ impl ChunkSection {
             block_light: optional_light_array(compound, "BlockLight")?,
             sky_light: optional_light_array(compound, "SkyLight")?,
         })
+    }
+
+    pub fn has_only_air(&self) -> bool {
+        let Ok(container) = PalettedContainer::from_nbt(&self.block_states, SECTION_VOLUME) else {
+            return false;
+        };
+        if container
+            .palette
+            .iter()
+            .all(|entry| block_state_name(entry) == Some("minecraft:air"))
+        {
+            return true;
+        }
+        for index in 0..SECTION_VOLUME {
+            let Some(entry) = container.get_entry(index) else {
+                return false;
+            };
+            if block_state_name(entry) != Some("minecraft:air") {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -2220,10 +2258,10 @@ mod tests {
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
         saved_tick_tag, string_field, unpack_postprocessing_offset, BlockStateEntry,
         ChunkPyramidKind, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk,
-        LightLayer, PalettedContainer, QueuedSectionLightData, SectionBlockPos, TickPriority,
-        BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS,
-        LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE,
-        LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        LightLayer, LightSectionStatusUpdate, PalettedContainer, QueuedSectionLightData,
+        SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, CHUNK_WIDTH,
+        FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT,
+        LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -3023,6 +3061,59 @@ mod tests {
             vec![
                 (-31, -1, 48, "minecraft:torch".to_string(), 14),
                 (-32, 3, 63, "minecraft:torch".to_string(), 14),
+            ]
+        );
+    }
+
+    #[test]
+    fn level_chunk_reports_light_section_status_from_air_only_sections() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.min_section_y = -1;
+        chunk.sections = vec![
+            ChunkSection {
+                y: -1,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 0,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 1,
+                block_states: Tag::Compound(vec![(
+                    "palette".to_string(),
+                    Tag::List(vec![BlockStateEntry::new("minecraft:stone").to_nbt()]),
+                )]),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+
+        chunk.set_block_state(1, 3, 1, "minecraft:torch");
+
+        assert_eq!(chunk.sections[0].has_only_air(), true);
+        assert_eq!(
+            chunk.light_section_status_updates(),
+            vec![
+                LightSectionStatusUpdate {
+                    section_y: -1,
+                    has_only_air: true,
+                },
+                LightSectionStatusUpdate {
+                    section_y: 0,
+                    has_only_air: false,
+                },
+                LightSectionStatusUpdate {
+                    section_y: 1,
+                    has_only_air: false,
+                },
             ]
         );
     }
