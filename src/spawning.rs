@@ -23,6 +23,10 @@ pub const PATROL_RANDOM_DELAY_BOUND: i32 = 1_200;
 pub const PHANTOM_MIN_DELAY_SECONDS: i32 = 60;
 pub const PHANTOM_RANDOM_DELAY_SECONDS: i32 = 60;
 pub const PHANTOM_INSOMNIA_THRESHOLD_TICKS: i32 = 72_000;
+pub const PHANTOM_SPAWN_ABOVE_MIN: i32 = 20;
+pub const PHANTOM_SPAWN_ABOVE_RANDOM_BOUND: i32 = 15;
+pub const PHANTOM_SPAWN_HORIZONTAL_MIN: i32 = -10;
+pub const PHANTOM_SPAWN_HORIZONTAL_RANDOM_BOUND: i32 = 21;
 pub const TRIAL_SPAWNER_DEFAULT_TARGET_COOLDOWN: i32 = 36_000;
 pub const TRIAL_SPAWNER_DEFAULT_PLAYER_SCAN_RANGE: i32 = 14;
 pub const TRIAL_SPAWNER_DETECT_PLAYER_SPAWN_BUFFER: i32 = 40;
@@ -412,6 +416,13 @@ pub enum PhantomSpawnPlan {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhantomSpawnPosition {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
 pub fn phantom_spawn_plan(ctx: PhantomSpawnContext) -> PhantomSpawnPlan {
     if !ctx.spawn_enemies || !ctx.spawn_phantoms_rule {
         return PhantomSpawnPlan::Disabled;
@@ -441,6 +452,29 @@ pub fn phantom_spawn_plan(ctx: PhantomSpawnContext) -> PhantomSpawnPlan {
     PhantomSpawnPlan::SpawnGroup {
         min_members: 1,
         max_members_exclusive: ctx.difficulty_id + 2,
+    }
+}
+
+pub fn phantom_spawn_group_size(difficulty_id: i32, random_0_to_difficulty_id: i32) -> i32 {
+    1 + random_0_to_difficulty_id.rem_euclid(difficulty_id + 1)
+}
+
+pub fn phantom_spawn_position(
+    player_pos: PhantomSpawnPosition,
+    above_random_0_to_14: i32,
+    east_random_0_to_20: i32,
+    south_random_0_to_20: i32,
+) -> PhantomSpawnPosition {
+    PhantomSpawnPosition {
+        x: player_pos.x
+            + PHANTOM_SPAWN_HORIZONTAL_MIN
+            + east_random_0_to_20.rem_euclid(PHANTOM_SPAWN_HORIZONTAL_RANDOM_BOUND),
+        y: player_pos.y
+            + PHANTOM_SPAWN_ABOVE_MIN
+            + above_random_0_to_14.rem_euclid(PHANTOM_SPAWN_ABOVE_RANDOM_BOUND),
+        z: player_pos.z
+            + PHANTOM_SPAWN_HORIZONTAL_MIN
+            + south_random_0_to_20.rem_euclid(PHANTOM_SPAWN_HORIZONTAL_RANDOM_BOUND),
     }
 }
 
@@ -848,6 +882,24 @@ mod tests {
             PhantomSpawnPlan::SpawnGroup {
                 min_members: 1,
                 max_members_exclusive: 4
+            }
+        );
+        assert_eq!(phantom_spawn_group_size(2, 2), 3);
+        assert_eq!(
+            phantom_spawn_position(
+                PhantomSpawnPosition {
+                    x: 100,
+                    y: 70,
+                    z: -30
+                },
+                14,
+                20,
+                0
+            ),
+            PhantomSpawnPosition {
+                x: 110,
+                y: 104,
+                z: -40
             }
         );
         assert_eq!(
