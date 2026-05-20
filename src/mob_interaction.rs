@@ -677,6 +677,9 @@ pub const PHANTOM_SWEEP_CAT_SEARCH_TICK_DELAY: i32 = 20;
 pub const PHANTOM_CAT_AVOID_INFLATE: f32 = 16.0;
 pub const PHANTOM_SWEEP_HIT_INFLATE: f32 = 0.2;
 pub const PHANTOM_SWEEP_HIT_LEVEL_EVENT: i32 = 1039;
+pub const PHANTOM_LOOT_ITEM: &str = "minecraft:phantom_membrane";
+pub const PHANTOM_USES_NEAREST_PLAYERS_MEMORY: bool = false;
+pub const PHANTOM_BURNS_IN_DAYLIGHT: bool = false;
 
 impl PhantomState {
     pub fn new() -> Self {
@@ -874,6 +877,26 @@ pub fn phantom_swoop_tick(
         PhantomSwoopTick::CancelledToCircle
     } else {
         PhantomSwoopTick::Flying
+    }
+}
+
+pub fn phantom_burns_in_daylight() -> bool {
+    PHANTOM_BURNS_IN_DAYLIGHT
+}
+
+pub fn phantom_uses_nearest_players_memory() -> bool {
+    PHANTOM_USES_NEAREST_PLAYERS_MEMORY
+}
+
+pub fn phantom_membrane_loot_roll(
+    killed_by_player: bool,
+    base_roll_0_or_1: i32,
+    looting_roll_0_to_level: i32,
+) -> i32 {
+    if killed_by_player {
+        base_roll_0_or_1.clamp(0, 1) + looting_roll_0_to_level.max(0)
+    } else {
+        0
     }
 }
 
@@ -6765,6 +6788,11 @@ mod tests {
         );
         assert_eq!(PHANTOM_SWEEP_CAT_SEARCH_TICK_DELAY, 20);
         assert_eq!(PHANTOM_CAT_AVOID_INFLATE, 16.0);
+        assert_eq!(PHANTOM_LOOT_ITEM, "minecraft:phantom_membrane");
+        assert!(!phantom_burns_in_daylight());
+        assert!(!phantom_uses_nearest_players_memory());
+        assert_eq!(phantom_membrane_loot_roll(false, 1, 3), 0);
+        assert_eq!(phantom_membrane_loot_roll(true, 1, 2), 3);
     }
 
     #[test]
