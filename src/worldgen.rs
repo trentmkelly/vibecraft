@@ -4734,6 +4734,43 @@ pub fn materialize_flat_chunk(pos: ChunkPos, settings: &FlatGeneratorSettingsMod
     chunk
 }
 
+pub fn flat_adjusted_generation_feature_steps(
+    settings: &FlatGeneratorSettingsModel,
+    source_biome_feature_steps: &[&[&'static str]],
+) -> Vec<Vec<&'static str>> {
+    let mut steps = vec![Vec::new(); GenerationDecorationStep::VALUES.len()];
+    if settings.add_lakes {
+        steps[GenerationDecorationStep::Lakes as usize].extend([
+            "minecraft:lake_lava_underground",
+            "minecraft:lake_lava_surface",
+        ]);
+    }
+
+    let biome_decoration = (!settings.void_generation || settings.biome == "minecraft:the_void")
+        && settings.decoration;
+    if biome_decoration {
+        for (step_index, features) in source_biome_feature_steps.iter().enumerate() {
+            if step_index == GenerationDecorationStep::UndergroundStructures as usize
+                || step_index == GenerationDecorationStep::SurfaceStructures as usize
+                || (settings.add_lakes && step_index == GenerationDecorationStep::Lakes as usize)
+            {
+                continue;
+            }
+            if let Some(target_step) = steps.get_mut(step_index) {
+                target_step.extend(features.iter().copied());
+            }
+        }
+    }
+
+    steps[GenerationDecorationStep::TopLayerModification as usize].extend(
+        settings
+            .top_layer_modifications
+            .iter()
+            .map(|_| "minecraft:fill_layer"),
+    );
+    steps
+}
+
 pub fn build_features_per_step(
     feature_sources: &[&[&[&'static str]]],
     try_reducing_error: bool,
@@ -36985,16 +37022,16 @@ mod tests {
         BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel, CarverShape,
         CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
         FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo, FloatProvider,
-        FluidStatus, FoliagePlacerKind, FoliagePlacerModel, HeightProvider, HeightRange,
-        HorizontalDirection, MangroveRootPlacementModel, MappedDensityFunction,
-        MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings, OreVeinDecisionInput,
-        OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel, PlacementModifier,
-        RandomSpreadType, RandomStateNoiseCache, RootPlacerModel, RuleBasedBlockStateProviderRule,
-        SpawnBlockKind, SpawnColumnHeights, StructureFamily, StructurePlacementKind,
-        SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind, SurfaceRulePreset,
-        SurfaceRuleSource, TreeDecoratorModel, TreeFoliageAttachmentModel, TreePlacementBlockKind,
-        TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor, WeightedBlockState,
-        WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        FluidStatus, FoliagePlacerKind, FoliagePlacerModel, GenerationDecorationStep,
+        HeightProvider, HeightRange, HorizontalDirection, MangroveRootPlacementModel,
+        MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings,
+        OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel,
+        PlacementModifier, RandomSpreadType, RandomStateNoiseCache, RootPlacerModel,
+        RuleBasedBlockStateProviderRule, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+        StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
+        SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel, TreeFoliageAttachmentModel,
+        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor,
+        WeightedBlockState, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
         AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
         BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
         BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
@@ -37798,7 +37835,7 @@ mod tests {
     #[test]
     fn generation_decoration_steps_match_vanilla_serialized_order() {
         assert_eq!(
-            super::GenerationDecorationStep::VALUES
+            GenerationDecorationStep::VALUES
                 .iter()
                 .map(|step| step.serialized_name())
                 .collect::<Vec<_>>(),
@@ -38625,6 +38662,53 @@ mod tests {
             }]),
             Err("Sum of layer heights is > 384".to_string())
         );
+    }
+
+    #[test]
+    fn flat_adjusted_generation_settings_filter_biome_features_like_vanilla() {
+        let plains = super::biome_generation_settings("plains").unwrap();
+        let overworld =
+            super::flat_generator_settings(super::flat_generator_preset("overworld").unwrap())
+                .unwrap();
+        let steps = super::flat_adjusted_generation_feature_steps(&overworld, plains.feature_steps);
+
+        assert_eq!(
+            steps[GenerationDecorationStep::Lakes as usize],
+            vec![
+                "minecraft:lake_lava_underground",
+                "minecraft:lake_lava_surface"
+            ]
+        );
+        assert!(steps[GenerationDecorationStep::UndergroundStructures as usize].is_empty());
+        assert!(steps[GenerationDecorationStep::SurfaceStructures as usize].is_empty());
+        assert!(steps[GenerationDecorationStep::VegetalDecoration as usize]
+            .contains(&"minecraft:trees_plains"));
+        assert!(
+            steps[GenerationDecorationStep::TopLayerModification as usize]
+                .contains(&"minecraft:freeze_top_layer")
+        );
+        assert!(
+            !steps[GenerationDecorationStep::TopLayerModification as usize]
+                .contains(&"minecraft:fill_layer")
+        );
+
+        let void =
+            super::flat_generator_settings(super::flat_generator_preset("the_void").unwrap())
+                .unwrap();
+        let void_steps = super::flat_adjusted_generation_feature_steps(&void, plains.feature_steps);
+        assert!(void_steps[GenerationDecorationStep::VegetalDecoration as usize].is_empty());
+        assert_eq!(
+            void_steps[GenerationDecorationStep::Lakes as usize],
+            vec![
+                "minecraft:lake_lava_underground",
+                "minecraft:lake_lava_surface"
+            ]
+        );
+        assert_eq!(
+            void_steps[GenerationDecorationStep::TopLayerModification as usize],
+            vec!["minecraft:fill_layer"]
+        );
+        assert_eq!(void.top_layer_modifications, vec![(0, "minecraft:air")]);
     }
 
     #[test]
