@@ -67,11 +67,13 @@
 - [ ] Implement `Giant`: legacy oversized zombie (no natural spawn, only `/summon`), 12-block height, no AI goals
 - [ ] Implement `Guardian`: laser beam targeting (beam charge, inflict damage at full charge), spikes thorns, elder spawning on death
 - [ ] Implement `MagmaCube`: split into smaller cubes on death (size-1 → 2–4 smaller), slime-family movement, fire immunity
+  - [x] Implement Java-matched `MagmaCube` server-visible slime-family gates: peaceful-only spawn rejection, inherited size clamp/split offsets/counts, armor = size×3, create-attributes base speed 0.2 plus inherited size-scaled movement, always-effective-AI damage even when tiny, attack damage +2, 4x jump delay, 0.9 squish decay, `isOnFire() == false`, ground jump +0.1×size, and lava jump `0.22 + 0.05×size`.
 - [ ] Implement `Phantom`: insomnia prerequisite spawn (no sleep >3 days), circling-swoop attack, burn in daylight, phantom membrane drop, `MemoryModuleType.NEAREST_PLAYERS` usage
 - [ ] Implement `Ravager`: stomp attack (AoE damage + slow), roar stun after rider dismounts, grieving leaves/crops in path
 - [ ] Implement `Shulker`: attached face (6 directions), shell open/close, homing `ShulkerBullet` projectile, teleport on damage, levitation effect on hit, color variants, invisible variant
 - [ ] Implement `Silverfish`: infest stone/cobblestone/brick blocks on death, emergency-call behavior waking nearby infested blocks
 - [ ] Implement `Slime`: size variants (1/2/4), split on death, water avoidance, harmless when `size <= 1`
+  - [x] Implement Java-matched `Slime` server-visible size and split gates: size clamp 1..127, natural spawn sizes 1/2/4, save `Size=size-1` plus `wasOnGround`, max-health `size²`, movement speed `0.2 + 0.1×size`, attack damage/xp = size, tiny harmless gate, 2-4 half-size death split children with Java offsets, squish/landing particle timing, spawn surface/swamp and slime-chunk gates, jump-delay/aggressive-delay math, and passenger attachment/sound-volume constants.
 - [ ] Implement `Strider`: lava walking, saddle+ride with carrot-on-a-stick steering, trembling cold-biome state, attraction to warped fungus
 - [ ] Implement `Vex`: summoned by evoker (max 3 per evoker), phase through solid blocks, 30–119 tick lifespan after summon
 - [ ] Implement `Witch`: splash potion attack (harm/slowness/weakness/poison selection by context), self-healing with instant-health/fire-resistance/water-breathing/swiftness potions, raid rider on Ravager
