@@ -199,6 +199,13 @@ pub struct ChunkLightHandoffPlan {
     pub queued_sections: Vec<QueuedSectionLightData>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkInitializeLightPlan {
+    pub pre_update_section_statuses: Vec<LightSectionStatusUpdate>,
+    pub post_update_light_enabled: bool,
+    pub post_update_retain_data: bool,
+}
+
 pub const WORLDGEN_HEIGHTMAPS: &[HeightmapKind] =
     &[HeightmapKind::OceanFloorWg, HeightmapKind::WorldSurfaceWg];
 
@@ -702,6 +709,18 @@ impl LevelChunk {
                 has_only_air: section.has_only_air(),
             })
             .collect()
+    }
+
+    pub fn initialize_light_plan(&self, lighted: bool) -> ChunkInitializeLightPlan {
+        ChunkInitializeLightPlan {
+            pre_update_section_statuses: self
+                .light_section_status_updates()
+                .into_iter()
+                .filter(|status| !status.has_only_air)
+                .collect(),
+            post_update_light_enabled: lighted,
+            post_update_retain_data: false,
+        }
     }
 
     pub fn set_structure_start_nbt(&mut self, structure_id: impl Into<String>, start: Tag) -> bool {
@@ -2257,11 +2276,12 @@ mod tests {
         chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
         saved_tick_tag, string_field, unpack_postprocessing_offset, BlockStateEntry,
-        ChunkPyramidKind, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk,
-        LightLayer, LightSectionStatusUpdate, PalettedContainer, QueuedSectionLightData,
-        SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, CHUNK_WIDTH,
-        FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT,
-        LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        ChunkInitializeLightPlan, ChunkPyramidKind, ChunkSection, ChunkStatusTaskKind, ChunkType,
+        HeightmapKind, LevelChunk, LightLayer, LightSectionStatusUpdate, PalettedContainer,
+        QueuedSectionLightData, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
+        CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
+        LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
+        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -3115,6 +3135,63 @@ mod tests {
                     has_only_air: false,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn level_chunk_initialize_light_plan_matches_threaded_engine_order() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 4, z: -3 });
+        chunk.min_section_y = -1;
+        chunk.sections = vec![
+            ChunkSection {
+                y: -1,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 0,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 1,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+        chunk.set_block_state(64, 4, -48, "minecraft:stone");
+        chunk.set_block_state(65, 17, -47, "minecraft:torch");
+
+        assert_eq!(
+            chunk.initialize_light_plan(true),
+            ChunkInitializeLightPlan {
+                pre_update_section_statuses: vec![
+                    LightSectionStatusUpdate {
+                        section_y: 0,
+                        has_only_air: false,
+                    },
+                    LightSectionStatusUpdate {
+                        section_y: 1,
+                        has_only_air: false,
+                    },
+                ],
+                post_update_light_enabled: true,
+                post_update_retain_data: false,
+            }
+        );
+        assert_eq!(
+            LevelChunk::empty(ChunkPos { x: 0, z: 0 }).initialize_light_plan(false),
+            ChunkInitializeLightPlan {
+                pre_update_section_statuses: Vec::new(),
+                post_update_light_enabled: false,
+                post_update_retain_data: false,
+            }
         );
     }
 
