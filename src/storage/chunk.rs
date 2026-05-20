@@ -627,6 +627,13 @@ impl LevelChunk {
         true
     }
 
+    pub fn promote_to_full_chunk(&mut self) -> Vec<Tag> {
+        let migrated_entities = std::mem::take(&mut self.entities);
+        self.carving_mask = None;
+        self.set_persisted_status("minecraft:full");
+        migrated_entities
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -1832,6 +1839,39 @@ mod tests {
         let decoded = LevelChunk::from_nbt(chunk.pos, &encoded).unwrap();
         assert!(decoded.entities.is_empty());
         assert!(decoded.carving_mask.is_none());
+    }
+
+    #[test]
+    fn level_chunk_promote_to_full_migrates_proto_only_payloads() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        let pig = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:pig".to_string()),
+        )]);
+        chunk.status = "minecraft:spawn".to_string();
+        chunk.entities = vec![pig.clone()];
+        chunk.carving_mask = Some(vec![1, 2, 3]);
+        chunk.below_zero_retrogen = Some(Tag::Compound(vec![
+            (
+                "target_status".to_string(),
+                Tag::String("minecraft:carvers".to_string()),
+            ),
+            ("missing_bedrock".to_string(), Tag::LongArray(Vec::new())),
+        ]));
+
+        let migrated_entities = chunk.promote_to_full_chunk();
+        let encoded = chunk.to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &encoded else {
+            panic!("chunk should encode as a compound");
+        };
+
+        assert_eq!(migrated_entities, vec![pig]);
+        assert_eq!(chunk.status, "minecraft:full");
+        assert!(chunk.entities.is_empty());
+        assert!(chunk.carving_mask.is_none());
+        assert!(chunk.below_zero_retrogen.is_none());
+        assert!(fields.iter().all(|(name, _)| name != "entities"));
+        assert!(fields.iter().all(|(name, _)| name != "carving_mask"));
     }
 
     #[test]
