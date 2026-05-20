@@ -143,7 +143,7 @@
 - [ ] Add parity test: sonic boom ignores armor calculation, warden spawn threshold (3 shrieks within cooldown window)
 
 ### Zombie Family
-- [ ] Implement `Zombie`: drowning conversion to Drowned (baby cannot convert), baby zombie (5% chance, 25×faster), reinforcement summoning on hit (when `doMobSpawning` gamerule is on)
+- [x] Implement `Zombie`: drowning conversion to Drowned (baby cannot convert), baby zombie (5% chance, speed/XP/dimensions), reinforcement summoning on hit (hard + `doMobSpawning`), villager conversion chance, fire-on-hit, loot pickup, door breaking, default equipment, chicken jockeys, Halloween headgear, and save-field gates
 - [x] Implement `Drowned`: trident attack AI, swim AI, water/depth spawn gates, nautilus-shell offhand chance, zombie-nautilus jockey chance, spear pickup rejection
 - [x] Implement `Husk`: desert biome only, does not burn in daylight, hunger effect on hit, water conversion to Zombie, baby dimensions, loot pickup chance, camel-husk/parched rider finalize-spawn gate
 - [ ] Implement `ZombieVillager`: `conversionTime` countdown when given Weakness + golden apple, curing discounts on trade prices, profession/village preserved through conversion
