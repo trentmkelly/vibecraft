@@ -4,6 +4,9 @@ export function summarizeLoginOrder (rawProbe) {
   return [
     'handshake',
     'login_start',
+    rawProbe.compressionThreshold === null || rawProbe.compressionThreshold === undefined
+      ? 'login/set_compression_absent'
+      : 'login/set_compression',
     rawProbe.login === 2 ? 'login_success' : `login_packet_${rawProbe.login}`,
     'login_acknowledgement',
     ...configIds.map(id => configurationName(id)),
@@ -17,6 +20,9 @@ export function evaluateLoginOrder (rawProbe) {
   const expectedPrefix = [
     'handshake',
     'login_start',
+    rawProbe.compressionThreshold === null || rawProbe.compressionThreshold === undefined
+      ? 'login/set_compression_absent'
+      : 'login/set_compression',
     'login_success',
     'login_acknowledgement',
     'configuration/update_enabled_features'
@@ -44,6 +50,18 @@ export function evaluateLoginOrder (rawProbe) {
   }
 }
 
+export function compareLoginOrderAgainstOfficial (actualRawProbe, officialRawProbe) {
+  const actual = summarizeLoginOrder(actualRawProbe)
+  const official = summarizeLoginOrder(officialRawProbe)
+  const firstMismatch = firstSequenceMismatch(actual, official)
+  return {
+    ok: firstMismatch === null,
+    actual,
+    official,
+    firstMismatch
+  }
+}
+
 function startsWith (values, prefix) {
   return prefix.every((value, index) => values[index] === value)
 }
@@ -55,6 +73,22 @@ function containsOrdered (values, expected) {
     if (cursor === expected.length) return true
   }
   return false
+}
+
+function firstSequenceMismatch (actual, official) {
+  const length = Math.max(actual.length, official.length)
+  for (let index = 0; index < length; index++) {
+    if (actual[index] !== official[index]) {
+      return {
+        index,
+        actual: actual[index] ?? null,
+        official: official[index] ?? null,
+        actualContext: actual.slice(Math.max(0, index - 3), index + 4),
+        officialContext: official.slice(Math.max(0, index - 3), index + 4)
+      }
+    }
+  }
+  return null
 }
 
 function configurationName (id) {
