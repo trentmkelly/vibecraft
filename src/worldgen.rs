@@ -22762,44 +22762,65 @@ pub fn generate_chunk_for_stem_with_mode(
     mode: LiveChunkGenerationMode,
     seed: i64,
 ) -> Result<LevelChunk, String> {
-    match &stem.generator {
-        ResolvedChunkGenerator::Flat { settings, .. } => Ok(materialize_flat_chunk(pos, settings)),
+    let mut chunk = match &stem.generator {
+        ResolvedChunkGenerator::Flat { settings, .. } => materialize_flat_chunk(pos, settings),
         ResolvedChunkGenerator::Noise {
             biome_source_model,
             noise_settings,
             ..
         } => match mode {
-            LiveChunkGenerationMode::Preview => Ok(materialize_noise_preview_chunk(
-                pos,
-                biome_source_model,
-                noise_settings,
-            )),
+            LiveChunkGenerationMode::Preview => {
+                materialize_noise_preview_chunk(pos, biome_source_model, noise_settings)
+            }
             LiveChunkGenerationMode::RealSurface => {
                 let router_id = noise_router_id_for_settings(**noise_settings);
                 let noise_router = builtin_noise_router(router_id)
                     .map(|e| e.router)
                     .unwrap_or(NONE_NOISE_ROUTER);
                 match load_surface_rule(noise_settings.id) {
-                    Some(rule) => Ok(fill_noise_and_build_surface(
-                        pos,
-                        noise_settings,
-                        seed,
-                        noise_router,
-                        &rule,
-                    )),
+                    Some(rule) => {
+                        fill_noise_and_build_surface(pos, noise_settings, seed, noise_router, &rule)
+                    }
                     None => {
                         let mut chunk =
                             fill_from_noise_chunk(pos, noise_settings, seed, noise_router);
                         chunk.status = "minecraft:surface".to_string();
-                        Ok(chunk)
+                        chunk
                     }
                 }
             }
         },
-        ResolvedChunkGenerator::Debug { .. } => Err(format!(
-            "Debug chunk generation for {} is not implemented",
-            stem.dimension
-        )),
+        ResolvedChunkGenerator::Debug { .. } => {
+            return Err(format!(
+                "Debug chunk generation for {} is not implemented",
+                stem.dimension
+            ))
+        }
+    };
+    add_client_heightmaps_from_worldgen(&mut chunk);
+    Ok(chunk)
+}
+
+fn add_client_heightmaps_from_worldgen(chunk: &mut LevelChunk) {
+    if let Some(Tag::LongArray(values)) = chunk.heightmaps.get("WORLD_SURFACE_WG").cloned() {
+        chunk
+            .heightmaps
+            .entry("WORLD_SURFACE".to_string())
+            .or_insert_with(|| Tag::LongArray(values.clone()));
+        chunk
+            .heightmaps
+            .entry("MOTION_BLOCKING".to_string())
+            .or_insert_with(|| Tag::LongArray(values.clone()));
+        chunk
+            .heightmaps
+            .entry("MOTION_BLOCKING_NO_LEAVES".to_string())
+            .or_insert_with(|| Tag::LongArray(values));
+    }
+    if let Some(Tag::LongArray(values)) = chunk.heightmaps.get("OCEAN_FLOOR_WG").cloned() {
+        chunk
+            .heightmaps
+            .entry("OCEAN_FLOOR".to_string())
+            .or_insert_with(|| Tag::LongArray(values));
     }
 }
 
@@ -37805,6 +37826,15 @@ mod tests {
         assert_eq!(chunk.sections.last().unwrap().y, 19);
         assert!(chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
         assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
+        assert!(chunk.heightmaps.contains_key("WORLD_SURFACE"));
+        assert!(chunk.heightmaps.contains_key("MOTION_BLOCKING"));
+        assert!(chunk.heightmaps.contains_key("MOTION_BLOCKING_NO_LEAVES"));
+        let packet_data = crate::network::play::ClientboundLevelChunkPacketData::from_chunk(&chunk);
+        assert!(packet_data.heightmaps.contains_key("WORLD_SURFACE"));
+        assert!(packet_data.heightmaps.contains_key("MOTION_BLOCKING"));
+        assert!(packet_data
+            .heightmaps
+            .contains_key("MOTION_BLOCKING_NO_LEAVES"));
         assert!(
             (-64..320).any(|y| {
                 chunk
