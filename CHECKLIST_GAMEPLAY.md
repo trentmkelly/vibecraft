@@ -40,7 +40,7 @@
 ## Combat and Damage
 
 - [x] Add Mineflayer combat/damage tests: melee attack (hit animation, damage value, knockback), projectile (arrow damage falloff with range), fall damage (formula: `max(0, height - 3) * 1.5`), fire damage (1/tick), drowning damage (2/tick when air = 0), void damage (4/tick below world bottom), shield blocking (negate projectile + reduce melee), armor mitigation (damage factor formula), invulnerability frames (0.5 s), vanilla-compatible damage/death messages
-- [ ] Implement `LivingEntity.hurt()`: invulnerability frame check, absorb through absorption attribute, armor/enchantment/effect protection calculation, knockback application, death check
+- [x] Implement `LivingEntity.hurt()`: invulnerability frame check, absorb through absorption attribute, armor/enchantment/effect protection calculation, knockback application, death check — `LivingEntityState::hurt()` now applies cooldown delta rules, armor plus enchantment/effect protection, absorption, hurt/death timers, and death animation; `hurt_with_knockback()` applies knockback only when damage lands; covered by `cargo test -q living_entity`.
 - [x] Implement armor protection formula: `max(0, ceil(armor * 0.04 * rawDamage)) = armorPoints / 25 * 0.04 + armorToughness` (vanilla formula from `CombatRules.getDamageAfterAbsorb`)
 - [x] Implement `CombatTracker`: track last-damage source and killer for death message generation, `getDeathMessage()` component building using `DamageType.deathMessageType()`
 - [x] Implement shield blocking: `LivingEntity.isBlocking()` check, blocking reduces projectile damage to 0 and melee to 0 if within blocking arc, 5-tick cooldown after strong hit

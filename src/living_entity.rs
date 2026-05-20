@@ -1,3 +1,5 @@
+use crate::combat_damage::{damage_after_magic_absorb, InvulnerabilityFrame};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EquipmentSlot {
     MainHand,
@@ -59,7 +61,9 @@ pub struct ItemStackRef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DamageReport {
     pub original_damage: f32,
+    pub accepted_damage: f32,
     pub armor_reduced_damage: f32,
+    pub protection_reduced_damage: f32,
     pub absorbed_damage: f32,
     pub health_damage: f32,
     pub died: bool,
@@ -71,11 +75,15 @@ pub struct LivingEntityState {
     pub max_health: f32,
     pub armor: f32,
     pub toughness: f32,
+    pub enchantment_protection: f32,
+    pub effect_protection: f32,
     pub absorption: f32,
     pub effects: Vec<MobEffectState>,
     pub attributes: Vec<AttributeValue>,
     pub equipment: Vec<(EquipmentSlot, ItemStackRef)>,
     pub using_item: Option<(InteractionHand, ItemStackRef, i32)>,
+    pub invulnerable_ticks: i32,
+    pub last_damage_taken: f32,
     pub hurt_time: i32,
     pub death_time: i32,
     pub drops: Vec<ItemStackRef>,
@@ -92,6 +100,8 @@ impl LivingEntityState {
             max_health,
             armor: 0.0,
             toughness: 0.0,
+            enchantment_protection: 0.0,
+            effect_protection: 0.0,
             absorption: 0.0,
             effects: Vec::new(),
             attributes: vec![AttributeValue {
@@ -102,6 +112,8 @@ impl LivingEntityState {
             }],
             equipment: Vec::new(),
             using_item: None,
+            invulnerable_ticks: 0,
+            last_damage_taken: 0.0,
             hurt_time: 0,
             death_time: 0,
             drops: Vec::new(),
@@ -125,12 +137,35 @@ impl LivingEntityState {
 
     pub fn hurt(&mut self, damage: f32) -> DamageReport {
         let original_damage = damage.max(0.0);
+        let Some(accepted_damage) = (InvulnerabilityFrame {
+            invulnerable_ticks: self.invulnerable_ticks,
+            last_damage: self.last_damage_taken,
+            bypasses_cooldown: false,
+        })
+        .accepted_damage(original_damage)
+        else {
+            return DamageReport {
+                original_damage,
+                accepted_damage: 0.0,
+                armor_reduced_damage: 0.0,
+                protection_reduced_damage: 0.0,
+                absorbed_damage: 0.0,
+                health_damage: 0.0,
+                died: self.dead,
+            };
+        };
         let armor_reduced_damage =
-            reduce_damage_by_armor(original_damage, self.armor, self.toughness);
-        let absorbed_damage = armor_reduced_damage.min(self.absorption);
+            reduce_damage_by_armor(accepted_damage, self.armor, self.toughness);
+        let protection_reduced_damage = damage_after_magic_absorb(
+            armor_reduced_damage,
+            self.enchantment_protection + self.effect_protection,
+        );
+        let absorbed_damage = protection_reduced_damage.min(self.absorption);
         self.absorption -= absorbed_damage;
-        let health_damage = armor_reduced_damage - absorbed_damage;
+        let health_damage = protection_reduced_damage - absorbed_damage;
         self.set_health(self.health - health_damage);
+        self.invulnerable_ticks = 20;
+        self.last_damage_taken = original_damage;
         self.hurt_time = 10;
         self.last_animation = Some(if self.dead {
             LivingAnimation::Death
@@ -143,11 +178,27 @@ impl LivingEntityState {
 
         DamageReport {
             original_damage,
+            accepted_damage,
             armor_reduced_damage,
+            protection_reduced_damage,
             absorbed_damage,
             health_damage,
             died: self.dead,
         }
+    }
+
+    pub fn hurt_with_knockback(
+        &mut self,
+        damage: f32,
+        knockback_strength: f32,
+        x_ratio: f32,
+        z_ratio: f32,
+    ) -> DamageReport {
+        let report = self.hurt(damage);
+        if report.health_damage > 0.0 && knockback_strength > 0.0 {
+            self.apply_knockback(knockback_strength, x_ratio, z_ratio);
+        }
+        report
     }
 
     pub fn add_effect(&mut self, effect: MobEffectState) -> EffectChange {
@@ -343,22 +394,49 @@ mod tests {
         let mut entity = LivingEntityState::new(20.0);
         entity.armor = 10.0;
         entity.toughness = 2.0;
+        entity.enchantment_protection = 2.0;
+        entity.effect_protection = 3.0;
         entity.absorption = 3.0;
 
         let report = entity.hurt(10.0);
         assert_eq!(report.original_damage, 10.0);
+        assert_eq!(report.accepted_damage, 10.0);
         assert!(report.armor_reduced_damage < 10.0);
+        assert!(report.protection_reduced_damage < report.armor_reduced_damage);
         assert_eq!(report.absorbed_damage, 3.0);
+        assert_eq!(entity.invulnerable_ticks, 20);
+        assert_eq!(entity.last_damage_taken, 10.0);
         assert_eq!(entity.hurt_time, 10);
         assert_eq!(entity.last_animation, Some(LivingAnimation::Hurt));
         assert!(!report.died);
 
+        let blocked = entity.hurt(4.0);
+        assert_eq!(blocked.accepted_damage, 0.0);
+        assert_eq!(blocked.health_damage, 0.0);
+        let delta = entity.hurt(14.0);
+        assert_eq!(delta.accepted_damage, 4.0);
+
         entity.heal(100.0);
         assert_eq!(entity.health, 20.0);
+        entity.invulnerable_ticks = 0;
         entity.hurt(1000.0);
         assert!(entity.dead);
         assert_eq!(entity.death_time, 1);
         assert_eq!(entity.last_animation, Some(LivingAnimation::Death));
+    }
+
+    #[test]
+    fn hurt_with_knockback_applies_impulse_only_when_damage_lands() {
+        let mut entity = LivingEntityState::new(20.0);
+
+        let report = entity.hurt_with_knockback(5.0, 0.4, -1.0, 0.5);
+        assert!(report.health_damage > 0.0);
+        assert_eq!(entity.knockback, (-0.4, 0.4, 0.2));
+
+        entity.knockback = (0.0, 0.0, 0.0);
+        let blocked = entity.hurt_with_knockback(1.0, 0.4, 1.0, 1.0);
+        assert_eq!(blocked.health_damage, 0.0);
+        assert_eq!(entity.knockback, (0.0, 0.0, 0.0));
     }
 
     #[test]
