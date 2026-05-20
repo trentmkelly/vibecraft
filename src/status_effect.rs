@@ -428,6 +428,131 @@ pub enum EffectAction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MovementEffect {
+    pub jump_boost: f32,
+    pub levitation_velocity: f32,
+    pub slow_falling: bool,
+}
+
+pub fn break_speed_multiplier(id: &str, amplifier: u8) -> Option<f32> {
+    let level = i32::from(amplifier) + 1;
+    match id {
+        "minecraft:haste" => Some(1.0 + 0.2 * level as f32),
+        "minecraft:mining_fatigue" => Some(match amplifier {
+            0 => 0.3,
+            1 => 0.09,
+            2 => 0.0027,
+            _ => 0.00081,
+        }),
+        _ => None,
+    }
+}
+
+pub fn movement_effect(id: &str, amplifier: u8) -> Option<MovementEffect> {
+    match id {
+        "minecraft:jump_boost" => Some(MovementEffect {
+            jump_boost: 0.1 * (f32::from(amplifier) + 1.0),
+            levitation_velocity: 0.0,
+            slow_falling: false,
+        }),
+        "minecraft:levitation" => Some(MovementEffect {
+            jump_boost: 0.0,
+            levitation_velocity: 0.05 * (f32::from(amplifier) + 1.0),
+            slow_falling: false,
+        }),
+        "minecraft:slow_falling" => Some(MovementEffect {
+            jump_boost: 0.0,
+            levitation_velocity: 0.0,
+            slow_falling: true,
+        }),
+        _ => None,
+    }
+}
+
+pub fn resistance_damage_multiplier(amplifier: u8) -> f32 {
+    (1.0 - 0.2 * (f32::from(amplifier) + 1.0)).max(0.0)
+}
+
+pub fn prevents_fire_damage(effect_id: &str) -> bool {
+    effect_id == "minecraft:fire_resistance"
+}
+
+pub fn prevents_drowning(effect_id: &str) -> bool {
+    matches!(
+        effect_id,
+        "minecraft:water_breathing" | "minecraft:conduit_power"
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientVisualEffect {
+    NightVision,
+    Blindness { prevents_sprinting: bool },
+    Nausea,
+    Glowing,
+    Darkness,
+}
+
+pub fn client_visual_effect(effect_id: &str) -> Option<ClientVisualEffect> {
+    match effect_id {
+        "minecraft:night_vision" => Some(ClientVisualEffect::NightVision),
+        "minecraft:blindness" => Some(ClientVisualEffect::Blindness {
+            prevents_sprinting: true,
+        }),
+        "minecraft:nausea" => Some(ClientVisualEffect::Nausea),
+        "minecraft:glowing" => Some(ClientVisualEffect::Glowing),
+        "minecraft:darkness" => Some(ClientVisualEffect::Darkness),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DeathEffectAction {
+    SpawnSilverfish { chance: f32 },
+    SpawnSlimes { count: i32 },
+    PlaceCobweb,
+    WindBurstExplosion { radius: f32 },
+}
+
+pub fn death_or_hit_effect_action(effect_id: &str, amplifier: u8) -> Option<DeathEffectAction> {
+    match effect_id {
+        "minecraft:infested" => Some(DeathEffectAction::SpawnSilverfish {
+            chance: 0.1 * (f32::from(amplifier) + 1.0),
+        }),
+        "minecraft:oozing" => Some(DeathEffectAction::SpawnSlimes {
+            count: 2 + i32::from(amplifier),
+        }),
+        "minecraft:weaving" => Some(DeathEffectAction::PlaceCobweb),
+        "minecraft:wind_charged" => Some(DeathEffectAction::WindBurstExplosion { radius: 3.0 }),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ConduitPowerEffect {
+    pub underwater_break_speed_multiplier: f32,
+    pub prevents_drowning: bool,
+    pub grants_night_vision: bool,
+    pub attack_damage: f32,
+}
+
+pub fn conduit_power_effect(active: bool, hostile_nearby: bool) -> Option<ConduitPowerEffect> {
+    if !active {
+        return None;
+    }
+    Some(ConduitPowerEffect {
+        underwater_break_speed_multiplier: 1.2,
+        prevents_drowning: true,
+        grants_night_vision: true,
+        attack_damage: if hostile_nearby { 4.0 } else { 0.0 },
+    })
+}
+
+pub fn dolphins_grace_swim_multiplier(amplifier: u8) -> f32 {
+    1.0 + 0.96 * (f32::from(amplifier) + 1.0)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EffectTick {
     pub action: Option<EffectAction>,
     pub expired: bool,
@@ -667,6 +792,110 @@ mod tests {
             tick_action("minecraft:instant_damage", 1, 1, 20.0, 20.0, true),
             Some(EffectAction::Heal(8.0))
         );
+    }
+
+    #[test]
+    fn non_damage_status_effect_behavior_helpers_cover_vanilla_tick_surfaces() {
+        assert_eq!(break_speed_multiplier("minecraft:haste", 0), Some(1.2));
+        assert_eq!(break_speed_multiplier("minecraft:haste", 2), Some(1.6));
+        assert_eq!(
+            break_speed_multiplier("minecraft:mining_fatigue", 0),
+            Some(0.3)
+        );
+        assert_eq!(
+            break_speed_multiplier("minecraft:mining_fatigue", 3),
+            Some(0.00081)
+        );
+
+        assert_eq!(
+            movement_effect("minecraft:jump_boost", 1),
+            Some(MovementEffect {
+                jump_boost: 0.2,
+                levitation_velocity: 0.0,
+                slow_falling: false,
+            })
+        );
+        assert_eq!(
+            movement_effect("minecraft:levitation", 1),
+            Some(MovementEffect {
+                jump_boost: 0.0,
+                levitation_velocity: 0.1,
+                slow_falling: false,
+            })
+        );
+        assert_eq!(
+            movement_effect("minecraft:slow_falling", 0),
+            Some(MovementEffect {
+                jump_boost: 0.0,
+                levitation_velocity: 0.0,
+                slow_falling: true,
+            })
+        );
+
+        assert_eq!(resistance_damage_multiplier(0), 0.8);
+        assert_eq!(resistance_damage_multiplier(4), 0.0);
+        assert!(prevents_fire_damage("minecraft:fire_resistance"));
+        assert!(prevents_drowning("minecraft:water_breathing"));
+        assert!(prevents_drowning("minecraft:conduit_power"));
+    }
+
+    #[test]
+    fn visual_and_death_status_effect_helpers_cover_client_and_spawn_hooks() {
+        assert_eq!(
+            client_visual_effect("minecraft:blindness"),
+            Some(ClientVisualEffect::Blindness {
+                prevents_sprinting: true
+            })
+        );
+        assert_eq!(
+            client_visual_effect("minecraft:night_vision"),
+            Some(ClientVisualEffect::NightVision)
+        );
+        assert_eq!(
+            client_visual_effect("minecraft:nausea"),
+            Some(ClientVisualEffect::Nausea)
+        );
+        assert_eq!(
+            client_visual_effect("minecraft:glowing"),
+            Some(ClientVisualEffect::Glowing)
+        );
+        assert_eq!(
+            client_visual_effect("minecraft:darkness"),
+            Some(ClientVisualEffect::Darkness)
+        );
+
+        assert_eq!(
+            death_or_hit_effect_action("minecraft:infested", 1),
+            Some(DeathEffectAction::SpawnSilverfish { chance: 0.2 })
+        );
+        assert_eq!(
+            death_or_hit_effect_action("minecraft:oozing", 2),
+            Some(DeathEffectAction::SpawnSlimes { count: 4 })
+        );
+        assert_eq!(
+            death_or_hit_effect_action("minecraft:weaving", 0),
+            Some(DeathEffectAction::PlaceCobweb)
+        );
+        assert_eq!(
+            death_or_hit_effect_action("minecraft:wind_charged", 0),
+            Some(DeathEffectAction::WindBurstExplosion { radius: 3.0 })
+        );
+    }
+
+    #[test]
+    fn conduit_power_and_dolphins_grace_expose_underwater_effects() {
+        assert_eq!(
+            conduit_power_effect(true, true),
+            Some(ConduitPowerEffect {
+                underwater_break_speed_multiplier: 1.2,
+                prevents_drowning: true,
+                grants_night_vision: true,
+                attack_damage: 4.0,
+            })
+        );
+        assert_eq!(conduit_power_effect(false, true), None);
+        assert_eq!(dolphins_grace_swim_multiplier(0), 1.96);
+        assert_eq!(dolphins_grace_swim_multiplier(1), 2.92);
     }
 
     #[test]

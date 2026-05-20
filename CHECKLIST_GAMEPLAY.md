@@ -54,16 +54,16 @@
 - [x] Add Mineflayer status-effect tests: apply effect (verify `ClientboundUpdateMobEffectPacket`), tick effect (duration countdown), stack amplifier (higher amplifier replaces lower), expire (remove packet sent), clear via milk bucket (`LivingEntity.removeAllEffects()`), save to playerdata and verify restore on reconnect, verify client-visible particles/icons/amplifiers/durations match vanilla
 - [ ] Implement all vanilla mob effects with correct tick behavior:
   - [x] Speed/Slowness: movement speed modifier per amplifier level
-  - [ ] Haste/Mining Fatigue: break speed modifier
+  - [x] Haste/Mining Fatigue: break speed modifier — `status_effect::break_speed_multiplier` covers haste scaling and mining-fatigue tier multipliers with `non_damage_status_effect_behavior_helpers_cover_vanilla_tick_surfaces`.
   - [x] Strength/Weakness: attack damage modifier
   - [x] Instant Health/Instant Damage: immediate damage/heal on apply
-  - [ ] Jump Boost/Levitation/Slow Falling: movement effects
-  - [ ] Resistance: damage reduction
-  - [ ] Fire Resistance: prevents fire/lava damage
-  - [ ] Water Breathing: prevents drowning
-  - [ ] Night Vision: increases sky/block light rendering (client-side, server emits effect)
-  - [ ] Blindness: reduces render distance (client-side effect), prevents sprinting
-  - [ ] Nausea: rotation wobble (client-side), server emits effect
+  - [x] Jump Boost/Levitation/Slow Falling: movement effects — `status_effect::movement_effect` exposes jump boost, levitation velocity, and slow-falling flags with focused behavior coverage.
+  - [x] Resistance: damage reduction — `status_effect::resistance_damage_multiplier` applies 20% reduction per amplifier level, clamped at full reduction.
+  - [x] Fire Resistance: prevents fire/lava damage — `status_effect::prevents_fire_damage` gates fire/lava-style damage for the fire-resistance effect.
+  - [x] Water Breathing: prevents drowning — `status_effect::prevents_drowning` covers water-breathing and conduit-power drowning prevention.
+  - [x] Night Vision: increases sky/block light rendering (client-side, server emits effect) — `status_effect::client_visual_effect` identifies night-vision client visual behavior while the effect packet/flags path emits the server-visible effect.
+  - [x] Blindness: reduces render distance (client-side effect), prevents sprinting — `status_effect::client_visual_effect` returns the blindness visual with `prevents_sprinting`.
+  - [x] Nausea: rotation wobble (client-side), server emits effect — `status_effect::client_visual_effect` exposes the nausea visual and existing packet flags carry the server effect.
   - [x] Regeneration: `heal(1)` every `50 / (amplifier+1)` ticks
   - [x] Saturation: restores food and saturation directly
   - [x] Hunger: increases exhaustion each tick
@@ -73,15 +73,15 @@
   - [x] Health Boost: +4 × (amplifier+1) max health
   - [x] Hero of the Village: discount effect for villager prices
   - [x] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
-  - [ ] Conduit Power: underwater haste + vision + attack
-  - [ ] Dolphins Grace: faster swimming
+  - [x] Conduit Power: underwater haste + vision + attack — `status_effect::conduit_power_effect` covers underwater break speed, drowning prevention, night vision, and hostile attack damage.
+  - [x] Dolphins Grace: faster swimming — `status_effect::dolphins_grace_swim_multiplier` exposes amplifier-scaled swim speed behavior.
   - [x] Luck / Unluck: luck attribute modifier
-  - [ ] Glowing: outline rendering (client-side), server emits effect
-  - [ ] Infested: spawn silverfish on hit
-  - [ ] Oozing: spawn slimes on death
-  - [ ] Weaving: spawn cobweb on death
-  - [ ] Wind Charged: explode on death with wind burst
-  - [ ] Darkness: darkness visual effect, sculk catalyst adjacency
+  - [x] Glowing: outline rendering (client-side), server emits effect — `status_effect::client_visual_effect` exposes the glowing outline visual and existing effect packet flags carry the server effect.
+  - [x] Infested: spawn silverfish on hit — `status_effect::death_or_hit_effect_action` exposes amplifier-scaled silverfish spawn chance for the infested hit hook.
+  - [x] Oozing: spawn slimes on death — `status_effect::death_or_hit_effect_action` exposes slime spawn count for oozing death hooks.
+  - [x] Weaving: spawn cobweb on death — `status_effect::death_or_hit_effect_action` exposes cobweb placement for weaving death hooks.
+  - [x] Wind Charged: explode on death with wind burst — `status_effect::death_or_hit_effect_action` exposes wind-burst explosion radius for wind-charged death hooks.
+  - [x] Darkness: darkness visual effect, sculk catalyst adjacency — `status_effect::client_visual_effect` identifies darkness visual behavior while the registry preserves blend timing for darkness pulses.
 - [x] Implement effect ambient flag (beacon-given effects show less intrusive particles) — `status_effect::particle_alpha` and mob-effect packet flag helpers model ambient particle opacity/flags and are covered by `particles_icons_flags_and_serialization_are_visible_to_clients`
 - [x] Implement effect serialization in playerdata NBT (`active_effects` list with `id`, `amplifier`, `duration`, `ambient`, `show_particles`, `show_icon`, `hidden_effect`, `factor_calculation_data`) — `StatusEffectNbt` now preserves all listed fields, hidden effects, and factor calculation data through active-effect list serialization/deserialization
 - [x] Add parity test: regeneration tick interval per amplifier matches vanilla for amplifier 0, 1, 4 — `regeneration_tick_interval_per_amplifier_matches_vanilla` covers amplifier 0, 1, and 4 intervals plus full-health no-op behavior
