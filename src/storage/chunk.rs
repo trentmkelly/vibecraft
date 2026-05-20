@@ -772,8 +772,7 @@ impl LevelChunk {
             entities: compound_list_entries(
                 optional_list_field(root, "entities")?.unwrap_or_default(),
             ),
-            structures: optional_compound_tag(root, "structures")
-                .unwrap_or_else(empty_structures_payload),
+            structures: optional_structures_payload(root, pos),
             upgrade_data: optional_field(root, "UpgradeData").cloned(),
             blending_data: optional_blending_data(root)?,
             below_zero_retrogen: optional_below_zero_retrogen(root)?,
@@ -830,6 +829,13 @@ pub fn pack_chunk_pos_as_long(pos: ChunkPos) -> i64 {
     (i64::from(pos.x) & 0xffff_ffff) | ((i64::from(pos.z) & 0xffff_ffff) << 32)
 }
 
+pub fn unpack_chunk_pos_from_long(packed: i64) -> ChunkPos {
+    ChunkPos {
+        x: packed as i32,
+        z: (packed >> 32) as i32,
+    }
+}
+
 pub fn chunk_pos_chessboard_distance(a: ChunkPos, b: ChunkPos) -> i32 {
     (a.x - b.x).abs().max((a.z - b.z).abs())
 }
@@ -858,6 +864,56 @@ fn empty_structures_payload() -> Tag {
     Tag::Compound(vec![
         ("starts".to_string(), Tag::Compound(Vec::new())),
         ("References".to_string(), Tag::Compound(Vec::new())),
+    ])
+}
+
+fn optional_structures_payload(compound: &[(String, Tag)], pos: ChunkPos) -> Tag {
+    optional_field(compound, "structures")
+        .map(|tag| normalize_structures_payload(tag, pos))
+        .unwrap_or_else(empty_structures_payload)
+}
+
+fn normalize_structures_payload(tag: &Tag, pos: ChunkPos) -> Tag {
+    let Ok(fields) = compound(tag) else {
+        return empty_structures_payload();
+    };
+    let starts = optional_field(fields, "starts")
+        .and_then(|tag| compound(tag).ok())
+        .map(|starts| {
+            starts
+                .iter()
+                .filter(|(_, start)| matches!(start, Tag::Compound(_)))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let references = optional_field(fields, "References")
+        .and_then(|tag| compound(tag).ok())
+        .map(|references| {
+            references
+                .iter()
+                .filter_map(|(id, value)| match value {
+                    Tag::LongArray(values) => {
+                        let values = values
+                            .iter()
+                            .copied()
+                            .filter(|reference| {
+                                chunk_pos_chessboard_distance(
+                                    pos,
+                                    unpack_chunk_pos_from_long(*reference),
+                                ) <= 8
+                            })
+                            .collect::<Vec<_>>();
+                        (!values.is_empty()).then(|| (id.clone(), Tag::LongArray(values)))
+                    }
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Tag::Compound(vec![
+        ("starts".to_string(), Tag::Compound(starts)),
+        ("References".to_string(), Tag::Compound(references)),
     ])
 }
 
@@ -2768,6 +2824,76 @@ mod tests {
             default_block_states_container()
         );
         assert_eq!(decoded.sections[0].biomes, default_biomes_container());
+    }
+
+    #[test]
+    fn level_chunk_load_normalizes_structure_payloads() {
+        let pos = ChunkPos { x: 10, z: -10 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        let (_, structures) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "structures")
+            .expect("structures should be present");
+        *structures = Tag::Compound(vec![
+            (
+                "starts".to_string(),
+                Tag::Compound(vec![
+                    (
+                        "minecraft:village".to_string(),
+                        Tag::Compound(vec![("id".to_string(), Tag::String("village".to_string()))]),
+                    ),
+                    ("minecraft:bad".to_string(), Tag::List(Vec::new())),
+                ]),
+            ),
+            (
+                "References".to_string(),
+                Tag::Compound(vec![
+                    (
+                        "minecraft:village".to_string(),
+                        Tag::LongArray(vec![
+                            super::pack_chunk_pos_as_long(ChunkPos { x: 18, z: -2 }),
+                            super::pack_chunk_pos_as_long(ChunkPos { x: 19, z: -10 }),
+                        ]),
+                    ),
+                    ("minecraft:bad".to_string(), Tag::String("bad".to_string())),
+                ]),
+            ),
+        ]);
+
+        let decoded = LevelChunk::from_nbt(pos, &tag).unwrap();
+
+        assert_eq!(
+            decoded.structures,
+            Tag::Compound(vec![
+                (
+                    "starts".to_string(),
+                    Tag::Compound(vec![(
+                        "minecraft:village".to_string(),
+                        Tag::Compound(vec![("id".to_string(), Tag::String("village".to_string()))])
+                    )])
+                ),
+                (
+                    "References".to_string(),
+                    Tag::Compound(vec![(
+                        "minecraft:village".to_string(),
+                        Tag::LongArray(vec![super::pack_chunk_pos_as_long(ChunkPos {
+                            x: 18,
+                            z: -2
+                        })])
+                    )])
+                ),
+            ])
+        );
+        assert_eq!(
+            super::unpack_chunk_pos_from_long(super::pack_chunk_pos_as_long(ChunkPos {
+                x: -1,
+                z: -2
+            })),
+            ChunkPos { x: -1, z: -2 }
+        );
     }
 
     #[test]
