@@ -170,7 +170,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Placed Features and Decoration
 
-- [ ] Implement `PlacedFeature` evaluation: load placement modifiers, evaluate `PlacementModifier` list in order, for each valid position invoke `ConfiguredFeature.place()`
+- [x] Implement `PlacedFeature` evaluation: load placement modifiers, evaluate `PlacementModifier` list in order, for each valid position invoke `ConfiguredFeature.place()`
 - [x] Implement all 26.1.2 `PlacementModifier` types: `BlockPredicateFilter`, `CountPlacement`, `RarityFilter`, `InSquarePlacement`, `HeightRangePlacement`, `HeightmapPlacement`, `BiomeFilter`, `SurfaceRelativeThresholdFilter`, `SurfaceWaterDepthFilter`, `EnvironmentScanPlacement`, `RandomOffsetPlacement`, `FixedPlacement`, `CountOnEveryLayerPlacement`, `NoiseThresholdCountPlacement`, `NoiseBasedCountPlacement`; `CarvingMaskPlacement` is not present in the 26.1.2 Java registry.
 - [x] Implement feature support primitives: `HeightProvider`, `VerticalAnchor`, `BlockPredicate`, `StateProvider` (rotated, simple, weighted), `FeatureSize` (two-layers, three-layers), trunk/foliage/root placers, tree decorators
 - [x] Implement `FeatureSorter`: deterministic decoration ordering per biome step; seed derivation `baseSeed + featureIndex + biomeFeatureCounter`

@@ -1191,6 +1191,13 @@ pub struct PlacedFeatureSourceEntry {
     pub keys: &'static [&'static str],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedFeatureInvocation {
+    pub feature: &'static str,
+    pub source: ConfiguredFeatureSource,
+    pub pos: BlockPos,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlacedFeatureSource {
     Aquatic,
@@ -22546,6 +22553,25 @@ pub fn placed_feature_positions(
         })
 }
 
+pub fn placed_feature_invocations(
+    configured_feature_id: &'static str,
+    modifiers: &[PlacementModifier],
+    origin: BlockPos,
+    context: PlacementContextModel,
+    rolls: &[(i32, i32, i32)],
+) -> Result<Vec<PlacedFeatureInvocation>, String> {
+    let feature = configured_feature(configured_feature_id)
+        .ok_or_else(|| format!("unknown configured feature {configured_feature_id}"))?;
+    Ok(placed_feature_positions(modifiers, origin, context, rolls)
+        .into_iter()
+        .map(|pos| PlacedFeatureInvocation {
+            feature: feature.id,
+            source: feature.source,
+            pos,
+        })
+        .collect())
+}
+
 pub fn placement_modifier_positions_with_context(
     modifier: PlacementModifier,
     origin: BlockPos,
@@ -38143,6 +38169,59 @@ mod tests {
             &[(0, 0, 0)],
         )
         .is_empty());
+
+        assert_eq!(
+            super::placed_feature_invocations(
+                "minecraft:oak",
+                &[
+                    PlacementModifier::BiomeFilter,
+                    PlacementModifier::Count { count: 2 },
+                    PlacementModifier::InSquare,
+                    PlacementModifier::Heightmap {
+                        heightmap: HeightmapKind::WorldSurface,
+                    },
+                ],
+                BlockPos {
+                    x: 32,
+                    y: 0,
+                    z: -16
+                },
+                placement_context,
+                &[(0, 0, 0), (0, 0, 0), (3, 4, 0), (0, 0, 0)],
+            )
+            .unwrap(),
+            vec![
+                super::PlacedFeatureInvocation {
+                    feature: "minecraft:oak",
+                    source: super::ConfiguredFeatureSource::Tree,
+                    pos: BlockPos {
+                        x: 35,
+                        y: 81,
+                        z: -12,
+                    },
+                },
+                super::PlacedFeatureInvocation {
+                    feature: "minecraft:oak",
+                    source: super::ConfiguredFeatureSource::Tree,
+                    pos: BlockPos {
+                        x: 35,
+                        y: 81,
+                        z: -12,
+                    },
+                },
+            ]
+        );
+        assert_eq!(
+            super::placed_feature_invocations(
+                "minecraft:not_a_feature",
+                &[],
+                origin,
+                placement_context,
+                &[],
+            )
+            .unwrap_err(),
+            "unknown configured feature minecraft:not_a_feature"
+        );
     }
 
     #[test]
