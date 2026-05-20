@@ -544,6 +544,15 @@ pub fn diff_chunk_signature_reports(
     diffs
 }
 
+pub fn diff_rustcraft_worldgen_report_files(
+    expected_path: impl AsRef<Path>,
+    actual_path: impl AsRef<Path>,
+) -> Result<Vec<WorldgenChunkReportDiff>, String> {
+    let expected = load_rustcraft_worldgen_report(expected_path)?;
+    let actual = load_rustcraft_worldgen_report(actual_path)?;
+    Ok(diff_chunk_signature_reports(&expected, &actual))
+}
+
 pub fn signature_from_vanilla_fixture_summary(
     summary: VanillaFixtureChunkSummary,
 ) -> WorldgenChunkSignature {
@@ -1490,6 +1499,45 @@ mod tests {
         let loaded = load_rustcraft_worldgen_report(&path).unwrap();
 
         assert_eq!(loaded, vec![build_chunk_signature(&chunk)]);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rustcraft_worldgen_report_file_diff_flags_snapshot_drift() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let expected = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+        let mut actual = expected.clone();
+        actual["chunks"][0]["status"] = Value::String("minecraft:noise".to_string());
+
+        let root = std::env::temp_dir().join(format!(
+            "rustcraft-worldgen-report-diff-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let expected_path = root.join("accepted.json");
+        let actual_path = root.join("actual.json");
+        std::fs::write(
+            &expected_path,
+            serde_json::to_string_pretty(&expected).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(&actual_path, serde_json::to_string_pretty(&actual).unwrap()).unwrap();
+
+        assert_eq!(
+            diff_rustcraft_worldgen_report_files(&expected_path, &actual_path).unwrap(),
+            vec![WorldgenChunkReportDiff::Field(WorldgenChunkSignatureDiff {
+                chunk: ChunkCoord { x: 0, z: 0 },
+                field: "status",
+                left: "\"minecraft:full\"".to_string(),
+                right: "\"minecraft:noise\"".to_string(),
+            })]
+        );
 
         let _ = std::fs::remove_dir_all(&root);
     }
