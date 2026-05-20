@@ -8519,6 +8519,31 @@ mod tests {
     }
 
     #[test]
+    fn live_spawn_chunk_packet_uses_generated_level_chunk_serialization() {
+        let mut payload = Vec::new();
+        let world_root = std::env::temp_dir().join(format!(
+            "rustcraft-missing-world-root-{}",
+            std::process::id()
+        ));
+
+        super::write_generated_spawn_chunk_packet(&mut payload, 0, 0, &world_root, 0)
+            .expect("missing region files should fall back to generated terrain");
+
+        let mut input = &payload[..];
+        let mut chunk_x = [0_u8; 4];
+        let mut chunk_z = [0_u8; 4];
+        input.read_exact(&mut chunk_x).unwrap();
+        input.read_exact(&mut chunk_z).unwrap();
+        assert_eq!(i32::from_be_bytes(chunk_x), 0);
+        assert_eq!(i32::from_be_bytes(chunk_z), 0);
+        let heightmap_count = read_var_i32(&mut input).unwrap();
+        assert!(
+            heightmap_count >= 3,
+            "live chunk packets should serialize generated LevelChunk heightmaps, not the legacy zero-heightmap superflat packet"
+        );
+    }
+
+    #[test]
     fn spawn_chunk_window_uses_configured_server_view_distance_radius() {
         assert_eq!(chunk_batch_size(2), 25);
         assert_eq!(chunk_batch_size(10), 441);
