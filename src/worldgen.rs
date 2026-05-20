@@ -24228,6 +24228,9 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("CannotEnterHiveTicks".to_string(), Tag::Int(0)));
             fields.push(("CropsGrownSincePollination".to_string(), Tag::Int(0)));
         }
+        "minecraft:bogged" => {
+            fields.push(("sheared".to_string(), Tag::Byte(0)));
+        }
         "minecraft:camel" => {
             fields.push(("LastPoseTick".to_string(), Tag::Long(0)));
         }
@@ -24256,6 +24259,11 @@ fn append_chunk_generation_mob_specific_save_fields(
         }
         "minecraft:horse" => {
             fields.push(("Variant".to_string(), Tag::Int(0)));
+        }
+        "minecraft:hoglin" => {
+            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
+            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
+            fields.push(("CannotBeHunted".to_string(), Tag::Byte(0)));
         }
         "minecraft:iron_golem" => {
             fields.push(("PlayerCreated".to_string(), Tag::Byte(0)));
@@ -24299,9 +24307,22 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
             fields.push(("PuffState".to_string(), Tag::Int(0)));
         }
+        "minecraft:piglin_brute" => {
+            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
+            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
+        }
+        "minecraft:piglin" => {
+            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
+            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
+            fields.push(("IsBaby".to_string(), Tag::Byte(0)));
+            fields.push(("CannotHunt".to_string(), Tag::Byte(0)));
+        }
         "minecraft:sheep" => {
             fields.push(("Sheared".to_string(), Tag::Byte(0)));
             fields.push(("Color".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:skeleton" | "minecraft:stray" => {
+            append_chunk_generation_skeleton_save_fields(fields);
         }
         "minecraft:skeleton_horse" => {
             fields.push(("SkeletonTrap".to_string(), Tag::Byte(0)));
@@ -24323,8 +24344,28 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:zoglin" => {
             fields.push(("IsBaby".to_string(), Tag::Byte(0)));
         }
+        "minecraft:drowned" | "minecraft:husk" | "minecraft:zombie" => {
+            append_chunk_generation_zombie_save_fields(fields);
+        }
+        "minecraft:zombie_villager" => {
+            append_chunk_generation_zombie_save_fields(fields);
+            fields.push(("VillagerDataFinalized".to_string(), Tag::Byte(0)));
+            fields.push(("ConversionTime".to_string(), Tag::Int(-1)));
+            fields.push(("Xp".to_string(), Tag::Int(0)));
+        }
         _ => {}
     }
+}
+
+fn append_chunk_generation_skeleton_save_fields(fields: &mut Vec<(String, Tag)>) {
+    fields.push(("StrayConversionTime".to_string(), Tag::Int(-1)));
+}
+
+fn append_chunk_generation_zombie_save_fields(fields: &mut Vec<(String, Tag)>) {
+    fields.push(("IsBaby".to_string(), Tag::Byte(0)));
+    fields.push(("CanBreakDoors".to_string(), Tag::Byte(0)));
+    fields.push(("InWaterTime".to_string(), Tag::Int(-1)));
+    fields.push(("DrownedConversionTime".to_string(), Tag::Int(-1)));
 }
 
 fn chunk_generation_mob_default_health(entity_type: &str) -> f32 {
@@ -59377,6 +59418,116 @@ mod tests {
         assert!(ghast_fields.contains(&("ExplosionPower".to_string(), Tag::Byte(1))));
         assert!(endermite_fields.contains(&("Lifetime".to_string(), Tag::Int(0))));
         assert!(zoglin_fields.contains(&("IsBaby".to_string(), Tag::Byte(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_zombie_piglin_and_skeleton_save_fields() {
+        let zombie = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:zombie",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let zombie_villager = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:zombie_villager",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let skeleton = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:skeleton",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let bogged = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:bogged",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let piglin = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:piglin",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let hoglin = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:hoglin",
+            width: 1.3965,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(zombie_fields) =
+            super::chunk_generation_mob_entity_nbt(zombie, "00000000-0000-0000-0000-000000000152")
+        else {
+            panic!("zombie entity nbt must be a compound");
+        };
+        let Tag::Compound(zombie_villager_fields) = super::chunk_generation_mob_entity_nbt(
+            zombie_villager,
+            "00000000-0000-0000-0000-000000000153",
+        ) else {
+            panic!("zombie villager entity nbt must be a compound");
+        };
+        let Tag::Compound(skeleton_fields) = super::chunk_generation_mob_entity_nbt(
+            skeleton,
+            "00000000-0000-0000-0000-000000000154",
+        ) else {
+            panic!("skeleton entity nbt must be a compound");
+        };
+        let Tag::Compound(bogged_fields) =
+            super::chunk_generation_mob_entity_nbt(bogged, "00000000-0000-0000-0000-000000000155")
+        else {
+            panic!("bogged entity nbt must be a compound");
+        };
+        let Tag::Compound(piglin_fields) =
+            super::chunk_generation_mob_entity_nbt(piglin, "00000000-0000-0000-0000-000000000156")
+        else {
+            panic!("piglin entity nbt must be a compound");
+        };
+        let Tag::Compound(hoglin_fields) =
+            super::chunk_generation_mob_entity_nbt(hoglin, "00000000-0000-0000-0000-000000000157")
+        else {
+            panic!("hoglin entity nbt must be a compound");
+        };
+
+        assert!(zombie_fields.contains(&("IsBaby".to_string(), Tag::Byte(0))));
+        assert!(zombie_fields.contains(&("CanBreakDoors".to_string(), Tag::Byte(0))));
+        assert!(zombie_fields.contains(&("InWaterTime".to_string(), Tag::Int(-1))));
+        assert!(zombie_fields.contains(&("DrownedConversionTime".to_string(), Tag::Int(-1))));
+        assert!(
+            zombie_villager_fields.contains(&("VillagerDataFinalized".to_string(), Tag::Byte(0)))
+        );
+        assert!(zombie_villager_fields.contains(&("ConversionTime".to_string(), Tag::Int(-1))));
+        assert!(zombie_villager_fields.contains(&("Xp".to_string(), Tag::Int(0))));
+        assert!(skeleton_fields.contains(&("StrayConversionTime".to_string(), Tag::Int(-1))));
+        assert!(bogged_fields.contains(&("sheared".to_string(), Tag::Byte(0))));
+        assert!(piglin_fields.contains(&("IsImmuneToZombification".to_string(), Tag::Byte(0))));
+        assert!(piglin_fields.contains(&("TimeInOverworld".to_string(), Tag::Int(0))));
+        assert!(piglin_fields.contains(&("IsBaby".to_string(), Tag::Byte(0))));
+        assert!(piglin_fields.contains(&("CannotHunt".to_string(), Tag::Byte(0))));
+        assert!(hoglin_fields.contains(&("IsImmuneToZombification".to_string(), Tag::Byte(0))));
+        assert!(hoglin_fields.contains(&("TimeInOverworld".to_string(), Tag::Int(0))));
+        assert!(hoglin_fields.contains(&("CannotBeHunted".to_string(), Tag::Byte(0))));
     }
 
     #[test]
