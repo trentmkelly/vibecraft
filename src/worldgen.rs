@@ -36328,6 +36328,7 @@ mod tests {
     use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
     use std::collections::BTreeMap;
+    use std::path::Path;
 
     // ---------- PerlinSimplexNoise parity tests ----------
     //
@@ -39004,49 +39005,51 @@ mod tests {
         }
     }
 
+    fn extracted_density_function_ids_from_json_tree() -> Vec<String> {
+        fn visit_density_function_jsons(root: &Path, dir: &Path, ids: &mut Vec<String>) {
+            let entries = std::fs::read_dir(dir)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()));
+            for entry in entries {
+                let entry = entry.unwrap_or_else(|err| {
+                    panic!("failed to read entry under {}: {err}", dir.display())
+                });
+                let path = entry.path();
+                if path.is_dir() {
+                    visit_density_function_jsons(root, &path, ids);
+                    continue;
+                }
+                if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+                    continue;
+                }
+                let relative = path
+                    .strip_prefix(root)
+                    .unwrap_or_else(|err| panic!("failed to relativize {}: {err}", path.display()))
+                    .with_extension("");
+                let key = relative
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                ids.push(format!("minecraft:{key}"));
+            }
+        }
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../decompiled-server-26.1.2/data/minecraft/worldgen/density_function");
+        let mut ids = Vec::new();
+        visit_density_function_jsons(&root, &root, &mut ids);
+        ids.sort_unstable();
+        ids
+    }
+
     #[test]
     fn noise_router_density_function_bootstrap_keys_match_vanilla_prefix() {
-        let extracted_density_function_ids = vec![
-            "minecraft:end/base_3d_noise",
-            "minecraft:end/sloped_cheese",
-            "minecraft:nether/base_3d_noise",
-            "minecraft:overworld/base_3d_noise",
-            "minecraft:overworld/caves/entrances",
-            "minecraft:overworld/caves/noodle",
-            "minecraft:overworld/caves/pillars",
-            "minecraft:overworld/caves/spaghetti_2d",
-            "minecraft:overworld/caves/spaghetti_2d_thickness_modulator",
-            "minecraft:overworld/caves/spaghetti_roughness_function",
-            "minecraft:overworld/continents",
-            "minecraft:overworld/depth",
-            "minecraft:overworld/erosion",
-            "minecraft:overworld/factor",
-            "minecraft:overworld/final_density",
-            "minecraft:overworld/jaggedness",
-            "minecraft:overworld/offset",
-            "minecraft:overworld/ridges",
-            "minecraft:overworld/ridges_folded",
-            "minecraft:overworld/sloped_cheese",
-            "minecraft:overworld_amplified/depth",
-            "minecraft:overworld_amplified/factor",
-            "minecraft:overworld_amplified/jaggedness",
-            "minecraft:overworld_amplified/offset",
-            "minecraft:overworld_amplified/sloped_cheese",
-            "minecraft:overworld_large_biomes/continents",
-            "minecraft:overworld_large_biomes/depth",
-            "minecraft:overworld_large_biomes/erosion",
-            "minecraft:overworld_large_biomes/factor",
-            "minecraft:overworld_large_biomes/jaggedness",
-            "minecraft:overworld_large_biomes/offset",
-            "minecraft:overworld_large_biomes/sloped_cheese",
-            "minecraft:shift_x",
-            "minecraft:shift_z",
-            "minecraft:y",
-            "minecraft:zero",
-        ];
+        let mut extracted_density_function_ids = extracted_density_function_ids_from_json_tree();
+        extracted_density_function_ids.push("minecraft:overworld/final_density".to_string());
+        extracted_density_function_ids.sort_unstable();
         let mut actual_density_function_ids = BUILTIN_DENSITY_FUNCTIONS
             .iter()
-            .map(|entry| entry.id)
+            .map(|entry| entry.id.to_string())
             .collect::<Vec<_>>();
         actual_density_function_ids.sort_unstable();
         assert_eq!(actual_density_function_ids, extracted_density_function_ids);
