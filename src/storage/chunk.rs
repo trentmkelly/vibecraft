@@ -610,7 +610,9 @@ impl LevelChunk {
                 optional_list_field(root, "fluid_ticks")?.unwrap_or_default(),
                 pos,
             ),
-            post_processing: optional_list_field(root, "PostProcessing")?.unwrap_or_default(),
+            post_processing: post_processing_sections(
+                optional_list_field(root, "PostProcessing")?.unwrap_or_default(),
+            ),
             light_correct: optional_bool_field(root, "isLightOn")?.unwrap_or(false),
         })
     }
@@ -922,6 +924,24 @@ fn compound_list_entries(entries: Vec<Tag>) -> Vec<Tag> {
     entries
         .into_iter()
         .filter(|entry| matches!(entry, Tag::Compound(_)))
+        .collect()
+}
+
+fn post_processing_sections(entries: Vec<Tag>) -> Vec<Tag> {
+    entries
+        .into_iter()
+        .map(|entry| match entry {
+            Tag::List(offsets) => Tag::List(
+                offsets
+                    .into_iter()
+                    .map(|offset| match offset {
+                        Tag::Short(value) => Tag::Short(value),
+                        _ => Tag::Short(0),
+                    })
+                    .collect(),
+            ),
+            _ => Tag::List(Vec::new()),
+        })
         .collect()
 }
 
@@ -1755,6 +1775,26 @@ mod tests {
         assert_eq!(decoded.block_entities.len(), 1);
         assert!(matches!(&decoded.entities[0], Tag::Compound(_)));
         assert!(matches!(&decoded.block_entities[0], Tag::Compound(_)));
+    }
+
+    #[test]
+    fn level_chunk_load_normalizes_postprocessing_sections() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut chunk = LevelChunk::empty(pos);
+        chunk.post_processing = vec![
+            Tag::List(vec![Tag::Short(12), Tag::Int(99)]),
+            Tag::String("not-a-section-list".to_string()),
+        ];
+
+        let decoded = LevelChunk::from_nbt(pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
+
+        assert_eq!(
+            decoded.post_processing,
+            vec![
+                Tag::List(vec![Tag::Short(12), Tag::Short(0)]),
+                Tag::List(Vec::new()),
+            ]
+        );
     }
 
     #[test]
