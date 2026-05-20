@@ -88,21 +88,21 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "attack",
         java_class: "ServerboundAttackPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt",
     },
     PlayPacketSpec {
         id: 2,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "block_entity_tag_query",
         java_class: "ServerboundBlockEntityTagQueryPacket",
-        field_order: "unparsed",
+        field_order: "transaction_id:VarInt, pos:BlockPos",
     },
     PlayPacketSpec {
         id: 3,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "bundle_item_selected",
         java_class: "ServerboundSelectBundleItemPacket",
-        field_order: "unparsed",
+        field_order: "slot_id:VarInt, selected_item_index:VarInt (-1 or >=0)",
     },
     PlayPacketSpec {
         id: 4,
@@ -116,7 +116,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "change_game_mode",
         java_class: "ServerboundChangeGameModePacket",
-        field_order: "unparsed",
+        field_order: "mode:GameType enum VarInt",
     },
     PlayPacketSpec {
         id: 6,
@@ -221,7 +221,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "container_slot_state_changed",
         java_class: "ServerboundContainerSlotStateChangedPacket",
-        field_order: "unparsed",
+        field_order: "slot_id:VarInt, container_id:CONTAINER_ID, new_state:bool",
     },
     PlayPacketSpec {
         id: 21,
@@ -242,7 +242,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "debug_subscription_request",
         java_class: "ServerboundDebugSubscriptionRequestPacket",
-        field_order: "unparsed",
+        field_order: "subscriptions:Set<DebugSubscription registry holder VarInt>",
     },
     PlayPacketSpec {
         id: 24,
@@ -256,7 +256,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "entity_tag_query",
         java_class: "ServerboundEntityTagQueryPacket",
-        field_order: "unparsed",
+        field_order: "transaction_id:VarInt, entity_id:VarInt",
     },
     PlayPacketSpec {
         id: 26,
@@ -480,14 +480,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_game_rule",
         java_class: "ServerboundSetGameRulePacket",
-        field_order: "unparsed",
+        field_order: "entries:List(game_rule:ResourceKey<GameRule> Identifier, value:String UTF-8)",
     },
     PlayPacketSpec {
         id: 58,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_jigsaw_block",
         java_class: "ServerboundSetJigsawBlockPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, name:Identifier, target:Identifier, pool:Identifier, final_state:String, joint:String, selection_priority:VarInt, placement_priority:VarInt",
     },
     PlayPacketSpec {
         id: 59,
@@ -501,7 +501,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "set_test_block",
         java_class: "ServerboundSetTestBlockPacket",
-        field_order: "unparsed",
+        field_order: "position:BlockPos, mode:TestBlockMode, message:String UTF-8",
     },
     PlayPacketSpec {
         id: 61,
@@ -515,7 +515,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "spectate_entity",
         java_class: "ServerboundSpectateEntityPacket",
-        field_order: "unparsed",
+        field_order: "entity_id:VarInt",
     },
     PlayPacketSpec {
         id: 63,
@@ -529,14 +529,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "teleport_to_entity",
         java_class: "ServerboundTeleportToEntityPacket",
-        field_order: "unparsed",
+        field_order: "uuid:UUID",
     },
     PlayPacketSpec {
         id: 65,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "test_instance_block_action",
         java_class: "ServerboundTestInstanceBlockActionPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, action:enum VarInt, data:TestInstanceBlockEntity.Data",
     },
     PlayPacketSpec {
         id: 66,
@@ -557,7 +557,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "custom_click_action",
         java_class: "ServerboundCustomClickActionPacket",
-        field_order: "unparsed",
+        field_order: "id:Identifier, payload:Optional<Tag> length-prefixed max 65536 with NBT accounter 32768",
     },
     PlayPacketSpec {
         id: 0,
@@ -1954,6 +1954,41 @@ mod tests {
         let checks: &[(PacketDirection, &str, &str)] = &[
             (
                 PacketDirection::Serverbound,
+                "attack",
+                "entity_id:VarInt",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "block_entity_tag_query",
+                "transaction_id:VarInt, pos:BlockPos",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "bundle_item_selected",
+                "slot_id:VarInt, selected_item_index:VarInt (-1 or >=0)",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "change_game_mode",
+                "mode:GameType enum VarInt",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "container_slot_state_changed",
+                "slot_id:VarInt, container_id:CONTAINER_ID, new_state:bool",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "debug_subscription_request",
+                "subscriptions:Set<DebugSubscription registry holder VarInt>",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "entity_tag_query",
+                "transaction_id:VarInt, entity_id:VarInt",
+            ),
+            (
+                PacketDirection::Serverbound,
                 "place_recipe",
                 "container_id:CONTAINER_ID, recipe:RecipeDisplayId VarInt, use_max_items:bool",
             ),
@@ -1966,6 +2001,41 @@ mod tests {
                 PacketDirection::Serverbound,
                 "seen_advancements",
                 "action:enum VarInt, tab:Identifier only when action OPENED_TAB",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "set_game_rule",
+                "entries:List(game_rule:ResourceKey<GameRule> Identifier, value:String UTF-8)",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "set_jigsaw_block",
+                "pos:BlockPos, name:Identifier, target:Identifier, pool:Identifier, final_state:String, joint:String, selection_priority:VarInt, placement_priority:VarInt",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "set_test_block",
+                "position:BlockPos, mode:TestBlockMode, message:String UTF-8",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "spectate_entity",
+                "entity_id:VarInt",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "teleport_to_entity",
+                "uuid:UUID",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "test_instance_block_action",
+                "pos:BlockPos, action:enum VarInt, data:TestInstanceBlockEntity.Data",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "custom_click_action",
+                "id:Identifier, payload:Optional<Tag> length-prefixed max 65536 with NBT accounter 32768",
             ),
             (
                 PacketDirection::Clientbound,
