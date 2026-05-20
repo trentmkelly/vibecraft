@@ -24153,6 +24153,7 @@ pub fn entity_type_height(entity_type: &str) -> f32 {
 }
 
 pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, uuid: &str) -> Tag {
+    let health = chunk_generation_mob_default_health(snap.entity_type);
     let mut fields = vec![
         ("id".to_string(), Tag::String(snap.entity_type.to_string())),
         ("UUID".to_string(), Tag::String(uuid.to_string())),
@@ -24178,6 +24179,18 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
         ("OnGround".to_string(), Tag::Byte(0)),
         ("Invulnerable".to_string(), Tag::Byte(0)),
         ("PortalCooldown".to_string(), Tag::Int(0)),
+        ("Health".to_string(), Tag::Float(health)),
+        ("HurtTime".to_string(), Tag::Short(0)),
+        ("HurtByTimestamp".to_string(), Tag::Int(0)),
+        ("DeathTime".to_string(), Tag::Short(0)),
+        ("AbsorptionAmount".to_string(), Tag::Float(0.0)),
+        (
+            "current_impulse_context_reset_grace_time".to_string(),
+            Tag::Int(0),
+        ),
+        ("CanPickUpLoot".to_string(), Tag::Byte(0)),
+        ("PersistenceRequired".to_string(), Tag::Byte(0)),
+        ("LeftHanded".to_string(), Tag::Byte(0)),
     ];
     if chunk_generation_mob_is_ageable(snap.entity_type) {
         fields.push(("Age".to_string(), Tag::Int(0)));
@@ -24185,6 +24198,33 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
         fields.push(("AgeLocked".to_string(), Tag::Byte(0)));
     }
     Tag::Compound(fields)
+}
+
+fn chunk_generation_mob_default_health(entity_type: &str) -> f32 {
+    match entity_type {
+        "minecraft:armadillo" => 12.0,
+        "minecraft:bat" | "minecraft:parrot" => 6.0,
+        "minecraft:cat" | "minecraft:ocelot" | "minecraft:rabbit" | "minecraft:sheep" => 8.0,
+        "minecraft:chicken" | "minecraft:cod" | "minecraft:pufferfish" | "minecraft:salmon" => 4.0,
+        "minecraft:cow" | "minecraft:goat" | "minecraft:mooshroom" | "minecraft:pig" => 10.0,
+        "minecraft:creeper"
+        | "minecraft:drowned"
+        | "minecraft:enderman"
+        | "minecraft:husk"
+        | "minecraft:spider"
+        | "minecraft:stray"
+        | "minecraft:witch"
+        | "minecraft:zombie"
+        | "minecraft:zombified_piglin" => 20.0,
+        "minecraft:fox" => 10.0,
+        "minecraft:frog" => 10.0,
+        "minecraft:glow_squid" | "minecraft:squid" | "minecraft:tropical_fish" => 10.0,
+        "minecraft:hoglin" => 40.0,
+        "minecraft:piglin" => 16.0,
+        "minecraft:polar_bear" => 30.0,
+        "minecraft:wolf" => 8.0,
+        _ => 20.0,
+    }
 }
 
 fn chunk_generation_mob_is_ageable(entity_type: &str) -> bool {
@@ -58735,6 +58775,18 @@ mod tests {
         assert!(fields.contains(&("Age".to_string(), Tag::Int(0))));
         assert!(fields.contains(&("ForcedAge".to_string(), Tag::Int(0))));
         assert!(fields.contains(&("AgeLocked".to_string(), Tag::Byte(0))));
+        assert!(fields.contains(&("Health".to_string(), Tag::Float(10.0))));
+        assert!(fields.contains(&("HurtTime".to_string(), Tag::Short(0))));
+        assert!(fields.contains(&("HurtByTimestamp".to_string(), Tag::Int(0))));
+        assert!(fields.contains(&("DeathTime".to_string(), Tag::Short(0))));
+        assert!(fields.contains(&("AbsorptionAmount".to_string(), Tag::Float(0.0))));
+        assert!(fields.contains(&(
+            "current_impulse_context_reset_grace_time".to_string(),
+            Tag::Int(0)
+        )));
+        assert!(fields.contains(&("CanPickUpLoot".to_string(), Tag::Byte(0))));
+        assert!(fields.contains(&("PersistenceRequired".to_string(), Tag::Byte(0))));
+        assert!(fields.contains(&("LeftHanded".to_string(), Tag::Byte(0))));
     }
 
     #[test]
@@ -58758,6 +58810,8 @@ mod tests {
         assert!(!fields.iter().any(|(name, _)| name == "Age"));
         assert!(!fields.iter().any(|(name, _)| name == "ForcedAge"));
         assert!(!fields.iter().any(|(name, _)| name == "AgeLocked"));
+        assert!(fields.contains(&("Health".to_string(), Tag::Float(20.0))));
+        assert!(fields.contains(&("CanPickUpLoot".to_string(), Tag::Byte(0))));
     }
 
     #[test]
