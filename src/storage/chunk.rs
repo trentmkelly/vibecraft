@@ -756,6 +756,47 @@ impl LevelChunk {
         self.prime_heightmaps(&missing);
     }
 
+    pub fn find_block_light_sources(&self) -> Vec<(i32, i32, i32, String, u8)> {
+        let mut sources = Vec::new();
+        for section in &self.sections {
+            let Ok(container) = PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
+            else {
+                continue;
+            };
+            let section_has_light = container.palette.iter().any(|entry| {
+                block_state_name(entry).is_some_and(|name| block_light_emission(name) != 0)
+            });
+            if !section_has_light {
+                continue;
+            }
+            for y in 0..SECTION_HEIGHT {
+                for z in 0..CHUNK_WIDTH {
+                    for x in 0..CHUNK_WIDTH {
+                        let index = (y * 256 + z * 16 + x) as usize;
+                        let Some(entry) = container.get_entry(index) else {
+                            continue;
+                        };
+                        let Some(name) = block_state_name(entry) else {
+                            continue;
+                        };
+                        let emission = block_light_emission(name);
+                        if emission == 0 {
+                            continue;
+                        }
+                        sources.push((
+                            self.pos.x * CHUNK_WIDTH + x,
+                            i32::from(section.y) * SECTION_HEIGHT + y,
+                            self.pos.z * CHUNK_WIDTH + z,
+                            name.to_string(),
+                            emission,
+                        ));
+                    }
+                }
+            }
+        }
+        sources
+    }
+
     pub fn compute_heightmap_values(&self, heightmap: HeightmapKind) -> [i32; 16 * 16] {
         let mut values = [0; 16 * 16];
         let Some(highest_section_y) = self.sections.iter().map(|section| section.y).max() else {
@@ -1025,6 +1066,24 @@ fn saved_tick_tag(id: String, x: i32, y: i32, z: i32, delay: i32, priority: Tick
         ("t".to_string(), Tag::Int(delay)),
         ("p".to_string(), Tag::Int(priority.value())),
     ])
+}
+
+fn block_state_name(entry: &Tag) -> Option<&str> {
+    let Tag::Compound(fields) = entry else {
+        return None;
+    };
+    fields
+        .iter()
+        .find_map(|(key, value)| match (key.as_str(), value) {
+            ("Name", Tag::String(name)) => Some(name.as_str()),
+            _ => None,
+        })
+}
+
+fn block_light_emission(block_name: &str) -> u8 {
+    crate::block_metadata::representative_state_definition(block_name)
+        .map(|definition| definition.physical.light_emission)
+        .unwrap_or(0)
 }
 
 fn pack_heightmap_values(values: &[i32; 16 * 16]) -> Vec<i64> {
@@ -2932,6 +2991,40 @@ mod tests {
             0
         ));
         assert!(!super::light_data_layer_is_empty(Some(&data), 0));
+    }
+
+    #[test]
+    fn level_chunk_finds_block_light_sources_by_section() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: -2, z: 3 });
+        chunk.min_section_y = -1;
+        chunk.sections = vec![
+            ChunkSection {
+                y: -1,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 0,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+
+        chunk.set_block_state(-31, -1, 48, "minecraft:torch");
+        chunk.set_block_state(-17, 2, 63, "minecraft:stone");
+        chunk.set_block_state(-32, 3, 63, "minecraft:torch");
+
+        assert_eq!(
+            chunk.find_block_light_sources(),
+            vec![
+                (-31, -1, 48, "minecraft:torch".to_string(), 14),
+                (-32, 3, 63, "minecraft:torch".to_string(), 14),
+            ]
+        );
     }
 
     #[test]
