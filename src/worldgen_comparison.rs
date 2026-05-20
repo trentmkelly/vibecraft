@@ -92,6 +92,13 @@ pub struct WorldgenChunkSignatureDiff {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorldgenChunkReportDiff {
+    MissingExpected { chunk: ChunkCoord },
+    MissingActual { chunk: ChunkCoord },
+    Field(WorldgenChunkSignatureDiff),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VanillaFixtureChunkSummary {
     pub chunk: ChunkCoord,
     pub status: String,
@@ -505,6 +512,38 @@ pub fn diff_chunk_signatures(
     diffs
 }
 
+pub fn diff_chunk_signature_reports(
+    expected: &[WorldgenChunkSignature],
+    actual: &[WorldgenChunkSignature],
+) -> Vec<WorldgenChunkReportDiff> {
+    let expected_by_chunk = signature_map(expected);
+    let actual_by_chunk = signature_map(actual);
+    let mut diffs = Vec::new();
+
+    for (chunk_key, expected_signature) in &expected_by_chunk {
+        let chunk = expected_signature.chunk;
+        let Some(actual_signature) = actual_by_chunk.get(chunk_key) else {
+            diffs.push(WorldgenChunkReportDiff::MissingActual { chunk });
+            continue;
+        };
+        diffs.extend(
+            diff_chunk_signatures(expected_signature, actual_signature)
+                .into_iter()
+                .map(WorldgenChunkReportDiff::Field),
+        );
+    }
+
+    for (chunk_key, actual_signature) in &actual_by_chunk {
+        if !expected_by_chunk.contains_key(chunk_key) {
+            diffs.push(WorldgenChunkReportDiff::MissingExpected {
+                chunk: actual_signature.chunk,
+            });
+        }
+    }
+
+    diffs
+}
+
 pub fn signature_from_vanilla_fixture_summary(
     summary: VanillaFixtureChunkSummary,
 ) -> WorldgenChunkSignature {
@@ -804,6 +843,15 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
     values.sort();
     values.dedup();
     values
+}
+
+fn signature_map(
+    signatures: &[WorldgenChunkSignature],
+) -> BTreeMap<(i32, i32), &WorldgenChunkSignature> {
+    signatures
+        .iter()
+        .map(|signature| ((signature.chunk.x, signature.chunk.z), signature))
+        .collect()
 }
 
 fn push_diff<T: std::fmt::Debug + PartialEq>(
@@ -1208,6 +1256,49 @@ mod tests {
             .all(|diff| diff.chunk == ChunkCoord { x: 0, z: 0 }));
         assert!(diffs[0].left.contains("minecraft:full"));
         assert!(diffs[0].right.contains("minecraft:noise"));
+    }
+
+    #[test]
+    fn chunk_signature_report_diff_fails_closed_on_missing_extra_and_field_drift() {
+        let origin = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate origin chunk");
+        let expected_extra = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 1, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate expected extra chunk");
+        let actual_extra = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 2, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate actual extra chunk");
+
+        let expected_origin = build_chunk_signature(&origin);
+        let mut actual_origin = expected_origin.clone();
+        actual_origin.status = "minecraft:noise".to_string();
+
+        let diffs = diff_chunk_signature_reports(
+            &[expected_origin, build_chunk_signature(&expected_extra)],
+            &[actual_origin, build_chunk_signature(&actual_extra)],
+        );
+
+        assert!(diffs.contains(&WorldgenChunkReportDiff::Field(
+            WorldgenChunkSignatureDiff {
+                chunk: ChunkCoord { x: 0, z: 0 },
+                field: "status",
+                left: "\"minecraft:full\"".to_string(),
+                right: "\"minecraft:noise\"".to_string(),
+            }
+        )));
+        assert!(diffs.contains(&WorldgenChunkReportDiff::MissingActual {
+            chunk: ChunkCoord { x: 1, z: 0 },
+        }));
+        assert!(diffs.contains(&WorldgenChunkReportDiff::MissingExpected {
+            chunk: ChunkCoord { x: 2, z: 0 },
+        }));
     }
 
     #[test]
