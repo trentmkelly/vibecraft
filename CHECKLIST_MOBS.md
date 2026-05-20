@@ -61,7 +61,7 @@
 - [x] Implement `Creeper`: fuse countdown (`fuseTime`), explosion on fuse complete, `ignited` NBT (flint+steel trigger), charged variant (lightning conversion), `ExplosionPower` scaling for charged
   - [x] Implement Java-matched `Creeper` server-visible state gates: default `Fuse=30`/radius 3/save fields, igniter item consume-vs-damage behavior, `ignited` forcing swell dir 1, primed sound/game event on first positive swell tick, fall-distance swell preload capped at `maxSwell - 5`, explosion on max swell, powered lightning state with 2x radius, charged-creeper loot one-shot gate, active-effect lingering cloud constants, goat target exclusion, and swelling interpolation denominator.
 - [x] Implement `ElderGuardian`: elder curse (Mining Fatigue III, 6000 ticks) within 50 blocks, beam laser at aquatic player targets, spike thorns passive
-- [ ] Implement `EnderMan`: holding block (pickup/place logic), teleport on water/rain, look-at-eyes anger trigger, teleport-away from projectiles, scream sound on anger
+- [x] Implement `EnderMan`: holding block (pickup/place logic), teleport on water/rain/projectiles, look-at-eyes anger trigger, stare sound/scream state on anger
 - [x] Implement `Endermite`: spawn from ender pearl (5% chance), 2-minute despawn timer, attacked by endermen
 - [x] Implement `Ghast`: attack cycle (charge fireball, shoot), large hitbox (4×4×4), fire immunity, scream/shoot sounds, deflectable fireball by projectiles/swords
 - [x] Implement `Giant`: legacy oversized zombie (no natural spawn, only `/summon`), 12-block height, no AI goals
