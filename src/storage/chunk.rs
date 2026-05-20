@@ -574,11 +574,9 @@ impl LevelChunk {
             last_update: optional_long_field(root, "LastUpdate")?.unwrap_or(0),
             status,
             inhabited_time: optional_long_field(root, "InhabitedTime")?.unwrap_or(0),
-            sections: optional_list_field(root, "sections")?
-                .unwrap_or_default()
-                .iter()
-                .map(ChunkSection::from_nbt)
-                .collect::<Result<Vec<_>, _>>()?,
+            sections: chunk_sections_from_list(
+                optional_list_field(root, "sections")?.unwrap_or_default(),
+            )?,
             heightmaps: optional_compound_field(root, "Heightmaps")?
                 .unwrap_or(&[])
                 .iter()
@@ -649,6 +647,22 @@ fn empty_structures_payload() -> Tag {
     ])
 }
 
+fn default_block_states_container() -> Tag {
+    PalettedContainer::single(
+        BlockStateEntry::new("minecraft:air").to_nbt(),
+        SECTION_VOLUME,
+    )
+    .to_nbt()
+}
+
+fn default_biomes_container() -> Tag {
+    PalettedContainer::single(
+        Tag::String("minecraft:plains".to_string()),
+        BIOME_SECTION_VOLUME,
+    )
+    .to_nbt()
+}
+
 impl ChunkSection {
     pub fn to_nbt(&self) -> Tag {
         let mut values = vec![
@@ -671,9 +685,13 @@ impl ChunkSection {
     pub fn from_nbt(tag: &Tag) -> Result<Self, String> {
         let compound = compound(tag)?;
         Ok(Self {
-            y: byte_field(compound, "Y")?,
-            block_states: field(compound, "block_states")?.clone(),
-            biomes: field(compound, "biomes")?.clone(),
+            y: optional_byte_field(compound, "Y")?.unwrap_or(0),
+            block_states: optional_field(compound, "block_states")
+                .cloned()
+                .unwrap_or_else(default_block_states_container),
+            biomes: optional_field(compound, "biomes")
+                .cloned()
+                .unwrap_or_else(default_biomes_container),
             block_light: optional_byte_array(compound, "BlockLight")?,
             sky_light: optional_byte_array(compound, "SkyLight")?,
         })
@@ -927,6 +945,14 @@ fn compound_list_entries(entries: Vec<Tag>) -> Vec<Tag> {
         .collect()
 }
 
+fn chunk_sections_from_list(entries: Vec<Tag>) -> Result<Vec<ChunkSection>, String> {
+    entries
+        .into_iter()
+        .filter(|entry| matches!(entry, Tag::Compound(_)))
+        .map(|entry| ChunkSection::from_nbt(&entry))
+        .collect()
+}
+
 fn post_processing_sections(entries: Vec<Tag>) -> Vec<Tag> {
     entries
         .into_iter()
@@ -998,6 +1024,14 @@ fn optional_int_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i
     match optional_field(compound, name) {
         Some(Tag::Int(value)) => Ok(Some(*value)),
         Some(_) => Err(format!("NBT field {name} must be an int")),
+        None => Ok(None),
+    }
+}
+
+fn optional_byte_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i8>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::Byte(value)) => Ok(Some(*value)),
+        Some(_) => Err(format!("NBT field {name} must be a byte")),
         None => Ok(None),
     }
 }
@@ -1156,9 +1190,10 @@ fn validate_below_zero_retrogen(tag: &Tag) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_status, chunk_status_is_or_after, pack_postprocessing_offset, saved_tick_tag,
-        string_field, BlockStateEntry, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind,
-        LevelChunk, PalettedContainer, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
+        chunk_status, chunk_status_is_or_after, default_biomes_container,
+        default_block_states_container, pack_postprocessing_offset, saved_tick_tag, string_field,
+        BlockStateEntry, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk,
+        PalettedContainer, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
         CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, SECTION_VOLUME,
         WORLDGEN_HEIGHTMAPS,
     };
@@ -1795,6 +1830,33 @@ mod tests {
                 Tag::List(Vec::new()),
             ]
         );
+    }
+
+    #[test]
+    fn level_chunk_load_defaults_sparse_section_payloads() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        let (_, sections) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "sections")
+            .expect("sections should be present");
+        *sections = Tag::List(vec![
+            Tag::String("not-a-section".to_string()),
+            Tag::Compound(Vec::new()),
+        ]);
+
+        let decoded = LevelChunk::from_nbt(pos, &tag).unwrap();
+
+        assert_eq!(decoded.sections.len(), 1);
+        assert_eq!(decoded.sections[0].y, 0);
+        assert_eq!(
+            decoded.sections[0].block_states,
+            default_block_states_container()
+        );
+        assert_eq!(decoded.sections[0].biomes, default_biomes_container());
     }
 
     #[test]
