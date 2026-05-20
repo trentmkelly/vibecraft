@@ -35,7 +35,7 @@
 - [x] Implement `Block.use()` / `Block.attack()` dispatch: route right-click to block use handler first, then item use handler, respecting `InteractionResult` (SUCCESS/CONSUME/FAIL/PASS)
 - [x] Implement neighbor notification cascade: when a block changes, call `updateIndirectNeighbourShapes()` and `onNeighborChanged()` for all 6 adjacent blocks and their adjacent blocks (shape-update chain) — `block_update::NeighborUpdateQueue::update_shape_cascade()` now emits first-layer neighbor notifications plus the second-layer shape-update chain around each neighbor, respecting the configured chained-update limit; covered by `cargo test -q block_update`.
 - [x] Add parity test: break-speed calculation for diamond pickaxe on stone vs. dirt vs. obsidian matches vanilla ticks
-- [ ] Add parity test: neighbor update cascade when placing/breaking redstone wire propagates signal changes to all affected comparators and repeaters
+- [x] Add parity test: neighbor update cascade when placing/breaking redstone wire propagates signal changes to all affected comparators and repeaters — `vanilla_trace_redstone_wire_neighbor_cascade_reaches_comparators_and_repeaters` verifies both redstone-wire placement and break cascade through second-layer neighbor notifications to comparator and repeater positions; covered by `cargo test -q redstone_wire_neighbor_cascade`.
 
 ## Combat and Damage
 

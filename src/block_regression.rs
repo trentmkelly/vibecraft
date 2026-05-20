@@ -7,7 +7,9 @@ mod tests {
         update_shape_or_destroy, BlockStateModel, HorizontalFacing, PlacementContext, Rotation,
         ShapeUpdateContext, ShapeUpdateResult,
     };
-    use crate::block_update::{BlockPos, BlockUpdateAction, Direction, UpdateFlags};
+    use crate::block_update::{
+        plan_chunk_block_updates, BlockChange, BlockPos, BlockUpdateAction, Direction, UpdateFlags,
+    };
     use crate::dispenser_cauldron::{
         cauldron_interaction, dispenser_neighbor_change, execute_dispense, CauldronAction,
         CauldronContent, CauldronItem, DispenseAction, DispenseBehaviorKind, DispensedItemKind,
@@ -284,6 +286,50 @@ mod tests {
             expected: 100 + i64::from(OBSERVER_PULSE_TICKS),
             observed: observer_tick.trigger_tick,
         });
+    }
+
+    #[test]
+    fn vanilla_trace_redstone_wire_neighbor_cascade_reaches_comparators_and_repeaters() {
+        let wire = origin();
+        let changes = [
+            BlockChange {
+                pos: wire,
+                old_block: "minecraft:air",
+                new_block: "minecraft:redstone_wire",
+                flags: UpdateFlags::NOTIFY_NEIGHBORS,
+            },
+            BlockChange {
+                pos: wire,
+                old_block: "minecraft:redstone_wire",
+                new_block: "minecraft:air",
+                flags: UpdateFlags::NOTIFY_NEIGHBORS,
+            },
+        ];
+
+        for change in changes {
+            let actions = plan_chunk_block_updates(&[change], |_| false, |_| false);
+            let comparator = wire.relative(Direction::East).relative(Direction::East);
+            let repeater = wire.relative(Direction::North).relative(Direction::North);
+
+            assert!(
+                actions.iter().any(|action| matches!(
+                    action,
+                    BlockUpdateAction::NotifyNeighbor { pos, source, .. }
+                        if *pos == comparator && *source == wire.relative(Direction::East)
+                )),
+                "redstone wire {:?} should cascade to comparator two blocks east",
+                change.new_block
+            );
+            assert!(
+                actions.iter().any(|action| matches!(
+                    action,
+                    BlockUpdateAction::NotifyNeighbor { pos, source, .. }
+                        if *pos == repeater && *source == wire.relative(Direction::North)
+                )),
+                "redstone wire {:?} should cascade to repeater two blocks north",
+                change.new_block
+            );
+        }
     }
 
     #[test]
