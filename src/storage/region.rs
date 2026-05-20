@@ -468,6 +468,25 @@ impl RegionIoWorker {
         RegionFile::open(&self.dir, chunk.region())?.read_chunk_nbt(chunk)
     }
 
+    pub fn scan_chunk_nbt<F>(&self, chunk: ChunkPos, mut visitor: F) -> io::Result<()>
+    where
+        F: FnMut(&str, &Tag) -> io::Result<()>,
+    {
+        if let Some(pending) = self.pending_writes.get(&chunk) {
+            if let Some(tag) = pending.tag.as_ref() {
+                visitor(&pending.name, tag)?;
+            }
+            return Ok(());
+        }
+
+        if let Some((name, tag)) =
+            RegionFile::open(&self.dir, chunk.region())?.read_chunk_nbt(chunk)?
+        {
+            visitor(&name, &tag)?;
+        }
+        Ok(())
+    }
+
     pub fn synchronize(&mut self) -> io::Result<()> {
         let pending = std::mem::take(&mut self.pending_writes);
         for (chunk, write) in pending {
@@ -903,6 +922,74 @@ mod tests {
         assert_eq!(region.read_chunk_nbt(chunk).unwrap(), None);
         assert!(!region.does_chunk_exist(chunk));
         assert!(!dir.join("c.0.0.mcc").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_scan_chunk_nbt_respects_pending_writes_and_deletes() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-scan-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let chunk = ChunkPos { x: 0, z: 0 };
+        RegionFile::open(&dir, chunk.region())
+            .unwrap()
+            .write_chunk_nbt(
+                chunk,
+                "stored",
+                &Tag::Compound(vec![("stored".to_string(), Tag::Int(1))]),
+            )
+            .unwrap();
+
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        let mut scanned = Vec::new();
+        worker
+            .scan_chunk_nbt(chunk, |name, tag| {
+                scanned.push((name.to_string(), tag.clone()));
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            scanned,
+            vec![(
+                "stored".to_string(),
+                Tag::Compound(vec![("stored".to_string(), Tag::Int(1))])
+            )]
+        );
+
+        worker.store_chunk_nbt(
+            chunk,
+            "pending",
+            Tag::Compound(vec![("pending".to_string(), Tag::Int(2))]),
+        );
+        scanned.clear();
+        worker
+            .scan_chunk_nbt(chunk, |name, tag| {
+                scanned.push((name.to_string(), tag.clone()));
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(
+            scanned,
+            vec![(
+                "pending".to_string(),
+                Tag::Compound(vec![("pending".to_string(), Tag::Int(2))])
+            )]
+        );
+
+        worker.clear_chunk_nbt(chunk);
+        scanned.clear();
+        worker
+            .scan_chunk_nbt(chunk, |name, tag| {
+                scanned.push((name.to_string(), tag.clone()));
+                Ok(())
+            })
+            .unwrap();
+        assert!(scanned.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }
