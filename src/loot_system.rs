@@ -406,6 +406,28 @@ pub fn resolve_advancement_reward_loot(
     }
 }
 
+pub fn resolve_piglin_barter_loot(
+    engine: &LootBehaviorEngine,
+    piglin: impl Into<String>,
+    offered_item: &str,
+    origin: (f64, f64, f64),
+    seed: u64,
+) -> Option<LootResolution> {
+    if offered_item != "minecraft:gold_ingot" {
+        return None;
+    }
+
+    let piglin = piglin.into();
+    let mut request = LootRequest::new(
+        LootSurface::PiglinBarter,
+        "minecraft:gameplay/piglin_bartering",
+    );
+    request.origin = origin;
+    request.actor = Some(piglin.clone());
+    request.target_entity = Some(piglin);
+    Some(engine.resolve(request, seed))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LootTableResource {
     pub param_set: String,
@@ -2089,6 +2111,51 @@ mod tests {
             LootDelivery::GiveToEntity(
                 "Steve".to_string(),
                 vec![LootStack::new("minecraft:emerald", 1)]
+            )
+        );
+    }
+
+    #[test]
+    fn piglin_barter_accepts_gold_and_uses_barter_context() {
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:gameplay/piglin_bartering",
+            table_with_pool(LootPool::single(LootEntry::Item {
+                item: "minecraft:quartz".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: vec![LootCondition::EntityProperty {
+                    key: "this_entity".to_string(),
+                    value: "Piglin".to_string(),
+                }],
+                functions: Vec::new(),
+            })),
+        );
+
+        assert!(resolve_piglin_barter_loot(
+            &engine,
+            "Piglin",
+            "minecraft:iron_ingot",
+            (0.0, 64.0, 0.0),
+            7,
+        )
+        .is_none());
+
+        let resolution = resolve_piglin_barter_loot(
+            &engine,
+            "Piglin",
+            "minecraft:gold_ingot",
+            (4.0, 65.0, 4.0),
+            7,
+        )
+        .unwrap();
+
+        assert_eq!(resolution.param_set, LootParamSet::Barter);
+        assert_eq!(
+            resolution.delivery,
+            LootDelivery::GiveToEntity(
+                "Piglin".to_string(),
+                vec![LootStack::new("minecraft:quartz", 1)]
             )
         );
     }

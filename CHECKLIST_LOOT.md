@@ -105,7 +105,7 @@
 - [x] Implement archaeology loot: `LootParams` with ORIGIN; brushable block table (`suspicious_sand`, `suspicious_gravel` variants per structure)
 - [x] Implement advancement reward loot: `LootParams` with THIS_ENTITY; XP and item rewards from advancement JSON - `advancement_system` emits XP and loot-table reward events from advancement JSON/progress completion, and `resolve_advancement_reward_loot` evaluates those tables through `LootSurface::AdvancementReward` with player `THIS_ENTITY` and `ORIGIN`; covered by `advancement_reward_loot_grants_xp_and_tables_with_player_context` and `cargo test -q loot_system`.
 - [ ] Implement mob-gift loot: cat morning gift (`cat/morning_gift`), villager trades, wandering trader
-- [ ] Implement piglin bartering: `gameplay/piglin_bartering` table
+- [x] Implement piglin bartering: `gameplay/piglin_bartering` table - `resolve_piglin_barter_loot` accepts only `minecraft:gold_ingot`, evaluates `minecraft:gameplay/piglin_bartering` through `LootSurface::PiglinBarter`, and supplies the piglin as `THIS_ENTITY`; covered by `piglin_barter_accepts_gold_and_uses_barter_context` and `cargo test -q loot_system`.
 - [ ] Implement vault loot: trial-key one-use opening per player UUID; normal vs. ominous vault tables
 - [x] Add Mineflayer loot-table smoke tests: custom datapack loot tables triggered through block break, chest open, `/loot`, fishing, entity death, advancement reward; diff results against official `server.jar`
 - [x] Add Mineflayer loot-context tests: luck, tool, killer player, origin, damage source, explosion radius, entity properties, scoreboard values, storage NBT, random sequence IDs
