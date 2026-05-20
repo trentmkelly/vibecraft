@@ -121,6 +121,13 @@ pub struct ChunkGenerationWaitPlan {
     pub marked_for_cancellation: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkGenerationScheduleLayerPlan {
+    pub radius: i32,
+    pub visited_positions: Vec<(i32, i32)>,
+    pub stopped_early: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickPriority {
     ExtremelyHigh,
@@ -1161,6 +1168,53 @@ pub fn chunk_generation_task_wait_for_scheduled_layer(
         remaining_layer,
         marked_for_cancellation,
     }
+}
+
+pub fn chunk_generation_task_schedule_layer_positions<I>(
+    target: &str,
+    status: &str,
+    needs_generation: bool,
+    center_x: i32,
+    center_z: i32,
+    mut outcomes: I,
+) -> Option<ChunkGenerationScheduleLayerPlan>
+where
+    I: Iterator<Item = bool>,
+{
+    let radius = chunk_generation_task_layer_radius(target, status, needs_generation)?;
+    let mut visited_positions = Vec::new();
+    let mut stopped_early = false;
+
+    for x in center_x - radius..=center_x + radius {
+        for z in center_z - radius..=center_z + radius {
+            match outcomes.next() {
+                Some(true) => visited_positions.push((x, z)),
+                Some(false) => {
+                    visited_positions.push((x, z));
+                    stopped_early = true;
+                    return Some(ChunkGenerationScheduleLayerPlan {
+                        radius,
+                        visited_positions,
+                        stopped_early,
+                    });
+                }
+                None => {
+                    stopped_early = true;
+                    return Some(ChunkGenerationScheduleLayerPlan {
+                        radius,
+                        visited_positions,
+                        stopped_early,
+                    });
+                }
+            }
+        }
+    }
+
+    Some(ChunkGenerationScheduleLayerPlan {
+        radius,
+        visited_positions,
+        stopped_early,
+    })
 }
 
 fn chunk_pyramid_dependencies(
@@ -2747,6 +2801,61 @@ mod tests {
                 remaining_layer: vec![],
                 marked_for_cancellation: true,
             }
+        );
+    }
+
+    #[test]
+    fn chunk_generation_task_schedule_layer_positions_match_java_traversal() {
+        assert_eq!(
+            super::chunk_generation_task_schedule_layer_positions(
+                "minecraft:light",
+                "minecraft:initialize_light",
+                false,
+                5,
+                -2,
+                std::iter::repeat(true),
+            ),
+            Some(super::ChunkGenerationScheduleLayerPlan {
+                radius: 1,
+                visited_positions: vec![
+                    (4, -3),
+                    (4, -2),
+                    (4, -1),
+                    (5, -3),
+                    (5, -2),
+                    (5, -1),
+                    (6, -3),
+                    (6, -2),
+                    (6, -1),
+                ],
+                stopped_early: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_schedule_layer_positions(
+                "minecraft:light",
+                "minecraft:initialize_light",
+                false,
+                0,
+                0,
+                [true, true, false, true].into_iter(),
+            ),
+            Some(super::ChunkGenerationScheduleLayerPlan {
+                radius: 1,
+                visited_positions: vec![(-1, -1), (-1, 0), (-1, 1)],
+                stopped_early: true,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_schedule_layer_positions(
+                "missing",
+                "minecraft:empty",
+                false,
+                0,
+                0,
+                std::iter::repeat(true),
+            ),
+            None
         );
     }
 }
