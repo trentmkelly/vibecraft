@@ -81,6 +81,31 @@ pub enum ChunkStatusTaskKind {
     Full,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TickPriority {
+    ExtremelyHigh,
+    VeryHigh,
+    High,
+    Normal,
+    Low,
+    VeryLow,
+    ExtremelyLow,
+}
+
+impl TickPriority {
+    pub fn value(self) -> i32 {
+        match self {
+            Self::ExtremelyHigh => -3,
+            Self::VeryHigh => -2,
+            Self::High => -1,
+            Self::Normal => 0,
+            Self::Low => 1,
+            Self::VeryLow => 2,
+            Self::ExtremelyLow => 3,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChunkSection {
     pub y: i8,
@@ -445,6 +470,44 @@ impl LevelChunk {
         true
     }
 
+    pub fn schedule_block_tick(
+        &mut self,
+        id: impl Into<String>,
+        x: i32,
+        y: i32,
+        z: i32,
+        delay: i32,
+        priority: TickPriority,
+    ) -> bool {
+        if !self.contains_block_pos(x, z) {
+            return false;
+        }
+        self.block_ticks
+            .push(saved_tick_tag(id.into(), x, y, z, delay, priority));
+        true
+    }
+
+    pub fn schedule_fluid_tick(
+        &mut self,
+        id: impl Into<String>,
+        x: i32,
+        y: i32,
+        z: i32,
+        delay: i32,
+        priority: TickPriority,
+    ) -> bool {
+        if !self.contains_block_pos(x, z) {
+            return false;
+        }
+        self.fluid_ticks
+            .push(saved_tick_tag(id.into(), x, y, z, delay, priority));
+        true
+    }
+
+    fn contains_block_pos(&self, x: i32, z: i32) -> bool {
+        x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
+    }
+
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
         require_current_tag_data_version("chunk", tag)?;
         let root = compound(tag)?;
@@ -499,6 +562,17 @@ fn block_entity_tag_pos(tag: &Tag) -> Option<(i32, i32, i32)> {
         int_field(fields, "y").ok()?,
         int_field(fields, "z").ok()?,
     ))
+}
+
+fn saved_tick_tag(id: String, x: i32, y: i32, z: i32, delay: i32, priority: TickPriority) -> Tag {
+    Tag::Compound(vec![
+        ("i".to_string(), Tag::String(id)),
+        ("x".to_string(), Tag::Int(x)),
+        ("y".to_string(), Tag::Int(y)),
+        ("z".to_string(), Tag::Int(z)),
+        ("t".to_string(), Tag::Int(delay)),
+        ("p".to_string(), Tag::Int(priority.value())),
+    ])
 }
 
 fn empty_structures_payload() -> Tag {
@@ -874,8 +948,8 @@ mod tests {
     use super::{
         chunk_status, chunk_status_is_or_after, pack_postprocessing_offset, BlockStateEntry,
         ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, PalettedContainer,
-        SectionBlockPos, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS,
-        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE,
+        FINAL_HEIGHTMAPS, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -1051,6 +1125,62 @@ mod tests {
         assert!(chunk.add_entity_nbt(cow.clone()));
 
         assert_eq!(chunk.entities, vec![pig, cow]);
+    }
+
+    #[test]
+    fn level_chunk_schedules_block_and_fluid_ticks_for_own_chunk() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: -2, z: 3 });
+
+        assert!(chunk.schedule_block_tick(
+            "minecraft:oak_sapling",
+            -17,
+            65,
+            48,
+            7,
+            TickPriority::High
+        ));
+        assert!(chunk.schedule_fluid_tick(
+            "minecraft:water",
+            -32,
+            -5,
+            63,
+            1,
+            TickPriority::VeryLow
+        ));
+        assert!(!chunk.schedule_block_tick(
+            "minecraft:stone",
+            -33,
+            65,
+            48,
+            0,
+            TickPriority::Normal
+        ));
+
+        assert_eq!(
+            chunk.block_ticks,
+            vec![Tag::Compound(vec![
+                (
+                    "i".to_string(),
+                    Tag::String("minecraft:oak_sapling".to_string())
+                ),
+                ("x".to_string(), Tag::Int(-17)),
+                ("y".to_string(), Tag::Int(65)),
+                ("z".to_string(), Tag::Int(48)),
+                ("t".to_string(), Tag::Int(7)),
+                ("p".to_string(), Tag::Int(-1)),
+            ])]
+        );
+        assert_eq!(
+            chunk.fluid_ticks,
+            vec![Tag::Compound(vec![
+                ("i".to_string(), Tag::String("minecraft:water".to_string())),
+                ("x".to_string(), Tag::Int(-32)),
+                ("y".to_string(), Tag::Int(-5)),
+                ("z".to_string(), Tag::Int(63)),
+                ("t".to_string(), Tag::Int(1)),
+                ("p".to_string(), Tag::Int(2)),
+            ])]
+        );
     }
 
     #[test]
