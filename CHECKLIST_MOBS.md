@@ -59,6 +59,7 @@
 ### Top-Level Monsters
 - [ ] Implement `Blaze`: fire charge burst (3 fireballs per attack cycle), hover flight AI, fire immunity, drop (blaze rod)
 - [ ] Implement `Creeper`: fuse countdown (`fuseTime`), explosion on fuse complete, `ignited` NBT (flint+steel trigger), charged variant (lightning conversion), `ExplosionPower` scaling for charged
+  - [x] Implement Java-matched `Creeper` server-visible state gates: default `Fuse=30`/radius 3/save fields, igniter item consume-vs-damage behavior, `ignited` forcing swell dir 1, primed sound/game event on first positive swell tick, fall-distance swell preload capped at `maxSwell - 5`, explosion on max swell, powered lightning state with 2x radius, charged-creeper loot one-shot gate, active-effect lingering cloud constants, goat target exclusion, and swelling interpolation denominator.
 - [ ] Implement `ElderGuardian`: elder curse (Mining Fatigue III, 60s) within 50 blocks, beam laser at aquatic player targets, spike thorns passive
 - [ ] Implement `EnderMan`: holding block (pickup/place logic), teleport on water/rain, look-at-eyes anger trigger, teleport-away from projectiles, scream sound on anger
 - [ ] Implement `Endermite`: spawn from ender pearl (5% chance), 2-minute despawn timer, attacked by endermen
