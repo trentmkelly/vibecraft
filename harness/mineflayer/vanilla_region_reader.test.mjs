@@ -3,6 +3,8 @@ import test from 'node:test'
 import { deflateSync } from 'node:zlib'
 
 import {
+  decodeChunkBlockStateArray,
+  decodePalettedContainerIndexes,
   readRegionBuffer,
   regionPosFromFileName,
   summarizeRegion
@@ -86,6 +88,70 @@ test('region file names use vanilla floor-divided coordinates', () => {
   assert.deepEqual(regionPosFromFileName('/tmp/not-a-region.dat'), { x: 0, z: 0 })
 })
 
+test('block state arrays decode x, y, z local coordinates from Java paletted sections', () => {
+  const packed = packSimpleBitStorage([0, 1, 2, ...Array.from({ length: 4093 }, () => 0)], 4)
+  const chunkNbt = {
+    type: 'compound',
+    value: {
+      sections: {
+        type: 'list',
+        value: [{
+          type: 'compound',
+          value: {
+            Y: { type: 'byte', value: -4 },
+            block_states: {
+              type: 'compound',
+              value: {
+                palette: {
+                  type: 'list',
+                  value: [
+                    { type: 'compound', value: { Name: { type: 'string', value: 'minecraft:air' } } },
+                    { type: 'compound', value: { Name: { type: 'string', value: 'minecraft:stone' } } },
+                    {
+                      type: 'compound',
+                      value: {
+                        Name: { type: 'string', value: 'minecraft:oak_log' },
+                        Properties: {
+                          type: 'compound',
+                          value: {
+                            axis: { type: 'string', value: 'y' }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                data: { type: 'long_array', value: packed.map(value => value.toString()) }
+              }
+            }
+          }
+        }]
+      }
+    }
+  }
+
+  const decoded = decodeChunkBlockStateArray(chunkNbt)
+
+  assert.equal(decoded.yMin, -64)
+  assert.equal(decoded.yMaxExclusive, -48)
+  assert.equal(decoded.blocks.length, 16)
+  assert.equal(decoded.blocks[0].length, 16)
+  assert.equal(decoded.blocks[0][0].length, 16)
+  assert.equal(decoded.blocks[0][0][0], 'minecraft:air')
+  assert.equal(decoded.blocks[1][0][0], 'minecraft:stone')
+  assert.equal(decoded.blocks[2][0][0], 'minecraft:oak_log[axis=y]')
+})
+
+test('paletted container indexes follow Java SimpleBitStorage values-per-long packing', () => {
+  const indexes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  const packed = packSimpleBitStorage(indexes, 4)
+
+  assert.deepEqual(
+    decodePalettedContainerIndexes({ data: packed.map(value => value.toString()), paletteSize: 10, entryCount: indexes.length, minBits: 4 }),
+    indexes
+  )
+})
+
 function namedCompound (name, fields) {
   return Buffer.concat([Buffer.from([10]), utf(name), ...fields, Buffer.from([0])])
 }
@@ -141,4 +207,16 @@ function utf (value) {
   const length = Buffer.alloc(2)
   length.writeUInt16BE(bytes.length)
   return Buffer.concat([length, bytes])
+}
+
+function packSimpleBitStorage (values, bits) {
+  const valuesPerLong = Math.floor(64 / bits)
+  const mask = (1n << BigInt(bits)) - 1n
+  const packed = Array.from({ length: Math.ceil(values.length / valuesPerLong) }, () => 0n)
+  values.forEach((value, index) => {
+    const cellIndex = Math.floor(index / valuesPerLong)
+    const bitIndex = BigInt((index - cellIndex * valuesPerLong) * bits)
+    packed[cellIndex] |= (BigInt(value) & mask) << bitIndex
+  })
+  return packed.map(value => BigInt.asIntN(64, value))
 }

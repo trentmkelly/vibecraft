@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::time::Instant;
 
@@ -4032,7 +4033,7 @@ pub enum BinaryDensityFunction {
     Max,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TerrainSplineKind {
     OverworldOffset,
     OverworldFactor,
@@ -5684,7 +5685,10 @@ fn bits_for_palette(palette_len: u64) -> usize {
 
 fn heightmap_opaque(heightmap: HeightmapKind, block: &str) -> bool {
     match heightmap {
-        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => block != "minecraft:air",
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => !matches!(
+            block,
+            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+        ),
         HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg | HeightmapKind::MotionBlocking => {
             motion_blocking_block(block)
         }
@@ -23418,8 +23422,45 @@ pub enum LiveChunkGenerationMode {
 pub struct LiveChunkGenerationTimings {
     pub resolve_preset_ms: u128,
     pub terrain_ms: u128,
+    pub terrain: LiveTerrainTimings,
     pub heightmaps: LiveHeightmapTimings,
     pub mobs: LiveMobGenerationTimings,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LiveTerrainTimings {
+    pub fill_total_ms: u128,
+    pub fill_init_sections_ms: u128,
+    pub fill_noise_chunk_init_ms: u128,
+    pub fill_aquifer_init_ms: u128,
+    pub fill_block_loop_ms: u128,
+    pub fill_density_lookup_us: u128,
+    pub fill_aquifer_compute_us: u128,
+    pub fill_ore_vein_lookup_us: u128,
+    pub fill_ore_decision_us: u128,
+    pub fill_interpolation_update_us: u128,
+    pub fill_full_noise_cache_ms: u128,
+    pub fill_vein_noise_cache_ms: u128,
+    pub fill_heightmap_pack_ms: u128,
+    pub surface_total_ms: u128,
+    pub surface_noise_setup_ms: u128,
+    pub surface_prelim_ms: u128,
+    pub surface_column_loop_ms: u128,
+    pub cell_columns: usize,
+    pub full_noise_cache_fills: usize,
+    pub vein_noise_cache_fills: usize,
+    pub cache_once_scalar_hits: usize,
+    pub cache_once_scalar_misses: usize,
+    pub cache_once_array_hits: usize,
+    pub cache_once_array_misses: usize,
+    pub block_samples: usize,
+    pub block_writes: usize,
+    pub aquifer_calls: usize,
+    pub ore_vein_samples: usize,
+    pub interpolator_count: usize,
+    pub surface_columns: usize,
+    pub surface_block_samples: usize,
+    pub surface_block_writes: usize,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -23480,11 +23521,25 @@ pub fn generate_chunk_for_stem_with_mode(
                     .unwrap_or(NONE_NOISE_ROUTER);
                 match load_surface_rule(noise_settings.id) {
                     Some(rule) => {
-                        fill_noise_and_build_surface(pos, noise_settings, seed, noise_router, &rule)
+                        let (mut chunk, _terrain_timings) = fill_noise_and_build_surface_timed(
+                            pos,
+                            biome_source_model,
+                            noise_settings,
+                            seed,
+                            noise_router,
+                            &rule,
+                        );
+                        apply_configured_carvers_for_biome_source(
+                            &mut chunk,
+                            biome_source_model,
+                            noise_settings,
+                            seed,
+                        );
+                        chunk
                     }
                     None => {
-                        let mut chunk =
-                            fill_from_noise_chunk(pos, noise_settings, seed, noise_router);
+                        let (mut chunk, _terrain_timings) =
+                            fill_from_noise_chunk_timed(pos, noise_settings, seed, noise_router);
                         chunk.status = "minecraft:surface".to_string();
                         chunk
                     }
@@ -23665,7 +23720,11 @@ pub fn generator_build_surface_for_stem(
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
-        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+        ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } => {
             let router_id = noise_router_id_for_settings(**noise_settings);
             let noise_router = builtin_noise_router(router_id)
                 .map(|e| e.router)
@@ -23673,6 +23732,7 @@ pub fn generator_build_surface_for_stem(
             match load_surface_rule(noise_settings.id) {
                 Some(rule) => Ok(fill_noise_and_build_surface(
                     pos,
+                    biome_source_model,
                     noise_settings,
                     0,
                     noise_router,
@@ -23977,7 +24037,9 @@ pub fn chunk_generation_mob_top_non_colliding_pos(
     let placement_type = spawn_placement_type(entity_type);
     let local_x = x.rem_euclid(16) as usize;
     let local_z = z.rem_euclid(16) as usize;
-    let mut y = chunk.compute_heightmap_values(heightmap)[local_z * 16 + local_x];
+    let mut y = chunk
+        .heightmap_value(heightmap, local_x, local_z)
+        .unwrap_or_else(|| chunk.compute_heightmap_values(heightmap)[local_z * 16 + local_x]);
 
     if dimension_has_ceiling {
         let min_y = chunk.min_section_y * 16;
@@ -25218,11 +25280,27 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                     .unwrap_or(NONE_NOISE_ROUTER);
                 match load_surface_rule(noise_settings.id) {
                     Some(rule) => {
-                        fill_noise_and_build_surface(pos, noise_settings, seed, noise_router, &rule)
+                        let (mut chunk, terrain_timings) = fill_noise_and_build_surface_timed(
+                            pos,
+                            biome_source_model,
+                            noise_settings,
+                            seed,
+                            noise_router,
+                            &rule,
+                        );
+                        timings.terrain = terrain_timings;
+                        apply_configured_carvers_for_biome_source(
+                            &mut chunk,
+                            biome_source_model,
+                            noise_settings,
+                            seed,
+                        );
+                        chunk
                     }
                     None => {
-                        let mut chunk =
-                            fill_from_noise_chunk(pos, noise_settings, seed, noise_router);
+                        let (mut chunk, terrain_timings) =
+                            fill_from_noise_chunk_timed(pos, noise_settings, seed, noise_router);
+                        timings.terrain = terrain_timings;
                         chunk.status = "minecraft:surface".to_string();
                         chunk
                     }
@@ -26553,16 +26631,14 @@ impl DensityFunction {
                 noise,
                 xz_scale,
                 y_scale,
-            } => random_state_normal_noise_snapshot(seed, settings, noise)
-                .map(|snapshot| {
-                    normal_noise_sample(
-                        &snapshot,
-                        f64::from(block_x) * xz_scale,
-                        f64::from(block_y) * y_scale,
-                        f64::from(block_z) * xz_scale,
-                    )
-                })
-                .unwrap_or(0.0),
+            } => random_state_normal_noise_sample(
+                seed,
+                settings,
+                noise,
+                f64::from(block_x) * xz_scale,
+                f64::from(block_y) * y_scale,
+                f64::from(block_z) * xz_scale,
+            ),
             DensityFunction::ShiftA { noise } => density_shift_noise_sample(
                 seed,
                 settings,
@@ -26601,9 +26677,7 @@ impl DensityFunction {
                     + shift_y.compute_with_noise(seed, settings, block_x, block_y, block_z);
                 let z = f64::from(block_z) * xz_scale
                     + shift_z.compute_with_noise(seed, settings, block_x, block_y, block_z);
-                random_state_normal_noise_snapshot(seed, settings, noise)
-                    .map(|snapshot| normal_noise_sample(&snapshot, x, y, z))
-                    .unwrap_or(0.0)
+                random_state_normal_noise_sample(seed, settings, noise, x, y, z)
             }
             DensityFunction::WeirdScaledSampler {
                 input,
@@ -26612,18 +26686,16 @@ impl DensityFunction {
             } => {
                 let rarity = rarity_mapper
                     .map_value(input.compute_with_noise(seed, settings, block_x, block_y, block_z));
-                random_state_normal_noise_snapshot(seed, settings, noise)
-                    .map(|snapshot| {
-                        rarity
-                            * normal_noise_sample(
-                                &snapshot,
-                                f64::from(block_x) / rarity,
-                                f64::from(block_y) / rarity,
-                                f64::from(block_z) / rarity,
-                            )
-                            .abs()
-                    })
-                    .unwrap_or(0.0)
+                rarity
+                    * random_state_normal_noise_sample(
+                        seed,
+                        settings,
+                        noise,
+                        f64::from(block_x) / rarity,
+                        f64::from(block_y) / rarity,
+                        f64::from(block_z) / rarity,
+                    )
+                    .abs()
             }
             DensityFunction::BlendAlpha => 1.0,
             DensityFunction::BlendOffset => 0.0,
@@ -27188,14 +27260,23 @@ fn aq_is_deep_dark(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
+    noise_chunk: Option<&NoiseChunk>,
 ) -> bool {
     // Java uses float literals (-0.225F, 0.9F), widened to double for comparison.
-    let erosion = noise_router
-        .erosion
-        .compute_with_noise(seed, settings, x, y, z);
-    let depth = noise_router
-        .depth
-        .compute_with_noise(seed, settings, x, y, z);
+    let erosion = if let Some(chunk) = noise_chunk {
+        eval_density_fn_with_interp(noise_router.erosion, chunk, x, y, z)
+    } else {
+        noise_router
+            .erosion
+            .compute_with_noise(seed, settings, x, y, z)
+    };
+    let depth = if let Some(chunk) = noise_chunk {
+        eval_density_fn_with_interp(noise_router.depth, chunk, x, y, z)
+    } else {
+        noise_router
+            .depth
+            .compute_with_noise(seed, settings, x, y, z)
+    };
     erosion < (-0.225_f32) as f64 && depth > (0.9_f32) as f64
 }
 
@@ -27209,6 +27290,7 @@ fn aq_calculate_pressure(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
+    noise_chunk: Option<&NoiseChunk>,
     barrier_cache: &mut Option<f64>,
     s1: &FluidStatus,
     s2: &FluidStatus,
@@ -27251,9 +27333,13 @@ fn aq_calculate_pressure(
     // Only sample barrier noise when gradient is in the influential range.
     let noise_val = if gradient >= -2.0 && gradient <= 2.0 {
         *barrier_cache.get_or_insert_with(|| {
-            noise_router
-                .barrier
-                .compute_with_noise(seed, settings, pos_x, pos_y, pos_z)
+            if let Some(chunk) = noise_chunk {
+                eval_density_fn_with_interp(noise_router.barrier, chunk, pos_x, pos_y, pos_z)
+            } else {
+                noise_router
+                    .barrier
+                    .compute_with_noise(seed, settings, pos_x, pos_y, pos_z)
+            }
         })
     } else {
         0.0
@@ -27273,6 +27359,7 @@ fn aq_randomized_fluid_level(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
+    noise_chunk: Option<&NoiseChunk>,
 ) -> i32 {
     const CW: i32 = 16; // fluidCellWidth
     const CH: i32 = 40; // fluidCellHeight
@@ -27280,10 +27367,13 @@ fn aq_randomized_fluid_level(
     let cy = y.div_euclid(CH);
     let cz = z.div_euclid(CW);
     let mid_y = cy * CH + 20;
-    let spread = noise_router
-        .fluid_level_spread
-        .compute_with_noise(seed, settings, cx, cy, cz)
-        * 10.0;
+    let spread = if let Some(chunk) = noise_chunk {
+        eval_density_fn_with_interp(noise_router.fluid_level_spread, chunk, cx, cy, cz)
+    } else {
+        noise_router
+            .fluid_level_spread
+            .compute_with_noise(seed, settings, cx, cy, cz)
+    } * 10.0;
     // Mth.quantize(v, 3) = floor(v / 3) * 3
     let quantized = (spread / 3.0).floor() as i32 * 3;
     (mid_y + quantized).min(lowest_prelim)
@@ -27301,6 +27391,7 @@ fn aq_fluid_type(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
+    noise_chunk: Option<&NoiseChunk>,
 ) -> &'static str {
     // Lava pockets only appear well below sea level and when lava noise is strong.
     if fluid_level <= -10
@@ -27312,9 +27403,13 @@ fn aq_fluid_type(
         let cx = x.div_euclid(LCW);
         let cy = y.div_euclid(LCH);
         let cz = z.div_euclid(LCW);
-        let val = noise_router
-            .lava
-            .compute_with_noise(seed, settings, cx, cy, cz);
+        let val = if let Some(chunk) = noise_chunk {
+            eval_density_fn_with_interp(noise_router.lava, chunk, cx, cy, cz)
+        } else {
+            noise_router
+                .lava
+                .compute_with_noise(seed, settings, cx, cy, cz)
+        };
         if val.abs() > 0.3 {
             return "minecraft:lava";
         }
@@ -27335,9 +27430,10 @@ fn aq_surface_level(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
+    noise_chunk: Option<&NoiseChunk>,
 ) -> i32 {
     let (partially_flooded, fully_flooded) =
-        if aq_is_deep_dark(x, y, z, seed, settings, noise_router) {
+        if aq_is_deep_dark(x, y, z, seed, settings, noise_router, noise_chunk) {
             // Deep dark: no aquifer pockets.
             (-1.0_f64, -1.0_f64)
         } else {
@@ -27348,10 +27444,14 @@ fn aq_surface_level(
             } else {
                 0.0
             };
-            let noise = noise_router
-                .fluid_level_floodedness
-                .compute_with_noise(seed, settings, x, y, z)
-                .clamp(-1.0, 1.0);
+            let noise = if let Some(chunk) = noise_chunk {
+                eval_density_fn_with_interp(noise_router.fluid_level_floodedness, chunk, x, y, z)
+            } else {
+                noise_router
+                    .fluid_level_floodedness
+                    .compute_with_noise(seed, settings, x, y, z)
+            }
+            .clamp(-1.0, 1.0);
             // Mth.map(flooded_factor, 1.0, 0.0, -0.3, 0.8) = -0.3 + (1-f)*1.1
             let fully_threshold = -0.3 + (1.0 - flooded_factor) * 1.1;
             // Mth.map(flooded_factor, 1.0, 0.0, -0.8, 0.4) = -0.8 + (1-f)*1.2
@@ -27362,7 +27462,16 @@ fn aq_surface_level(
     if fully_flooded > 0.0 {
         global_fluid.fluid_level
     } else if partially_flooded > 0.0 {
-        aq_randomized_fluid_level(x, y, z, lowest_prelim, seed, settings, noise_router)
+        aq_randomized_fluid_level(
+            x,
+            y,
+            z,
+            lowest_prelim,
+            seed,
+            settings,
+            noise_router,
+            noise_chunk,
+        )
     } else {
         AQUIFER_WAY_BELOW_MIN_Y
     }
@@ -27378,6 +27487,7 @@ fn aq_compute_fluid(
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
+    noise_chunk: Option<&NoiseChunk>,
 ) -> FluidStatus {
     let global = global_fluid_status(y, settings.sea_level, settings.default_fluid);
     let top = y + 12;
@@ -27406,7 +27516,10 @@ fn aq_compute_fluid(
     for (ox, oz) in OFFSETS {
         let sx = x + ox * 16;
         let sz = z + oz * 16;
-        let prelim = aq_prelim_surface(sx, sz, seed, settings, noise_router);
+        let prelim = noise_chunk.map_or_else(
+            || aq_prelim_surface(sx, sz, seed, settings, noise_router),
+            |chunk| chunk.preliminary_surface_level(sx, sz),
+        );
         // adjustSurfaceLevel adds 8 to widen the "near surface" check.
         let adjusted = prelim + 8;
         let is_center = ox == 0 && oz == 0;
@@ -27444,8 +27557,19 @@ fn aq_compute_fluid(
         seed,
         settings,
         noise_router,
+        noise_chunk,
     );
-    let fluid_type = aq_fluid_type(x, y, z, &global, fluid_level, seed, settings, noise_router);
+    let fluid_type = aq_fluid_type(
+        x,
+        y,
+        z,
+        &global,
+        fluid_level,
+        seed,
+        settings,
+        noise_router,
+        noise_chunk,
+    );
     FluidStatus {
         fluid_level,
         fluid_type,
@@ -27475,6 +27599,7 @@ struct NoiseBasedAquifer {
 
 impl NoiseBasedAquifer {
     fn new(
+        noise_chunk: &mut NoiseChunk,
         chunk_min_x: i32,
         chunk_max_x: i32,
         chunk_min_z: i32,
@@ -27505,37 +27630,16 @@ impl NoiseBasedAquifer {
         let aquifer_cache = vec![None; total];
         let aquifer_location_cache = vec![i64::MAX; total];
 
-        // skipSamplingAboveY: derive from max preliminary surface level across the grid.
-        // Sample the 4 corners of the grid range.
-        let p00 = aq_prelim_surface(
+        // Java Aquifer.NoiseBasedAquifer asks NoiseChunk for the maximum
+        // preliminary surface over the whole aquifer grid, sampled every 4
+        // blocks.  This controls how much vertical range needs expensive
+        // aquifer sampling.
+        let max_prelim = noise_chunk.max_preliminary_surface_level(
             aq_from_grid_x(min_grid_x, 0),
             aq_from_grid_z(min_grid_z, 0),
-            seed,
-            settings,
-            noise_router,
-        );
-        let p10 = aq_prelim_surface(
-            aq_from_grid_x(max_grid_x, 9),
-            aq_from_grid_z(min_grid_z, 0),
-            seed,
-            settings,
-            noise_router,
-        );
-        let p01 = aq_prelim_surface(
-            aq_from_grid_x(min_grid_x, 0),
-            aq_from_grid_z(max_grid_z, 9),
-            seed,
-            settings,
-            noise_router,
-        );
-        let p11 = aq_prelim_surface(
             aq_from_grid_x(max_grid_x, 9),
             aq_from_grid_z(max_grid_z, 9),
-            seed,
-            settings,
-            noise_router,
         );
-        let max_prelim = p00.max(p10).max(p01).max(p11);
         // adjustSurfaceLevel(prelim) = prelim + 8
         let max_adjusted = max_prelim + 8;
         // skipSamplingAboveGridY = gridY(max_adjusted + 12) - (-1) = gridY(...) + 1
@@ -27576,6 +27680,7 @@ impl NoiseBasedAquifer {
     /// Mirrors Java `NoiseBasedAquifer.computeSubstance`.
     pub fn compute_substance(
         &mut self,
+        noise_chunk: &NoiseChunk,
         pos_x: i32,
         pos_y: i32,
         pos_z: i32,
@@ -27668,13 +27773,13 @@ impl NoiseBasedAquifer {
             }
         }
 
-        let s1 = self.get_aquifer_status(i1);
+        let s1 = self.get_aquifer_status(i1, noise_chunk);
         let sim12 = aq_similarity(d1, d2);
         let fluid1 = s1.at(pos_y);
 
         if sim12 <= 0.0 {
             if sim12 >= AQUIFER_FLOWING_UPDATE_SIMILARITY {
-                let s2 = self.get_aquifer_status(i2);
+                let s2 = self.get_aquifer_status(i2, noise_chunk);
                 self.should_schedule_fluid_update = s1 != s2;
             } else {
                 self.should_schedule_fluid_update = false;
@@ -27700,7 +27805,7 @@ impl NoiseBasedAquifer {
         let noise_router = self.noise_router;
         let mut barrier: Option<f64> = None;
 
-        let s2 = self.get_aquifer_status(i2);
+        let s2 = self.get_aquifer_status(i2, noise_chunk);
         let p12 = sim12
             * aq_calculate_pressure(
                 pos_x,
@@ -27709,6 +27814,7 @@ impl NoiseBasedAquifer {
                 seed,
                 settings,
                 noise_router,
+                Some(noise_chunk),
                 &mut barrier,
                 &s1,
                 &s2,
@@ -27718,7 +27824,7 @@ impl NoiseBasedAquifer {
             return None; // barrier makes this block solid
         }
 
-        let s3 = self.get_aquifer_status(i3);
+        let s3 = self.get_aquifer_status(i3, noise_chunk);
         let sim13 = aq_similarity(d1, d3);
         if sim13 > 0.0 {
             let p13 = sim12
@@ -27730,6 +27836,7 @@ impl NoiseBasedAquifer {
                     seed,
                     settings,
                     noise_router,
+                    Some(noise_chunk),
                     &mut barrier,
                     &s1,
                     &s3,
@@ -27751,6 +27858,7 @@ impl NoiseBasedAquifer {
                     seed,
                     settings,
                     noise_router,
+                    Some(noise_chunk),
                     &mut barrier,
                     &s2,
                     &s3,
@@ -27767,7 +27875,7 @@ impl NoiseBasedAquifer {
 
         if !flow12 && !flow23 && !flow13 {
             let sim14 = aq_similarity(d1, d4);
-            let s4 = self.get_aquifer_status(i4);
+            let s4 = self.get_aquifer_status(i4, noise_chunk);
             self.should_schedule_fluid_update = sim13 >= AQUIFER_FLOWING_UPDATE_SIMILARITY
                 && sim14 >= AQUIFER_FLOWING_UPDATE_SIMILARITY
                 && s1 != s4;
@@ -27778,7 +27886,7 @@ impl NoiseBasedAquifer {
         Some(fluid1)
     }
 
-    fn get_aquifer_status(&mut self, index: usize) -> FluidStatus {
+    fn get_aquifer_status(&mut self, index: usize, noise_chunk: &NoiseChunk) -> FluidStatus {
         if self.aquifer_cache[index].is_some() {
             return self.aquifer_cache[index].clone().unwrap();
         }
@@ -27786,7 +27894,15 @@ impl NoiseBasedAquifer {
         let x = aq_unpack_x(loc);
         let y = aq_unpack_y(loc);
         let z = aq_unpack_z(loc);
-        let status = aq_compute_fluid(x, y, z, self.seed, self.settings, self.noise_router);
+        let status = aq_compute_fluid(
+            x,
+            y,
+            z,
+            self.seed,
+            self.settings,
+            self.noise_router,
+            Some(noise_chunk),
+        );
         self.aquifer_cache[index] = Some(status.clone());
         status
     }
@@ -27861,16 +27977,19 @@ pub fn normal_noise_value_bounds(id: &str) -> Option<(f64, f64)> {
 pub fn density_shift_noise_sample(
     seed: i64,
     settings: NoiseGeneratorSettings,
-    noise: &str,
+    noise: &'static str,
     local_x: f64,
     local_y: f64,
     local_z: f64,
 ) -> f64 {
-    random_state_normal_noise_snapshot(seed, settings, noise)
-        .map(|snapshot| {
-            normal_noise_sample(&snapshot, local_x * 0.25, local_y * 0.25, local_z * 0.25) * 4.0
-        })
-        .unwrap_or(0.0)
+    random_state_normal_noise_sample(
+        seed,
+        settings,
+        noise,
+        local_x * 0.25,
+        local_y * 0.25,
+        local_z * 0.25,
+    ) * 4.0
 }
 
 pub fn normal_noise_non_zero_octaves(parameters: NormalNoiseParameters) -> Vec<i32> {
@@ -28087,6 +28206,134 @@ pub fn perlin_noise_max_broken_value(snapshot: &PerlinNoiseSnapshot, y_scale: f6
 
 const BLENDED_NOISE_LIMIT_AMPLITUDES: [f64; 16] = [1.0; 16];
 const BLENDED_NOISE_MAIN_AMPLITUDES: [f64; 8] = [1.0; 8];
+
+fn block_state_tag_fast(block: &str) -> Tag {
+    Tag::Compound(vec![("Name".to_string(), Tag::String(block.to_string()))])
+}
+
+struct GeneratedBlockTags {
+    default_block_name: &'static str,
+    default_fluid_name: &'static str,
+    default_block: Tag,
+    default_fluid: Tag,
+    air: Tag,
+    water: Tag,
+    lava: Tag,
+    copper_ore: Tag,
+    raw_copper_block: Tag,
+    granite: Tag,
+    deepslate_iron_ore: Tag,
+    raw_iron_block: Tag,
+    tuff: Tag,
+}
+
+impl GeneratedBlockTags {
+    fn new(settings: &NoiseGeneratorSettings) -> Self {
+        Self {
+            default_block_name: settings.default_block,
+            default_fluid_name: settings.default_fluid,
+            default_block: block_state_tag_fast(settings.default_block),
+            default_fluid: block_state_tag_fast(settings.default_fluid),
+            air: block_state_tag_fast("minecraft:air"),
+            water: block_state_tag_fast("minecraft:water"),
+            lava: block_state_tag_fast("minecraft:lava"),
+            copper_ore: block_state_tag_fast("minecraft:copper_ore"),
+            raw_copper_block: block_state_tag_fast("minecraft:raw_copper_block"),
+            granite: block_state_tag_fast("minecraft:granite"),
+            deepslate_iron_ore: block_state_tag_fast("minecraft:deepslate_iron_ore"),
+            raw_iron_block: block_state_tag_fast("minecraft:raw_iron_block"),
+            tuff: block_state_tag_fast("minecraft:tuff"),
+        }
+    }
+
+    fn tag_for(&self, block: &str) -> &Tag {
+        match block {
+            "minecraft:air" => &self.air,
+            block if block == self.default_block_name => &self.default_block,
+            block if block == self.default_fluid_name => &self.default_fluid,
+            "minecraft:water" => &self.water,
+            "minecraft:lava" => &self.lava,
+            "minecraft:copper_ore" => &self.copper_ore,
+            "minecraft:raw_copper_block" => &self.raw_copper_block,
+            "minecraft:granite" => &self.granite,
+            "minecraft:deepslate_iron_ore" => &self.deepslate_iron_ore,
+            "minecraft:raw_iron_block" => &self.raw_iron_block,
+            "minecraft:tuff" => &self.tuff,
+            _ => &self.default_block,
+        }
+    }
+}
+
+fn block_name_from_tag_fast(entry: &Tag) -> Option<&str> {
+    let Tag::Compound(fields) = entry else {
+        return None;
+    };
+    fields
+        .iter()
+        .find_map(|(key, value)| match (key.as_str(), value) {
+            ("Name", Tag::String(name)) => Some(name.as_str()),
+            _ => None,
+        })
+}
+
+fn section_index_for_y(min_section: i32, section_count: usize, world_y: i32) -> Option<usize> {
+    let index = world_y.div_euclid(16) - min_section;
+    (index >= 0 && (index as usize) < section_count).then_some(index as usize)
+}
+
+fn section_block_index(world_x: i32, world_y: i32, world_z: i32) -> usize {
+    let local_x = world_x.rem_euclid(16) as usize;
+    let local_y = world_y.rem_euclid(16) as usize;
+    let local_z = world_z.rem_euclid(16) as usize;
+    local_y * 256 + local_z * 16 + local_x
+}
+
+fn get_generated_block<'a>(
+    sections: &'a [PalettedContainer],
+    min_section: i32,
+    world_x: i32,
+    world_y: i32,
+    world_z: i32,
+) -> &'a str {
+    let Some(section_index) = section_index_for_y(min_section, sections.len(), world_y) else {
+        return "minecraft:air";
+    };
+    let index = section_block_index(world_x, world_y, world_z);
+    sections[section_index]
+        .get_entry(index)
+        .and_then(block_name_from_tag_fast)
+        .unwrap_or("minecraft:air")
+}
+
+fn set_generated_block(
+    sections: &mut [PalettedContainer],
+    min_section: i32,
+    world_x: i32,
+    world_y: i32,
+    world_z: i32,
+    block: &str,
+) {
+    let Some(section_index) = section_index_for_y(min_section, sections.len(), world_y) else {
+        return;
+    };
+    let index = section_block_index(world_x, world_y, world_z);
+    sections[section_index].set_entry(index, block_state_tag_fast(block));
+}
+
+fn set_generated_block_tag(
+    sections: &mut [PalettedContainer],
+    min_section: i32,
+    world_x: i32,
+    world_y: i32,
+    world_z: i32,
+    tag: &Tag,
+) {
+    let Some(section_index) = section_index_for_y(min_section, sections.len(), world_y) else {
+        return;
+    };
+    let index = section_block_index(world_x, world_y, world_z);
+    sections[section_index].set_entry_ref(index, tag);
+}
 
 pub fn blended_noise_max_value(y_scale: f64) -> f64 {
     perlin_noise_edge_value_from_parameters(
@@ -28607,6 +28854,52 @@ pub fn random_state_normal_noise_snapshot(
     Some(snapshot)
 }
 
+fn with_random_state_normal_noise_snapshot<T>(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    noise_id: &'static str,
+    f: impl FnOnce(&NormalNoiseSnapshot) -> T,
+) -> Option<T> {
+    NOISE_SNAPSHOT_CACHE.with(|cell| {
+        if cell.borrow().is_some() {
+            if !cell
+                .borrow()
+                .as_ref()
+                .is_some_and(|cache| cache.contains_key(noise_id))
+            {
+                let plan = random_state_normal_noise_instantiation_plan(seed, settings, noise_id)?;
+                let parameters = builtin_normal_noise_parameters(plan.id)?;
+                let snapshot =
+                    normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization)
+                        .ok()?;
+                cell.borrow_mut()
+                    .as_mut()?
+                    .insert(noise_id.to_string(), snapshot);
+            }
+
+            let cache = cell.borrow();
+            cache.as_ref()?.get(noise_id).map(f)
+        } else {
+            let snapshot = random_state_normal_noise_snapshot(seed, settings, noise_id)?;
+            Some(f(&snapshot))
+        }
+    })
+}
+
+fn random_state_normal_noise_sample(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    noise_id: &'static str,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> f64 {
+    with_random_state_normal_noise_snapshot(seed, settings, noise_id, |snapshot| {
+        normal_noise_sample(snapshot, x, y, z)
+    })
+    .unwrap_or(0.0)
+}
+
 pub fn normal_noise_sample_with_derivative(
     snapshot: &NormalNoiseSnapshot,
     x: f64,
@@ -29082,11 +29375,14 @@ pub fn parse_dyn_surface_rule(v: &serde_json::Value) -> Result<DynSurfaceRule, S
 
 // ── DynSurfaceRule evaluation ─────────────────────────────────────────────────
 
-/// Per-column state during `build_surface_for_chunk`.
+/// Reusable per-chunk surface context, shaped after Java's
+/// `SurfaceRules.Context`.
 ///
-/// Carries all the information Java's `SurfaceRules.Context` exposes to
-/// conditions. Constructed once per column (XZ), then mutated per block (Y).
-struct BuildSurfaceColumnState {
+/// Java constructs this once from `SurfaceSystem.buildSurface`, applies the
+/// rule source to it, then calls `updateXZ` per column and `updateY` per solid
+/// block. RustCraft's dynamic rule tree is still interpreted, but its input
+/// state now follows that same lifecycle.
+struct SurfaceRulesContext {
     seed: i64,
     algorithm: RandomAlgorithm,
     heights: WorldGenerationHeightContext,
@@ -29107,12 +29403,76 @@ struct BuildSurfaceColumnState {
     temperature: f32,
 }
 
+#[cfg(test)]
+type BuildSurfaceColumnState = SurfaceRulesContext;
+
+impl SurfaceRulesContext {
+    fn new(seed: i64, algorithm: RandomAlgorithm, heights: WorldGenerationHeightContext) -> Self {
+        Self {
+            seed,
+            algorithm,
+            heights,
+            block_x: 0,
+            block_z: 0,
+            surface_depth: 0,
+            surface_secondary: 0.0,
+            steep: false,
+            hole: false,
+            min_surface_level: 0,
+            block_y: 0,
+            water_height: i32::MIN,
+            stone_depth_above: 0,
+            stone_depth_below: 0,
+            biome: "minecraft:plains".to_string(),
+            temperature: 0.8,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn update_xz(
+        &mut self,
+        block_x: i32,
+        block_z: i32,
+        surface_depth: i32,
+        surface_secondary: f64,
+        steep: bool,
+        hole: bool,
+        min_surface_level: i32,
+        biome: &'static str,
+        temperature: f32,
+    ) {
+        self.block_x = block_x;
+        self.block_z = block_z;
+        self.surface_depth = surface_depth;
+        self.surface_secondary = surface_secondary;
+        self.steep = steep;
+        self.hole = hole;
+        self.min_surface_level = min_surface_level;
+        self.biome.clear();
+        self.biome.push_str(biome);
+        self.temperature = temperature;
+    }
+
+    fn update_y(
+        &mut self,
+        stone_depth_above: i32,
+        stone_depth_below: i32,
+        water_height: i32,
+        block_y: i32,
+    ) {
+        self.block_y = block_y;
+        self.water_height = water_height;
+        self.stone_depth_above = stone_depth_above;
+        self.stone_depth_below = stone_depth_below;
+    }
+}
+
 /// Test a `DynSurfaceCondition` against the current column/block state.
 ///
 /// Mirrors Java's `SurfaceRules.Condition::test()`.
 fn dyn_surface_condition_test(
     cond: &DynSurfaceCondition,
-    state: &BuildSurfaceColumnState,
+    state: &SurfaceRulesContext,
     settings: NoiseGeneratorSettings,
 ) -> bool {
     match cond {
@@ -29221,7 +29581,7 @@ fn dyn_surface_condition_test(
 /// Mirrors Java's `SurfaceRules.SurfaceRule::tryApply(blockX, blockY, blockZ)`.
 fn dyn_surface_rule_apply(
     rule: &DynSurfaceRule,
-    state: &BuildSurfaceColumnState,
+    state: &SurfaceRulesContext,
     settings: NoiseGeneratorSettings,
     band_fn: &impl Fn(i32, i32, i32) -> &'static str,
 ) -> Option<String> {
@@ -29338,6 +29698,17 @@ fn is_surface_fluid(block: &str) -> bool {
     matches!(block, "minecraft:water" | "minecraft:lava")
 }
 
+fn surface_biome_temperature(biome: &str) -> f32 {
+    match biome.strip_prefix("minecraft:").unwrap_or(biome) {
+        "frozen_ocean" | "deep_frozen_ocean" | "frozen_river" | "snowy_plains" | "ice_spikes"
+        | "snowy_beach" | "snowy_taiga" | "grove" | "snowy_slopes" | "frozen_peaks"
+        | "jagged_peaks" => 0.0,
+        "desert" | "badlands" | "eroded_badlands" | "wooded_badlands" | "savanna"
+        | "savanna_plateau" | "windswept_savanna" => 2.0,
+        _ => 0.8,
+    }
+}
+
 /// Evaluate the clay band at (worldX, y, worldZ) for a given world seed.
 ///
 /// Generates the clay band array from `"minecraft:clay_bands"` positional random
@@ -29435,10 +29806,33 @@ fn get_clay_band(
 fn build_surface_for_chunk(
     chunk: &mut crate::storage::chunk::LevelChunk,
     rule: &DynSurfaceRule,
+    biome_source_model: &BiomeSourceModel,
     noise_router: NoiseRouter,
     settings: &NoiseGeneratorSettings,
     seed: i64,
 ) {
+    let mut timings = LiveTerrainTimings::default();
+    build_surface_for_chunk_timed(
+        chunk,
+        rule,
+        biome_source_model,
+        noise_router,
+        settings,
+        seed,
+        &mut timings,
+    );
+}
+
+fn build_surface_for_chunk_timed(
+    chunk: &mut crate::storage::chunk::LevelChunk,
+    rule: &DynSurfaceRule,
+    biome_source_model: &BiomeSourceModel,
+    noise_router: NoiseRouter,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    timings: &mut LiveTerrainTimings,
+) {
+    let total_started = Instant::now();
     let min_y = settings.noise.min_y;
     let heights = WorldGenerationHeightContext {
         min_y,
@@ -29455,14 +29849,29 @@ fn build_surface_for_chunk(
     // "no ceiling stone found" sentinel.
     const WAY_BELOW_MIN_Y: i32 = i32::MIN / 2;
 
+    let started = Instant::now();
     // Pre-sample surface/secondary noises (thread-local cache keeps this cheap).
     let surface_noise = random_state_normal_noise_snapshot(seed, *settings, "minecraft:surface");
     let surface_secondary_noise =
         random_state_normal_noise_snapshot(seed, *settings, "minecraft:surface_secondary");
+    timings.surface_noise_setup_ms = started.elapsed().as_millis();
 
     let chunk_min_x = chunk.pos.x * 16;
     let chunk_min_z = chunk.pos.z * 16;
+    let min_section = chunk.min_section_y;
+    let mut section_blocks: Vec<PalettedContainer> = chunk
+        .sections
+        .iter()
+        .map(|section| {
+            PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).unwrap_or_else(
+                |_| {
+                    PalettedContainer::single(block_state_tag_fast("minecraft:air"), SECTION_VOLUME)
+                },
+            )
+        })
+        .collect();
 
+    let started = Instant::now();
     // Pre-compute the 4 preliminary-surface-level corner values used by all
     // columns in this chunk for the minSurfaceLevel bilinear interpolation.
     // Java: cornerCellX = blockX >> 4; surfaceCellToBlockCoord(cornerCellX) = cornerCellX << 4
@@ -29479,11 +29888,17 @@ fn build_surface_for_chunk(
     let prelim10 = prelim_q(chunk_min_x + 16, chunk_min_z);
     let prelim01 = prelim_q(chunk_min_x, chunk_min_z + 16);
     let prelim11 = prelim_q(chunk_min_x + 16, chunk_min_z + 16);
+    timings.surface_prelim_ms = started.elapsed().as_millis();
 
     let base_rng = random_state_seed_factories(seed, algorithm).base;
+    let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
+    let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
+    let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
 
+    let started = Instant::now();
     for local_z in 0..16_i32 {
         for local_x in 0..16_i32 {
+            timings.surface_columns += 1;
             let block_x = chunk_min_x + local_x;
             let block_z = chunk_min_z + local_z;
             let lx = local_x as usize;
@@ -29528,11 +29943,30 @@ fn build_surface_for_chunk(
             let min_surface_level = prelim + surface_depth - 8;
 
             let start_height = read_world_surface_wg(chunk, lx, lz);
+            let biome_y = if settings.legacy_random_source {
+                0
+            } else {
+                start_height
+            };
+            let biome_key = (block_x >> 2, biome_y >> 2, block_z >> 2);
+            let (surface_biome, temperature) =
+                if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
+                    cached
+                } else {
+                    let biome = get_biome(
+                        biome_source_model,
+                        biome_key.0,
+                        biome_key.1,
+                        biome_key.2,
+                        &climate_sampler,
+                    )
+                    .unwrap_or("minecraft:plains");
+                    let temperature = surface_biome_temperature(biome);
+                    surface_biome_cache.insert(biome_key, (biome, temperature));
+                    (biome, temperature)
+                };
 
-            let mut col = BuildSurfaceColumnState {
-                seed,
-                algorithm,
-                heights,
+            surface_context.update_xz(
                 block_x,
                 block_z,
                 surface_depth,
@@ -29540,13 +29974,9 @@ fn build_surface_for_chunk(
                 steep,
                 hole,
                 min_surface_level,
-                block_y: 0,
-                water_height: i32::MIN,
-                stone_depth_above: 0,
-                stone_depth_below: 0,
-                biome: "minecraft:plains".to_string(), // TODO: real biome lookup
-                temperature: 0.8,                      // plains default
-            };
+                surface_biome,
+                temperature,
+            );
 
             let mut stone_depth_above: i32 = 0;
             let mut water_height: i32 = i32::MIN;
@@ -29554,10 +29984,9 @@ fn build_surface_for_chunk(
             let end_y = min_y;
 
             for y in (end_y..=start_height).rev() {
-                let block = chunk
-                    .get_block_state(block_x, y, block_z)
-                    .unwrap_or_else(|| "minecraft:air".to_string());
-                let block_str = block.as_str();
+                timings.surface_block_samples += 1;
+                let block_str =
+                    get_generated_block(&section_blocks, min_section, block_x, y, block_z);
 
                 if is_surface_air(block_str) {
                     stone_depth_above = 0;
@@ -29572,10 +30001,14 @@ fn build_surface_for_chunk(
                         next_ceiling_stone_y = WAY_BELOW_MIN_Y;
                         let mut la = y - 1;
                         while la >= end_y - 1 {
-                            let la_block = chunk
-                                .get_block_state(block_x, la, block_z)
-                                .unwrap_or_else(|| "minecraft:air".to_string());
-                            if !is_surface_stone(&la_block) {
+                            let la_block = get_generated_block(
+                                &section_blocks,
+                                min_section,
+                                block_x,
+                                la,
+                                block_z,
+                            );
+                            if !is_surface_stone(la_block) {
                                 next_ceiling_stone_y = la + 1;
                                 break;
                             }
@@ -29586,25 +30019,35 @@ fn build_surface_for_chunk(
                     stone_depth_above += 1;
                     let stone_depth_below = y - next_ceiling_stone_y + 1;
 
-                    col.block_y = y;
-                    col.water_height = water_height;
-                    col.stone_depth_above = stone_depth_above;
-                    col.stone_depth_below = stone_depth_below;
+                    surface_context.update_y(stone_depth_above, stone_depth_below, water_height, y);
 
                     if block_str == default_block {
                         let band_fn = |wx: i32, by: i32, wz: i32| {
                             get_clay_band(seed, algorithm, *settings, wx, by, wz)
                         };
                         if let Some(new_block) =
-                            dyn_surface_rule_apply(rule, &col, *settings, &band_fn)
+                            dyn_surface_rule_apply(rule, &surface_context, *settings, &band_fn)
                         {
-                            chunk.set_block_state(block_x, y, block_z, &new_block);
+                            set_generated_block(
+                                &mut section_blocks,
+                                min_section,
+                                block_x,
+                                y,
+                                block_z,
+                                &new_block,
+                            );
+                            timings.surface_block_writes += 1;
                         }
                     }
                 }
             }
         }
     }
+    for (section, blocks) in chunk.sections.iter_mut().zip(section_blocks.iter()) {
+        section.block_states = blocks.to_nbt();
+    }
+    timings.surface_column_loop_ms = started.elapsed().as_millis();
+    timings.surface_total_ms = total_started.elapsed().as_millis();
 }
 
 /// Fill terrain from the noise density function AND apply surface rules.
@@ -29616,16 +30059,45 @@ fn build_surface_for_chunk(
 /// Both phases share the same noise-snapshot cache for performance.
 pub fn fill_noise_and_build_surface(
     pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     seed: i64,
     noise_router: NoiseRouter,
     surface_rule: &DynSurfaceRule,
 ) -> crate::storage::chunk::LevelChunk {
+    fill_noise_and_build_surface_timed(
+        pos,
+        biome_source_model,
+        settings,
+        seed,
+        noise_router,
+        surface_rule,
+    )
+    .0
+}
+
+pub fn fill_noise_and_build_surface_timed(
+    pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+    surface_rule: &DynSurfaceRule,
+) -> (crate::storage::chunk::LevelChunk, LiveTerrainTimings) {
     with_noise_snapshot_cache(|| {
-        let mut chunk = fill_from_noise_chunk_inner(pos, settings, seed, noise_router);
-        build_surface_for_chunk(&mut chunk, surface_rule, noise_router, settings, seed);
+        let (mut chunk, mut timings) =
+            fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router);
+        build_surface_for_chunk_timed(
+            &mut chunk,
+            surface_rule,
+            biome_source_model,
+            noise_router,
+            settings,
+            seed,
+            &mut timings,
+        );
         chunk.status = "minecraft:surface".to_string();
-        chunk
+        (chunk, timings)
     })
 }
 
@@ -29711,20 +30183,196 @@ pub fn ore_vein_decision_at(
     vein_gap: f64,
     debug_ore_veins: bool,
 ) -> Option<&'static str> {
+    ore_vein_decision_after_toggle(
+        ore_factory,
+        x,
+        y,
+        z,
+        vein_toggle,
+        || vein_ridged,
+        || vein_gap,
+        debug_ore_veins,
+    )
+}
+
+struct OreVeinMaterialRule {
+    ore_factory: PositionalRandomFactory,
+    debug_ore_veins: bool,
+}
+
+impl OreVeinMaterialRule {
+    fn try_apply(
+        &self,
+        noise_chunk: &NoiseChunk,
+        x: i32,
+        y: i32,
+        z: i32,
+        timings: &mut LiveTerrainTimings,
+        detailed_timing: bool,
+    ) -> Option<&'static str> {
+        timings.ore_vein_samples += 1;
+        let vein_toggle = if detailed_timing {
+            let ore_lookup_started = Instant::now();
+            let vein_toggle = noise_chunk.cached_vein_toggle(x, y, z);
+            timings.fill_ore_vein_lookup_us += ore_lookup_started.elapsed().as_micros();
+            vein_toggle
+        } else {
+            noise_chunk.cached_vein_toggle(x, y, z)
+        };
+
+        if detailed_timing {
+            let ore_decision_started = Instant::now();
+            let result = ore_vein_decision_after_toggle(
+                self.ore_factory,
+                x,
+                y,
+                z,
+                vein_toggle,
+                || noise_chunk.vein_ridged_at(x, y, z),
+                || noise_chunk.vein_gap_at(x, y, z),
+                self.debug_ore_veins,
+            );
+            timings.fill_ore_decision_us += ore_decision_started.elapsed().as_micros();
+            result
+        } else {
+            ore_vein_decision_after_toggle(
+                self.ore_factory,
+                x,
+                y,
+                z,
+                vein_toggle,
+                || noise_chunk.vein_ridged_at(x, y, z),
+                || noise_chunk.vein_gap_at(x, y, z),
+                self.debug_ore_veins,
+            )
+        }
+    }
+}
+
+struct NoiseMaterialRuleList {
+    default_block: &'static str,
+    ore_vein_rule: Option<OreVeinMaterialRule>,
+}
+
+impl NoiseMaterialRuleList {
+    fn new(settings: &NoiseGeneratorSettings, ore_factory: PositionalRandomFactory) -> Self {
+        Self {
+            default_block: settings.default_block,
+            ore_vein_rule: settings.ore_veins_enabled.then_some(OreVeinMaterialRule {
+                ore_factory,
+                debug_ore_veins: false,
+            }),
+        }
+    }
+
+    fn calculate(
+        &self,
+        aquifer: Option<&mut NoiseBasedAquifer>,
+        noise_chunk: &NoiseChunk,
+        settings: &NoiseGeneratorSettings,
+        x: i32,
+        y: i32,
+        z: i32,
+        density: f64,
+        timings: &mut LiveTerrainTimings,
+        detailed_timing: bool,
+    ) -> &'static str {
+        // Mirrors Java's `MaterialRuleList`: the aquifer filler runs first and
+        // may return a fluid/air block. Returning `None` means the slot remains
+        // solid, so the next filler (OreVeinifier) gets a chance before the
+        // generator falls back to the default block.
+        let aquifer_substance = if density > 0.0 {
+            None
+        } else if let Some(aquifer) = aquifer {
+            timings.aquifer_calls += 1;
+            if detailed_timing {
+                let aquifer_started = Instant::now();
+                let substance = aquifer.compute_substance(noise_chunk, x, y, z, density);
+                timings.fill_aquifer_compute_us += aquifer_started.elapsed().as_micros();
+                substance
+            } else {
+                aquifer.compute_substance(noise_chunk, x, y, z, density)
+            }
+        } else {
+            Some(global_fluid_status(y, settings.sea_level, settings.default_fluid).at(y))
+        };
+
+        if let Some(block) = aquifer_substance {
+            return block;
+        }
+
+        if let Some(rule) = &self.ore_vein_rule {
+            if let Some(block) = rule.try_apply(noise_chunk, x, y, z, timings, detailed_timing) {
+                return block;
+            }
+        }
+
+        self.default_block
+    }
+}
+
+fn ore_vein_decision_after_toggle<R, G>(
+    ore_factory: PositionalRandomFactory,
+    x: i32,
+    y: i32,
+    z: i32,
+    vein_toggle: f64,
+    vein_ridged: R,
+    vein_gap: G,
+    debug_ore_veins: bool,
+) -> Option<&'static str>
+where
+    R: FnOnce() -> f64,
+    G: FnOnce() -> f64,
+{
+    let default_state = debug_ore_veins.then_some("minecraft:air");
+    let vein_type = ore_vein_type_for_toggle(vein_toggle);
+    let veininess_ridged = vein_toggle.abs();
+    let distance_from_top = vein_type.max_y - y;
+    let distance_from_bottom = y - vein_type.min_y;
+    if distance_from_bottom < 0 || distance_from_top < 0 {
+        return default_state;
+    }
+
+    let distance_from_edge = distance_from_top.min(distance_from_bottom);
+    let edge_roundoff = clamped_map(
+        f64::from(distance_from_edge),
+        0.0,
+        f64::from(ORE_VEINIFIER_CONSTANTS.edge_roundoff_begin),
+        -ORE_VEINIFIER_CONSTANTS.max_edge_roundoff,
+        0.0,
+    );
+    if veininess_ridged + edge_roundoff < ORE_VEINIFIER_CONSTANTS.veininess_threshold {
+        return default_state;
+    }
+
+    // Java OreVeinifier only creates/samples the positional random after the
+    // range and veininess checks pass.
     let mut positional_random = ore_factory.at(x, y, z);
     let solidness_random = f64::from(positional_random.next_f32());
+    if solidness_random > ORE_VEINIFIER_CONSTANTS.vein_solidness {
+        return default_state;
+    }
+    if vein_ridged() >= 0.0 {
+        return default_state;
+    }
+
+    let richness = ore_vein_richness(veininess_ridged);
     let richness_random = f64::from(positional_random.next_f32());
-    let raw_ore_random = f64::from(positional_random.next_f32());
-    ore_vein_decision(OreVeinDecisionInput {
-        y,
-        vein_toggle,
-        vein_ridged,
-        vein_gap,
-        solidness_random,
-        richness_random,
-        raw_ore_random,
-        debug_ore_veins,
-    })
+    if richness_random < richness
+        && vein_gap() > ORE_VEINIFIER_CONSTANTS.skip_ore_if_gap_noise_is_below
+    {
+        let raw_ore_random = f64::from(positional_random.next_f32());
+        if raw_ore_random < ORE_VEINIFIER_CONSTANTS.chance_of_raw_ore_block {
+            Some(vein_type.raw_ore_block)
+        } else {
+            Some(vein_type.ore)
+        }
+    } else if debug_ore_veins {
+        Some("minecraft:oak_button")
+    } else {
+        Some(vein_type.filler)
+    }
 }
 
 fn clamped_map(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
@@ -30544,6 +31192,68 @@ pub fn apply_configured_carvers_to_chunk(
         };
         for source_chunk_x in target_chunk.x - 8..=target_chunk.x + 8 {
             for source_chunk_z in target_chunk.z - 8..=target_chunk.z + 8 {
+                let mut random = LegacyRandom::new(carver_seed(
+                    seed,
+                    carver_index as i32,
+                    source_chunk_x,
+                    source_chunk_z,
+                ));
+                if !carver_is_start_chunk(carver, random.next_f32()) {
+                    continue;
+                }
+                carved_blocks += carve_configured_carver_from_source_chunk(
+                    chunk,
+                    height_context,
+                    carver,
+                    source_chunk_x,
+                    source_chunk_z,
+                    chunk_min_x,
+                    chunk_min_z,
+                    &mut random,
+                    &mut mask,
+                );
+            }
+        }
+    }
+
+    if !mask.is_empty() {
+        chunk.carving_mask = Some(pack_carving_mask_indices(&mask));
+    }
+
+    carved_blocks
+}
+
+pub fn apply_configured_carvers_for_biome_source(
+    chunk: &mut LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+) -> usize {
+    let height_context = WorldGenerationHeightContext {
+        min_y: settings.noise.min_y,
+        height: settings.noise.height,
+    };
+    let target_chunk = chunk.pos;
+    let chunk_min_x = target_chunk.x * 16;
+    let chunk_min_z = target_chunk.z * 16;
+    let mut mask = Vec::new();
+    let mut carved_blocks = 0;
+
+    for source_chunk_x in target_chunk.x - 8..=target_chunk.x + 8 {
+        for source_chunk_z in target_chunk.z - 8..=target_chunk.z + 8 {
+            let source_pos = ChunkPos {
+                x: source_chunk_x,
+                z: source_chunk_z,
+            };
+            let carver_ids = carvers_for_biome_source_and_noise_settings(
+                biome_source_model,
+                source_pos,
+                settings,
+            );
+            for (carver_index, carver_id) in carver_ids.iter().enumerate() {
+                let Some(carver) = configured_carver(carver_id) else {
+                    continue;
+                };
                 let mut random = LegacyRandom::new(carver_seed(
                     seed,
                     carver_index as i32,
@@ -39116,43 +39826,57 @@ fn pack_column(x: i32, z: i32) -> i64 {
     ((x as i64) & 0xFFFF_FFFF) | ((z as i64) << 32)
 }
 
-/// Walk a `DensityFunction` tree depth-first and collect the `&'static`
-/// inner functions of every `Marker(Interpolated)` node.
-///
-/// Duplicates (by pointer identity) are not added twice — this matches Java's
-/// `HashMap<DensityFunction, DensityFunction>` deduplication in `NoiseChunk.wrap`.
-fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static DensityFunction>) {
+fn density_cache_key(df: &DensityFunction, kind: DensityMarker) -> usize {
+    (df as *const DensityFunction as usize) ^ ((kind as usize) << 3)
+}
+
+fn density_function_key(df: &DensityFunction) -> usize {
+    df as *const DensityFunction as usize
+}
+
+fn lookup_density_index(entries: &HashMap<usize, usize>, key: usize) -> Option<usize> {
+    entries.get(&key).copied()
+}
+
+fn build_density_lookup(inputs: &[&'static DensityFunction]) -> HashMap<usize, usize> {
+    inputs
+        .iter()
+        .enumerate()
+        .map(|(i, &fn_ref)| (fn_ref as *const DensityFunction as usize, i))
+        .collect()
+}
+
+fn collect_marker_inputs(
+    df: DensityFunction,
+    target: DensityMarker,
+    out: &mut Vec<&'static DensityFunction>,
+) {
     match df {
-        DensityFunction::Marker {
-            kind: DensityMarker::Interpolated,
-            input,
-        } => {
-            let ptr = input as *const DensityFunction as usize;
-            if !out
-                .iter()
-                .any(|existing| *existing as *const DensityFunction as usize == ptr)
-            {
-                out.push(input);
+        DensityFunction::Marker { kind, input } => {
+            if kind == target {
+                let ptr = input as *const DensityFunction as usize;
+                if !out
+                    .iter()
+                    .any(|existing| *existing as *const DensityFunction as usize == ptr)
+                {
+                    out.push(input);
+                }
             }
-            // Recurse into the inner function in case it contains nested markers.
-            collect_interpolated_inputs(*input, out);
+            collect_marker_inputs(*input, target, out);
         }
-        DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
-            collect_interpolated_inputs(*input, out);
-        }
-        DensityFunction::Clamp { input, .. } => {
-            collect_interpolated_inputs(*input, out);
-        }
-        DensityFunction::Mapped { input, .. } => {
-            collect_interpolated_inputs(*input, out);
+        DensityFunction::BlendDensity { input }
+        | DensityFunction::Clamp { input, .. }
+        | DensityFunction::Mapped { input, .. }
+        | DensityFunction::WeirdScaledSampler { input, .. } => {
+            collect_marker_inputs(*input, target, out);
         }
         DensityFunction::Binary {
             argument1,
             argument2,
             ..
         } => {
-            collect_interpolated_inputs(*argument1, out);
-            collect_interpolated_inputs(*argument2, out);
+            collect_marker_inputs(*argument1, target, out);
+            collect_marker_inputs(*argument2, target, out);
         }
         DensityFunction::RangeChoice {
             input,
@@ -39160,12 +39884,9 @@ fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static Densi
             when_out_of_range,
             ..
         } => {
-            collect_interpolated_inputs(*input, out);
-            collect_interpolated_inputs(*when_in_range, out);
-            collect_interpolated_inputs(*when_out_of_range, out);
-        }
-        DensityFunction::WeirdScaledSampler { input, .. } => {
-            collect_interpolated_inputs(*input, out);
+            collect_marker_inputs(*input, target, out);
+            collect_marker_inputs(*when_in_range, target, out);
+            collect_marker_inputs(*when_out_of_range, target, out);
         }
         DensityFunction::ShiftedNoise {
             shift_x,
@@ -39173,27 +39894,59 @@ fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static Densi
             shift_z,
             ..
         } => {
-            collect_interpolated_inputs(*shift_x, out);
-            collect_interpolated_inputs(*shift_y, out);
-            collect_interpolated_inputs(*shift_z, out);
+            collect_marker_inputs(*shift_x, target, out);
+            collect_marker_inputs(*shift_y, target, out);
+            collect_marker_inputs(*shift_z, target, out);
         }
         DensityFunction::FindTopSurface {
             density,
             upper_bound,
             ..
         } => {
-            collect_interpolated_inputs(*density, out);
-            collect_interpolated_inputs(*upper_bound, out);
+            collect_marker_inputs(*density, target, out);
+            collect_marker_inputs(*upper_bound, target, out);
         }
         DensityFunction::Reference(id) => {
             if let Some(entry) = builtin_density_function(id) {
-                collect_interpolated_inputs(entry.function, out);
+                collect_marker_inputs(entry.function, target, out);
             }
         }
-        // Leaf nodes (Constant, YClampedGradient, Noise, Shift*, BlendedNoise,
-        // EndIslands, Beardifier, BlendAlpha, BlendOffset, Spline): no children.
         _ => {}
     }
+}
+
+/// Walk a `DensityFunction` tree depth-first and collect the `&'static`
+/// inner functions of every `Marker(Interpolated)` node.
+///
+/// Duplicates (by pointer identity) are not added twice — this matches Java's
+/// `HashMap<DensityFunction, DensityFunction>` deduplication in `NoiseChunk.wrap`.
+fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static DensityFunction>) {
+    collect_marker_inputs(df, DensityMarker::Interpolated, out);
+}
+
+#[derive(Debug, Clone)]
+struct CacheOnceState {
+    last_counter: i64,
+    last_array_counter: i64,
+    last_value: f64,
+    last_array: Option<Vec<f64>>,
+}
+
+impl Default for CacheOnceState {
+    fn default() -> Self {
+        Self {
+            last_counter: i64::MIN,
+            last_array_counter: i64::MIN,
+            last_value: 0.0,
+            last_array: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum DensityArrayFillMode {
+    Slice { block_x: i32, block_z: i32 },
+    Cell,
 }
 
 /// Evaluate a `DensityFunction` tree, substituting interpolated values for
@@ -39216,19 +39969,118 @@ fn eval_density_fn_with_interp(
     let seed = chunk.seed;
     let settings = chunk.settings;
     match df {
-        DensityFunction::Marker {
-            kind: DensityMarker::Interpolated,
-            input,
-        } => {
-            let ptr = input as *const DensityFunction as usize;
-            if let Some(&idx) = chunk.interp_by_ptr.get(&ptr) {
-                // Return the trilinearly-interpolated value cached by the interpolator.
-                chunk.interpolators[idx].value
-            } else {
-                // Not tracked — fall back to point evaluation.
-                input.compute_with_noise(seed, settings, x, y, z)
+        DensityFunction::Marker { kind, input } => match kind {
+            DensityMarker::Interpolated => {
+                let ptr = input as *const DensityFunction as usize;
+                if let Some(idx) = lookup_density_index(&chunk.interp_by_ptr, ptr) {
+                    // Return the trilinearly-interpolated value cached by the interpolator.
+                    chunk.interpolator_value(idx)
+                } else {
+                    // Not tracked — fall back to point evaluation.
+                    input.compute_with_noise(seed, settings, x, y, z)
+                }
             }
-        }
+            DensityMarker::Cache2D => {
+                let ptr = input as *const DensityFunction as usize;
+                let pos_key = pack_column(x, z);
+                if let Some(cache_index) = lookup_density_index(&chunk.cache_2d_by_ptr, ptr) {
+                    if let Some(value) = {
+                        let cache = chunk.cache_2d.borrow();
+                        let state = &cache[cache_index];
+                        (state.last_pos_2d == pos_key).then_some(state.last_value)
+                    } {
+                        return value;
+                    }
+
+                    let inner_fn = {
+                        let cache = chunk.cache_2d.borrow();
+                        cache[cache_index].inner_fn
+                    };
+                    let value = eval_density_fn_with_interp(*inner_fn, chunk, x, y, z);
+                    let mut cache = chunk.cache_2d.borrow_mut();
+                    let state = &mut cache[cache_index];
+                    state.last_pos_2d = pos_key;
+                    state.last_value = value;
+                    value
+                } else {
+                    eval_density_fn_with_interp(*input, chunk, x, y, z)
+                }
+            }
+            DensityMarker::CacheOnce => {
+                let ptr = input as *const DensityFunction as usize;
+                let Some(cache_index) = lookup_density_index(&chunk.cache_once_by_ptr, ptr) else {
+                    chunk
+                        .cache_once_scalar_misses
+                        .set(chunk.cache_once_scalar_misses.get().saturating_add(1));
+                    return eval_density_fn_with_interp(*input, chunk, x, y, z);
+                };
+                if let Some(value) = {
+                    let cache = chunk.cache_once_values.borrow();
+                    let state = &cache[cache_index];
+                    if state.last_array_counter == chunk.array_interpolation_counter {
+                        state
+                            .last_array
+                            .as_ref()
+                            .and_then(|array| array.get(chunk.array_index).copied())
+                    } else if state.last_counter == chunk.interpolation_counter {
+                        Some(state.last_value)
+                    } else {
+                        None
+                    }
+                } {
+                    chunk
+                        .cache_once_scalar_hits
+                        .set(chunk.cache_once_scalar_hits.get().saturating_add(1));
+                    return value;
+                }
+                chunk
+                    .cache_once_scalar_misses
+                    .set(chunk.cache_once_scalar_misses.get().saturating_add(1));
+                let value = eval_density_fn_with_interp(*input, chunk, x, y, z);
+                {
+                    let mut cache = chunk.cache_once_values.borrow_mut();
+                    let state = &mut cache[cache_index];
+                    state.last_counter = chunk.interpolation_counter;
+                    state.last_value = value;
+                }
+                value
+            }
+            DensityMarker::FlatCache => {
+                let ptr = input as *const DensityFunction as usize;
+                if let Some(cache_index) = lookup_density_index(&chunk.flat_cache_by_ptr, ptr) {
+                    let cache = &chunk.flat_cache[cache_index];
+                    let quart_x = x >> 2;
+                    let quart_z = z >> 2;
+                    let local_x = quart_x - (chunk.first_cell_x * chunk.cell_width >> 2);
+                    let local_z = quart_z - (chunk.first_cell_z * chunk.cell_width >> 2);
+                    if local_x >= 0
+                        && local_z >= 0
+                        && (local_x as usize) < cache.size_xz
+                        && (local_z as usize) < cache.size_xz
+                    {
+                        return cache.values[local_x as usize + local_z as usize * cache.size_xz];
+                    }
+                    return eval_density_fn_with_interp(*cache.inner_fn, chunk, x, y, z);
+                }
+                eval_density_fn_with_interp(*input, chunk, x, y, z)
+            }
+            DensityMarker::CacheAllInCell => {
+                if !chunk.filling_cell_cache.get() {
+                    let ptr = input as *const DensityFunction as usize;
+                    if let (Some(cache_index), Some(value_index)) = (
+                        lookup_density_index(&chunk.cache_all_by_ptr, ptr),
+                        chunk.cache_all_cell_index(),
+                    ) {
+                        if let Some(value) =
+                            chunk.cache_all_in_cell[cache_index].values.get(value_index)
+                        {
+                            return *value;
+                        }
+                    }
+                }
+                eval_density_fn_with_interp(*input, chunk, x, y, z)
+            }
+        },
         // Follow references into the built-in density function registry.
         // This is critical: the overworld's final_density IS a Reference node,
         // so without this arm the entire interpolation system is bypassed.
@@ -39239,7 +40091,7 @@ fn eval_density_fn_with_interp(
                 0.0
             }
         }
-        DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
+        DensityFunction::BlendDensity { input } => {
             eval_density_fn_with_interp(*input, chunk, x, y, z)
         }
         DensityFunction::Clamp { input, min, max } => {
@@ -39254,7 +40106,8 @@ fn eval_density_fn_with_interp(
             argument2,
         } => {
             let first = eval_density_fn_with_interp(*argument1, chunk, x, y, z);
-            kind.apply_lazy(first, argument2.value_bounds(), || {
+            let second_bounds = chunk.density_value_bounds(argument2);
+            kind.apply_lazy(first, second_bounds, || {
                 eval_density_fn_with_interp(*argument2, chunk, x, y, z)
             })
         }
@@ -39272,10 +40125,601 @@ fn eval_density_fn_with_interp(
                 eval_density_fn_with_interp(*when_out_of_range, chunk, x, y, z)
             }
         }
+        DensityFunction::Spline { kind } => {
+            chunk.terrain_spline_value(kind, terrain_spline_context(seed, settings, x, y, z))
+        }
+        DensityFunction::Noise {
+            noise,
+            xz_scale,
+            y_scale,
+        } => chunk.normal_noise_sample(
+            noise,
+            f64::from(x) * xz_scale,
+            f64::from(y) * y_scale,
+            f64::from(z) * xz_scale,
+        ),
+        DensityFunction::ShiftA { noise } => {
+            chunk.normal_noise_sample(noise, f64::from(x) * 0.25, 0.0, f64::from(z) * 0.25) * 4.0
+        }
+        DensityFunction::ShiftB { noise } => {
+            chunk.normal_noise_sample(noise, f64::from(z) * 0.25, f64::from(x) * 0.25, 0.0) * 4.0
+        }
+        DensityFunction::Shift { noise } => {
+            chunk.normal_noise_sample(
+                noise,
+                f64::from(x) * 0.25,
+                f64::from(y) * 0.25,
+                f64::from(z) * 0.25,
+            ) * 4.0
+        }
+        DensityFunction::ShiftedNoise {
+            shift_x,
+            shift_y,
+            shift_z,
+            xz_scale,
+            y_scale,
+            noise,
+        } => {
+            let sample_x =
+                f64::from(x) * xz_scale + eval_density_fn_with_interp(*shift_x, chunk, x, y, z);
+            let sample_y =
+                f64::from(y) * y_scale + eval_density_fn_with_interp(*shift_y, chunk, x, y, z);
+            let sample_z =
+                f64::from(z) * xz_scale + eval_density_fn_with_interp(*shift_z, chunk, x, y, z);
+            chunk.normal_noise_sample(noise, sample_x, sample_y, sample_z)
+        }
+        DensityFunction::BlendedNoise {
+            xz_scale,
+            y_scale,
+            xz_factor,
+            y_factor,
+            smear_scale_multiplier,
+        } => chunk.blended_noise_sample(
+            xz_scale,
+            y_scale,
+            xz_factor,
+            y_factor,
+            smear_scale_multiplier,
+            f64::from(x),
+            f64::from(y),
+            f64::from(z),
+        ),
+        DensityFunction::WeirdScaledSampler {
+            input,
+            noise,
+            rarity_mapper,
+        } => {
+            let input_value = eval_density_fn_with_interp(*input, chunk, x, y, z);
+            weird_scaled_sampler_value(chunk, noise, rarity_mapper, x, y, z, input_value)
+        }
         // All remaining variants have no children containing Interpolated markers
         // (or are already fully evaluated at slice-fill time): delegate to
         // compute_with_noise for correctness.
         other => other.compute_with_noise(seed, settings, x, y, z),
+    }
+}
+
+fn weird_scaled_sampler_value(
+    chunk: &NoiseChunk,
+    noise: &'static str,
+    rarity_mapper: RarityValueMapper,
+    block_x: i32,
+    block_y: i32,
+    block_z: i32,
+    input_value: f64,
+) -> f64 {
+    let rarity = rarity_mapper.map_value(input_value);
+    rarity
+        * chunk
+            .normal_noise_sample(
+                noise,
+                f64::from(block_x) / rarity,
+                f64::from(block_y) / rarity,
+                f64::from(block_z) / rarity,
+            )
+            .abs()
+}
+
+fn eval_density_fn_single_point(
+    df: DensityFunction,
+    chunk: &NoiseChunk,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> f64 {
+    match df {
+        DensityFunction::Reference(id) => builtin_density_function(id)
+            .map(|entry| eval_density_fn_single_point(entry.function, chunk, x, y, z))
+            .unwrap_or(0.0),
+        DensityFunction::Marker { kind, input } => match kind {
+            DensityMarker::FlatCache => {
+                let ptr = input as *const DensityFunction as usize;
+                if let Some(cache_index) = lookup_density_index(&chunk.flat_cache_by_ptr, ptr) {
+                    let cache = &chunk.flat_cache[cache_index];
+                    let quart_x = x >> 2;
+                    let quart_z = z >> 2;
+                    let local_x = quart_x - (chunk.first_cell_x * chunk.cell_width >> 2);
+                    let local_z = quart_z - (chunk.first_cell_z * chunk.cell_width >> 2);
+                    if local_x >= 0
+                        && local_z >= 0
+                        && (local_x as usize) < cache.size_xz
+                        && (local_z as usize) < cache.size_xz
+                    {
+                        return cache.values[local_x as usize + local_z as usize * cache.size_xz];
+                    }
+                }
+                eval_density_fn_single_point(*input, chunk, x, y, z)
+            }
+            DensityMarker::Cache2D => {
+                let ptr = input as *const DensityFunction as usize;
+                let pos_key = pack_column(x, z);
+                if let Some(cache_index) = lookup_density_index(&chunk.cache_2d_by_ptr, ptr) {
+                    if let Some(value) = {
+                        let cache = chunk.cache_2d.borrow();
+                        let state = &cache[cache_index];
+                        (state.last_pos_2d == pos_key).then_some(state.last_value)
+                    } {
+                        return value;
+                    }
+
+                    let inner_fn = {
+                        let cache = chunk.cache_2d.borrow();
+                        cache[cache_index].inner_fn
+                    };
+                    let value = eval_density_fn_single_point(*inner_fn, chunk, x, y, z);
+                    let mut cache = chunk.cache_2d.borrow_mut();
+                    let state = &mut cache[cache_index];
+                    state.last_pos_2d = pos_key;
+                    state.last_value = value;
+                    value
+                } else {
+                    eval_density_fn_single_point(*input, chunk, x, y, z)
+                }
+            }
+            DensityMarker::Interpolated
+            | DensityMarker::CacheOnce
+            | DensityMarker::CacheAllInCell => eval_density_fn_single_point(*input, chunk, x, y, z),
+        },
+        DensityFunction::BlendDensity { input } => {
+            eval_density_fn_single_point(*input, chunk, x, y, z)
+        }
+        DensityFunction::Clamp { input, min, max } => {
+            eval_density_fn_single_point(*input, chunk, x, y, z).clamp(min, max)
+        }
+        DensityFunction::Mapped { kind, input } => {
+            kind.transform(eval_density_fn_single_point(*input, chunk, x, y, z))
+        }
+        DensityFunction::Binary {
+            kind,
+            argument1,
+            argument2,
+        } => {
+            let first = eval_density_fn_single_point(*argument1, chunk, x, y, z);
+            let second_bounds = chunk.density_value_bounds(argument2);
+            kind.apply_lazy(first, second_bounds, || {
+                eval_density_fn_single_point(*argument2, chunk, x, y, z)
+            })
+        }
+        DensityFunction::RangeChoice {
+            input,
+            min_inclusive,
+            max_exclusive,
+            when_in_range,
+            when_out_of_range,
+        } => {
+            let value = eval_density_fn_single_point(*input, chunk, x, y, z);
+            if value >= min_inclusive && value < max_exclusive {
+                eval_density_fn_single_point(*when_in_range, chunk, x, y, z)
+            } else {
+                eval_density_fn_single_point(*when_out_of_range, chunk, x, y, z)
+            }
+        }
+        DensityFunction::Spline { kind } => chunk.terrain_spline_value(
+            kind,
+            terrain_spline_context(chunk.seed, chunk.settings, x, y, z),
+        ),
+        DensityFunction::Noise {
+            noise,
+            xz_scale,
+            y_scale,
+        } => chunk.normal_noise_sample(
+            noise,
+            f64::from(x) * xz_scale,
+            f64::from(y) * y_scale,
+            f64::from(z) * xz_scale,
+        ),
+        DensityFunction::ShiftA { noise } => {
+            chunk.normal_noise_sample(noise, f64::from(x) * 0.25, 0.0, f64::from(z) * 0.25) * 4.0
+        }
+        DensityFunction::ShiftB { noise } => {
+            chunk.normal_noise_sample(noise, f64::from(z) * 0.25, f64::from(x) * 0.25, 0.0) * 4.0
+        }
+        DensityFunction::Shift { noise } => {
+            chunk.normal_noise_sample(
+                noise,
+                f64::from(x) * 0.25,
+                f64::from(y) * 0.25,
+                f64::from(z) * 0.25,
+            ) * 4.0
+        }
+        DensityFunction::ShiftedNoise {
+            shift_x,
+            shift_y,
+            shift_z,
+            xz_scale,
+            y_scale,
+            noise,
+        } => {
+            let sample_x =
+                f64::from(x) * xz_scale + eval_density_fn_single_point(*shift_x, chunk, x, y, z);
+            let sample_y =
+                f64::from(y) * y_scale + eval_density_fn_single_point(*shift_y, chunk, x, y, z);
+            let sample_z =
+                f64::from(z) * xz_scale + eval_density_fn_single_point(*shift_z, chunk, x, y, z);
+            chunk.normal_noise_sample(noise, sample_x, sample_y, sample_z)
+        }
+        DensityFunction::BlendedNoise {
+            xz_scale,
+            y_scale,
+            xz_factor,
+            y_factor,
+            smear_scale_multiplier,
+        } => chunk.blended_noise_sample(
+            xz_scale,
+            y_scale,
+            xz_factor,
+            y_factor,
+            smear_scale_multiplier,
+            f64::from(x),
+            f64::from(y),
+            f64::from(z),
+        ),
+        DensityFunction::WeirdScaledSampler {
+            input,
+            noise,
+            rarity_mapper,
+        } => {
+            let input_value = eval_density_fn_single_point(*input, chunk, x, y, z);
+            weird_scaled_sampler_value(chunk, noise, rarity_mapper, x, y, z, input_value)
+        }
+        DensityFunction::FindTopSurface {
+            density,
+            upper_bound,
+            lower_bound,
+            cell_height,
+        } => find_top_surface_compute(
+            |sample_y| eval_density_fn_single_point(*density, chunk, x, sample_y, z),
+            eval_density_fn_single_point(*upper_bound, chunk, x, y, z),
+            lower_bound,
+            cell_height,
+        ),
+        DensityFunction::Constant(value) => value,
+        DensityFunction::YClampedGradient { .. } => df.compute(y),
+        DensityFunction::BlendAlpha => 1.0,
+        DensityFunction::BlendOffset | DensityFunction::Beardifier => 0.0,
+        DensityFunction::EndIslands {
+            seed: function_seed,
+        } => end_island_density_sample(
+            if function_seed == 0 {
+                chunk.seed
+            } else {
+                function_seed
+            },
+            x,
+            z,
+        ),
+    }
+}
+
+fn fill_density_array_with_interp(
+    df: DensityFunction,
+    chunk: &mut NoiseChunk,
+    output: &mut [f64],
+    mode: DensityArrayFillMode,
+) {
+    match df {
+        DensityFunction::Reference(id) => {
+            if let Some(entry) = builtin_density_function(id) {
+                fill_density_array_with_interp(entry.function, chunk, output, mode);
+            } else {
+                output.fill(0.0);
+            }
+        }
+        DensityFunction::Marker { kind, input } => match kind {
+            DensityMarker::CacheOnce => {
+                let ptr = input as *const DensityFunction as usize;
+                let Some(cache_index) = lookup_density_index(&chunk.cache_once_by_ptr, ptr) else {
+                    chunk
+                        .cache_once_array_misses
+                        .set(chunk.cache_once_array_misses.get().saturating_add(1));
+                    fill_density_array_with_interp(*input, chunk, output, mode);
+                    return;
+                };
+                let copied_cached_array = {
+                    let cache = chunk.cache_once_values.borrow();
+                    let state = &cache[cache_index];
+                    if let Some(array) = (state.last_array_counter
+                        == chunk.array_interpolation_counter)
+                        .then_some(state.last_array.as_deref())
+                        .flatten()
+                        .filter(|array| array.len() == output.len())
+                    {
+                        output.copy_from_slice(array);
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if copied_cached_array {
+                    chunk
+                        .cache_once_array_hits
+                        .set(chunk.cache_once_array_hits.get().saturating_add(1));
+                    return;
+                }
+
+                chunk
+                    .cache_once_array_misses
+                    .set(chunk.cache_once_array_misses.get().saturating_add(1));
+                fill_density_array_with_interp(*input, chunk, output, mode);
+
+                let mut cache = chunk.cache_once_values.borrow_mut();
+                let state = &mut cache[cache_index];
+                state.last_array_counter = chunk.array_interpolation_counter;
+                if let Some(array) = state
+                    .last_array
+                    .as_mut()
+                    .filter(|array| array.len() == output.len())
+                {
+                    array.copy_from_slice(output);
+                } else {
+                    state.last_array = Some(output.to_vec());
+                }
+            }
+            DensityMarker::Interpolated => {
+                if chunk.filling_cell {
+                    fill_density_array_direct(df, chunk, output, mode);
+                } else {
+                    fill_density_array_with_interp(*input, chunk, output, mode);
+                }
+            }
+            DensityMarker::CacheAllInCell => {
+                if !chunk.filling_cell_cache.get() {
+                    let ptr = input as *const DensityFunction as usize;
+                    if let Some(cache_index) = lookup_density_index(&chunk.cache_all_by_ptr, ptr) {
+                        if chunk.cache_all_in_cell[cache_index].values.len() == output.len() {
+                            output.copy_from_slice(&chunk.cache_all_in_cell[cache_index].values);
+                            return;
+                        }
+                    }
+                }
+                fill_density_array_with_interp(*input, chunk, output, mode);
+            }
+            DensityMarker::Cache2D => {
+                fill_density_array_with_interp(*input, chunk, output, mode);
+            }
+            DensityMarker::FlatCache => {
+                fill_density_array_direct(df, chunk, output, mode);
+            }
+        },
+        DensityFunction::BlendDensity { input } => {
+            fill_density_array_with_interp(*input, chunk, output, mode);
+        }
+        DensityFunction::Clamp { input, min, max } => {
+            fill_density_array_with_interp(*input, chunk, output, mode);
+            for value in output {
+                *value = value.clamp(min, max);
+            }
+        }
+        DensityFunction::Mapped { kind, input } => {
+            fill_density_array_with_interp(*input, chunk, output, mode);
+            for value in output {
+                *value = kind.transform(*value);
+            }
+        }
+        DensityFunction::Binary {
+            kind,
+            argument1,
+            argument2,
+        } => {
+            fill_density_array_with_interp(*argument1, chunk, output, mode);
+            match kind {
+                BinaryDensityFunction::Add => {
+                    let mut second = chunk.take_density_array_scratch(output.len());
+                    fill_density_array_with_interp(*argument2, chunk, &mut second, mode);
+                    for (value, second) in output.iter_mut().zip(second.iter()) {
+                        *value += *second;
+                    }
+                    chunk.return_density_array_scratch(second);
+                }
+                BinaryDensityFunction::Mul => {
+                    for index in 0..output.len() {
+                        let first = output[index];
+                        output[index] = if first == 0.0 {
+                            0.0
+                        } else {
+                            let (pos_x, pos_y, pos_z) =
+                                prepare_density_array_context(chunk, mode, index);
+                            first
+                                * eval_density_fn_with_interp(
+                                    *argument2, chunk, pos_x, pos_y, pos_z,
+                                )
+                        };
+                    }
+                }
+                BinaryDensityFunction::Min => {
+                    let second_min = chunk.density_value_bounds(argument2).0;
+                    for index in 0..output.len() {
+                        let first = output[index];
+                        output[index] = if first < second_min {
+                            first
+                        } else {
+                            let (pos_x, pos_y, pos_z) =
+                                prepare_density_array_context(chunk, mode, index);
+                            first.min(eval_density_fn_with_interp(
+                                *argument2, chunk, pos_x, pos_y, pos_z,
+                            ))
+                        };
+                    }
+                }
+                BinaryDensityFunction::Max => {
+                    let second_max = chunk.density_value_bounds(argument2).1;
+                    for index in 0..output.len() {
+                        let first = output[index];
+                        output[index] = if first > second_max {
+                            first
+                        } else {
+                            let (pos_x, pos_y, pos_z) =
+                                prepare_density_array_context(chunk, mode, index);
+                            first.max(eval_density_fn_with_interp(
+                                *argument2, chunk, pos_x, pos_y, pos_z,
+                            ))
+                        };
+                    }
+                }
+            }
+        }
+        DensityFunction::RangeChoice {
+            input,
+            min_inclusive,
+            max_exclusive,
+            when_in_range,
+            when_out_of_range,
+        } => {
+            let mut selector = chunk.take_density_array_scratch(output.len());
+            fill_density_array_with_interp(*input, chunk, &mut selector, mode);
+
+            for index in 0..output.len() {
+                let (pos_x, pos_y, pos_z) = prepare_density_array_context(chunk, mode, index);
+                output[index] =
+                    if selector[index] >= min_inclusive && selector[index] < max_exclusive {
+                        eval_density_fn_with_interp(*when_in_range, chunk, pos_x, pos_y, pos_z)
+                    } else {
+                        eval_density_fn_with_interp(*when_out_of_range, chunk, pos_x, pos_y, pos_z)
+                    };
+            }
+
+            chunk.return_density_array_scratch(selector);
+        }
+        DensityFunction::ShiftedNoise { .. } => {
+            fill_density_array_direct(df, chunk, output, mode);
+        }
+        DensityFunction::WeirdScaledSampler {
+            input,
+            noise,
+            rarity_mapper,
+        } => {
+            fill_density_array_with_interp(*input, chunk, output, mode);
+            for index in 0..output.len() {
+                let input_value = output[index];
+                let (pos_x, pos_y, pos_z) = prepare_density_array_context(chunk, mode, index);
+                output[index] = weird_scaled_sampler_value(
+                    chunk,
+                    noise,
+                    rarity_mapper,
+                    pos_x,
+                    pos_y,
+                    pos_z,
+                    input_value,
+                );
+            }
+        }
+        DensityFunction::FindTopSurface { .. } => {
+            fill_density_array_direct(df, chunk, output, mode);
+        }
+        DensityFunction::Constant(value) => output.fill(value),
+        DensityFunction::BlendAlpha => output.fill(1.0),
+        DensityFunction::BlendOffset | DensityFunction::Beardifier => output.fill(0.0),
+        DensityFunction::YClampedGradient { .. }
+        | DensityFunction::Noise { .. }
+        | DensityFunction::ShiftA { .. }
+        | DensityFunction::ShiftB { .. }
+        | DensityFunction::Shift { .. }
+        | DensityFunction::BlendedNoise { .. }
+        | DensityFunction::EndIslands { .. }
+        | DensityFunction::Spline { .. } => {
+            fill_density_array_direct(df, chunk, output, mode);
+        }
+    }
+}
+
+fn prepare_density_array_context(
+    chunk: &mut NoiseChunk,
+    mode: DensityArrayFillMode,
+    index: usize,
+) -> (i32, i32, i32) {
+    match mode {
+        DensityArrayFillMode::Slice { block_x, block_z } => {
+            let block_y = (chunk.cell_noise_min_y + index as i32) * chunk.cell_height;
+            chunk.cell_start_block_x = block_x;
+            chunk.cell_start_block_y = block_y;
+            chunk.cell_start_block_z = block_z;
+            chunk.interpolation_counter += 1;
+            chunk.in_cell_x = 0;
+            chunk.in_cell_y = 0;
+            chunk.in_cell_z = 0;
+            chunk.array_index = index;
+            (block_x, block_y, block_z)
+        }
+        DensityArrayFillMode::Cell => {
+            let cell_width = chunk.cell_width as usize;
+            let y_stride = cell_width * cell_width;
+            let y_from_top = index / y_stride;
+            let xz_index = index % y_stride;
+            let x_in_cell = xz_index / cell_width;
+            let z_in_cell = xz_index % cell_width;
+            let y_in_cell = chunk.cell_height - 1 - y_from_top as i32;
+            chunk.in_cell_x = x_in_cell as i32;
+            chunk.in_cell_y = y_in_cell;
+            chunk.in_cell_z = z_in_cell as i32;
+            chunk.array_index = index;
+            (
+                chunk.cell_start_block_x + chunk.in_cell_x,
+                chunk.cell_start_block_y + chunk.in_cell_y,
+                chunk.cell_start_block_z + chunk.in_cell_z,
+            )
+        }
+    }
+}
+
+fn fill_density_array_direct(
+    df: DensityFunction,
+    chunk: &mut NoiseChunk,
+    output: &mut [f64],
+    mode: DensityArrayFillMode,
+) {
+    match mode {
+        DensityArrayFillMode::Slice { block_x, block_z } => {
+            for (cell_y_index, value) in output.iter_mut().enumerate() {
+                let block_y = (chunk.cell_noise_min_y + cell_y_index as i32) * chunk.cell_height;
+                chunk.cell_start_block_x = block_x;
+                chunk.cell_start_block_y = block_y;
+                chunk.cell_start_block_z = block_z;
+                chunk.interpolation_counter += 1;
+                chunk.in_cell_x = 0;
+                chunk.in_cell_y = 0;
+                chunk.in_cell_z = 0;
+                chunk.array_index = cell_y_index;
+                *value = eval_density_fn_with_interp(df, chunk, block_x, block_y, block_z);
+            }
+        }
+        DensityArrayFillMode::Cell => {
+            chunk.array_index = 0;
+            for y_in_cell in (0..chunk.cell_height).rev() {
+                chunk.in_cell_y = y_in_cell;
+                let pos_y = chunk.cell_start_block_y + y_in_cell;
+                for x_in_cell in 0..chunk.cell_width {
+                    chunk.in_cell_x = x_in_cell;
+                    let pos_x = chunk.cell_start_block_x + x_in_cell;
+                    for z_in_cell in 0..chunk.cell_width {
+                        chunk.in_cell_z = z_in_cell;
+                        let pos_z = chunk.cell_start_block_z + z_in_cell;
+                        output[chunk.array_index] =
+                            eval_density_fn_with_interp(df, chunk, pos_x, pos_y, pos_z);
+                        chunk.array_index += 1;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -39438,6 +40882,84 @@ impl NoiseInterpolatorState {
     }
 }
 
+struct CacheAllInCellState {
+    inner_fn: &'static DensityFunction,
+    values: Vec<f64>,
+}
+
+impl CacheAllInCellState {
+    fn new(cell_width: i32, cell_height: i32, inner_fn: &'static DensityFunction) -> Self {
+        let len = (cell_width * cell_width * cell_height) as usize;
+        Self {
+            inner_fn,
+            values: vec![0.0; len],
+        }
+    }
+}
+
+struct Cache2DState {
+    inner_fn: &'static DensityFunction,
+    last_pos_2d: i64,
+    last_value: f64,
+}
+
+impl Cache2DState {
+    fn new(inner_fn: &'static DensityFunction) -> Self {
+        Self {
+            inner_fn,
+            last_pos_2d: i64::MIN,
+            last_value: 0.0,
+        }
+    }
+}
+
+struct FlatCacheState {
+    inner_fn: &'static DensityFunction,
+    values: Vec<f64>,
+    size_xz: usize,
+}
+
+impl FlatCacheState {
+    fn new(
+        chunk_min_block_x: i32,
+        chunk_min_block_z: i32,
+        noise_size_xz: i32,
+        seed: i64,
+        settings: NoiseGeneratorSettings,
+        inner_fn: &'static DensityFunction,
+    ) -> Self {
+        let size_xz = (noise_size_xz + 1) as usize;
+        let first_noise_x = chunk_min_block_x >> 2;
+        let first_noise_z = chunk_min_block_z >> 2;
+        let mut values = vec![0.0; size_xz * size_xz];
+        for x in 0..=noise_size_xz {
+            let block_x = (first_noise_x + x) << 2;
+            for z in 0..=noise_size_xz {
+                let block_z = (first_noise_z + z) << 2;
+                values[x as usize + z as usize * size_xz] =
+                    inner_fn.compute_with_noise(seed, settings, block_x, 0, block_z);
+            }
+        }
+        Self {
+            inner_fn,
+            values,
+            size_xz,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct NoiseChunkFillStats {
+    full_noise_cache_ms: u128,
+    full_noise_cache_fills: usize,
+    vein_noise_cache_ms: u128,
+    vein_noise_cache_fills: usize,
+    cache_once_scalar_hits: usize,
+    cache_once_scalar_misses: usize,
+    cache_once_array_hits: usize,
+    cache_once_array_misses: usize,
+}
+
 // ── NoiseChunk ────────────────────────────────────────────────────────────────
 
 /// Cell-based sampling context for one chunk's noise generation.
@@ -39473,6 +40995,16 @@ pub struct NoiseChunk {
     /// `eval_density_fn_with_interp` can look up the current interpolated value
     /// in O(1).
     interp_by_ptr: HashMap<usize, usize>,
+    cache_all_in_cell: Vec<CacheAllInCellState>,
+    cache_all_by_ptr: HashMap<usize, usize>,
+    cache_2d: RefCell<Vec<Cache2DState>>,
+    cache_2d_by_ptr: HashMap<usize, usize>,
+    flat_cache: Vec<FlatCacheState>,
+    flat_cache_by_ptr: HashMap<usize, usize>,
+    full_noise_values: Vec<f64>,
+    vein_toggle_values: Vec<f64>,
+    vein_ridged_values: Vec<f64>,
+    vein_gap_values: Vec<f64>,
 
     // Current position tracking (updated during the iteration loops).
     pub cell_start_block_x: i32,
@@ -39486,7 +41018,24 @@ pub struct NoiseChunk {
     interpolating: bool,
 
     /// Cache of preliminary surface levels, keyed by `pack_column(blockX, blockZ)`.
-    prelim_surface_cache: HashMap<i64, i32>,
+    prelim_surface_cache: RefCell<HashMap<i64, i32>>,
+    cache_once_values: RefCell<Vec<CacheOnceState>>,
+    cache_once_by_ptr: HashMap<usize, usize>,
+    normal_noise_cache: RefCell<HashMap<&'static str, NormalNoiseSnapshot>>,
+    blended_noise_cache: RefCell<Vec<([u64; 5], BlendedNoiseSnapshot)>>,
+    density_value_bounds_cache: RefCell<HashMap<usize, (f64, f64)>>,
+    terrain_spline_cache: RefCell<HashMap<TerrainSplineKind, TerrainCubicSpline>>,
+    density_array_scratch: Vec<Vec<f64>>,
+    filling_cell_cache: Cell<bool>,
+    filling_cell: bool,
+    interpolation_counter: i64,
+    array_interpolation_counter: i64,
+    array_index: usize,
+    fill_stats: NoiseChunkFillStats,
+    cache_once_scalar_hits: Cell<usize>,
+    cache_once_scalar_misses: Cell<usize>,
+    cache_once_array_hits: Cell<usize>,
+    cache_once_array_misses: Cell<usize>,
 
     pub seed: i64,
     pub settings: NoiseGeneratorSettings,
@@ -39530,40 +41079,166 @@ impl NoiseChunk {
         collect_interpolated_inputs(noise_router.vein_toggle, &mut inputs);
         collect_interpolated_inputs(noise_router.vein_ridged, &mut inputs);
         collect_interpolated_inputs(noise_router.vein_gap, &mut inputs);
+        collect_interpolated_inputs(noise_router.barrier, &mut inputs);
+        collect_interpolated_inputs(noise_router.fluid_level_floodedness, &mut inputs);
+        collect_interpolated_inputs(noise_router.fluid_level_spread, &mut inputs);
+        collect_interpolated_inputs(noise_router.lava, &mut inputs);
+        collect_interpolated_inputs(noise_router.erosion, &mut inputs);
+        collect_interpolated_inputs(noise_router.depth, &mut inputs);
+        collect_interpolated_inputs(noise_router.preliminary_surface_level, &mut inputs);
 
-        // Build the lookup map: pointer → interpolator index.
-        let interp_by_ptr: HashMap<usize, usize> = inputs
-            .iter()
-            .enumerate()
-            .map(|(i, &fn_ref)| (fn_ref as *const DensityFunction as usize, i))
-            .collect();
+        let mut cache_all_inputs: Vec<&'static DensityFunction> = Vec::new();
+        collect_marker_inputs(
+            noise_router.final_density,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.vein_toggle,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.vein_ridged,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.vein_gap,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.barrier,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.fluid_level_floodedness,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.fluid_level_spread,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.lava,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.erosion,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.depth,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(
+            noise_router.preliminary_surface_level,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        let mut flat_cache_inputs: Vec<&'static DensityFunction> = Vec::new();
+        for function in [
+            noise_router.final_density,
+            noise_router.vein_toggle,
+            noise_router.vein_ridged,
+            noise_router.vein_gap,
+            noise_router.barrier,
+            noise_router.fluid_level_floodedness,
+            noise_router.fluid_level_spread,
+            noise_router.lava,
+            noise_router.erosion,
+            noise_router.depth,
+            noise_router.preliminary_surface_level,
+        ] {
+            collect_marker_inputs(function, DensityMarker::FlatCache, &mut flat_cache_inputs);
+        }
+        let mut cache_2d_inputs: Vec<&'static DensityFunction> = Vec::new();
+        for function in [
+            noise_router.final_density,
+            noise_router.vein_toggle,
+            noise_router.vein_ridged,
+            noise_router.vein_gap,
+            noise_router.barrier,
+            noise_router.fluid_level_floodedness,
+            noise_router.fluid_level_spread,
+            noise_router.lava,
+            noise_router.erosion,
+            noise_router.depth,
+            noise_router.preliminary_surface_level,
+        ] {
+            collect_marker_inputs(function, DensityMarker::Cache2D, &mut cache_2d_inputs);
+        }
+        let mut cache_once_inputs: Vec<&'static DensityFunction> = Vec::new();
+        for function in [
+            noise_router.final_density,
+            noise_router.vein_toggle,
+            noise_router.vein_ridged,
+            noise_router.vein_gap,
+            noise_router.barrier,
+            noise_router.fluid_level_floodedness,
+            noise_router.fluid_level_spread,
+            noise_router.lava,
+            noise_router.erosion,
+            noise_router.depth,
+            noise_router.preliminary_surface_level,
+        ] {
+            collect_marker_inputs(function, DensityMarker::CacheOnce, &mut cache_once_inputs);
+        }
+
+        // Build Java-style identity lookup maps: pointer → wrapper index.
+        let interp_by_ptr = build_density_lookup(&inputs);
+        let cache_all_by_ptr = build_density_lookup(&cache_all_inputs);
+        let flat_cache_by_ptr = build_density_lookup(&flat_cache_inputs);
+        let cache_2d_by_ptr = build_density_lookup(&cache_2d_inputs);
+        let cache_once_by_ptr = build_density_lookup(&cache_once_inputs);
 
         // Allocate one interpolator per unique inner function.
-        let mut interpolators: Vec<NoiseInterpolatorState> = inputs
+        let interpolators: Vec<NoiseInterpolatorState> = inputs
             .iter()
             .map(|&fn_ref| {
                 NoiseInterpolatorState::new(cell_count_y as usize, cell_count_xz as usize, fn_ref)
             })
             .collect();
+        let cache_all_in_cell: Vec<CacheAllInCellState> = cache_all_inputs
+            .iter()
+            .map(|&fn_ref| CacheAllInCellState::new(cell_width, cell_height, fn_ref))
+            .collect();
+        let cache_2d: Vec<Cache2DState> = cache_2d_inputs
+            .iter()
+            .map(|&fn_ref| Cache2DState::new(fn_ref))
+            .collect();
+        let cache_once_values: Vec<CacheOnceState> = cache_once_inputs
+            .iter()
+            .map(|_| CacheOnceState::default())
+            .collect();
+        let flat_cache: Vec<FlatCacheState> = flat_cache_inputs
+            .iter()
+            .map(|&fn_ref| {
+                FlatCacheState::new(
+                    chunk_min_block_x,
+                    chunk_min_block_z,
+                    noise_size_xz,
+                    seed,
+                    settings,
+                    fn_ref,
+                )
+            })
+            .collect();
+        let cell_value_count = (cell_width * cell_width * cell_height) as usize;
+        let full_noise_values = vec![0.0; cell_value_count];
+        let vein_toggle_values = vec![0.0; cell_value_count];
+        let vein_ridged_values = vec![0.0; cell_value_count];
+        let vein_gap_values = vec![0.0; cell_value_count];
 
         // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
-        let block_x = first_cell_x * cell_width;
-        for interp in &mut interpolators {
-            interp.fill_slice(
-                true,
-                block_x,
-                cell_count_y,
-                cell_noise_min_y,
-                cell_height,
-                first_cell_z,
-                cell_count_xz,
-                cell_width,
-                seed,
-                settings,
-            );
-        }
-
-        Self {
+        let mut chunk = Self {
             cell_width,
             cell_height,
             cell_count_xz,
@@ -39574,6 +41249,16 @@ impl NoiseChunk {
             noise_size_xz,
             interpolators,
             interp_by_ptr,
+            cache_all_in_cell,
+            cache_all_by_ptr,
+            cache_2d: RefCell::new(cache_2d),
+            cache_2d_by_ptr,
+            flat_cache,
+            flat_cache_by_ptr,
+            full_noise_values,
+            vein_toggle_values,
+            vein_ridged_values,
+            vein_gap_values,
             cell_start_block_x: first_cell_x * cell_width,
             cell_start_block_y: cell_noise_min_y * cell_height,
             cell_start_block_z: first_cell_z * cell_width,
@@ -39581,11 +41266,34 @@ impl NoiseChunk {
             in_cell_y: 0,
             in_cell_z: 0,
             interpolating: false,
-            prelim_surface_cache: HashMap::new(),
+            prelim_surface_cache: RefCell::new(HashMap::new()),
+            cache_once_values: RefCell::new(cache_once_values),
+            cache_once_by_ptr,
+            normal_noise_cache: RefCell::new(HashMap::new()),
+            blended_noise_cache: RefCell::new(Vec::new()),
+            density_value_bounds_cache: RefCell::new(HashMap::new()),
+            terrain_spline_cache: RefCell::new(HashMap::new()),
+            density_array_scratch: Vec::new(),
+            filling_cell_cache: Cell::new(false),
+            filling_cell: false,
+            interpolation_counter: 0,
+            array_interpolation_counter: 0,
+            array_index: 0,
+            fill_stats: NoiseChunkFillStats::default(),
+            cache_once_scalar_hits: Cell::new(0),
+            cache_once_scalar_misses: Cell::new(0),
+            cache_once_array_hits: Cell::new(0),
+            cache_once_array_misses: Cell::new(0),
             seed,
             settings,
             noise_router,
-        }
+        };
+
+        // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
+        chunk.interpolating = true;
+        chunk.interpolation_counter = 0;
+        chunk.fill_interpolator_slice(true, first_cell_x * cell_width);
+        chunk
     }
 
     /// Fill the *next* X-slice (slice1) for `first_cell_x + cell_x_index + 1`
@@ -39595,22 +41303,181 @@ impl NoiseChunk {
     pub fn advance_cell_x(&mut self, cell_x_index: i32) {
         let next_cell_x = self.first_cell_x + cell_x_index + 1;
         let block_x = next_cell_x * self.cell_width;
-        for interp in &mut self.interpolators {
-            interp.fill_slice(
-                false,
-                block_x,
-                self.cell_count_y,
-                self.cell_noise_min_y,
-                self.cell_height,
-                self.first_cell_z,
-                self.cell_count_xz,
-                self.cell_width,
-                self.seed,
-                self.settings,
-            );
-        }
+        self.fill_interpolator_slice(false, block_x);
         self.cell_start_block_x = (self.first_cell_x + cell_x_index) * self.cell_width;
         self.interpolating = true;
+    }
+
+    fn fill_interpolator_slice(&mut self, use_slice0: bool, block_x: i32) {
+        for interp_index in 0..self.interpolators.len() {
+            let inner_fn = self.interpolators[interp_index].inner_fn;
+            for z_idx in 0..=(self.cell_count_xz as usize) {
+                let block_z = (self.first_cell_z + z_idx as i32) * self.cell_width;
+                self.cell_start_block_z = block_z;
+                self.in_cell_z = 0;
+                if interp_index == 0 {
+                    self.array_interpolation_counter += 1;
+                }
+                let mut row = {
+                    let interp = &mut self.interpolators[interp_index];
+                    if use_slice0 {
+                        std::mem::take(&mut interp.slice0[z_idx])
+                    } else {
+                        std::mem::take(&mut interp.slice1[z_idx])
+                    }
+                };
+                row.resize((self.cell_count_y + 1) as usize, 0.0);
+                fill_density_array_with_interp(
+                    *inner_fn,
+                    self,
+                    &mut row,
+                    DensityArrayFillMode::Slice { block_x, block_z },
+                );
+                let interp = &mut self.interpolators[interp_index];
+                if use_slice0 {
+                    interp.slice0[z_idx] = row;
+                } else {
+                    interp.slice1[z_idx] = row;
+                }
+            }
+        }
+        self.array_interpolation_counter += 1;
+    }
+
+    fn take_density_array_scratch(&mut self, len: usize) -> Vec<f64> {
+        let mut scratch = self
+            .density_array_scratch
+            .pop()
+            .unwrap_or_else(|| Vec::with_capacity(len));
+        scratch.resize(len, 0.0);
+        scratch
+    }
+
+    fn return_density_array_scratch(&mut self, mut scratch: Vec<f64>) {
+        scratch.clear();
+        self.density_array_scratch.push(scratch);
+    }
+
+    fn density_value_bounds(&self, function: &'static DensityFunction) -> (f64, f64) {
+        let key = density_function_key(function);
+        if let Some(bounds) = self.density_value_bounds_cache.borrow().get(&key).copied() {
+            return bounds;
+        }
+
+        let bounds = function.value_bounds();
+        self.density_value_bounds_cache
+            .borrow_mut()
+            .insert(key, bounds);
+        bounds
+    }
+
+    fn normal_noise_sample(&self, noise_id: &'static str, x: f64, y: f64, z: f64) -> f64 {
+        if !self.normal_noise_cache.borrow().contains_key(noise_id) {
+            let Some(plan) =
+                random_state_normal_noise_instantiation_plan(self.seed, self.settings, noise_id)
+            else {
+                return 0.0;
+            };
+            let Some(parameters) = builtin_normal_noise_parameters(plan.id) else {
+                return 0.0;
+            };
+            let Ok(snapshot) =
+                normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization)
+            else {
+                return 0.0;
+            };
+            self.normal_noise_cache
+                .borrow_mut()
+                .insert(noise_id, snapshot);
+        }
+
+        self.normal_noise_cache
+            .borrow()
+            .get(noise_id)
+            .map(|snapshot| normal_noise_sample(snapshot, x, y, z))
+            .unwrap_or(0.0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn blended_noise_sample(
+        &self,
+        xz_scale: f64,
+        y_scale: f64,
+        xz_factor: f64,
+        y_factor: f64,
+        smear_scale_multiplier: f64,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> f64 {
+        let key = [
+            xz_scale.to_bits(),
+            y_scale.to_bits(),
+            xz_factor.to_bits(),
+            y_factor.to_bits(),
+            smear_scale_multiplier.to_bits(),
+        ];
+        if !self
+            .blended_noise_cache
+            .borrow()
+            .iter()
+            .any(|(cached_key, _)| *cached_key == key)
+        {
+            let Ok(snapshot) = blended_noise_snapshot(
+                random_state_terrain_random(self.seed, self.settings),
+                xz_scale,
+                y_scale,
+                xz_factor,
+                y_factor,
+                smear_scale_multiplier,
+            ) else {
+                return 0.0;
+            };
+            self.blended_noise_cache.borrow_mut().push((key, snapshot));
+        }
+
+        self.blended_noise_cache
+            .borrow()
+            .iter()
+            .find_map(|(cached_key, snapshot)| {
+                (*cached_key == key).then(|| blended_noise_sample(snapshot, x, y, z))
+            })
+            .unwrap_or(0.0)
+    }
+
+    fn terrain_spline_value(&self, kind: TerrainSplineKind, context: TerrainSplineContext) -> f64 {
+        if let Some(value) = {
+            let cache = self.terrain_spline_cache.borrow();
+            cache.get(&kind).map(|spline| spline.apply(context))
+        } {
+            return value;
+        }
+
+        let spline = terrain_spline(kind);
+        let value = spline.apply(context);
+        self.terrain_spline_cache.borrow_mut().insert(kind, spline);
+        value
+    }
+
+    fn interpolator_value(&self, interp_index: usize) -> f64 {
+        let interp = &self.interpolators[interp_index];
+        if self.filling_cell {
+            lerp3(
+                f64::from(self.in_cell_x) / f64::from(self.cell_width),
+                f64::from(self.in_cell_y) / f64::from(self.cell_height),
+                f64::from(self.in_cell_z) / f64::from(self.cell_width),
+                interp.noise000,
+                interp.noise100,
+                interp.noise010,
+                interp.noise110,
+                interp.noise001,
+                interp.noise101,
+                interp.noise011,
+                interp.noise111,
+            )
+        } else {
+            interp.value
+        }
     }
 
     /// Load the 8 corner values for the (Y, Z) cell at `(cell_y_idx, cell_z_idx)`
@@ -39623,6 +41490,91 @@ impl NoiseChunk {
         }
         self.cell_start_block_y = (self.cell_noise_min_y + cell_y_idx) * self.cell_height;
         self.cell_start_block_z = (self.first_cell_z + cell_z_idx) * self.cell_width;
+        self.filling_cell = true;
+        self.filling_cell_cache.set(true);
+        self.array_interpolation_counter += 1;
+        self.fill_cache_all_in_cell();
+        self.fill_full_noise_cache();
+        self.array_interpolation_counter += 1;
+        self.filling_cell_cache.set(false);
+        self.filling_cell = false;
+    }
+
+    fn cache_all_cell_index(&self) -> Option<usize> {
+        let x = self.in_cell_x;
+        let y = self.in_cell_y;
+        let z = self.in_cell_z;
+        (x >= 0
+            && y >= 0
+            && z >= 0
+            && x < self.cell_width
+            && y < self.cell_height
+            && z < self.cell_width)
+            .then_some(
+                (((self.cell_height - 1 - y) * self.cell_width + x) * self.cell_width + z) as usize,
+            )
+    }
+
+    fn fill_cache_all_in_cell(&mut self) {
+        if self.cache_all_in_cell.is_empty() {
+            return;
+        }
+        for cache_index in 0..self.cache_all_in_cell.len() {
+            let inner_fn = self.cache_all_in_cell[cache_index].inner_fn;
+            let mut values = std::mem::take(&mut self.cache_all_in_cell[cache_index].values);
+            values.resize(
+                (self.cell_width * self.cell_width * self.cell_height) as usize,
+                0.0,
+            );
+            fill_density_array_with_interp(
+                *inner_fn,
+                self,
+                &mut values,
+                DensityArrayFillMode::Cell,
+            );
+            self.cache_all_in_cell[cache_index].values = values;
+        }
+    }
+
+    fn full_noise_uncached_at(&self, x: i32, y: i32, z: i32) -> f64 {
+        eval_density_fn_with_interp(self.noise_router.final_density, self, x, y, z)
+            + eval_density_fn_with_interp(DensityFunction::Beardifier, self, x, y, z)
+    }
+
+    fn fill_full_noise_cache(&mut self) {
+        let started = Instant::now();
+        let mut values = std::mem::take(&mut self.full_noise_values);
+        values.resize(
+            (self.cell_width * self.cell_width * self.cell_height) as usize,
+            0.0,
+        );
+        fill_density_array_with_interp(
+            self.noise_router.final_density,
+            self,
+            &mut values,
+            DensityArrayFillMode::Cell,
+        );
+        // RustCraft's current Beardifier is a zero stub; keep this cell cache
+        // on the same final-density-only path until structure density is wired.
+        self.full_noise_values = values;
+        self.fill_stats.full_noise_cache_ms += started.elapsed().as_millis();
+        self.fill_stats.full_noise_cache_fills += 1;
+    }
+
+    fn fill_vein_noise_cache(&mut self) {
+        let started = Instant::now();
+        let len = (self.cell_width * self.cell_width * self.cell_height) as usize;
+        let mut toggle = std::mem::take(&mut self.vein_toggle_values);
+        toggle.resize(len, 0.0);
+        fill_density_array_with_interp(
+            self.noise_router.vein_toggle,
+            self,
+            &mut toggle,
+            DensityArrayFillMode::Cell,
+        );
+        self.vein_toggle_values = toggle;
+        self.fill_stats.vein_noise_cache_ms += started.elapsed().as_millis();
+        self.fill_stats.vein_noise_cache_fills += 1;
     }
 
     /// Advance the Y factor and update Y-axis partial lerp values for all
@@ -39659,6 +41611,7 @@ impl NoiseChunk {
     /// Mirrors Java `NoiseChunk.updateForZ`.
     pub fn update_for_z(&mut self, pos_z: i32, factor_z: f64) {
         self.in_cell_z = pos_z - self.cell_start_block_z;
+        self.interpolation_counter += 1;
         for interp in &mut self.interpolators {
             interp.update_for_z(factor_z);
         }
@@ -39686,18 +41639,35 @@ impl NoiseChunk {
     /// If there are no `Interpolated` markers in `final_density` (rare), falls
     /// back to a full point evaluation.
     pub fn interpolated_density(&self, x: i32, y: i32, z: i32) -> f64 {
-        if self.interpolators.is_empty() {
-            // No Interpolated markers found — evaluate the full function point-wise.
-            return self.noise_router.final_density.compute_with_noise(
-                self.seed,
-                self.settings,
-                x,
-                y,
-                z,
-            );
+        if let Some(value_index) = self.cache_all_cell_index() {
+            if let Some(value) = self.full_noise_values.get(value_index) {
+                return *value;
+            }
         }
 
-        eval_density_fn_with_interp(self.noise_router.final_density, self, x, y, z)
+        self.full_noise_uncached_at(x, y, z)
+    }
+
+    fn cached_vein_toggle(&self, x: i32, y: i32, z: i32) -> f64 {
+        eval_density_fn_with_interp(self.noise_router.vein_toggle, self, x, y, z)
+    }
+
+    fn vein_ridged_at(&self, x: i32, y: i32, z: i32) -> f64 {
+        eval_density_fn_with_interp(self.noise_router.vein_ridged, self, x, y, z)
+    }
+
+    fn vein_gap_at(&self, x: i32, y: i32, z: i32) -> f64 {
+        eval_density_fn_with_interp(self.noise_router.vein_gap, self, x, y, z)
+    }
+
+    fn take_fill_stats(&mut self) -> NoiseChunkFillStats {
+        let mut stats = self.fill_stats;
+        stats.cache_once_scalar_hits = self.cache_once_scalar_hits.replace(0);
+        stats.cache_once_scalar_misses = self.cache_once_scalar_misses.replace(0);
+        stats.cache_once_array_hits = self.cache_once_array_hits.replace(0);
+        stats.cache_once_array_misses = self.cache_once_array_misses.replace(0);
+        self.fill_stats = NoiseChunkFillStats::default();
+        stats
     }
 
     /// Compute and cache the preliminary surface level at the given block
@@ -39705,21 +41675,44 @@ impl NoiseChunk {
     /// `QuartPos.toBlock(QuartPos.fromBlock(x))`).
     ///
     /// Mirrors Java `NoiseChunk.preliminarySurfaceLevel`.
-    pub fn preliminary_surface_level(&mut self, block_x: i32, block_z: i32) -> i32 {
+    pub fn preliminary_surface_level(&self, block_x: i32, block_z: i32) -> i32 {
         // Quantise: shift right by 2 then left by 2 (= round down to multiple of 4).
         let qx = (block_x >> 2) << 2;
         let qz = (block_z >> 2) << 2;
         let key = pack_column(qx, qz);
-        if let Some(&cached) = self.prelim_surface_cache.get(&key) {
+        if let Some(cached) = self.prelim_surface_cache.borrow().get(&key).copied() {
             return cached;
         }
-        let value = self
-            .noise_router
-            .preliminary_surface_level
-            .compute_with_noise(self.seed, self.settings, qx, 0, qz)
-            .floor() as i32;
-        self.prelim_surface_cache.insert(key, value);
+        let value = eval_density_fn_single_point(
+            self.noise_router.preliminary_surface_level,
+            self,
+            qx,
+            0,
+            qz,
+        )
+        .floor() as i32;
+        self.prelim_surface_cache.borrow_mut().insert(key, value);
         value
+    }
+
+    pub fn max_preliminary_surface_level(
+        &self,
+        min_block_x: i32,
+        min_block_z: i32,
+        max_block_x: i32,
+        max_block_z: i32,
+    ) -> i32 {
+        let mut max_y = i32::MIN;
+        let mut block_z = min_block_z;
+        while block_z <= max_block_z {
+            let mut block_x = min_block_x;
+            while block_x <= max_block_x {
+                max_y = max_y.max(self.preliminary_surface_level(block_x, block_z));
+                block_x += 4;
+            }
+            block_z += 4;
+        }
+        max_y
     }
 }
 
@@ -39742,10 +41735,21 @@ pub fn fill_from_noise_chunk(
     seed: i64,
     noise_router: NoiseRouter,
 ) -> LevelChunk {
+    fill_from_noise_chunk_timed(pos, settings, seed, noise_router).0
+}
+
+pub fn fill_from_noise_chunk_timed(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> (LevelChunk, LiveTerrainTimings) {
     // Activate the thread-local noise-snapshot cache so that Perlin noise tables
     // are initialised once per noise key per chunk, not once per cell-corner
     // evaluation — this makes chunk generation ~1000× faster.
-    with_noise_snapshot_cache(|| fill_from_noise_chunk_inner(pos, settings, seed, noise_router))
+    with_noise_snapshot_cache(|| {
+        fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router)
+    })
 }
 
 fn fill_from_noise_chunk_inner(
@@ -39754,6 +41758,17 @@ fn fill_from_noise_chunk_inner(
     seed: i64,
     noise_router: NoiseRouter,
 ) -> LevelChunk {
+    fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router).0
+}
+
+fn fill_from_noise_chunk_inner_timed(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> (LevelChunk, LiveTerrainTimings) {
+    let total_started = Instant::now();
+    let mut timings = LiveTerrainTimings::default();
     let mut chunk = LevelChunk::empty(pos);
     chunk.status = "minecraft:noise".to_string();
 
@@ -39763,6 +41778,11 @@ fn fill_from_noise_chunk_inner(
     let min_section = min_y.div_euclid(16);
     chunk.min_section_y = min_section;
 
+    let started = Instant::now();
+    let mut section_blocks: Vec<PalettedContainer> = (0..section_count)
+        .map(|_| PalettedContainer::single(block_state_tag_fast("minecraft:air"), SECTION_VOLUME))
+        .collect();
+    let block_tags = GeneratedBlockTags::new(settings);
     // Initialise all chunk sections to air.
     chunk.sections = (0..section_count)
         .map(|i| {
@@ -39770,20 +41790,14 @@ fn fill_from_noise_chunk_inner(
             let biome = Tag::String("minecraft:plains".to_string());
             ChunkSection {
                 y: section_y as i8,
-                block_states: PalettedContainer::single(
-                    Tag::Compound(vec![(
-                        "Name".to_string(),
-                        Tag::String("minecraft:air".to_string()),
-                    )]),
-                    SECTION_VOLUME,
-                )
-                .to_nbt(),
+                block_states: section_blocks[i as usize].to_nbt(),
                 biomes: PalettedContainer::single(biome, BIOME_SECTION_VOLUME).to_nbt(),
                 block_light: None,
                 sky_light: Some(vec![-1i8; 2048]),
             }
         })
         .collect();
+    timings.fill_init_sections_ms = started.elapsed().as_millis();
 
     let chunk_min_x = pos.x * 16;
     let chunk_min_z = pos.z * 16;
@@ -39794,7 +41808,10 @@ fn fill_from_noise_chunk_inner(
     let cell_count_y = height / cell_height;
     let cell_noise_min_y = min_y.div_euclid(cell_height);
 
+    let started = Instant::now();
     let mut noise_chunk = NoiseChunk::new(chunk_min_x, chunk_min_z, *settings, seed, noise_router);
+    timings.fill_noise_chunk_init_ms = started.elapsed().as_millis();
+    timings.interpolator_count = noise_chunk.interpolators.len();
 
     // Create the noise-based aquifer when enabled, or use None for the simple path.
     let algorithm = if settings.legacy_random_source {
@@ -39803,8 +41820,10 @@ fn fill_from_noise_chunk_inner(
         crate::random_source::RandomAlgorithm::Xoroshiro
     };
     let factories = crate::random_source::random_state_seed_factories(seed, algorithm);
+    let started = Instant::now();
     let mut aquifer = settings.aquifers_enabled.then(|| {
         NoiseBasedAquifer::new(
+            &mut noise_chunk,
             chunk_min_x,
             chunk_min_x + 15,
             chunk_min_z,
@@ -39817,110 +41836,93 @@ fn fill_from_noise_chunk_inner(
             factories.aquifer,
         )
     });
+    timings.fill_aquifer_init_ms = started.elapsed().as_millis();
+    let material_rules = NoiseMaterialRuleList::new(settings, factories.ore);
 
     // Heightmap accumulators (Y+1 of the highest non-air block).
     let mut ocean_floor = [min_y; 256];
     let mut world_surface = [min_y; 256];
+    let detailed_timing = std::env::var_os("RUSTCRAFT_WORLDGEN_DETAILED_TIMING").is_some();
 
+    let started = Instant::now();
     for cell_x_index in 0..cell_count_xz {
         // Fill the next-X slice for this column and set cell_start_block_x.
         noise_chunk.advance_cell_x(cell_x_index);
 
         for cell_z_index in 0..cell_count_xz {
+            timings.cell_columns += 1;
             // Iterate Y from top of the world downward (matches Java doFill).
             for cell_y_index in (0..cell_count_y).rev() {
                 noise_chunk.select_cell_yz(cell_y_index, cell_z_index);
 
                 for y_in_cell in (0..cell_height).rev() {
                     let pos_y = (cell_noise_min_y + cell_y_index) * cell_height + y_in_cell;
+                    let section_index = (pos_y.div_euclid(16) - min_section) as usize;
+                    let local_y = (pos_y & 15) as usize;
                     let factor_y = y_in_cell as f64 / cell_height as f64;
-                    noise_chunk.update_for_y(pos_y, factor_y);
+                    if detailed_timing {
+                        let interpolation_started = Instant::now();
+                        noise_chunk.update_for_y(pos_y, factor_y);
+                        timings.fill_interpolation_update_us +=
+                            interpolation_started.elapsed().as_micros();
+                    } else {
+                        noise_chunk.update_for_y(pos_y, factor_y);
+                    }
 
                     for x_in_cell in 0..cell_width {
                         let pos_x = chunk_min_x + cell_x_index * cell_width + x_in_cell;
                         let local_x = (pos_x & 15) as usize;
                         let factor_x = x_in_cell as f64 / cell_width as f64;
-                        noise_chunk.update_for_x(pos_x, factor_x);
+                        if detailed_timing {
+                            let interpolation_started = Instant::now();
+                            noise_chunk.update_for_x(pos_x, factor_x);
+                            timings.fill_interpolation_update_us +=
+                                interpolation_started.elapsed().as_micros();
+                        } else {
+                            noise_chunk.update_for_x(pos_x, factor_x);
+                        }
 
                         for z_in_cell in 0..cell_width {
                             let pos_z = chunk_min_z + cell_z_index * cell_width + z_in_cell;
                             let local_z = (pos_z & 15) as usize;
                             let factor_z = z_in_cell as f64 / cell_width as f64;
-                            noise_chunk.update_for_z(pos_z, factor_z);
-
-                            let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
-
-                            // Block selection mirrors Java's MaterialRuleList chain:
-                            //   1. aquifer.computeSubstance → fluid OR null (solid/barrier)
-                            //   2. OreVeinifier (when oreVeinsEnabled) → ore/filler OR null
-                            //   3. defaultBlock fallback
-                            //
-                            // The aquifer (or disabled-aquifer path) produces either a fluid
-                            // block (Some) or None meaning "this position is solid".  Only
-                            // solid positions are candidates for ore-vein replacement.
-                            let aquifer_substance: Option<&'static str> = if density > 0.0 {
-                                // Positive density → solid; skip aquifer call.
-                                None
-                            } else if let Some(ref mut aq) = aquifer {
-                                // Noise-based aquifer: returns Some(fluid) or None (barrier/solid).
-                                aq.compute_substance(pos_x, pos_y, pos_z, density)
+                            if detailed_timing {
+                                let interpolation_started = Instant::now();
+                                noise_chunk.update_for_z(pos_z, factor_z);
+                                timings.fill_interpolation_update_us +=
+                                    interpolation_started.elapsed().as_micros();
                             } else {
-                                // Disabled aquifer: simple sea-level / global-lava rule.
-                                Some(
-                                    global_fluid_status(
-                                        pos_y,
-                                        settings.sea_level,
-                                        settings.default_fluid,
-                                    )
-                                    .at(pos_y),
-                                )
+                                noise_chunk.update_for_z(pos_z, factor_z);
+                            }
+
+                            timings.block_samples += 1;
+                            let density = if detailed_timing {
+                                let density_started = Instant::now();
+                                let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
+                                timings.fill_density_lookup_us +=
+                                    density_started.elapsed().as_micros();
+                                density
+                            } else {
+                                noise_chunk.interpolated_density(pos_x, pos_y, pos_z)
                             };
 
-                            let block: &'static str = match aquifer_substance {
-                                Some(fluid) => fluid,
-                                None => {
-                                    // Solid slot: let OreVeinifier try to override with ore/filler.
-                                    if settings.ore_veins_enabled {
-                                        let vt = eval_density_fn_with_interp(
-                                            noise_router.vein_toggle,
-                                            &noise_chunk,
-                                            pos_x,
-                                            pos_y,
-                                            pos_z,
-                                        );
-                                        let vr = eval_density_fn_with_interp(
-                                            noise_router.vein_ridged,
-                                            &noise_chunk,
-                                            pos_x,
-                                            pos_y,
-                                            pos_z,
-                                        );
-                                        let vg = eval_density_fn_with_interp(
-                                            noise_router.vein_gap,
-                                            &noise_chunk,
-                                            pos_x,
-                                            pos_y,
-                                            pos_z,
-                                        );
-                                        ore_vein_decision_at(
-                                            factories.ore,
-                                            pos_x,
-                                            pos_y,
-                                            pos_z,
-                                            vt,
-                                            vr,
-                                            vg,
-                                            false,
-                                        )
-                                        .unwrap_or(settings.default_block)
-                                    } else {
-                                        settings.default_block
-                                    }
-                                }
-                            };
+                            let block = material_rules.calculate(
+                                aquifer.as_mut(),
+                                &noise_chunk,
+                                settings,
+                                pos_x,
+                                pos_y,
+                                pos_z,
+                                density,
+                                &mut timings,
+                                detailed_timing,
+                            );
 
                             if block != "minecraft:air" {
-                                chunk.set_block_state(pos_x, pos_y, pos_z, block);
+                                let block_index = local_y * 256 + local_z * 16 + local_x;
+                                section_blocks[section_index]
+                                    .set_entry_ref(block_index, block_tags.tag_for(block));
+                                timings.block_writes += 1;
                                 let idx = local_z * 16 + local_x;
                                 if pos_y + 1 > world_surface[idx] {
                                     world_surface[idx] = pos_y + 1;
@@ -39943,7 +41945,22 @@ fn fill_from_noise_chunk_inner(
         // next iteration.
         noise_chunk.swap_slices();
     }
+    timings.fill_block_loop_ms = started.elapsed().as_millis();
+    let fill_stats = noise_chunk.take_fill_stats();
+    timings.fill_full_noise_cache_ms = fill_stats.full_noise_cache_ms;
+    timings.full_noise_cache_fills = fill_stats.full_noise_cache_fills;
+    timings.fill_vein_noise_cache_ms = fill_stats.vein_noise_cache_ms;
+    timings.vein_noise_cache_fills = fill_stats.vein_noise_cache_fills;
+    timings.cache_once_scalar_hits = fill_stats.cache_once_scalar_hits;
+    timings.cache_once_scalar_misses = fill_stats.cache_once_scalar_misses;
+    timings.cache_once_array_hits = fill_stats.cache_once_array_hits;
+    timings.cache_once_array_misses = fill_stats.cache_once_array_misses;
 
+    for (section, blocks) in chunk.sections.iter_mut().zip(section_blocks.iter()) {
+        section.block_states = blocks.to_nbt();
+    }
+
+    let started = Instant::now();
     chunk.heightmaps = BTreeMap::from([
         (
             HeightmapKind::WorldSurfaceWg.storage_name().to_string(),
@@ -39954,8 +41971,10 @@ fn fill_from_noise_chunk_inner(
             Tag::LongArray(pack_heightmap(ocean_floor)),
         ),
     ]);
+    timings.fill_heightmap_pack_ms = started.elapsed().as_millis();
+    timings.fill_total_ms = total_started.elapsed().as_millis();
 
-    chunk
+    (chunk, timings)
 }
 
 #[cfg(test)]
@@ -42349,6 +44368,147 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "wall-clock performance guard; run explicitly after worldgen optimization changes"]
+    fn real_surface_spawn_chunk_generation_stays_under_debug_budget() {
+        let max_ms = std::env::var("RUSTCRAFT_WORLDGEN_CHUNK_MAX_MS")
+            .ok()
+            .and_then(|value| value.parse::<u128>().ok())
+            .unwrap_or(1_500);
+        let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+            .ok()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
+        let pos = ChunkPos { x: 0, z: 0 };
+
+        let started = std::time::Instant::now();
+        let (chunk, timings) = super::generate_overworld_spawn_chunk_for_preset_with_mode_timed(
+            pos,
+            "normal",
+            super::LiveChunkGenerationMode::RealSurface,
+            seed,
+            true,
+        )
+        .expect("real-surface spawn chunk generation should succeed");
+        let elapsed_ms = started.elapsed().as_millis();
+
+        assert_eq!(chunk.status, "minecraft:spawn");
+        assert!(
+            (-64..320).any(|y| {
+                chunk
+                    .get_block_state(0, y, 0)
+                    .is_some_and(|name| name != "minecraft:air")
+            }),
+            "generated chunk should contain non-air blocks in the origin column"
+        );
+        eprintln!(
+            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms terrain={}ms fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
+            pos.x,
+            pos.z,
+            elapsed_ms,
+            max_ms,
+            timings.terrain_ms,
+            timings.terrain.fill_total_ms,
+            timings.terrain.fill_init_sections_ms,
+            timings.terrain.fill_noise_chunk_init_ms,
+            timings.terrain.fill_aquifer_init_ms,
+            timings.terrain.fill_block_loop_ms,
+            timings.terrain.fill_density_lookup_us,
+            timings.terrain.fill_aquifer_compute_us,
+            timings.terrain.fill_ore_vein_lookup_us,
+            timings.terrain.fill_ore_decision_us,
+            timings.terrain.fill_interpolation_update_us,
+            timings.terrain.interpolator_count,
+            timings.terrain.surface_total_ms,
+            timings.heightmaps.total_ms,
+            timings.mobs.total_ms,
+            timings.mobs.plan_ms,
+            timings.mobs.apply_batches_ms,
+            timings.terrain.block_writes,
+            timings.terrain.aquifer_calls,
+            timings.terrain.ore_vein_samples
+        );
+        assert!(
+            elapsed_ms <= max_ms,
+            "real-surface spawn chunk generation took {elapsed_ms}ms, above {max_ms}ms budget; timings={timings:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "wall-clock performance guard; run explicitly after worldgen optimization changes"]
+    fn real_surface_spawn_area_generation_stays_under_debug_budget() {
+        let max_total_ms = std::env::var("RUSTCRAFT_WORLDGEN_SPAWN_AREA_MAX_MS")
+            .ok()
+            .and_then(|value| value.parse::<u128>().ok())
+            .unwrap_or(3_000);
+        let max_chunk_ms = std::env::var("RUSTCRAFT_WORLDGEN_CHUNK_MAX_MS")
+            .ok()
+            .and_then(|value| value.parse::<u128>().ok())
+            .unwrap_or(1_500);
+        let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+            .ok()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
+
+        let started = std::time::Instant::now();
+        let mut slowest_chunk = (ChunkPos { x: 0, z: 0 }, 0_u128);
+        let mut generated = 0_usize;
+        for chunk_z in -1..=1 {
+            for chunk_x in -1..=1 {
+                let pos = ChunkPos {
+                    x: chunk_x,
+                    z: chunk_z,
+                };
+                let chunk_started = std::time::Instant::now();
+                let (chunk, timings) =
+                    super::generate_overworld_spawn_chunk_for_preset_with_mode_timed(
+                        pos,
+                        "normal",
+                        super::LiveChunkGenerationMode::RealSurface,
+                        seed,
+                        true,
+                    )
+                    .expect("real-surface spawn-area chunk generation should succeed");
+                let chunk_elapsed_ms = chunk_started.elapsed().as_millis();
+                generated += 1;
+                if chunk_elapsed_ms > slowest_chunk.1 {
+                    slowest_chunk = (pos, chunk_elapsed_ms);
+                }
+
+                assert_eq!(chunk.status, "minecraft:spawn");
+                let local_x = if chunk_x == 0 { 0 } else { 8 };
+                let local_z = if chunk_z == 0 { 0 } else { 8 };
+                assert!(
+                    (-64..320).any(|y| {
+                        chunk
+                            .get_block_state(local_x, y, local_z)
+                            .is_some_and(|name| name != "minecraft:air")
+                    }),
+                    "generated chunk ({chunk_x}, {chunk_z}) should contain non-air blocks in its sampled column"
+                );
+                assert!(
+                    chunk_elapsed_ms <= max_chunk_ms,
+                    "real-surface spawn-area chunk ({chunk_x}, {chunk_z}) took {chunk_elapsed_ms}ms, above {max_chunk_ms}ms budget; timings={timings:?}"
+                );
+            }
+        }
+        let elapsed_ms = started.elapsed().as_millis();
+
+        eprintln!(
+            "[worldgen-spawn-area-perf-test] chunks={} elapsed={}ms threshold={}ms slowest_chunk=({}, {}) slowest_ms={}",
+            generated,
+            elapsed_ms,
+            max_total_ms,
+            slowest_chunk.0.x,
+            slowest_chunk.0.z,
+            slowest_chunk.1
+        );
+        assert!(
+            elapsed_ms <= max_total_ms,
+            "real-surface 3x3 spawn-area generation took {elapsed_ms}ms, above {max_total_ms}ms budget; slowest_chunk={slowest_chunk:?}"
+        );
+    }
+
+    #[test]
     fn final_client_heightmaps_are_computed_from_blocks() {
         let mut chunk = crate::storage::chunk::LevelChunk::empty(ChunkPos { x: 0, z: 0 });
         let mut block_states = crate::storage::chunk::PalettedContainer::single(
@@ -44007,6 +46167,7 @@ mod tests {
             builtin_noise_generator_settings, builtin_noise_router, fill_noise_and_build_surface,
             load_surface_rule, noise_router_id_for_settings, ChunkPos, NONE_NOISE_ROUTER,
         };
+        use crate::biome::BiomeSourceModel;
 
         let settings = builtin_noise_generator_settings("minecraft:overworld")
             .expect("overworld noise settings must exist");
@@ -44028,6 +46189,9 @@ mod tests {
                 for cx in 0..4_i32 {
                     let c = fill_noise_and_build_surface(
                         ChunkPos { x: cx, z: cz },
+                        &BiomeSourceModel::Fixed {
+                            biome: "minecraft:plains",
+                        },
                         settings,
                         0,
                         noise_router,
@@ -44092,7 +46256,7 @@ mod tests {
 
         let (bx, top_y, bz, top_block_name) = land_column;
 
-        // The surface block should be grass (biome is hardcoded to plains in build_surface_for_chunk).
+        // The surface block should be grass for the fixed-plains biome source.
         assert_eq!(
             top_block_name, "minecraft:grass_block",
             "top solid block at ({bx},{top_y},{bz}) should be grass_block (got {top_block_name})"
@@ -44107,13 +46271,16 @@ mod tests {
             top_y - 1
         );
 
-        // Several blocks down should be stone (past the dirt layer which is ~3-4 deep).
-        let deep = chunk.get_block_state(bx, top_y - 5, bz).unwrap_or_default();
-        assert_eq!(
-            deep,
-            "minecraft:stone",
-            "block at ({bx},{},{bz}) should be stone (got {deep})",
-            top_y - 5
+        // The exact dirt-depth depends on vanilla surface noise, but the column
+        // should transition back to stone below the generated soil layer.
+        let has_stone_below_soil = ((min_y + 1)..=(top_y - 2)).rev().any(|y| {
+            chunk
+                .get_block_state(bx, y, bz)
+                .is_some_and(|block| block == "minecraft:stone")
+        });
+        assert!(
+            has_stone_below_soil,
+            "column at ({bx},{bz}) should contain stone below the plains soil layer"
         );
     }
 

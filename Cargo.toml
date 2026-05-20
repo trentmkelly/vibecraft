@@ -11,3 +11,9 @@ libc = "0.2"
 lz4 = "1"
 serde_json = "1"
 sha1 = "0.10"
+
+[profile.dev]
+opt-level = 1
+
+[profile.test]
+opt-level = 1

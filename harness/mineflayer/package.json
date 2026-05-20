@@ -16,6 +16,7 @@
     "regress:offline": "node offline_mode_regression.mjs",
     "gate:release": "node release_gate.mjs",
     "gate:worldgen": "node worldgen_acceptance_gates.mjs",
+    "fixture:worldgen-block-array": "RUSTCRAFT_WORLDGEN_BLOCK_ARRAY_OUTPUT=fixtures/vanilla_worldgen_block_array_target.json node vanilla_worldgen_oracle.mjs",
     "oracle:vanilla-client": "node vanilla_client_xephyr.mjs",
     "smoke:vanilla-client": "node vanilla_client_connection_smoke.mjs",
     "lifecycle": "node lifecycle_scenarios.mjs",

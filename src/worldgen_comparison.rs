@@ -120,6 +120,228 @@ pub struct VanillaFixtureReport {
     pub chunks: Vec<VanillaFixtureChunkSummary>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct VanillaBlockArrayParityScore {
+    pub matching_blocks: usize,
+    pub total_blocks: usize,
+    pub score: f64,
+    pub mismatches: Vec<VanillaBlockArrayMismatchCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaBlockArrayMismatchCount {
+    pub expected: String,
+    pub actual: String,
+    pub count: usize,
+}
+
+impl VanillaBlockArrayParityScore {
+    pub fn from_counts(matching_blocks: usize, total_blocks: usize) -> Result<Self, String> {
+        Self::from_counts_and_mismatches(matching_blocks, total_blocks, BTreeMap::new())
+    }
+
+    pub fn from_counts_and_mismatches(
+        matching_blocks: usize,
+        total_blocks: usize,
+        mismatches: BTreeMap<(String, String), usize>,
+    ) -> Result<Self, String> {
+        if total_blocks == 0 {
+            return Err("cannot score worldgen parity without block samples".to_string());
+        }
+        let mut mismatches = mismatches
+            .into_iter()
+            .map(
+                |((expected, actual), count)| VanillaBlockArrayMismatchCount {
+                    expected,
+                    actual,
+                    count,
+                },
+            )
+            .collect::<Vec<_>>();
+        mismatches.sort_by(|left, right| {
+            right
+                .count
+                .cmp(&left.count)
+                .then_with(|| left.expected.cmp(&right.expected))
+                .then_with(|| left.actual.cmp(&right.actual))
+        });
+        Ok(Self {
+            matching_blocks,
+            total_blocks,
+            score: matching_blocks as f64 / total_blocks as f64,
+            mismatches,
+        })
+    }
+}
+
+pub fn vanilla_worldgen_block_array_parity_score(
+    vanilla_fixture_json: &str,
+    actual_chunks: &[LevelChunk],
+) -> Result<VanillaBlockArrayParityScore, String> {
+    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
+        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
+    let format = fixture
+        .get("format")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing format".to_string())?;
+    if format != "rustcraft-vanilla-worldgen-block-array-target-v1" {
+        return Err(format!(
+            "unsupported vanilla worldgen block-array fixture format: {format}"
+        ));
+    }
+
+    let chunks = fixture
+        .get("chunks")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
+    let mut matching_blocks = 0usize;
+    let mut total_blocks = 0usize;
+    let mut mismatches = BTreeMap::<(String, String), usize>::new();
+
+    for expected_chunk in chunks {
+        let dimension = expected_chunk
+            .get("dimension")
+            .and_then(Value::as_str)
+            .unwrap_or("overworld");
+        if dimension != "overworld" {
+            return Err(format!(
+                "unsupported vanilla worldgen block-array dimension: {dimension}"
+            ));
+        }
+
+        let chunk_x = json_i32_field(expected_chunk, "chunkX")?;
+        let chunk_z = json_i32_field(expected_chunk, "chunkZ")?;
+        let y_min = json_i32_field(expected_chunk, "yMin")?;
+        let blocks = expected_chunk
+            .get("blocks")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                format!("vanilla fixture chunk ({chunk_x},{chunk_z}) is missing blocks")
+            })?;
+        if blocks.len() != 16 {
+            return Err(format!(
+                "vanilla fixture chunk ({chunk_x},{chunk_z}) has {} x columns, expected 16",
+                blocks.len()
+            ));
+        }
+
+        let actual = actual_chunks
+            .iter()
+            .find(|chunk| chunk.pos.x == chunk_x && chunk.pos.z == chunk_z)
+            .ok_or_else(|| format!("missing actual generated chunk ({chunk_x},{chunk_z})"))?;
+
+        for (local_x, y_column) in blocks.iter().enumerate() {
+            let y_column = y_column.as_array().ok_or_else(|| {
+                format!("vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} is not an array")
+            })?;
+            for (y_offset, z_column) in y_column.iter().enumerate() {
+                let z_column = z_column.as_array().ok_or_else(|| {
+                    format!(
+                        "vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} y_offset={y_offset} is not an array"
+                    )
+                })?;
+                if z_column.len() != 16 {
+                    return Err(format!(
+                        "vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} y_offset={y_offset} has {} z entries, expected 16",
+                        z_column.len()
+                    ));
+                }
+                let world_y = y_min + y_offset as i32;
+                for (local_z, expected) in z_column.iter().enumerate() {
+                    let expected = expected
+                        .as_str()
+                        .ok_or_else(|| {
+                            format!(
+                                "vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} y_offset={y_offset} z={local_z} is not a block string"
+                            )
+                        })
+                        .map(vanilla_block_type)?;
+                    let actual = actual
+                        .get_block_state(
+                            chunk_x * 16 + local_x as i32,
+                            world_y,
+                            chunk_z * 16 + local_z as i32,
+                        )
+                        .unwrap_or_else(|| "minecraft:air".to_string());
+                    if actual == expected {
+                        matching_blocks += 1;
+                    } else {
+                        *mismatches.entry((expected, actual)).or_default() += 1;
+                    }
+                    total_blocks += 1;
+                }
+            }
+        }
+    }
+
+    VanillaBlockArrayParityScore::from_counts_and_mismatches(
+        matching_blocks,
+        total_blocks,
+        mismatches,
+    )
+}
+
+pub fn vanilla_worldgen_block_array_parity_score_for_normal_overworld(
+    vanilla_fixture_json: &str,
+) -> Result<VanillaBlockArrayParityScore, String> {
+    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
+        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
+    let seed = fixture
+        .get("seed")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing seed".to_string())?
+        .parse::<i64>()
+        .map_err(|err| format!("vanilla worldgen block-array fixture has invalid seed: {err}"))?;
+    let chunks = fixture
+        .get("chunks")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
+
+    let mut actual_chunks = Vec::with_capacity(chunks.len());
+    for chunk in chunks {
+        let dimension = chunk
+            .get("dimension")
+            .and_then(Value::as_str)
+            .unwrap_or("overworld");
+        if dimension != "overworld" {
+            return Err(format!(
+                "unsupported vanilla worldgen block-array dimension: {dimension}"
+            ));
+        }
+        let pos = crate::storage::region::ChunkPos {
+            x: json_i32_field(chunk, "chunkX")?,
+            z: json_i32_field(chunk, "chunkZ")?,
+        };
+        actual_chunks.push(
+            crate::worldgen::generate_overworld_chunk_for_preset_with_mode(
+                pos,
+                "normal",
+                crate::worldgen::LiveChunkGenerationMode::RealSurface,
+                seed,
+            )?,
+        );
+    }
+
+    vanilla_worldgen_block_array_parity_score(vanilla_fixture_json, &actual_chunks)
+}
+
+fn json_i32_field(value: &Value, field: &str) -> Result<i32, String> {
+    let number = value.get(field).and_then(Value::as_i64).ok_or_else(|| {
+        format!("vanilla worldgen block-array fixture is missing integer {field}")
+    })?;
+    i32::try_from(number).map_err(|_| {
+        format!("vanilla worldgen block-array fixture field {field} is out of i32 range")
+    })
+}
+
+fn vanilla_block_type(block_state: &str) -> String {
+    block_state
+        .split_once('[')
+        .map(|(name, _)| name)
+        .unwrap_or(block_state)
+        .to_string()
+}
+
 pub fn build_worldgen_chunk_comparisons(
     seeds: &[i64],
     chunks: &[ChunkCoord],
@@ -1302,6 +1524,89 @@ mod tests {
         let right = build_worldgen_chunk_comparisons(&[12_345], &[ChunkCoord { x: 1, z: 0 }]);
 
         assert!(diff_worldgen_comparisons(&left, &right).is_empty());
+    }
+
+    #[test]
+    fn vanilla_worldgen_block_array_parity_score_counts_matching_block_types() {
+        let mut chunk = LevelChunk::empty(crate::storage::region::ChunkPos { x: 0, z: 0 });
+        chunk.set_block_state(0, -64, 0, "minecraft:stone");
+        chunk.set_block_state(1, -64, 0, "minecraft:dirt");
+        let mut blocks = vec![vec![vec!["minecraft:air"; 16]; 1]; 16];
+        blocks[0][0][0] = "minecraft:stone";
+        blocks[1][0][0] = "minecraft:grass_block[snowy=false]";
+        let fixture = json!({
+            "format": "rustcraft-vanilla-worldgen-block-array-target-v1",
+            "seed": "0",
+            "chunks": [{
+                "dimension": "overworld",
+                "chunkX": 0,
+                "chunkZ": 0,
+                "yMin": -64,
+                "yMaxExclusive": -63,
+                "blocks": blocks
+            }]
+        })
+        .to_string();
+
+        let score = vanilla_worldgen_block_array_parity_score(&fixture, &[chunk]).unwrap();
+
+        assert_eq!(score.matching_blocks, 254);
+        assert_eq!(score.total_blocks, 256);
+        assert_eq!(score.score, 254.0 / 256.0);
+        assert_eq!(
+            score.mismatches,
+            vec![
+                VanillaBlockArrayMismatchCount {
+                    expected: "minecraft:grass_block".to_string(),
+                    actual: "minecraft:air".to_string(),
+                    count: 1,
+                },
+                VanillaBlockArrayMismatchCount {
+                    expected: "minecraft:stone".to_string(),
+                    actual: "minecraft:air".to_string(),
+                    count: 1,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold() {
+        let score = vanilla_worldgen_block_array_parity_score_for_normal_overworld(include_str!(
+            "../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"
+        ))
+        .expect("vanilla block-array fixture should score against generated Rust chunks");
+
+        print_vanilla_worldgen_mismatch_counts(&score, 30);
+
+        assert!(
+            score.score >= 0.98,
+            "worldgen block parity score {:.6} ({}/{}) is below required 0.98",
+            score.score,
+            score.matching_blocks,
+            score.total_blocks
+        );
+    }
+
+    fn print_vanilla_worldgen_mismatch_counts(score: &VanillaBlockArrayParityScore, limit: usize) {
+        println!(
+            "worldgen block parity score {:.6} ({}/{})",
+            score.score, score.matching_blocks, score.total_blocks
+        );
+        if score.mismatches.is_empty() {
+            println!("worldgen block parity mismatches: none");
+            return;
+        }
+        println!(
+            "top {} worldgen block parity mismatches by expected -> actual block type:",
+            limit.min(score.mismatches.len())
+        );
+        for mismatch in score.mismatches.iter().take(limit) {
+            println!(
+                "{:>8}  expected {:<36} actual {}",
+                mismatch.count, mismatch.expected, mismatch.actual
+            );
+        }
     }
 
     #[test]

@@ -1176,6 +1176,24 @@ fn unpack_heightmap_values(data: &[i64]) -> [i32; 16 * 16] {
     values
 }
 
+fn unpack_heightmap_value(data: &[i64], index: usize) -> i32 {
+    const BITS_PER_ENTRY: usize = 9;
+    let bit_offset = index * BITS_PER_ENTRY;
+    let word_index = bit_offset / 64;
+    let bit_index = bit_offset % 64;
+    let Some(word) = data.get(word_index).copied() else {
+        return 0;
+    };
+    let mut unpacked = (word as u64) >> bit_index;
+    let spill = bit_index + BITS_PER_ENTRY;
+    if spill > 64 {
+        if let Some(next_word) = data.get(word_index + 1).copied() {
+            unpacked |= (next_word as u64) << (64 - bit_index);
+        }
+    }
+    (unpacked & ((1_u64 << BITS_PER_ENTRY) - 1)) as i32
+}
+
 fn heightmap_block_matches(heightmap: HeightmapKind, block: &str) -> bool {
     match heightmap {
         HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => !matches!(
@@ -1474,20 +1492,31 @@ impl PalettedContainer {
             return self.palette.first();
         }
         let bits = palette_bits_for_size(self.palette.len());
-        let indices = unpack_palette_indices(
-            self.data.as_deref().unwrap_or(&[]),
-            bits,
-            self.expected_entries,
-        );
-        let palette_idx = *indices.get(index)? as usize;
+        if index >= self.expected_entries {
+            return None;
+        }
+        let values_per_long = 64 / bits;
+        let word = index / values_per_long;
+        let bit = (index % values_per_long) * bits;
+        let mask = (1_u64 << bits) - 1;
+        let palette_idx =
+            ((self.data.as_deref()?.get(word).copied()? as u64 >> bit) & mask) as usize;
         self.palette.get(palette_idx)
     }
 
     pub fn set_entry(&mut self, index: usize, entry: Tag) {
-        let palette_idx = match self.palette.iter().position(|e| e == &entry) {
+        self.set_entry_ref(index, &entry);
+    }
+
+    pub fn set_entry_ref(&mut self, index: usize, entry: &Tag) {
+        if index >= self.expected_entries {
+            return;
+        }
+        let old_palette_len = self.palette.len();
+        let palette_idx = match self.palette.iter().position(|e| e == entry) {
             Some(i) => i,
             None => {
-                self.palette.push(entry);
+                self.palette.push(entry.clone());
                 self.palette.len() - 1
             }
         };
@@ -1497,21 +1526,48 @@ impl PalettedContainer {
         }
         let bits = palette_bits_for_size(self.palette.len());
         let count = self.expected_entries;
-        let mut indices = match &self.data {
-            Some(d) => {
-                let old_bits = palette_bits_for_size(self.palette.len().saturating_sub(1).max(1));
-                unpack_palette_indices(d, old_bits, count)
+        let old_bits = palette_bits_for_size(old_palette_len.max(1));
+        if old_bits == bits {
+            let values_per_long = 64 / bits;
+            let word_len = count.div_ceil(values_per_long);
+            let data = self.data.get_or_insert_with(|| vec![0_i64; word_len]);
+            if data.len() < word_len {
+                data.resize(word_len, 0);
             }
-            None => vec![0_u64; count],
-        };
-        if index < indices.len() {
-            indices[index] = palette_idx as u64;
+            let word = index / values_per_long;
+            let bit = (index % values_per_long) * bits;
+            let mask = ((1_u64 << bits) - 1) << bit;
+            let current = data[word] as u64;
+            data[word] = ((current & !mask) | ((palette_idx as u64) << bit)) as i64;
+            return;
         }
+
+        let mut indices = self
+            .data
+            .as_ref()
+            .map(|d| unpack_palette_indices(d, old_bits, count))
+            .unwrap_or_else(|| vec![0_u64; count]);
+        indices[index] = palette_idx as u64;
         self.data = Some(pack_palette_indices(&indices, bits));
     }
 }
 
 impl LevelChunk {
+    pub fn heightmap_value(
+        &self,
+        heightmap: HeightmapKind,
+        local_x: usize,
+        local_z: usize,
+    ) -> Option<i32> {
+        if local_x >= 16 || local_z >= 16 {
+            return None;
+        }
+        let Tag::LongArray(values) = self.heightmaps.get(heightmap.storage_name())? else {
+            return None;
+        };
+        Some(unpack_heightmap_value(values, local_z * 16 + local_x))
+    }
+
     pub fn get_block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<String> {
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;

@@ -109,6 +109,43 @@ export function summarizeChunkNbt (root) {
   }
 }
 
+export function decodeChunkBlockStateArray (chunkNbt) {
+  const root = chunkNbt?.type === 'compound' ? chunkNbt : chunkNbt?.value ?? chunkNbt
+  const sections = (arrayValue(compoundField(root, 'sections')) ?? [])
+    .map(decodeBlockSection)
+    .filter(Boolean)
+    .sort((left, right) => left.sectionY - right.sectionY)
+  if (sections.length === 0) {
+    return {
+      yMin: 0,
+      yMaxExclusive: 0,
+      blocks: Array.from({ length: 16 }, () => [])
+    }
+  }
+
+  const yMin = Math.min(...sections.map(section => section.sectionY)) * 16
+  const yMaxExclusive = (Math.max(...sections.map(section => section.sectionY)) + 1) * 16
+  const sectionByY = new Map(sections.map(section => [section.sectionY, section.blocks]))
+  const blocks = Array.from({ length: 16 }, () =>
+    Array.from({ length: yMaxExclusive - yMin }, () =>
+      Array.from({ length: 16 }, () => 'minecraft:air')
+    )
+  )
+
+  for (let x = 0; x < 16; x++) {
+    for (let y = yMin; y < yMaxExclusive; y++) {
+      const sectionY = Math.floor(y / 16)
+      const section = sectionByY.get(sectionY)
+      if (!section) continue
+      for (let z = 0; z < 16; z++) {
+        blocks[x][y - yMin][z] = section[x][y & 15][z]
+      }
+    }
+  }
+
+  return { yMin, yMaxExclusive, blocks }
+}
+
 export function regionPosFromFileName (filePath) {
   const match = path.basename(filePath).match(/^r\.(-?\d+)\.(-?\d+)\.mca$/)
   if (!match) return { x: 0, z: 0 }
@@ -147,6 +184,68 @@ function summarizeSection (section) {
     biomePalette: biomePaletteNames(section),
     biomeData: summarizePackedArray(compoundField(biomes, 'data'))
   }
+}
+
+function decodeBlockSection (section) {
+  const sectionY = numericValue(compoundField(section, 'Y'))
+  const blockStates = compoundField(section, 'block_states')
+  const palette = arrayValue(compoundField(blockStates, 'palette')) ?? []
+  if (!Number.isInteger(sectionY) || palette.length === 0) return undefined
+
+  const paletteValues = palette.map(formatBlockState)
+  const data = arrayValue(compoundField(blockStates, 'data'))
+  const paletteIndexes = decodePalettedContainerIndexes({
+    data,
+    paletteSize: paletteValues.length,
+    entryCount: 16 * 16 * 16,
+    minBits: 4
+  })
+  const blocks = Array.from({ length: 16 }, () =>
+    Array.from({ length: 16 }, () => Array.from({ length: 16 }, () => paletteValues[0] ?? 'minecraft:air'))
+  )
+
+  for (let y = 0; y < 16; y++) {
+    for (let z = 0; z < 16; z++) {
+      for (let x = 0; x < 16; x++) {
+        const index = (y << 8) | (z << 4) | x
+        blocks[x][y][z] = paletteValues[paletteIndexes[index]] ?? `<invalid-palette:${paletteIndexes[index]}>`
+      }
+    }
+  }
+
+  return { sectionY, blocks }
+}
+
+export function decodePalettedContainerIndexes ({ data, paletteSize, entryCount, minBits }) {
+  if (paletteSize <= 1 || !data || data.length === 0) {
+    return Array.from({ length: entryCount }, () => 0)
+  }
+
+  const bits = Math.max(minBits, Math.ceil(Math.log2(paletteSize)))
+  const valuesPerLong = Math.floor(64 / bits)
+  const mask = (1n << BigInt(bits)) - 1n
+  const expectedLength = Math.ceil(entryCount / valuesPerLong)
+  if (data.length !== expectedLength) {
+    throw new Error(`invalid paletted container data length: got ${data.length}, expected ${expectedLength}`)
+  }
+
+  return Array.from({ length: entryCount }, (_, index) => {
+    const cellIndex = Math.floor(index / valuesPerLong)
+    const bitIndex = BigInt((index - cellIndex * valuesPerLong) * bits)
+    const cell = BigInt.asUintN(64, BigInt(data[cellIndex]))
+    return Number((cell >> bitIndex) & mask)
+  })
+}
+
+function formatBlockState (entry) {
+  const name = stringValue(compoundField(entry, 'Name')) ?? 'minecraft:air'
+  const properties = compoundField(entry, 'Properties')
+  const pairs = compoundEntries(properties)
+    .map(([key, tag]) => [key, stringValue(tag)])
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+  if (pairs.length === 0) return name
+  return `${name}[${pairs.map(([key, value]) => `${key}=${value}`).join(',')}]`
 }
 
 function blockPaletteNames (section) {

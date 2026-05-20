@@ -1,11 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{IpAddr, Shutdown, TcpListener, TcpStream};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -283,6 +283,34 @@ const TERRAIN_BASE_Y: i32 = 64;
 const TERRAIN_MIN_SURFACE_Y: i32 = 70;
 const ITEM_ENTITY_TYPE_ID: i32 = 71;
 const SPAWN_Y: f64 = 112.0;
+
+#[derive(Clone, Default)]
+struct GeneratedChunkCache {
+    chunks: Arc<Mutex<HashMap<ChunkPos, Arc<LevelChunk>>>>,
+}
+
+impl GeneratedChunkCache {
+    fn get_or_load(&self, x: i32, z: i32, world_root: &Path, world_seed: i64) -> Arc<LevelChunk> {
+        let pos = ChunkPos { x, z };
+        if let Some(chunk) = self.chunks.lock().unwrap().get(&pos).cloned() {
+            return chunk;
+        }
+
+        let chunk = Arc::new(load_or_generate_spawn_chunk_uncached(
+            x, z, world_root, world_seed,
+        ));
+        self.chunks
+            .lock()
+            .unwrap()
+            .entry(pos)
+            .or_insert_with(|| Arc::clone(&chunk))
+            .clone()
+    }
+
+    fn invalidate(&self, pos: ChunkPos) {
+        self.chunks.lock().unwrap().remove(&pos);
+    }
+}
 
 #[derive(Clone, Default)]
 struct ActiveLoginRegistry {
@@ -1159,6 +1187,7 @@ pub fn run_status_server(
         .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
     let active_logins = ActiveLoginRegistry::default();
     let world_root = Arc::new(world_root.to_path_buf());
+    let chunk_cache = GeneratedChunkCache::default();
     let player_access = Arc::new(Mutex::new(
         PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
             eprintln!("status access file load error: {err}");
@@ -1244,6 +1273,7 @@ pub fn run_status_server(
                 let properties = properties.clone();
                 let favicon = favicon.clone();
                 let active_logins = active_logins.clone();
+                let chunk_cache = chunk_cache.clone();
                 let world_root = Arc::clone(&world_root);
                 let player_access = Arc::clone(&player_access);
                 let clock = Arc::clone(&clock);
@@ -1262,6 +1292,7 @@ pub fn run_status_server(
                         &properties,
                         favicon.as_deref(),
                         &active_logins,
+                        &chunk_cache,
                         &player_access,
                         &world_root,
                         world_seed,
@@ -1320,6 +1351,7 @@ fn handle_status_connection(
     properties: &ServerProperties,
     favicon: Option<&str>,
     active_logins: &ActiveLoginRegistry,
+    chunk_cache: &GeneratedChunkCache,
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
     world_seed: i64,
@@ -1361,6 +1393,7 @@ fn handle_status_connection(
             &mut stream,
             properties,
             active_logins,
+            chunk_cache,
             player_access,
             world_root,
             world_seed,
@@ -1429,6 +1462,7 @@ fn handle_login_connection(
     stream: &mut TcpStream,
     properties: &ServerProperties,
     active_logins: &ActiveLoginRegistry,
+    chunk_cache: &GeneratedChunkCache,
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
     world_seed: i64,
@@ -1786,6 +1820,7 @@ fn handle_login_connection(
         &finished.profile,
         &play_state,
         world_root,
+        chunk_cache,
         join_game_time,
         join_clock_data,
         join_rain_level,
@@ -1967,6 +2002,7 @@ fn handle_login_connection(
                                 stale_chunk.1,
                                 world_root,
                                 world_seed,
+                                chunk_cache,
                             )?;
                         }
                         let chunks_to_send =
@@ -1983,6 +2019,7 @@ fn handle_login_connection(
                             true,
                             world_root,
                             world_seed,
+                            chunk_cache,
                         )?;
                     }
                     // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
@@ -2010,6 +2047,7 @@ fn handle_login_connection(
                         compression,
                         &mut play_state,
                         &world_layout,
+                        chunk_cache,
                         &packet,
                     )?;
                     continue;
@@ -2112,6 +2150,7 @@ fn handle_login_connection(
                         };
                         let block_name =
                             break_block_in_region(&world_layout, chunk_pos, bx, by, bz);
+                        chunk_cache.invalidate(chunk_pos);
                         crate::log::log_debug(&format!(
                             "block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}",
                             play_state.game_mode
@@ -2350,6 +2389,7 @@ fn handle_use_item_on(
     compression: CompressionState,
     state: &mut PlaySessionState,
     world_layout: &WorldLayout,
+    chunk_cache: &GeneratedChunkCache,
     packet: &ServerboundUseItemOnPacket,
 ) -> io::Result<()> {
     // Spectators cannot place blocks.
@@ -2442,6 +2482,7 @@ fn handle_use_item_on(
         target_z,
         item_name,
     );
+    chunk_cache.invalidate(target_chunk);
 
     // Acknowledge the client's predictive block change.
     write_framed_packet_with_compression(
@@ -3306,6 +3347,7 @@ fn write_minimal_play_join(
     profile: &NameAndId,
     play_state: &PlaySessionState,
     world_root: &Path,
+    chunk_cache: &GeneratedChunkCache,
     clock_game_time: i64,
     clock_data: Vec<(i32, ClockNetworkState)>,
     rain_level: f32,
@@ -3471,6 +3513,7 @@ fn write_minimal_play_join(
         false,
         world_root,
         world_seed,
+        chunk_cache,
     )?;
     write_framed_packet_with_compression(
         stream,
@@ -3523,6 +3566,7 @@ fn write_minimal_play_join(
         false,
         world_root,
         world_seed,
+        chunk_cache,
     )
 }
 
@@ -3535,6 +3579,7 @@ fn write_play_chunk_batch(
     update_cache_center: bool,
     world_root: &Path,
     world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
 ) -> io::Result<()> {
     if update_cache_center {
         write_framed_packet_with_compression(
@@ -3560,6 +3605,7 @@ fn write_play_chunk_batch(
         false,
         world_root,
         world_seed,
+        chunk_cache,
     )
 }
 
@@ -3572,6 +3618,7 @@ fn write_play_chunk_delta(
     update_cache_center: bool,
     world_root: &Path,
     world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
 ) -> io::Result<()> {
     if update_cache_center {
         write_framed_packet_with_compression(
@@ -3593,15 +3640,71 @@ fn write_play_chunk_delta(
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
         |_payload| Ok(()),
     )?;
-    for &(x, z) in chunks {
-        write_generated_spawn_chunk_packets(stream, compression, x, z, world_root, world_seed)?;
-    }
+
+    // Java schedules chunk status work on the worldgen background executor
+    // (`NoiseBasedChunkGenerator.fillFromNoise` uses `supplyAsync(...,
+    // Util.backgroundExecutor().forName("wgen_fill_noise"))`) and lets the
+    // client receive ready chunks progressively. Generate the complete
+    // configured view-distance set, but do not wait for the entire square before
+    // sending the first finished chunks.
+    let workers = thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(4)
+        .clamp(1, 4);
+    let worker_count = chunks.len().min(workers);
+    let queue = Arc::new(Mutex::new(VecDeque::from(chunks.to_vec())));
+    let (sender, receiver) = mpsc::channel::<(i32, i32, Arc<LevelChunk>)>();
+    thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let queue = Arc::clone(&queue);
+            let sender = sender.clone();
+            let cache = chunk_cache.clone();
+            scope.spawn(move || loop {
+                let Some((x, z)) = queue.lock().unwrap().pop_front() else {
+                    break;
+                };
+                let chunk = cache.get_or_load(x, z, world_root, world_seed);
+                if sender.send((x, z, chunk)).is_err() {
+                    break;
+                }
+            });
+        }
+        drop(sender);
+
+        for _ in 0..chunks.len() {
+            let (_x, _z, chunk) = receiver.recv().map_err(|err| {
+                io::Error::new(
+                    io::ErrorKind::BrokenPipe,
+                    format!("chunk generation worker stopped before batch completed: {err}"),
+                )
+            })?;
+            write_generated_spawn_chunk_packets_from_chunk(stream, compression, &chunk)?;
+        }
+        Ok::<(), io::Error>(())
+    })?;
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, chunks.len() as i32),
     )
+}
+
+fn write_generated_spawn_chunk_packets_from_chunk<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    chunk: &LevelChunk,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
+        |payload| write_generated_spawn_chunk_payload(payload, chunk),
+    )?;
+    for plan in generated_chunk_entity_spawn_plans(chunk) {
+        write_generated_chunk_entity_spawn_packets(writer, compression, &plan)?;
+    }
+    Ok(())
 }
 
 fn chunk_batch_radius(properties: &ServerProperties) -> i32 {
@@ -3685,8 +3788,9 @@ fn write_forget_generated_spawn_chunk_packets<W: Write>(
     z: i32,
     world_root: &Path,
     world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
 ) -> io::Result<()> {
-    let chunk = load_or_generate_spawn_chunk(x, z, world_root, world_seed);
+    let chunk = chunk_cache.get_or_load(x, z, world_root, world_seed);
     write_generated_chunk_entity_remove_packets(writer, compression, &chunk)?;
     write_forget_level_chunk_packet(writer, compression, x, z)
 }
@@ -3843,29 +3947,8 @@ fn write_generated_spawn_chunk_packet<W: Write>(
     world_root: &Path,
     world_seed: i64,
 ) -> io::Result<()> {
-    let chunk = load_or_generate_spawn_chunk(x, z, world_root, world_seed);
+    let chunk = load_or_generate_spawn_chunk_uncached(x, z, world_root, world_seed);
     write_generated_spawn_chunk_payload(writer, &chunk)
-}
-
-fn write_generated_spawn_chunk_packets<W: Write>(
-    writer: &mut W,
-    compression: CompressionState,
-    x: i32,
-    z: i32,
-    world_root: &Path,
-    world_seed: i64,
-) -> io::Result<()> {
-    let chunk = load_or_generate_spawn_chunk(x, z, world_root, world_seed);
-    write_framed_packet_with_compression(
-        writer,
-        compression,
-        CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-        |payload| write_generated_spawn_chunk_payload(payload, &chunk),
-    )?;
-    for plan in generated_chunk_entity_spawn_plans(&chunk) {
-        write_generated_chunk_entity_spawn_packets(writer, compression, &plan)?;
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3945,7 +4028,12 @@ fn write_generated_spawn_chunk_payload<W: Write>(
     result
 }
 
-fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i64) -> LevelChunk {
+fn load_or_generate_spawn_chunk_uncached(
+    x: i32,
+    z: i32,
+    world_root: &Path,
+    world_seed: i64,
+) -> LevelChunk {
     let started = Instant::now();
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
@@ -3967,12 +4055,44 @@ fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i
         ) {
             Ok((chunk, timings)) => {
                 eprintln!(
-                    "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms heightmaps={}ms heightmap_decode={}ms heightmap_scan={}ms heightmap_pack={}ms heightmap_sections={} heightmap_samples={} mobs={}ms mob_plan={}ms mob_biome={}ms mob_spawn_plan={}ms mob_apply={}ms mob_top={}ms mob_position_ok={}ms mob_snap_collision={}ms mob_rules={}ms mob_queue={}ms mob_random_walk={}ms mob_batches={} mob_attempts={} mobs_spawned={}",
+                    "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} fill_full_noise_cache={}ms fill_full_noise_cache_fills={} fill_vein_noise_cache={}ms fill_vein_noise_cache_fills={} cache_once_scalar_hits={} cache_once_scalar_misses={} cache_once_array_hits={} cache_once_array_misses={} fill_heightmap_pack={}ms fill_cell_columns={} fill_block_samples={} fill_block_writes={} aquifer_calls={} ore_vein_samples={} surface={}ms surface_noise_setup={}ms surface_prelim={}ms surface_column_loop={}ms surface_columns={} surface_block_samples={} surface_block_writes={} heightmaps={}ms heightmap_decode={}ms heightmap_scan={}ms heightmap_pack={}ms heightmap_sections={} heightmap_samples={} mobs={}ms mob_plan={}ms mob_biome={}ms mob_spawn_plan={}ms mob_apply={}ms mob_top={}ms mob_position_ok={}ms mob_snap_collision={}ms mob_rules={}ms mob_queue={}ms mob_random_walk={}ms mob_batches={} mob_attempts={} mobs_spawned={}",
                     x,
                     z,
                     region_ms,
                     timings.resolve_preset_ms,
                     timings.terrain_ms,
+                    timings.terrain.fill_total_ms,
+                    timings.terrain.fill_init_sections_ms,
+                    timings.terrain.fill_noise_chunk_init_ms,
+                    timings.terrain.fill_aquifer_init_ms,
+                    timings.terrain.fill_block_loop_ms,
+                    timings.terrain.fill_density_lookup_us,
+                    timings.terrain.fill_aquifer_compute_us,
+                    timings.terrain.fill_ore_vein_lookup_us,
+                    timings.terrain.fill_ore_decision_us,
+                    timings.terrain.fill_interpolation_update_us,
+                    timings.terrain.interpolator_count,
+                    timings.terrain.fill_full_noise_cache_ms,
+                    timings.terrain.full_noise_cache_fills,
+                    timings.terrain.fill_vein_noise_cache_ms,
+                    timings.terrain.vein_noise_cache_fills,
+                    timings.terrain.cache_once_scalar_hits,
+                    timings.terrain.cache_once_scalar_misses,
+                    timings.terrain.cache_once_array_hits,
+                    timings.terrain.cache_once_array_misses,
+                    timings.terrain.fill_heightmap_pack_ms,
+                    timings.terrain.cell_columns,
+                    timings.terrain.block_samples,
+                    timings.terrain.block_writes,
+                    timings.terrain.aquifer_calls,
+                    timings.terrain.ore_vein_samples,
+                    timings.terrain.surface_total_ms,
+                    timings.terrain.surface_noise_setup_ms,
+                    timings.terrain.surface_prelim_ms,
+                    timings.terrain.surface_column_loop_ms,
+                    timings.terrain.surface_columns,
+                    timings.terrain.surface_block_samples,
+                    timings.terrain.surface_block_writes,
                     timings.heightmaps.total_ms,
                     timings.heightmaps.decode_sections_ms,
                     timings.heightmaps.scan_blocks_ms,
@@ -4023,8 +4143,14 @@ fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i
 
 fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
     match std::env::var("RUSTCRAFT_WORLDGEN").as_deref() {
-        Ok("real-surface") | Ok("surface") => LiveChunkGenerationMode::RealSurface,
-        _ => LiveChunkGenerationMode::Preview,
+        Ok("preview") => LiveChunkGenerationMode::Preview,
+        Ok("real-surface") | Ok("surface") | Err(_) => LiveChunkGenerationMode::RealSurface,
+        Ok(other) => {
+            eprintln!(
+                "unknown RUSTCRAFT_WORLDGEN={other:?}; using real-surface (set preview for scaffold terrain)"
+            );
+            LiveChunkGenerationMode::RealSurface
+        }
     }
 }
 
@@ -9548,7 +9674,7 @@ mod tests {
     }
 
     #[test]
-    fn spawn_chunk_window_uses_configured_server_view_distance_radius() {
+    fn spawn_chunk_window_can_represent_configured_server_view_distance_radius() {
         assert_eq!(chunk_batch_size(2), 25);
         assert_eq!(chunk_batch_size(10), 441);
 

@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { readRegionFile, summarizeRegion } from './vanilla_region_reader.mjs'
+import { decodeChunkBlockStateArray, readRegionFile, summarizeRegion } from './vanilla_region_reader.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
@@ -187,6 +187,63 @@ export async function collectRegionArtifacts (root, regionFiles, requestedChunks
   return artifacts
 }
 
+export async function exportVanillaWorldgenBlockArrayTarget ({
+  chunks = [{ x: 0, z: 0 }, { x: 1, z: 0 }],
+  seed = 8675309n,
+  root = path.join(repoRoot, 'target', 'vanilla-worldgen-block-array-target'),
+  output = path.join(repoRoot, 'harness', 'mineflayer', 'fixtures', 'vanilla_worldgen_block_array_target.json'),
+  timeoutMs = 120_000,
+  runOracle = options => runVanillaWorldgenOracle(options)
+} = {}) {
+  const oracle = await runOracle({ root, seed, chunks, timeoutMs })
+  const chunkArrays = await collectRequestedChunkBlockArrays(root, oracle.plan.regionFiles, oracle.plan.chunks)
+  const target = {
+    format: 'rustcraft-vanilla-worldgen-block-array-target-v1',
+    generatedBy: 'harness/mineflayer/vanilla_worldgen_oracle.mjs',
+    seed: oracle.plan.seed,
+    dimensions: ['x', 'y', 'z', 'block_state'],
+    coordinateSpace: {
+      x: 'local chunk block x, 0..15',
+      y: 'absolute world y encoded as blocks[x][y - yMin][z]',
+      z: 'local chunk block z, 0..15',
+      block_state: 'minecraft block id with sorted state properties when present'
+    },
+    chunks: chunkArrays
+  }
+  await mkdir(path.dirname(output), { recursive: true })
+  await writeFile(output, `${JSON.stringify(target)}\n`)
+  return { ok: oracle.ok && chunkArrays.length === oracle.plan.chunks.length, oracle, target, output }
+}
+
+export async function collectRequestedChunkBlockArrays (root, regionFiles, requestedChunks) {
+  const requestedByKey = new Map(requestedChunks.map(chunk => [
+    `${chunk.dimension ?? 'overworld'},${chunk.x},${chunk.z}`,
+    { dimension: chunk.dimension ?? 'overworld', x: chunk.x, z: chunk.z }
+  ]))
+  const chunks = []
+  for (const relativePath of regionFiles) {
+    const dimension = dimensionFromRegionPath(relativePath)
+    const region = await readRegionFile(path.join(root, relativePath))
+    for (const chunk of region.chunks) {
+      const key = `${dimension},${chunk.chunkX},${chunk.chunkZ}`
+      if (!requestedByKey.has(key)) continue
+      const decoded = decodeChunkBlockStateArray(chunk.nbt)
+      chunks.push({
+        dimension,
+        chunkX: chunk.chunkX,
+        chunkZ: chunk.chunkZ,
+        status: chunk.summary.status,
+        yMin: decoded.yMin,
+        yMaxExclusive: decoded.yMaxExclusive,
+        blocks: decoded.blocks
+      })
+    }
+  }
+  return chunks.sort((left, right) =>
+    left.dimension.localeCompare(right.dimension) || left.chunkX - right.chunkX || left.chunkZ - right.chunkZ
+  )
+}
+
 export function buildVanillaWorldgenTraceReport (oracleResult) {
   const requestedChunks = (oracleResult.artifacts ?? [])
     .flatMap(artifact => (artifact.requestedChunks ?? []).map(chunk => traceChunk(artifact, chunk)))
@@ -363,7 +420,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const [x, z, dimension] = entry.split(',')
       return { x: Number(x), z: Number(z), dimension: dimension ?? 'overworld' }
     })
-  const result = await runVanillaWorldgenOracle({ root, seed, chunks })
+  const output = process.env.RUSTCRAFT_WORLDGEN_BLOCK_ARRAY_OUTPUT
+  const result = output
+    ? await exportVanillaWorldgenBlockArrayTarget({ root, seed, chunks, output })
+    : await runVanillaWorldgenOracle({ root, seed, chunks })
   console.log(JSON.stringify(result, null, 2))
   process.exit(result.ok ? 0 : 1)
 }

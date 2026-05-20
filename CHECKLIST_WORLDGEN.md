@@ -47,7 +47,8 @@
 
 The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noise-based preview terrain), not vanilla world generation. All items below represent the gap between the current scaffolding and full vanilla worldgen parity.
 
-- [x] Add guarded live worldgen mode switch (`RUSTCRAFT_WORLDGEN=preview|real-surface`) so incomplete real-worldgen stages can be tested without breaking the default joinable preview terrain path.
+- [x] Add guarded live worldgen mode switch (`RUSTCRAFT_WORLDGEN=preview|real-surface`); live generation now defaults to `real-surface`, with `preview` retained as the explicit scaffold fallback.
+- [ ] Raise `normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold` from the current measured 0.859504 block-type parity to the required 0.98 against `harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json`.
 
 ## World Presets and Dimension Loading
 
@@ -286,6 +287,15 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement aquifers and cave generation.
 - [x] Implement ore veinifier behavior.
 - [ ] Implement carvers.
+  - [x] Wire the existing configured carver execution pass into the live
+    `RealSurface` overworld generation path after noise/surface generation and
+    before final client heightmaps, matching the vanilla pipeline stage order
+    instead of leaving carvers only on the separate status helper path.
+  - [x] Match vanilla `NoiseBasedChunkGenerator.applyCarvers` source-window
+    carver selection more closely by resolving configured carvers per source
+    chunk in the 17x17 carving window and resetting the carver index per source
+    chunk for `WorldgenRandom#setLargeFeatureSeed(levelSeed + index, sourceX,
+    sourceZ)`.
 - [ ] Implement features.
 - [ ] Implement configured features.
 - [ ] Implement placed features.
