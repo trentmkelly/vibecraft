@@ -598,8 +598,14 @@ impl LevelChunk {
             blending_data: optional_blending_data(root)?,
             below_zero_retrogen: optional_below_zero_retrogen(root)?,
             carving_mask: optional_long_array(root, "carving_mask")?,
-            block_ticks: optional_list_field(root, "block_ticks")?.unwrap_or_default(),
-            fluid_ticks: optional_list_field(root, "fluid_ticks")?.unwrap_or_default(),
+            block_ticks: filter_saved_ticks_for_chunk(
+                optional_list_field(root, "block_ticks")?.unwrap_or_default(),
+                pos,
+            ),
+            fluid_ticks: filter_saved_ticks_for_chunk(
+                optional_list_field(root, "fluid_ticks")?.unwrap_or_default(),
+                pos,
+            ),
             post_processing: optional_list_field(root, "PostProcessing")?.unwrap_or_default(),
             light_correct: optional_bool_field(root, "isLightOn")?.unwrap_or(false),
         })
@@ -901,6 +907,26 @@ fn heightmap_fields(chunk: &LevelChunk) -> Vec<(String, Tag)> {
         .collect()
 }
 
+fn filter_saved_ticks_for_chunk(ticks: Vec<Tag>, pos: ChunkPos) -> Vec<Tag> {
+    ticks
+        .into_iter()
+        .filter(|tick| saved_tick_belongs_to_chunk(tick, pos))
+        .collect()
+}
+
+fn saved_tick_belongs_to_chunk(tick: &Tag, pos: ChunkPos) -> bool {
+    let Ok(fields) = compound(tick) else {
+        return false;
+    };
+    let Ok(x) = int_field(fields, "x") else {
+        return false;
+    };
+    let Ok(z) = int_field(fields, "z") else {
+        return false;
+    };
+    x.div_euclid(CHUNK_WIDTH) == pos.x && z.div_euclid(CHUNK_WIDTH) == pos.z
+}
+
 fn compound(tag: &Tag) -> Result<&[(String, Tag)], String> {
     match tag {
         Tag::Compound(values) => Ok(values),
@@ -1099,10 +1125,11 @@ fn validate_below_zero_retrogen(tag: &Tag) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_status, chunk_status_is_or_after, pack_postprocessing_offset, BlockStateEntry,
-        ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, PalettedContainer,
-        SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE,
-        FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        chunk_status, chunk_status_is_or_after, pack_postprocessing_offset, saved_tick_tag,
+        string_field, BlockStateEntry, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind,
+        LevelChunk, PalettedContainer, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
+        CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, SECTION_VOLUME,
+        WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -1505,6 +1532,44 @@ mod tests {
                 ("p".to_string(), Tag::Int(2)),
             ])]
         );
+    }
+
+    #[test]
+    fn level_chunk_load_filters_saved_ticks_to_own_chunk() {
+        let pos = ChunkPos { x: -2, z: 3 };
+        let mut chunk = LevelChunk::empty(pos);
+        chunk.schedule_block_tick("minecraft:oak_sapling", -17, 65, 48, 7, TickPriority::High);
+        chunk.block_ticks.push(saved_tick_tag(
+            "minecraft:stone".to_string(),
+            -33,
+            65,
+            48,
+            0,
+            TickPriority::Normal,
+        ));
+        chunk.schedule_fluid_tick("minecraft:water", -32, -5, 63, 1, TickPriority::VeryLow);
+        chunk.fluid_ticks.push(saved_tick_tag(
+            "minecraft:lava".to_string(),
+            -17,
+            20,
+            64,
+            0,
+            TickPriority::Normal,
+        ));
+
+        let decoded = LevelChunk::from_nbt(pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
+
+        assert_eq!(decoded.block_ticks.len(), 1);
+        assert_eq!(decoded.fluid_ticks.len(), 1);
+        assert!(matches!(
+            &decoded.block_ticks[0],
+            Tag::Compound(fields)
+                if string_field(fields, "i").unwrap() == "minecraft:oak_sapling"
+        ));
+        assert!(matches!(
+            &decoded.fluid_ticks[0],
+            Tag::Compound(fields) if string_field(fields, "i").unwrap() == "minecraft:water"
+        ));
     }
 
     #[test]
