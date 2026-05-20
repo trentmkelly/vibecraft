@@ -313,7 +313,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Add raw 26.1.2 chunk return-visibility fallback coverage that moves an offline profile away and back, then verifies the original visible chunk window is restored deterministically while Mineflayer lacks target-protocol play support.
 - [ ] Implement light engine for block light and sky light.
 - [ ] Implement block updates caused by chunk load and generation.
-- [ ] Implement inhabited time.
+- [x] Implement inhabited time.
 - [ ] Implement random ticks.
 - [ ] Implement scheduled block and fluid ticks.
 - [ ] Implement post-processing and upgrade data.
