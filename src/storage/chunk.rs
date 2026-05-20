@@ -1014,6 +1014,43 @@ pub fn chunk_generation_task_layer_radius(
     chunk_pyramid_accumulated_radius_of(kind, target, status)
 }
 
+pub fn chunk_generation_task_can_load_without_generation<F>(
+    target: &str,
+    center_x: i32,
+    center_z: i32,
+    mut persisted_status_at: F,
+) -> Option<bool>
+where
+    F: FnMut(i32, i32) -> Option<&'static str>,
+{
+    let target = chunk_status(target)?;
+    if target.id == "minecraft:empty" {
+        return Some(true);
+    }
+
+    let center_status = chunk_status(persisted_status_at(center_x, center_z)?)?;
+    if chunk_status_is_before(center_status.id, target.id)? {
+        return Some(false);
+    }
+
+    let dependencies =
+        chunk_pyramid_accumulated_dependencies(ChunkPyramidKind::Loading, target.id)?;
+    let range = dependencies.len().saturating_sub(1) as i32;
+
+    for x in center_x - range..=center_x + range {
+        for z in center_z - range..=center_z + range {
+            let distance = (center_x - x).abs().max((center_z - z).abs()) as usize;
+            let required_status = dependencies.get(distance).copied()?;
+            let persisted_status = chunk_status(persisted_status_at(x, z)?)?;
+            if chunk_status_is_before(persisted_status.id, required_status)? {
+                return Some(false);
+            }
+        }
+    }
+
+    Some(true)
+}
+
 fn chunk_pyramid_dependencies(
     kind: ChunkPyramidKind,
     target: &str,
@@ -2413,6 +2450,58 @@ mod tests {
         );
         assert_eq!(
             super::chunk_generation_task_worst_case_radius("unknown"),
+            None
+        );
+    }
+
+    #[test]
+    fn chunk_generation_task_can_load_without_generation_matches_java_gate() {
+        assert_eq!(
+            super::chunk_generation_task_can_load_without_generation("empty", 0, 0, |_, _| None),
+            Some(true)
+        );
+        assert_eq!(
+            super::chunk_generation_task_can_load_without_generation("features", 0, 0, |x, z| {
+                if x == 0 && z == 0 {
+                    Some("minecraft:carvers")
+                } else {
+                    Some("minecraft:features")
+                }
+            }),
+            Some(false)
+        );
+        assert_eq!(
+            super::chunk_generation_task_can_load_without_generation("light", 0, 0, |x, z| {
+                if x == 0 && z == 0 {
+                    Some("minecraft:light")
+                } else {
+                    Some("minecraft:initialize_light")
+                }
+            }),
+            Some(true)
+        );
+        assert_eq!(
+            super::chunk_generation_task_can_load_without_generation("light", 0, 0, |x, z| {
+                if x == 0 && z == 0 {
+                    Some("minecraft:light")
+                } else if x == 1 && z == 0 {
+                    Some("minecraft:features")
+                } else {
+                    Some("minecraft:initialize_light")
+                }
+            }),
+            Some(false)
+        );
+        assert_eq!(
+            super::chunk_generation_task_can_load_without_generation("light", 0, 0, |x, z| {
+                if x == 0 && z == 0 {
+                    Some("minecraft:light")
+                } else if x == 1 && z == 0 {
+                    None
+                } else {
+                    Some("minecraft:initialize_light")
+                }
+            }),
             None
         );
     }
