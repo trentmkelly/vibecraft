@@ -23932,6 +23932,33 @@ pub fn entity_type_width(entity_type: &str) -> f32 {
     }
 }
 
+pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, uuid: &str) -> Tag {
+    Tag::Compound(vec![
+        ("id".to_string(), Tag::String(snap.entity_type.to_string())),
+        ("UUID".to_string(), Tag::String(uuid.to_string())),
+        (
+            "Pos".to_string(),
+            Tag::List(vec![
+                Tag::Double(snap.x),
+                Tag::Double(snap.y),
+                Tag::Double(snap.z),
+            ]),
+        ),
+        (
+            "Rotation".to_string(),
+            Tag::List(vec![Tag::Float(snap.yaw), Tag::Float(snap.pitch)]),
+        ),
+    ])
+}
+
+pub fn queue_chunk_generation_mob_entity(
+    chunk: &mut LevelChunk,
+    snap: ChunkGenerationMobEntitySnapPlan,
+    uuid: &str,
+) -> bool {
+    chunk.add_entity_nbt(chunk_generation_mob_entity_nbt(snap, uuid))
+}
+
 fn spawn_pathfindable_land_block(block: &str) -> bool {
     is_surface_air(block)
 }
@@ -58126,6 +58153,48 @@ mod tests {
         assert_eq!(snap.z, -33.0);
         assert!((snap.yaw - 263.11615).abs() < 0.0001);
         assert_eq!(snap.pitch, 0.0);
+    }
+
+    #[test]
+    fn queue_chunk_generation_mob_entity_appends_proto_entity_nbt() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        let snap = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:pig",
+            width: 0.9,
+            x: 32.9,
+            y: 70.0,
+            z: -33.0,
+            yaw: 90.0,
+            pitch: 0.0,
+        };
+
+        assert!(super::queue_chunk_generation_mob_entity(
+            &mut chunk,
+            snap,
+            "00000000-0000-0000-0000-000000000123"
+        ));
+
+        assert_eq!(chunk.entities.len(), 1);
+        let Tag::Compound(fields) = &chunk.entities[0] else {
+            panic!("queued entity must be a compound");
+        };
+        assert!(fields.contains(&("id".to_string(), Tag::String("minecraft:pig".to_string()))));
+        assert!(fields.contains(&(
+            "UUID".to_string(),
+            Tag::String("00000000-0000-0000-0000-000000000123".to_string())
+        )));
+        assert!(fields.contains(&(
+            "Pos".to_string(),
+            Tag::List(vec![
+                Tag::Double(32.9),
+                Tag::Double(70.0),
+                Tag::Double(-33.0)
+            ])
+        )));
+        assert!(fields.contains(&(
+            "Rotation".to_string(),
+            Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)])
+        )));
     }
 
     #[test]
