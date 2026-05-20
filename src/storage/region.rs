@@ -127,7 +127,11 @@ impl RegionFile {
         if file.metadata()?.len() < HEADER_BYTES {
             file.set_len(HEADER_BYTES)?;
         }
-        Ok(Self { path })
+        drop(file);
+
+        let region = Self { path };
+        region.sanitize_header_locations()?;
+        Ok(region)
     }
 
     pub fn path(&self) -> &Path {
@@ -138,6 +142,29 @@ impl RegionFile {
         self.path
             .parent()
             .map(|dir| dir.join(format!("c.{}.{}.mcc", chunk.x, chunk.z)))
+    }
+
+    fn sanitize_header_locations(&self) -> io::Result<()> {
+        let file_len = fs::metadata(&self.path)?.len();
+        let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
+        for index in 0..(CHUNKS_PER_REGION_AXIS * CHUNKS_PER_REGION_AXIS) as usize {
+            file.seek(SeekFrom::Start((index * 4) as u64))?;
+            let mut bytes = [0u8; 4];
+            file.read_exact(&mut bytes)?;
+            let sector_offset = u32::from_be_bytes([0, bytes[0], bytes[1], bytes[2]]);
+            let sector_count = bytes[3];
+            if sector_offset == 0 {
+                continue;
+            }
+            if sector_offset < 2
+                || sector_count == 0
+                || sector_offset as u64 * SECTOR_BYTES as u64 > file_len
+            {
+                file.seek(SeekFrom::Start((index * 4) as u64))?;
+                file.write_all(&[0, 0, 0, 0])?;
+            }
+        }
+        Ok(())
     }
 
     pub fn read_location(&self, chunk: ChunkPos) -> io::Result<Option<RegionLocation>> {
@@ -415,6 +442,42 @@ mod tests {
     }
 
     #[test]
+    fn region_file_open_sanitizes_invalid_header_locations() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-invalid-header-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("r.0.0.mca");
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(HEADER_BYTES + super::SECTOR_BYTES as u64)
+            .unwrap();
+        drop(file);
+
+        write_raw_location(&path, ChunkPos { x: 0, z: 0 }, 1, 1);
+        write_raw_location(&path, ChunkPos { x: 1, z: 0 }, 2, 0);
+        write_raw_location(&path, ChunkPos { x: 2, z: 0 }, 99, 1);
+        write_raw_location(&path, ChunkPos { x: 3, z: 0 }, 2, 1);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+
+        assert_eq!(region.read_location(ChunkPos { x: 0, z: 0 }).unwrap(), None);
+        assert_eq!(region.read_location(ChunkPos { x: 1, z: 0 }).unwrap(), None);
+        assert_eq!(region.read_location(ChunkPos { x: 2, z: 0 }).unwrap(), None);
+        assert_eq!(
+            region.read_location(ChunkPos { x: 3, z: 0 }).unwrap(),
+            Some(RegionLocation {
+                sector_offset: 2,
+                sector_count: 1,
+            })
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn region_compression_versions_match_vanilla_ids_and_options() {
         assert_eq!(RegionCompression::DEFAULT, RegionCompression::Deflate);
         assert_eq!(RegionCompression::from_id(1), Some(RegionCompression::Gzip));
@@ -554,6 +617,15 @@ mod tests {
             .unwrap();
         file.write_all(&length.to_be_bytes()).unwrap();
         file.write_all(&[version]).unwrap();
+    }
+
+    fn write_raw_location(path: &std::path::Path, chunk: ChunkPos, sector: u32, count: u8) {
+        let mut file = fs::OpenOptions::new().write(true).open(path).unwrap();
+        file.seek(SeekFrom::Start((chunk.local_index() * 4) as u64))
+            .unwrap();
+        let bytes = sector.to_be_bytes();
+        file.write_all(&[bytes[1], bytes[2], bytes[3], count])
+            .unwrap();
     }
 
     #[test]
