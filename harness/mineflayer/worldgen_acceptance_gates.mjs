@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -129,6 +130,16 @@ export function compareRustcraftWorldgenReport (vanillaReports, rustcraftReport)
     leftLabel: 'vanilla',
     rightLabel: 'rustcraft'
   })
+}
+
+export async function generateRustcraftWorldgenReport ({
+  command = process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT_COMMAND ?? 'cargo run -q -- --report',
+  cwd = repoRoot,
+  reportPath = process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT_PATH ?? path.join(repoRoot, 'generated', 'reports', 'worldgen_chunks.json')
+} = {}) {
+  await runShellCommand(command, cwd)
+  await readOptionalJson(reportPath, true)
+  return reportPath
 }
 
 function compareComparableChunkLists (leftChunks, rightChunks, { leftLabel, rightLabel }) {
@@ -294,6 +305,24 @@ async function readOptionalJson (filePath, required) {
   }
 }
 
+function runShellCommand (command, cwd) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      stdio: ['ignore', 'inherit', 'inherit']
+    })
+    child.on('error', reject)
+    child.on('exit', code => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`command failed with exit ${code}: ${command}`))
+      }
+    })
+  })
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const report = await loadWorldgenAcceptanceReport({
     requireReports: process.env.RUSTCRAFT_REQUIRE_WORLDGEN_REPORTS === '1'
@@ -317,6 +346,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         await readOptionalJson(report.dimensionPath, true)
       ],
       await readOptionalJson(process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT, true)
+    )
+  }
+  if (process.env.RUSTCRAFT_GENERATE_RUST_WORLDGEN_REPORT === '1') {
+    report.rustcraftReportPath = await generateRustcraftWorldgenReport()
+    report.rustcraftComparison = compareRustcraftWorldgenReport(
+      [
+        await readOptionalJson(report.overworldPath, true),
+        await readOptionalJson(report.dimensionPath, true)
+      ],
+      await readOptionalJson(report.rustcraftReportPath, true)
     )
   }
   console.log(JSON.stringify(report, null, 2))

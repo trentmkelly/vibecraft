@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import test from 'node:test'
+import { promisify } from 'node:util'
 
 import {
   WORLDGEN_ACCEPTANCE_PHASES,
   compareRustcraftWorldgenReport,
   compareWorldgenFixtureReports,
+  generateRustcraftWorldgenReport,
   loadWorldgenAcceptanceReport,
   validateWorldgenAcceptanceReport
 } from './worldgen_acceptance_gates.mjs'
+
+const execFileAsync = promisify(execFile)
 
 test('worldgen acceptance phases are ordered and cover the expected progression', () => {
   assert.deepEqual(
@@ -162,6 +167,64 @@ test('RustCraft worldgen comparison fails closed against vanilla requested chunk
     rightChunks: 1,
     issues: ['chunk overworld:0,0 stable projection differs']
   })
+})
+
+test('RustCraft report generation runs configured command and verifies report JSON', async () => {
+  const dir = path.join('/tmp', `rustcraft-worldgen-report-command-${process.pid}`)
+  await rm(dir, { recursive: true, force: true })
+  await mkdir(dir, { recursive: true })
+  const reportPath = path.join(dir, 'worldgen_chunks.json')
+  const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify(${JSON.stringify(rustcraftReport({ dimension: 'overworld' }))}))`)}`
+
+  assert.equal(
+    await generateRustcraftWorldgenReport({ command, cwd: dir, reportPath }),
+    reportPath
+  )
+})
+
+test('CLI can generate and compare the RustCraft report on demand', async () => {
+  const dir = path.join('/tmp', `rustcraft-worldgen-gate-cli-${process.pid}`)
+  await rm(dir, { recursive: true, force: true })
+  await mkdir(dir, { recursive: true })
+  const overworldPath = path.join(dir, 'overworld.json')
+  const dimensionPath = path.join(dir, 'dimensions.json')
+  const rustcraftPath = path.join(dir, 'worldgen_chunks.json')
+  await writeFile(overworldPath, JSON.stringify(fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })))
+  await writeFile(dimensionPath, JSON.stringify({
+    results: [
+      ...fixtureReport({ dimension: 'the_nether' }).results,
+      ...fixtureReport({ dimension: 'the_end' }).results
+    ]
+  }))
+  const rustcraftFixture = {
+    format: 'rustcraft-worldgen-signatures-v1',
+    chunks: [
+      ...rustcraftReport({ dimension: 'overworld', palette: ['minecraft:water', 'minecraft:stone'] }).chunks,
+      ...rustcraftReport({ dimension: 'the_nether' }).chunks,
+      ...rustcraftReport({ dimension: 'the_end' }).chunks
+    ]
+  }
+  const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(rustcraftPath)}, JSON.stringify(${JSON.stringify(rustcraftFixture)}))`)}`
+
+  const { stdout } = await execFileAsync(process.execPath, ['worldgen_acceptance_gates.mjs'], {
+    cwd: path.dirname(new URL(import.meta.url).pathname),
+    env: {
+      ...process.env,
+      RUSTCRAFT_OVERWORLD_FIXTURE_REPORT: overworldPath,
+      RUSTCRAFT_DIMENSION_FIXTURE_REPORT: dimensionPath,
+      RUSTCRAFT_GENERATE_RUST_WORLDGEN_REPORT: '1',
+      RUSTCRAFT_RUST_WORLDGEN_REPORT_COMMAND: command,
+      RUSTCRAFT_RUST_WORLDGEN_REPORT_PATH: rustcraftPath
+    }
+  })
+  const report = JSON.parse(stdout)
+
+  assert.equal(report.rustcraftReportPath, rustcraftPath)
+  assert.equal(report.rustcraftComparison.ok, true)
+  assert.equal(report.rustcraftComparison.comparedChunks, 3)
 })
 
 function fixtureReport ({
