@@ -24209,6 +24209,18 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:cat" | "minecraft:wolf" => {
             fields.push(("CollarColor".to_string(), Tag::Byte(14)));
         }
+        "minecraft:chicken" => {
+            fields.push(("IsChickenJockey".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:goat" => {
+            fields.push(("IsScreamingGoat".to_string(), Tag::Byte(0)));
+            fields.push(("HasLeftHorn".to_string(), Tag::Byte(1)));
+            fields.push(("HasRightHorn".to_string(), Tag::Byte(1)));
+        }
+        "minecraft:rabbit" => {
+            fields.push(("RabbitType".to_string(), Tag::Int(0)));
+            fields.push(("MoreCarrotTicks".to_string(), Tag::Int(0)));
+        }
         "minecraft:sheep" => {
             fields.push(("Sheared".to_string(), Tag::Byte(0)));
             fields.push(("Color".to_string(), Tag::Byte(0)));
@@ -58851,6 +58863,33 @@ mod tests {
             yaw: 0.0,
             pitch: 0.0,
         };
+        let chicken = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:chicken",
+            width: 0.4,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let goat = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:goat",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let rabbit = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:rabbit",
+            width: 0.4,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
 
         let Tag::Compound(sheep_fields) =
             super::chunk_generation_mob_entity_nbt(sheep, "00000000-0000-0000-0000-000000000125")
@@ -58862,10 +58901,31 @@ mod tests {
         else {
             panic!("cat entity nbt must be a compound");
         };
+        let Tag::Compound(chicken_fields) =
+            super::chunk_generation_mob_entity_nbt(chicken, "00000000-0000-0000-0000-000000000127")
+        else {
+            panic!("chicken entity nbt must be a compound");
+        };
+        let Tag::Compound(goat_fields) =
+            super::chunk_generation_mob_entity_nbt(goat, "00000000-0000-0000-0000-000000000128")
+        else {
+            panic!("goat entity nbt must be a compound");
+        };
+        let Tag::Compound(rabbit_fields) =
+            super::chunk_generation_mob_entity_nbt(rabbit, "00000000-0000-0000-0000-000000000129")
+        else {
+            panic!("rabbit entity nbt must be a compound");
+        };
 
         assert!(sheep_fields.contains(&("Sheared".to_string(), Tag::Byte(0))));
         assert!(sheep_fields.contains(&("Color".to_string(), Tag::Byte(0))));
         assert!(cat_fields.contains(&("CollarColor".to_string(), Tag::Byte(14))));
+        assert!(chicken_fields.contains(&("IsChickenJockey".to_string(), Tag::Byte(0))));
+        assert!(goat_fields.contains(&("IsScreamingGoat".to_string(), Tag::Byte(0))));
+        assert!(goat_fields.contains(&("HasLeftHorn".to_string(), Tag::Byte(1))));
+        assert!(goat_fields.contains(&("HasRightHorn".to_string(), Tag::Byte(1))));
+        assert!(rabbit_fields.contains(&("RabbitType".to_string(), Tag::Int(0))));
+        assert!(rabbit_fields.contains(&("MoreCarrotTicks".to_string(), Tag::Int(0))));
     }
 
     #[test]
