@@ -187,6 +187,73 @@ export async function collectRegionArtifacts (root, regionFiles, requestedChunks
   return artifacts
 }
 
+export function buildVanillaWorldgenTraceReport (oracleResult) {
+  const requestedChunks = (oracleResult.artifacts ?? [])
+    .flatMap(artifact => (artifact.requestedChunks ?? []).map(chunk => traceChunk(artifact, chunk)))
+    .sort((left, right) => left.dimension.localeCompare(right.dimension) || left.chunkX - right.chunkX || left.chunkZ - right.chunkZ)
+  return {
+    format: 'rustcraft-vanilla-worldgen-trace-v1',
+    seed: oracleResult.plan?.seed,
+    levelName: oracleResult.plan?.levelName,
+    commandTrace: oracleResult.plan?.commands ?? [],
+    regionArtifacts: (oracleResult.artifacts ?? []).map(artifact => ({
+      path: artifact.path,
+      bytes: artifact.bytes,
+      sha256: artifact.sha256,
+      chunkCount: artifact.chunkCount,
+      statusCounts: artifact.statusCounts ?? {}
+    })),
+    requestedChunks
+  }
+}
+
+function traceChunk (artifact, chunk) {
+  return {
+    dimension: dimensionFromRegionPath(artifact.path),
+    chunkX: chunk.chunkX,
+    chunkZ: chunk.chunkZ,
+    finalStatus: chunk.status,
+    heightmaps: chunk.heightmaps ?? {},
+    biomePalette: chunk.biomePalette ?? [],
+    sectionCount: chunk.sectionCount,
+    nonEmptySectionCount: chunk.nonEmptySectionCount,
+    sectionPalettes: (chunk.sections ?? []).map(section => ({
+      y: section.y,
+      blockPalette: section.blockPalette ?? [],
+      blockStatesData: section.blockStatesData ?? null,
+      biomePalette: section.biomePalette ?? [],
+      biomeData: section.biomeData ?? null
+    })),
+    structures: chunk.structures ?? { startKeys: [], referenceKeys: [] },
+    featureBlockSamples: featureBlockSamples(chunk),
+    serializedChunkNbt: {
+      payloadBytes: chunk.payloadBytes,
+      payloadSha256: chunk.payloadSha256
+    }
+  }
+}
+
+function dimensionFromRegionPath (regionPath) {
+  if (regionPath.includes('/the_nether/')) return 'the_nether'
+  if (regionPath.includes('/the_end/')) return 'the_end'
+  return 'overworld'
+}
+
+function featureBlockSamples (chunk) {
+  return [...new Set((chunk.blockPalette ?? []).filter(block => (
+    block.includes('ore') ||
+    block.includes('log') ||
+    block.includes('leaves') ||
+    block.includes('grass') ||
+    block.includes('flower') ||
+    block.includes('mushroom') ||
+    block.includes('vine') ||
+    block.includes('coral') ||
+    block.includes('kelp') ||
+    block.includes('seagrass')
+  )))].sort()
+}
+
 export async function listRegionFiles (root, levelName = 'world') {
   const worldRoot = path.join(root, levelName)
   const regions = []

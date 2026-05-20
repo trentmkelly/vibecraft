@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  buildVanillaWorldgenTraceReport,
   buildVanillaWorldgenOraclePlan,
   chunkToBlockCoord,
   chunkToRegionCoord,
@@ -80,4 +81,78 @@ test('vanilla worldgen oracle rejects unsupported dimension artifact paths', () 
     () => dimensionForceLoadCommandForChunk({ x: 0, z: 0, dimension: 'moon' }),
     /unsupported dimension/
   )
+})
+
+test('vanilla worldgen trace report normalizes requested chunk evidence', () => {
+  const report = buildVanillaWorldgenTraceReport({
+    plan: {
+      seed: '0',
+      levelName: 'world',
+      commands: ['forceload add 0 0', 'save-all flush', 'stop']
+    },
+    artifacts: [{
+      path: 'world/dimensions/minecraft/overworld/region/r.0.0.mca',
+      bytes: 8192,
+      sha256: 'a'.repeat(64),
+      chunkCount: 1,
+      statusCounts: { 'minecraft:full': 1 },
+      requestedChunks: [{
+        chunkX: 0,
+        chunkZ: 0,
+        status: 'minecraft:full',
+        sectionCount: 24,
+        nonEmptySectionCount: 18,
+        heightmaps: {
+          WORLD_SURFACE: { type: 'long_array', entries: 37 }
+        },
+        structures: {
+          startKeys: ['minecraft:village'],
+          referenceKeys: ['minecraft:village']
+        },
+        blockPalette: ['minecraft:stone', 'minecraft:oak_log', 'minecraft:grass_block'],
+        biomePalette: ['minecraft:plains'],
+        payloadBytes: 1234,
+        payloadSha256: 'b'.repeat(64),
+        sections: [{
+          y: 4,
+          blockPalette: ['minecraft:stone', 'minecraft:oak_log'],
+          blockStatesData: { entries: 256, sha256: 'c'.repeat(64) },
+          biomePalette: ['minecraft:plains'],
+          biomeData: { entries: 64, sha256: 'd'.repeat(64) }
+        }]
+      }]
+    }]
+  })
+
+  assert.equal(report.format, 'rustcraft-vanilla-worldgen-trace-v1')
+  assert.deepEqual(report.commandTrace, ['forceload add 0 0', 'save-all flush', 'stop'])
+  assert.deepEqual(report.regionArtifacts[0].statusCounts, { 'minecraft:full': 1 })
+  assert.deepEqual(report.requestedChunks[0], {
+    dimension: 'overworld',
+    chunkX: 0,
+    chunkZ: 0,
+    finalStatus: 'minecraft:full',
+    heightmaps: {
+      WORLD_SURFACE: { type: 'long_array', entries: 37 }
+    },
+    biomePalette: ['minecraft:plains'],
+    sectionCount: 24,
+    nonEmptySectionCount: 18,
+    sectionPalettes: [{
+      y: 4,
+      blockPalette: ['minecraft:stone', 'minecraft:oak_log'],
+      blockStatesData: { entries: 256, sha256: 'c'.repeat(64) },
+      biomePalette: ['minecraft:plains'],
+      biomeData: { entries: 64, sha256: 'd'.repeat(64) }
+    }],
+    structures: {
+      startKeys: ['minecraft:village'],
+      referenceKeys: ['minecraft:village']
+    },
+    featureBlockSamples: ['minecraft:grass_block', 'minecraft:oak_log'],
+    serializedChunkNbt: {
+      payloadBytes: 1234,
+      payloadSha256: 'b'.repeat(64)
+    }
+  })
 })
