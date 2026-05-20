@@ -74,7 +74,8 @@ export function evaluateManifestReadiness (manifest, rawProbe) {
     requiredTagCheck(manifest, rawProbe),
     knownPackCheck(manifest, rawProbe),
     finishConfigurationCheck(manifest, rawProbe),
-    playEntryCheck(rawProbe)
+    playEntryCheck(rawProbe),
+    spawnChunkBatchFramingCheck(rawProbe)
   ]
 }
 
@@ -170,6 +171,33 @@ function playEntryCheck (rawProbe) {
         chunkBatchFinishedIndex,
         loginLength: loginPacket?.length,
         positionLength: positionPacket?.length
+      })
+}
+
+function spawnChunkBatchFramingCheck (rawProbe) {
+  const actual = rawProbe.play?.map(packet => packet.id) ?? []
+  const firstChunkIndex = actual.indexOf(45)
+  const chunkBatchFinishedIndex = actual.indexOf(11)
+  const chunkPackets = firstChunkIndex === -1 || chunkBatchFinishedIndex === -1
+    ? []
+    : rawProbe.play.slice(firstChunkIndex, chunkBatchFinishedIndex)
+  const ok = firstChunkIndex !== -1 &&
+    chunkBatchFinishedIndex > firstChunkIndex &&
+    chunkPackets.length >= 9 &&
+    chunkPackets.every(packet => packet.id === 45 && packet.length > 1024)
+
+  return ok
+    ? pass('raw-26-spawn-chunk-batch-framing', {
+        firstChunkIndex,
+        chunkBatchFinishedIndex,
+        chunkCount: chunkPackets.length,
+        minChunkLength: Math.min(...chunkPackets.map(packet => packet.length))
+      })
+    : fail('raw-26-spawn-chunk-batch-framing', 'spawn chunk batch must be framed as chunk packets followed by chunk_batch_finished after registry/tag closure', {
+        actual,
+        firstChunkIndex,
+        chunkBatchFinishedIndex,
+        chunkLengths: chunkPackets.map(packet => packet.length)
       })
 }
 

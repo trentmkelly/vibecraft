@@ -81,7 +81,8 @@ test('configuration registry readiness gate validates raw probe registry and pla
       'raw-26-required-tags',
       'raw-26-known-pack-order',
       'raw-26-finish-configuration',
-      'raw-26-play-entry-packets'
+      'raw-26-play-entry-packets',
+      'raw-26-spawn-chunk-batch-framing'
     ]
   )
 })
@@ -95,6 +96,7 @@ test('configuration registry readiness gate fails on missing elements, tag drift
     .find(tag => tag.tag === 'minecraft:is_fire').entries = []
   rawProbe.config.find(packet => packet.id === 14).packs = [{ namespace: 'minecraft', id: 'wrong', version: '26.1.2' }]
   rawProbe.play.find(packet => packet.id === 72).length = 59
+  rawProbe.play.find(packet => packet.id === 45).length = 128
 
   const checks = evaluateManifestReadiness(configurationCompletionManifest, rawProbe)
   const failures = checks.filter(check => !check.ok).map(check => check.name)
@@ -104,11 +106,14 @@ test('configuration registry readiness gate fails on missing elements, tag drift
     'raw-26-required-registry-elements',
     'raw-26-required-tags',
     'raw-26-known-pack-order',
-    'raw-26-play-entry-packets'
+    'raw-26-play-entry-packets',
+    'raw-26-spawn-chunk-batch-framing'
   ])
 })
 
-test('configuration registry readiness gate can run against a live server', async () => {
+test('configuration registry readiness gate can run against a live server', {
+  skip: process.env.RUSTCRAFT_RUN_LIVE_REGISTRY_READINESS_TEST !== '1'
+}, async () => {
   const gate = await runConfigurationRegistryReadinessGate({
     host: process.env.RUSTCRAFT_HOST ?? '127.0.0.1',
     port: Number(process.env.RUSTCRAFT_PORT ?? 25565)

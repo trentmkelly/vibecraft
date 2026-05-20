@@ -383,7 +383,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Sync `minecraft:banner_pattern` tags during configuration, including every `minecraft:pattern_item/*` tag used by banner pattern items.
 - [x] Add unit tests for each synced registry that assert exact element counts, client-referenced IDs, and NBT field names expected by the decompiled network/direct codecs.
 - [x] Add unit tests for each synced tag registry that assert required tag names and entry indices match the local registry order.
-- [ ] Mark the raw 26.1.2 probe item as covering spawn chunk batch framing only after it also validates every configuration registry/tag closure item above.
+- [x] Mark the raw 26.1.2 probe item as covering spawn chunk batch framing only after it also validates every configuration registry/tag closure item above. — `configuration_registry_readiness_gate` now keeps registry order, element counts, required elements, required tags, known packs, finish configuration, play-entry packets, and `raw-26-spawn-chunk-batch-framing` in one gate before spawn chunk framing is accepted.
 - [x] Add a Mineflayer configuration-state test that receives registries, tags, enabled features, known packs, and finish-configuration in vanilla order.
 - [x] Add a Mineflayer configuration regression test that asserts the bot reaches play state only after registry sync, feature flags, tags, and finish-configuration complete.
 - [x] Add a Mineflayer configuration custom-payload test that records unknown payload handling, brand exchange, client information, cookies, and disconnect behavior during offline-mode login.
