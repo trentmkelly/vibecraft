@@ -14,7 +14,7 @@ use crate::random_source::{
 };
 use crate::registry::Identifier;
 use crate::storage::chunk::{
-    BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
+    chunk_status, BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
     BIOME_SECTION_VOLUME, SECTION_VOLUME,
 };
 use crate::storage::nbt::Tag;
@@ -3701,6 +3701,29 @@ pub enum InitialSpawnKind {
     DebugHalfWorld { x: i32, y: i32, z: i32 },
     DebugWorld { x: i32, y: i32, z: i32 },
     Normal { x: i32, y: i32, z: i32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpawnChunkStatusSnapshot {
+    pub pos: ChunkPos,
+    pub status: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InitialSpawnReadinessReport {
+    pub center: ChunkPos,
+    pub required_radius: i32,
+    pub required_status: &'static str,
+    pub ticket_type: &'static str,
+    pub ticket_level: i32,
+    pub missing_chunks: Vec<ChunkPos>,
+    pub not_ready_chunks: Vec<SpawnChunkStatusSnapshot>,
+}
+
+impl InitialSpawnReadinessReport {
+    pub fn is_ready(&self) -> bool {
+        self.missing_chunks.is_empty() && self.not_ready_chunks.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36862,6 +36885,62 @@ pub fn spawn_search_candidate(
     Some((spawn_x + delta_x - radius, spawn_z + delta_z - radius))
 }
 
+pub fn initial_spawn_required_chunks(center: ChunkPos) -> Vec<ChunkPos> {
+    let radius = SPAWN_SELECTION_CONSTANTS.player_spawn_ticket_radius;
+    let mut chunks = Vec::with_capacity(((radius * 2 + 1) * (radius * 2 + 1)) as usize);
+    for z in center.z - radius..=center.z + radius {
+        for x in center.x - radius..=center.x + radius {
+            chunks.push(ChunkPos { x, z });
+        }
+    }
+    chunks
+}
+
+pub fn initial_spawn_readiness_report(
+    center: ChunkPos,
+    generated_chunks: &[SpawnChunkStatusSnapshot],
+) -> InitialSpawnReadinessReport {
+    let required_status = "minecraft:full";
+    let required_index = chunk_status(required_status)
+        .map(|status| status.index)
+        .unwrap_or(usize::MAX);
+    let status_by_pos: BTreeMap<ChunkPos, &'static str> = generated_chunks
+        .iter()
+        .map(|snapshot| (snapshot.pos, snapshot.status))
+        .collect();
+    let mut missing_chunks = Vec::new();
+    let mut not_ready_chunks = Vec::new();
+
+    for pos in initial_spawn_required_chunks(center) {
+        let Some(status) = status_by_pos.get(&pos).copied() else {
+            missing_chunks.push(pos);
+            continue;
+        };
+        let status_index = chunk_status(status).map(|entry| entry.index).unwrap_or(0);
+        if status_index < required_index {
+            not_ready_chunks.push(SpawnChunkStatusSnapshot { pos, status });
+        }
+    }
+
+    InitialSpawnReadinessReport {
+        center,
+        required_radius: SPAWN_SELECTION_CONSTANTS.player_spawn_ticket_radius,
+        required_status,
+        ticket_type: "minecraft:player_spawn",
+        ticket_level: crate::chunk_ticket::FULL_CHUNK_LEVEL
+            - SPAWN_SELECTION_CONSTANTS.player_spawn_ticket_radius,
+        missing_chunks,
+        not_ready_chunks,
+    }
+}
+
+pub fn initial_spawn_chunks_ready(
+    center: ChunkPos,
+    generated_chunks: &[SpawnChunkStatusSnapshot],
+) -> bool {
+    initial_spawn_readiness_report(center, generated_chunks).is_ready()
+}
+
 pub fn overworld_respawn_y(
     heights: SpawnColumnHeights,
     cave_world: bool,
@@ -56286,6 +56365,48 @@ mod tests {
             Some((101, 201))
         );
         assert_eq!(super::spawn_search_candidate(100, 200, 1, 0, 9), None);
+    }
+
+    #[test]
+    fn initial_spawn_readiness_requires_player_spawn_ticket_radius_full_chunks() {
+        let center = ChunkPos { x: 2, z: -1 };
+        let required = super::initial_spawn_required_chunks(center);
+        assert_eq!(required.len(), 49);
+        assert_eq!(required.first(), Some(&ChunkPos { x: -1, z: -4 }));
+        assert_eq!(required.last(), Some(&ChunkPos { x: 5, z: 2 }));
+
+        let mut snapshots: Vec<_> = required
+            .iter()
+            .copied()
+            .map(|pos| super::SpawnChunkStatusSnapshot {
+                pos,
+                status: "minecraft:full",
+            })
+            .collect();
+        assert!(super::initial_spawn_chunks_ready(center, &snapshots));
+
+        snapshots[0].status = "minecraft:light";
+        let report = super::initial_spawn_readiness_report(center, &snapshots);
+        assert_eq!(report.required_radius, 3);
+        assert_eq!(report.required_status, "minecraft:full");
+        assert_eq!(report.ticket_type, "minecraft:player_spawn");
+        assert_eq!(
+            report.ticket_level,
+            crate::chunk_ticket::FULL_CHUNK_LEVEL - 3
+        );
+        assert_eq!(report.missing_chunks, Vec::<ChunkPos>::new());
+        assert_eq!(
+            report.not_ready_chunks,
+            vec![super::SpawnChunkStatusSnapshot {
+                pos: ChunkPos { x: -1, z: -4 },
+                status: "minecraft:light",
+            }]
+        );
+        assert!(!report.is_ready());
+
+        snapshots.pop();
+        let report = super::initial_spawn_readiness_report(center, &snapshots);
+        assert_eq!(report.missing_chunks, vec![ChunkPos { x: 5, z: 2 }]);
     }
 
     #[test]
