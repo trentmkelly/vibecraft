@@ -317,8 +317,8 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement random ticks.
 - [x] Implement scheduled block and fluid ticks.
 - [x] Implement post-processing and upgrade data.
-- [ ] Implement chunk task scheduling and prioritization.
-- [ ] Implement watchdog-safe handling of slow chunk operations.
+- [x] Implement chunk task scheduling and prioritization.
+- [x] Implement watchdog-safe handling of slow chunk operations.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Worldgen Source Families
 
