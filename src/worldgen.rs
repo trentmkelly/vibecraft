@@ -2713,6 +2713,35 @@ pub struct ParsedJigsawPoolElement {
     pub children: Vec<ParsedJigsawPoolElement>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedProcessorListRegistry {
+    pub lists: BTreeMap<String, ParsedStructureProcessorList>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedStructureProcessorList {
+    pub processors: Vec<ParsedStructureProcessor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedStructureProcessor {
+    pub processor_type: String,
+    pub rules: Vec<ParsedStructureProcessorRule>,
+    pub delegate: Option<Box<ParsedStructureProcessor>>,
+    pub limit: Option<i32>,
+    pub integrity: Option<String>,
+    pub rottable_blocks: Option<String>,
+    pub cannot_replace: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedStructureProcessorRule {
+    pub input_predicate_type: String,
+    pub location_predicate_type: String,
+    pub output_state_name: Option<String>,
+    pub block_entity_modifier_type: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JigsawCandidatePoolSource {
     Target,
@@ -23657,6 +23686,138 @@ fn parse_template_pool_processors(value: &serde_json::Value) -> Result<Vec<Strin
         .map(Option::unwrap_or_default)
 }
 
+pub fn load_processor_list_registry(
+    processor_list_root: impl AsRef<std::path::Path>,
+) -> Result<ParsedProcessorListRegistry, String> {
+    let root = processor_list_root.as_ref();
+    let mut lists = BTreeMap::new();
+    load_processor_list_directory(root, root, &mut lists)?;
+    Ok(ParsedProcessorListRegistry { lists })
+}
+
+fn load_processor_list_directory(
+    root: &std::path::Path,
+    directory: &std::path::Path,
+    lists: &mut BTreeMap<String, ParsedStructureProcessorList>,
+) -> Result<(), String> {
+    let entries = std::fs::read_dir(directory)
+        .map_err(|err| format!("failed to read processor list directory {directory:?}: {err}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("failed to read processor list entry: {err}"))?;
+        let path = entry.path();
+        if path.is_dir() {
+            load_processor_list_directory(root, &path, lists)?;
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        let id = worldgen_json_id(root, &path)?;
+        let raw = std::fs::read_to_string(&path)
+            .map_err(|err| format!("failed to read processor list JSON {path:?}: {err}"))?;
+        let value: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|err| format!("invalid processor list JSON {path:?}: {err}"))?;
+        lists.insert(id, parse_processor_list_value(&value)?);
+    }
+    Ok(())
+}
+
+pub fn parse_processor_list_value(
+    value: &serde_json::Value,
+) -> Result<ParsedStructureProcessorList, String> {
+    let object = json_object(value, "processor list")?;
+    let processors = json_required(object, "processors")?
+        .as_array()
+        .ok_or_else(|| "processor list processors must be an array".to_string())?
+        .iter()
+        .map(parse_structure_processor_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ParsedStructureProcessorList { processors })
+}
+
+fn parse_structure_processor_value(
+    value: &serde_json::Value,
+) -> Result<ParsedStructureProcessor, String> {
+    let object = json_object(value, "structure processor")?;
+    let processor_type = json_string_field(object, "processor_type")?.to_string();
+    let rules = object
+        .get("rules")
+        .and_then(|value| value.as_array())
+        .map(|rules| {
+            rules
+                .iter()
+                .map(parse_structure_processor_rule_value)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let delegate = object
+        .get("delegate")
+        .map(parse_structure_processor_value)
+        .transpose()?
+        .map(Box::new);
+    let limit = object
+        .get("limit")
+        .and_then(|value| value.as_i64())
+        .map(|limit| i32::try_from(limit).map_err(|_| format!("limit {limit} overflows i32")))
+        .transpose()?;
+    let integrity = object
+        .get("integrity")
+        .map(|value| value.to_string().trim_matches('"').to_string());
+    let rottable_blocks = object
+        .get("rottable_blocks")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let cannot_replace = object
+        .get("cannot_replace")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+
+    Ok(ParsedStructureProcessor {
+        processor_type,
+        rules,
+        delegate,
+        limit,
+        integrity,
+        rottable_blocks,
+        cannot_replace,
+    })
+}
+
+fn parse_structure_processor_rule_value(
+    value: &serde_json::Value,
+) -> Result<ParsedStructureProcessorRule, String> {
+    let object = json_object(value, "structure processor rule")?;
+    let input_predicate = json_object(
+        json_required(object, "input_predicate")?,
+        "structure processor input predicate",
+    )?;
+    let location_predicate = json_object(
+        json_required(object, "location_predicate")?,
+        "structure processor location predicate",
+    )?;
+    let output_state_name = object
+        .get("output_state")
+        .and_then(|value| value.as_object())
+        .and_then(|state| state.get("Name"))
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let block_entity_modifier_type = object
+        .get("block_entity_modifier")
+        .and_then(|value| value.as_object())
+        .and_then(|modifier| modifier.get("type"))
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+
+    Ok(ParsedStructureProcessorRule {
+        input_predicate_type: json_string_field(input_predicate, "predicate_type")?.to_string(),
+        location_predicate_type: json_string_field(location_predicate, "predicate_type")?
+            .to_string(),
+        output_state_name,
+        block_entity_modifier_type,
+    })
+}
+
 fn load_world_preset_directory(
     directory: &std::path::Path,
 ) -> Result<BTreeMap<String, ParsedWorldPreset>, String> {
@@ -39302,6 +39463,58 @@ mod tests {
         assert_eq!(
             base_plates.elements[0].element.projection.as_deref(),
             Some("rigid")
+        );
+    }
+
+    #[test]
+    fn processor_list_registry_loads_vanilla_processor_json() {
+        let registry = super::load_processor_list_registry(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen/processor_list",
+        )
+        .unwrap();
+
+        assert_eq!(registry.lists.len(), 40);
+        assert!(registry.lists.contains_key("minecraft:empty"));
+        assert!(registry.lists.contains_key("minecraft:mossify_20_percent"));
+        assert!(registry
+            .lists
+            .contains_key("minecraft:trail_ruins_houses_archaeology"));
+
+        let empty = registry.lists.get("minecraft:empty").unwrap();
+        assert!(empty.processors.is_empty());
+
+        let mossify = registry.lists.get("minecraft:mossify_20_percent").unwrap();
+        assert_eq!(mossify.processors.len(), 1);
+        assert_eq!(mossify.processors[0].processor_type, "minecraft:rule");
+        assert_eq!(mossify.processors[0].rules.len(), 1);
+        assert_eq!(
+            mossify.processors[0].rules[0].input_predicate_type,
+            "minecraft:random_block_match"
+        );
+        assert_eq!(
+            mossify.processors[0].rules[0].location_predicate_type,
+            "minecraft:always_true"
+        );
+        assert_eq!(
+            mossify.processors[0].rules[0].output_state_name.as_deref(),
+            Some("minecraft:mossy_cobblestone")
+        );
+
+        let archaeology = registry
+            .lists
+            .get("minecraft:trail_ruins_houses_archaeology")
+            .unwrap();
+        let capped = archaeology
+            .processors
+            .iter()
+            .find(|processor| processor.processor_type == "minecraft:capped")
+            .unwrap();
+        assert_eq!(capped.limit, Some(6));
+        let delegate = capped.delegate.as_ref().unwrap();
+        assert_eq!(delegate.processor_type, "minecraft:rule");
+        assert_eq!(
+            delegate.rules[0].block_entity_modifier_type.as_deref(),
+            Some("minecraft:append_loot")
         );
     }
 
