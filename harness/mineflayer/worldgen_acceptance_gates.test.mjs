@@ -5,6 +5,7 @@ import test from 'node:test'
 
 import {
   WORLDGEN_ACCEPTANCE_PHASES,
+  compareRustcraftWorldgenReport,
   compareWorldgenFixtureReports,
   loadWorldgenAcceptanceReport,
   validateWorldgenAcceptanceReport
@@ -115,6 +116,54 @@ test('fixture stability comparison uses requested chunk stable projections', () 
   })
 })
 
+test('RustCraft worldgen comparison fails closed against vanilla requested chunks', () => {
+  const vanilla = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+  const matchingRust = rustcraftReport({
+    dimension: 'overworld',
+    palette: ['minecraft:water', 'minecraft:stone']
+  })
+
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, matchingRust), {
+    ok: true,
+    comparedChunks: 1,
+    leftChunks: 1,
+    rightChunks: 1,
+    issues: []
+  })
+
+  const missingRust = rustcraftReport({
+    dimension: 'overworld',
+    chunkX: 1,
+    chunkZ: 0,
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingRust), {
+    ok: false,
+    comparedChunks: 1,
+    leftChunks: 1,
+    rightChunks: 1,
+    issues: [
+      'missing rustcraft chunk overworld:0,0',
+      'missing vanilla chunk overworld:1,0'
+    ]
+  })
+
+  const divergentRust = rustcraftReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone']
+  })
+  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, divergentRust), {
+    ok: false,
+    comparedChunks: 1,
+    leftChunks: 1,
+    rightChunks: 1,
+    issues: ['chunk overworld:0,0 stable projection differs']
+  })
+})
+
 function fixtureReport ({
   dimension,
   palette = ['minecraft:stone'],
@@ -154,6 +203,47 @@ function fixtureReport ({
             }
           }]
         }]
+      }]
+    }]
+  }
+}
+
+function rustcraftReport ({
+  dimension,
+  chunkX = 0,
+  chunkZ = 0,
+  palette = ['minecraft:stone'],
+  heightmaps = ['WORLD_SURFACE', 'OCEAN_FLOOR', 'MOTION_BLOCKING', 'MOTION_BLOCKING_NO_LEAVES']
+}) {
+  return {
+    format: 'rustcraft-worldgen-signatures-v1',
+    chunks: [{
+      dimension,
+      chunkX,
+      chunkZ,
+      status: 'minecraft:full',
+      sectionCount: 24,
+      nonEmptySectionCount: 24,
+      heightmaps: Object.fromEntries(heightmaps.map(name => [name, { type: 'long_array', entries: 37 }])),
+      structures: {
+        startKeys: [],
+        referenceKeys: []
+      },
+      blockPalette: palette,
+      biomePalette: ['minecraft:plains'],
+      payloadSha256: 'c'.repeat(64),
+      sections: [{
+        y: 0,
+        blockPalette: palette,
+        blockStatesData: {
+          entries: 256,
+          sha256: 'a'.repeat(64)
+        },
+        biomePalette: ['minecraft:plains'],
+        biomeData: {
+          entries: 0,
+          sha256: null
+        }
       }]
     }]
   }

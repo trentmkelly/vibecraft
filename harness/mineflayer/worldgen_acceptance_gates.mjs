@@ -118,13 +118,27 @@ export async function loadWorldgenAcceptanceReport ({
 export function compareWorldgenFixtureReports (left, right) {
   const leftChunks = comparableRequestedChunks(left)
   const rightChunks = comparableRequestedChunks(right)
+  return compareComparableChunkLists(leftChunks, rightChunks, { leftLabel: 'left', rightLabel: 'right' })
+}
+
+export function compareRustcraftWorldgenReport (vanillaReports, rustcraftReport) {
+  const reports = Array.isArray(vanillaReports) ? vanillaReports : [vanillaReports]
+  const vanillaChunks = reports.flatMap(report => comparableRequestedChunks(report))
+  const rustcraftChunks = comparableRustcraftChunks(rustcraftReport)
+  return compareComparableChunkLists(vanillaChunks, rustcraftChunks, {
+    leftLabel: 'vanilla',
+    rightLabel: 'rustcraft'
+  })
+}
+
+function compareComparableChunkLists (leftChunks, rightChunks, { leftLabel, rightLabel }) {
   const leftMap = new Map(leftChunks.map(chunk => [chunk.key, chunk]))
   const rightMap = new Map(rightChunks.map(chunk => [chunk.key, chunk]))
   const issues = []
 
   for (const key of [...leftMap.keys()].sort()) {
     if (!rightMap.has(key)) {
-      issues.push(`missing right chunk ${key}`)
+      issues.push(`missing ${rightLabel} chunk ${key}`)
       continue
     }
     const leftChunk = leftMap.get(key)
@@ -137,7 +151,7 @@ export function compareWorldgenFixtureReports (left, right) {
   }
 
   for (const key of [...rightMap.keys()].sort()) {
-    if (!leftMap.has(key)) issues.push(`missing left chunk ${key}`)
+    if (!leftMap.has(key)) issues.push(`missing ${leftLabel} chunk ${key}`)
   }
 
   return {
@@ -217,6 +231,33 @@ function comparableRequestedChunks (report) {
   })
 }
 
+function comparableRustcraftChunks (report) {
+  return (report?.chunks ?? report?.requestedChunks ?? []).map(chunk => {
+    const chunkX = chunk.chunkX ?? chunk.x
+    const chunkZ = chunk.chunkZ ?? chunk.z
+    const dimension = chunk.dimension ?? 'overworld'
+    return {
+      ...chunk,
+      chunkX,
+      chunkZ,
+      sectionCount: chunk.sectionCount ?? chunk.section_count,
+      nonEmptySectionCount: chunk.nonEmptySectionCount ?? chunk.non_empty_section_count,
+      blockPalette: chunk.blockPalette ?? chunk.block_palette,
+      biomePalette: chunk.biomePalette ?? chunk.biome_palette,
+      payloadSha256: chunk.payloadSha256 ?? chunk.payload_sha256,
+      sections: (chunk.sections ?? []).map(section => ({
+        ...section,
+        blockPalette: section.blockPalette ?? section.block_palette,
+        blockStatesData: section.blockStatesData ?? section.block_states_data,
+        biomePalette: section.biomePalette ?? section.biome_palette,
+        biomeData: section.biomeData ?? section.biome_data
+      })),
+      dimension,
+      key: `${dimension}:${chunkX},${chunkZ}`
+    }
+  })
+}
+
 function stableChunkProjection (chunk) {
   return {
     status: chunk.status,
@@ -269,6 +310,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       await readOptionalJson(process.env.RUSTCRAFT_COMPARE_DIMENSION_FIXTURE_REPORT, true)
     )
   }
+  if (process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT) {
+    report.rustcraftComparison = compareRustcraftWorldgenReport(
+      [
+        await readOptionalJson(report.overworldPath, true),
+        await readOptionalJson(report.dimensionPath, true)
+      ],
+      await readOptionalJson(process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT, true)
+    )
+  }
   console.log(JSON.stringify(report, null, 2))
   const target = process.env.RUSTCRAFT_WORLDGEN_ACCEPT_THROUGH
   if (target && report.completeThrough !== target) {
@@ -277,4 +327,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
   if (report.overworldStability && !report.overworldStability.ok) process.exit(1)
   if (report.dimensionStability && !report.dimensionStability.ok) process.exit(1)
+  if (report.rustcraftComparison && !report.rustcraftComparison.ok) process.exit(1)
 }
