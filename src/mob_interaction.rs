@@ -230,6 +230,66 @@ pub fn bucket_pickup_result(held_item: &str, entity_alive: bool) -> BucketPickup
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AxolotlVariantModel {
+    pub name: &'static str,
+    pub id: i32,
+    pub common_spawn: bool,
+}
+
+pub const AXOLOTL_VARIANTS: &[AxolotlVariantModel] = &[
+    AxolotlVariantModel {
+        name: "lucy",
+        id: 0,
+        common_spawn: true,
+    },
+    AxolotlVariantModel {
+        name: "wild",
+        id: 1,
+        common_spawn: true,
+    },
+    AxolotlVariantModel {
+        name: "gold",
+        id: 2,
+        common_spawn: true,
+    },
+    AxolotlVariantModel {
+        name: "cyan",
+        id: 3,
+        common_spawn: true,
+    },
+    AxolotlVariantModel {
+        name: "blue",
+        id: 4,
+        common_spawn: false,
+    },
+];
+
+pub const DEFAULT_AXOLOTL_VARIANT_ID: i32 = 0;
+pub const AXOLOTL_RARE_VARIANT_CHANCE: i32 = 1200;
+
+pub fn axolotl_variant_by_id(id: i32) -> AxolotlVariantModel {
+    AXOLOTL_VARIANTS
+        .get(id as usize)
+        .copied()
+        .unwrap_or(AXOLOTL_VARIANTS[DEFAULT_AXOLOTL_VARIANT_ID as usize])
+}
+
+pub fn axolotl_variant_by_name(name: &str) -> Option<AxolotlVariantModel> {
+    AXOLOTL_VARIANTS
+        .iter()
+        .copied()
+        .find(|variant| variant.name == name)
+}
+
+pub fn axolotl_spawn_variants(common_spawn: bool) -> Vec<AxolotlVariantModel> {
+    AXOLOTL_VARIANTS
+        .iter()
+        .copied()
+        .filter(|variant| variant.common_spawn == common_spawn)
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
     pub inflate_counter: i32,
@@ -910,6 +970,52 @@ mod tests {
             }
         );
         assert!(!ConversionTypeModel::SplitOnDeath.discard_after_conversion());
+    }
+
+    #[test]
+    fn axolotl_variants_match_java_ids_default_and_rare_flag() {
+        assert_eq!(DEFAULT_AXOLOTL_VARIANT_ID, 0);
+        assert_eq!(AXOLOTL_RARE_VARIANT_CHANCE, 1200);
+        assert_eq!(
+            AXOLOTL_VARIANTS,
+            &[
+                AxolotlVariantModel {
+                    name: "lucy",
+                    id: 0,
+                    common_spawn: true,
+                },
+                AxolotlVariantModel {
+                    name: "wild",
+                    id: 1,
+                    common_spawn: true,
+                },
+                AxolotlVariantModel {
+                    name: "gold",
+                    id: 2,
+                    common_spawn: true,
+                },
+                AxolotlVariantModel {
+                    name: "cyan",
+                    id: 3,
+                    common_spawn: true,
+                },
+                AxolotlVariantModel {
+                    name: "blue",
+                    id: 4,
+                    common_spawn: false,
+                },
+            ]
+        );
+        assert_eq!(axolotl_variant_by_id(-1).name, "lucy");
+        assert_eq!(axolotl_variant_by_id(99).name, "lucy");
+        assert_eq!(axolotl_variant_by_name("blue").unwrap().id, 4);
+
+        let common = axolotl_spawn_variants(true);
+        assert_eq!(common.len(), 4);
+        assert!(common.iter().all(|variant| variant.common_spawn));
+
+        let rare = axolotl_spawn_variants(false);
+        assert_eq!(rare, vec![AXOLOTL_VARIANTS[4]]);
     }
 
     #[test]
