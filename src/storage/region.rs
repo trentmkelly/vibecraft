@@ -80,6 +80,21 @@ impl RegionPos {
     pub fn file_name(self) -> String {
         format!("r.{}.{}.mca", self.x, self.z)
     }
+
+    pub fn min_chunk_pos(self) -> ChunkPos {
+        ChunkPos {
+            x: self.x * CHUNKS_PER_REGION_AXIS,
+            z: self.z * CHUNKS_PER_REGION_AXIS,
+        }
+    }
+
+    pub fn max_chunk_pos(self) -> ChunkPos {
+        let min = self.min_chunk_pos();
+        ChunkPos {
+            x: min.x + CHUNKS_PER_REGION_AXIS - 1,
+            z: min.z + CHUNKS_PER_REGION_AXIS - 1,
+        }
+    }
 }
 
 impl RegionCompression {
@@ -472,6 +487,24 @@ impl RegionIoWorker {
         }
         Ok(())
     }
+
+    pub fn old_chunk_mask_for_region(&self, region_pos: RegionPos) -> io::Result<Vec<bool>> {
+        let mut mask = vec![false; (CHUNKS_PER_REGION_AXIS * CHUNKS_PER_REGION_AXIS) as usize];
+        let min = region_pos.min_chunk_pos();
+        let max = region_pos.max_chunk_pos();
+        for z in min.z..=max.z {
+            for x in min.x..=max.x {
+                let chunk = ChunkPos { x, z };
+                let Some((_name, tag)) = self.load_chunk_nbt(chunk)? else {
+                    continue;
+                };
+                if chunk_tag_is_old_for_blending(&tag) {
+                    mask[chunk.local_index()] = true;
+                }
+            }
+        }
+        Ok(mask)
+    }
 }
 
 pub fn chunk_tag_is_old_for_blending(tag: &Tag) -> bool {
@@ -579,6 +612,14 @@ mod tests {
         );
         assert_eq!(ChunkPos { x: -1, z: -1 }.local_index(), 1023);
         assert_eq!(RegionPos { x: -1, z: 2 }.file_name(), "r.-1.2.mca");
+        assert_eq!(
+            RegionPos { x: -1, z: 2 }.min_chunk_pos(),
+            ChunkPos { x: -32, z: 64 }
+        );
+        assert_eq!(
+            RegionPos { x: -1, z: 2 }.max_chunk_pos(),
+            ChunkPos { x: -1, z: 95 }
+        );
     }
 
     #[test]
@@ -843,6 +884,84 @@ mod tests {
             ("blending_data".to_string(), Tag::List(Vec::new())),
         ])));
         assert!(!chunk_tag_is_old_for_blending(&Tag::List(Vec::new())));
+    }
+
+    #[test]
+    fn region_io_worker_builds_old_chunk_mask_for_blender_scan() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-old-mask-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let old = ChunkPos { x: 0, z: 0 };
+        let modern = ChunkPos { x: 1, z: 0 };
+        let blending = ChunkPos { x: 31, z: 31 };
+        let deleted_pending = ChunkPos { x: 2, z: 0 };
+        let pending_old = ChunkPos { x: 3, z: 0 };
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        region
+            .write_chunk_nbt(
+                old,
+                "",
+                &Tag::Compound(vec![(
+                    "DataVersion".to_string(),
+                    Tag::Int(OLD_CHUNK_DATA_VERSION_CUTOFF - 1),
+                )]),
+            )
+            .unwrap();
+        region
+            .write_chunk_nbt(
+                modern,
+                "",
+                &Tag::Compound(vec![(
+                    "DataVersion".to_string(),
+                    Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+                )]),
+            )
+            .unwrap();
+        region
+            .write_chunk_nbt(
+                blending,
+                "",
+                &Tag::Compound(vec![
+                    (
+                        "DataVersion".to_string(),
+                        Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+                    ),
+                    ("blending_data".to_string(), Tag::Compound(Vec::new())),
+                ]),
+            )
+            .unwrap();
+        region
+            .write_chunk_nbt(
+                deleted_pending,
+                "",
+                &Tag::Compound(vec![("DataVersion".to_string(), Tag::Int(1))]),
+            )
+            .unwrap();
+
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        worker.clear_chunk_nbt(deleted_pending);
+        worker.store_chunk_nbt(
+            pending_old,
+            "",
+            Tag::Compound(vec![("DataVersion".to_string(), Tag::Int(1))]),
+        );
+
+        let mask = worker
+            .old_chunk_mask_for_region(RegionPos { x: 0, z: 0 })
+            .unwrap();
+
+        assert_eq!(mask.len(), 1024);
+        assert!(mask[old.local_index()]);
+        assert!(!mask[modern.local_index()]);
+        assert!(mask[blending.local_index()]);
+        assert!(!mask[deleted_pending.local_index()]);
+        assert!(mask[pending_old.local_index()]);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
