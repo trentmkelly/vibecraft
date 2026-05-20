@@ -71,24 +71,24 @@
 
 ## Loot Predicates
 
-- [ ] Implement all loot predicates:
-  - [ ] `AllOfCondition`, `AnyOfCondition`, `InvertedCondition` — logical combinators
-  - [ ] `RandomChance`, `RandomChanceWithEnchantedBonus` — probability gates
-  - [ ] `SurvivesExplosion` — drops cancel proportional to explosion radius
-  - [ ] `BlockStatePropertyCondition` — match block state properties
-  - [ ] `MatchTool` — match harvesting tool against item predicate
-  - [ ] `EntityPropertiesCondition` — match entity against entity predicate
-  - [ ] `EntityScoresCondition` — match entity scoreboard values
-  - [ ] `KilledByPlayerCondition` — last damage source was a player
-  - [ ] `LootingRandomChance` — scaled chance per looting level
-  - [ ] `DamageSourcePropertiesCondition` — match damage source tags
-  - [ ] `LocationCheckCondition` — match world location predicate
-  - [ ] `ValueCheckCondition` — compare number provider to range
-  - [ ] `WeatherCheckCondition` — match raining/thundering
-  - [ ] `TimeCheckCondition` — match game time modulo period
-  - [ ] `ReferenceCondition` — delegate to named predicate resource
-  - [ ] `EnchantmentActiveCheck` — context enchantment active flag
-  - [ ] `TableBonusCondition` — per-enchantment-level probability table
+- [x] Implement all loot predicates: `LootCondition` covers logical combinators, random gates, explosion survival, block/tool/entity/score/damage-source/location/weather/time/value checks, references, enchantment-active checks, and table-bonus chances; covered by `loot_predicates_cover_java_condition_surface` and `cargo test -q loot_system`.
+  - [x] `AllOfCondition`, `AnyOfCondition`, `InvertedCondition` — logical combinators
+  - [x] `RandomChance`, `RandomChanceWithEnchantedBonus` — probability gates
+  - [x] `SurvivesExplosion` — drops cancel proportional to explosion radius
+  - [x] `BlockStatePropertyCondition` — match block state properties
+  - [x] `MatchTool` — match harvesting tool against item predicate
+  - [x] `EntityPropertiesCondition` — match entity against entity predicate
+  - [x] `EntityScoresCondition` — match entity scoreboard values
+  - [x] `KilledByPlayerCondition` — last damage source was a player
+  - [x] `LootingRandomChance` — scaled chance per looting level
+  - [x] `DamageSourcePropertiesCondition` — match damage source tags
+  - [x] `LocationCheckCondition` — match world location predicate
+  - [x] `ValueCheckCondition` — compare number provider to range
+  - [x] `WeatherCheckCondition` — match raining/thundering
+  - [x] `TimeCheckCondition` — match game time modulo period
+  - [x] `ReferenceCondition` — delegate to named predicate resource
+  - [x] `EnchantmentActiveCheck` — context enchantment active flag
+  - [x] `TableBonusCondition` — per-enchantment-level probability table
 
 ## Number and Score Providers
 
@@ -139,9 +139,9 @@
 
 - [x] Implement loot table parsing and evaluation.
 - [x] Add Mineflayer offline-mode loot-table smoke tests that place deterministic custom datapack loot tables, log in a generated bot, trigger each table through block break, chest open, `/loot`, fishing, entity death, and advancement reward paths, then diff visible results against official `server.jar`.
-- [ ] Implement loot contexts, parameters, predicates, functions, number providers, score providers, NBT providers, and random sequences.
+- [x] Implement loot contexts, parameters, predicates, functions, number providers, score providers, NBT providers, and random sequences. - `loot_system` covers Java loot surfaces, param/dynamic-param carriers, condition/function/number/score/NBT providers, and named random sequences; covered by focused loot tests and `cargo test -q loot_system`.
 - [x] Add Mineflayer offline-mode loot-context tests for luck, tool, killer player, origin, damage source, explosion radius, entity properties, scoreboard values, storage NBT, and random sequence IDs by comparing bot-observed drops across vanilla and RustCraft.
-- [ ] Implement block, entity, chest, fishing, archaeology, advancement, gift, bartering, and command loot behavior.
+- [x] Implement block, entity, chest, fishing, archaeology, advancement, gift, bartering, and command loot behavior. - Block break, entity death, container realization, fishing categories, archaeology brush tables, advancement rewards, gifts, bartering, vaults, and command behavior are covered by the completed behavior rows and focused loot behavior tests.
 - [x] Add Mineflayer offline-mode reward-surface tests for chest loot refill prevention, suspicious block brushing, piglin bartering, cat/villager gifts, fishing catches, mob equipment drops, and advancement rewards with reconnect persistence checks.
 - [x] Implement villager professions, trades, gossip, demand, price multipliers, restocking, leveling, POI workstations, and wandering trader trades. - `villager_system` exposes profession workstations, level offers, gossip/reputation price changes, demand/restock caps, XP leveling, vanilla trade/trade-set resource parsing, and wandering trader offer/spawn behavior; covered by `cargo test -q villager_system`.
 - [x] Add Mineflayer villager trading tests that open merchant windows, compare offer lists, buy items, exhaust demand, restock after work time, zombify/cure discounts where available, reconnect, and verify vanilla-compatible prices and XP.

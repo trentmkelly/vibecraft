@@ -1328,17 +1328,42 @@ pub enum LootCondition {
         chance: f32,
         looting_multiplier: f32,
     },
+    RandomChanceWithEnchantedBonus {
+        unenchanted_chance: f32,
+        enchanted_chance: f32,
+    },
     KilledByPlayer,
     SurvivesExplosion,
     EntityProperty {
         key: String,
         value: String,
     },
+    EntityScore {
+        name: String,
+        min: i32,
+        max: i32,
+    },
     BlockState {
         block: String,
     },
+    BlockStateProperty {
+        property: String,
+        value: String,
+    },
     MatchTool {
         item: String,
+    },
+    DamageSourceProperty {
+        key: String,
+        value: String,
+    },
+    LocationCheck {
+        key: String,
+        value: String,
+    },
+    WeatherCheck {
+        raining: Option<bool>,
+        thundering: Option<bool>,
     },
     TimeCheck {
         min: i64,
@@ -1348,6 +1373,10 @@ pub enum LootCondition {
         provider: NumberProvider,
         min: f32,
         max: f32,
+    },
+    EnchantmentActiveCheck,
+    TableBonus {
+        chances: Vec<f32>,
     },
     Reference(String),
     Inverted(Box<LootCondition>),
@@ -1371,6 +1400,17 @@ impl LootCondition {
                 context.random.next_f32()
                     < *chance + *looting_multiplier * context.looting_level as f32
             }
+            Self::RandomChanceWithEnchantedBonus {
+                unenchanted_chance,
+                enchanted_chance,
+            } => {
+                let chance = if context.enchantment_active {
+                    *enchanted_chance
+                } else {
+                    *unenchanted_chance
+                };
+                context.random.next_f32() < chance
+            }
             Self::KilledByPlayer => context.killed_by_player,
             Self::SurvivesExplosion => match context.explosion_radius {
                 Some(radius) if radius > 0.0 => context.random.next_f32() <= 1.0 / radius,
@@ -1379,12 +1419,50 @@ impl LootCondition {
             Self::EntityProperty { key, value } => {
                 context.entity_properties.get(key) == Some(value)
             }
+            Self::EntityScore { name, min, max } => context
+                .scores
+                .get(name)
+                .is_some_and(|score| score >= min && score <= max),
             Self::BlockState { block } => context.block.as_ref() == Some(block),
+            Self::BlockStateProperty { property, value } => {
+                context.block_state_properties.get(property) == Some(value)
+            }
             Self::MatchTool { item } => context.tool.as_ref() == Some(item),
+            Self::DamageSourceProperty { key, value } => {
+                context
+                    .entity_properties
+                    .get(&format!("damage_source.{key}"))
+                    .or_else(|| {
+                        if key == "type" {
+                            context.entity_properties.get("damage_source")
+                        } else {
+                            None
+                        }
+                    })
+                    == Some(value)
+            }
+            Self::LocationCheck { key, value } => context.entity_properties.get(key) == Some(value),
+            Self::WeatherCheck {
+                raining,
+                thundering,
+            } => {
+                raining.map_or(true, |expected| context.weather_raining == expected)
+                    && thundering.map_or(true, |expected| context.weather_thundering == expected)
+            }
             Self::TimeCheck { min, max } => context.game_time >= *min && context.game_time <= *max,
             Self::ValueCheck { provider, min, max } => {
                 let value = provider.float(context);
                 value >= *min && value <= *max
+            }
+            Self::EnchantmentActiveCheck => context.enchantment_active,
+            Self::TableBonus { chances } => {
+                let index = context.enchantment_level.max(0) as usize;
+                let chance = chances
+                    .get(index)
+                    .or_else(|| chances.last())
+                    .copied()
+                    .unwrap_or(0.0);
+                context.random.next_f32() < chance
             }
             Self::Reference(name) => context.condition_references.contains(name),
             Self::Inverted(condition) => !condition.matches_mut(context),
@@ -1784,6 +1862,8 @@ pub struct LootContext {
     pub killed_by_player: bool,
     pub explosion_radius: Option<f32>,
     pub game_time: i64,
+    pub weather_raining: bool,
+    pub weather_thundering: bool,
     pub block_on_fire: bool,
     pub block: Option<String>,
     pub tool: Option<String>,
@@ -1821,6 +1901,8 @@ impl LootContext {
             killed_by_player: false,
             explosion_radius: None,
             game_time: 0,
+            weather_raining: false,
+            weather_thundering: false,
             block_on_fire: false,
             block: None,
             tool: None,
@@ -1858,6 +1940,8 @@ impl LootContext {
             killed_by_player: self.killed_by_player,
             explosion_radius: self.explosion_radius,
             game_time: self.game_time,
+            weather_raining: self.weather_raining,
+            weather_thundering: self.weather_thundering,
             block_on_fire: self.block_on_fire,
             block: self.block.clone(),
             tool: self.tool.clone(),
@@ -2161,6 +2245,113 @@ mod tests {
             .get(&context),
             Some("enabled")
         );
+    }
+
+    #[test]
+    fn loot_predicates_cover_java_condition_surface() {
+        let mut context = LootContext::new(LootParamSet::AllParams, 13);
+        context.insert_param(LootParamValue::BlockState("minecraft:oak_log".to_string()));
+        context.insert_param(LootParamValue::Tool("minecraft:diamond_axe".to_string()));
+        context.insert_param(LootParamValue::Origin(12.0, 70.0, -4.0));
+        context.insert_param(LootParamValue::ThisEntity("minecraft:zombie".to_string()));
+        context.insert_param(LootParamValue::LastDamagePlayer("Steve".to_string()));
+        context.insert_param(LootParamValue::DamageSource(
+            "minecraft:player_attack".to_string(),
+        ));
+        context.insert_dynamic_param(LootDynamicParamValue::EnchantmentLevel(2));
+        context.insert_dynamic_param(LootDynamicParamValue::EnchantmentActive(true));
+        context
+            .block_state_properties
+            .insert("axis".to_string(), "y".to_string());
+        context.scores.insert("kills".to_string(), 6);
+        context.entity_properties.insert(
+            "damage_source.bypasses_armor".to_string(),
+            "false".to_string(),
+        );
+        context
+            .entity_properties
+            .insert("dimension".to_string(), "minecraft:overworld".to_string());
+        context.weather_raining = true;
+        context.weather_thundering = false;
+        context.game_time = 12_000;
+        context
+            .condition_references
+            .insert("minecraft:ok".to_string());
+
+        let condition = LootCondition::AllOf(vec![
+            LootCondition::AnyOf(vec![
+                LootCondition::RandomChance(1.0),
+                LootCondition::RandomChanceWithEnchantedBonus {
+                    unenchanted_chance: 0.0,
+                    enchanted_chance: 1.0,
+                },
+            ]),
+            LootCondition::Inverted(Box::new(LootCondition::RandomChance(0.0))),
+            LootCondition::SurvivesExplosion,
+            LootCondition::BlockState {
+                block: "minecraft:oak_log".to_string(),
+            },
+            LootCondition::BlockStateProperty {
+                property: "axis".to_string(),
+                value: "y".to_string(),
+            },
+            LootCondition::MatchTool {
+                item: "minecraft:diamond_axe".to_string(),
+            },
+            LootCondition::EntityProperty {
+                key: "this_entity".to_string(),
+                value: "minecraft:zombie".to_string(),
+            },
+            LootCondition::EntityScore {
+                name: "kills".to_string(),
+                min: 5,
+                max: 10,
+            },
+            LootCondition::KilledByPlayer,
+            LootCondition::RandomChanceWithLooting {
+                chance: 1.0,
+                looting_multiplier: 0.0,
+            },
+            LootCondition::DamageSourceProperty {
+                key: "type".to_string(),
+                value: "minecraft:player_attack".to_string(),
+            },
+            LootCondition::DamageSourceProperty {
+                key: "bypasses_armor".to_string(),
+                value: "false".to_string(),
+            },
+            LootCondition::LocationCheck {
+                key: "origin".to_string(),
+                value: "12,70,-4".to_string(),
+            },
+            LootCondition::LocationCheck {
+                key: "dimension".to_string(),
+                value: "minecraft:overworld".to_string(),
+            },
+            LootCondition::ValueCheck {
+                provider: NumberProvider::Score {
+                    name: "kills".to_string(),
+                    scale: 1.0,
+                },
+                min: 6.0,
+                max: 6.0,
+            },
+            LootCondition::WeatherCheck {
+                raining: Some(true),
+                thundering: Some(false),
+            },
+            LootCondition::TimeCheck {
+                min: 0,
+                max: 24_000,
+            },
+            LootCondition::Reference("minecraft:ok".to_string()),
+            LootCondition::EnchantmentActiveCheck,
+            LootCondition::TableBonus {
+                chances: vec![0.0, 0.0, 1.0],
+            },
+        ]);
+
+        assert!(condition.matches(&context));
     }
 
     #[test]
