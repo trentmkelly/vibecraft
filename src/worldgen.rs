@@ -1100,6 +1100,59 @@ pub struct WorldPresetEntry {
     pub end: LevelStemPreset,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldGenSettingsModel {
+    pub seed: i64,
+    pub generate_structures: bool,
+    pub generate_bonus_chest: bool,
+    pub dimensions: ParsedWorldDimensions,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedWorldDimensions {
+    pub stems: Vec<(String, ParsedLevelStem)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedWorldPreset {
+    pub dimensions: ParsedWorldDimensions,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedLevelStem {
+    pub dimension_type: String,
+    pub generator: ParsedChunkGenerator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParsedChunkGenerator {
+    Noise {
+        biome_source: ParsedBiomeSource,
+        settings: String,
+    },
+    Flat {
+        settings: ParsedFlatGeneratorSettings,
+    },
+    Debug,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParsedBiomeSource {
+    MultiNoisePreset { preset: String },
+    TheEnd,
+    Fixed { biome: String },
+    Checkerboard { biomes: Vec<String>, scale: i64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedFlatGeneratorSettings {
+    pub biome: String,
+    pub structure_overrides: Vec<String>,
+    pub add_lakes: bool,
+    pub decoration: bool,
+    pub layers: Vec<(i32, String)>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CarverDebugSettings {
     pub enabled: bool,
@@ -23099,6 +23152,207 @@ pub fn validate_world_preset_dimensions(dimensions: &[&str]) -> Result<(), Strin
     }
 }
 
+pub fn parse_worldgen_settings_json(raw: &str) -> Result<WorldGenSettingsModel, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|err| format!("invalid WorldGenSettings JSON: {err}"))?;
+    let object = json_object(&value, "WorldGenSettings")?;
+    let seed = json_i64_field(object, "seed")?;
+    let generate_structures = json_bool_field(object, "generate_features")
+        .or_else(|_| json_bool_field(object, "generateStructures"))?;
+    let generate_bonus_chest = json_bool_field(object, "bonus_chest")
+        .or_else(|_| json_bool_field(object, "generateBonusChest"))?;
+    let dimensions = parse_world_dimensions_value(json_required(object, "dimensions")?)?;
+
+    Ok(WorldGenSettingsModel {
+        seed,
+        generate_structures,
+        generate_bonus_chest,
+        dimensions,
+    })
+}
+
+pub fn parse_world_preset_json(raw: &str) -> Result<ParsedWorldPreset, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).map_err(|err| format!("invalid world preset JSON: {err}"))?;
+    let object = json_object(&value, "world preset")?;
+    let dimensions = parse_world_dimensions_value(json_required(object, "dimensions")?)?;
+    Ok(ParsedWorldPreset { dimensions })
+}
+
+pub fn parse_world_dimensions_value(
+    value: &serde_json::Value,
+) -> Result<ParsedWorldDimensions, String> {
+    let object = json_object(value, "dimensions")?;
+    let mut stems = object
+        .iter()
+        .map(|(id, stem)| parse_level_stem_value(stem).map(|stem| (id.clone(), stem)))
+        .collect::<Result<Vec<_>, _>>()?;
+    stems.sort_by(|(left, _), (right, _)| {
+        dimension_order_key(left).cmp(&dimension_order_key(right))
+    });
+    Ok(ParsedWorldDimensions { stems })
+}
+
+pub fn parse_level_stem_value(value: &serde_json::Value) -> Result<ParsedLevelStem, String> {
+    let object = json_object(value, "level stem")?;
+    let dimension_type = json_string_field(object, "type")?.to_string();
+    let generator = parse_chunk_generator_value(json_required(object, "generator")?)?;
+    Ok(ParsedLevelStem {
+        dimension_type,
+        generator,
+    })
+}
+
+pub fn parse_chunk_generator_value(
+    value: &serde_json::Value,
+) -> Result<ParsedChunkGenerator, String> {
+    let object = json_object(value, "chunk generator")?;
+    match strip_minecraft(json_string_field(object, "type")?) {
+        "noise" => Ok(ParsedChunkGenerator::Noise {
+            biome_source: parse_biome_source_value(json_required(object, "biome_source")?)?,
+            settings: json_string_field(object, "settings")?.to_string(),
+        }),
+        "flat" => Ok(ParsedChunkGenerator::Flat {
+            settings: parse_flat_generator_settings_value(json_required(object, "settings")?)?,
+        }),
+        "debug" => Ok(ParsedChunkGenerator::Debug),
+        other => Err(format!("unknown chunk generator type {other}")),
+    }
+}
+
+pub fn parse_biome_source_value(value: &serde_json::Value) -> Result<ParsedBiomeSource, String> {
+    if let Some(biome) = value.as_str() {
+        return Ok(ParsedBiomeSource::Fixed {
+            biome: biome.to_string(),
+        });
+    }
+    let object = json_object(value, "biome source")?;
+    match strip_minecraft(json_string_field(object, "type")?) {
+        "multi_noise" => Ok(ParsedBiomeSource::MultiNoisePreset {
+            preset: json_string_field(object, "preset")?.to_string(),
+        }),
+        "the_end" => Ok(ParsedBiomeSource::TheEnd),
+        "fixed" => Ok(ParsedBiomeSource::Fixed {
+            biome: json_string_field(object, "biome")?.to_string(),
+        }),
+        "checkerboard" => {
+            let biomes = json_required(object, "biomes")?
+                .as_array()
+                .ok_or_else(|| "biomes must be an array".to_string())?
+                .iter()
+                .map(|biome| {
+                    biome
+                        .as_str()
+                        .map(str::to_string)
+                        .ok_or_else(|| "checkerboard biome entries must be strings".to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let scale = object.get("scale").and_then(|v| v.as_i64()).unwrap_or(2);
+            Ok(ParsedBiomeSource::Checkerboard { biomes, scale })
+        }
+        other => Err(format!("unknown biome source type {other}")),
+    }
+}
+
+pub fn parse_flat_generator_settings_value(
+    value: &serde_json::Value,
+) -> Result<ParsedFlatGeneratorSettings, String> {
+    let object = json_object(value, "flat generator settings")?;
+    let biome = json_string_field(object, "biome")?.to_string();
+    let add_lakes = json_bool_field(object, "lakes")?;
+    let decoration = json_bool_field(object, "features")?;
+    let structure_overrides = json_required(object, "structure_overrides")?
+        .as_array()
+        .ok_or_else(|| "structure_overrides must be an array".to_string())?
+        .iter()
+        .map(|entry| {
+            entry
+                .as_str()
+                .map(str::to_string)
+                .ok_or_else(|| "structure_overrides entries must be strings".to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let layers = json_required(object, "layers")?
+        .as_array()
+        .ok_or_else(|| "layers must be an array".to_string())?
+        .iter()
+        .map(|layer| {
+            let layer = json_object(layer, "flat layer")?;
+            let height = json_i64_field(layer, "height")?;
+            let height =
+                i32::try_from(height).map_err(|_| format!("height {height} overflows i32"))?;
+            let block = json_string_field(layer, "block")?.to_string();
+            Ok((height, block))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(ParsedFlatGeneratorSettings {
+        biome,
+        structure_overrides,
+        add_lakes,
+        decoration,
+        layers,
+    })
+}
+
+fn dimension_order_key(id: &str) -> (u8, &str) {
+    match id {
+        "minecraft:overworld" => (0, id),
+        "minecraft:the_nether" => (1, id),
+        "minecraft:the_end" => (2, id),
+        _ => (3, id),
+    }
+}
+
+fn strip_minecraft(id: &str) -> &str {
+    id.strip_prefix("minecraft:").unwrap_or(id)
+}
+
+fn json_object<'a>(
+    value: &'a serde_json::Value,
+    context: &str,
+) -> Result<&'a serde_json::Map<String, serde_json::Value>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| format!("{context} must be an object"))
+}
+
+fn json_required<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<&'a serde_json::Value, String> {
+    object
+        .get(field)
+        .ok_or_else(|| format!("{field} is required"))
+}
+
+fn json_string_field<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<&'a str, String> {
+    json_required(object, field)?
+        .as_str()
+        .ok_or_else(|| format!("{field} must be a string"))
+}
+
+fn json_i64_field(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<i64, String> {
+    json_required(object, field)?
+        .as_i64()
+        .ok_or_else(|| format!("{field} must be an integer"))
+}
+
+fn json_bool_field(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<bool, String> {
+    json_required(object, field)?
+        .as_bool()
+        .ok_or_else(|| format!("{field} must be a boolean"))
+}
+
 pub fn builtin_noise_generator_settings(id: &str) -> Option<&'static NoiseGeneratorSettings> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     BUILTIN_NOISE_GENERATOR_SETTINGS.iter().find(|settings| {
@@ -38233,6 +38487,119 @@ mod tests {
             })
             .unwrap_err(),
             "Flat generator minecraft:overworld must not carry noise settings".to_string()
+        );
+    }
+
+    #[test]
+    fn world_preset_codecs_parse_vanilla_registry_json() {
+        let normal_raw = std::fs::read_to_string(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen/world_preset/normal.json",
+        )
+        .unwrap();
+        let normal = super::parse_world_preset_json(&normal_raw).unwrap();
+        assert_eq!(
+            normal
+                .dimensions
+                .stems
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:overworld",
+                "minecraft:the_nether",
+                "minecraft:the_end"
+            ]
+        );
+        assert_eq!(
+            normal.dimensions.stems[0].1,
+            super::ParsedLevelStem {
+                dimension_type: "minecraft:overworld".to_string(),
+                generator: super::ParsedChunkGenerator::Noise {
+                    biome_source: super::ParsedBiomeSource::MultiNoisePreset {
+                        preset: "minecraft:overworld".to_string(),
+                    },
+                    settings: "minecraft:overworld".to_string(),
+                },
+            }
+        );
+        assert_eq!(
+            normal.dimensions.stems[1].1.generator,
+            super::ParsedChunkGenerator::Noise {
+                biome_source: super::ParsedBiomeSource::MultiNoisePreset {
+                    preset: "minecraft:nether".to_string(),
+                },
+                settings: "minecraft:nether".to_string(),
+            }
+        );
+        assert_eq!(
+            normal.dimensions.stems[2].1.generator,
+            super::ParsedChunkGenerator::Noise {
+                biome_source: super::ParsedBiomeSource::TheEnd,
+                settings: "minecraft:end".to_string(),
+            }
+        );
+
+        let flat_raw = std::fs::read_to_string(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen/world_preset/flat.json",
+        )
+        .unwrap();
+        let flat = super::parse_world_preset_json(&flat_raw).unwrap();
+        assert_eq!(
+            flat.dimensions.stems[0].1.generator,
+            super::ParsedChunkGenerator::Flat {
+                settings: super::ParsedFlatGeneratorSettings {
+                    biome: "minecraft:plains".to_string(),
+                    structure_overrides: vec![
+                        "minecraft:strongholds".to_string(),
+                        "minecraft:villages".to_string(),
+                    ],
+                    add_lakes: false,
+                    decoration: false,
+                    layers: vec![
+                        (1, "minecraft:bedrock".to_string()),
+                        (2, "minecraft:dirt".to_string()),
+                        (1, "minecraft:grass_block".to_string()),
+                    ],
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn worldgen_settings_codec_parses_seed_options_and_dimensions() {
+        let raw = r#"{
+            "seed": 12345,
+            "generate_features": true,
+            "bonus_chest": false,
+            "dimensions": {
+                "minecraft:overworld": {
+                    "type": "minecraft:overworld",
+                    "generator": {
+                        "type": "minecraft:noise",
+                        "biome_source": {
+                            "type": "minecraft:fixed",
+                            "biome": "minecraft:plains"
+                        },
+                        "settings": "minecraft:overworld"
+                    }
+                }
+            }
+        }"#;
+
+        let settings = super::parse_worldgen_settings_json(raw).unwrap();
+        assert_eq!(settings.seed, 12345);
+        assert!(settings.generate_structures);
+        assert!(!settings.generate_bonus_chest);
+        assert_eq!(settings.dimensions.stems.len(), 1);
+        assert_eq!(settings.dimensions.stems[0].0, "minecraft:overworld");
+        assert_eq!(
+            settings.dimensions.stems[0].1.generator,
+            super::ParsedChunkGenerator::Noise {
+                biome_source: super::ParsedBiomeSource::Fixed {
+                    biome: "minecraft:plains".to_string(),
+                },
+                settings: "minecraft:overworld".to_string(),
+            }
         );
     }
 

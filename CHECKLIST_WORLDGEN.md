@@ -52,9 +52,9 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 ## World Presets and Dimension Loading
 
 - [ ] Implement world-preset and dimension-stem loading from registry data (`data/minecraft/worldgen/world_preset/`, `data/minecraft/worldgen/flat_level_generator_preset/`) rather than hard-coded Rust defaults
-- [ ] Implement `WorldDimensions` codec: select overworld/nether/end generator from registry entries
-- [ ] Implement `WorldGenSettings`: seed, `generateStructures`, `generateBonusChest`, dimension map
-- [ ] Implement `LevelStem` codec pairing `DimensionType` holder with `ChunkGenerator`
+- [x] Implement `WorldDimensions` codec: select overworld/nether/end generator from registry entries
+- [x] Implement `WorldGenSettings`: seed, `generateStructures`, `generateBonusChest`, dimension map
+- [x] Implement `LevelStem` codec pairing `DimensionType` holder with `ChunkGenerator`
 - [x] Add test: `level-type=flat`, `level-type=amplified`, `level-type=large_biomes`, `level-type=single_biome_surface`, custom world preset all select correct generators
 
 ## Random Source Parity
