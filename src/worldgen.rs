@@ -42761,6 +42761,32 @@ mod tests {
             super::block_state_provider_sample(&rotated, 2),
             Some("minecraft:hay_block[axis=z]")
         );
+        let rotated_log = BlockStateProviderModel::RotatedBlock("minecraft:oak_log");
+        assert_eq!(
+            super::block_state_provider_sample(&rotated_log, 0),
+            Some("minecraft:oak_log[axis=x]")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&rotated_log, 1),
+            Some("minecraft:oak_log")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&rotated_log, 2),
+            Some("minecraft:oak_log[axis=z]")
+        );
+        let rotated_basalt = BlockStateProviderModel::RotatedBlock("minecraft:basalt");
+        assert_eq!(
+            super::block_state_provider_sample(&rotated_basalt, 0),
+            Some("minecraft:basalt[axis=x]")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&rotated_basalt, 1),
+            Some("minecraft:basalt")
+        );
+        assert_eq!(
+            super::block_state_provider_sample(&rotated_basalt, 2),
+            Some("minecraft:basalt[axis=z]")
+        );
         let randomized_cave_vines = BlockStateProviderModel::RandomizedInt {
             source: Box::new(BlockStateProviderModel::Weighted(vec![
                 WeightedBlockState {
