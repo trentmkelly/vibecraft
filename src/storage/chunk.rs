@@ -732,6 +732,49 @@ impl LevelChunk {
             .unwrap_or_default()
     }
 
+    pub fn prime_heightmaps(&mut self, heightmaps: &[HeightmapKind]) {
+        for heightmap in heightmaps {
+            let values = self.compute_heightmap_values(*heightmap);
+            self.heightmaps.insert(
+                heightmap.storage_name().to_string(),
+                Tag::LongArray(pack_heightmap_values(&values)),
+            );
+        }
+    }
+
+    pub fn prime_missing_heightmaps(&mut self) {
+        let missing = self.heightmaps_to_prime();
+        self.prime_heightmaps(&missing);
+    }
+
+    pub fn compute_heightmap_values(&self, heightmap: HeightmapKind) -> [i32; 16 * 16] {
+        let mut values = [0; 16 * 16];
+        let Some(highest_section_y) = self.sections.iter().map(|section| section.y).max() else {
+            return values;
+        };
+        let min_y = self.min_section_y * 16;
+        let max_y = i32::from(highest_section_y) * 16 + 15;
+        for x in 0..16 {
+            for z in 0..16 {
+                let index = z * 16 + x;
+                for y in (min_y..=max_y).rev() {
+                    let Some(block) = self.get_block_state(
+                        self.pos.x * CHUNK_WIDTH + x as i32,
+                        y,
+                        self.pos.z * CHUNK_WIDTH + z as i32,
+                    ) else {
+                        continue;
+                    };
+                    if block != "minecraft:air" && heightmap_block_matches(heightmap, &block) {
+                        values[index] = y + 1;
+                        break;
+                    }
+                }
+            }
+        }
+        values
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -871,6 +914,50 @@ fn saved_tick_tag(id: String, x: i32, y: i32, z: i32, delay: i32, priority: Tick
         ("t".to_string(), Tag::Int(delay)),
         ("p".to_string(), Tag::Int(priority.value())),
     ])
+}
+
+fn pack_heightmap_values(values: &[i32; 16 * 16]) -> Vec<i64> {
+    const BITS_PER_ENTRY: usize = 9;
+    let mut packed = vec![0_u64; (values.len() * BITS_PER_ENTRY).div_ceil(64)];
+    for (index, value) in values.iter().copied().enumerate() {
+        let bit_offset = index * BITS_PER_ENTRY;
+        let word_index = bit_offset / 64;
+        let bit_index = bit_offset % 64;
+        let value = value.max(0) as u64 & ((1 << BITS_PER_ENTRY) - 1);
+        packed[word_index] |= value << bit_index;
+        let spill = bit_index + BITS_PER_ENTRY;
+        if spill > 64 {
+            packed[word_index + 1] |= value >> (64 - bit_index);
+        }
+    }
+    packed.into_iter().map(|word| word as i64).collect()
+}
+
+fn heightmap_block_matches(heightmap: HeightmapKind, block: &str) -> bool {
+    match heightmap {
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => !matches!(
+            block,
+            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+        ),
+        HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg | HeightmapKind::MotionBlocking => {
+            motion_blocking_block(block)
+        }
+        HeightmapKind::MotionBlockingNoLeaves => {
+            motion_blocking_block(block) && !block.ends_with("_leaves")
+        }
+    }
+}
+
+fn motion_blocking_block(block: &str) -> bool {
+    !matches!(
+        block,
+        "minecraft:air"
+            | "minecraft:cave_air"
+            | "minecraft:void_air"
+            | "minecraft:water"
+            | "minecraft:lava"
+            | "minecraft:snow"
+    )
 }
 
 fn empty_structures_payload() -> Tag {
@@ -1919,7 +2006,7 @@ mod tests {
         saved_tick_tag, string_field, BlockStateEntry, ChunkPyramidKind, ChunkSection,
         ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, LightLayer, PalettedContainer,
         QueuedSectionLightData, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
-        CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
+        CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
         LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
         SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
@@ -2758,6 +2845,65 @@ mod tests {
         chunk.status = "minecraft:not_a_status".to_string();
 
         assert!(chunk.heightmaps_to_prime().is_empty());
+    }
+
+    #[test]
+    fn level_chunk_primes_heightmaps_from_block_sections() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
+        chunk.min_section_y = 0;
+        chunk.status = "minecraft:full".to_string();
+        chunk.sections = vec![
+            ChunkSection {
+                y: 0,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 1,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+        let world_x = chunk.pos.x * CHUNK_WIDTH + 3;
+        let world_z = chunk.pos.z * CHUNK_WIDTH + 5;
+        chunk.set_block_state(world_x, 20, world_z, "minecraft:water");
+        chunk.set_block_state(world_x, 10, world_z, "minecraft:oak_leaves");
+        chunk.set_block_state(world_x, 4, world_z, "minecraft:stone");
+
+        let column_index = 5 * 16 + 3;
+
+        assert_eq!(
+            chunk.compute_heightmap_values(HeightmapKind::WorldSurface)[column_index],
+            21
+        );
+        assert_eq!(
+            chunk.compute_heightmap_values(HeightmapKind::MotionBlocking)[column_index],
+            11
+        );
+        assert_eq!(
+            chunk.compute_heightmap_values(HeightmapKind::MotionBlockingNoLeaves)[column_index],
+            5
+        );
+
+        chunk.prime_missing_heightmaps();
+
+        assert!(chunk.heightmaps_to_prime().is_empty());
+        assert_eq!(
+            chunk
+                .heightmaps
+                .get("WORLD_SURFACE")
+                .and_then(|tag| match tag {
+                    Tag::LongArray(values) => Some(values.len()),
+                    _ => None,
+                }),
+            Some(36)
+        );
+        assert!(chunk.heightmaps.contains_key("MOTION_BLOCKING"));
+        assert!(chunk.heightmaps.contains_key("MOTION_BLOCKING_NO_LEAVES"));
     }
 
     #[test]
