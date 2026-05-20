@@ -2,6 +2,9 @@
 
 use std::collections::VecDeque;
 
+use crate::post_processing::unpack_offset_coordinates;
+use crate::storage::region::ChunkPos;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlockPos {
     pub x: i32,
@@ -48,6 +51,27 @@ pub enum BlockUpdateAction {
         direction: Direction,
     },
     MarkUnsaved(BlockPos),
+    TickFluid {
+        pos: BlockPos,
+        block: &'static str,
+    },
+    TickLiquidBlock {
+        pos: BlockPos,
+        block: &'static str,
+    },
+    UpdateFromNeighborShapes {
+        pos: BlockPos,
+        old_block: &'static str,
+    },
+    SetPostProcessedBlock {
+        pos: BlockPos,
+        old_block: &'static str,
+        new_block: &'static str,
+        flags: UpdateFlags,
+    },
+    ClearPostProcessingSection(usize),
+    PromotePendingBlockEntity(BlockPos),
+    RunUpgradeData,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +100,7 @@ impl UpdateFlags {
     pub const SKIP_REDSTONE_WIRE_STATE_REPLACEMENT: Self = Self(128);
     pub const SUPPRESS_SIDE_EFFECTS: Self = Self(256);
     pub const SUPPRESS_ON_PLACE: Self = Self(512);
+    pub const POST_PROCESSING_UPDATE: Self = Self(276);
 
     pub const fn empty() -> Self {
         Self(0)
@@ -87,6 +112,10 @@ impl UpdateFlags {
 
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
+    }
+
+    pub const fn bits(self) -> u16 {
+        self.0
     }
 }
 
@@ -309,12 +338,78 @@ pub fn plan_chunk_block_updates_with_limit(
     actions
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostProcessBlockState {
+    pub block: &'static str,
+    pub has_fluid: bool,
+    pub is_liquid_block: bool,
+}
+
+pub fn plan_chunk_generation_post_processing(
+    chunk_pos: ChunkPos,
+    min_section_y: i32,
+    post_processing_sections: &[Vec<i16>],
+    pending_block_entities: &[BlockPos],
+    block_at: impl Fn(BlockPos) -> PostProcessBlockState,
+    update_from_neighbor_shapes: impl Fn(BlockPos, &'static str) -> &'static str,
+) -> Vec<BlockUpdateAction> {
+    let mut actions = Vec::new();
+    for (section_index, packed_offsets) in post_processing_sections.iter().enumerate() {
+        let section_y = min_section_y + section_index as i32;
+        for packed_offset in packed_offsets {
+            let pos = unpack_offset_coordinates(*packed_offset, section_y, chunk_pos);
+            let state = block_at(pos);
+            if state.has_fluid {
+                actions.push(BlockUpdateAction::TickFluid {
+                    pos,
+                    block: state.block,
+                });
+            }
+            if state.is_liquid_block {
+                actions.push(BlockUpdateAction::TickLiquidBlock {
+                    pos,
+                    block: state.block,
+                });
+            } else {
+                actions.push(BlockUpdateAction::UpdateFromNeighborShapes {
+                    pos,
+                    old_block: state.block,
+                });
+                let new_block = update_from_neighbor_shapes(pos, state.block);
+                if new_block != state.block {
+                    actions.push(BlockUpdateAction::SetPostProcessedBlock {
+                        pos,
+                        old_block: state.block,
+                        new_block,
+                        flags: UpdateFlags::POST_PROCESSING_UPDATE,
+                    });
+                }
+            }
+        }
+        if !packed_offsets.is_empty() {
+            actions.push(BlockUpdateAction::ClearPostProcessingSection(section_index));
+        }
+    }
+
+    actions.extend(
+        pending_block_entities
+            .iter()
+            .copied()
+            .map(BlockUpdateAction::PromotePendingBlockEntity),
+    );
+    actions.push(BlockUpdateAction::RunUpgradeData);
+    actions
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        plan_chunk_block_updates, plan_chunk_block_updates_with_limit, BlockChange, BlockPos,
-        BlockUpdateAction, Direction, NeighborUpdateQueue, UpdateFlags, UPDATE_ORDER,
+        plan_chunk_block_updates, plan_chunk_block_updates_with_limit,
+        plan_chunk_generation_post_processing, BlockChange, BlockPos, BlockUpdateAction, Direction,
+        NeighborUpdateQueue, PostProcessBlockState, UpdateFlags, UPDATE_ORDER,
     };
+    use crate::post_processing::pack_offset_coordinates;
+    use crate::storage::region::ChunkPos;
 
     #[test]
     fn neighbor_update_order_matches_vanilla_order() {
@@ -551,5 +646,87 @@ mod tests {
                 "neighbor {dir:?} should notify its adjacent shape-update chain except source"
             );
         }
+    }
+
+    #[test]
+    fn generation_post_processing_matches_level_chunk_order() {
+        let chunk_pos = ChunkPos { x: -2, z: 3 };
+        let water_pos = BlockPos {
+            x: -31,
+            y: 2,
+            z: 50,
+        };
+        let torch_pos = BlockPos {
+            x: -30,
+            y: 19,
+            z: 51,
+        };
+        let pending_block_entity = BlockPos {
+            x: -29,
+            y: 20,
+            z: 52,
+        };
+        let sections = vec![
+            vec![pack_offset_coordinates(water_pos)],
+            vec![pack_offset_coordinates(torch_pos)],
+        ];
+
+        let actions = plan_chunk_generation_post_processing(
+            chunk_pos,
+            0,
+            &sections,
+            &[pending_block_entity],
+            |pos| {
+                if pos == water_pos {
+                    PostProcessBlockState {
+                        block: "minecraft:water",
+                        has_fluid: true,
+                        is_liquid_block: true,
+                    }
+                } else {
+                    PostProcessBlockState {
+                        block: "minecraft:wall_torch",
+                        has_fluid: false,
+                        is_liquid_block: false,
+                    }
+                }
+            },
+            |pos, block| {
+                if pos == torch_pos && block == "minecraft:wall_torch" {
+                    "minecraft:air"
+                } else {
+                    block
+                }
+            },
+        );
+
+        assert_eq!(
+            actions,
+            vec![
+                BlockUpdateAction::TickFluid {
+                    pos: water_pos,
+                    block: "minecraft:water"
+                },
+                BlockUpdateAction::TickLiquidBlock {
+                    pos: water_pos,
+                    block: "minecraft:water"
+                },
+                BlockUpdateAction::ClearPostProcessingSection(0),
+                BlockUpdateAction::UpdateFromNeighborShapes {
+                    pos: torch_pos,
+                    old_block: "minecraft:wall_torch"
+                },
+                BlockUpdateAction::SetPostProcessedBlock {
+                    pos: torch_pos,
+                    old_block: "minecraft:wall_torch",
+                    new_block: "minecraft:air",
+                    flags: UpdateFlags::POST_PROCESSING_UPDATE
+                },
+                BlockUpdateAction::ClearPostProcessingSection(1),
+                BlockUpdateAction::PromotePendingBlockEntity(pending_block_entity),
+                BlockUpdateAction::RunUpgradeData,
+            ]
+        );
+        assert_eq!(UpdateFlags::POST_PROCESSING_UPDATE.bits(), 276);
     }
 }
