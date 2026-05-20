@@ -128,6 +128,17 @@ pub struct ChunkGenerationScheduleLayerPlan {
     pub stopped_early: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChunkGenerationRunPlan {
+    Waiting {
+        waiting_for_index: usize,
+        remaining_layer: Vec<ChunkGenerationFutureState>,
+        marked_for_cancellation: bool,
+    },
+    Released,
+    Schedule(ChunkGenerationLayerPlan),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickPriority {
     ExtremelyHigh,
@@ -1215,6 +1226,40 @@ where
         visited_positions,
         stopped_early,
     })
+}
+
+pub fn chunk_generation_task_run_until_wait_decision(
+    target: &str,
+    scheduled_status: Option<&str>,
+    needs_generation: bool,
+    marked_for_cancellation: bool,
+    can_load_without_generation: bool,
+    scheduled_layer: &[ChunkGenerationFutureState],
+) -> Option<ChunkGenerationRunPlan> {
+    let target = chunk_status(target)?;
+    let wait_plan = chunk_generation_task_wait_for_scheduled_layer(scheduled_layer);
+    if let Some(waiting_for_index) = wait_plan.waiting_for_index {
+        return Some(ChunkGenerationRunPlan::Waiting {
+            waiting_for_index,
+            remaining_layer: wait_plan.remaining_layer,
+            marked_for_cancellation: wait_plan.marked_for_cancellation,
+        });
+    }
+
+    let marked_for_cancellation = marked_for_cancellation || wait_plan.marked_for_cancellation;
+    let target_reached = scheduled_status
+        .and_then(chunk_status)
+        .is_some_and(|scheduled| scheduled.id == target.id);
+    if marked_for_cancellation || target_reached {
+        return Some(ChunkGenerationRunPlan::Released);
+    }
+
+    chunk_generation_task_next_layer(
+        scheduled_status,
+        needs_generation,
+        can_load_without_generation,
+    )
+    .map(ChunkGenerationRunPlan::Schedule)
 }
 
 fn chunk_pyramid_dependencies(
@@ -2854,6 +2899,92 @@ mod tests {
                 0,
                 0,
                 std::iter::repeat(true),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn chunk_generation_task_run_until_wait_decision_matches_java_ordering() {
+        use super::ChunkGenerationFutureState::{Failure, Pending, Success};
+
+        assert_eq!(
+            super::chunk_generation_task_run_until_wait_decision(
+                "minecraft:features",
+                Some("minecraft:features"),
+                false,
+                false,
+                true,
+                &[Pending],
+            ),
+            Some(super::ChunkGenerationRunPlan::Waiting {
+                waiting_for_index: 0,
+                remaining_layer: vec![Pending],
+                marked_for_cancellation: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_run_until_wait_decision(
+                "minecraft:features",
+                Some("minecraft:features"),
+                false,
+                false,
+                true,
+                &[Success],
+            ),
+            Some(super::ChunkGenerationRunPlan::Released)
+        );
+        assert_eq!(
+            super::chunk_generation_task_run_until_wait_decision(
+                "minecraft:features",
+                Some("minecraft:carvers"),
+                false,
+                false,
+                true,
+                &[Failure],
+            ),
+            Some(super::ChunkGenerationRunPlan::Released)
+        );
+        assert_eq!(
+            super::chunk_generation_task_run_until_wait_decision(
+                "minecraft:features",
+                Some("minecraft:empty"),
+                false,
+                false,
+                false,
+                &[],
+            ),
+            Some(super::ChunkGenerationRunPlan::Schedule(
+                super::ChunkGenerationLayerPlan {
+                    status: "minecraft:empty",
+                    needs_generation: true,
+                }
+            ))
+        );
+        assert_eq!(
+            super::chunk_generation_task_run_until_wait_decision(
+                "minecraft:features",
+                None,
+                false,
+                false,
+                true,
+                &[],
+            ),
+            Some(super::ChunkGenerationRunPlan::Schedule(
+                super::ChunkGenerationLayerPlan {
+                    status: "minecraft:empty",
+                    needs_generation: false,
+                }
+            ))
+        );
+        assert_eq!(
+            super::chunk_generation_task_run_until_wait_decision(
+                "missing",
+                None,
+                false,
+                false,
+                true,
+                &[],
             ),
             None
         );
