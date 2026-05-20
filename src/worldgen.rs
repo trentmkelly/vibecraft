@@ -1043,6 +1043,17 @@ pub struct ChunkGenerationMobSpawnPositionPlan {
     pub pos: BlockPos,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChunkGenerationMobEntitySnapPlan {
+    pub entity_type: &'static str,
+    pub width: f32,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkGenerationMobSpawnPlan {
     pub chunk: ChunkPos,
@@ -23885,6 +23896,39 @@ pub fn chunk_generation_spawn_position_ok(
                     .is_some_and(spawn_valid_empty_block)
         }
         _ => false,
+    }
+}
+
+pub fn chunk_generation_mob_entity_snap_plan(
+    chunk: ChunkPos,
+    entity_type: &'static str,
+    pos: BlockPos,
+    random: &mut RandomSourceKind,
+) -> ChunkGenerationMobEntitySnapPlan {
+    let width = entity_type_width(entity_type);
+    let min_x = f64::from(chunk.x * 16) + f64::from(width);
+    let max_x = f64::from(chunk.x * 16) + 16.0 - f64::from(width);
+    let min_z = f64::from(chunk.z * 16) + f64::from(width);
+    let max_z = f64::from(chunk.z * 16) + 16.0 - f64::from(width);
+    ChunkGenerationMobEntitySnapPlan {
+        entity_type,
+        width,
+        x: f64::from(pos.x).clamp(min_x, max_x),
+        y: f64::from(pos.y),
+        z: f64::from(pos.z).clamp(min_z, max_z),
+        yaw: random.next_f32() * 360.0,
+        pitch: 0.0,
+    }
+}
+
+pub fn entity_type_width(entity_type: &str) -> f32 {
+    match entity_type {
+        "minecraft:chicken" => 0.4,
+        "minecraft:cow" | "minecraft:mooshroom" | "minecraft:pig" | "minecraft:sheep" => 0.9,
+        "minecraft:donkey" | "minecraft:horse" | "minecraft:mule" => 1.3964844,
+        "minecraft:rabbit" => 0.49,
+        "minecraft:polar_bear" => 1.4,
+        _ => 0.6,
     }
 }
 
@@ -58054,6 +58098,34 @@ mod tests {
             super::spawn_placement_heightmap("minecraft:pig"),
             HeightmapKind::MotionBlockingNoLeaves
         );
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_snap_plan_clamps_width_and_rolls_yaw() {
+        let chunk = ChunkPos { x: 2, z: -3 };
+        let mut random = crate::random_source::RandomSourceKind::new(
+            1,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+
+        let snap = super::chunk_generation_mob_entity_snap_plan(
+            chunk,
+            "minecraft:pig",
+            BlockPos {
+                x: 32,
+                y: 70,
+                z: -33,
+            },
+            &mut random,
+        );
+
+        assert_eq!(snap.entity_type, "minecraft:pig");
+        assert_eq!(snap.width, 0.9);
+        assert!((snap.x - 32.9).abs() < 0.000001);
+        assert_eq!(snap.y, 70.0);
+        assert_eq!(snap.z, -33.0);
+        assert!((snap.yaw - 263.11615).abs() < 0.0001);
+        assert_eq!(snap.pitch, 0.0);
     }
 
     #[test]
