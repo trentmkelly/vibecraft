@@ -594,8 +594,7 @@ impl LevelChunk {
             entities: compound_list_entries(
                 optional_list_field(root, "entities")?.unwrap_or_default(),
             ),
-            structures: optional_field(root, "structures")
-                .cloned()
+            structures: optional_compound_tag(root, "structures")
                 .unwrap_or_else(empty_structures_payload),
             upgrade_data: optional_field(root, "UpgradeData").cloned(),
             blending_data: optional_blending_data(root)?,
@@ -687,11 +686,9 @@ impl ChunkSection {
         let compound = compound(tag)?;
         Ok(Self {
             y: optional_byte_field(compound, "Y")?.unwrap_or(0),
-            block_states: optional_field(compound, "block_states")
-                .cloned()
+            block_states: optional_compound_tag(compound, "block_states")
                 .unwrap_or_else(default_block_states_container),
-            biomes: optional_field(compound, "biomes")
-                .cloned()
+            biomes: optional_compound_tag(compound, "biomes")
                 .unwrap_or_else(default_biomes_container),
             block_light: optional_light_array(compound, "BlockLight")?,
             sky_light: optional_light_array(compound, "SkyLight")?,
@@ -1088,6 +1085,13 @@ fn optional_compound_field<'a>(
     }
 }
 
+fn optional_compound_tag(compound: &[(String, Tag)], name: &str) -> Option<Tag> {
+    match optional_field(compound, name) {
+        Some(Tag::Compound(values)) => Some(Tag::Compound(values.clone())),
+        Some(_) | None => None,
+    }
+}
+
 fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i8>>, String> {
     match compound.iter().find(|(field_name, _)| field_name == name) {
         Some((_name, Tag::ByteArray(values))) => Ok(Some(values.clone())),
@@ -1207,11 +1211,11 @@ fn validate_below_zero_retrogen(tag: &Tag) -> Result<(), String> {
 mod tests {
     use super::{
         chunk_status, chunk_status_is_or_after, default_biomes_container,
-        default_block_states_container, pack_postprocessing_offset, saved_tick_tag, string_field,
-        BlockStateEntry, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk,
-        PalettedContainer, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
-        CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, SECTION_VOLUME,
-        WORLDGEN_HEIGHTMAPS,
+        default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
+        saved_tick_tag, string_field, BlockStateEntry, ChunkSection, ChunkStatusTaskKind,
+        ChunkType, HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos, TickPriority,
+        BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
+        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -1872,6 +1876,41 @@ mod tests {
 
         assert_eq!(decoded.sections.len(), 1);
         assert_eq!(decoded.sections[0].y, 0);
+        assert_eq!(
+            decoded.sections[0].block_states,
+            default_block_states_container()
+        );
+        assert_eq!(decoded.sections[0].biomes, default_biomes_container());
+    }
+
+    #[test]
+    fn level_chunk_defaults_wrong_type_optional_compounds_on_load() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        let (_, structures) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "structures")
+            .expect("structures should be present");
+        *structures = Tag::List(Vec::new());
+        let (_, sections) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "sections")
+            .expect("sections should be present");
+        *sections = Tag::List(vec![Tag::Compound(vec![
+            ("Y".to_string(), Tag::Byte(0)),
+            (
+                "block_states".to_string(),
+                Tag::String("wrong-type".to_string()),
+            ),
+            ("biomes".to_string(), Tag::Int(7)),
+        ])]);
+
+        let decoded = LevelChunk::from_nbt(pos, &tag).unwrap();
+
+        assert_eq!(decoded.structures, empty_structures_payload());
         assert_eq!(
             decoded.sections[0].block_states,
             default_block_states_container()
