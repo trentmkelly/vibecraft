@@ -590,6 +590,21 @@ pub fn parse_vanilla_fixture_report(raw: &str) -> Result<VanillaFixtureReport, S
     Ok(VanillaFixtureReport { format, chunks })
 }
 
+pub fn parse_rustcraft_worldgen_report(raw: &str) -> Result<Vec<WorldgenChunkSignature>, String> {
+    let root: Value =
+        serde_json::from_str(raw).map_err(|err| format!("invalid RustCraft report JSON: {err}"))?;
+    let format = string_field_value(&root, "format").unwrap_or("unknown");
+    if format != "rustcraft-worldgen-signatures-v1" {
+        return Err(format!(
+            "unsupported RustCraft worldgen report format {format:?}"
+        ));
+    }
+    array_field(&root, "chunks")?
+        .iter()
+        .map(parse_rustcraft_chunk_signature)
+        .collect()
+}
+
 pub fn fixture_report_signatures(report: &VanillaFixtureReport) -> Vec<WorldgenChunkSignature> {
     report
         .chunks
@@ -689,6 +704,40 @@ fn parse_fixture_chunk(value: &Value) -> Result<VanillaFixtureChunkSummary, Stri
     })
 }
 
+fn parse_rustcraft_chunk_signature(value: &Value) -> Result<WorldgenChunkSignature, String> {
+    Ok(WorldgenChunkSignature {
+        chunk: ChunkCoord {
+            x: i32_field(value, "chunkX")?,
+            z: i32_field(value, "chunkZ")?,
+        },
+        status: string_field_value(value, "status")
+            .ok_or_else(|| "RustCraft chunk missing status".to_string())?
+            .to_string(),
+        section_count: usize_field(value, "sectionCount")?,
+        non_empty_section_count: usize_field(value, "nonEmptySectionCount")?,
+        heightmaps: parse_heightmaps(
+            value
+                .get("heightmaps")
+                .ok_or_else(|| "RustCraft chunk missing heightmaps".to_string())?,
+        )?,
+        block_palette: sorted_unique(string_array_field(value, "blockPalette")?),
+        biome_palette: sorted_unique(string_array_field(value, "biomePalette")?),
+        sections: sorted_sections(parse_sections(array_field(value, "sections")?)?),
+        structures: {
+            let structures = parse_structures(
+                value
+                    .get("structures")
+                    .ok_or_else(|| "RustCraft chunk missing structures".to_string())?,
+            )?;
+            WorldgenStructureSignature {
+                start_keys: sorted_unique(structures.start_keys),
+                reference_keys: sorted_unique(structures.reference_keys),
+            }
+        },
+        payload_fingerprint: usize_field(value, "payloadFingerprint")? as u64,
+    })
+}
+
 fn parse_heightmaps(value: &Value) -> Result<Vec<WorldgenNamedArraySignature>, String> {
     let object = value
         .as_object()
@@ -699,7 +748,10 @@ fn parse_heightmaps(value: &Value) -> Result<Vec<WorldgenNamedArraySignature>, S
             Ok(WorldgenNamedArraySignature {
                 name: name.clone(),
                 entries: usize_field(value, "entries")?,
-                fingerprint: 0,
+                fingerprint: value
+                    .get("fingerprint")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0),
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -720,7 +772,7 @@ fn parse_sections(values: &[Value]) -> Result<Vec<WorldgenSectionSignature>, Str
                         .ok_or_else(|| "section missing blockStatesData".to_string())?,
                     "entries",
                 )?,
-                block_data_fingerprint: optional_hex_fingerprint_field(
+                block_data_fingerprint: optional_report_fingerprint_field(
                     value
                         .get("blockStatesData")
                         .ok_or_else(|| "section missing blockStatesData".to_string())?,
@@ -733,7 +785,7 @@ fn parse_sections(values: &[Value]) -> Result<Vec<WorldgenSectionSignature>, Str
                         .ok_or_else(|| "section missing biomeData".to_string())?,
                     "entries",
                 )?,
-                biome_data_fingerprint: optional_hex_fingerprint_field(
+                biome_data_fingerprint: optional_report_fingerprint_field(
                     value
                         .get("biomeData")
                         .ok_or_else(|| "section missing biomeData".to_string())?,
@@ -815,6 +867,17 @@ fn optional_hex_fingerprint_field(value: &Value, field: &str) -> Result<u64, Str
         Some(Value::Null) | None => Ok(0),
         _ => Err(format!("{field} must be a SHA-256 string or null")),
     }
+}
+
+fn optional_report_fingerprint_field(value: &Value, hash_field: &str) -> Result<u64, String> {
+    let hashed = optional_hex_fingerprint_field(value, hash_field)?;
+    if hashed != 0 {
+        return Ok(hashed);
+    }
+    Ok(value
+        .get("fingerprint")
+        .and_then(Value::as_u64)
+        .unwrap_or(0))
 }
 
 fn fingerprint_hex(hex: &str) -> u64 {
@@ -1364,6 +1427,36 @@ mod tests {
                 .get("blockStatesData")
                 .and_then(Value::as_object)
                 .is_some()));
+    }
+
+    #[test]
+    fn rustcraft_worldgen_report_round_trips_to_signatures_for_regression_diffs() {
+        let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            "flat",
+        )
+        .expect("flat preset should generate a concrete chunk");
+        let expected = build_chunk_signature(&chunk);
+        let report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+        let raw = serde_json::to_string(&report).unwrap();
+
+        let parsed = parse_rustcraft_worldgen_report(&raw).unwrap();
+
+        assert_eq!(parsed, vec![expected]);
+
+        let mut altered = report.clone();
+        altered["chunks"][0]["status"] = Value::String("minecraft:noise".to_string());
+        let altered_signatures =
+            parse_rustcraft_worldgen_report(&serde_json::to_string(&altered).unwrap()).unwrap();
+        assert_eq!(
+            diff_chunk_signature_reports(&parsed, &altered_signatures),
+            vec![WorldgenChunkReportDiff::Field(WorldgenChunkSignatureDiff {
+                chunk: ChunkCoord { x: 0, z: 0 },
+                field: "status",
+                left: "\"minecraft:full\"".to_string(),
+                right: "\"minecraft:noise\"".to_string(),
+            })]
+        );
     }
 
     #[test]
