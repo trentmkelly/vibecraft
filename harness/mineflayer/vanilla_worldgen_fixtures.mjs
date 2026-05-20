@@ -7,7 +7,22 @@ import { runVanillaWorldgenOracle } from './vanilla_worldgen_oracle.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
 
+export const OVERWORLD_PARITY_MATRIX_SEEDS = [0n, 1n, -1n, 2147483647n]
+export const OVERWORLD_PARITY_MATRIX_CHUNKS = [
+  { x: 0, z: 0 },
+  { x: 1, z: 0 },
+  { x: 0, z: 1 },
+  { x: 16, z: 16 }
+]
+
 export const OVERWORLD_FIXTURE_CASES = [
+  ...OVERWORLD_PARITY_MATRIX_SEEDS.map(seed => ({
+    id: `overworld_parity_matrix_seed_${fixtureSeedId(seed)}`,
+    category: 'explicit_overworld_seed_coordinate_matrix',
+    seed,
+    chunks: OVERWORLD_PARITY_MATRIX_CHUNKS,
+    notes: 'Explicit checklist matrix covering chunks (0,0), (1,0), (0,1), and (16,16) for deterministic heightmap, biome, section palette, and representative block-position parity.'
+  })),
   {
     id: 'overworld_forest_spawn_origin',
     category: 'plains_forest_spawn',
@@ -135,6 +150,10 @@ function serializeFixtureCase (fixture) {
       dimension: chunk.dimension ?? 'overworld'
     }))
   }
+}
+
+function fixtureSeedId (seed) {
+  return seed < 0n ? `neg_${(-seed).toString()}` : seed.toString()
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

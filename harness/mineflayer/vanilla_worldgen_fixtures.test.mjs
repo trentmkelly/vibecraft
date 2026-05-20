@@ -4,6 +4,8 @@ import test from 'node:test'
 import {
   DIMENSION_FIXTURE_CASES,
   OVERWORLD_FIXTURE_CASES,
+  OVERWORLD_PARITY_MATRIX_CHUNKS,
+  OVERWORLD_PARITY_MATRIX_SEEDS,
   fixtureManifest,
   runDimensionFixtureSuite
 } from './vanilla_worldgen_fixtures.mjs'
@@ -14,13 +16,36 @@ test('overworld fixture manifest covers normal terrain parity categories', () =>
   assert(categories.has('plains_forest_spawn'))
   assert(categories.has('region_boundary_negative_coords'))
   assert(categories.has('far_noise_sample'))
-  assert.equal(OVERWORLD_FIXTURE_CASES.length, 3)
+  assert(categories.has('explicit_overworld_seed_coordinate_matrix'))
+  assert.equal(OVERWORLD_FIXTURE_CASES.length, 7)
   for (const fixture of OVERWORLD_FIXTURE_CASES) {
     assert.match(fixture.id, /^overworld_/)
     assert.equal(typeof fixture.seed, 'bigint')
     assert(fixture.chunks.length >= 3)
     assert(fixture.notes.length > 20)
     assert(fixture.chunks.every(chunk => (chunk.dimension ?? 'overworld') === 'overworld'))
+  }
+})
+
+test('overworld fixture manifest covers the explicit seed and coordinate matrix', () => {
+  const matrixFixtures = OVERWORLD_FIXTURE_CASES.filter(
+    fixture => fixture.category === 'explicit_overworld_seed_coordinate_matrix'
+  )
+  const expectedChunks = OVERWORLD_PARITY_MATRIX_CHUNKS.map(chunk => `${chunk.x},${chunk.z}`)
+
+  assert.deepEqual(
+    matrixFixtures.map(fixture => fixture.seed),
+    OVERWORLD_PARITY_MATRIX_SEEDS
+  )
+  assert.deepEqual(expectedChunks, ['0,0', '1,0', '0,1', '16,16'])
+  for (const fixture of matrixFixtures) {
+    assert.deepEqual(
+      fixture.chunks.map(chunk => `${chunk.x},${chunk.z}`),
+      expectedChunks
+    )
+    assert.match(fixture.notes, /heightmap/)
+    assert.match(fixture.notes, /biome/)
+    assert.match(fixture.notes, /representative block-position/)
   }
 })
 
