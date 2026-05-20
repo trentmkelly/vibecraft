@@ -23959,6 +23959,64 @@ pub fn queue_chunk_generation_mob_entity(
     chunk.add_entity_nbt(chunk_generation_mob_entity_nbt(snap, uuid))
 }
 
+pub fn apply_chunk_generation_mob_batch_to_chunk(
+    chunk: &mut LevelChunk,
+    batch: ChunkGenerationMobSpawnBatchPlan,
+    dimension_has_ceiling: bool,
+    random: &mut RandomSourceKind,
+    uuids: &[&str],
+) -> usize {
+    let mut x = batch.start_x;
+    let mut z = batch.start_z;
+    let start_x = x;
+    let start_z = z;
+    let min_block_x = chunk.pos.x * 16;
+    let min_block_z = chunk.pos.z * 16;
+    let mut spawned = 0;
+
+    for _mob_index in 0..batch.count {
+        let mut success = false;
+        for _attempt in 0..4 {
+            if !success {
+                let position = chunk_generation_mob_top_non_colliding_pos(
+                    chunk,
+                    batch.entity_type,
+                    x,
+                    z,
+                    dimension_has_ceiling,
+                );
+                if chunk_generation_spawn_position_ok(chunk, batch.entity_type, position.pos) {
+                    let snap = chunk_generation_mob_entity_snap_plan(
+                        chunk.pos,
+                        batch.entity_type,
+                        position.pos,
+                        random,
+                    );
+                    if let Some(uuid) = uuids.get(spawned) {
+                        if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
+                            spawned += 1;
+                            success = true;
+                        }
+                    }
+                }
+            }
+
+            x += random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            z += random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            while x < min_block_x
+                || x >= min_block_x + 16
+                || z < min_block_z
+                || z >= min_block_z + 16
+            {
+                x = start_x + random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+                z = start_z + random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            }
+        }
+    }
+
+    spawned
+}
+
 fn spawn_pathfindable_land_block(block: &str) -> bool {
     is_surface_air(block)
 }
@@ -58194,6 +58252,44 @@ mod tests {
         assert!(fields.contains(&(
             "Rotation".to_string(),
             Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)])
+        )));
+    }
+
+    #[test]
+    fn apply_chunk_generation_mob_batch_to_chunk_queues_successful_placements() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let mut chunk =
+            super::generator_build_surface_for_stem(ChunkPos { x: 2, z: -3 }, &normal.overworld)
+                .expect("surface chunk should generate");
+        let batch = super::ChunkGenerationMobSpawnBatchPlan {
+            category: "creature",
+            entity_type: "minecraft:pig",
+            count: 1,
+            start_x: 37,
+            start_z: -37,
+        };
+        let mut random = crate::random_source::RandomSourceKind::new(
+            1,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+
+        let spawned = super::apply_chunk_generation_mob_batch_to_chunk(
+            &mut chunk,
+            batch,
+            false,
+            &mut random,
+            &["00000000-0000-0000-0000-000000000456"],
+        );
+
+        assert_eq!(spawned, 1);
+        assert_eq!(chunk.entities.len(), 1);
+        let Tag::Compound(fields) = &chunk.entities[0] else {
+            panic!("queued entity must be a compound");
+        };
+        assert!(fields.contains(&("id".to_string(), Tag::String("minecraft:pig".to_string()))));
+        assert!(fields.contains(&(
+            "UUID".to_string(),
+            Tag::String("00000000-0000-0000-0000-000000000456".to_string())
         )));
     }
 
