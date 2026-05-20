@@ -318,12 +318,17 @@ pub struct LootRequest {
     pub direct_killer_entity: Option<String>,
     pub last_damage_player: Option<String>,
     pub block: Option<String>,
+    pub block_entity: Option<String>,
     pub tool: Option<String>,
     pub damage_source: Option<String>,
     pub explosion_radius: Option<f32>,
     pub luck: f32,
     pub looting_level: i32,
+    pub fortune_level: i32,
     pub killed_by_player: bool,
+    pub correct_tool: bool,
+    pub silk_touch: bool,
+    pub do_tile_drops: bool,
     pub entity_properties: HashMap<String, String>,
 }
 
@@ -339,12 +344,17 @@ impl LootRequest {
             direct_killer_entity: None,
             last_damage_player: None,
             block: None,
+            block_entity: None,
             tool: None,
             damage_source: None,
             explosion_radius: None,
             luck: 0.0,
             looting_level: 0,
+            fortune_level: 0,
             killed_by_player: false,
+            correct_tool: true,
+            silk_touch: false,
+            do_tile_drops: true,
             entity_properties: HashMap::new(),
         }
     }
@@ -447,6 +457,24 @@ pub fn resolve_fishing_loot(
     request
         .entity_properties
         .insert("in_open_water".to_string(), in_open_water.to_string());
+    engine.resolve(request, seed)
+}
+
+pub fn resolve_block_break_loot(
+    engine: &LootBehaviorEngine,
+    mut request: LootRequest,
+    seed: u64,
+) -> LootResolution {
+    request.surface = LootSurface::BlockBreak;
+    if !request.do_tile_drops {
+        return LootResolution {
+            surface: request.surface,
+            table: request.table,
+            param_set: LootParamSet::Block,
+            delivery: LootDelivery::DropAt(request.origin, Vec::new()),
+            warnings: Vec::new(),
+        };
+    }
     engine.resolve(request, seed)
 }
 
@@ -689,6 +717,7 @@ impl LootBehaviorEngine {
         context.entity_type = request.surface.entity_type();
         context.luck = request.luck;
         context.looting_level = request.looting_level;
+        context.fortune_level = request.fortune_level;
         context.killed_by_player = request.killed_by_player;
         context.insert_param(LootParamValue::Origin(
             request.origin.0,
@@ -700,6 +729,9 @@ impl LootBehaviorEngine {
         }
         if let Some(block) = &request.block {
             context.insert_param(LootParamValue::BlockState(block.clone()));
+        }
+        if let Some(block_entity) = &request.block_entity {
+            context.insert_param(LootParamValue::BlockEntity(block_entity.clone()));
         }
         if let Some(tool) = &request.tool {
             context.insert_param(LootParamValue::Tool(tool.clone()));
@@ -727,6 +759,12 @@ impl LootBehaviorEngine {
         context
             .entity_properties
             .extend(request.entity_properties.clone());
+        context
+            .entity_properties
+            .insert("correct_tool".to_string(), request.correct_tool.to_string());
+        context
+            .entity_properties
+            .insert("silk_touch".to_string(), request.silk_touch.to_string());
         context
     }
 }
@@ -1278,6 +1316,10 @@ pub enum LootFunction {
         per_level: NumberProvider,
         limit: Option<i32>,
     },
+    ApplyFortuneBonus {
+        per_level: NumberProvider,
+        limit: Option<i32>,
+    },
     SetItem(String),
     ApplyExplosionDecay,
     Filtered {
@@ -1300,6 +1342,13 @@ impl LootFunction {
             }
             Self::AddLootingBonus { per_level, limit } => {
                 stack.count += per_level.int(context) * context.looting_level.max(0);
+                if let Some(limit) = limit {
+                    stack.count = stack.count.min(*limit);
+                }
+                Some(stack)
+            }
+            Self::ApplyFortuneBonus { per_level, limit } => {
+                stack.count += per_level.int(context) * context.fortune_level.max(0);
                 if let Some(limit) = limit {
                     stack.count = stack.count.min(*limit);
                 }
@@ -1351,6 +1400,7 @@ pub struct LootContext {
     pub random: DeterministicRandom,
     pub luck: f32,
     pub looting_level: i32,
+    pub fortune_level: i32,
     pub enchantment_level: i32,
     pub enchantment_active: bool,
     pub killed_by_player: bool,
@@ -1383,6 +1433,7 @@ impl LootContext {
             random: DeterministicRandom::new(seed),
             luck: 0.0,
             looting_level: 0,
+            fortune_level: 0,
             enchantment_level: 0,
             enchantment_active: false,
             killed_by_player: false,
@@ -1415,6 +1466,7 @@ impl LootContext {
             random: self.random,
             luck: self.luck,
             looting_level: self.looting_level,
+            fortune_level: self.fortune_level,
             enchantment_level: self.enchantment_level,
             enchantment_active: self.enchantment_active,
             killed_by_player: self.killed_by_player,
@@ -2295,6 +2347,78 @@ mod tests {
             LootDelivery::DropAt(
                 (3.0, 62.0, 4.0),
                 vec![LootStack::new("minecraft:name_tag", 1)]
+            )
+        );
+    }
+
+    #[test]
+    fn block_break_loot_uses_block_entity_tool_gamerule_silk_and_fortune() {
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:blocks/diamond_ore",
+            table_with_pool(LootPool::single(LootEntry::Item {
+                item: "minecraft:diamond".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: vec![
+                    LootCondition::BlockState {
+                        block: "minecraft:diamond_ore".to_string(),
+                    },
+                    LootCondition::MatchTool {
+                        item: "minecraft:diamond_pickaxe".to_string(),
+                    },
+                    LootCondition::EntityProperty {
+                        key: "block_entity".to_string(),
+                        value: "minecraft:test_block_entity".to_string(),
+                    },
+                    LootCondition::AnyOf(vec![
+                        LootCondition::EntityProperty {
+                            key: "correct_tool".to_string(),
+                            value: "true".to_string(),
+                        },
+                        LootCondition::EntityProperty {
+                            key: "silk_touch".to_string(),
+                            value: "true".to_string(),
+                        },
+                    ]),
+                ],
+                functions: vec![LootFunction::ApplyFortuneBonus {
+                    per_level: NumberProvider::Constant(1.0),
+                    limit: Some(4),
+                }],
+            })),
+        );
+
+        let mut request = LootRequest::new(LootSurface::BlockBreak, "minecraft:blocks/diamond_ore");
+        request.origin = (1.0, 64.0, 2.0);
+        request.block = Some("minecraft:diamond_ore".to_string());
+        request.block_entity = Some("minecraft:test_block_entity".to_string());
+        request.tool = Some("minecraft:diamond_pickaxe".to_string());
+        request.fortune_level = 3;
+
+        let resolution = resolve_block_break_loot(&engine, request.clone(), 5);
+        assert_eq!(
+            resolution.delivery,
+            LootDelivery::DropAt(
+                (1.0, 64.0, 2.0),
+                vec![LootStack::new("minecraft:diamond", 4)]
+            )
+        );
+
+        request.do_tile_drops = false;
+        assert_eq!(
+            resolve_block_break_loot(&engine, request.clone(), 5).delivery,
+            LootDelivery::DropAt((1.0, 64.0, 2.0), Vec::new())
+        );
+
+        request.do_tile_drops = true;
+        request.correct_tool = false;
+        request.silk_touch = true;
+        assert_eq!(
+            resolve_block_break_loot(&engine, request, 5).delivery,
+            LootDelivery::DropAt(
+                (1.0, 64.0, 2.0),
+                vec![LootStack::new("minecraft:diamond", 4)]
             )
         );
     }
