@@ -290,6 +290,76 @@ pub fn axolotl_spawn_variants(common_spawn: bool) -> Vec<AxolotlVariantModel> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AxolotlState {
+    pub playing_dead: bool,
+    pub from_bucket: bool,
+    pub air_supply: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AxolotlHurtContext {
+    pub no_ai: bool,
+    pub random_one_in_three: bool,
+    pub random_damage_gate: i32,
+    pub damage: f32,
+    pub current_health: f32,
+    pub max_health: f32,
+    pub in_water: bool,
+    pub source_entity_present: bool,
+    pub direct_entity_present: bool,
+}
+
+pub const AXOLOTL_PLAY_DEAD_TICKS: i32 = 200;
+pub const AXOLOTL_MAX_AIR_SUPPLY: i32 = 6000;
+pub const AXOLOTL_REHYDRATE_AIR_TICKS: i32 = 1800;
+pub const AXOLOTL_DRY_OUT_DAMAGE: f32 = 2.0;
+
+impl AxolotlState {
+    pub fn new() -> Self {
+        Self {
+            playing_dead: false,
+            from_bucket: false,
+            air_supply: AXOLOTL_MAX_AIR_SUPPLY,
+        }
+    }
+
+    pub fn should_play_ambient_sound(self) -> bool {
+        !self.playing_dead
+    }
+
+    pub fn can_be_seen_as_enemy(self, super_can_be_seen_as_enemy: bool) -> bool {
+        !self.playing_dead && super_can_be_seen_as_enemy
+    }
+
+    pub fn update_playing_dead_from_memory(&mut self, play_dead_ticks: Option<i32>, no_ai: bool) {
+        if !no_ai {
+            self.playing_dead = play_dead_ticks.is_some_and(|ticks| ticks > 0);
+        }
+    }
+
+    pub fn rehydrate(&mut self) {
+        self.air_supply =
+            (self.air_supply + AXOLOTL_REHYDRATE_AIR_TICKS).min(AXOLOTL_MAX_AIR_SUPPLY);
+    }
+}
+
+pub fn axolotl_play_dead_memory_on_hurt(context: AxolotlHurtContext) -> Option<i32> {
+    let low_health = context.current_health / context.max_health < 0.5;
+    let damaging_entity_present = context.source_entity_present || context.direct_entity_present;
+    if !context.no_ai
+        && context.random_one_in_three
+        && ((context.random_damage_gate as f32) < context.damage || low_health)
+        && context.damage < context.current_health
+        && context.in_water
+        && damaging_entity_present
+    {
+        Some(AXOLOTL_PLAY_DEAD_TICKS)
+    } else {
+        None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
     pub inflate_counter: i32,
@@ -1016,6 +1086,79 @@ mod tests {
 
         let rare = axolotl_spawn_variants(false);
         assert_eq!(rare, vec![AXOLOTL_VARIANTS[4]]);
+    }
+
+    #[test]
+    fn axolotl_play_dead_and_air_rules_match_java_gates() {
+        let mut axolotl = AxolotlState::new();
+        assert_eq!(axolotl.air_supply, AXOLOTL_MAX_AIR_SUPPLY);
+        assert!(axolotl.should_play_ambient_sound());
+        assert!(axolotl.can_be_seen_as_enemy(true));
+
+        axolotl.update_playing_dead_from_memory(Some(AXOLOTL_PLAY_DEAD_TICKS), false);
+        assert!(axolotl.playing_dead);
+        assert!(!axolotl.should_play_ambient_sound());
+        assert!(!axolotl.can_be_seen_as_enemy(true));
+
+        axolotl.update_playing_dead_from_memory(Some(AXOLOTL_PLAY_DEAD_TICKS), true);
+        assert!(axolotl.playing_dead);
+        axolotl.update_playing_dead_from_memory(None, false);
+        assert!(!axolotl.playing_dead);
+
+        axolotl.air_supply = 5000;
+        axolotl.rehydrate();
+        assert_eq!(axolotl.air_supply, AXOLOTL_MAX_AIR_SUPPLY);
+        axolotl.air_supply = 1000;
+        axolotl.rehydrate();
+        assert_eq!(axolotl.air_supply, 2800);
+
+        let triggering = AxolotlHurtContext {
+            no_ai: false,
+            random_one_in_three: true,
+            random_damage_gate: 1,
+            damage: 2.0,
+            current_health: 10.0,
+            max_health: 14.0,
+            in_water: true,
+            source_entity_present: true,
+            direct_entity_present: false,
+        };
+        assert_eq!(
+            axolotl_play_dead_memory_on_hurt(triggering),
+            Some(AXOLOTL_PLAY_DEAD_TICKS)
+        );
+
+        assert_eq!(
+            axolotl_play_dead_memory_on_hurt(AxolotlHurtContext {
+                in_water: false,
+                ..triggering
+            }),
+            None
+        );
+        assert_eq!(
+            axolotl_play_dead_memory_on_hurt(AxolotlHurtContext {
+                current_health: 2.0,
+                damage: 2.0,
+                ..triggering
+            }),
+            None
+        );
+        assert_eq!(
+            axolotl_play_dead_memory_on_hurt(AxolotlHurtContext {
+                source_entity_present: false,
+                direct_entity_present: false,
+                ..triggering
+            }),
+            None
+        );
+        assert_eq!(
+            axolotl_play_dead_memory_on_hurt(AxolotlHurtContext {
+                random_one_in_three: false,
+                ..triggering
+            }),
+            None
+        );
+        assert_eq!(AXOLOTL_DRY_OUT_DAMAGE, 2.0);
     }
 
     #[test]

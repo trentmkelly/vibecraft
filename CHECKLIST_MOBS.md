@@ -152,6 +152,7 @@
 - [ ] Implement `Armadillo`: roll into ball on threat (player sprint/mount approach), scute dropping, wolf-armor crafting ingredient source
 - [ ] Implement `Axolotl`: play-dead behavior (`DeathAnimation`), attack aquatic hostiles (guardians, drowned, etc.), `BucketableEntity` bucket capture, axolotl color variants (5 types including rare blue)
   - [x] Implement Java-matched `Axolotl` color variant model: lucy/wild/gold/cyan common variants, rare blue variant, default lucy, and 1/1200 rare breeding chance
+  - [x] Implement Java-matched `Axolotl` play-dead gates: 200-tick memory on nonfatal in-water entity damage, ambient/enemy visibility suppression, and rehydrate/max-air constants
 - [ ] Implement `Bee`: pollination flight from flower to hive, honey level increment (0–5), honeycomb drop on shear, sting → death, hive memory `MemoryModuleType.BEE_HIVE_REMEMBERED`, anger propagation
 - [ ] Implement `Camel`: sitting/standing animation with transition ticks, dash ability cooldown, two-passenger riding with separate seat offsets
 - [ ] Implement `Chicken`: egg-laying timer (5–10 minute interval), flutter-fall (no fall damage), baby chick → adult transition
