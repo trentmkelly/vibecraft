@@ -23506,9 +23506,17 @@ pub fn generator_apply_carvers_for_stem(
     stem: &ResolvedLevelStem,
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
-        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+        ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } => {
             let mut chunk = generator_build_surface_for_stem(pos, stem)?;
-            let carvers = carvers_for_noise_settings(noise_settings.id);
+            let carvers = carvers_for_biome_source_and_noise_settings(
+                biome_source_model,
+                pos,
+                noise_settings,
+            );
             apply_configured_carvers_to_chunk(&mut chunk, noise_settings, 0, carvers);
             add_client_heightmaps_from_blocks(&mut chunk);
             chunk.status = "minecraft:carvers".to_string();
@@ -28989,6 +28997,17 @@ pub fn carvers_for_noise_settings(settings_id: &str) -> &'static [&'static str] 
         "end" => &[],
         _ => OVERWORLD_COMMON_CARVERS,
     }
+}
+
+pub fn carvers_for_biome_source_and_noise_settings(
+    biome_source_model: &BiomeSourceModel,
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+) -> &'static [&'static str] {
+    let biome = noise_preview_biome(biome_source_model, pos);
+    biome_generation_settings(biome)
+        .map(|generation| generation.carvers)
+        .unwrap_or_else(|| carvers_for_noise_settings(settings.id))
 }
 
 pub fn apply_configured_carvers_to_chunk(
@@ -40873,6 +40892,63 @@ mod tests {
         assert!(
             changed_blocks >= 16,
             "configured carvers should replace terrain blocks with cave air or lava"
+        );
+    }
+
+    #[test]
+    fn generator_apply_carvers_selects_carvers_from_resolved_biome_source() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let pos = ChunkPos { x: 0, z: 0 };
+
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &normal.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        assert_eq!(
+            super::carvers_for_biome_source_and_noise_settings(
+                biome_source_model,
+                pos,
+                noise_settings,
+            ),
+            super::OVERWORLD_COMMON_CARVERS
+        );
+
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &normal.nether.generator
+        else {
+            panic!("normal nether should use a noise generator");
+        };
+        assert_eq!(
+            super::carvers_for_biome_source_and_noise_settings(
+                biome_source_model,
+                pos,
+                noise_settings,
+            ),
+            super::NETHER_COMMON_CARVERS
+        );
+
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &normal.end.generator
+        else {
+            panic!("normal end should use a noise generator");
+        };
+        assert_eq!(
+            super::carvers_for_biome_source_and_noise_settings(
+                biome_source_model,
+                pos,
+                noise_settings,
+            ),
+            &[] as &[&'static str]
         );
     }
 
