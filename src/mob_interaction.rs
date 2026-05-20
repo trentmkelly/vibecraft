@@ -306,6 +306,56 @@ impl PufferfishState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SalmonVariantModel {
+    pub name: &'static str,
+    pub id: i32,
+    pub bounding_box_scale: f32,
+    pub spawn_weight: i32,
+}
+
+pub const SALMON_VARIANTS: &[SalmonVariantModel] = &[
+    SalmonVariantModel {
+        name: "small",
+        id: 0,
+        bounding_box_scale: 0.5,
+        spawn_weight: 30,
+    },
+    SalmonVariantModel {
+        name: "medium",
+        id: 1,
+        bounding_box_scale: 1.0,
+        spawn_weight: 50,
+    },
+    SalmonVariantModel {
+        name: "large",
+        id: 2,
+        bounding_box_scale: 1.5,
+        spawn_weight: 15,
+    },
+];
+
+pub const DEFAULT_SALMON_VARIANT_ID: i32 = 1;
+
+pub fn salmon_variant_by_id(id: i32) -> SalmonVariantModel {
+    let clamped = id.clamp(0, (SALMON_VARIANTS.len() - 1) as i32);
+    SALMON_VARIANTS[clamped as usize]
+}
+
+pub fn salmon_variant_by_name(name: &str) -> Option<SalmonVariantModel> {
+    SALMON_VARIANTS
+        .iter()
+        .copied()
+        .find(|variant| variant.name == name)
+}
+
+pub fn salmon_spawn_weight_total() -> i32 {
+    SALMON_VARIANTS
+        .iter()
+        .map(|variant| variant.spawn_weight)
+        .sum()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BucketEntityData {
     pub no_ai: bool,
@@ -743,6 +793,38 @@ mod tests {
         fish.tick(true, true);
         assert_eq!(fish.puff_state, PufferfishState::SMALL);
         assert_eq!(fish.contact_effect(true, true), None);
+    }
+
+    #[test]
+    fn salmon_size_variants_match_java_ids_scales_defaults_and_weights() {
+        assert_eq!(DEFAULT_SALMON_VARIANT_ID, 1);
+        assert_eq!(
+            SALMON_VARIANTS,
+            &[
+                SalmonVariantModel {
+                    name: "small",
+                    id: 0,
+                    bounding_box_scale: 0.5,
+                    spawn_weight: 30,
+                },
+                SalmonVariantModel {
+                    name: "medium",
+                    id: 1,
+                    bounding_box_scale: 1.0,
+                    spawn_weight: 50,
+                },
+                SalmonVariantModel {
+                    name: "large",
+                    id: 2,
+                    bounding_box_scale: 1.5,
+                    spawn_weight: 15,
+                },
+            ]
+        );
+        assert_eq!(salmon_variant_by_id(-1).name, "small");
+        assert_eq!(salmon_variant_by_id(99).name, "large");
+        assert_eq!(salmon_variant_by_name("medium").unwrap().id, 1);
+        assert_eq!(salmon_spawn_weight_total(), 95);
     }
 
     #[test]
