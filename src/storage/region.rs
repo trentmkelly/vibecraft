@@ -505,6 +505,47 @@ impl RegionIoWorker {
         }
         Ok(mask)
     }
+
+    pub fn is_old_chunk_around(&self, pos: ChunkPos, range: i32) -> io::Result<bool> {
+        let from = ChunkPos {
+            x: pos.x - range,
+            z: pos.z - range,
+        };
+        let to = ChunkPos {
+            x: pos.x + range,
+            z: pos.z + range,
+        };
+
+        for region_x in from.region().x..=to.region().x {
+            for region_z in from.region().z..=to.region().z {
+                let region_pos = RegionPos {
+                    x: region_x,
+                    z: region_z,
+                };
+                let mask = self.old_chunk_mask_for_region(region_pos)?;
+                if !mask.iter().any(|old| *old) {
+                    continue;
+                }
+
+                let min = region_pos.min_chunk_pos();
+                let start_x = (from.x - min.x).max(0);
+                let start_z = (from.z - min.z).max(0);
+                let end_x = (to.x - min.x).min(CHUNKS_PER_REGION_AXIS - 1);
+                let end_z = (to.z - min.z).min(CHUNKS_PER_REGION_AXIS - 1);
+
+                for x in start_x..=end_x {
+                    for z in start_z..=end_z {
+                        let index = (z * CHUNKS_PER_REGION_AXIS + x) as usize;
+                        if mask[index] {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(false)
+    }
 }
 
 pub fn chunk_tag_is_old_for_blending(tag: &Tag) -> bool {
@@ -960,6 +1001,57 @@ mod tests {
         assert!(mask[blending.local_index()]);
         assert!(!mask[deleted_pending.local_index()]);
         assert!(mask[pending_old.local_index()]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_queries_old_chunks_around_across_regions() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-old-around-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let boundary_old = ChunkPos { x: 32, z: 0 };
+        RegionFile::open(&dir, boundary_old.region())
+            .unwrap()
+            .write_chunk_nbt(
+                boundary_old,
+                "",
+                &Tag::Compound(vec![(
+                    "DataVersion".to_string(),
+                    Tag::Int(OLD_CHUNK_DATA_VERSION_CUTOFF - 1),
+                )]),
+            )
+            .unwrap();
+
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        assert!(!worker
+            .is_old_chunk_around(ChunkPos { x: 31, z: 0 }, 0)
+            .unwrap());
+        assert!(worker
+            .is_old_chunk_around(ChunkPos { x: 31, z: 0 }, 1)
+            .unwrap());
+
+        worker.clear_chunk_nbt(boundary_old);
+        assert!(!worker
+            .is_old_chunk_around(ChunkPos { x: 31, z: 0 }, 1)
+            .unwrap());
+
+        let negative_old = ChunkPos { x: -1, z: -1 };
+        worker.store_chunk_nbt(
+            negative_old,
+            "",
+            Tag::Compound(vec![("DataVersion".to_string(), Tag::Int(1))]),
+        );
+        assert!(worker
+            .is_old_chunk_around(ChunkPos { x: 0, z: 0 }, 1)
+            .unwrap());
+        assert!(!worker
+            .is_old_chunk_around(ChunkPos { x: 0, z: 0 }, 0)
+            .unwrap());
 
         let _ = fs::remove_dir_all(&dir);
     }
