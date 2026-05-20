@@ -93,6 +93,12 @@ pub enum ChunkPyramidKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkGenerationLayerPlan {
+    pub status: &'static str,
+    pub needs_generation: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickPriority {
     ExtremelyHigh,
     VeryHigh,
@@ -1049,6 +1055,34 @@ where
     }
 
     Some(true)
+}
+
+pub fn chunk_generation_task_next_layer(
+    scheduled_status: Option<&str>,
+    needs_generation: bool,
+    can_load_without_generation: bool,
+) -> Option<ChunkGenerationLayerPlan> {
+    match scheduled_status {
+        None => Some(ChunkGenerationLayerPlan {
+            status: "minecraft:empty",
+            needs_generation,
+        }),
+        Some(status) => {
+            let status = chunk_status(status)?;
+            if !needs_generation && status.id == "minecraft:empty" && !can_load_without_generation {
+                return Some(ChunkGenerationLayerPlan {
+                    status: "minecraft:empty",
+                    needs_generation: true,
+                });
+            }
+
+            let next_status = CHUNK_STATUS_PIPELINE.get(status.index + 1)?;
+            Some(ChunkGenerationLayerPlan {
+                status: next_status.id,
+                needs_generation,
+            })
+        }
+    }
 }
 
 fn chunk_pyramid_dependencies(
@@ -2502,6 +2536,53 @@ mod tests {
                     Some("minecraft:initialize_light")
                 }
             }),
+            None
+        );
+    }
+
+    #[test]
+    fn chunk_generation_task_next_layer_matches_java_schedule_next_layer() {
+        assert_eq!(
+            super::chunk_generation_task_next_layer(None, false, false),
+            Some(super::ChunkGenerationLayerPlan {
+                status: "minecraft:empty",
+                needs_generation: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_next_layer(Some("minecraft:empty"), false, false),
+            Some(super::ChunkGenerationLayerPlan {
+                status: "minecraft:empty",
+                needs_generation: true,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_next_layer(Some("minecraft:empty"), false, true),
+            Some(super::ChunkGenerationLayerPlan {
+                status: "minecraft:structure_starts",
+                needs_generation: false,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_next_layer(Some("minecraft:empty"), true, false),
+            Some(super::ChunkGenerationLayerPlan {
+                status: "minecraft:structure_starts",
+                needs_generation: true,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_next_layer(Some("minecraft:carvers"), true, true),
+            Some(super::ChunkGenerationLayerPlan {
+                status: "minecraft:features",
+                needs_generation: true,
+            })
+        );
+        assert_eq!(
+            super::chunk_generation_task_next_layer(Some("minecraft:full"), false, true),
+            None
+        );
+        assert_eq!(
+            super::chunk_generation_task_next_layer(Some("missing"), false, true),
             None
         );
     }
