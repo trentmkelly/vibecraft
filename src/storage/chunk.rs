@@ -8,6 +8,7 @@ use super::region::ChunkPos;
 use crate::worldgen::{validate_blending_data_packed, BlendingDataPacked};
 
 pub const CHUNK_WIDTH: i32 = 16;
+pub const SECTION_HEIGHT: i32 = 16;
 pub const SECTION_VOLUME: usize = 16 * 16 * 16;
 pub const BIOME_SECTION_VOLUME: usize = 4 * 4 * 4;
 pub const LIGHT_DATA_LAYER_LENGTH: usize = 2048;
@@ -912,6 +913,18 @@ impl LevelChunk {
 
 pub fn pack_postprocessing_offset(x: i32, y: i32, z: i32) -> i16 {
     ((x & 15) | ((y & 15) << 4) | ((z & 15) << 8)) as i16
+}
+
+pub fn unpack_postprocessing_offset(
+    packed: i16,
+    section_y: i32,
+    chunk_pos: ChunkPos,
+) -> (i32, i32, i32) {
+    let packed = packed as u16;
+    let x = chunk_pos.x * CHUNK_WIDTH + i32::from(packed & 15);
+    let y = section_y * SECTION_HEIGHT + i32::from((packed >> 4) & 15);
+    let z = chunk_pos.z * CHUNK_WIDTH + i32::from((packed >> 8) & 15);
+    (x, y, z)
 }
 
 pub fn light_data_layer_index(x: i32, y: i32, z: i32) -> usize {
@@ -2109,12 +2122,12 @@ mod tests {
         chunk_status, chunk_status_is_after, chunk_status_is_before, chunk_status_is_or_after,
         chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
-        saved_tick_tag, string_field, BlockStateEntry, ChunkPyramidKind, ChunkSection,
-        ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, LightLayer, PalettedContainer,
-        QueuedSectionLightData, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
-        CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
-        LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
-        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        saved_tick_tag, string_field, unpack_postprocessing_offset, BlockStateEntry,
+        ChunkPyramidKind, ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk,
+        LightLayer, PalettedContainer, QueuedSectionLightData, SectionBlockPos, TickPriority,
+        BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS,
+        LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE,
+        LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -2549,6 +2562,21 @@ mod tests {
                 Tag::List(vec![Tag::Short(pack_postprocessing_offset(48, -1, -17))]),
                 Tag::List(vec![Tag::Short(pack_postprocessing_offset(63, 0, -32))]),
             ]
+        );
+    }
+
+    #[test]
+    fn postprocessing_offsets_unpack_to_world_coordinates() {
+        let chunk_pos = ChunkPos { x: 3, z: -2 };
+        let packed = pack_postprocessing_offset(63, -1, -17);
+
+        assert_eq!(
+            unpack_postprocessing_offset(packed, -1, chunk_pos),
+            (63, -1, -17)
+        );
+        assert_eq!(
+            unpack_postprocessing_offset(pack_postprocessing_offset(48, 0, -32), 0, chunk_pos),
+            (48, 0, -32)
         );
     }
 
