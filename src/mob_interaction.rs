@@ -2476,6 +2476,12 @@ pub const SPIDER_ATTACK_LIGHT_BREAK_THRESHOLD: f32 = 0.5;
 pub const SPIDER_ATTACK_LIGHT_BREAK_RANDOM_BOUND: i32 = 100;
 pub const SPIDER_VEHICLE_ATTACHMENT_Y: f32 = 0.3125;
 pub const SPIDER_POISON_IMMUNE: bool = true;
+pub const SPIDER_AVOID_ARMADILLO_DISTANCE: f32 = 6.0;
+pub const SPIDER_AVOID_ARMADILLO_WALK_SPEED: f32 = 1.0;
+pub const SPIDER_AVOID_ARMADILLO_SPRINT_SPEED: f32 = 1.2;
+pub const SPIDER_LEAP_AT_TARGET_POWER: f32 = 0.4;
+pub const SPIDER_RANDOM_STROLL_SPEED: f32 = 0.8;
+pub const SPIDER_LOOK_AT_PLAYER_RANGE: f32 = 8.0;
 pub const CAVE_SPIDER_MAX_HEALTH: f32 = 12.0;
 pub const CAVE_SPIDER_WIDTH: f32 = 0.7;
 pub const CAVE_SPIDER_HEIGHT: f32 = 0.5;
@@ -2546,6 +2552,18 @@ pub fn spider_tick_climbing_flags(flags: u8, horizontal_collision: bool) -> u8 {
     spider_set_climbing_flags(flags, horizontal_collision)
 }
 
+pub fn spider_attack_goal_can_use(super_can_use: bool, is_vehicle: bool) -> bool {
+    super_can_use && !is_vehicle
+}
+
+pub fn spider_target_goal_can_use(light_value: f32, super_can_use: bool) -> bool {
+    light_value < SPIDER_ATTACK_LIGHT_BREAK_THRESHOLD && super_can_use
+}
+
+pub fn spider_avoids_armadillo(armadillo_is_scared: bool) -> bool {
+    !armadillo_is_scared
+}
+
 pub fn spider_can_be_affected(effect_id: &str) -> bool {
     effect_id != "minecraft:poison"
 }
@@ -2557,6 +2575,23 @@ pub fn spider_jockey_from_finalize_spawn(random_0_to_99: i32) -> bool {
 pub fn spider_should_drop_target_in_light(light_value: f32, random_0_to_99: i32) -> bool {
     light_value >= SPIDER_ATTACK_LIGHT_BREAK_THRESHOLD
         && random_0_to_99.rem_euclid(SPIDER_ATTACK_LIGHT_BREAK_RANDOM_BOUND) == 0
+}
+
+pub fn spider_effect_from_group_data_selection(random_0_to_4: i32) -> &'static str {
+    match random_0_to_4.rem_euclid(5) {
+        0 | 1 => "minecraft:speed",
+        2 => "minecraft:strength",
+        3 => "minecraft:regeneration",
+        _ => "minecraft:invisibility",
+    }
+}
+
+pub fn spider_should_roll_special_effect(
+    difficulty: &str,
+    random_float: f32,
+    special_multiplier: f32,
+) -> bool {
+    difficulty == "hard" && random_float < SPIDER_SPECIAL_EFFECT_CHANCE * special_multiplier
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -7557,6 +7592,12 @@ mod tests {
         assert!(!spider_is_climbing(spider_tick_climbing_flags(
             flags, false
         )));
+        assert!(spider_attack_goal_can_use(true, false));
+        assert!(!spider_attack_goal_can_use(true, true));
+        assert!(spider_target_goal_can_use(0.49, true));
+        assert!(!spider_target_goal_can_use(0.5, true));
+        assert!(spider_avoids_armadillo(false));
+        assert!(!spider_avoids_armadillo(true));
         assert_eq!(SPIDER_POISON_IMMUNE, true);
         assert!(!spider_can_be_affected("minecraft:poison"));
         assert!(spider_can_be_affected("minecraft:speed"));
@@ -7567,6 +7608,35 @@ mod tests {
         assert!(!spider_should_drop_target_in_light(0.5, 1));
         assert_eq!(SPIDER_SPECIAL_EFFECT_CHANCE, 0.1);
         assert_eq!(SPIDER_VEHICLE_ATTACHMENT_Y, 0.3125);
+        assert_eq!(SPIDER_AVOID_ARMADILLO_DISTANCE, 6.0);
+        assert_eq!(SPIDER_AVOID_ARMADILLO_WALK_SPEED, 1.0);
+        assert_eq!(SPIDER_AVOID_ARMADILLO_SPRINT_SPEED, 1.2);
+        assert_eq!(SPIDER_LEAP_AT_TARGET_POWER, 0.4);
+        assert_eq!(SPIDER_RANDOM_STROLL_SPEED, 0.8);
+        assert_eq!(SPIDER_LOOK_AT_PLAYER_RANGE, 8.0);
+        assert_eq!(
+            spider_effect_from_group_data_selection(0),
+            "minecraft:speed"
+        );
+        assert_eq!(
+            spider_effect_from_group_data_selection(1),
+            "minecraft:speed"
+        );
+        assert_eq!(
+            spider_effect_from_group_data_selection(2),
+            "minecraft:strength"
+        );
+        assert_eq!(
+            spider_effect_from_group_data_selection(3),
+            "minecraft:regeneration"
+        );
+        assert_eq!(
+            spider_effect_from_group_data_selection(4),
+            "minecraft:invisibility"
+        );
+        assert!(spider_should_roll_special_effect("hard", 0.09, 1.0));
+        assert!(!spider_should_roll_special_effect("normal", 0.0, 1.0));
+        assert!(!spider_should_roll_special_effect("hard", 0.11, 1.0));
     }
 
     #[test]

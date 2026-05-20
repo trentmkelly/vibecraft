@@ -129,8 +129,8 @@
 - [ ] Add parity test: skeleton arrow accuracy at various distances, stray powder-snow conversion tick count
 
 ### Spider Family
-- [ ] Implement `Spider`: wall-climbing behavior (applies NoGravity+climb velocity on wall contact), spider-jockey (1% chance with skeleton mount), neutral in daylight, hostile in dark
-  - [x] Implement Java-matched shared `Spider` server-visible gates used by cave spiders: climbing flag bit, 1% skeleton-jockey finalize-spawn gate, bright-light target drop gate, poison immunity marker, and vehicle attachment constants.
+- [x] Implement `Spider`: wall-climbing behavior via `WallClimberNavigation` and climbing flag on horizontal collision, spider-jockey (1% chance with skeleton mount), neutral in daylight, hostile in dark
+  - [x] Implement Java-matched shared `Spider` server-visible gates used by cave spiders: climbing flag bit, attack disabled while mounted as vehicle, dark-only target acquisition, 1% skeleton-jockey finalize-spawn gate, hard-difficulty special effect roll/table, armadillo-avoidance gate, bright-light target drop gate, poison immunity marker, and vehicle attachment constants.
 - [x] Implement `CaveSpider`: smaller bounding box, poison bite (7 ticks easy, 15 normal, not hard)
 - [x] Add parity test: spider wall-climb velocity, cave spider poison duration by difficulty
 
