@@ -24206,6 +24206,9 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
         fields.push(("Temper".to_string(), Tag::Int(0)));
         fields.push(("Tame".to_string(), Tag::Byte(0)));
     }
+    if chunk_generation_mob_is_neutral(snap.entity_type) {
+        fields.push(("anger_end_time".to_string(), Tag::Long(0)));
+    }
     append_chunk_generation_mob_specific_save_fields(snap.entity_type, &mut fields);
     Tag::Compound(fields)
 }
@@ -24475,6 +24478,18 @@ fn chunk_generation_mob_is_abstract_horse(entity_type: &str) -> bool {
             | "minecraft:skeleton_horse"
             | "minecraft:trader_llama"
             | "minecraft:zombie_horse"
+    )
+}
+
+fn chunk_generation_mob_is_neutral(entity_type: &str) -> bool {
+    matches!(
+        entity_type,
+        "minecraft:bee"
+            | "minecraft:enderman"
+            | "minecraft:iron_golem"
+            | "minecraft:polar_bear"
+            | "minecraft:wolf"
+            | "minecraft:zombified_piglin"
     )
 }
 
@@ -59067,6 +59082,60 @@ mod tests {
         assert!(!ageable_non_animal_fields
             .iter()
             .any(|(name, _)| name == "InLove"));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_neutral_mob_anger_save_fields() {
+        let neutral_entities = [
+            "minecraft:bee",
+            "minecraft:enderman",
+            "minecraft:iron_golem",
+            "minecraft:polar_bear",
+            "minecraft:wolf",
+            "minecraft:zombified_piglin",
+        ];
+        let zombie = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:zombie",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        for (index, entity_type) in neutral_entities.iter().enumerate() {
+            let snap = super::ChunkGenerationMobEntitySnapPlan {
+                entity_type,
+                width: 0.6,
+                x: 32.5,
+                y: 70.0,
+                z: -33.5,
+                yaw: 0.0,
+                pitch: 0.0,
+            };
+            let uuid = format!("00000000-0000-0000-0000-{:012}", 172 + index);
+            let Tag::Compound(fields) = super::chunk_generation_mob_entity_nbt(snap, &uuid) else {
+                panic!("neutral entity nbt must be a compound");
+            };
+
+            assert!(
+                fields.contains(&("anger_end_time".to_string(), Tag::Long(0))),
+                "{entity_type} should persist default anger end time"
+            );
+            assert!(
+                !fields.iter().any(|(name, _)| name == "angry_at"),
+                "{entity_type} should omit nullable angry_at without a target"
+            );
+        }
+
+        let Tag::Compound(zombie_fields) =
+            super::chunk_generation_mob_entity_nbt(zombie, "00000000-0000-0000-0000-000000000174")
+        else {
+            panic!("zombie entity nbt must be a compound");
+        };
+
+        assert!(!zombie_fields.contains(&("anger_end_time".to_string(), Tag::Long(0))));
     }
 
     #[test]
