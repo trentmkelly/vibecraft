@@ -15,6 +15,22 @@ export const OVERWORLD_PARITY_MATRIX_CHUNKS = [
   { x: 16, z: 16 }
 ]
 
+export const DIMENSION_PARITY_MATRIX_SEEDS = [0n, 1n, -1n, 2147483647n]
+export const DIMENSION_PARITY_MATRIX_CHUNKS = {
+  the_nether: [
+    { x: 0, z: 0, dimension: 'the_nether' },
+    { x: 1, z: 0, dimension: 'the_nether' },
+    { x: 8, z: -8, dimension: 'the_nether' },
+    { x: 32, z: 32, dimension: 'the_nether' }
+  ],
+  the_end: [
+    { x: 0, z: 0, dimension: 'the_end' },
+    { x: 1, z: 0, dimension: 'the_end' },
+    { x: 8, z: 8, dimension: 'the_end' },
+    { x: 64, z: 0, dimension: 'the_end' }
+  ]
+}
+
 export const OVERWORLD_FIXTURE_CASES = [
   ...OVERWORLD_PARITY_MATRIX_SEEDS.map(seed => ({
     id: `overworld_parity_matrix_seed_${fixtureSeedId(seed)}`,
@@ -47,6 +63,17 @@ export const OVERWORLD_FIXTURE_CASES = [
 ]
 
 export const DIMENSION_FIXTURE_CASES = [
+  ...Object.entries(DIMENSION_PARITY_MATRIX_CHUNKS).flatMap(([dimension, chunks]) =>
+    DIMENSION_PARITY_MATRIX_SEEDS.map(seed => ({
+      id: `${dimension}_parity_matrix_seed_${fixtureSeedId(seed)}`,
+      category: `${dimension}_multi_seed_coordinate_matrix`,
+      seed,
+      chunks,
+      notes: dimension === 'the_nether'
+        ? 'Multi-seed Nether matrix covering origin, nearby, far, and mixed-sign chunks for biome source, density, lava/air distribution, features, and structures parity.'
+        : 'Multi-seed End matrix covering origin, spawn-platform-adjacent, near island, and far island chunks for biome source, terrain density, features, structures, and spawn-platform parity.'
+    }))
+  ),
   {
     id: 'nether_origin_smoke',
     category: 'nether_origin',

@@ -3,6 +3,8 @@ import test from 'node:test'
 
 import {
   DIMENSION_FIXTURE_CASES,
+  DIMENSION_PARITY_MATRIX_CHUNKS,
+  DIMENSION_PARITY_MATRIX_SEEDS,
   OVERWORLD_FIXTURE_CASES,
   OVERWORLD_PARITY_MATRIX_CHUNKS,
   OVERWORLD_PARITY_MATRIX_SEEDS,
@@ -61,6 +63,32 @@ test('manifest serializes bigint seeds and marks pending non-overworld coverage'
   const runnable = fixtureManifest({ includePendingDimensions: false })
   assert.equal(runnable.cases.length, OVERWORLD_FIXTURE_CASES.length)
   assert(runnable.cases.every(fixture => fixture.chunks.every(chunk => chunk.dimension === 'overworld')))
+})
+
+test('dimension fixture manifest covers multi-seed nether and end matrices', () => {
+  for (const dimension of ['the_nether', 'the_end']) {
+    const matrixFixtures = DIMENSION_FIXTURE_CASES.filter(
+      fixture => fixture.category === `${dimension}_multi_seed_coordinate_matrix`
+    )
+    const expectedChunks = DIMENSION_PARITY_MATRIX_CHUNKS[dimension].map(
+      chunk => `${chunk.dimension}:${chunk.x},${chunk.z}`
+    )
+
+    assert.deepEqual(
+      matrixFixtures.map(fixture => fixture.seed),
+      DIMENSION_PARITY_MATRIX_SEEDS
+    )
+    for (const fixture of matrixFixtures) {
+      assert.deepEqual(
+        fixture.chunks.map(chunk => `${chunk.dimension}:${chunk.x},${chunk.z}`),
+        expectedChunks
+      )
+      assert.match(fixture.notes, /biome source/)
+      assert.match(fixture.notes, /density/)
+      assert.match(fixture.notes, /features/)
+      assert.match(fixture.notes, /structures/)
+    }
+  }
 })
 
 test('dimension fixture suite can be dependency-injected for deterministic report shape', async () => {
