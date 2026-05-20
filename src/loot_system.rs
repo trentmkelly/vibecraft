@@ -324,6 +324,7 @@ pub struct LootRequest {
     pub luck: f32,
     pub looting_level: i32,
     pub killed_by_player: bool,
+    pub entity_properties: HashMap<String, String>,
 }
 
 impl LootRequest {
@@ -344,6 +345,7 @@ impl LootRequest {
             luck: 0.0,
             looting_level: 0,
             killed_by_player: false,
+            entity_properties: HashMap::new(),
         }
     }
 }
@@ -426,6 +428,26 @@ pub fn resolve_piglin_barter_loot(
     request.actor = Some(piglin.clone());
     request.target_entity = Some(piglin);
     Some(engine.resolve(request, seed))
+}
+
+pub fn resolve_fishing_loot(
+    engine: &LootBehaviorEngine,
+    tool: impl Into<String>,
+    origin: (f64, f64, f64),
+    hook_luck: f32,
+    player_luck: f32,
+    in_open_water: bool,
+    seed: u64,
+) -> LootResolution {
+    let mut request = LootRequest::new(LootSurface::FishingRetrieve, "minecraft:gameplay/fishing");
+    request.origin = origin;
+    request.tool = Some(tool.into());
+    request.target_entity = Some("FishingHook".to_string());
+    request.luck = hook_luck.max(0.0) + player_luck;
+    request
+        .entity_properties
+        .insert("in_open_water".to_string(), in_open_water.to_string());
+    engine.resolve(request, seed)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -703,6 +725,9 @@ impl LootBehaviorEngine {
             context.insert_param(LootParamValue::DamageSource(damage_source.clone()));
         }
         context
+            .entity_properties
+            .extend(request.entity_properties.clone());
+        context
     }
 }
 
@@ -831,6 +856,12 @@ pub enum LootEntry {
     Sequence(Vec<LootEntry>),
     Group(Vec<LootEntry>),
     NestedTable(String),
+    WeightedNestedTable {
+        table: String,
+        weight: i32,
+        quality: i32,
+        conditions: Vec<LootCondition>,
+    },
     Dynamic(String),
 }
 
@@ -926,6 +957,23 @@ impl LootEntry {
                 weight: 1,
                 quality: 0,
             }),
+            Self::WeightedNestedTable {
+                weight,
+                quality,
+                conditions,
+                ..
+            } => {
+                if conditions
+                    .iter()
+                    .all(|condition| condition.matches(context))
+                {
+                    output.push(ExpandedEntry {
+                        entry: self.clone(),
+                        weight: *weight,
+                        quality: *quality,
+                    });
+                }
+            }
         }
     }
 
@@ -955,7 +1003,7 @@ impl LootEntry {
                     }
                 })
                 .unwrap_or_default(),
-            Self::NestedTable(table) => {
+            Self::NestedTable(table) | Self::WeightedNestedTable { table, .. } => {
                 if let Some(nested) = context.tables.get(table).cloned() {
                     nested.evaluate(context)
                 } else {
@@ -1022,8 +1070,15 @@ impl LootEntry {
                     child.validate(format!("{path}.children[{index}]"), errors);
                 }
             }
-            Self::NestedTable(table) | Self::Dynamic(table) if table.is_empty() => {
+            Self::NestedTable(table)
+            | Self::WeightedNestedTable { table, .. }
+            | Self::Dynamic(table)
+                if table.is_empty() =>
+            {
                 errors.push(format!("{path} has an empty reference"));
+            }
+            Self::WeightedNestedTable { weight, .. } if *weight < 0 => {
+                errors.push(format!("{path} has invalid nested-table weight"));
             }
             _ => {}
         }
@@ -2156,6 +2211,90 @@ mod tests {
             LootDelivery::GiveToEntity(
                 "Piglin".to_string(),
                 vec![LootStack::new("minecraft:quartz", 1)]
+            )
+        );
+    }
+
+    #[test]
+    fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
+        let mut engine = LootBehaviorEngine::new();
+        engine.insert_table(
+            "minecraft:gameplay/fishing/junk",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:bowl", 1))),
+        );
+        engine.insert_table(
+            "minecraft:gameplay/fishing/fish",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:cod", 1))),
+        );
+        engine.insert_table(
+            "minecraft:gameplay/fishing/treasure",
+            table_with_pool(LootPool::single(LootEntry::item("minecraft:name_tag", 1))),
+        );
+        let fishing_table = LootTable {
+            param_set: LootParamSet::Fishing,
+            random_sequence: Some("minecraft:gameplay/fishing".to_string()),
+            pools: vec![LootPool {
+                entries: vec![
+                    LootEntry::WeightedNestedTable {
+                        table: "minecraft:gameplay/fishing/junk".to_string(),
+                        weight: 1,
+                        quality: -1,
+                        conditions: Vec::new(),
+                    },
+                    LootEntry::WeightedNestedTable {
+                        table: "minecraft:gameplay/fishing/fish".to_string(),
+                        weight: 0,
+                        quality: 0,
+                        conditions: Vec::new(),
+                    },
+                    LootEntry::WeightedNestedTable {
+                        table: "minecraft:gameplay/fishing/treasure".to_string(),
+                        weight: 1,
+                        quality: 2,
+                        conditions: vec![LootCondition::EntityProperty {
+                            key: "in_open_water".to_string(),
+                            value: "true".to_string(),
+                        }],
+                    },
+                ],
+                conditions: Vec::new(),
+                functions: Vec::new(),
+                rolls: NumberProvider::Constant(1.0),
+                bonus_rolls: NumberProvider::Constant(0.0),
+            }],
+            functions: Vec::new(),
+        };
+        engine.insert_table("minecraft:gameplay/fishing", fishing_table);
+
+        let no_open_water = resolve_fishing_loot(
+            &engine,
+            "minecraft:fishing_rod",
+            (3.0, 62.0, 4.0),
+            0.0,
+            0.0,
+            false,
+            3,
+        );
+        assert_eq!(no_open_water.param_set, LootParamSet::Fishing);
+        assert_eq!(
+            no_open_water.delivery,
+            LootDelivery::DropAt((3.0, 62.0, 4.0), vec![LootStack::new("minecraft:bowl", 1)])
+        );
+
+        let lucky_open_water = resolve_fishing_loot(
+            &engine,
+            "minecraft:fishing_rod",
+            (3.0, 62.0, 4.0),
+            2.0,
+            8.0,
+            true,
+            3,
+        );
+        assert_eq!(
+            lucky_open_water.delivery,
+            LootDelivery::DropAt(
+                (3.0, 62.0, 4.0),
+                vec![LootStack::new("minecraft:name_tag", 1)]
             )
         );
     }
