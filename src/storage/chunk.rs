@@ -173,6 +173,25 @@ pub struct ChunkSection {
     pub sky_light: Option<Vec<i8>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LightLayer {
+    Block,
+    Sky,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedSectionLightData {
+    pub layer: LightLayer,
+    pub section_y: i8,
+    pub data: Vec<i8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkLightHandoffPlan {
+    pub retain_data: bool,
+    pub queued_sections: Vec<QueuedSectionLightData>,
+}
+
 pub const WORLDGEN_HEIGHTMAPS: &[HeightmapKind] =
     &[HeightmapKind::OceanFloorWg, HeightmapKind::WorldSurfaceWg];
 
@@ -632,6 +651,32 @@ impl LevelChunk {
         self.carving_mask = None;
         self.set_persisted_status("minecraft:full");
         migrated_entities
+    }
+
+    pub fn light_handoff_plan(&self, has_sky_light: bool) -> ChunkLightHandoffPlan {
+        let mut queued_sections = Vec::new();
+        for section in &self.sections {
+            if let Some(block_light) = &section.block_light {
+                queued_sections.push(QueuedSectionLightData {
+                    layer: LightLayer::Block,
+                    section_y: section.y,
+                    data: block_light.clone(),
+                });
+            }
+            if has_sky_light {
+                if let Some(sky_light) = &section.sky_light {
+                    queued_sections.push(QueuedSectionLightData {
+                        layer: LightLayer::Sky,
+                        section_y: section.y,
+                        data: sky_light.clone(),
+                    });
+                }
+            }
+        }
+        ChunkLightHandoffPlan {
+            retain_data: !queued_sections.is_empty(),
+            queued_sections,
+        }
     }
 
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
@@ -1727,10 +1772,11 @@ mod tests {
         chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
         saved_tick_tag, string_field, BlockStateEntry, ChunkPyramidKind, ChunkSection,
-        ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, PalettedContainer,
-        SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE,
-        FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT,
-        LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, LightLayer, PalettedContainer,
+        QueuedSectionLightData, SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME,
+        CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
+        LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
+        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -2286,6 +2332,75 @@ mod tests {
         );
         assert_eq!(chunk.sections[1].sky_light.as_ref().unwrap()[0], 15);
         assert!(chunk.light_correct);
+    }
+
+    #[test]
+    fn level_chunk_light_handoff_plan_matches_vanilla_section_queueing() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.sections = vec![
+            ChunkSection {
+                y: -1,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: Some(vec![1; LIGHT_DATA_LAYER_LENGTH]),
+                sky_light: Some(vec![15; LIGHT_DATA_LAYER_LENGTH]),
+            },
+            ChunkSection {
+                y: 0,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: None,
+                sky_light: Some(vec![7; LIGHT_DATA_LAYER_LENGTH]),
+            },
+            ChunkSection {
+                y: 1,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+
+        let overworld_plan = chunk.light_handoff_plan(true);
+
+        assert!(overworld_plan.retain_data);
+        assert_eq!(
+            overworld_plan.queued_sections,
+            vec![
+                QueuedSectionLightData {
+                    layer: LightLayer::Block,
+                    section_y: -1,
+                    data: vec![1; LIGHT_DATA_LAYER_LENGTH],
+                },
+                QueuedSectionLightData {
+                    layer: LightLayer::Sky,
+                    section_y: -1,
+                    data: vec![15; LIGHT_DATA_LAYER_LENGTH],
+                },
+                QueuedSectionLightData {
+                    layer: LightLayer::Sky,
+                    section_y: 0,
+                    data: vec![7; LIGHT_DATA_LAYER_LENGTH],
+                },
+            ]
+        );
+
+        let nether_plan = chunk.light_handoff_plan(false);
+
+        assert!(nether_plan.retain_data);
+        assert_eq!(
+            nether_plan.queued_sections,
+            vec![QueuedSectionLightData {
+                layer: LightLayer::Block,
+                section_y: -1,
+                data: vec![1; LIGHT_DATA_LAYER_LENGTH],
+            }]
+        );
+        assert!(
+            !LevelChunk::empty(ChunkPos { x: 1, z: 1 })
+                .light_handoff_plan(true)
+                .retain_data
+        );
     }
 
     #[test]
