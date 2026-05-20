@@ -24318,6 +24318,9 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
             fields.push(("PuffState".to_string(), Tag::Int(0)));
         }
+        "minecraft:phantom" => {
+            fields.push(("size".to_string(), Tag::Int(0)));
+        }
         "minecraft:piglin_brute" => {
             fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
             fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
@@ -24331,6 +24334,11 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:sheep" => {
             fields.push(("Sheared".to_string(), Tag::Byte(0)));
             fields.push(("Color".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:shulker" => {
+            fields.push(("AttachFace".to_string(), Tag::Byte(0)));
+            fields.push(("Peek".to_string(), Tag::Byte(0)));
+            fields.push(("Color".to_string(), Tag::Byte(16)));
         }
         "minecraft:skeleton" | "minecraft:stray" => {
             append_chunk_generation_skeleton_save_fields(fields);
@@ -59220,6 +59228,45 @@ mod tests {
         assert!(!zombie_fields.contains(&("Patrolling".to_string(), Tag::Byte(0))));
         assert!(!zombie_fields.contains(&("Wave".to_string(), Tag::Int(0))));
         assert!(!zombie_fields.contains(&("CanJoinRaid".to_string(), Tag::Byte(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_phantom_and_shulker_save_fields() {
+        let phantom = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:phantom",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let shulker = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:shulker",
+            width: 1.0,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(phantom_fields) =
+            super::chunk_generation_mob_entity_nbt(phantom, "00000000-0000-0000-0000-000000000192")
+        else {
+            panic!("phantom entity nbt must be a compound");
+        };
+        let Tag::Compound(shulker_fields) =
+            super::chunk_generation_mob_entity_nbt(shulker, "00000000-0000-0000-0000-000000000193")
+        else {
+            panic!("shulker entity nbt must be a compound");
+        };
+
+        assert!(phantom_fields.contains(&("size".to_string(), Tag::Int(0))));
+        assert!(!phantom_fields.iter().any(|(name, _)| name == "anchor_pos"));
+        assert!(shulker_fields.contains(&("AttachFace".to_string(), Tag::Byte(0))));
+        assert!(shulker_fields.contains(&("Peek".to_string(), Tag::Byte(0))));
+        assert!(shulker_fields.contains(&("Color".to_string(), Tag::Byte(16))));
     }
 
     #[test]
