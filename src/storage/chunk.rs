@@ -87,6 +87,12 @@ pub enum ChunkStatusTaskKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkPyramidKind {
+    Generation,
+    Loading,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickPriority {
     ExtremelyHigh,
     VeryHigh,
@@ -977,6 +983,166 @@ pub fn chunk_status_list() -> Vec<&'static str> {
         .collect()
 }
 
+pub fn chunk_pyramid_direct_dependencies(
+    kind: ChunkPyramidKind,
+    target: &str,
+) -> Option<Vec<&'static str>> {
+    chunk_pyramid_dependencies(kind, target, false)
+}
+
+pub fn chunk_pyramid_accumulated_dependencies(
+    kind: ChunkPyramidKind,
+    target: &str,
+) -> Option<Vec<&'static str>> {
+    chunk_pyramid_dependencies(kind, target, true)
+}
+
+pub fn chunk_generation_task_worst_case_radius(target: &str) -> Option<i32> {
+    chunk_pyramid_accumulated_radius_of(ChunkPyramidKind::Generation, target, "minecraft:empty")
+}
+
+pub fn chunk_generation_task_layer_radius(
+    target: &str,
+    status: &str,
+    needs_generation: bool,
+) -> Option<i32> {
+    let kind = if needs_generation {
+        ChunkPyramidKind::Generation
+    } else {
+        ChunkPyramidKind::Loading
+    };
+    chunk_pyramid_accumulated_radius_of(kind, target, status)
+}
+
+fn chunk_pyramid_dependencies(
+    kind: ChunkPyramidKind,
+    target: &str,
+    accumulated: bool,
+) -> Option<Vec<&'static str>> {
+    let target = chunk_status(target)?;
+    let mut accumulated_by_status: Vec<Vec<&'static str>> = Vec::new();
+
+    for status in CHUNK_STATUS_PIPELINE.iter().take(target.index + 1) {
+        let direct = chunk_pyramid_direct_dependencies_for_status(kind, status)?;
+        if !accumulated {
+            accumulated_by_status.push(direct);
+            continue;
+        }
+
+        if status.index == 0 {
+            accumulated_by_status.push(direct);
+            continue;
+        }
+
+        let parent_accumulated = accumulated_by_status.get(status.index - 1)?;
+        let parent_id = CHUNK_STATUS_PIPELINE.get(status.index - 1)?.id;
+        let parent_radius = direct
+            .iter()
+            .rposition(|dependency| chunk_status_is_or_after(dependency, parent_id) == Some(true))
+            .unwrap_or(0);
+        let len = direct.len().max(parent_radius + parent_accumulated.len());
+        let mut combined = Vec::with_capacity(len);
+
+        for distance in 0..len {
+            let distance_in_parent = distance as isize - parent_radius as isize;
+            let dependency = if distance_in_parent < 0
+                || distance_in_parent as usize >= parent_accumulated.len()
+            {
+                direct[distance]
+            } else if distance >= direct.len() {
+                parent_accumulated[distance_in_parent as usize]
+            } else {
+                chunk_status_max(
+                    direct[distance],
+                    parent_accumulated[distance_in_parent as usize],
+                )?
+            };
+            combined.push(dependency);
+        }
+
+        accumulated_by_status.push(combined);
+    }
+
+    accumulated_by_status.get(target.index).cloned()
+}
+
+fn chunk_pyramid_accumulated_radius_of(
+    kind: ChunkPyramidKind,
+    target: &str,
+    dependency: &str,
+) -> Option<i32> {
+    if chunk_status(target)?.id == chunk_status(dependency)?.id {
+        return Some(0);
+    }
+
+    let dependencies = chunk_pyramid_accumulated_dependencies(kind, target)?;
+    chunk_dependencies_radius_of(&dependencies, dependency)
+}
+
+fn chunk_dependencies_radius_of(dependencies: &[&'static str], dependency: &str) -> Option<i32> {
+    let dependency = chunk_status(dependency)?;
+    if dependencies.is_empty() {
+        return None;
+    }
+
+    let first = chunk_status(dependencies[0])?;
+    if dependency.index > first.index {
+        return None;
+    }
+
+    let mut radius_by_dependency = vec![0_i32; first.index + 1];
+    for (radius, status_id) in dependencies.iter().enumerate() {
+        let status = chunk_status(status_id)?;
+        for status_index in 0..=status.index {
+            radius_by_dependency[status_index] = radius as i32;
+        }
+    }
+
+    radius_by_dependency.get(dependency.index).copied()
+}
+
+fn chunk_pyramid_direct_dependencies_for_status(
+    kind: ChunkPyramidKind,
+    status: &ChunkStatusEntry,
+) -> Option<Vec<&'static str>> {
+    if status.index == 0 {
+        return Some(Vec::new());
+    }
+
+    let mut dependencies = vec![status.parent];
+    for requirement in chunk_pyramid_direct_requirements(kind, status) {
+        let required = chunk_status(requirement.status)?;
+        if required.index >= status.index {
+            return None;
+        }
+
+        let new_len = requirement.radius as usize + 1;
+        if new_len > dependencies.len() {
+            dependencies.resize(new_len, required.id);
+        }
+
+        let update_len = new_len.min(dependencies.len());
+        for dependency in dependencies.iter_mut().take(update_len) {
+            *dependency = chunk_status_max(dependency, required.id)?;
+        }
+    }
+
+    Some(dependencies)
+}
+
+fn chunk_pyramid_direct_requirements(
+    kind: ChunkPyramidKind,
+    status: &ChunkStatusEntry,
+) -> &'static [ChunkStatusRequirement] {
+    match kind {
+        ChunkPyramidKind::Generation => status.requirements,
+        ChunkPyramidKind::Loading => match status.id {
+            "minecraft:light" => INITIALIZE_LIGHT_DISTANCE_1_REQUIREMENT,
+            _ => NO_REQUIREMENTS,
+        },
+    }
+}
+
 fn heightmap_fields(chunk: &LevelChunk) -> Vec<(String, Tag)> {
     chunk
         .heightmaps
@@ -1269,11 +1435,11 @@ mod tests {
         chunk_status, chunk_status_is_after, chunk_status_is_before, chunk_status_is_or_after,
         chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
-        saved_tick_tag, string_field, BlockStateEntry, ChunkSection, ChunkStatusTaskKind,
-        ChunkType, HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos, TickPriority,
-        BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH,
-        LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
-        SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        saved_tick_tag, string_field, BlockStateEntry, ChunkPyramidKind, ChunkSection,
+        ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, PalettedContainer,
+        SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE,
+        FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT,
+        LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -2181,6 +2347,73 @@ mod tests {
         assert_eq!(
             HeightmapKind::MotionBlockingNoLeaves.storage_name(),
             "MOTION_BLOCKING_NO_LEAVES"
+        );
+    }
+
+    #[test]
+    fn chunk_pyramid_dependencies_match_generation_and_loading_radii() {
+        assert_eq!(
+            super::chunk_pyramid_direct_dependencies(ChunkPyramidKind::Generation, "features"),
+            Some(vec![
+                "minecraft:carvers",
+                "minecraft:carvers",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+            ])
+        );
+        assert_eq!(
+            super::chunk_pyramid_accumulated_dependencies(ChunkPyramidKind::Generation, "features"),
+            Some(vec![
+                "minecraft:carvers",
+                "minecraft:carvers",
+                "minecraft:biomes",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+                "minecraft:structure_starts",
+            ])
+        );
+        assert_eq!(
+            super::chunk_pyramid_accumulated_dependencies(ChunkPyramidKind::Loading, "features"),
+            Some(vec!["minecraft:carvers"])
+        );
+
+        assert_eq!(
+            super::chunk_generation_task_worst_case_radius("full"),
+            Some(11)
+        );
+        assert_eq!(
+            super::chunk_generation_task_layer_radius("full", "structure_starts", true),
+            Some(11)
+        );
+        assert_eq!(
+            super::chunk_generation_task_layer_radius("full", "features", true),
+            Some(1)
+        );
+        assert_eq!(
+            super::chunk_generation_task_layer_radius("full", "features", false),
+            Some(1)
+        );
+        assert_eq!(
+            super::chunk_generation_task_layer_radius("light", "initialize_light", false),
+            Some(1)
+        );
+        assert_eq!(
+            super::chunk_generation_task_layer_radius("light", "empty", false),
+            Some(1)
+        );
+        assert_eq!(
+            super::chunk_generation_task_worst_case_radius("unknown"),
+            None
         );
     }
 }
