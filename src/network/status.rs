@@ -7941,6 +7941,318 @@ mod tests {
     }
 
     #[test]
+    fn synced_registry_entry_orders_match_official_transcript_fixtures() {
+        assert_registry_order(
+            write_vanilla_cat_variant_registry_packet,
+            &[
+                "all_black",
+                "black",
+                "british_shorthair",
+                "calico",
+                "jellie",
+                "persian",
+                "ragdoll",
+                "red",
+                "siamese",
+                "tabby",
+                "white",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_cat_sound_variant_registry_packet,
+            &["classic", "royal"],
+        );
+        assert_registry_order(
+            write_vanilla_chicken_sound_variant_registry_packet,
+            &["classic", "picky"],
+        );
+        assert_registry_order(
+            write_vanilla_cow_sound_variant_registry_packet,
+            &["classic", "moody"],
+        );
+        assert_registry_order(
+            write_vanilla_pig_sound_variant_registry_packet,
+            &["big", "classic", "mini"],
+        );
+        assert_registry_order(
+            write_vanilla_wolf_sound_variant_registry_packet,
+            &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"],
+        );
+        assert_registry_order(
+            write_vanilla_painting_variant_registry_packet,
+            &[
+                "alban",
+                "aztec",
+                "aztec2",
+                "backyard",
+                "baroque",
+                "bomb",
+                "bouquet",
+                "burning_skull",
+                "bust",
+                "cavebird",
+                "changing",
+                "cotan",
+                "courbet",
+                "creebet",
+                "dennis",
+                "donkey_kong",
+                "earth",
+                "endboss",
+                "fern",
+                "fighters",
+                "finding",
+                "fire",
+                "graham",
+                "humble",
+                "kebab",
+                "lowmist",
+                "match",
+                "meditative",
+                "orb",
+                "owlemons",
+                "passage",
+                "pigscene",
+                "plant",
+                "pointer",
+                "pond",
+                "pool",
+                "prairie_ride",
+                "sea",
+                "skeleton",
+                "skull_and_roses",
+                "stage",
+                "sunflowers",
+                "sunset",
+                "tides",
+                "unpacked",
+                "void",
+                "wanderer",
+                "wasteland",
+                "water",
+                "wind",
+                "wither",
+            ],
+        );
+        assert_registry_order(
+            write_minimal_damage_type_registry_packet,
+            &[
+                "arrow",
+                "bad_respawn_point",
+                "cactus",
+                "campfire",
+                "cramming",
+                "dragon_breath",
+                "drown",
+                "dry_out",
+                "ender_pearl",
+                "explosion",
+                "fall",
+                "falling_anvil",
+                "falling_block",
+                "falling_stalactite",
+                "fireball",
+                "fireworks",
+                "fly_into_wall",
+                "freeze",
+                "generic",
+                "generic_kill",
+                "hot_floor",
+                "in_fire",
+                "in_wall",
+                "indirect_magic",
+                "lava",
+                "lightning_bolt",
+                "mace_smash",
+                "magic",
+                "mob_attack",
+                "mob_attack_no_aggro",
+                "mob_projectile",
+                "on_fire",
+                "out_of_world",
+                "outside_border",
+                "player_attack",
+                "player_explosion",
+                "sonic_boom",
+                "spear",
+                "spit",
+                "stalagmite",
+                "starve",
+                "sting",
+                "sweet_berry_bush",
+                "thorns",
+                "thrown",
+                "trident",
+                "unattributed_fireball",
+                "wind_charge",
+                "wither",
+                "wither_skull",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_banner_pattern_registry_packet,
+            &[
+                "base",
+                "border",
+                "bricks",
+                "circle",
+                "creeper",
+                "cross",
+                "curly_border",
+                "diagonal_left",
+                "diagonal_right",
+                "diagonal_up_left",
+                "diagonal_up_right",
+                "flow",
+                "flower",
+                "globe",
+                "gradient",
+                "gradient_up",
+                "guster",
+                "half_horizontal",
+                "half_horizontal_bottom",
+                "half_vertical",
+                "half_vertical_right",
+                "mojang",
+                "piglin",
+                "rhombus",
+                "skull",
+                "small_stripes",
+                "square_bottom_left",
+                "square_bottom_right",
+                "square_top_left",
+                "square_top_right",
+                "straight_cross",
+                "stripe_bottom",
+                "stripe_center",
+                "stripe_downleft",
+                "stripe_downright",
+                "stripe_left",
+                "stripe_middle",
+                "stripe_right",
+                "stripe_top",
+                "triangle_bottom",
+                "triangle_top",
+                "triangles_bottom",
+                "triangles_top",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_jukebox_song_registry_packet,
+            &[
+                "11",
+                "13",
+                "5",
+                "blocks",
+                "cat",
+                "chirp",
+                "creator",
+                "creator_music_box",
+                "far",
+                "lava_chicken",
+                "mall",
+                "mellohi",
+                "otherside",
+                "pigstep",
+                "precipice",
+                "relic",
+                "stal",
+                "strad",
+                "tears",
+                "wait",
+                "ward",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_instrument_registry_packet,
+            &[
+                "admire_goat_horn",
+                "call_goat_horn",
+                "dream_goat_horn",
+                "feel_goat_horn",
+                "ponder_goat_horn",
+                "seek_goat_horn",
+                "sing_goat_horn",
+                "yearn_goat_horn",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_chat_type_registry_packet,
+            &[
+                "chat",
+                "emote_command",
+                "msg_command_incoming",
+                "msg_command_outgoing",
+                "say_command",
+                "team_msg_command_incoming",
+                "team_msg_command_outgoing",
+            ],
+        );
+        assert_registry_order(
+            write_minimal_trim_material_registry_packet,
+            &[
+                "quartz",
+                "iron",
+                "netherite",
+                "redstone",
+                "copper",
+                "gold",
+                "emerald",
+                "diamond",
+                "lapis",
+                "amethyst",
+                "resin",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_trim_pattern_registry_packet,
+            &[
+                "sentry",
+                "dune",
+                "coast",
+                "wild",
+                "ward",
+                "eye",
+                "vex",
+                "tide",
+                "snout",
+                "rib",
+                "spire",
+                "wayfinder",
+                "shaper",
+                "silence",
+                "raiser",
+                "host",
+                "flow",
+                "bolt",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_wolf_variant_registry_packet,
+            &[
+                "ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped",
+                "woods",
+            ],
+        );
+        assert_registry_order(
+            write_vanilla_pig_variant_registry_packet,
+            &["cold", "temperate", "warm"],
+        );
+        assert_registry_order(
+            write_vanilla_frog_variant_registry_packet,
+            &["cold", "temperate", "warm"],
+        );
+        assert_registry_order(
+            write_vanilla_cow_variant_registry_packet,
+            &["cold", "temperate", "warm"],
+        );
+        assert_registry_order(
+            write_vanilla_chicken_variant_registry_packet,
+            &["cold", "temperate", "warm"],
+        );
+    }
+
+    #[test]
     fn chat_type_registry_payloads_include_vanilla_routes() {
         assert_eq!(
             registry_element_count(write_vanilla_chat_type_registry_packet),
@@ -8463,6 +8775,17 @@ mod tests {
             let _ = Tag::read_payload(tag_id[0], &mut cursor).unwrap();
         }
         entry_ids
+    }
+
+    fn assert_registry_order(
+        write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>,
+        expected: &[&str],
+    ) {
+        let expected = expected
+            .iter()
+            .map(|id| format!("minecraft:{id}"))
+            .collect::<Vec<_>>();
+        assert_eq!(status_registry_entry_ids_ordered(write_packet), expected);
     }
 
     #[test]
