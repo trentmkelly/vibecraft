@@ -24215,6 +24215,12 @@ fn append_chunk_generation_mob_specific_save_fields(
     fields: &mut Vec<(String, Tag)>,
 ) {
     match entity_type {
+        "minecraft:axolotl" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:camel" => {
+            fields.push(("LastPoseTick".to_string(), Tag::Long(0)));
+        }
         "minecraft:cat" | "minecraft:wolf" => {
             fields.push(("CollarColor".to_string(), Tag::Byte(14)));
         }
@@ -24232,6 +24238,28 @@ fn append_chunk_generation_mob_specific_save_fields(
         }
         "minecraft:donkey" | "minecraft:llama" | "minecraft:mule" | "minecraft:trader_llama" => {
             fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:cod" | "minecraft:salmon" | "minecraft:tropical_fish" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:dolphin" => {
+            fields.push(("GotFish".to_string(), Tag::Byte(0)));
+            fields.push(("Moistness".to_string(), Tag::Int(2400)));
+        }
+        "minecraft:fox" => {
+            fields.push(("Sleeping".to_string(), Tag::Byte(0)));
+            fields.push(("Sitting".to_string(), Tag::Byte(0)));
+            fields.push(("Crouching".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:glow_squid" => {
+            fields.push(("DarkTicksRemaining".to_string(), Tag::Int(0)));
+        }
+        "minecraft:ocelot" => {
+            fields.push(("Trusting".to_string(), Tag::Byte(0)));
+        }
+        "minecraft:pufferfish" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            fields.push(("PuffState".to_string(), Tag::Int(0)));
         }
         "minecraft:sheep" => {
             fields.push(("Sheared".to_string(), Tag::Byte(0)));
@@ -59000,6 +59028,77 @@ mod tests {
         assert!(donkey_fields.contains(&("ChestedHorse".to_string(), Tag::Byte(0))));
         assert!(skeleton_horse_fields.contains(&("SkeletonTrap".to_string(), Tag::Byte(0))));
         assert!(skeleton_horse_fields.contains(&("SkeletonTrapTime".to_string(), Tag::Int(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_adds_stable_water_and_ambient_animal_save_fields() {
+        let pufferfish = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:pufferfish",
+            width: 0.7,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let dolphin = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:dolphin",
+            width: 0.9,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let fox = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:fox",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+        let camel = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:camel",
+            width: 1.7,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(pufferfish_fields) = super::chunk_generation_mob_entity_nbt(
+            pufferfish,
+            "00000000-0000-0000-0000-000000000135",
+        ) else {
+            panic!("pufferfish entity nbt must be a compound");
+        };
+        let Tag::Compound(dolphin_fields) =
+            super::chunk_generation_mob_entity_nbt(dolphin, "00000000-0000-0000-0000-000000000136")
+        else {
+            panic!("dolphin entity nbt must be a compound");
+        };
+        let Tag::Compound(fox_fields) =
+            super::chunk_generation_mob_entity_nbt(fox, "00000000-0000-0000-0000-000000000137")
+        else {
+            panic!("fox entity nbt must be a compound");
+        };
+        let Tag::Compound(camel_fields) =
+            super::chunk_generation_mob_entity_nbt(camel, "00000000-0000-0000-0000-000000000138")
+        else {
+            panic!("camel entity nbt must be a compound");
+        };
+
+        assert!(pufferfish_fields.contains(&("FromBucket".to_string(), Tag::Byte(0))));
+        assert!(pufferfish_fields.contains(&("PuffState".to_string(), Tag::Int(0))));
+        assert!(dolphin_fields.contains(&("GotFish".to_string(), Tag::Byte(0))));
+        assert!(dolphin_fields.contains(&("Moistness".to_string(), Tag::Int(2400))));
+        for field_name in ["Sleeping", "Sitting", "Crouching"] {
+            assert!(fox_fields.contains(&(field_name.to_string(), Tag::Byte(0))));
+        }
+        assert!(camel_fields.contains(&("LastPoseTick".to_string(), Tag::Long(0))));
     }
 
     #[test]
