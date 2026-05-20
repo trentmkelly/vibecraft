@@ -13,6 +13,7 @@ import {
   loadWorldgenAcceptanceReport,
   validateWorldgenAcceptanceReport
 } from './worldgen_acceptance_gates.mjs'
+import { DIMENSION_FIXTURE_CASES } from './vanilla_worldgen_fixtures.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -55,6 +56,7 @@ test('acceptance report recognizes valid overworld and dimension fixture summari
       heightmaps: ['WORLD_SURFACE', 'OCEAN_FLOOR', 'MOTION_BLOCKING', 'MOTION_BLOCKING_NO_LEAVES']
     }),
     dimensionReport: {
+      cases: dimensionFixtureCases(),
       results: [
         ...fixtureReport({ dimension: 'the_nether' }).results,
         ...fixtureReport({ dimension: 'the_end' }).results
@@ -81,6 +83,23 @@ test('acceptance report requires named overworld target fixture categories', () 
   assert(noiseTerrain.fixtureIssues.includes('overworld report missing ore_vein_heavy_target fixture'))
 })
 
+test('acceptance report requires full nether and end dimension matrix fixtures', () => {
+  const report = validateWorldgenAcceptanceReport({
+    dimensionReport: {
+      cases: [{ id: 'the_nether_parity_matrix_seed_0' }],
+      results: [
+        ...fixtureReport({ dimension: 'the_nether' }).results,
+        ...fixtureReport({ dimension: 'the_end' }).results
+      ]
+    }
+  })
+  const structures = report.phases.find(phase => phase.id === 'structures')
+
+  assert(structures.fixtureIssues.includes('dimension report missing the_nether_parity_matrix_seed_1 fixture'))
+  assert(structures.fixtureIssues.includes('dimension report missing the_end_parity_matrix_seed_0 fixture'))
+  assert(structures.fixtureIssues.includes('dimension report missing the_end_parity_matrix_seed_2147483647 fixture'))
+})
+
 test('acceptance report loader reads fixture reports from disk and allows missing reports by default', async () => {
   const dir = path.join('/tmp', `rustcraft-worldgen-gate-${process.pid}`)
   await rm(dir, { recursive: true, force: true })
@@ -98,6 +117,7 @@ test('acceptance report loader reads fixture reports from disk and allows missin
   assert.equal(partial.completeThrough, 'biome_decoration')
 
   await writeFile(dimensionPath, JSON.stringify({
+    cases: dimensionFixtureCases(),
     results: [
       ...fixtureReport({ dimension: 'the_nether' }).results,
       ...fixtureReport({ dimension: 'the_end' }).results
@@ -236,6 +256,7 @@ test('CLI can generate and compare the RustCraft report on demand', async () => 
     palette: ['minecraft:stone', 'minecraft:water']
   })))
   await writeFile(dimensionPath, JSON.stringify({
+    cases: dimensionFixtureCases(),
     results: [
       ...fixtureReport({ dimension: 'the_nether' }).results,
       ...fixtureReport({ dimension: 'the_end' }).results
@@ -321,6 +342,12 @@ function fixtureReport ({
       }]
     }]
   }
+}
+
+function dimensionFixtureCases () {
+  return DIMENSION_FIXTURE_CASES
+    .filter(fixture => fixture.category.endsWith('_multi_seed_coordinate_matrix'))
+    .map(fixture => ({ id: fixture.id }))
 }
 
 function rustcraftReport ({

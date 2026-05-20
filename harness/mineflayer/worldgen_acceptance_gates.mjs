@@ -3,7 +3,10 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { OVERWORLD_TARGET_FIXTURE_CHUNKS } from './vanilla_worldgen_fixtures.mjs'
+import {
+  DIMENSION_FIXTURE_CASES,
+  OVERWORLD_TARGET_FIXTURE_CHUNKS
+} from './vanilla_worldgen_fixtures.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
@@ -222,9 +225,16 @@ function validateDimensionReport (report) {
   if (!report) return ['missing dimension fixture report']
   const dimensions = new Set((report.results ?? []).flatMap(result => result.fixture?.chunks?.map(chunk => chunk.dimension) ?? []))
   const chunks = requestedChunks(report)
+  const requiredMatrixIds = DIMENSION_FIXTURE_CASES
+    .filter(fixture => fixture.category.endsWith('_multi_seed_coordinate_matrix'))
+    .map(fixture => fixture.id)
+  const reportCaseIds = new Set((report.cases ?? []).map(fixture => fixture.id))
   const issues = []
   if (!dimensions.has('the_nether')) issues.push('dimension report missing the_nether fixture')
   if (!dimensions.has('the_end')) issues.push('dimension report missing the_end fixture')
+  for (const id of requiredMatrixIds) {
+    if (!reportCaseIds.has(id)) issues.push(`dimension report missing ${id} fixture`)
+  }
   if (chunks.length === 0) issues.push('dimension report has no requested chunks')
   if (!chunks.every(chunk => chunk.status === 'minecraft:full')) issues.push('not every dimension requested chunk is full')
   return issues
