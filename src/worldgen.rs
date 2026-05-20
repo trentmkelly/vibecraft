@@ -60597,22 +60597,11 @@ mod tests {
     }
 
     #[test]
-    fn overworld_final_density_resolves_and_produces_finite_squeezed_value_at_0_100_0_seed_0() {
-        // Verify that the overworld finalDensity computation is wired up (resolves from the
-        // registry), evaluates without panicking at position (0, 100, 0), and returns a finite
-        // value inside the Squeeze output range [-0.5, 0.5].
-        //
-        // At y=100 both slide gradients (top: [240,256] and bottom: [-64,-40]) are at their
-        // plateau value (1.0), making the slide transparent at that depth: the output equals
-        // caves(0, 100, 0) passed through postProcess (BlendDensity passthrough →
-        // Interpolated passthrough → mul(0.64) → Squeeze). Squeeze bounds its output to
-        // (-0.5, 0.5), so that is the tight expected range for this position.
-        //
-        // The exact expected value must be validated against a running vanilla 26.1.2 server.
-        // Until that oracle run is available this test guards against:
-        //   (a) the Reference failing to resolve (which would silently return 0.0 — detectable
-        //       only by asserting the registry entry is present),
-        //   (b) infinite / NaN output from a noise or arithmetic bug.
+    fn overworld_final_density_matches_vanilla_at_0_100_0_seed_0() {
+        // Oracle command used against official 26.1.2:
+        // VanillaRegistries.createLookup() -> RandomState.create(OVERWORLD, seed 0) ->
+        // router().finalDensity().compute(SinglePointContext(0, 100, 0)).
+        const VANILLA_FINAL_DENSITY_0_100_0_SEED_0: f64 = -0.45833333333333330;
         let seed = 0_i64;
 
         // Confirm the registry entry resolves.
@@ -60631,11 +60620,9 @@ mod tests {
             result.is_finite(),
             "finalDensity at (0,100,0) seed 0 must be finite, got {result}"
         );
-        // Squeeze maps any finite input clamped to [-1,1] to (-0.5, 0.5).
-        // postProcess wraps the slide in Squeeze, bounding the result.
         assert!(
-            (-0.5..=0.5).contains(&result),
-            "finalDensity at (0,100,0) seed 0 must be in [-0.5, 0.5] (Squeeze bounds), got {result}"
+            (result - VANILLA_FINAL_DENSITY_0_100_0_SEED_0).abs() < 1e-15,
+            "finalDensity at (0,100,0) seed 0 must match vanilla {VANILLA_FINAL_DENSITY_0_100_0_SEED_0}, got {result}"
         );
     }
 

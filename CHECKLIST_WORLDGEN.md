@@ -128,7 +128,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
   - [x] `HolderHolder` / reference lookup — `DensityFunction::Reference` resolves via `builtin_density_function()`, returns 0.0 on miss
 - [x] Implement `overworld/final_density`: `min(postProcess(slideOverworld(caves)), noodle)` — full inline constant tree matching Java `NoiseRouterData.overworld()`, registered in `BUILTIN_DENSITY_FUNCTIONS`; `slideOverworld`, `underground`, `postProcess` all ported as const density function graphs
 - [x] Implement `NoiseChunk` cell-based sampling loop with proper XZ/Y cell sizing from noise settings
-- [ ] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0. Current coverage: `overworld_final_density_resolves_and_produces_finite_squeezed_value_at_0_100_0_seed_0` verifies registry resolution and Squeeze bounds, but not an exact vanilla oracle value yet.
+- [x] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0. `overworld_final_density_matches_vanilla_at_0_100_0_seed_0` now pins the official 26.1.2 `VanillaRegistries.createLookup()`/`RandomState.create(OVERWORLD, seed 0)` oracle value `-0.45833333333333330`. References: `RustCraft/src/worldgen.rs`, `decompiled-server-26.1.2/net/minecraft/data/registries/VanillaRegistries.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/RandomState.java`.
 
 ## Noise Samplers
 
