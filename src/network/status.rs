@@ -84,7 +84,7 @@ use crate::storage::world::WorldLayout;
 use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomDurations};
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
 use crate::worldgen::{
-    generate_overworld_chunk_for_preset, generate_overworld_spawn_chunk_for_preset_with_mode,
+    generate_overworld_chunk_for_preset, generate_overworld_spawn_chunk_for_preset_with_mode_timed,
     LiveChunkGenerationMode,
 };
 
@@ -3911,9 +3911,38 @@ fn write_generated_spawn_chunk_payload<W: Write>(
     writer: &mut W,
     chunk: &LevelChunk,
 ) -> io::Result<()> {
+    let started = Instant::now();
     let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
+    let light_ms = started.elapsed().as_millis();
+    let packet_started = Instant::now();
     let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
-    write_level_chunk_with_light_payload(writer, &packet)
+    let packet_build_ms = packet_started.elapsed().as_millis();
+    let write_started = Instant::now();
+    let result = write_level_chunk_with_light_payload(writer, &packet);
+    eprintln!(
+        "[worldgen] chunk=({}, {}) packet light={}ms build={}ms write={}ms bytes={} block_entities={} heightmaps={}",
+        chunk.pos.x,
+        chunk.pos.z,
+        light_ms,
+        packet_build_ms,
+        write_started.elapsed().as_millis(),
+        packet
+            .chunk_data
+            .as_ref()
+            .map(|data| data.buffer.len())
+            .unwrap_or(0),
+        packet
+            .chunk_data
+            .as_ref()
+            .map(|data| data.block_entities.len())
+            .unwrap_or(0),
+        packet
+            .chunk_data
+            .as_ref()
+            .map(|data| data.heightmaps.len())
+            .unwrap_or(0)
+    );
+    result
 }
 
 fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i64) -> LevelChunk {
@@ -3921,19 +3950,35 @@ fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
     let mut source = "region";
-    let chunk = try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
+    let region_started = Instant::now();
+    let loaded = try_load_chunk_from_region(&region_dir, pos);
+    let region_ms = region_started.elapsed().as_millis();
+    let chunk = loaded.unwrap_or_else(|| {
         source = match live_chunk_generation_mode() {
             LiveChunkGenerationMode::Preview => "generated-preview",
             LiveChunkGenerationMode::RealSurface => "generated-real-surface",
         };
-        match generate_overworld_spawn_chunk_for_preset_with_mode(
+        match generate_overworld_spawn_chunk_for_preset_with_mode_timed(
             pos,
             "normal",
             live_chunk_generation_mode(),
             world_seed,
             true,
         ) {
-            Ok(chunk) => chunk,
+            Ok((chunk, timings)) => {
+                eprintln!(
+                    "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms heightmaps={}ms mobs={}ms mobs_spawned={}",
+                    x,
+                    z,
+                    region_ms,
+                    timings.resolve_preset_ms,
+                    timings.terrain_ms,
+                    timings.heightmaps_ms,
+                    timings.mobs_ms,
+                    timings.mobs_spawned
+                );
+                chunk
+            }
             Err(err) => {
                 source = "generated-fallback-empty";
                 eprintln!(

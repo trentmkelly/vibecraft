@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::time::Instant;
 
 use crate::biome::{
     biome_source_from_stem_id, climate_target, select_biome_from_source, select_end_biome, span,
@@ -23413,6 +23414,15 @@ pub enum LiveChunkGenerationMode {
     RealSurface,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LiveChunkGenerationTimings {
+    pub resolve_preset_ms: u128,
+    pub terrain_ms: u128,
+    pub heightmaps_ms: u128,
+    pub mobs_ms: u128,
+    pub mobs_spawned: usize,
+}
+
 pub fn generate_chunk_for_stem(
     pos: ChunkPos,
     stem: &ResolvedLevelStem,
@@ -24977,6 +24987,71 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode(
     );
     chunk.status = "minecraft:spawn".to_string();
     Ok(chunk)
+}
+
+pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
+    pos: ChunkPos,
+    preset_id: &str,
+    mode: LiveChunkGenerationMode,
+    seed: i64,
+    spawn_mobs_game_rule: bool,
+) -> Result<(LevelChunk, LiveChunkGenerationTimings), String> {
+    let mut timings = LiveChunkGenerationTimings::default();
+
+    let started = Instant::now();
+    let preset = resolve_world_preset(preset_id)?;
+    timings.resolve_preset_ms = started.elapsed().as_millis();
+
+    let started = Instant::now();
+    let mut chunk = match &preset.overworld.generator {
+        ResolvedChunkGenerator::Flat { settings, .. } => materialize_flat_chunk(pos, settings),
+        ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } => match mode {
+            LiveChunkGenerationMode::Preview => {
+                materialize_noise_preview_chunk(pos, biome_source_model, noise_settings)
+            }
+            LiveChunkGenerationMode::RealSurface => {
+                let router_id = noise_router_id_for_settings(**noise_settings);
+                let noise_router = builtin_noise_router(router_id)
+                    .map(|e| e.router)
+                    .unwrap_or(NONE_NOISE_ROUTER);
+                match load_surface_rule(noise_settings.id) {
+                    Some(rule) => {
+                        fill_noise_and_build_surface(pos, noise_settings, seed, noise_router, &rule)
+                    }
+                    None => {
+                        let mut chunk =
+                            fill_from_noise_chunk(pos, noise_settings, seed, noise_router);
+                        chunk.status = "minecraft:surface".to_string();
+                        chunk
+                    }
+                }
+            }
+        },
+        ResolvedChunkGenerator::Debug { .. } => {
+            return Err("Debug overworld chunk generation is not implemented".to_string())
+        }
+    };
+    timings.terrain_ms = started.elapsed().as_millis();
+
+    let started = Instant::now();
+    add_client_heightmaps_from_blocks(&mut chunk);
+    timings.heightmaps_ms = started.elapsed().as_millis();
+
+    let started = Instant::now();
+    timings.mobs_spawned = apply_spawn_original_mobs_to_generated_chunk(
+        &mut chunk,
+        &preset.overworld,
+        seed,
+        spawn_mobs_game_rule,
+    );
+    timings.mobs_ms = started.elapsed().as_millis();
+
+    chunk.status = "minecraft:spawn".to_string();
+    Ok((chunk, timings))
 }
 
 pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
