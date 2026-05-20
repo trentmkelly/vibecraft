@@ -22749,16 +22749,15 @@ pub fn generate_chunk_for_stem(
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
         ResolvedChunkGenerator::Flat { settings, .. } => Ok(materialize_flat_chunk(pos, settings)),
-        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
-            // Resolve the NoiseRouter from the settings' preset ID.
-            // The world seed is not yet threaded through this call-site; using
-            // seed 0 as a placeholder until a proper seed is available.
-            let router_id = noise_router_id_for_settings(**noise_settings);
-            let noise_router = builtin_noise_router(router_id)
-                .map(|e| e.router)
-                .unwrap_or(NONE_NOISE_ROUTER);
-            Ok(fill_from_noise_chunk(pos, noise_settings, 0, noise_router))
-        }
+        ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } => Ok(materialize_noise_preview_chunk(
+            pos,
+            biome_source_model,
+            noise_settings,
+        )),
         ResolvedChunkGenerator::Debug { .. } => Err(format!(
             "Debug chunk generation for {} is not implemented",
             stem.dimension
@@ -39595,13 +39594,13 @@ mod tests {
     /// exactly that one chunk and scan its sections efficiently (one decode per section).
     #[test]
     fn ore_veins_integrated_in_chunk_generation() {
-        use crate::storage::chunk::{PalettedContainer, SECTION_VOLUME};
-        use crate::storage::nbt::Tag;
         use super::{
             builtin_noise_generator_settings, builtin_noise_router, fill_from_noise_chunk,
             noise_router_id_for_settings, ChunkPos, NONE_NOISE_ROUTER,
             OVERWORLD_VEIN_TOGGLE_NOISE_DENSITY,
         };
+        use crate::storage::chunk::{PalettedContainer, SECTION_VOLUME};
+        use crate::storage::nbt::Tag;
 
         let settings = builtin_noise_generator_settings("minecraft:overworld")
             .expect("overworld noise settings must exist");
@@ -39645,13 +39644,8 @@ mod tests {
             let mut results = Vec::new();
             for z in (-512_i32..512).step_by(8) {
                 for x in (-512_i32..512).step_by(8) {
-                    let vt = OVERWORLD_VEIN_TOGGLE_NOISE_DENSITY.compute_with_noise(
-                        0,
-                        *settings,
-                        x,
-                        probe_y,
-                        z,
-                    );
+                    let vt = OVERWORLD_VEIN_TOGGLE_NOISE_DENSITY
+                        .compute_with_noise(0, *settings, x, probe_y, z);
                     if predicate(vt) {
                         let cx = x >> 4;
                         let cz = z >> 4;
@@ -39716,8 +39710,7 @@ mod tests {
         // Take only the first 3 candidate chunks — vein zones span ~170 blocks so multiple
         // consecutive chunks are inside the same zone; 3 is enough to hit a ridgeline.
         let found_iron = iron_chunks.iter().take(3).any(|&(cx, cz)| {
-            let chunk =
-                fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
+            let chunk = fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
             any_vein_block_in_range(&chunk, -60, -8, IRON_VEIN_BLOCKS)
         });
         assert!(
@@ -39737,8 +39730,7 @@ mod tests {
              — noise setup may be broken"
         );
         let found_copper = copper_chunks.iter().take(3).any(|&(cx, cz)| {
-            let chunk =
-                fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
+            let chunk = fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
             any_vein_block_in_range(&chunk, 0, 50, COPPER_VEIN_BLOCKS)
         });
         assert!(

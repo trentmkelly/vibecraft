@@ -75,7 +75,7 @@ use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
-use crate::storage::chunk::LevelChunk;
+use crate::storage::chunk::{LevelChunk, PalettedContainer, SECTION_VOLUME};
 use crate::storage::nbt::Tag;
 use crate::storage::region::{ChunkPos, RegionFile};
 use crate::storage::world::WorldLayout;
@@ -3808,7 +3808,37 @@ fn try_load_chunk_from_region(
 ) -> Option<crate::storage::chunk::LevelChunk> {
     let region = RegionFile::open(region_dir, pos.region()).ok()?;
     let (_name, tag) = region.read_chunk_nbt(pos).ok()??;
-    crate::storage::chunk::LevelChunk::from_nbt(pos, &tag).ok()
+    crate::storage::chunk::LevelChunk::from_nbt(pos, &tag)
+        .ok()
+        .filter(chunk_has_non_air_blocks)
+}
+
+fn chunk_has_non_air_blocks(chunk: &LevelChunk) -> bool {
+    chunk.sections.iter().any(|section| {
+        PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
+            .ok()
+            .is_some_and(|container| container.palette.iter().any(palette_entry_is_non_air))
+    })
+}
+
+fn palette_entry_is_non_air(entry: &Tag) -> bool {
+    match entry {
+        Tag::String(name) => name != "minecraft:air" && name != "air",
+        Tag::Compound(fields) => fields
+            .iter()
+            .find_map(|(name, value)| {
+                (name == "Name").then_some(value).and_then(|value| {
+                    if let Tag::String(block_name) = value {
+                        Some(block_name != "minecraft:air" && block_name != "air")
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or(false),
+        Tag::Int(id) => *id != 0,
+        _ => false,
+    }
 }
 
 fn write_level_chunk_with_light_payload<W: Write>(
@@ -7133,15 +7163,16 @@ fn escape_json_string(value: &str) -> String {
 mod tests {
     use super::{
         banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt, chat_type_nbt,
-        chicken_sound_variant_nbt, chunk_batch_size, chunk_window, cow_sound_variant_nbt,
-        day_timeline_nbt, early_game_timeline_nbt, encode_base64, escape_json_string,
-        handle_legacy_status_connection, instrument_nbt, inventory_internal_slot, jukebox_song_nbt,
-        legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
-        load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
-        login_host_ip, moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt,
-        packed_chunk_pos, pig_sound_variant_nbt, play_session_state_from_nbt,
-        play_session_state_to_nbt, pseudo_rand_f32, read_code_of_conducts, read_packet,
-        status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
+        chicken_sound_variant_nbt, chunk_batch_size, chunk_has_non_air_blocks, chunk_window,
+        cow_sound_variant_nbt, day_timeline_nbt, early_game_timeline_nbt, encode_base64,
+        escape_json_string, handle_legacy_status_connection, instrument_nbt,
+        inventory_internal_slot, jukebox_song_nbt, legacy_disconnect_packet,
+        legacy_version0_response, legacy_version1_response, load_code_of_conduct_for_language,
+        load_favicon, login_access_disconnect_reason, login_host_ip, moon_timeline_nbt,
+        newly_visible_chunks, overworld_dimension_type_nbt, packed_chunk_pos,
+        pig_sound_variant_nbt, play_session_state_from_nbt, play_session_state_to_nbt,
+        pseudo_rand_f32, read_code_of_conducts, read_packet, status_json,
+        strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
         vanilla_baseline_biome_nbt, var_int_encoded_len, villager_schedule_timeline_nbt,
         visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
         visible_spawn_terrain_block_count, visible_spawn_terrain_height,
@@ -7183,7 +7214,9 @@ mod tests {
     use crate::recipe_system::RecipeMap;
     use crate::registry::Identifier;
     use crate::server_properties::ServerProperties;
+    use crate::storage::chunk::LevelChunk;
     use crate::storage::nbt::Tag;
+    use crate::storage::region::ChunkPos;
     use crate::{biome, damage_type, equipment_trim, presentation_data};
     use std::collections::BTreeSet;
     use std::fs;
@@ -8451,6 +8484,17 @@ mod tests {
             palette_index_at(&words, featured_column.0, feature_y, featured_column.1),
             expected_feature_palette
         );
+    }
+
+    #[test]
+    fn all_air_persisted_chunks_are_not_reused_for_spawn_terrain() {
+        let empty = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        assert!(!chunk_has_non_air_blocks(&empty));
+
+        let generated =
+            crate::worldgen::generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")
+                .expect("normal preset should generate visible terrain");
+        assert!(chunk_has_non_air_blocks(&generated));
     }
 
     #[test]
