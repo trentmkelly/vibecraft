@@ -532,12 +532,18 @@ impl RegionFileStorage {
     }
 
     pub fn close(&self) -> io::Result<()> {
+        let mut first_error = None;
         for region in self.region_cache.borrow().values() {
-            region.close()?;
+            if let Err(err) = region.close() {
+                first_error.get_or_insert(err);
+            }
         }
         self.region_cache.borrow_mut().clear();
         self.region_lru.borrow_mut().clear();
-        Ok(())
+        match first_error {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
 
     fn cached_region_file(&self, region_pos: RegionPos) -> Option<RegionFile> {
@@ -1244,6 +1250,44 @@ mod tests {
                 "".to_string(),
                 Tag::Compound(vec![("cached".to_string(), Tag::Int(1))])
             ))
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_storage_close_attempts_all_cached_regions_after_error() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-file-storage-close-errors-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let storage = RegionFileStorage::open(dir.clone()).unwrap();
+        let missing = RegionPos { x: 0, z: 0 };
+        let partial = RegionPos { x: 1, z: 0 };
+        storage.get_region_file(missing).unwrap();
+        storage.get_region_file(partial).unwrap();
+
+        let missing_path = dir.join(missing.file_name());
+        let partial_path = dir.join(partial.file_name());
+        fs::remove_file(&missing_path).unwrap();
+        let mut file = OpenOptions::new().write(true).open(&partial_path).unwrap();
+        file.seek(SeekFrom::Start(HEADER_BYTES + 17)).unwrap();
+        file.write_all(&[1]).unwrap();
+        drop(file);
+        assert_ne!(
+            fs::metadata(&partial_path).unwrap().len() % super::SECTOR_BYTES as u64,
+            0
+        );
+
+        assert!(storage.close().is_err());
+
+        assert_eq!(storage.cached_region_count(), 0);
+        assert_eq!(
+            fs::metadata(&partial_path).unwrap().len() % super::SECTOR_BYTES as u64,
+            0
         );
 
         let _ = fs::remove_dir_all(&dir);
