@@ -280,13 +280,20 @@ function comparableRequestedChunks (report, label = 'fixture') {
   const issues = []
   const chunks = (report?.results ?? []).flatMap(result => {
     const fixtureByCoordinate = fixtureDimensionsByCoordinate(result, issues, label)
-    return (result.artifacts ?? []).flatMap(artifact => (artifact.requestedChunks ?? []).map(chunk => {
+    return (result.artifacts ?? []).flatMap(artifact => (artifact.requestedChunks ?? []).flatMap(chunk => {
+      const chunkX = chunk.chunkX
+      const chunkZ = chunk.chunkZ
+      const chunkLabel = `${chunkX ?? '<missing>'},${chunkZ ?? '<missing>'}`
+      if (!Number.isInteger(chunkX) || !Number.isInteger(chunkZ)) {
+        issues.push(`${label} requested chunk ${chunkLabel} missing integer coordinates`)
+        return []
+      }
       const dimension = fixtureByCoordinate.get(`${chunk.chunkX},${chunk.chunkZ}`) ?? 'overworld'
-      return {
+      return [{
         ...chunk,
         dimension,
         key: `${dimension}:${chunk.chunkX},${chunk.chunkZ}`
-      }
+      }]
     }))
   })
   return { chunks, issues }

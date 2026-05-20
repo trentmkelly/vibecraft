@@ -176,6 +176,31 @@ test('fixture stability comparison rejects ambiguous fixture dimensions', () => 
   })
 })
 
+test('fixture stability comparison rejects requested chunks without integer coordinates', () => {
+  const left = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+  delete left.results[0].artifacts[0].requestedChunks[0].chunkX
+  const right = fixtureReport({
+    dimension: 'overworld',
+    palette: ['minecraft:stone', 'minecraft:water']
+  })
+
+  assert.deepEqual(compareWorldgenFixtureReports(left, right), {
+    ok: false,
+    comparedChunks: 0,
+    leftChunks: 0,
+    rightChunks: 1,
+    issues: ['left requested chunk <missing>,0 missing integer coordinates']
+  })
+
+  left.results[0].artifacts[0].requestedChunks[0].chunkX = 0.25
+  assert.deepEqual(compareWorldgenFixtureReports(left, right).issues, [
+    'left requested chunk 0.25,0 missing integer coordinates'
+  ])
+})
+
 test('RustCraft worldgen comparison fails closed against vanilla requested chunks', () => {
   const vanilla = fixtureReport({
     dimension: 'overworld',
