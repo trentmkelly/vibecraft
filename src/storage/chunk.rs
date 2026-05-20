@@ -976,6 +976,22 @@ pub fn light_data_layer_set(
     layer[byte_index] = ((byte & mask) | ((value & 15) << shift)) as i8;
 }
 
+pub fn light_data_layer_is_definitely_homogenous(data: Option<&[i8]>) -> bool {
+    data.is_none()
+}
+
+pub fn light_data_layer_is_definitely_filled_with(
+    data: Option<&[i8]>,
+    default_value: u8,
+    value: u8,
+) -> bool {
+    data.is_none() && (default_value & 15) == (value & 15)
+}
+
+pub fn light_data_layer_is_empty(data: Option<&[i8]>, default_value: u8) -> bool {
+    data.is_none() && (default_value & 15) == 0
+}
+
 pub fn pack_chunk_pos_as_long(pos: ChunkPos) -> i64 {
     (i64::from(pos.x) & 0xffff_ffff) | ((i64::from(pos.z) & 0xffff_ffff) << 32)
 }
@@ -2894,6 +2910,28 @@ mod tests {
 
         assert_eq!(super::light_data_layer_get(Some(data), 15, 3, 3, 4), 2);
         assert_eq!(super::light_data_layer_get(Some(data), 15, 2, 3, 4), 0);
+    }
+
+    #[test]
+    fn light_data_layer_homogenous_predicates_match_vanilla() {
+        assert!(super::light_data_layer_is_definitely_homogenous(None));
+        assert!(super::light_data_layer_is_definitely_filled_with(
+            None, 15, 31
+        ));
+        assert!(super::light_data_layer_is_empty(None, 0));
+        assert!(!super::light_data_layer_is_empty(None, 15));
+
+        let data = super::light_data_layer_materialize(0);
+
+        assert!(!super::light_data_layer_is_definitely_homogenous(Some(
+            &data
+        )));
+        assert!(!super::light_data_layer_is_definitely_filled_with(
+            Some(&data),
+            0,
+            0
+        ));
+        assert!(!super::light_data_layer_is_empty(Some(&data), 0));
     }
 
     #[test]
