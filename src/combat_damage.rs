@@ -129,15 +129,18 @@ pub struct AttackContext {
     pub attacker_in_water: bool,
     pub attacker_blind: bool,
     pub using_sweep_weapon: bool,
+    pub sweeping_edge_level: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttackPlan {
     pub total_damage: f32,
+    pub sweeping_damage: f32,
     pub critical: bool,
     pub sweeping: bool,
     pub knockback: f32,
     pub thorns_reflection: bool,
+    pub particle: Option<&'static str>,
 }
 
 pub fn plan_player_attack(context: AttackContext, thorns_level: u8) -> AttackPlan {
@@ -159,13 +162,34 @@ pub fn plan_player_attack(context: AttackContext, thorns_level: u8) -> AttackPla
     if critical {
         total_damage *= 1.5;
     }
+    let sweeping_damage = if sweeping {
+        1.0 + context.base_damage * sweeping_damage_ratio(context.sweeping_edge_level)
+    } else {
+        0.0
+    };
 
     AttackPlan {
         total_damage,
+        sweeping_damage,
         critical,
         sweeping,
         knockback: if knockback_attack { 0.5 } else { 0.0 },
         thorns_reflection: thorns_level > 0,
+        particle: if critical {
+            Some("minecraft:crit")
+        } else if sweeping {
+            Some("minecraft:sweep_attack")
+        } else {
+            None
+        },
+    }
+}
+
+pub fn sweeping_damage_ratio(level: u8) -> f32 {
+    if level == 0 {
+        0.0
+    } else {
+        1.0 - 1.0 / (level as f32 + 1.0)
     }
 }
 
@@ -502,6 +526,7 @@ mod tests {
                 attacker_in_water: false,
                 attacker_blind: false,
                 using_sweep_weapon: true,
+                sweeping_edge_level: 3,
             },
             1,
         );
@@ -509,6 +534,8 @@ mod tests {
         assert!(!critical.sweeping);
         assert!(critical.thorns_reflection);
         assert_eq!(critical.total_damage, 15.0);
+        assert_eq!(critical.sweeping_damage, 0.0);
+        assert_eq!(critical.particle, Some("minecraft:crit"));
 
         let sweep = plan_player_attack(
             AttackContext {
@@ -526,11 +553,15 @@ mod tests {
                     attacker_in_water: false,
                     attacker_blind: false,
                     using_sweep_weapon: true,
+                    sweeping_edge_level: 2,
                 }
             },
             0,
         );
         assert!(sweep.sweeping);
+        assert_eq!(sweep.sweeping_damage, 5.0);
+        assert!((sweeping_damage_ratio(2) - 2.0 / 3.0).abs() < f32::EPSILON);
+        assert_eq!(sweep.particle, Some("minecraft:sweep_attack"));
 
         let knockback = plan_player_attack(
             AttackContext {
@@ -547,6 +578,7 @@ mod tests {
                     attacker_in_water: false,
                     attacker_blind: false,
                     using_sweep_weapon: true,
+                    sweeping_edge_level: 2,
                 }
             },
             0,

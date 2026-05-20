@@ -44,8 +44,8 @@
 - [x] Implement armor protection formula: `max(0, ceil(armor * 0.04 * rawDamage)) = armorPoints / 25 * 0.04 + armorToughness` (vanilla formula from `CombatRules.getDamageAfterAbsorb`)
 - [x] Implement `CombatTracker`: track last-damage source and killer for death message generation, `getDeathMessage()` component building using `DamageType.deathMessageType()`
 - [x] Implement shield blocking: `LivingEntity.isBlocking()` check, blocking reduces projectile damage to 0 and melee to 0 if within blocking arc, 5-tick cooldown after strong hit
-- [ ] Implement sweeping attack: when sprinting melee with sword, deal sweeping damage to entities within radius using `EnchantmentHelper.getSweepingDamageRatio()`
-- [ ] Implement critical hit: in the air, not blind, not sprinting → 1.5× base damage multiplier, star particles
+- [x] Implement sweeping attack: when sprinting melee with sword, deal sweeping damage to entities within radius using `EnchantmentHelper.getSweepingDamageRatio()` — `combat_damage::plan_player_attack()` gates sweeping to full-strength grounded non-sprinting sweep weapons and computes `sweeping_damage` through `sweeping_damage_ratio()`; covered by `attack_plan_covers_knockback_critical_sweeping_and_thorns`.
+- [x] Implement critical hit: in the air, not blind, not sprinting → 1.5× base damage multiplier, star particles — `combat_damage::plan_player_attack()` applies the full-strength airborne/non-blind/non-water critical gate, multiplies damage by 1.5, and emits `minecraft:crit`; covered by `attack_plan_covers_knockback_critical_sweeping_and_thorns`.
 - [x] Add parity test: death messages for fall, fire, drowning, suffocation, void, mob attack, player attack, arrow, fireball, TNT match vanilla localization keys
 - [x] Add parity test: armor mitigation calculation for iron chestplate (8 armor points) vs. full diamond (20 armor points) against representative damage values
 
@@ -120,7 +120,7 @@
   - [ ] `UnbreakingEnchantment`: durability damage chance reduction
   - [ ] `MendingEnchantment`: XP orb → repair tool
   - [ ] `ThornsEnchantment`: reflect damage on hit
-  - [ ] `SweepingEdgeEnchantment`: sweeping attack multiplier
+  - [x] `SweepingEdgeEnchantment`: sweeping attack multiplier — `sweeping_damage_ratio()` mirrors the Java level/(level+1) ratio used by sweeping attacks; covered by `attack_plan_covers_knockback_critical_sweeping_and_thorns`.
   - [ ] `DepthStriderEnchantment` / `AquaAffinityEnchantment` / `RespiractionEnchantment`: water movement/breathing
   - [ ] `FeatherFallingEnchantment`: reduced fall damage
   - [ ] `FrostWalkerEnchantment`: freeze water below player
