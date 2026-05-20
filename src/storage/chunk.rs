@@ -563,11 +563,13 @@ impl LevelChunk {
             ));
         }
 
+        let status = chunk_status_field(root)?;
+
         Ok(Self {
             pos,
             min_section_y: optional_int_field(root, "yPos")?.unwrap_or(0),
             last_update: optional_long_field(root, "LastUpdate")?.unwrap_or(0),
-            status: string_field(root, "Status")?.to_string(),
+            status,
             inhabited_time: long_field(root, "InhabitedTime")?,
             sections: list_field(root, "sections")?
                 .iter()
@@ -993,6 +995,16 @@ fn optional_bool_field(compound: &[(String, Tag)], name: &str) -> Result<Option<
         Some(_) => Err(format!("NBT field {name} must be a byte boolean")),
         None => Ok(None),
     }
+}
+
+fn chunk_status_field(compound: &[(String, Tag)]) -> Result<String, String> {
+    let status = string_field(compound, "Status")?;
+    if status.is_empty() {
+        return Err("chunk Status cannot be empty".to_string());
+    }
+    Ok(chunk_status(status)
+        .map(|status| status.id.to_string())
+        .unwrap_or_else(|| "minecraft:empty".to_string()))
 }
 
 fn optional_blending_data(compound: &[(String, Tag)]) -> Result<Option<Tag>, String> {
@@ -1527,6 +1539,42 @@ mod tests {
             LevelChunk::empty(pos).to_nbt(crate::storage::datafix::TARGET_DATA_VERSION - 1);
         let err = LevelChunk::from_nbt(pos, &unsupported).unwrap_err();
         assert!(err.contains("Unsupported world DataVersion"));
+    }
+
+    #[test]
+    fn level_chunk_normalizes_unknown_status_like_vanilla_storage_codec() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        let (_, status) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "Status")
+            .expect("Status should be present");
+        *status = Tag::String("minecraft:not_a_status".to_string());
+
+        let decoded = LevelChunk::from_nbt(pos, &tag).unwrap();
+
+        assert_eq!(decoded.status, "minecraft:empty");
+    }
+
+    #[test]
+    fn level_chunk_rejects_empty_status_like_vanilla_parse_null_path() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        let (_, status) = fields
+            .iter_mut()
+            .find(|(name, _)| name == "Status")
+            .expect("Status should be present");
+        *status = Tag::String(String::new());
+
+        let err = LevelChunk::from_nbt(pos, &tag).unwrap_err();
+
+        assert!(err.contains("Status cannot be empty"));
     }
 
     #[test]
