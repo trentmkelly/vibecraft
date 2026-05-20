@@ -18,6 +18,7 @@ pub const HEADER_BYTES: u64 = 8192;
 pub const CHUNKS_PER_REGION_AXIS: i32 = 32;
 pub const OLD_CHUNK_DATA_VERSION_CUTOFF: i32 = 4295;
 pub const OLD_CHUNK_REGION_CACHE_SIZE: usize = 1024;
+pub const REGION_FILE_STORAGE_CACHE_SIZE: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkPos {
@@ -52,6 +53,13 @@ pub struct RegionFile {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct RegionFileStorage {
+    dir: PathBuf,
+    region_cache: RefCell<BTreeMap<RegionPos, RegionFile>>,
+    region_lru: RefCell<VecDeque<RegionPos>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct PendingRegionWrite {
     pub name: String,
     pub tag: Option<Tag>,
@@ -59,7 +67,7 @@ pub struct PendingRegionWrite {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RegionIoWorker {
-    dir: PathBuf,
+    storage: RegionFileStorage,
     pending_writes: BTreeMap<ChunkPos, PendingRegionWrite>,
     old_chunk_mask_cache: RefCell<BTreeMap<RegionPos, Vec<bool>>>,
     old_chunk_mask_lru: RefCell<VecDeque<RegionPos>>,
@@ -478,12 +486,94 @@ impl RegionFile {
     }
 }
 
-impl RegionIoWorker {
+impl RegionFileStorage {
     pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
         Ok(Self {
             dir,
+            region_cache: RefCell::new(BTreeMap::new()),
+            region_lru: RefCell::new(VecDeque::new()),
+        })
+    }
+
+    pub fn cached_region_count(&self) -> usize {
+        self.region_cache.borrow().len()
+    }
+
+    pub fn get_region_file(&self, region_pos: RegionPos) -> io::Result<RegionFile> {
+        if let Some(region) = self.cached_region_file(region_pos) {
+            return Ok(region);
+        }
+
+        let region = RegionFile::open(&self.dir, region_pos)?;
+        self.cache_region_file(region_pos, region.clone())?;
+        Ok(region)
+    }
+
+    pub fn read_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<Option<(String, Tag)>> {
+        self.get_region_file(chunk.region())?.read_chunk_nbt(chunk)
+    }
+
+    pub fn write_chunk_nbt(&self, chunk: ChunkPos, name: &str, tag: &Tag) -> io::Result<()> {
+        self.get_region_file(chunk.region())?
+            .write_chunk_nbt(chunk, name, tag)
+    }
+
+    pub fn clear_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<()> {
+        self.get_region_file(chunk.region())?.clear_chunk_nbt(chunk)
+    }
+
+    pub fn flush(&self) -> io::Result<()> {
+        for region in self.region_cache.borrow().values() {
+            region.flush()?;
+        }
+        Ok(())
+    }
+
+    pub fn close(&self) -> io::Result<()> {
+        for region in self.region_cache.borrow().values() {
+            region.close()?;
+        }
+        self.region_cache.borrow_mut().clear();
+        self.region_lru.borrow_mut().clear();
+        Ok(())
+    }
+
+    fn cached_region_file(&self, region_pos: RegionPos) -> Option<RegionFile> {
+        let region = self.region_cache.borrow().get(&region_pos).cloned()?;
+        let mut lru = self.region_lru.borrow_mut();
+        if let Some(index) = lru.iter().position(|cached| *cached == region_pos) {
+            lru.remove(index);
+        }
+        lru.push_front(region_pos);
+        Some(region)
+    }
+
+    fn cache_region_file(&self, region_pos: RegionPos, region: RegionFile) -> io::Result<()> {
+        self.region_cache.borrow_mut().insert(region_pos, region);
+
+        let mut lru = self.region_lru.borrow_mut();
+        if let Some(index) = lru.iter().position(|cached| *cached == region_pos) {
+            lru.remove(index);
+        }
+        lru.push_front(region_pos);
+
+        while lru.len() > REGION_FILE_STORAGE_CACHE_SIZE {
+            if let Some(expired) = lru.pop_back() {
+                if let Some(region) = self.region_cache.borrow_mut().remove(&expired) {
+                    region.close()?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl RegionIoWorker {
+    pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
+        Ok(Self {
+            storage: RegionFileStorage::open(dir)?,
             pending_writes: BTreeMap::new(),
             old_chunk_mask_cache: RefCell::new(BTreeMap::new()),
             old_chunk_mask_lru: RefCell::new(VecDeque::new()),
@@ -521,7 +611,7 @@ impl RegionIoWorker {
         if let Some(pending) = self.pending_writes.get(&chunk) {
             return Ok(pending.tag.clone().map(|tag| (pending.name.clone(), tag)));
         }
-        RegionFile::open(&self.dir, chunk.region())?.read_chunk_nbt(chunk)
+        self.storage.read_chunk_nbt(chunk)
     }
 
     pub fn scan_chunk_nbt<F>(&self, chunk: ChunkPos, mut visitor: F) -> io::Result<()>
@@ -535,9 +625,7 @@ impl RegionIoWorker {
             return Ok(());
         }
 
-        if let Some((name, tag)) =
-            RegionFile::open(&self.dir, chunk.region())?.read_chunk_nbt(chunk)?
-        {
+        if let Some((name, tag)) = self.storage.read_chunk_nbt(chunk)? {
             visitor(&name, &tag)?;
         }
         Ok(())
@@ -546,11 +634,10 @@ impl RegionIoWorker {
     pub fn synchronize(&mut self) -> io::Result<()> {
         let pending = std::mem::take(&mut self.pending_writes);
         for (chunk, write) in pending {
-            let region = RegionFile::open(&self.dir, chunk.region())?;
             if let Some(tag) = write.tag {
-                region.write_chunk_nbt(chunk, &write.name, &tag)?;
+                self.storage.write_chunk_nbt(chunk, &write.name, &tag)?;
             } else {
-                region.clear_chunk_nbt(chunk)?;
+                self.storage.clear_chunk_nbt(chunk)?;
             }
         }
         Ok(())
@@ -566,7 +653,7 @@ impl RegionIoWorker {
         }
         self.synchronize()?;
         for region_pos in regions_to_flush {
-            RegionFile::open(&self.dir, region_pos)?.flush()?;
+            self.storage.get_region_file(region_pos)?.flush()?;
         }
         Ok(())
     }
@@ -579,6 +666,7 @@ impl RegionIoWorker {
         self.synchronize_with_flush()?;
         self.old_chunk_mask_cache.get_mut().clear();
         self.old_chunk_mask_lru.get_mut().clear();
+        self.storage.close()?;
         self.closed = true;
         Ok(())
     }
@@ -779,9 +867,9 @@ fn decode_region_payload(
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_tag_is_old_for_blending, ChunkPos, RegionCompression, RegionFile, RegionIoWorker,
-        RegionLocation, RegionPos, CHUNKS_PER_REGION_AXIS, HEADER_BYTES,
-        OLD_CHUNK_DATA_VERSION_CUTOFF, OLD_CHUNK_REGION_CACHE_SIZE,
+        chunk_tag_is_old_for_blending, ChunkPos, RegionCompression, RegionFile, RegionFileStorage,
+        RegionIoWorker, RegionLocation, RegionPos, CHUNKS_PER_REGION_AXIS, HEADER_BYTES,
+        OLD_CHUNK_DATA_VERSION_CUTOFF, OLD_CHUNK_REGION_CACHE_SIZE, REGION_FILE_STORAGE_CACHE_SIZE,
     };
     use crate::storage::nbt::Tag;
     use std::fs::{self, OpenOptions};
@@ -1092,6 +1180,70 @@ mod tests {
         assert_eq!(
             fs::metadata(region.path()).unwrap().len() % super::SECTOR_BYTES as u64,
             0
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_storage_caches_regions_with_lru_eviction_flush_and_close() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-file-storage-cache-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let storage = RegionFileStorage::open(dir.clone()).unwrap();
+        let first = RegionPos { x: 0, z: 0 };
+        storage.get_region_file(first).unwrap();
+        storage.get_region_file(first).unwrap();
+        assert_eq!(storage.cached_region_count(), 1);
+
+        let first_path = dir.join(first.file_name());
+        let mut file = OpenOptions::new().write(true).open(&first_path).unwrap();
+        file.seek(SeekFrom::Start(HEADER_BYTES + 17)).unwrap();
+        file.write_all(&[1]).unwrap();
+        drop(file);
+        assert_ne!(
+            fs::metadata(&first_path).unwrap().len() % super::SECTOR_BYTES as u64,
+            0
+        );
+
+        for x in 1..=(REGION_FILE_STORAGE_CACHE_SIZE as i32 + 1) {
+            storage.get_region_file(RegionPos { x, z: 0 }).unwrap();
+        }
+        assert_eq!(
+            storage.cached_region_count(),
+            REGION_FILE_STORAGE_CACHE_SIZE
+        );
+        assert!(!storage.region_cache.borrow().contains_key(&first));
+        assert_eq!(
+            fs::metadata(&first_path).unwrap().len() % super::SECTOR_BYTES as u64,
+            0
+        );
+
+        let chunk = ChunkPos { x: 32, z: 0 };
+        storage
+            .write_chunk_nbt(
+                chunk,
+                "",
+                &Tag::Compound(vec![("cached".to_string(), Tag::Int(1))]),
+            )
+            .unwrap();
+        storage.flush().unwrap();
+        assert!(storage.region_cache.borrow().contains_key(&chunk.region()));
+        storage.close().unwrap();
+        assert_eq!(storage.cached_region_count(), 0);
+        assert_eq!(
+            RegionFile::open(&dir, chunk.region())
+                .unwrap()
+                .read_chunk_nbt(chunk)
+                .unwrap(),
+            Some((
+                "".to_string(),
+                Tag::Compound(vec![("cached".to_string(), Tag::Int(1))])
+            ))
         );
 
         let _ = fs::remove_dir_all(&dir);
