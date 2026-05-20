@@ -81,7 +81,10 @@ use crate::storage::region::{ChunkPos, RegionFile};
 use crate::storage::world::WorldLayout;
 use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomDurations};
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
-use crate::worldgen::generate_overworld_chunk_for_preset;
+use crate::worldgen::{
+    generate_overworld_chunk_for_preset, generate_overworld_chunk_for_preset_with_mode,
+    LiveChunkGenerationMode,
+};
 
 const VERSION_NAME: &str = "26.1.2";
 const PROTOCOL_VERSION: i32 = 775;
@@ -1975,6 +1978,7 @@ fn handle_login_connection(
                             &chunks_to_send,
                             true,
                             world_root,
+                            world_seed,
                         )?;
                     }
                     // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
@@ -3504,6 +3508,7 @@ fn write_minimal_play_join(
         chunk_batch_radius(properties),
         false,
         world_root,
+        world_seed,
     )
 }
 
@@ -3515,6 +3520,7 @@ fn write_play_chunk_batch(
     radius: i32,
     update_cache_center: bool,
     world_root: &Path,
+    world_seed: i64,
 ) -> io::Result<()> {
     if update_cache_center {
         write_framed_packet_with_compression(
@@ -3538,6 +3544,7 @@ fn write_play_chunk_batch(
         &chunks,
         false,
         world_root,
+        world_seed,
     )
 }
 
@@ -3549,6 +3556,7 @@ fn write_play_chunk_delta(
     chunks: &[(i32, i32)],
     update_cache_center: bool,
     world_root: &Path,
+    world_seed: i64,
 ) -> io::Result<()> {
     if update_cache_center {
         write_framed_packet_with_compression(
@@ -3575,7 +3583,7 @@ fn write_play_chunk_delta(
             stream,
             compression,
             CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID,
-            |payload| write_generated_spawn_chunk_packet(payload, x, z, world_root),
+            |payload| write_generated_spawn_chunk_packet(payload, x, z, world_root, world_seed),
         )?;
     }
     write_framed_packet_with_compression(
@@ -3790,16 +3798,29 @@ fn write_generated_spawn_chunk_packet<W: Write>(
     x: i32,
     z: i32,
     world_root: &Path,
+    world_seed: i64,
 ) -> io::Result<()> {
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
     let chunk = try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
-        generate_overworld_chunk_for_preset(pos, "normal")
-            .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
+        generate_overworld_chunk_for_preset_with_mode(
+            pos,
+            "normal",
+            live_chunk_generation_mode(),
+            world_seed,
+        )
+        .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
     });
     let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
     let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
     write_level_chunk_with_light_payload(writer, &packet)
+}
+
+fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
+    match std::env::var("RUSTCRAFT_WORLDGEN").as_deref() {
+        Ok("real-surface") | Ok("surface") => LiveChunkGenerationMode::RealSurface,
+        _ => LiveChunkGenerationMode::Preview,
+    }
 }
 
 fn try_load_chunk_from_region(

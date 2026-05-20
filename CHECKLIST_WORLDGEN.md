@@ -47,6 +47,8 @@
 
 The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noise-based preview terrain), not vanilla world generation. All items below represent the gap between the current scaffolding and full vanilla worldgen parity.
 
+- [x] Add guarded live worldgen mode switch (`RUSTCRAFT_WORLDGEN=preview|real-surface`) so incomplete real-worldgen stages can be tested without breaking the default joinable preview terrain path.
+
 ## World Presets and Dimension Loading
 
 - [ ] Implement world-preset and dimension-stem loading from registry data (`data/minecraft/worldgen/world_preset/`, `data/minecraft/worldgen/flat_level_generator_preset/`) rather than hard-coded Rust defaults

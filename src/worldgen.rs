@@ -22743,9 +22743,24 @@ pub fn resolve_world_preset(id: &str) -> Result<ResolvedWorldPreset, String> {
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LiveChunkGenerationMode {
+    Preview,
+    RealSurface,
+}
+
 pub fn generate_chunk_for_stem(
     pos: ChunkPos,
     stem: &ResolvedLevelStem,
+) -> Result<LevelChunk, String> {
+    generate_chunk_for_stem_with_mode(pos, stem, LiveChunkGenerationMode::Preview, 0)
+}
+
+pub fn generate_chunk_for_stem_with_mode(
+    pos: ChunkPos,
+    stem: &ResolvedLevelStem,
+    mode: LiveChunkGenerationMode,
+    seed: i64,
 ) -> Result<LevelChunk, String> {
     match &stem.generator {
         ResolvedChunkGenerator::Flat { settings, .. } => Ok(materialize_flat_chunk(pos, settings)),
@@ -22753,11 +22768,34 @@ pub fn generate_chunk_for_stem(
             biome_source_model,
             noise_settings,
             ..
-        } => Ok(materialize_noise_preview_chunk(
-            pos,
-            biome_source_model,
-            noise_settings,
-        )),
+        } => match mode {
+            LiveChunkGenerationMode::Preview => Ok(materialize_noise_preview_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+            )),
+            LiveChunkGenerationMode::RealSurface => {
+                let router_id = noise_router_id_for_settings(**noise_settings);
+                let noise_router = builtin_noise_router(router_id)
+                    .map(|e| e.router)
+                    .unwrap_or(NONE_NOISE_ROUTER);
+                match load_surface_rule(noise_settings.id) {
+                    Some(rule) => Ok(fill_noise_and_build_surface(
+                        pos,
+                        noise_settings,
+                        seed,
+                        noise_router,
+                        &rule,
+                    )),
+                    None => {
+                        let mut chunk =
+                            fill_from_noise_chunk(pos, noise_settings, seed, noise_router);
+                        chunk.status = "minecraft:surface".to_string();
+                        Ok(chunk)
+                    }
+                }
+            }
+        },
         ResolvedChunkGenerator::Debug { .. } => Err(format!(
             "Debug chunk generation for {} is not implemented",
             stem.dimension
@@ -22907,8 +22945,22 @@ pub fn generate_overworld_chunk_for_preset(
     pos: ChunkPos,
     preset_id: &str,
 ) -> Result<LevelChunk, String> {
+    generate_overworld_chunk_for_preset_with_mode(
+        pos,
+        preset_id,
+        LiveChunkGenerationMode::Preview,
+        0,
+    )
+}
+
+pub fn generate_overworld_chunk_for_preset_with_mode(
+    pos: ChunkPos,
+    preset_id: &str,
+    mode: LiveChunkGenerationMode,
+    seed: i64,
+) -> Result<LevelChunk, String> {
     let preset = resolve_world_preset(preset_id)?;
-    generate_chunk_for_stem(pos, &preset.overworld)
+    generate_chunk_for_stem_with_mode(pos, &preset.overworld, mode, seed)
 }
 
 pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
@@ -37735,6 +37787,32 @@ mod tests {
         };
         assert!(palette.contains(&super::block_state_tag("minecraft:grass_block")));
         assert!(palette.contains(&super::block_state_tag("minecraft:stone")));
+    }
+
+    #[test]
+    fn real_surface_generation_mode_uses_noise_and_surface_pipeline() {
+        let chunk = super::generate_overworld_chunk_for_preset_with_mode(
+            ChunkPos { x: 0, z: 0 },
+            "normal",
+            super::LiveChunkGenerationMode::RealSurface,
+            0,
+        )
+        .expect("real-surface mode should generate overworld surface terrain");
+
+        assert_eq!(chunk.status, "minecraft:surface");
+        assert_eq!(chunk.sections.len(), 24);
+        assert_eq!(chunk.sections[0].y, -4);
+        assert_eq!(chunk.sections.last().unwrap().y, 19);
+        assert!(chunk.heightmaps.contains_key("WORLD_SURFACE_WG"));
+        assert!(chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"));
+        assert!(
+            (-64..320).any(|y| {
+                chunk
+                    .get_block_state(0, y, 0)
+                    .is_some_and(|name| name != "minecraft:air")
+            }),
+            "real-surface chunk should contain non-air blocks in the origin column"
+        );
     }
 
     #[test]
