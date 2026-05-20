@@ -589,8 +589,12 @@ impl LevelChunk {
                 })
                 .map(|(name, value)| (name.clone(), value.clone()))
                 .collect(),
-            block_entities: optional_list_field(root, "block_entities")?.unwrap_or_default(),
-            entities: optional_list_field(root, "entities")?.unwrap_or_default(),
+            block_entities: compound_list_entries(
+                optional_list_field(root, "block_entities")?.unwrap_or_default(),
+            ),
+            entities: compound_list_entries(
+                optional_list_field(root, "entities")?.unwrap_or_default(),
+            ),
             structures: optional_field(root, "structures")
                 .cloned()
                 .unwrap_or_else(empty_structures_payload),
@@ -914,6 +918,13 @@ fn filter_saved_ticks_for_chunk(ticks: Vec<Tag>, pos: ChunkPos) -> Vec<Tag> {
         .collect()
 }
 
+fn compound_list_entries(entries: Vec<Tag>) -> Vec<Tag> {
+    entries
+        .into_iter()
+        .filter(|entry| matches!(entry, Tag::Compound(_)))
+        .collect()
+}
+
 fn saved_tick_belongs_to_chunk(tick: &Tag, pos: ChunkPos) -> bool {
     let Ok(fields) = compound(tick) else {
         return false;
@@ -1174,14 +1185,22 @@ mod tests {
                 Tag::String("minecraft:noise".to_string()),
             )])),
             carving_mask: Some(vec![7, 8, 9]),
-            block_ticks: vec![Tag::Compound(vec![(
-                "i".to_string(),
-                Tag::String("minecraft:stone".to_string()),
-            )])],
-            fluid_ticks: vec![Tag::Compound(vec![(
-                "i".to_string(),
-                Tag::String("minecraft:water".to_string()),
-            )])],
+            block_ticks: vec![saved_tick_tag(
+                "minecraft:stone".to_string(),
+                64,
+                70,
+                -31,
+                4,
+                TickPriority::Normal,
+            )],
+            fluid_ticks: vec![saved_tick_tag(
+                "minecraft:water".to_string(),
+                65,
+                63,
+                -32,
+                2,
+                TickPriority::High,
+            )],
             post_processing: vec![Tag::List(vec![Tag::Short(1), Tag::Short(2)])],
             light_correct: true,
         };
@@ -1708,6 +1727,34 @@ mod tests {
 
         assert!(decoded.heightmaps.contains_key("WORLD_SURFACE_WG"));
         assert!(!decoded.heightmaps.contains_key("MOTION_BLOCKING"));
+    }
+
+    #[test]
+    fn level_chunk_load_ignores_non_compound_entity_entries() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut chunk = LevelChunk::empty(pos);
+        chunk.status = "minecraft:spawn".to_string();
+        chunk.entities = vec![
+            Tag::String("not-an-entity".to_string()),
+            Tag::Compound(vec![(
+                "id".to_string(),
+                Tag::String("minecraft:pig".to_string()),
+            )]),
+        ];
+        chunk.block_entities = vec![
+            Tag::Int(7),
+            Tag::Compound(vec![(
+                "id".to_string(),
+                Tag::String("minecraft:chest".to_string()),
+            )]),
+        ];
+
+        let decoded = LevelChunk::from_nbt(pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
+
+        assert_eq!(decoded.entities.len(), 1);
+        assert_eq!(decoded.block_entities.len(), 1);
+        assert!(matches!(&decoded.entities[0], Tag::Compound(_)));
+        assert!(matches!(&decoded.block_entities[0], Tag::Compound(_)));
     }
 
     #[test]
