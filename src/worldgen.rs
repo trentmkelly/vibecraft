@@ -23992,6 +23992,82 @@ pub fn chunk_generation_mob_no_collision(
     true
 }
 
+pub fn chunk_generation_mob_spawn_rules_ok(
+    chunk: &LevelChunk,
+    entity_type: &str,
+    pos: BlockPos,
+) -> bool {
+    match entity_type {
+        "minecraft:mooshroom" => {
+            chunk_generation_is_bright_enough_to_spawn(chunk, pos)
+                && chunk
+                    .get_block_state(pos.x, pos.y - 1, pos.z)
+                    .as_deref()
+                    .is_some_and(|block| block == "minecraft:mycelium")
+        }
+        "minecraft:goat" => {
+            chunk_generation_is_bright_enough_to_spawn(chunk, pos)
+                && chunk
+                    .get_block_state(pos.x, pos.y - 1, pos.z)
+                    .as_deref()
+                    .is_some_and(goats_spawnable_on)
+        }
+        "minecraft:rabbit" => {
+            chunk_generation_is_bright_enough_to_spawn(chunk, pos)
+                && chunk
+                    .get_block_state(pos.x, pos.y - 1, pos.z)
+                    .as_deref()
+                    .is_some_and(rabbits_spawnable_on)
+        }
+        "minecraft:chicken"
+        | "minecraft:cow"
+        | "minecraft:donkey"
+        | "minecraft:happy_ghast"
+        | "minecraft:horse"
+        | "minecraft:llama"
+        | "minecraft:mule"
+        | "minecraft:panda"
+        | "minecraft:pig"
+        | "minecraft:polar_bear"
+        | "minecraft:sheep"
+        | "minecraft:trader_llama" => {
+            chunk_generation_is_bright_enough_to_spawn(chunk, pos)
+                && chunk
+                    .get_block_state(pos.x, pos.y - 1, pos.z)
+                    .as_deref()
+                    .is_some_and(animals_spawnable_on)
+        }
+        _ => true,
+    }
+}
+
+pub fn chunk_generation_is_bright_enough_to_spawn(chunk: &LevelChunk, pos: BlockPos) -> bool {
+    chunk_generation_raw_brightness(chunk, pos, 0) > 8
+}
+
+pub fn chunk_generation_raw_brightness(chunk: &LevelChunk, pos: BlockPos, sky_dampen: i32) -> i32 {
+    if chunk_generation_column_has_sky(chunk, pos) {
+        (15 - sky_dampen).max(0)
+    } else {
+        0
+    }
+}
+
+fn chunk_generation_column_has_sky(chunk: &LevelChunk, pos: BlockPos) -> bool {
+    let top_y = chunk
+        .sections
+        .iter()
+        .map(|section| i32::from(section.y) * 16 + 15)
+        .max()
+        .unwrap_or(pos.y);
+    ((pos.y + 1)..=top_y).all(|y| {
+        !chunk
+            .get_block_state(pos.x, y, pos.z)
+            .as_deref()
+            .is_some_and(spawn_colliding_block)
+    })
+}
+
 pub fn entity_type_height(entity_type: &str) -> f32 {
     match entity_type {
         "minecraft:chicken" => 0.7,
@@ -24066,10 +24142,21 @@ pub fn apply_chunk_generation_mob_batch_to_chunk(
                     );
                     let collision = chunk_generation_mob_collision_plan(snap);
                     if chunk_generation_mob_no_collision(chunk, collision) {
-                        if let Some(uuid) = uuids.get(spawned) {
-                            if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
-                                spawned += 1;
-                                success = true;
+                        let spawn_rules_pos = BlockPos {
+                            x: snap.x.floor() as i32,
+                            y: position.pos.y,
+                            z: snap.z.floor() as i32,
+                        };
+                        if chunk_generation_mob_spawn_rules_ok(
+                            chunk,
+                            batch.entity_type,
+                            spawn_rules_pos,
+                        ) {
+                            if let Some(uuid) = uuids.get(spawned) {
+                                if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
+                                    spawned += 1;
+                                    success = true;
+                                }
                             }
                         }
                     }
@@ -24143,6 +24230,30 @@ fn spawn_redstone_conductor_block(block: &str) -> bool {
 
 fn spawn_colliding_block(block: &str) -> bool {
     matches!(spawn_block_kind(block), SpawnBlockKind::Solid)
+}
+
+fn animals_spawnable_on(block: &str) -> bool {
+    block == "minecraft:grass_block"
+}
+
+fn goats_spawnable_on(block: &str) -> bool {
+    animals_spawnable_on(block)
+        || matches!(
+            block,
+            "minecraft:stone"
+                | "minecraft:snow"
+                | "minecraft:snow_block"
+                | "minecraft:packed_ice"
+                | "minecraft:gravel"
+        )
+}
+
+fn rabbits_spawnable_on(block: &str) -> bool {
+    animals_spawnable_on(block)
+        || matches!(
+            block,
+            "minecraft:snow" | "minecraft:snow_block" | "minecraft:sand"
+        )
 }
 
 pub fn generator_base_height_for_stem(
@@ -58354,6 +58465,73 @@ mod tests {
         chunk.set_block_state(37, pos.y, -37, "minecraft:stone");
 
         assert!(!super::chunk_generation_mob_no_collision(&chunk, collision));
+    }
+
+    #[test]
+    fn chunk_generation_mob_spawn_rules_cover_common_creature_predicates() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let mut chunk =
+            super::generator_build_surface_for_stem(ChunkPos { x: 2, z: -3 }, &normal.overworld)
+                .expect("surface chunk should generate");
+        let pos = super::chunk_generation_mob_top_non_colliding_pos(
+            &chunk,
+            "minecraft:pig",
+            37,
+            -37,
+            false,
+        )
+        .pos;
+
+        chunk.set_block_state(pos.x, pos.y - 1, pos.z, "minecraft:grass_block");
+        assert!(super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:pig",
+            pos
+        ));
+        assert!(super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:rabbit",
+            pos
+        ));
+        assert!(super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:goat",
+            pos
+        ));
+        assert!(!super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:mooshroom",
+            pos
+        ));
+
+        chunk.set_block_state(pos.x, pos.y - 1, pos.z, "minecraft:mycelium");
+        assert!(super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:mooshroom",
+            pos
+        ));
+        assert!(!super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:pig",
+            pos
+        ));
+
+        chunk.set_block_state(pos.x, pos.y - 1, pos.z, "minecraft:stone");
+        assert!(super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:goat",
+            pos
+        ));
+        assert!(!super::chunk_generation_mob_spawn_rules_ok(
+            &chunk,
+            "minecraft:rabbit",
+            pos
+        ));
+
+        chunk.set_block_state(pos.x, pos.y + 1, pos.z, "minecraft:stone");
+        assert!(!super::chunk_generation_is_bright_enough_to_spawn(
+            &chunk, pos
+        ));
     }
 
     #[test]
