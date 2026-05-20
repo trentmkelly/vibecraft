@@ -330,7 +330,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
   - [x] Model and regress `minecraft:rotated_block_provider` state-provider sampling for rotated pillar block axes, including the Java `Direction.Axis.getRandom(random)` x/y/z selection surface and vanilla axis state strings for log/hay/basalt providers. References: `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/stateproviders/RotatedBlockProvider.java`, `src/worldgen.rs`.
 - [x] Implement flat generator source family and flat preset parsing.
 - [x] Implement height provider source family.
-- [ ] Implement material rule source family.
+- [x] Implement material rule source family.
 - [x] Implement placement modifier source family.
 - [ ] Implement preset source family for world presets and dimension presets.
 - [ ] Implement structure source family: pieces, placement, pools, structures, and template system.
