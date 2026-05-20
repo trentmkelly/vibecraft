@@ -51,7 +51,7 @@ pub struct RegionFile {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PendingRegionWrite {
     pub name: String,
-    pub tag: Tag,
+    pub tag: Option<Tag>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -306,6 +306,32 @@ impl RegionFile {
         self.write_chunk_nbt_with_compression(chunk, name, tag, RegionCompression::DEFAULT)
     }
 
+    pub fn clear_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<()> {
+        if self.read_location(chunk)?.is_none() {
+            return Ok(());
+        }
+        self.write_location(
+            chunk,
+            RegionLocation {
+                sector_offset: 0,
+                sector_count: 0,
+            },
+        )?;
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as u32;
+        self.write_timestamp(chunk, timestamp)?;
+        if let Some(external_path) = self.external_chunk_path(chunk) {
+            match fs::remove_file(external_path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
+    }
+
     pub fn write_chunk_nbt_with_compression(
         &self,
         chunk: ChunkPos,
@@ -388,14 +414,24 @@ impl RegionIoWorker {
             chunk,
             PendingRegionWrite {
                 name: name.into(),
-                tag,
+                tag: Some(tag),
+            },
+        );
+    }
+
+    pub fn clear_chunk_nbt(&mut self, chunk: ChunkPos) {
+        self.pending_writes.insert(
+            chunk,
+            PendingRegionWrite {
+                name: String::new(),
+                tag: None,
             },
         );
     }
 
     pub fn load_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<Option<(String, Tag)>> {
         if let Some(pending) = self.pending_writes.get(&chunk) {
-            return Ok(Some((pending.name.clone(), pending.tag.clone())));
+            return Ok(pending.tag.clone().map(|tag| (pending.name.clone(), tag)));
         }
         RegionFile::open(&self.dir, chunk.region())?.read_chunk_nbt(chunk)
     }
@@ -403,11 +439,12 @@ impl RegionIoWorker {
     pub fn synchronize(&mut self) -> io::Result<()> {
         let pending = std::mem::take(&mut self.pending_writes);
         for (chunk, write) in pending {
-            RegionFile::open(&self.dir, chunk.region())?.write_chunk_nbt(
-                chunk,
-                &write.name,
-                &write.tag,
-            )?;
+            let region = RegionFile::open(&self.dir, chunk.region())?;
+            if let Some(tag) = write.tag {
+                region.write_chunk_nbt(chunk, &write.name, &tag)?;
+            } else {
+                region.clear_chunk_nbt(chunk)?;
+            }
         }
         Ok(())
     }
@@ -642,6 +679,49 @@ mod tests {
                 Tag::Compound(vec![("latest".to_string(), Tag::Int(3))])
             ))
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_io_worker_pending_clear_shadows_and_deletes_stored_chunk() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-worker-clear-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let chunk = ChunkPos { x: 0, z: 0 };
+        let region = RegionFile::open(&dir, chunk.region()).unwrap();
+        region
+            .write_chunk_nbt_with_compression(
+                chunk,
+                "",
+                &Tag::Compound(vec![("stored".to_string(), Tag::Int(1))]),
+                RegionCompression::None,
+            )
+            .unwrap();
+        fs::write(dir.join("c.0.0.mcc"), [1, 2, 3]).unwrap();
+
+        let mut worker = RegionIoWorker::open(dir.clone()).unwrap();
+        worker.clear_chunk_nbt(chunk);
+
+        assert_eq!(worker.pending_write_count(), 1);
+        assert_eq!(worker.load_chunk_nbt(chunk).unwrap(), None);
+        assert!(RegionFile::open(&dir, chunk.region())
+            .unwrap()
+            .does_chunk_exist(chunk));
+        assert!(dir.join("c.0.0.mcc").is_file());
+
+        worker.synchronize().unwrap();
+
+        let region = RegionFile::open(&dir, chunk.region()).unwrap();
+        assert_eq!(worker.pending_write_count(), 0);
+        assert_eq!(region.read_location(chunk).unwrap(), None);
+        assert_eq!(region.read_chunk_nbt(chunk).unwrap(), None);
+        assert!(!region.does_chunk_exist(chunk));
+        assert!(!dir.join("c.0.0.mcc").exists());
 
         let _ = fs::remove_dir_all(&dir);
     }
