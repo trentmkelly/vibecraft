@@ -5392,17 +5392,19 @@ fn bits_for_palette(palette_len: u64) -> usize {
     needed.max(4)
 }
 
-fn heightmap_opaque(heightmap: HeightmapKind, block: &'static str) -> bool {
+fn heightmap_opaque(heightmap: HeightmapKind, block: &str) -> bool {
     match heightmap {
         HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => block != "minecraft:air",
-        HeightmapKind::OceanFloor
-        | HeightmapKind::OceanFloorWg
-        | HeightmapKind::MotionBlocking
-        | HeightmapKind::MotionBlockingNoLeaves => motion_blocking_block(block),
+        HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg | HeightmapKind::MotionBlocking => {
+            motion_blocking_block(block)
+        }
+        HeightmapKind::MotionBlockingNoLeaves => {
+            motion_blocking_block(block) && !block.ends_with("_leaves")
+        }
     }
 }
 
-fn motion_blocking_block(block: &'static str) -> bool {
+fn motion_blocking_block(block: &str) -> bool {
     !matches!(
         block,
         "minecraft:air"
@@ -22797,30 +22799,105 @@ pub fn generate_chunk_for_stem_with_mode(
             ))
         }
     };
-    add_client_heightmaps_from_worldgen(&mut chunk);
+    add_client_heightmaps_from_blocks(&mut chunk);
     Ok(chunk)
 }
 
-fn add_client_heightmaps_from_worldgen(chunk: &mut LevelChunk) {
-    if let Some(Tag::LongArray(values)) = chunk.heightmaps.get("WORLD_SURFACE_WG").cloned() {
-        chunk
-            .heightmaps
-            .entry("WORLD_SURFACE".to_string())
-            .or_insert_with(|| Tag::LongArray(values.clone()));
-        chunk
-            .heightmaps
-            .entry("MOTION_BLOCKING".to_string())
-            .or_insert_with(|| Tag::LongArray(values.clone()));
-        chunk
-            .heightmaps
-            .entry("MOTION_BLOCKING_NO_LEAVES".to_string())
-            .or_insert_with(|| Tag::LongArray(values));
+fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
+    let mut world_surface = [0_i32; 16 * 16];
+    let mut ocean_floor = [0_i32; 16 * 16];
+    let mut motion_blocking = [0_i32; 16 * 16];
+    let mut motion_blocking_no_leaves = [0_i32; 16 * 16];
+    let mut found_world_surface = [false; 16 * 16];
+    let mut found_ocean_floor = [false; 16 * 16];
+    let mut found_motion_blocking = [false; 16 * 16];
+    let mut found_motion_blocking_no_leaves = [false; 16 * 16];
+
+    let mut sections: Vec<_> = chunk
+        .sections
+        .iter()
+        .filter_map(|section| {
+            PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
+                .ok()
+                .map(|container| (section.y, container))
+        })
+        .collect();
+    sections.sort_by_key(|(section_y, _)| *section_y);
+
+    for (section_y, container) in sections.into_iter().rev() {
+        let section_min_y = i32::from(section_y) * 16;
+        for local_y in (0..16).rev() {
+            let world_height = section_min_y + local_y as i32 + 1;
+            for z in 0..16 {
+                for x in 0..16 {
+                    let column = z * 16 + x;
+                    if found_world_surface[column]
+                        && found_ocean_floor[column]
+                        && found_motion_blocking[column]
+                        && found_motion_blocking_no_leaves[column]
+                    {
+                        continue;
+                    }
+                    let index = local_y * 256 + z * 16 + x;
+                    let Some(block) = container.get_entry(index).and_then(block_name_from_tag)
+                    else {
+                        continue;
+                    };
+                    if !found_world_surface[column]
+                        && heightmap_opaque(HeightmapKind::WorldSurface, block)
+                    {
+                        world_surface[column] = world_height;
+                        found_world_surface[column] = true;
+                    }
+                    if !found_ocean_floor[column]
+                        && heightmap_opaque(HeightmapKind::OceanFloor, block)
+                    {
+                        ocean_floor[column] = world_height;
+                        found_ocean_floor[column] = true;
+                    }
+                    if !found_motion_blocking[column]
+                        && heightmap_opaque(HeightmapKind::MotionBlocking, block)
+                    {
+                        motion_blocking[column] = world_height;
+                        found_motion_blocking[column] = true;
+                    }
+                    if !found_motion_blocking_no_leaves[column]
+                        && heightmap_opaque(HeightmapKind::MotionBlockingNoLeaves, block)
+                    {
+                        motion_blocking_no_leaves[column] = world_height;
+                        found_motion_blocking_no_leaves[column] = true;
+                    }
+                }
+            }
+        }
     }
-    if let Some(Tag::LongArray(values)) = chunk.heightmaps.get("OCEAN_FLOOR_WG").cloned() {
+
+    for (name, values) in [
+        ("WORLD_SURFACE", world_surface),
+        ("OCEAN_FLOOR", ocean_floor),
+        ("MOTION_BLOCKING", motion_blocking),
+        ("MOTION_BLOCKING_NO_LEAVES", motion_blocking_no_leaves),
+    ] {
         chunk
             .heightmaps
-            .entry("OCEAN_FLOOR".to_string())
-            .or_insert_with(|| Tag::LongArray(values));
+            .entry(name.to_string())
+            .or_insert_with(|| Tag::LongArray(pack_heightmap(values)));
+    }
+}
+
+fn block_name_from_tag(tag: &Tag) -> Option<&str> {
+    match tag {
+        Tag::Compound(fields) => {
+            fields
+                .iter()
+                .find(|(name, _)| name == "Name")
+                .and_then(|(_, value)| match value {
+                    Tag::String(name) => Some(name.as_str()),
+                    _ => None,
+                })
+        }
+        Tag::String(name) => Some(name.as_str()),
+        _ => None,
     }
 }
 
@@ -37843,6 +37920,67 @@ mod tests {
             }),
             "real-surface chunk should contain non-air blocks in the origin column"
         );
+    }
+
+    #[test]
+    fn final_client_heightmaps_are_computed_from_blocks() {
+        let mut chunk = crate::storage::chunk::LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        let mut block_states = crate::storage::chunk::PalettedContainer::single(
+            super::block_state_tag("minecraft:air"),
+            crate::storage::chunk::SECTION_VOLUME,
+        );
+        block_states.set_entry(
+            1 * 256 + 0 * 16 + 0,
+            super::block_state_tag("minecraft:dirt"),
+        );
+        block_states.set_entry(
+            2 * 256 + 0 * 16 + 0,
+            super::block_state_tag("minecraft:oak_leaves"),
+        );
+        chunk.sections.push(crate::storage::chunk::ChunkSection {
+            y: 0,
+            block_states: block_states.to_nbt(),
+            biomes: crate::storage::chunk::PalettedContainer::single(
+                Tag::String("minecraft:plains".to_string()),
+                crate::storage::chunk::BIOME_SECTION_VOLUME,
+            )
+            .to_nbt(),
+            block_light: None,
+            sky_light: None,
+        });
+
+        super::add_client_heightmaps_from_blocks(&mut chunk);
+
+        let Tag::LongArray(world_surface) = chunk.heightmaps.get("WORLD_SURFACE").unwrap() else {
+            panic!("WORLD_SURFACE should be stored as a long array");
+        };
+        let Tag::LongArray(motion_blocking) = chunk.heightmaps.get("MOTION_BLOCKING").unwrap()
+        else {
+            panic!("MOTION_BLOCKING should be stored as a long array");
+        };
+        let Tag::LongArray(motion_blocking_no_leaves) =
+            chunk.heightmaps.get("MOTION_BLOCKING_NO_LEAVES").unwrap()
+        else {
+            panic!("MOTION_BLOCKING_NO_LEAVES should be stored as a long array");
+        };
+
+        assert_eq!(unpack_heightmap_column(world_surface, 0), 3);
+        assert_eq!(unpack_heightmap_column(motion_blocking, 0), 3);
+        assert_eq!(unpack_heightmap_column(motion_blocking_no_leaves, 0), 2);
+    }
+
+    fn unpack_heightmap_column(values: &[i64], index: usize) -> i32 {
+        const BITS_PER_ENTRY: usize = 9;
+        let bit_offset = index * BITS_PER_ENTRY;
+        let word_index = bit_offset / 64;
+        let bit_index = bit_offset % 64;
+        let mut value = ((values[word_index] as u64) >> bit_index) & ((1 << BITS_PER_ENTRY) - 1);
+        let spill = bit_index + BITS_PER_ENTRY;
+        if spill > 64 {
+            value |= (values[word_index + 1] as u64) << (64 - bit_index);
+            value &= (1 << BITS_PER_ENTRY) - 1;
+        }
+        value as i32
     }
 
     #[test]
