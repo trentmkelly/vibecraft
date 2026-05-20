@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use super::datafix::require_current_tag_data_version;
 use super::nbt::Tag;
 use super::region::ChunkPos;
+use crate::worldgen::{validate_blending_data_packed, BlendingDataPacked};
 
 pub const CHUNK_WIDTH: i32 = 16;
 pub const SECTION_VOLUME: usize = 16 * 16 * 16;
@@ -580,7 +581,7 @@ impl LevelChunk {
             entities: optional_list_field(root, "entities")?.unwrap_or_default(),
             structures: field(root, "structures")?.clone(),
             upgrade_data: optional_field(root, "UpgradeData").cloned(),
-            blending_data: optional_field(root, "blending_data").cloned(),
+            blending_data: optional_blending_data(root)?,
             below_zero_retrogen: optional_below_zero_retrogen(root)?,
             carving_mask: optional_long_array(root, "carving_mask")?,
             block_ticks: list_field(root, "block_ticks")?.to_vec(),
@@ -994,6 +995,46 @@ fn optional_bool_field(compound: &[(String, Tag)], name: &str) -> Result<Option<
     }
 }
 
+fn optional_blending_data(compound: &[(String, Tag)]) -> Result<Option<Tag>, String> {
+    let Some(tag) = optional_field(compound, "blending_data") else {
+        return Ok(None);
+    };
+    validate_blending_data(tag)?;
+    Ok(Some(tag.clone()))
+}
+
+fn validate_blending_data(tag: &Tag) -> Result<(), String> {
+    let compound = compound(tag)?;
+    let min_section = int_field(compound, "min_section")?;
+    let max_section = int_field(compound, "max_section")?;
+    let heights = optional_double_list(compound, "heights")?;
+    validate_blending_data_packed(BlendingDataPacked {
+        min_section,
+        max_section,
+        heights: heights.as_deref(),
+    })
+}
+
+fn optional_double_list(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<Vec<f64>>, String> {
+    let Some(tag) = optional_field(compound, name) else {
+        return Ok(None);
+    };
+    let Tag::List(values) = tag else {
+        return Err(format!("NBT field {name} must be a double list"));
+    };
+    values
+        .iter()
+        .map(|value| match value {
+            Tag::Double(value) => Ok(*value),
+            _ => Err(format!("NBT field {name} must be a double list")),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
 fn optional_below_zero_retrogen(compound: &[(String, Tag)]) -> Result<Option<Tag>, String> {
     let Some(tag) = optional_field(compound, "below_zero_retrogen") else {
         return Ok(None);
@@ -1062,7 +1103,10 @@ mod tests {
             )])],
             structures: Tag::Compound(vec![("starts".to_string(), Tag::Compound(Vec::new()))]),
             upgrade_data: Some(Tag::Compound(vec![("Sides".to_string(), Tag::Int(0))])),
-            blending_data: Some(Tag::Compound(vec![("old_noise".to_string(), Tag::Byte(1))])),
+            blending_data: Some(Tag::Compound(vec![
+                ("min_section".to_string(), Tag::Int(-4)),
+                ("max_section".to_string(), Tag::Int(20)),
+            ])),
             below_zero_retrogen: Some(Tag::Compound(vec![(
                 "target_status".to_string(),
                 Tag::String("minecraft:noise".to_string()),
@@ -1124,6 +1168,79 @@ mod tests {
         let decoded = LevelChunk::from_nbt(chunk.pos, &encoded).unwrap();
         assert!(decoded.entities.is_empty());
         assert!(decoded.carving_mask.is_none());
+    }
+
+    #[test]
+    fn level_chunk_validates_blending_data_payload_shape() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut encoded = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut encoded else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "blending_data".to_string(),
+            Tag::Compound(vec![
+                ("min_section".to_string(), Tag::Int(-4)),
+                ("max_section".to_string(), Tag::Int(20)),
+                (
+                    "heights".to_string(),
+                    Tag::List((0..16).map(|value| Tag::Double(f64::from(value))).collect()),
+                ),
+            ]),
+        ));
+
+        let decoded = LevelChunk::from_nbt(pos, &encoded).unwrap();
+
+        assert!(decoded.blending_data.is_some());
+    }
+
+    #[test]
+    fn level_chunk_rejects_invalid_blending_data_payload_shape() {
+        let pos = ChunkPos { x: 0, z: 0 };
+
+        let mut missing_sections = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut missing_sections else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "blending_data".to_string(),
+            Tag::Compound(vec![("heights".to_string(), Tag::List(Vec::new()))]),
+        ));
+        let err = LevelChunk::from_nbt(pos, &missing_sections).unwrap_err();
+        assert!(err.contains("missing NBT field min_section"));
+
+        let mut wrong_heights_len = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut wrong_heights_len else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "blending_data".to_string(),
+            Tag::Compound(vec![
+                ("min_section".to_string(), Tag::Int(-4)),
+                ("max_section".to_string(), Tag::Int(20)),
+                (
+                    "heights".to_string(),
+                    Tag::List(vec![Tag::Double(0.0), Tag::Double(1.0)]),
+                ),
+            ]),
+        ));
+        let err = LevelChunk::from_nbt(pos, &wrong_heights_len).unwrap_err();
+        assert!(err.contains("heights has to be of length 16"));
+
+        let mut wrong_heights_type = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut wrong_heights_type else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.push((
+            "blending_data".to_string(),
+            Tag::Compound(vec![
+                ("min_section".to_string(), Tag::Int(-4)),
+                ("max_section".to_string(), Tag::Int(20)),
+                ("heights".to_string(), Tag::List(vec![Tag::Int(0)])),
+            ]),
+        ));
+        let err = LevelChunk::from_nbt(pos, &wrong_heights_type).unwrap_err();
+        assert!(err.contains("NBT field heights must be a double list"));
     }
 
     #[test]
