@@ -28888,7 +28888,24 @@ pub fn apply_configured_carvers_to_chunk(
         }
     }
 
+    if !mask.is_empty() {
+        chunk.carving_mask = Some(pack_carving_mask_indices(&mask));
+    }
+
     carved_blocks
+}
+
+pub fn pack_carving_mask_indices(indices: &[usize]) -> Vec<i64> {
+    let Some(max_index) = indices.iter().copied().max() else {
+        return Vec::new();
+    };
+    let mut words = vec![0_i64; max_index / 64 + 1];
+    for index in indices {
+        let word_index = index / 64;
+        let bit_index = index % 64;
+        words[word_index] |= (1_i64) << bit_index;
+    }
+    words
 }
 
 fn carve_configured_carver_from_source_chunk(
@@ -40439,6 +40456,10 @@ mod tests {
             .expect("carver status must execute");
 
         assert_eq!(carvers.status, "minecraft:carvers");
+        assert!(
+            carvers.carving_mask.as_ref().is_some_and(|mask| !mask.is_empty()),
+            "carver execution should persist a carving mask on the generated chunk"
+        );
         assert_ne!(
             surface.heightmaps.get("WORLD_SURFACE"),
             carvers.heightmaps.get("WORLD_SURFACE"),
@@ -40463,6 +40484,15 @@ mod tests {
             changed_blocks >= 16,
             "configured carvers should replace terrain blocks with cave air or lava"
         );
+    }
+
+    #[test]
+    fn carving_mask_indices_pack_to_persisted_bitset_words() {
+        let packed = super::pack_carving_mask_indices(&[0, 1, 63, 64, 130]);
+        assert_eq!(packed.len(), 3);
+        assert_eq!(packed[0] as u64, 0x8000_0000_0000_0003);
+        assert_eq!(packed[1] as u64, 0x0000_0000_0000_0001);
+        assert_eq!(packed[2] as u64, 0x0000_0000_0000_0004);
     }
 
     #[test]
