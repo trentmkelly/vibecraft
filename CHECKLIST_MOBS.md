@@ -63,7 +63,7 @@
 - [ ] Implement `ElderGuardian`: elder curse (Mining Fatigue III, 60s) within 50 blocks, beam laser at aquatic player targets, spike thorns passive
 - [ ] Implement `EnderMan`: holding block (pickup/place logic), teleport on water/rain, look-at-eyes anger trigger, teleport-away from projectiles, scream sound on anger
 - [x] Implement `Endermite`: spawn from ender pearl (5% chance), 2-minute despawn timer, attacked by endermen
-- [ ] Implement `Ghast`: attack cycle (charge fireball, shoot), large hitbox (4×4×4), fire immunity, scream/shoot sounds, deflectable fireball by projectiles/swords
+- [x] Implement `Ghast`: attack cycle (charge fireball, shoot), large hitbox (4×4×4), fire immunity, scream/shoot sounds, deflectable fireball by projectiles/swords
 - [x] Implement `Giant`: legacy oversized zombie (no natural spawn, only `/summon`), 12-block height, no AI goals
 - [ ] Implement `Guardian`: laser beam targeting (beam charge, inflict damage at full charge), spikes thorns, elder spawning on death
 - [x] Implement `MagmaCube`: split into smaller cubes on death (size-1 → 2–4 smaller), slime-family movement, fire immunity

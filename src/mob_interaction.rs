@@ -1478,6 +1478,221 @@ pub fn hoglin_base_throw_target(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GhastAttributes {
+    pub max_health: f32,
+    pub follow_range: f32,
+    pub camera_distance: f32,
+    pub flying_speed: f32,
+    pub xp_reward: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GhastEntityTypeSurface {
+    pub width: f32,
+    pub height: f32,
+    pub eye_height: f32,
+    pub passenger_attachment_y: f32,
+    pub riding_offset: f32,
+    pub client_tracking_range: i32,
+    pub fire_immune: bool,
+    pub not_in_peaceful: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GhastShootTick {
+    pub charge_time: i32,
+    pub charging: bool,
+    pub warn_level_event: Option<i32>,
+    pub shoot_level_event: Option<i32>,
+    pub fireball: Option<GhastFireballPlan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GhastFireballPlan {
+    pub spawn_offset: f64,
+    pub y_offset_from_ghast_mid: f64,
+    pub explosion_power: i32,
+}
+
+pub const GHAST_MAX_HEALTH: f32 = 10.0;
+pub const GHAST_FOLLOW_RANGE: f32 = 100.0;
+pub const GHAST_CAMERA_DISTANCE: f32 = 8.0;
+pub const GHAST_FLYING_SPEED: f32 = 0.06;
+pub const GHAST_XP_REWARD: i32 = 5;
+pub const GHAST_WIDTH: f32 = 4.0;
+pub const GHAST_HEIGHT: f32 = 4.0;
+pub const GHAST_EYE_HEIGHT: f32 = 2.6;
+pub const GHAST_PASSENGER_ATTACHMENT_Y: f32 = 4.0625;
+pub const GHAST_RIDING_OFFSET: f32 = 0.5;
+pub const GHAST_CLIENT_TRACKING_RANGE: i32 = 10;
+pub const GHAST_DEFAULT_EXPLOSION_POWER: i32 = 1;
+pub const GHAST_SOUND_VOLUME: f32 = 5.0;
+pub const GHAST_TARGET_VERTICAL_RANGE: f64 = 4.0;
+pub const GHAST_TARGET_CHANCE_INTERVAL: i32 = 10;
+pub const GHAST_SHOOT_MAX_DISTANCE_SQR: f64 = 4096.0;
+pub const GHAST_CHARGE_WARN_TICKS: i32 = 10;
+pub const GHAST_CHARGE_SHOOT_TICKS: i32 = 20;
+pub const GHAST_CHARGE_COOLDOWN_AFTER_SHOT: i32 = -40;
+pub const GHAST_WARN_LEVEL_EVENT: i32 = 1015;
+pub const GHAST_SHOOT_LEVEL_EVENT: i32 = 1016;
+pub const GHAST_FIREBALL_SPAWN_OFFSET: f64 = 4.0;
+pub const GHAST_FIREBALL_Y_OFFSET_FROM_MID: f64 = 0.5;
+pub const GHAST_FIREBALL_ENTITY_DAMAGE: f32 = 6.0;
+pub const GHAST_REFLECTED_FIREBALL_DAMAGE: f32 = 1000.0;
+pub const GHAST_RANDOM_FLOAT_MAX_ATTEMPTS: i32 = 64;
+pub const GHAST_RANDOM_FLOAT_RANGE: f64 = 16.0;
+pub const GHAST_RANDOM_FLOAT_REACHED_DISTANCE_SQR: f64 = 1.0;
+pub const GHAST_RANDOM_FLOAT_TOO_FAR_DISTANCE_SQR: f64 = 3600.0;
+pub const GHAST_MOVE_FLOAT_DURATION_RANDOM_BOUND: i32 = 5;
+pub const GHAST_MOVE_FLOAT_DURATION_MIN_ADD: i32 = 2;
+pub const GHAST_MOVE_ACCELERATION_SCALE: f64 = 5.0 / 3.0;
+pub const GHAST_LEASH_ELASTIC_DISTANCE: f64 = 10.0;
+pub const GHAST_LEASH_SNAP_DISTANCE: f64 = 16.0;
+
+pub fn ghast_attributes() -> GhastAttributes {
+    GhastAttributes {
+        max_health: GHAST_MAX_HEALTH,
+        follow_range: GHAST_FOLLOW_RANGE,
+        camera_distance: GHAST_CAMERA_DISTANCE,
+        flying_speed: GHAST_FLYING_SPEED,
+        xp_reward: GHAST_XP_REWARD,
+    }
+}
+
+pub fn ghast_entity_type_surface() -> GhastEntityTypeSurface {
+    GhastEntityTypeSurface {
+        width: GHAST_WIDTH,
+        height: GHAST_HEIGHT,
+        eye_height: GHAST_EYE_HEIGHT,
+        passenger_attachment_y: GHAST_PASSENGER_ATTACHMENT_Y,
+        riding_offset: GHAST_RIDING_OFFSET,
+        client_tracking_range: GHAST_CLIENT_TRACKING_RANGE,
+        fire_immune: true,
+        not_in_peaceful: true,
+    }
+}
+
+pub fn ghast_spawn_allowed(
+    peaceful_difficulty: bool,
+    random_0_to_19: i32,
+    mob_spawn_rules_pass: bool,
+) -> bool {
+    !peaceful_difficulty && random_0_to_19.rem_euclid(20) == 0 && mob_spawn_rules_pass
+}
+
+pub fn ghast_target_predicate_matches(abs_target_y_delta: f64) -> bool {
+    abs_target_y_delta <= GHAST_TARGET_VERTICAL_RANGE
+}
+
+pub fn ghast_is_reflected_fireball(
+    direct_entity: &'static str,
+    source_entity: &'static str,
+) -> bool {
+    direct_entity == "minecraft:fireball" && source_entity == "minecraft:player"
+}
+
+pub fn ghast_hurt_damage(
+    reflected_fireball: bool,
+    invulnerable_to_source: bool,
+    incoming_damage: f32,
+) -> Option<f32> {
+    if reflected_fireball {
+        Some(GHAST_REFLECTED_FIREBALL_DAMAGE)
+    } else if invulnerable_to_source {
+        None
+    } else {
+        Some(incoming_damage)
+    }
+}
+
+pub fn ghast_shoot_fireball_tick(
+    charge_time: i32,
+    target_present: bool,
+    target_distance_sqr: f64,
+    has_line_of_sight: bool,
+    silent: bool,
+    explosion_power: i32,
+) -> GhastShootTick {
+    if !target_present {
+        return GhastShootTick {
+            charge_time,
+            charging: false,
+            warn_level_event: None,
+            shoot_level_event: None,
+            fireball: None,
+        };
+    }
+
+    if target_distance_sqr < GHAST_SHOOT_MAX_DISTANCE_SQR && has_line_of_sight {
+        let next_charge_time = charge_time + 1;
+        if next_charge_time == GHAST_CHARGE_SHOOT_TICKS {
+            return GhastShootTick {
+                charge_time: GHAST_CHARGE_COOLDOWN_AFTER_SHOT,
+                charging: false,
+                warn_level_event: None,
+                shoot_level_event: (!silent).then_some(GHAST_SHOOT_LEVEL_EVENT),
+                fireball: Some(GhastFireballPlan {
+                    spawn_offset: GHAST_FIREBALL_SPAWN_OFFSET,
+                    y_offset_from_ghast_mid: GHAST_FIREBALL_Y_OFFSET_FROM_MID,
+                    explosion_power,
+                }),
+            };
+        }
+
+        GhastShootTick {
+            charge_time: next_charge_time,
+            charging: next_charge_time > GHAST_CHARGE_WARN_TICKS,
+            warn_level_event: (next_charge_time == GHAST_CHARGE_WARN_TICKS && !silent)
+                .then_some(GHAST_WARN_LEVEL_EVENT),
+            shoot_level_event: None,
+            fireball: None,
+        }
+    } else {
+        let next_charge_time = if charge_time > 0 {
+            charge_time - 1
+        } else {
+            charge_time
+        };
+        GhastShootTick {
+            charge_time: next_charge_time,
+            charging: next_charge_time > GHAST_CHARGE_WARN_TICKS,
+            warn_level_event: None,
+            shoot_level_event: None,
+            fireball: None,
+        }
+    }
+}
+
+pub fn ghast_random_float_can_use(move_control_has_wanted: bool, wanted_distance_sqr: f64) -> bool {
+    !move_control_has_wanted
+        || wanted_distance_sqr < GHAST_RANDOM_FLOAT_REACHED_DISTANCE_SQR
+        || wanted_distance_sqr > GHAST_RANDOM_FLOAT_TOO_FAR_DISTANCE_SQR
+}
+
+pub fn ghast_random_float_target(
+    center: (f64, f64, f64),
+    random_x: f64,
+    random_y: f64,
+    random_z: f64,
+) -> (f64, f64, f64) {
+    (
+        center.0 + (random_x * 2.0 - 1.0) * GHAST_RANDOM_FLOAT_RANGE,
+        center.1 + (random_y * 2.0 - 1.0) * GHAST_RANDOM_FLOAT_RANGE,
+        center.2 + (random_z * 2.0 - 1.0) * GHAST_RANDOM_FLOAT_RANGE,
+    )
+}
+
+pub fn ghast_move_float_duration_tick(current_duration: i32, random_0_to_4: i32) -> i32 {
+    current_duration - 1
+        + random_0_to_4.rem_euclid(GHAST_MOVE_FLOAT_DURATION_RANDOM_BOUND)
+        + GHAST_MOVE_FLOAT_DURATION_MIN_ADD
+}
+
+pub fn large_fireball_hit_outcome(mob_griefing: bool, explosion_power: i32) -> (f32, bool, bool) {
+    (explosion_power as f32, mob_griefing, true)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GiantAttributes {
     pub max_health: f32,
     pub movement_speed: f32,
@@ -7764,6 +7979,122 @@ mod tests {
                 hurt_marked: true,
             })
         );
+    }
+
+    #[test]
+    fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
+        assert_eq!(
+            ghast_attributes(),
+            GhastAttributes {
+                max_health: 10.0,
+                follow_range: 100.0,
+                camera_distance: 8.0,
+                flying_speed: 0.06,
+                xp_reward: 5,
+            }
+        );
+        assert_eq!(
+            ghast_entity_type_surface(),
+            GhastEntityTypeSurface {
+                width: 4.0,
+                height: 4.0,
+                eye_height: 2.6,
+                passenger_attachment_y: 4.0625,
+                riding_offset: 0.5,
+                client_tracking_range: 10,
+                fire_immune: true,
+                not_in_peaceful: true,
+            }
+        );
+        assert!(ghast_spawn_allowed(false, 0, true));
+        assert!(!ghast_spawn_allowed(true, 0, true));
+        assert!(!ghast_spawn_allowed(false, 1, true));
+        assert!(!ghast_spawn_allowed(false, 0, false));
+        assert!(ghast_target_predicate_matches(4.0));
+        assert!(!ghast_target_predicate_matches(4.01));
+        assert_eq!(GHAST_SOUND_VOLUME, 5.0);
+        assert_eq!(GHAST_DEFAULT_EXPLOSION_POWER, 1);
+        assert_eq!(GHAST_LEASH_ELASTIC_DISTANCE, 10.0);
+        assert_eq!(GHAST_LEASH_SNAP_DISTANCE, 16.0);
+
+        assert!(ghast_is_reflected_fireball(
+            "minecraft:fireball",
+            "minecraft:player"
+        ));
+        assert!(!ghast_is_reflected_fireball(
+            "minecraft:small_fireball",
+            "minecraft:player"
+        ));
+        assert_eq!(ghast_hurt_damage(true, true, 1.0), Some(1000.0));
+        assert_eq!(ghast_hurt_damage(false, true, 6.0), None);
+        assert_eq!(ghast_hurt_damage(false, false, 6.0), Some(6.0));
+        assert_eq!(GHAST_FIREBALL_ENTITY_DAMAGE, 6.0);
+
+        assert_eq!(
+            ghast_shoot_fireball_tick(9, true, 4095.9, true, false, 1),
+            GhastShootTick {
+                charge_time: 10,
+                charging: false,
+                warn_level_event: Some(1015),
+                shoot_level_event: None,
+                fireball: None,
+            }
+        );
+        assert_eq!(
+            ghast_shoot_fireball_tick(10, true, 4095.9, true, false, 1).charging,
+            true
+        );
+        assert_eq!(
+            ghast_shoot_fireball_tick(19, true, 4095.9, true, false, 3),
+            GhastShootTick {
+                charge_time: -40,
+                charging: false,
+                warn_level_event: None,
+                shoot_level_event: Some(1016),
+                fireball: Some(GhastFireballPlan {
+                    spawn_offset: 4.0,
+                    y_offset_from_ghast_mid: 0.5,
+                    explosion_power: 3,
+                }),
+            }
+        );
+        assert_eq!(
+            ghast_shoot_fireball_tick(19, true, 4095.9, true, true, 1).shoot_level_event,
+            None
+        );
+        assert_eq!(
+            ghast_shoot_fireball_tick(3, true, 4096.0, true, false, 1).charge_time,
+            2
+        );
+        assert_eq!(
+            ghast_shoot_fireball_tick(0, true, 4096.0, true, false, 1).charge_time,
+            0
+        );
+        assert_eq!(
+            ghast_shoot_fireball_tick(12, false, 0.0, true, false, 1),
+            GhastShootTick {
+                charge_time: 12,
+                charging: false,
+                warn_level_event: None,
+                shoot_level_event: None,
+                fireball: None,
+            }
+        );
+
+        assert!(ghast_random_float_can_use(false, 100.0));
+        assert!(ghast_random_float_can_use(true, 0.99));
+        assert!(ghast_random_float_can_use(true, 3600.01));
+        assert!(!ghast_random_float_can_use(true, 1.0));
+        assert!(!ghast_random_float_can_use(true, 3600.0));
+        assert_eq!(GHAST_RANDOM_FLOAT_MAX_ATTEMPTS, 64);
+        assert_eq!(
+            ghast_random_float_target((10.0, 20.0, 30.0), 0.0, 0.5, 1.0),
+            (-6.0, 20.0, 46.0)
+        );
+        assert_eq!(ghast_move_float_duration_tick(0, 4), 5);
+        assert_eq!(GHAST_MOVE_ACCELERATION_SCALE, 5.0 / 3.0);
+        assert_eq!(large_fireball_hit_outcome(true, 2), (2.0, true, true));
+        assert_eq!(large_fireball_hit_outcome(false, 1), (1.0, false, true));
     }
 
     #[test]
