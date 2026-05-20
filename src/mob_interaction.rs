@@ -276,6 +276,22 @@ pub struct SlimeSpawnRuleInput {
     pub underground_random_bound_10: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SlimeFloatGoalStep {
+    pub can_use: bool,
+    pub jump: bool,
+    pub wanted_movement: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SlimeMoveControlStep {
+    pub speed: f32,
+    pub jump: bool,
+    pub play_jump_sound: bool,
+    pub next_jump_delay: i32,
+    pub zero_strafe: bool,
+}
+
 pub const SLIME_MIN_SIZE: i32 = 1;
 pub const SLIME_MAX_SIZE: i32 = 127;
 pub const SLIME_MAX_NATURAL_SIZE: i32 = 4;
@@ -284,6 +300,7 @@ pub const SLIME_DEFAULT_WAS_ON_GROUND: bool = false;
 pub const SLIME_BASE_MOVEMENT_SPEED: f32 = 0.2;
 pub const SLIME_MOVEMENT_SPEED_PER_SIZE: f32 = 0.1;
 pub const SLIME_FLOAT_WANTED_MOVEMENT: f32 = 1.2;
+pub const SLIME_FLOAT_JUMP_CHANCE: f32 = 0.8;
 pub const SLIME_KEEP_JUMPING_WANTED_MOVEMENT: f32 = 1.0;
 pub const SLIME_ATTACK_TARGET_VERTICAL_RANGE: f64 = 4.0;
 pub const SLIME_ATTACK_GROW_TIRED_TICKS: i32 = 300;
@@ -412,6 +429,94 @@ impl SlimeFamilyState {
     pub fn lava_jump_y_velocity(self) -> Option<f32> {
         (self.kind == SlimeFamilyKind::MagmaCube)
             .then_some(MAGMA_CUBE_LAVA_JUMP_BASE + self.size as f32 * MAGMA_CUBE_LAVA_JUMP_PER_SIZE)
+    }
+
+    pub fn float_goal_step(
+        self,
+        in_water: bool,
+        in_lava: bool,
+        has_slime_move_control: bool,
+        random_float: f32,
+    ) -> SlimeFloatGoalStep {
+        let can_use = (in_water || in_lava) && has_slime_move_control;
+        SlimeFloatGoalStep {
+            can_use,
+            jump: can_use && random_float < SLIME_FLOAT_JUMP_CHANCE,
+            wanted_movement: if can_use {
+                SLIME_FLOAT_WANTED_MOVEMENT
+            } else {
+                0.0
+            },
+        }
+    }
+
+    pub fn keep_on_jumping_can_use(self, passenger: bool) -> bool {
+        !passenger
+    }
+
+    pub fn random_direction_can_use(
+        self,
+        target_present: bool,
+        on_ground: bool,
+        in_water: bool,
+        in_lava: bool,
+        has_levitation: bool,
+        has_slime_move_control: bool,
+    ) -> bool {
+        !target_present
+            && (on_ground || in_water || in_lava || has_levitation)
+            && has_slime_move_control
+    }
+
+    pub fn move_control_step(
+        self,
+        operation_move_to: bool,
+        on_ground: bool,
+        speed_modifier: f32,
+        movement_speed_attribute: f32,
+        jump_delay: i32,
+        random_0_to_19: i32,
+        aggressive: bool,
+    ) -> SlimeMoveControlStep {
+        if !operation_move_to {
+            return SlimeMoveControlStep {
+                speed: 0.0,
+                jump: false,
+                play_jump_sound: false,
+                next_jump_delay: jump_delay,
+                zero_strafe: false,
+            };
+        }
+
+        let speed = speed_modifier * movement_speed_attribute;
+        if !on_ground {
+            return SlimeMoveControlStep {
+                speed,
+                jump: false,
+                play_jump_sound: false,
+                next_jump_delay: jump_delay,
+                zero_strafe: false,
+            };
+        }
+
+        if jump_delay <= 0 {
+            let next_jump_delay = self.jump_delay(random_0_to_19, aggressive);
+            SlimeMoveControlStep {
+                speed,
+                jump: true,
+                play_jump_sound: self.size > 0,
+                next_jump_delay,
+                zero_strafe: false,
+            }
+        } else {
+            SlimeMoveControlStep {
+                speed: 0.0,
+                jump: false,
+                play_jump_sound: false,
+                next_jump_delay: jump_delay - 1,
+                zero_strafe: true,
+            }
+        }
     }
 
     pub fn sound_volume(self) -> f32 {
@@ -6432,6 +6537,52 @@ mod tests {
         assert!(!SlimeFamilyState::new(SlimeFamilyKind::Slime, 1).deals_damage(true));
         assert_eq!(slime.jump_delay(19, false), 29);
         assert_eq!(slime.jump_delay(19, true), 9);
+        assert_eq!(
+            slime.float_goal_step(true, false, true, 0.79),
+            SlimeFloatGoalStep {
+                can_use: true,
+                jump: true,
+                wanted_movement: 1.2,
+            }
+        );
+        assert_eq!(
+            slime.float_goal_step(false, false, true, 0.0),
+            SlimeFloatGoalStep {
+                can_use: false,
+                jump: false,
+                wanted_movement: 0.0,
+            }
+        );
+        assert!(slime.keep_on_jumping_can_use(false));
+        assert!(!slime.keep_on_jumping_can_use(true));
+        assert!(slime.random_direction_can_use(false, false, true, false, false, true));
+        assert!(!slime.random_direction_can_use(true, true, false, false, false, true));
+        assert_eq!(
+            slime.move_control_step(true, true, 1.2, 0.6, 0, 5, true),
+            SlimeMoveControlStep {
+                speed: 0.72,
+                jump: true,
+                play_jump_sound: true,
+                next_jump_delay: 5,
+                zero_strafe: false,
+            }
+        );
+        assert_eq!(
+            slime.move_control_step(true, true, 1.2, 0.6, 3, 5, false),
+            SlimeMoveControlStep {
+                speed: 0.0,
+                jump: false,
+                play_jump_sound: false,
+                next_jump_delay: 2,
+                zero_strafe: true,
+            }
+        );
+        assert_eq!(
+            slime
+                .move_control_step(true, false, 1.2, 0.6, 3, 5, false)
+                .speed,
+            0.72
+        );
         assert_eq!(slime.sound_volume(), 1.6);
         assert_eq!(slime.passenger_attachment_y(2.04, 1.0), 1.9775);
 

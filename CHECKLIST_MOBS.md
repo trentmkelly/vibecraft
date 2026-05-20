@@ -73,8 +73,8 @@
 - [ ] Implement `Ravager`: stomp attack (AoE damage + slow), roar stun after rider dismounts, grieving leaves/crops in path
 - [ ] Implement `Shulker`: attached face (6 directions), shell open/close, homing `ShulkerBullet` projectile, teleport on damage, levitation effect on hit, color variants, invisible variant
 - [ ] Implement `Silverfish`: infest stone/cobblestone/brick blocks on death, emergency-call behavior waking nearby infested blocks
-- [ ] Implement `Slime`: size variants (1/2/4), split on death, water avoidance, harmless when `size <= 1`
-  - [x] Implement Java-matched `Slime` server-visible size and split gates: size clamp 1..127, natural spawn sizes 1/2/4, save `Size=size-1` plus `wasOnGround`, max-health `size²`, movement speed `0.2 + 0.1×size`, attack damage/xp = size, tiny harmless gate, 2-4 half-size death split children with Java offsets, squish/landing particle timing, spawn surface/swamp and slime-chunk gates, jump-delay/aggressive-delay math, and passenger attachment/sound-volume constants.
+- [x] Implement `Slime`: size variants (1/2/4), split on death, water/lava float movement, harmless when `size <= 1`
+  - [x] Implement Java-matched `Slime` server-visible size and split gates: size clamp 1..127, natural spawn sizes 1/2/4, save `Size=size-1` plus `wasOnGround`, max-health `size²`, movement speed `0.2 + 0.1×size`, attack damage/xp = size, tiny harmless gate, 2-4 half-size death split children with Java offsets, squish/landing particle timing, spawn surface/swamp and slime-chunk gates, jump-delay/aggressive-delay math, float-goal/move-control gates, and passenger attachment/sound-volume constants.
 - [ ] Implement `Strider`: lava walking, saddle+ride with carrot-on-a-stick steering, trembling cold-biome state, attraction to warped fungus
 - [ ] Implement `Vex`: summoned by evoker (max 3 per evoker), phase through solid blocks, 30–119 tick lifespan after summon
 - [ ] Implement `Witch`: splash potion attack (harm/slowness/weakness/poison selection by context), self-healing with instant-health/fire-resistance/water-breathing/swiftness potions, raid rider on Ravager
