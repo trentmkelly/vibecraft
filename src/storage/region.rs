@@ -15,6 +15,7 @@ use super::nbt::{read_named_tag, write_named_tag, Tag};
 pub const SECTOR_BYTES: u32 = 4096;
 pub const HEADER_BYTES: u64 = 8192;
 pub const CHUNKS_PER_REGION_AXIS: i32 = 32;
+pub const OLD_CHUNK_DATA_VERSION_CUTOFF: i32 = 4295;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkPos {
@@ -473,6 +474,23 @@ impl RegionIoWorker {
     }
 }
 
+pub fn chunk_tag_is_old_for_blending(tag: &Tag) -> bool {
+    let Tag::Compound(fields) = tag else {
+        return false;
+    };
+    let data_version = fields
+        .iter()
+        .find_map(|(name, tag)| match (name.as_str(), tag) {
+            ("DataVersion", Tag::Int(value)) => Some(*value),
+            _ => None,
+        })
+        .unwrap_or(0);
+    data_version < OLD_CHUNK_DATA_VERSION_CUTOFF
+        || fields
+            .iter()
+            .any(|(name, tag)| name == "blending_data" && matches!(tag, Tag::Compound(_)))
+}
+
 fn encode_region_payload(
     name: &str,
     tag: &Tag,
@@ -543,8 +561,8 @@ fn decode_region_payload(
 #[cfg(test)]
 mod tests {
     use super::{
-        ChunkPos, RegionCompression, RegionFile, RegionIoWorker, RegionLocation, RegionPos,
-        HEADER_BYTES,
+        chunk_tag_is_old_for_blending, ChunkPos, RegionCompression, RegionFile, RegionIoWorker,
+        RegionLocation, RegionPos, HEADER_BYTES, OLD_CHUNK_DATA_VERSION_CUTOFF,
     };
     use crate::storage::nbt::Tag;
     use std::fs;
@@ -797,6 +815,34 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn chunk_tag_old_for_blending_matches_ioworker_rule() {
+        assert!(chunk_tag_is_old_for_blending(&Tag::Compound(vec![])));
+        assert!(chunk_tag_is_old_for_blending(&Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            Tag::Int(OLD_CHUNK_DATA_VERSION_CUTOFF - 1),
+        )])));
+        assert!(!chunk_tag_is_old_for_blending(&Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            Tag::Int(OLD_CHUNK_DATA_VERSION_CUTOFF),
+        )])));
+        assert!(chunk_tag_is_old_for_blending(&Tag::Compound(vec![
+            (
+                "DataVersion".to_string(),
+                Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+            ),
+            ("blending_data".to_string(), Tag::Compound(Vec::new())),
+        ])));
+        assert!(!chunk_tag_is_old_for_blending(&Tag::Compound(vec![
+            (
+                "DataVersion".to_string(),
+                Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+            ),
+            ("blending_data".to_string(), Tag::List(Vec::new())),
+        ])));
+        assert!(!chunk_tag_is_old_for_blending(&Tag::List(Vec::new())));
     }
 
     #[test]
