@@ -172,6 +172,7 @@
 - [ ] Implement `Fox`: nocturnal chicken-hunting, item-holding/stealing, sweet-berry eating, trusting (bred from trusted parents), snow-dive pounce
 - [ ] Implement `Frog`: tongue-attack on small slimes/magma cubes (absorb into stomach), tadpole-laying in water on breed, frog variant = biome (temperate/warm/cold)
 - [ ] Implement `Goat`: ram-charge targeting (scream variant more frequent), horn-drop on successful ram, milking via bucket
+  - [x] Implement Java-matched `Goat` server-visible gates: 2% screaming spawn chance, 10% adult missing-horn spawn chance, bucket milking gate, left/right horn-drop selection, ram/long-jump timing ranges, ram knockback, and lowered-head rotation
 - [ ] Implement `IronGolem`: village-protection patrol AI, crack-stage visual from health percentage, pumpkin-carved face after player placement, rose-offer to villagers
 - [ ] Implement `SnowGolem`: trail snow layer placement, melt in rain/warm biomes, pumpkin-carved face
 - [ ] Implement `HappyGhast` (new in 26.1.2): large passive Nether mob, multiple-passenger riding (up to 4 harness slots), leads attachment, taming with dried ghast item, does not deal damage
