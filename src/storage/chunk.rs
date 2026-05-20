@@ -952,6 +952,31 @@ pub fn chunk_status_is_or_after(status: &str, required: &str) -> Option<bool> {
     Some(chunk_status(status)?.index >= chunk_status(required)?.index)
 }
 
+pub fn chunk_status_is_after(status: &str, other: &str) -> Option<bool> {
+    Some(chunk_status(status)?.index > chunk_status(other)?.index)
+}
+
+pub fn chunk_status_is_or_before(status: &str, other: &str) -> Option<bool> {
+    Some(chunk_status(status)?.index <= chunk_status(other)?.index)
+}
+
+pub fn chunk_status_is_before(status: &str, other: &str) -> Option<bool> {
+    Some(chunk_status(status)?.index < chunk_status(other)?.index)
+}
+
+pub fn chunk_status_max(a: &str, b: &str) -> Option<&'static str> {
+    let a = chunk_status(a)?;
+    let b = chunk_status(b)?;
+    Some(if a.index > b.index { a.id } else { b.id })
+}
+
+pub fn chunk_status_list() -> Vec<&'static str> {
+    CHUNK_STATUS_PIPELINE
+        .iter()
+        .map(|status| status.id)
+        .collect()
+}
+
 fn heightmap_fields(chunk: &LevelChunk) -> Vec<(String, Tag)> {
     chunk
         .heightmaps
@@ -1241,7 +1266,8 @@ fn validate_below_zero_retrogen(tag: &Tag) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        chunk_status, chunk_status_is_or_after, default_biomes_container,
+        chunk_status, chunk_status_is_after, chunk_status_is_before, chunk_status_is_or_after,
+        chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
         default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
         saved_tick_tag, string_field, BlockStateEntry, ChunkSection, ChunkStatusTaskKind,
         ChunkType, HeightmapKind, LevelChunk, PalettedContainer, SectionBlockPos, TickPriority,
@@ -2035,6 +2061,38 @@ mod tests {
         );
         assert_eq!(chunk_status_is_or_after("features", "carvers"), Some(true));
         assert_eq!(chunk_status_is_or_after("noise", "features"), Some(false));
+        assert_eq!(chunk_status_is_after("features", "carvers"), Some(true));
+        assert_eq!(chunk_status_is_after("carvers", "carvers"), Some(false));
+        assert_eq!(chunk_status_is_before("noise", "features"), Some(true));
+        assert_eq!(chunk_status_is_before("features", "features"), Some(false));
+        assert_eq!(
+            chunk_status_is_or_before("features", "features"),
+            Some(true)
+        );
+        assert_eq!(chunk_status_is_or_before("full", "spawn"), Some(false));
+        assert_eq!(
+            chunk_status_max("noise", "features"),
+            Some("minecraft:features")
+        );
+        assert_eq!(chunk_status_max("full", "spawn"), Some("minecraft:full"));
+        assert_eq!(chunk_status_max("bad", "spawn"), None);
+        assert_eq!(
+            chunk_status_list(),
+            vec![
+                "minecraft:empty",
+                "minecraft:structure_starts",
+                "minecraft:structure_references",
+                "minecraft:biomes",
+                "minecraft:noise",
+                "minecraft:surface",
+                "minecraft:carvers",
+                "minecraft:features",
+                "minecraft:initialize_light",
+                "minecraft:light",
+                "minecraft:spawn",
+                "minecraft:full",
+            ]
+        );
 
         assert_eq!(
             WORLDGEN_HEIGHTMAPS
