@@ -248,7 +248,26 @@ impl RegionFile {
         chunk_bytes.push(compression.id());
         chunk_bytes.extend_from_slice(&compressed);
 
-        let sector_count = chunk_bytes.len().div_ceil(SECTOR_BYTES as usize);
+        let mut sector_count = chunk_bytes.len().div_ceil(SECTOR_BYTES as usize);
+        if sector_count >= 256 {
+            let external_path = self.external_chunk_path(chunk).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "region file path has no parent for external chunk stream",
+                )
+            })?;
+            fs::write(external_path, &compressed)?;
+            chunk_bytes.clear();
+            chunk_bytes.extend_from_slice(&1u32.to_be_bytes());
+            chunk_bytes.push(compression.id() | 0x80);
+            sector_count = 1;
+        } else if let Some(external_path) = self.external_chunk_path(chunk) {
+            match fs::remove_file(external_path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+            }
+        }
         chunk_bytes.resize(sector_count * SECTOR_BYTES as usize, 0);
 
         let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
@@ -584,6 +603,59 @@ mod tests {
             .unwrap();
         write_raw_chunk_header(region.path(), 3, 1, RegionCompression::Deflate.id() | 0x80);
         assert_eq!(region.read_chunk_nbt(missing_external).unwrap(), None);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn region_file_writes_oversized_chunks_to_external_streams() {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "rustcraft-region-external-write-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+
+        let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+        let chunk = ChunkPos { x: 0, z: 0 };
+        let large_tag = crate::storage::nbt::Tag::Compound(vec![(
+            "payload".to_string(),
+            crate::storage::nbt::Tag::ByteArray(vec![7; 256 * super::SECTOR_BYTES as usize]),
+        )]);
+
+        region
+            .write_chunk_nbt_with_compression(chunk, "Large", &large_tag, RegionCompression::None)
+            .unwrap();
+
+        let external_path = dir.join("c.0.0.mcc");
+        assert!(external_path.is_file());
+        let location = region.read_location(chunk).unwrap().unwrap();
+        assert_eq!(location.sector_count, 1);
+        assert_eq!(
+            region.read_chunk_nbt(chunk).unwrap(),
+            Some(("Large".to_string(), large_tag))
+        );
+        let bytes = fs::read(region.path()).unwrap();
+        let offset = location.sector_offset as usize * super::SECTOR_BYTES as usize;
+        assert_eq!(
+            u32::from_be_bytes(bytes[offset..offset + 4].try_into().unwrap()),
+            1
+        );
+        assert_eq!(bytes[offset + 4], RegionCompression::None.id() | 0x80);
+
+        let small_tag = crate::storage::nbt::Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+        )]);
+        region
+            .write_chunk_nbt_with_compression(chunk, "Small", &small_tag, RegionCompression::None)
+            .unwrap();
+
+        assert!(!external_path.exists());
+        assert_eq!(
+            region.read_chunk_nbt(chunk).unwrap(),
+            Some(("Small".to_string(), small_tag))
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
