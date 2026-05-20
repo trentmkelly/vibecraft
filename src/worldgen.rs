@@ -1019,6 +1019,21 @@ pub struct SpawnOriginalMobsPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkGenerationMobSpawnBatchPlan {
+    pub category: &'static str,
+    pub entity_type: &'static str,
+    pub count: i32,
+    pub start_x: i32,
+    pub start_z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkGenerationMobSpawnPlan {
+    pub chunk: ChunkPos,
+    pub batches: Vec<ChunkGenerationMobSpawnBatchPlan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlatLayerInfo {
     pub height: i32,
     pub block: &'static str,
@@ -23649,6 +23664,44 @@ pub fn spawn_original_mobs_plan_for_stem(
         }
         ResolvedChunkGenerator::Flat { .. } | ResolvedChunkGenerator::Debug { .. } => None,
     }
+}
+
+pub fn chunk_generation_mob_spawn_plan(
+    chunk: ChunkPos,
+    biome: &BiomeGenerationSettingsModel,
+    spawn_mobs_game_rule: bool,
+    random: &mut RandomSourceKind,
+) -> ChunkGenerationMobSpawnPlan {
+    let mobs = biome_spawns_for_category(biome, "creature");
+    if mobs.is_empty() || !spawn_mobs_game_rule {
+        return ChunkGenerationMobSpawnPlan {
+            chunk,
+            batches: Vec::new(),
+        };
+    }
+
+    let min_block_x = chunk.x * 16;
+    let min_block_z = chunk.z * 16;
+    let mut batches = Vec::new();
+
+    while random.next_f32() < biome.creature_spawn_probability {
+        let spawner =
+            mobs[select_weighted_index(mobs.iter().map(|entry| entry.weight), mobs.len(), random)];
+        let count_bound = 1 + spawner.max_count - spawner.min_count;
+        assert!(
+            count_bound > 0,
+            "chunk generation mob spawn max_count must be >= min_count"
+        );
+        batches.push(ChunkGenerationMobSpawnBatchPlan {
+            category: "creature",
+            entity_type: spawner.entity_type,
+            count: spawner.min_count + random_next_i32_bound(random, count_bound),
+            start_x: min_block_x + random_next_i32_bound(random, 16),
+            start_z: min_block_z + random_next_i32_bound(random, 16),
+        });
+    }
+
+    ChunkGenerationMobSpawnPlan { chunk, batches }
 }
 
 pub fn generator_base_height_for_stem(
@@ -57601,6 +57654,45 @@ mod tests {
         assert_eq!(
             super::spawn_original_mobs_plan_for_stem(1234, center, &flat.overworld),
             None
+        );
+    }
+
+    #[test]
+    fn chunk_generation_mob_spawn_plan_matches_creature_selection_order() {
+        let plains = super::biome_generation_settings("minecraft:plains").unwrap();
+        let chunk = ChunkPos { x: 2, z: -3 };
+        let mut random = crate::random_source::RandomSourceKind::new(
+            4096,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+
+        let plan = super::chunk_generation_mob_spawn_plan(chunk, plains, true, &mut random);
+
+        assert_eq!(plan.chunk, chunk);
+        assert_eq!(
+            plan.batches,
+            vec![super::ChunkGenerationMobSpawnBatchPlan {
+                category: "creature",
+                entity_type: "minecraft:pig",
+                count: 4,
+                start_x: 37,
+                start_z: -37,
+            }]
+        );
+
+        let mut random = crate::random_source::RandomSourceKind::new(
+            4096,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+        assert_eq!(
+            super::chunk_generation_mob_spawn_plan(chunk, plains, false, &mut random).batches,
+            Vec::new()
+        );
+
+        let the_void = super::biome_generation_settings("minecraft:the_void").unwrap();
+        assert_eq!(
+            super::chunk_generation_mob_spawn_plan(chunk, the_void, true, &mut random).batches,
+            Vec::new()
         );
     }
 
