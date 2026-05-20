@@ -357,6 +357,176 @@ pub fn salmon_spawn_weight_total() -> i32 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TropicalFishBase {
+    Small = 0,
+    Large = 1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TropicalFishPatternModel {
+    pub name: &'static str,
+    pub base: TropicalFishBase,
+    pub index: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TropicalFishVariantModel {
+    pub pattern: TropicalFishPatternModel,
+    pub base_color_id: i32,
+    pub pattern_color_id: i32,
+}
+
+pub const TROPICAL_FISH_PATTERNS: &[TropicalFishPatternModel] = &[
+    TropicalFishPatternModel {
+        name: "kob",
+        base: TropicalFishBase::Small,
+        index: 0,
+    },
+    TropicalFishPatternModel {
+        name: "sunstreak",
+        base: TropicalFishBase::Small,
+        index: 1,
+    },
+    TropicalFishPatternModel {
+        name: "snooper",
+        base: TropicalFishBase::Small,
+        index: 2,
+    },
+    TropicalFishPatternModel {
+        name: "dasher",
+        base: TropicalFishBase::Small,
+        index: 3,
+    },
+    TropicalFishPatternModel {
+        name: "brinely",
+        base: TropicalFishBase::Small,
+        index: 4,
+    },
+    TropicalFishPatternModel {
+        name: "spotty",
+        base: TropicalFishBase::Small,
+        index: 5,
+    },
+    TropicalFishPatternModel {
+        name: "flopper",
+        base: TropicalFishBase::Large,
+        index: 0,
+    },
+    TropicalFishPatternModel {
+        name: "stripey",
+        base: TropicalFishBase::Large,
+        index: 1,
+    },
+    TropicalFishPatternModel {
+        name: "glitter",
+        base: TropicalFishBase::Large,
+        index: 2,
+    },
+    TropicalFishPatternModel {
+        name: "blockfish",
+        base: TropicalFishBase::Large,
+        index: 3,
+    },
+    TropicalFishPatternModel {
+        name: "betty",
+        base: TropicalFishBase::Large,
+        index: 4,
+    },
+    TropicalFishPatternModel {
+        name: "clayfish",
+        base: TropicalFishBase::Large,
+        index: 5,
+    },
+];
+
+pub const DEFAULT_TROPICAL_FISH_VARIANT_PACKED_ID: i32 = 0;
+
+pub fn tropical_fish_pattern_packed_id(pattern: TropicalFishPatternModel) -> i32 {
+    pattern.base as i32 | pattern.index << 8
+}
+
+pub fn tropical_fish_pack_variant(
+    pattern: TropicalFishPatternModel,
+    base_color_id: i32,
+    pattern_color_id: i32,
+) -> i32 {
+    tropical_fish_pattern_packed_id(pattern) & 65_535
+        | (base_color_id & 0xff) << 16
+        | (pattern_color_id & 0xff) << 24
+}
+
+pub fn tropical_fish_base_color_id(packed_variant: i32) -> i32 {
+    packed_variant >> 16 & 0xff
+}
+
+pub fn tropical_fish_pattern_color_id(packed_variant: i32) -> i32 {
+    packed_variant >> 24 & 0xff
+}
+
+pub fn tropical_fish_pattern_by_packed_id(packed_id: i32) -> TropicalFishPatternModel {
+    TROPICAL_FISH_PATTERNS
+        .iter()
+        .copied()
+        .find(|pattern| tropical_fish_pattern_packed_id(*pattern) == packed_id)
+        .unwrap_or(TROPICAL_FISH_PATTERNS[0])
+}
+
+pub fn tropical_fish_pattern_from_variant(packed_variant: i32) -> TropicalFishPatternModel {
+    tropical_fish_pattern_by_packed_id(packed_variant & 65_535)
+}
+
+pub fn tropical_fish_common_variants() -> Vec<TropicalFishVariantModel> {
+    const ORANGE: i32 = 1;
+    const LIGHT_BLUE: i32 = 3;
+    const YELLOW: i32 = 4;
+    const LIME: i32 = 5;
+    const PINK: i32 = 6;
+    const GRAY: i32 = 7;
+    const CYAN: i32 = 9;
+    const PURPLE: i32 = 10;
+    const BLUE: i32 = 11;
+    const RED: i32 = 14;
+    const WHITE: i32 = 0;
+
+    [
+        ("stripey", ORANGE, GRAY),
+        ("flopper", GRAY, GRAY),
+        ("flopper", GRAY, BLUE),
+        ("clayfish", WHITE, GRAY),
+        ("sunstreak", BLUE, GRAY),
+        ("kob", ORANGE, WHITE),
+        ("spotty", PINK, LIGHT_BLUE),
+        ("blockfish", PURPLE, YELLOW),
+        ("clayfish", WHITE, RED),
+        ("spotty", WHITE, YELLOW),
+        ("glitter", WHITE, GRAY),
+        ("clayfish", WHITE, ORANGE),
+        ("dasher", CYAN, PINK),
+        ("brinely", LIME, LIGHT_BLUE),
+        ("betty", RED, WHITE),
+        ("snooper", GRAY, RED),
+        ("blockfish", RED, WHITE),
+        ("flopper", WHITE, YELLOW),
+        ("kob", RED, WHITE),
+        ("sunstreak", GRAY, WHITE),
+        ("dasher", CYAN, YELLOW),
+        ("flopper", YELLOW, YELLOW),
+    ]
+    .into_iter()
+    .map(
+        |(name, base_color_id, pattern_color_id)| TropicalFishVariantModel {
+            pattern: *TROPICAL_FISH_PATTERNS
+                .iter()
+                .find(|pattern| pattern.name == name)
+                .expect("common tropical fish pattern must exist"),
+            base_color_id,
+            pattern_color_id,
+        },
+    )
+    .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BucketEntityData {
     pub no_ai: bool,
     pub silent: bool,
@@ -825,6 +995,43 @@ mod tests {
         assert_eq!(salmon_variant_by_id(99).name, "large");
         assert_eq!(salmon_variant_by_name("medium").unwrap().id, 1);
         assert_eq!(salmon_spawn_weight_total(), 95);
+    }
+
+    #[test]
+    fn tropical_fish_packed_variants_match_java_pattern_and_color_layout() {
+        assert_eq!(DEFAULT_TROPICAL_FISH_VARIANT_PACKED_ID, 0);
+        assert_eq!(TROPICAL_FISH_PATTERNS.len(), 12);
+
+        let kob = TROPICAL_FISH_PATTERNS[0];
+        let flopper = TROPICAL_FISH_PATTERNS[6];
+        let stripey = TROPICAL_FISH_PATTERNS[7];
+        let clayfish = TROPICAL_FISH_PATTERNS[11];
+        assert_eq!(tropical_fish_pattern_packed_id(kob), 0);
+        assert_eq!(tropical_fish_pattern_packed_id(flopper), 1);
+        assert_eq!(tropical_fish_pattern_packed_id(stripey), 257);
+        assert_eq!(tropical_fish_pattern_packed_id(clayfish), 1281);
+
+        let packed = tropical_fish_pack_variant(stripey, 1, 7);
+        assert_eq!(packed, 117_506_305);
+        assert_eq!(tropical_fish_pattern_from_variant(packed), stripey);
+        assert_eq!(tropical_fish_base_color_id(packed), 1);
+        assert_eq!(tropical_fish_pattern_color_id(packed), 7);
+        assert_eq!(tropical_fish_pattern_by_packed_id(99_999), kob);
+
+        let common = tropical_fish_common_variants();
+        assert_eq!(common.len(), 22);
+        assert_eq!(common[0].pattern.name, "stripey");
+        assert_eq!(
+            tropical_fish_pack_variant(
+                common[0].pattern,
+                common[0].base_color_id,
+                common[0].pattern_color_id
+            ),
+            packed
+        );
+        assert_eq!(common[21].pattern.name, "flopper");
+        assert_eq!(common[21].base_color_id, 4);
+        assert_eq!(common[21].pattern_color_id, 4);
     }
 
     #[test]

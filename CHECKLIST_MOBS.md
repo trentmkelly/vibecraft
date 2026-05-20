@@ -161,6 +161,7 @@
 - [ ] Implement fish family: `Cod`, `Salmon`, `TropicalFish` (pattern/color variants, 2400 variant IDs), `Pufferfish` (inflation stages 0/1/2, poisonous contact at stage 2); all with `BucketableEntity`
   - [x] Implement Java-matched `Pufferfish` puff timing and contact effect model: states 0/1/2, inflate thresholds, deflate thresholds, `1 + puffState` damage, `60 * puffState` poison duration
   - [x] Implement Java-matched `Salmon` size variants: `small`/`medium`/`large` ids, default medium, bounding-box scales, and 30/50/15 spawn weights
+  - [x] Implement Java-matched `TropicalFish` packed variant model: 12 pattern ids, base/pattern color bit layout, default KOB white/white, and 22 common variants
 - [ ] Implement `Fox`: nocturnal chicken-hunting, item-holding/stealing, sweet-berry eating, trusting (bred from trusted parents), snow-dive pounce
 - [ ] Implement `Frog`: tongue-attack on small slimes/magma cubes (absorb into stomach), tadpole-laying in water on breed, frog variant = biome (temperate/warm/cold)
 - [ ] Implement `Goat`: ram-charge targeting (scream variant more frequent), horn-drop on successful ram, milking via bucket
