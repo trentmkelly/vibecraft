@@ -108,6 +108,20 @@ pub enum ChunkGenerationChunkStepPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChunkGenerationFutureState {
+    Pending,
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkGenerationWaitPlan {
+    pub waiting_for_index: Option<usize>,
+    pub remaining_layer: Vec<ChunkGenerationFutureState>,
+    pub marked_for_cancellation: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TickPriority {
     ExtremelyHigh,
     VeryHigh,
@@ -1115,6 +1129,38 @@ pub fn chunk_generation_task_chunk_step(
     };
 
     Some(ChunkGenerationChunkStepPlan::Apply { pyramid, generate })
+}
+
+pub fn chunk_generation_task_wait_for_scheduled_layer(
+    scheduled_layer: &[ChunkGenerationFutureState],
+) -> ChunkGenerationWaitPlan {
+    let mut remaining_layer = scheduled_layer.to_vec();
+    let mut marked_for_cancellation = false;
+
+    while let Some(result_now) = remaining_layer.last().copied() {
+        match result_now {
+            ChunkGenerationFutureState::Pending => {
+                return ChunkGenerationWaitPlan {
+                    waiting_for_index: Some(remaining_layer.len() - 1),
+                    remaining_layer,
+                    marked_for_cancellation,
+                };
+            }
+            ChunkGenerationFutureState::Success => {
+                remaining_layer.pop();
+            }
+            ChunkGenerationFutureState::Failure => {
+                remaining_layer.pop();
+                marked_for_cancellation = true;
+            }
+        }
+    }
+
+    ChunkGenerationWaitPlan {
+        waiting_for_index: None,
+        remaining_layer,
+        marked_for_cancellation,
+    }
 }
 
 fn chunk_pyramid_dependencies(
@@ -2663,6 +2709,44 @@ mod tests {
                 pyramid: ChunkPyramidKind::Loading,
                 generate: false,
             })
+        );
+    }
+
+    #[test]
+    fn chunk_generation_task_wait_for_scheduled_layer_matches_java_stack_polling() {
+        use super::ChunkGenerationFutureState::{Failure, Pending, Success};
+
+        assert_eq!(
+            super::chunk_generation_task_wait_for_scheduled_layer(&[]),
+            super::ChunkGenerationWaitPlan {
+                waiting_for_index: None,
+                remaining_layer: vec![],
+                marked_for_cancellation: false,
+            }
+        );
+        assert_eq!(
+            super::chunk_generation_task_wait_for_scheduled_layer(&[Success, Pending, Success]),
+            super::ChunkGenerationWaitPlan {
+                waiting_for_index: Some(1),
+                remaining_layer: vec![Success, Pending],
+                marked_for_cancellation: false,
+            }
+        );
+        assert_eq!(
+            super::chunk_generation_task_wait_for_scheduled_layer(&[Pending, Failure, Success]),
+            super::ChunkGenerationWaitPlan {
+                waiting_for_index: Some(0),
+                remaining_layer: vec![Pending],
+                marked_for_cancellation: true,
+            }
+        );
+        assert_eq!(
+            super::chunk_generation_task_wait_for_scheduled_layer(&[Success, Failure]),
+            super::ChunkGenerationWaitPlan {
+                waiting_for_index: None,
+                remaining_layer: vec![],
+                marked_for_cancellation: true,
+            }
         );
     }
 }
