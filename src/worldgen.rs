@@ -23418,8 +23418,35 @@ pub enum LiveChunkGenerationMode {
 pub struct LiveChunkGenerationTimings {
     pub resolve_preset_ms: u128,
     pub terrain_ms: u128,
-    pub heightmaps_ms: u128,
-    pub mobs_ms: u128,
+    pub heightmaps: LiveHeightmapTimings,
+    pub mobs: LiveMobGenerationTimings,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LiveHeightmapTimings {
+    pub total_ms: u128,
+    pub decode_sections_ms: u128,
+    pub scan_blocks_ms: u128,
+    pub pack_store_ms: u128,
+    pub sections_decoded: usize,
+    pub block_samples: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LiveMobGenerationTimings {
+    pub total_ms: u128,
+    pub plan_ms: u128,
+    pub biome_ms: u128,
+    pub spawn_plan_ms: u128,
+    pub apply_batches_ms: u128,
+    pub top_position_ms: u128,
+    pub position_ok_ms: u128,
+    pub snap_collision_ms: u128,
+    pub spawn_rules_ms: u128,
+    pub queue_ms: u128,
+    pub random_walk_ms: u128,
+    pub batches: usize,
+    pub attempts: usize,
     pub mobs_spawned: usize,
 }
 
@@ -23476,6 +23503,12 @@ pub fn generate_chunk_for_stem_with_mode(
 }
 
 fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
+    let _ = add_client_heightmaps_from_blocks_timed(chunk);
+}
+
+fn add_client_heightmaps_from_blocks_timed(chunk: &mut LevelChunk) -> LiveHeightmapTimings {
+    let total_started = Instant::now();
+    let decode_started = Instant::now();
     let mut world_surface = [0_i32; 16 * 16];
     let mut ocean_floor = [0_i32; 16 * 16];
     let mut motion_blocking = [0_i32; 16 * 16];
@@ -23495,7 +23528,10 @@ fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
         })
         .collect();
     sections.sort_by_key(|(section_y, _)| *section_y);
+    let decode_sections_ms = decode_started.elapsed().as_millis();
 
+    let scan_started = Instant::now();
+    let mut block_samples = 0;
     for (section_y, container) in sections.into_iter().rev() {
         let section_min_y = i32::from(section_y) * 16;
         for local_y in (0..16).rev() {
@@ -23515,6 +23551,7 @@ fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
                     else {
                         continue;
                     };
+                    block_samples += 1;
                     if !found_world_surface[column]
                         && heightmap_opaque(HeightmapKind::WorldSurface, block)
                     {
@@ -23543,7 +23580,9 @@ fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
             }
         }
     }
+    let scan_blocks_ms = scan_started.elapsed().as_millis();
 
+    let pack_started = Instant::now();
     for (name, values) in [
         ("WORLD_SURFACE", world_surface),
         ("OCEAN_FLOOR", ocean_floor),
@@ -23554,6 +23593,16 @@ fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
             .heightmaps
             .entry(name.to_string())
             .or_insert_with(|| Tag::LongArray(pack_heightmap(values)));
+    }
+    let pack_store_ms = pack_started.elapsed().as_millis();
+
+    LiveHeightmapTimings {
+        total_ms: total_started.elapsed().as_millis(),
+        decode_sections_ms,
+        scan_blocks_ms,
+        pack_store_ms,
+        sections_decoded: chunk.sections.len(),
+        block_samples,
     }
 }
 
@@ -23708,25 +23757,78 @@ pub fn apply_spawn_original_mobs_to_generated_chunk(
     world_seed: i64,
     spawn_mobs_game_rule: bool,
 ) -> usize {
+    apply_spawn_original_mobs_to_generated_chunk_timed(
+        chunk,
+        stem,
+        world_seed,
+        spawn_mobs_game_rule,
+    )
+    .mobs_spawned
+}
+
+fn apply_spawn_original_mobs_to_generated_chunk_timed(
+    chunk: &mut LevelChunk,
+    stem: &ResolvedLevelStem,
+    world_seed: i64,
+    spawn_mobs_game_rule: bool,
+) -> LiveMobGenerationTimings {
+    let total_started = Instant::now();
+    let plan_started = Instant::now();
     let Some(plan) = spawn_original_mobs_plan_for_stem(world_seed, chunk.pos, stem) else {
-        return 0;
+        return LiveMobGenerationTimings {
+            total_ms: total_started.elapsed().as_millis(),
+            plan_ms: plan_started.elapsed().as_millis(),
+            ..LiveMobGenerationTimings::default()
+        };
     };
+    let plan_ms = plan_started.elapsed().as_millis();
+
+    let biome_started = Instant::now();
     let Some(biome) = spawn_original_mobs_biome_generation_settings(stem, plan, world_seed) else {
-        return 0;
+        return LiveMobGenerationTimings {
+            total_ms: total_started.elapsed().as_millis(),
+            plan_ms,
+            biome_ms: biome_started.elapsed().as_millis(),
+            ..LiveMobGenerationTimings::default()
+        };
     };
+    let biome_ms = biome_started.elapsed().as_millis();
+
     let mut random = RandomSourceKind::new(
         plan.decoration_seed,
         crate::random_source::RandomAlgorithm::Legacy,
     );
+
+    let spawn_plan_started = Instant::now();
     let spawn_plan =
         chunk_generation_mob_spawn_plan(chunk.pos, biome, spawn_mobs_game_rule, &mut random);
-    let mut spawned = 0;
+    let spawn_plan_ms = spawn_plan_started.elapsed().as_millis();
 
+    let apply_started = Instant::now();
+    let mut timings = LiveMobGenerationTimings {
+        plan_ms,
+        biome_ms,
+        spawn_plan_ms,
+        batches: spawn_plan.batches.len(),
+        ..LiveMobGenerationTimings::default()
+    };
     for batch in spawn_plan.batches {
-        spawned += apply_chunk_generation_mob_batch_to_chunk(chunk, batch, false, &mut random, &[]);
+        apply_chunk_generation_mob_batch_to_chunk_timed(
+            chunk,
+            batch,
+            false,
+            &mut random,
+            &[],
+            &mut timings,
+        );
     }
+    timings.apply_batches_ms = apply_started.elapsed().as_millis();
+    timings.total_ms = total_started.elapsed().as_millis();
+    timings
+}
 
-    spawned
+fn add_timing(target: &mut u128, started: Instant) {
+    *target += started.elapsed().as_millis();
 }
 
 fn spawn_original_mobs_biome_generation_settings(
@@ -24693,6 +24795,102 @@ pub fn apply_chunk_generation_mob_batch_to_chunk(
     spawned
 }
 
+fn apply_chunk_generation_mob_batch_to_chunk_timed(
+    chunk: &mut LevelChunk,
+    batch: ChunkGenerationMobSpawnBatchPlan,
+    dimension_has_ceiling: bool,
+    random: &mut RandomSourceKind,
+    uuids: &[&str],
+    timings: &mut LiveMobGenerationTimings,
+) {
+    let mut x = batch.start_x;
+    let mut z = batch.start_z;
+    let start_x = x;
+    let start_z = z;
+    let min_block_x = chunk.pos.x * 16;
+    let min_block_z = chunk.pos.z * 16;
+
+    for _mob_index in 0..batch.count {
+        let mut success = false;
+        for _attempt in 0..4 {
+            timings.attempts += 1;
+            if !success {
+                let started = Instant::now();
+                let position = chunk_generation_mob_top_non_colliding_pos(
+                    chunk,
+                    batch.entity_type,
+                    x,
+                    z,
+                    dimension_has_ceiling,
+                );
+                add_timing(&mut timings.top_position_ms, started);
+
+                let started = Instant::now();
+                let position_ok =
+                    chunk_generation_spawn_position_ok(chunk, batch.entity_type, position.pos);
+                add_timing(&mut timings.position_ok_ms, started);
+
+                if position_ok {
+                    let started = Instant::now();
+                    let snap = chunk_generation_mob_entity_snap_plan(
+                        chunk.pos,
+                        batch.entity_type,
+                        position.pos,
+                        random,
+                    );
+                    let collision = chunk_generation_mob_collision_plan(snap);
+                    let no_collision = chunk_generation_mob_no_collision(chunk, collision);
+                    add_timing(&mut timings.snap_collision_ms, started);
+
+                    if no_collision {
+                        let spawn_rules_pos = BlockPos {
+                            x: snap.x.floor() as i32,
+                            y: position.pos.y,
+                            z: snap.z.floor() as i32,
+                        };
+                        let started = Instant::now();
+                        let spawn_rules_ok = chunk_generation_mob_spawn_rules_ok(
+                            chunk,
+                            batch.entity_type,
+                            spawn_rules_pos,
+                        );
+                        add_timing(&mut timings.spawn_rules_ms, started);
+
+                        if spawn_rules_ok {
+                            let generated_uuid;
+                            let uuid = if let Some(uuid) = uuids.get(timings.mobs_spawned) {
+                                *uuid
+                            } else {
+                                generated_uuid = create_insecure_uuid(random);
+                                generated_uuid.as_str()
+                            };
+                            let started = Instant::now();
+                            if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
+                                timings.mobs_spawned += 1;
+                                success = true;
+                            }
+                            add_timing(&mut timings.queue_ms, started);
+                        }
+                    }
+                }
+            }
+
+            let started = Instant::now();
+            x += random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            z += random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            while x < min_block_x
+                || x >= min_block_x + 16
+                || z < min_block_z
+                || z >= min_block_z + 16
+            {
+                x = start_x + random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+                z = start_z + random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            }
+            add_timing(&mut timings.random_walk_ms, started);
+        }
+    }
+}
+
 pub fn create_insecure_uuid(random: &mut RandomSourceKind) -> String {
     let most = (random_source_next_i64(random) & -61441_i64) | 16384_i64;
     let least = (random_source_next_i64(random) & 4_611_686_018_427_387_903_i64) | i64::MIN;
@@ -25038,17 +25236,17 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
     timings.terrain_ms = started.elapsed().as_millis();
 
     let started = Instant::now();
-    add_client_heightmaps_from_blocks(&mut chunk);
-    timings.heightmaps_ms = started.elapsed().as_millis();
+    timings.heightmaps = add_client_heightmaps_from_blocks_timed(&mut chunk);
+    timings.heightmaps.total_ms = started.elapsed().as_millis();
 
     let started = Instant::now();
-    timings.mobs_spawned = apply_spawn_original_mobs_to_generated_chunk(
+    timings.mobs = apply_spawn_original_mobs_to_generated_chunk_timed(
         &mut chunk,
         &preset.overworld,
         seed,
         spawn_mobs_game_rule,
     );
-    timings.mobs_ms = started.elapsed().as_millis();
+    timings.mobs.total_ms = started.elapsed().as_millis();
 
     chunk.status = "minecraft:spawn".to_string();
     Ok((chunk, timings))

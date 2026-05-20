@@ -3967,15 +3967,32 @@ fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i
         ) {
             Ok((chunk, timings)) => {
                 eprintln!(
-                    "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms heightmaps={}ms mobs={}ms mobs_spawned={}",
+                    "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms heightmaps={}ms heightmap_decode={}ms heightmap_scan={}ms heightmap_pack={}ms heightmap_sections={} heightmap_samples={} mobs={}ms mob_plan={}ms mob_biome={}ms mob_spawn_plan={}ms mob_apply={}ms mob_top={}ms mob_position_ok={}ms mob_snap_collision={}ms mob_rules={}ms mob_queue={}ms mob_random_walk={}ms mob_batches={} mob_attempts={} mobs_spawned={}",
                     x,
                     z,
                     region_ms,
                     timings.resolve_preset_ms,
                     timings.terrain_ms,
-                    timings.heightmaps_ms,
-                    timings.mobs_ms,
-                    timings.mobs_spawned
+                    timings.heightmaps.total_ms,
+                    timings.heightmaps.decode_sections_ms,
+                    timings.heightmaps.scan_blocks_ms,
+                    timings.heightmaps.pack_store_ms,
+                    timings.heightmaps.sections_decoded,
+                    timings.heightmaps.block_samples,
+                    timings.mobs.total_ms,
+                    timings.mobs.plan_ms,
+                    timings.mobs.biome_ms,
+                    timings.mobs.spawn_plan_ms,
+                    timings.mobs.apply_batches_ms,
+                    timings.mobs.top_position_ms,
+                    timings.mobs.position_ok_ms,
+                    timings.mobs.snap_collision_ms,
+                    timings.mobs.spawn_rules_ms,
+                    timings.mobs.queue_ms,
+                    timings.mobs.random_walk_ms,
+                    timings.mobs.batches,
+                    timings.mobs.attempts,
+                    timings.mobs.mobs_spawned
                 );
                 chunk
             }
