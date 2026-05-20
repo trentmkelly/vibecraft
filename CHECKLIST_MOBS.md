@@ -159,6 +159,7 @@
 - [ ] Implement equine family: `AbstractHorse` (taming, `temper`, inventory, saddle, rider), `Horse` (armor slot, variants), `Donkey`/`Mule` (chest attachment), `ZombieHorse`, `SkeletonHorse` (trap activation), `Llama` (chest, carpet decoration, spit attack, caravan following), `TraderLlama`
 - [ ] Implement feline family: `Cat` (gifts after player sleeps, biome-variant spawning, scared of players until tamed), `Ocelot` (chest-sitting prevention, trusts after fish feeding)
 - [ ] Implement fish family: `Cod`, `Salmon`, `TropicalFish` (pattern/color variants, 2400 variant IDs), `Pufferfish` (inflation stages 0/1/2, poisonous contact at stage 2); all with `BucketableEntity`
+  - [x] Implement Java-matched `Pufferfish` puff timing and contact effect model: states 0/1/2, inflate thresholds, deflate thresholds, `1 + puffState` damage, `60 * puffState` poison duration
 - [ ] Implement `Fox`: nocturnal chicken-hunting, item-holding/stealing, sweet-berry eating, trusting (bred from trusted parents), snow-dive pounce
 - [ ] Implement `Frog`: tongue-attack on small slimes/magma cubes (absorb into stomach), tadpole-laying in water on breed, frog variant = biome (temperate/warm/cold)
 - [ ] Implement `Goat`: ram-charge targeting (scream variant more frequent), horn-drop on successful ram, milking via bucket

@@ -230,6 +230,83 @@ pub fn bucket_pickup_result(held_item: &str, entity_alive: bool) -> BucketPickup
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PufferfishState {
+    pub puff_state: u8,
+    pub inflate_counter: i32,
+    pub deflate_timer: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PufferfishContactEffect {
+    pub damage: i32,
+    pub poison_effect: &'static str,
+    pub poison_duration_ticks: i32,
+    pub poison_amplifier: u8,
+}
+
+impl PufferfishState {
+    pub const SMALL: u8 = 0;
+    pub const MID: u8 = 1;
+    pub const FULL: u8 = 2;
+
+    pub fn new() -> Self {
+        Self {
+            puff_state: Self::SMALL,
+            inflate_counter: 0,
+            deflate_timer: 0,
+        }
+    }
+
+    pub fn start_inflating(&mut self) {
+        self.inflate_counter = 1;
+        self.deflate_timer = 0;
+    }
+
+    pub fn stop_inflating(&mut self) {
+        self.inflate_counter = 0;
+    }
+
+    pub fn tick(&mut self, alive: bool, effective_ai: bool) {
+        if !alive || !effective_ai {
+            return;
+        }
+
+        if self.inflate_counter > 0 {
+            if self.puff_state == Self::SMALL {
+                self.puff_state = Self::MID;
+            } else if self.inflate_counter > 40 && self.puff_state == Self::MID {
+                self.puff_state = Self::FULL;
+            }
+            self.inflate_counter += 1;
+        } else if self.puff_state != Self::SMALL {
+            if self.deflate_timer > 60 && self.puff_state == Self::FULL {
+                self.puff_state = Self::MID;
+            } else if self.deflate_timer > 100 && self.puff_state == Self::MID {
+                self.puff_state = Self::SMALL;
+            }
+            self.deflate_timer += 1;
+        }
+    }
+
+    pub fn contact_effect(
+        self,
+        target_alive: bool,
+        target_scary: bool,
+    ) -> Option<PufferfishContactEffect> {
+        if !target_alive || !target_scary || self.puff_state == Self::SMALL {
+            return None;
+        }
+
+        Some(PufferfishContactEffect {
+            damage: 1 + i32::from(self.puff_state),
+            poison_effect: "minecraft:poison",
+            poison_duration_ticks: 60 * i32::from(self.puff_state),
+            poison_amplifier: 0,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BucketEntityData {
     pub no_ai: bool,
     pub silent: bool,
@@ -613,6 +690,59 @@ mod tests {
             }
         );
         assert!(!ConversionTypeModel::SplitOnDeath.discard_after_conversion());
+    }
+
+    #[test]
+    fn pufferfish_puff_timing_and_contact_effects_match_java_thresholds() {
+        let mut fish = PufferfishState::new();
+
+        fish.start_inflating();
+        fish.tick(true, true);
+        assert_eq!(fish.puff_state, PufferfishState::MID);
+        assert_eq!(fish.inflate_counter, 2);
+
+        for _ in 0..39 {
+            fish.tick(true, true);
+        }
+        assert_eq!(fish.puff_state, PufferfishState::MID);
+        assert_eq!(fish.inflate_counter, 41);
+
+        fish.tick(true, true);
+        assert_eq!(fish.puff_state, PufferfishState::FULL);
+        assert_eq!(
+            fish.contact_effect(true, true),
+            Some(PufferfishContactEffect {
+                damage: 3,
+                poison_effect: "minecraft:poison",
+                poison_duration_ticks: 120,
+                poison_amplifier: 0,
+            })
+        );
+        assert_eq!(fish.contact_effect(true, false), None);
+
+        fish.stop_inflating();
+        for _ in 0..61 {
+            fish.tick(true, true);
+        }
+        assert_eq!(fish.puff_state, PufferfishState::FULL);
+        fish.tick(true, true);
+        assert_eq!(fish.puff_state, PufferfishState::MID);
+        assert_eq!(
+            fish.contact_effect(true, true),
+            Some(PufferfishContactEffect {
+                damage: 2,
+                poison_effect: "minecraft:poison",
+                poison_duration_ticks: 60,
+                poison_amplifier: 0,
+            })
+        );
+
+        while fish.deflate_timer <= 100 {
+            fish.tick(true, true);
+        }
+        fish.tick(true, true);
+        assert_eq!(fish.puff_state, PufferfishState::SMALL);
+        assert_eq!(fish.contact_effect(true, true), None);
     }
 
     #[test]
