@@ -570,25 +570,29 @@ impl LevelChunk {
             min_section_y: optional_int_field(root, "yPos")?.unwrap_or(0),
             last_update: optional_long_field(root, "LastUpdate")?.unwrap_or(0),
             status,
-            inhabited_time: long_field(root, "InhabitedTime")?,
-            sections: list_field(root, "sections")?
+            inhabited_time: optional_long_field(root, "InhabitedTime")?.unwrap_or(0),
+            sections: optional_list_field(root, "sections")?
+                .unwrap_or_default()
                 .iter()
                 .map(ChunkSection::from_nbt)
                 .collect::<Result<Vec<_>, _>>()?,
-            heightmaps: compound(field(root, "Heightmaps")?)?
+            heightmaps: optional_compound_field(root, "Heightmaps")?
+                .unwrap_or(&[])
                 .iter()
                 .map(|(name, value)| (name.clone(), value.clone()))
                 .collect(),
-            block_entities: list_field(root, "block_entities")?.to_vec(),
+            block_entities: optional_list_field(root, "block_entities")?.unwrap_or_default(),
             entities: optional_list_field(root, "entities")?.unwrap_or_default(),
-            structures: field(root, "structures")?.clone(),
+            structures: optional_field(root, "structures")
+                .cloned()
+                .unwrap_or_else(empty_structures_payload),
             upgrade_data: optional_field(root, "UpgradeData").cloned(),
             blending_data: optional_blending_data(root)?,
             below_zero_retrogen: optional_below_zero_retrogen(root)?,
             carving_mask: optional_long_array(root, "carving_mask")?,
-            block_ticks: list_field(root, "block_ticks")?.to_vec(),
-            fluid_ticks: list_field(root, "fluid_ticks")?.to_vec(),
-            post_processing: list_field(root, "PostProcessing")?.to_vec(),
+            block_ticks: optional_list_field(root, "block_ticks")?.unwrap_or_default(),
+            fluid_ticks: optional_list_field(root, "fluid_ticks")?.unwrap_or_default(),
+            post_processing: optional_list_field(root, "PostProcessing")?.unwrap_or_default(),
             light_correct: optional_bool_field(root, "isLightOn")?.unwrap_or(false),
         })
     }
@@ -969,6 +973,17 @@ fn optional_list_field<'a>(
     match optional_field(compound, name) {
         Some(Tag::List(values)) => Ok(Some(values.clone())),
         Some(_) => Err(format!("NBT field {name} must be a list")),
+        None => Ok(None),
+    }
+}
+
+fn optional_compound_field<'a>(
+    compound: &'a [(String, Tag)],
+    name: &str,
+) -> Result<Option<&'a [(String, Tag)]>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::Compound(values)) => Ok(Some(values)),
+        Some(_) => Err(format!("NBT field {name} must be a compound")),
         None => Ok(None),
     }
 }
@@ -1575,6 +1590,33 @@ mod tests {
         let err = LevelChunk::from_nbt(pos, &tag).unwrap_err();
 
         assert!(err.contains("Status cannot be empty"));
+    }
+
+    #[test]
+    fn level_chunk_defaults_absent_vanilla_optional_collections() {
+        let pos = ChunkPos { x: 0, z: 0 };
+        let mut tag = LevelChunk::empty(pos).to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &mut tag else {
+            panic!("chunk should encode as a compound");
+        };
+        fields.retain(|(name, _)| {
+            matches!(
+                name.as_str(),
+                "DataVersion" | "xPos" | "zPos" | "Status" | "LastUpdate"
+            )
+        });
+
+        let decoded = LevelChunk::from_nbt(pos, &tag).unwrap();
+
+        assert_eq!(decoded.inhabited_time, 0);
+        assert!(decoded.sections.is_empty());
+        assert!(decoded.heightmaps.is_empty());
+        assert!(decoded.block_entities.is_empty());
+        assert!(decoded.entities.is_empty());
+        assert!(decoded.block_ticks.is_empty());
+        assert!(decoded.fluid_ticks.is_empty());
+        assert!(decoded.post_processing.is_empty());
+        assert!(matches!(decoded.structures, Tag::Compound(_)));
     }
 
     #[test]
