@@ -443,7 +443,6 @@ pub fn is_sun_sensitive(kind: SunburnableMobKind) -> bool {
             | SunburnableMobKind::Phantom
             | SunburnableMobKind::Drowned
             | SunburnableMobKind::ZombieVillager
-            | SunburnableMobKind::Husk
             | SunburnableMobKind::Stray
             | SunburnableMobKind::Bogged
     )
@@ -752,6 +751,7 @@ mod tests {
         assert!(is_sun_sensitive(SunburnableMobKind::Phantom));
         assert!(is_sun_sensitive(SunburnableMobKind::Stray));
         assert!(is_sun_sensitive(SunburnableMobKind::Drowned));
+        assert!(!is_sun_sensitive(SunburnableMobKind::Husk));
         assert!(!is_sun_sensitive(SunburnableMobKind::ZombifiedPiglin));
     }
 
