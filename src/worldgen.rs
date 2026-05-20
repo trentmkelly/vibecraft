@@ -8066,6 +8066,10 @@ pub const OVERWORLD_AMPLIFIED_PRELIMINARY_SURFACE_LEVEL_DENSITY: DensityFunction
 
 pub const TEST_NEGATIVE_DENSITY: DensityFunction = DensityFunction::Constant(-2.0);
 pub const TEST_POSITIVE_DENSITY: DensityFunction = DensityFunction::Constant(3.0);
+pub const TEST_CACHE_ALL_IN_CELL_DENSITY: DensityFunction = DensityFunction::Marker {
+    kind: DensityMarker::CacheAllInCell,
+    input: &TEST_POSITIVE_DENSITY,
+};
 pub const TEST_RANGE_CHOICE_DENSITY: DensityFunction = DensityFunction::RangeChoice {
     input: &Y_DENSITY,
     min_inclusive: -1.0,
@@ -45587,6 +45591,65 @@ mod tests {
         );
         assert!(density_function_type("shifted_noise").is_some());
         assert!(density_function_type("missing").is_none());
+    }
+
+    #[test]
+    fn cache_all_in_cell_uses_wrapper_owned_cell_values_for_scalar_and_array_reads() {
+        let settings = *builtin_noise_generator_settings("overworld").unwrap();
+        let router = super::NoiseRouter {
+            barrier: DensityFunction::Constant(0.0),
+            fluid_level_floodedness: DensityFunction::Constant(0.0),
+            fluid_level_spread: DensityFunction::Constant(0.0),
+            lava: DensityFunction::Constant(0.0),
+            temperature: DensityFunction::Constant(0.0),
+            vegetation: DensityFunction::Constant(0.0),
+            continents: DensityFunction::Constant(0.0),
+            erosion: DensityFunction::Constant(0.0),
+            depth: DensityFunction::Constant(0.0),
+            ridges: DensityFunction::Constant(0.0),
+            preliminary_surface_level: DensityFunction::Constant(0.0),
+            final_density: super::TEST_CACHE_ALL_IN_CELL_DENSITY,
+            vein_toggle: DensityFunction::Constant(0.0),
+            vein_ridged: DensityFunction::Constant(0.0),
+            vein_gap: DensityFunction::Constant(0.0),
+        };
+        let mut chunk = super::NoiseChunk::new(0, 0, settings, 0, router);
+
+        chunk.advance_cell_x(0);
+        chunk.select_cell_yz(0, 0);
+        chunk.update_for_x(0, 0.0);
+        chunk.update_for_y(settings.noise.min_y, 0.0);
+        chunk.update_for_z(0, 0.0);
+
+        let value_index = chunk
+            .cache_all_cell_index()
+            .expect("selected block should be inside the current noise cell");
+        assert_eq!(chunk.cache_all_in_cell.len(), 1);
+        chunk.cache_all_in_cell[0].values[value_index] = 42.25;
+
+        assert_eq!(
+            super::eval_density_fn_with_interp(
+                super::TEST_CACHE_ALL_IN_CELL_DENSITY,
+                &chunk,
+                0,
+                settings.noise.min_y,
+                0,
+            ),
+            42.25,
+            "CacheAllInCell scalar compute should read the wrapper-owned cell cache"
+        );
+
+        let mut output = vec![0.0; chunk.cache_all_in_cell[0].values.len()];
+        super::fill_density_array_with_interp(
+            super::TEST_CACHE_ALL_IN_CELL_DENSITY,
+            &mut chunk,
+            &mut output,
+            super::DensityArrayFillMode::Cell,
+        );
+        assert_eq!(
+            output, chunk.cache_all_in_cell[0].values,
+            "CacheAllInCell fillArray should copy the wrapper-owned cell cache"
+        );
     }
 
     #[test]

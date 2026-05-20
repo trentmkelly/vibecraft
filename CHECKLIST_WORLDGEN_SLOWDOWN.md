@@ -20,10 +20,10 @@ enough that vanilla's known performance characteristics become plausible.
 - [x] Add Java-equivalent `NoiseChunk` context counters:
   `interpolation_counter`, `array_interpolation_counter`, `array_index`, and
   `filling_cell`.
-- [ ] Replace the recursive static density evaluator with a first-class
+- [x] Replace the recursive static density evaluator with a first-class
   wrapped density-function runtime, or an equivalent layer with wrapper identity
   and per-wrapper state.
-- [ ] Implement wrapper-level scalar `compute(context)` and array
+- [x] Implement wrapper-level scalar `compute(context)` and array
   `fill_array(output, context_provider)` dispatch.
   - [x] Add chunk-owned reusable scratch arrays for nested density
     `fill_array` calls, reducing temporary allocations while the full
@@ -40,7 +40,7 @@ enough that vanilla's known performance characteristics become plausible.
   - [x] Replace linear marker-wrapper lookup tables with Java-style identity
     maps so hot `Interpolated`, `CacheOnce`, `Cache2D`, `CacheAllInCell`, and
     `FlatCache` dispatch does not scan wrapper lists for every density sample.
-- [ ] Move `Interpolated` marker handling into the wrapped density-function
+- [x] Move `Interpolated` marker handling into the wrapped density-function
   layer.
   - [x] Match Java `NoiseInterpolator.compute` while `fillingCell` is true by
     returning direct `lerp3` cell values during cache fills instead of the last
@@ -48,7 +48,7 @@ enough that vanilla's known performance characteristics become plausible.
   - [x] Match Java `NoiseInterpolator.fillArray`: when not filling a cell,
     delegate to the wrapped density function instead of sampling the current
     interpolator value.
-- [ ] Move `CacheAllInCell` marker handling into the wrapped density-function
+- [x] Move `CacheAllInCell` marker handling into the wrapped density-function
   layer.
 - [x] Implement Java-style `CacheOnce` scalar and array semantics.
   - [x] Replace exact-position-only scalar caching with Java-style
