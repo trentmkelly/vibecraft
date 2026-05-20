@@ -354,14 +354,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "place_recipe",
         java_class: "ServerboundPlaceRecipePacket",
-        field_order: "unparsed",
+        field_order: "container_id:CONTAINER_ID, recipe:RecipeDisplayId VarInt, use_max_items:bool",
     },
     PlayPacketSpec {
         id: 40,
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "player_abilities",
         java_class: "ServerboundPlayerAbilitiesPacket",
-        field_order: "unparsed",
+        field_order: "flags:u8 bit1 flying",
     },
     PlayPacketSpec {
         id: 41,
@@ -431,7 +431,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Serverbound,
         wire_name: "seen_advancements",
         java_class: "ServerboundSeenAdvancementsPacket",
-        field_order: "unparsed",
+        field_order: "action:enum VarInt, tab:Identifier only when action OPENED_TAB",
     },
     PlayPacketSpec {
         id: 51,
@@ -593,7 +593,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "block_changed_ack",
         java_class: "ClientboundBlockChangedAckPacket",
-        field_order: "unparsed",
+        field_order: "sequence:VarInt",
     },
     PlayPacketSpec {
         id: 5,
@@ -649,7 +649,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "chunk_batch_start",
         java_class: "ClientboundChunkBatchStartPacket",
-        field_order: "unparsed",
+        field_order: "empty_payload",
     },
     PlayPacketSpec {
         id: 13,
@@ -824,7 +824,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "forget_level_chunk",
         java_class: "ClientboundForgetLevelChunkPacket",
-        field_order: "unparsed",
+        field_order: "pos:ChunkPos i64",
     },
     PlayPacketSpec {
         id: 38,
@@ -838,7 +838,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "game_rule_values",
         java_class: "ClientboundGameRuleValuesPacket",
-        field_order: "unparsed",
+        field_order: "values:Map<GameRule ResourceKey Identifier, String UTF-8>",
     },
     PlayPacketSpec {
         id: 40,
@@ -972,7 +972,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "open_book",
         java_class: "ClientboundOpenBookPacket",
-        field_order: "unparsed",
+        field_order: "hand:InteractionHand enum VarInt",
     },
     PlayPacketSpec {
         id: 59,
@@ -986,7 +986,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "open_sign_editor",
         java_class: "ClientboundOpenSignEditorPacket",
-        field_order: "unparsed",
+        field_order: "pos:BlockPos, is_front_text:bool",
     },
     PlayPacketSpec {
         id: 61,
@@ -1042,7 +1042,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "player_combat_kill",
         java_class: "ClientboundPlayerCombatKillPacket",
-        field_order: "unparsed",
+        field_order: "player_id:VarInt, message:ComponentSerialization.TRUSTED_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 69,
@@ -1217,7 +1217,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_camera",
         java_class: "ClientboundSetCameraPacket",
-        field_order: "unparsed",
+        field_order: "camera_id:VarInt",
     },
     PlayPacketSpec {
         id: 94,
@@ -1323,7 +1323,7 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "set_player_inventory",
         java_class: "ClientboundSetPlayerInventoryPacket",
-        field_order: "unparsed",
+        field_order: "slot:VarInt, contents:ItemStack.OPTIONAL_STREAM_CODEC",
     },
     PlayPacketSpec {
         id: 109,
@@ -1428,14 +1428,14 @@ pub const PLAY_PACKET_SPECS_26_1_2: &[PlayPacketSpec] = &[
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "tag_query",
         java_class: "ClientboundTagQueryPacket",
-        field_order: "unparsed",
+        field_order: "transaction_id:VarInt, tag:nullable CompoundTag",
     },
     PlayPacketSpec {
         id: 124,
         direction: crate::network::dispatch::PacketDirection::Clientbound,
         wire_name: "take_item_entity",
         java_class: "ClientboundTakeItemEntityPacket",
-        field_order: "unparsed",
+        field_order: "item_id:VarInt, player_id:VarInt, amount:VarInt",
     },
     PlayPacketSpec {
         id: 125,
@@ -1929,6 +1929,98 @@ mod tests {
                 PacketDirection::Clientbound,
                 "show_dialog",
                 "payload:remaining bytes max 1 MiB",
+            ),
+        ];
+
+        for (direction, wire_name, expected) in checks {
+            let spec = specs
+                .iter()
+                .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
+                .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
+            assert_ne!(
+                spec.field_order, "unparsed",
+                "{direction:?} {wire_name} must stay concretely documented"
+            );
+            assert_eq!(
+                spec.field_order, *expected,
+                "{direction:?} {wire_name} field-order drift"
+            );
+        }
+    }
+
+    #[test]
+    fn play_packet_specification_decompiled_game_packets_have_concrete_field_orders() {
+        let specs = play_packet_specs_26_1_2();
+        let checks: &[(PacketDirection, &str, &str)] = &[
+            (
+                PacketDirection::Serverbound,
+                "place_recipe",
+                "container_id:CONTAINER_ID, recipe:RecipeDisplayId VarInt, use_max_items:bool",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "player_abilities",
+                "flags:u8 bit1 flying",
+            ),
+            (
+                PacketDirection::Serverbound,
+                "seen_advancements",
+                "action:enum VarInt, tab:Identifier only when action OPENED_TAB",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "block_changed_ack",
+                "sequence:VarInt",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "chunk_batch_start",
+                "empty_payload",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "forget_level_chunk",
+                "pos:ChunkPos i64",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "game_rule_values",
+                "values:Map<GameRule ResourceKey Identifier, String UTF-8>",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "open_book",
+                "hand:InteractionHand enum VarInt",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "open_sign_editor",
+                "pos:BlockPos, is_front_text:bool",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "player_combat_kill",
+                "player_id:VarInt, message:ComponentSerialization.TRUSTED_STREAM_CODEC",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "set_camera",
+                "camera_id:VarInt",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "set_player_inventory",
+                "slot:VarInt, contents:ItemStack.OPTIONAL_STREAM_CODEC",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "tag_query",
+                "transaction_id:VarInt, tag:nullable CompoundTag",
+            ),
+            (
+                PacketDirection::Clientbound,
+                "take_item_entity",
+                "item_id:VarInt, player_id:VarInt, amount:VarInt",
             ),
         ];
 
