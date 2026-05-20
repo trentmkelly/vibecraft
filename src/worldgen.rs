@@ -18805,6 +18805,73 @@ impl StructureAccessModel {
     }
 }
 
+pub fn structure_access_to_chunk_structures_tag(
+    access: &StructureAccessModel,
+    chunk_pos: ChunkPos,
+) -> Tag {
+    let starts = access
+        .starts
+        .iter()
+        .map(|(structure, start)| {
+            (
+                (*structure).to_string(),
+                structure_start_to_chunk_tag(start, chunk_pos),
+            )
+        })
+        .collect();
+    let references = access
+        .references
+        .iter()
+        .map(|(structure, reference_chunks)| {
+            (
+                (*structure).to_string(),
+                Tag::LongArray(reference_chunks.clone()),
+            )
+        })
+        .collect();
+    Tag::Compound(vec![
+        ("starts".to_string(), Tag::Compound(starts)),
+        ("References".to_string(), Tag::Compound(references)),
+    ])
+}
+
+fn structure_start_to_chunk_tag(start: &StructureStartModel, chunk_pos: ChunkPos) -> Tag {
+    let tag = start.create_tag(chunk_pos);
+    let mut fields = vec![("id".to_string(), Tag::String(tag.id.to_string()))];
+    if let Some(chunk_x) = tag.chunk_x {
+        fields.push(("ChunkX".to_string(), Tag::Int(chunk_x)));
+    }
+    if let Some(chunk_z) = tag.chunk_z {
+        fields.push(("ChunkZ".to_string(), Tag::Int(chunk_z)));
+    }
+    if let Some(references) = tag.references {
+        fields.push(("references".to_string(), Tag::Int(references)));
+    }
+    fields.push((
+        "Children".to_string(),
+        Tag::List(
+            start
+                .pieces
+                .iter()
+                .map(|piece| {
+                    Tag::Compound(vec![(
+                        "BB".to_string(),
+                        Tag::IntArray(vec![
+                            piece.bounding_box.min_x,
+                            piece.bounding_box.min_y,
+                            piece.bounding_box.min_z,
+                            piece.bounding_box.max_x,
+                            piece.bounding_box.max_y,
+                            piece.bounding_box.max_z,
+                        ]),
+                    )])
+                })
+                .collect(),
+        ),
+    ));
+    Tag::Compound(fields)
+}
+
 pub fn structure_start_reference_pos(first_piece: StructurePieceModel) -> BlockPos {
     let center = first_piece.bounding_box.center();
     BlockPos {
@@ -40543,7 +40610,10 @@ mod tests {
 
         assert_eq!(carvers.status, "minecraft:carvers");
         assert!(
-            carvers.carving_mask.as_ref().is_some_and(|mask| !mask.is_empty()),
+            carvers
+                .carving_mask
+                .as_ref()
+                .is_some_and(|mask| !mask.is_empty()),
             "carver execution should persist a carving mask on the generated chunk"
         );
         assert_ne!(
@@ -53878,6 +53948,90 @@ mod tests {
             &[super::chunk_pos_key(ChunkPos { x: 2, z: -1 })]
         );
         assert!(target_access.unsaved);
+    }
+
+    #[test]
+    fn structure_access_serializes_chunk_structures_payload() {
+        let start = super::StructureStartModel {
+            structure: Some("minecraft:shipwreck"),
+            chunk_pos: ChunkPos { x: 2, z: -1 },
+            references: 1,
+            pieces: vec![super::StructurePieceModel {
+                bounding_box: super::StructureBoundingBoxModel {
+                    min_x: 32,
+                    min_y: 50,
+                    min_z: -16,
+                    max_x: 47,
+                    max_y: 70,
+                    max_z: -1,
+                },
+            }],
+        };
+        let mut access = super::StructureAccessModel::default();
+        access.set_start_for_structure("minecraft:shipwreck", start);
+        access.set_start_for_structure(
+            "minecraft:stronghold",
+            super::StructureStartModel::invalid(),
+        );
+        access.add_reference_for_structure(
+            "minecraft:shipwreck",
+            super::chunk_pos_key(ChunkPos { x: 2, z: -1 }),
+        );
+
+        let Tag::Compound(root) =
+            super::structure_access_to_chunk_structures_tag(&access, ChunkPos { x: 2, z: -1 })
+        else {
+            panic!("structures payload should be a compound");
+        };
+        let Some((_, Tag::Compound(starts))) = root.iter().find(|(name, _)| name == "starts")
+        else {
+            panic!("starts should be a compound");
+        };
+        let Some((_, Tag::Compound(shipwreck))) = starts
+            .iter()
+            .find(|(name, _)| name == "minecraft:shipwreck")
+        else {
+            panic!("shipwreck start should be serialized");
+        };
+
+        assert!(matches!(
+            shipwreck.iter().find(|(name, _)| name == "id"),
+            Some((_, Tag::String(id))) if id == "minecraft:shipwreck"
+        ));
+        assert!(matches!(
+            shipwreck.iter().find(|(name, _)| name == "ChunkX"),
+            Some((_, Tag::Int(2)))
+        ));
+        assert!(matches!(
+            shipwreck.iter().find(|(name, _)| name == "ChunkZ"),
+            Some((_, Tag::Int(-1)))
+        ));
+        assert!(matches!(
+            shipwreck.iter().find(|(name, _)| name == "references"),
+            Some((_, Tag::Int(1)))
+        ));
+        assert!(matches!(
+            shipwreck.iter().find(|(name, _)| name == "Children"),
+            Some((_, Tag::List(children))) if children.len() == 1
+        ));
+        assert!(matches!(
+            starts.iter().find(|(name, _)| name == "minecraft:stronghold"),
+            Some((_, Tag::Compound(invalid))) if matches!(
+                invalid.iter().find(|(name, _)| name == "id"),
+                Some((_, Tag::String(id))) if id == "INVALID"
+            )
+        ));
+
+        let Some((_, Tag::Compound(references))) =
+            root.iter().find(|(name, _)| name == "References")
+        else {
+            panic!("References should be a compound");
+        };
+        assert!(matches!(
+            references.iter().find(|(name, _)| name == "minecraft:shipwreck"),
+            Some((_, Tag::LongArray(values)))
+                if values == &[super::chunk_pos_key(ChunkPos { x: 2, z: -1 })]
+        ));
     }
 
     #[test]
