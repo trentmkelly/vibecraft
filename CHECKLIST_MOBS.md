@@ -189,6 +189,7 @@
   - [x] Implement Java-matched `Sheep` server-visible wool model: packed color/sheared byte, 16-color legacy ids, shearing interaction gate and state change, grass-eating regrowth plus 60s baby age-up, 40-tick eat animation curves, biome spawn color weights including 1/500 pink common roll, and offspring dye-mix fallback
 - [ ] Implement `Sniffer`: sniff animation, ancient-seed dropping at discovered location, digging-up animation, egg hatching, sniffing-exploration AI
 - [ ] Implement `Squid`/`GlowSquid`: ink-squirt flee mechanic, glow squid dark-rendering effect, glowing while alive
+  - [x] Implement Java-matched `Squid`/`GlowSquid` server-visible gates: 30-particle ink squirt only after mob-caused hurt, flee use within 10 blocks in water, flee vector speed taper 5-10 blocks with air Y clamp, bubble phase, baby dimensions, tentacle reset event, glow squid 100-tick darkening on hurt, dark tick decay/save field, and dark-water spawn checks
 - [ ] Implement `Turtle`: beach-homing memory (home beach coordinates), egg-laying behavior, scute drop on growth, turtle-egg placement, egg-hatching process
 - [ ] Implement `Wolf`: taming (bone-feed `temper`), collar color (default red, dyeable), wolf-armor equipping and display, pack-anger propagation on owner hit
 - [ ] Add parity test for each animal's unique interaction: bee hive population, allay item pickup, sniffer dig timing, armadillo roll conditions
