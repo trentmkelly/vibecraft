@@ -1027,6 +1027,14 @@ pub struct ChunkGenerationMobSpawnBatchPlan {
     pub start_z: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChunkGenerationMobSpawnAttemptPlan {
+    pub mob_index: i32,
+    pub attempt_index: i32,
+    pub x: i32,
+    pub z: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkGenerationMobSpawnPlan {
     pub chunk: ChunkPos,
@@ -23702,6 +23710,44 @@ pub fn chunk_generation_mob_spawn_plan(
     }
 
     ChunkGenerationMobSpawnPlan { chunk, batches }
+}
+
+pub fn chunk_generation_mob_spawn_attempt_plan(
+    chunk: ChunkPos,
+    batch: ChunkGenerationMobSpawnBatchPlan,
+    random: &mut RandomSourceKind,
+) -> Vec<ChunkGenerationMobSpawnAttemptPlan> {
+    let min_block_x = chunk.x * 16;
+    let min_block_z = chunk.z * 16;
+    let mut x = batch.start_x;
+    let mut z = batch.start_z;
+    let mut attempts = Vec::new();
+
+    for mob_index in 0..batch.count {
+        for attempt_index in 0..4 {
+            attempts.push(ChunkGenerationMobSpawnAttemptPlan {
+                mob_index,
+                attempt_index,
+                x,
+                z,
+            });
+
+            x += random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            z += random_next_i32_bound(random, 5) - random_next_i32_bound(random, 5);
+            while x < min_block_x
+                || x >= min_block_x + 16
+                || z < min_block_z
+                || z >= min_block_z + 16
+            {
+                x = batch.start_x + random_next_i32_bound(random, 5)
+                    - random_next_i32_bound(random, 5);
+                z = batch.start_z + random_next_i32_bound(random, 5)
+                    - random_next_i32_bound(random, 5);
+            }
+        }
+    }
+
+    attempts
 }
 
 pub fn generator_base_height_for_stem(
@@ -57694,6 +57740,88 @@ mod tests {
             super::chunk_generation_mob_spawn_plan(chunk, the_void, true, &mut random).batches,
             Vec::new()
         );
+    }
+
+    #[test]
+    fn chunk_generation_mob_spawn_attempt_plan_matches_vanilla_offsets() {
+        let chunk = ChunkPos { x: 2, z: -3 };
+        let mut random = crate::random_source::RandomSourceKind::new(
+            4096,
+            crate::random_source::RandomAlgorithm::Legacy,
+        );
+
+        assert!(random.next_f32() < 0.1);
+        assert_eq!(super::random_next_i32_bound(&mut random, 46), 15);
+        assert_eq!(super::random_next_i32_bound(&mut random, 1), 0);
+        let batch = super::ChunkGenerationMobSpawnBatchPlan {
+            category: "creature",
+            entity_type: "minecraft:pig",
+            count: 4,
+            start_x: 32 + super::random_next_i32_bound(&mut random, 16),
+            start_z: -48 + super::random_next_i32_bound(&mut random, 16),
+        };
+
+        let attempts = super::chunk_generation_mob_spawn_attempt_plan(chunk, batch, &mut random);
+
+        assert_eq!(batch.start_x, 37);
+        assert_eq!(batch.start_z, -37);
+        assert_eq!(attempts.len(), 16);
+        assert_eq!(
+            &attempts[..8],
+            &[
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 0,
+                    attempt_index: 0,
+                    x: 37,
+                    z: -37,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 0,
+                    attempt_index: 1,
+                    x: 38,
+                    z: -37,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 0,
+                    attempt_index: 2,
+                    x: 40,
+                    z: -36,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 0,
+                    attempt_index: 3,
+                    x: 39,
+                    z: -35,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 1,
+                    attempt_index: 0,
+                    x: 41,
+                    z: -35,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 1,
+                    attempt_index: 1,
+                    x: 38,
+                    z: -38,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 1,
+                    attempt_index: 2,
+                    x: 41,
+                    z: -40,
+                },
+                super::ChunkGenerationMobSpawnAttemptPlan {
+                    mob_index: 1,
+                    attempt_index: 3,
+                    x: 42,
+                    z: -40,
+                },
+            ]
+        );
+        assert!(attempts
+            .iter()
+            .all(|attempt| (32..48).contains(&attempt.x) && (-48..-32).contains(&attempt.z)));
     }
 
     #[test]
