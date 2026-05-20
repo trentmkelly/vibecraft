@@ -437,6 +437,14 @@ impl LevelChunk {
         true
     }
 
+    pub fn add_entity_nbt(&mut self, entity_tag: Tag) -> bool {
+        if !matches!(entity_tag, Tag::Compound(_)) {
+            return false;
+        }
+        self.entities.push(entity_tag);
+        true
+    }
+
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
         require_current_tag_data_version("chunk", tag)?;
         let root = compound(tag)?;
@@ -1024,6 +1032,25 @@ mod tests {
         assert!(!chunk.set_block_entity_nbt(malformed));
 
         assert_eq!(chunk.block_entities, vec![barrel]);
+    }
+
+    #[test]
+    fn level_chunk_adds_proto_entity_nbt_in_generation_order() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        let pig = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:pig".to_string()),
+        )]);
+        let cow = Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:cow".to_string()),
+        )]);
+
+        assert!(chunk.add_entity_nbt(pig.clone()));
+        assert!(!chunk.add_entity_nbt(Tag::String("minecraft:bat".to_string())));
+        assert!(chunk.add_entity_nbt(cow.clone()));
+
+        assert_eq!(chunk.entities, vec![pig, cow]);
     }
 
     #[test]
