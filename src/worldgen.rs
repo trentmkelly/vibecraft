@@ -5224,7 +5224,7 @@ pub fn materialize_noise_preview_chunk(
         }
     }
     let biome = noise_preview_biome(biome_source_model, pos);
-    let mut overlay_blocks = noise_preview_tree_blocks(pos, settings, biome, &terrain_heights);
+    let mut overlay_blocks = noise_preview_tree_blocks(pos, 0, settings, biome, &terrain_heights);
     overlay_blocks.extend(noise_preview_ground_cover_blocks(
         pos,
         settings,
@@ -5360,6 +5360,7 @@ fn noise_preview_block_at(
 
 fn noise_preview_tree_blocks(
     chunk_pos: ChunkPos,
+    world_seed: i64,
     settings: &NoiseGeneratorSettings,
     biome: &str,
     terrain_heights: &[i32; 16 * 16],
@@ -5371,21 +5372,21 @@ fn noise_preview_tree_blocks(
     let Some(generation) = biome_generation_settings(biome) else {
         return Vec::new();
     };
-    if !biome_has_any_tree_placed_feature(generation) {
-        return Vec::new();
-    }
-
-    let seed = (chunk_pos.x as i64 * 341_873_128_712 + chunk_pos.z as i64 * 132_897_987_541) as u64;
     let mut blocks = Vec::new();
-    for (index, (local_x, local_z)) in noise_preview_tree_origins(generation, seed)
-        .into_iter()
-        .enumerate()
+    for (index, (local_x, local_z, tree_seed)) in noise_preview_tree_origins(
+        generation,
+        world_seed,
+        chunk_pos,
+        settings.noise.min_y.div_euclid(16),
+    )
+    .into_iter()
+    .enumerate()
     {
         let surface_height = terrain_heights[local_z * 16 + local_x];
         if surface_height <= settings.sea_level + 2 {
             continue;
         }
-        let tree_seed = seed.rotate_left((index as u32 + 1) * 7);
+        let tree_seed = tree_seed ^ (index as i64).wrapping_mul(10_000) as u64;
         let (trunk_state, leaves_state, base_height) =
             noise_preview_tree_materials(generation, tree_seed);
         let plan = simple_tree_placement_plan(
@@ -5429,40 +5430,82 @@ fn noise_preview_tree_blocks(
 
 fn noise_preview_tree_origins(
     biome: &BiomeGenerationSettingsModel,
-    seed: u64,
-) -> Vec<(usize, usize)> {
-    if biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter")
-        || biome_has_placed_feature(biome, "trees_birch")
-        || biome_has_placed_feature(biome, "trees_taiga")
-        || biome_has_placed_feature(biome, "trees_jungle")
-        || biome_has_placed_feature(biome, "trees_savanna")
-        || biome_has_placed_feature(biome, "trees_windswept_forest")
-        || biome_has_placed_feature(biome, "trees_windswept_hills")
-        || biome_has_placed_feature(biome, "trees_water")
-        || biome_has_placed_feature(biome, "trees_sparse_jungle")
-        || biome_has_placed_feature(biome, "trees_old_growth_spruce_taiga")
-        || biome_has_placed_feature(biome, "trees_old_growth_pine_taiga")
-        || biome_has_placed_feature(biome, "trees_grove")
-        || biome_has_placed_feature(biome, "trees_snowy")
-    {
-        let candidates = [(4, 4), (11, 5), (6, 12), (13, 13)];
-        return candidates
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, pos)| {
-                if seed.rotate_left(5 + index as u32 * 9) % 3 != 1 {
-                    Some(pos)
-                } else {
-                    None
-                }
-            })
-            .collect();
+    world_seed: i64,
+    chunk_pos: ChunkPos,
+    min_section_y: i32,
+) -> Vec<(usize, usize, u64)> {
+    if !biome_has_any_tree_placed_feature(biome) {
+        return Vec::new();
     }
 
-    if biome_has_placed_feature(biome, "trees_plains") && seed.rotate_left(13) % 5 == 0 {
-        vec![(8, 8)]
-    } else {
-        Vec::new()
+    let features_per_step = match build_features_per_step(&[biome.feature_steps], true) {
+        Ok(features) => features,
+        Err(_) => return Vec::new(),
+    };
+    let plan = biome_decoration_feature_plan(
+        world_seed,
+        chunk_pos.x,
+        chunk_pos.z,
+        min_section_y,
+        &features_per_step,
+        &[biome.feature_steps],
+    );
+    let mut origins = Vec::new();
+
+    for call in plan.feature_calls.iter().filter(|call| {
+        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+            && noise_preview_tree_feature_count_kind(call.feature).is_some()
+    }) {
+        let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+        let count = match noise_preview_tree_feature_count_kind(call.feature).unwrap() {
+            NoisePreviewTreeCountKind::SparsePlains => {
+                let index = select_weighted_index([19, 1].into_iter(), 2, &mut random);
+                [0, 1][index]
+            }
+            NoisePreviewTreeCountKind::DenseForest => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [10, 11][index]
+            }
+            NoisePreviewTreeCountKind::Moderate => 2 + random_next_i32_bound(&mut random, 3),
+        };
+
+        for _ in 0..count {
+            let local_x = random_next_i32_bound(&mut random, 16) as usize;
+            let local_z = random_next_i32_bound(&mut random, 16) as usize;
+            origins.push((local_x, local_z, random_next_i64(&mut random) as u64));
+        }
+    }
+
+    origins
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NoisePreviewTreeCountKind {
+    SparsePlains,
+    DenseForest,
+    Moderate,
+}
+
+fn noise_preview_tree_feature_count_kind(feature: &str) -> Option<NoisePreviewTreeCountKind> {
+    match feature.strip_prefix("minecraft:").unwrap_or(feature) {
+        "trees_plains" => Some(NoisePreviewTreeCountKind::SparsePlains),
+        "trees_birch_and_oak_leaf_litter" | "trees_birch" | "trees_taiga" => {
+            Some(NoisePreviewTreeCountKind::DenseForest)
+        }
+        "birch_tall"
+        | "trees_jungle"
+        | "trees_savanna"
+        | "trees_windswept_forest"
+        | "trees_windswept_hills"
+        | "trees_water"
+        | "trees_sparse_jungle"
+        | "trees_old_growth_spruce_taiga"
+        | "trees_old_growth_pine_taiga"
+        | "trees_grove"
+        | "trees_snowy"
+        | "trees_badlands"
+        | "trees_meadow" => Some(NoisePreviewTreeCountKind::Moderate),
+        _ => None,
     }
 }
 
@@ -23593,6 +23636,7 @@ pub fn generate_chunk_for_stem_with_mode(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
+                            seed,
                         );
                         chunk
                     }
@@ -25358,6 +25402,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
+                            seed,
                         );
                         chunk
                     }
@@ -31353,6 +31398,7 @@ fn apply_initial_tree_decoration_to_chunk(
     chunk: &mut LevelChunk,
     biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
+    seed: i64,
 ) -> usize {
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return 0;
@@ -31380,7 +31426,7 @@ fn apply_initial_tree_decoration_to_chunk(
     let chunk_min_x = chunk.pos.x * 16;
     let chunk_min_z = chunk.pos.z * 16;
     let mut placed = 0;
-    for block in noise_preview_tree_blocks(chunk.pos, settings, biome, &terrain_heights) {
+    for block in noise_preview_tree_blocks(chunk.pos, seed, settings, biome, &terrain_heights) {
         if !(0..16).contains(&block.pos.x) || !(0..16).contains(&block.pos.z) {
             continue;
         }
@@ -45135,26 +45181,26 @@ mod tests {
         let terrain_heights = [settings.sea_level + 8; 16 * 16];
         let plains = super::noise_preview_tree_blocks(
             ChunkPos { x: 0, z: 0 },
+            0,
             settings,
             "minecraft:plains",
             &terrain_heights,
         );
         let forest = super::noise_preview_tree_blocks(
             ChunkPos { x: 0, z: 0 },
+            0,
             settings,
             "minecraft:forest",
             &terrain_heights,
         );
         let unknown = super::noise_preview_tree_blocks(
             ChunkPos { x: 0, z: 0 },
+            0,
             settings,
             "minecraft:badlands",
             &terrain_heights,
         );
 
-        assert!(plains
-            .iter()
-            .any(|block| block.state == "minecraft:oak_log"));
         assert!(forest.len() > plains.len());
         assert!(forest
             .iter()
@@ -45202,6 +45248,7 @@ mod tests {
         }
         let overlay = super::noise_preview_tree_blocks(
             ChunkPos { x: 0, z: 0 },
+            0,
             settings,
             "minecraft:forest",
             &terrain_heights,

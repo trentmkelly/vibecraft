@@ -309,6 +309,18 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
     variants, and related windswept/water features) so newly generated
     real-surface worlds are not globally treeless while full data-driven
     decoration remains open.
+  - [x] Thread the world seed into the live tree-decoration pass and derive
+    candidate positions from the Java-shaped biome decoration plan: chunk block
+    origin, Xoroshiro decoration seed, per-feature seed, `VEGETAL_DECORATION`
+    feature calls, weighted count rolls for `trees_plains`,
+    `trees_birch_and_oak_leaf_litter`, `trees_birch`, and `trees_taiga`, and
+    `in_square` x/z rolls. Full configured-feature execution, biome-region
+    side effects, and exact tree placement remain open. References:
+    `decompiled-server-26.1.2/net/minecraft/world/level/chunk/ChunkGenerator.java`,
+    `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldgenRandom.java`,
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_plains.json`,
+    `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_birch_and_oak_leaf_litter.json`,
+    `src/worldgen.rs`.
 - [ ] Implement configured features.
 - [ ] Implement placed features.
 - [ ] Implement tree, vegetation, spring, ore, disk, lake, geode, fossil, monster room, and special feature placement behavior.
