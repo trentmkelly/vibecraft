@@ -40759,9 +40759,70 @@ mod tests {
             offset.type_name(),
             DensityMarker::FlatCache.serialized_name()
         );
+        assert_eq!(offset, super::OVERWORLD_OFFSET_DENSITY);
+        assert_eq!(
+            super::OVERWORLD_OFFSET_BLENDED_DENSITY,
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Add,
+                argument1: &super::OVERWORLD_OFFSET_BLEND_TARGET_DENSITY,
+                argument2: &super::OVERWORLD_OFFSET_SPLINE_WEIGHTED_DENSITY,
+            }
+        );
+        assert_eq!(
+            super::OVERWORLD_OFFSET_BLEND_TARGET_DENSITY,
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Mul,
+                argument1: &super::BLEND_OFFSET_DENSITY,
+                argument2: &super::BLEND_ALPHA_INVERSE_DENSITY,
+            }
+        );
+        assert_eq!(
+            super::OVERWORLD_OFFSET_SPLINE_WEIGHTED_DENSITY,
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Mul,
+                argument1: &super::OVERWORLD_OFFSET_SPLINE_WITH_OFFSET_DENSITY,
+                argument2: &super::BLEND_ALPHA_CACHE_ONCE_DENSITY,
+            }
+        );
         assert_eq!(
             offset.value_bounds(),
             (-1.3037500262260437, 1.5722867486489562)
+        );
+        assert_eq!(
+            builtin_density_function("overworld/factor")
+                .unwrap()
+                .function,
+            super::OVERWORLD_FACTOR_DENSITY
+        );
+        assert_eq!(
+            super::OVERWORLD_FACTOR_BLENDED_DENSITY,
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Add,
+                argument1: &super::BLENDING_FACTOR_DENSITY,
+                argument2: &super::OVERWORLD_FACTOR_SPLINE_WEIGHTED_DENSITY,
+            }
+        );
+        assert_eq!(
+            super::OVERWORLD_FACTOR_SPLINE_WEIGHTED_DENSITY,
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Mul,
+                argument1: &super::BLEND_ALPHA_DENSITY,
+                argument2: &super::OVERWORLD_FACTOR_SPLINE_DELTA_DENSITY,
+            }
+        );
+        assert_eq!(
+            builtin_density_function("overworld/jaggedness")
+                .unwrap()
+                .function,
+            super::OVERWORLD_JAGGEDNESS_DENSITY
+        );
+        assert_eq!(
+            super::OVERWORLD_JAGGEDNESS_BLENDED_DENSITY,
+            DensityFunction::Binary {
+                kind: BinaryDensityFunction::Add,
+                argument1: &super::BLENDING_JAGGEDNESS_DENSITY,
+                argument2: &super::OVERWORLD_JAGGEDNESS_SPLINE_WEIGHTED_DENSITY,
+            }
         );
         for id in [
             "overworld/factor",
