@@ -92,7 +92,7 @@
 - [x] Implement player DTOs in management server responses: UUID, name, latency, game mode — `PlayerDto` now serializes `id`, `name`, `latency`, and `gameMode`, with discovery schema coverage
 - [x] Implement pending request tracking, response correlation — `ManagementServerState::handle_client_request()` records pending JSON-RPC IDs per client, correlates responses by ID, and clears abandoned requests on disconnect
 - [x] Implement allowed origins CORS check for WebSocket management connections — `AllowedOrigins::parse()` and `authorize_request()` enforce exact, wildcard, and empty-origin policies before bearer-secret authentication
-- [ ] Implement TLS support for management server connections
+- [x] Implement TLS support for management server connections — `ManagementSecurityConfig`/`tls_startup_decision()` require a configured keystore and password when TLS is enabled, resolve password precedence from environment/system/server properties, and `ManagementStartupPlan::Listen` carries a `TlsEndpoint`; covered by `tls_requires_keystore_and_uses_env_system_property_server_property_order`, `tls_disabled_accepts_and_tls_enabled_reports_missing_inputs`, `startup_refuses_invalid_secret_and_builds_plain_or_tls_listener`, and `cargo test -q management`.
 - [x] Implement shutdown behavior: in-flight management requests are completed or rejected on shutdown — `ManagementServerState::shutdown()` queues vanilla `server/stopping`, rejects tracked pending requests, and clears connection/request state
 
 ## Game Test Framework Hooks
