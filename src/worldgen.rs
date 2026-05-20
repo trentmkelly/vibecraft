@@ -3000,6 +3000,26 @@ pub struct StructureStartModel {
     pub pieces: Vec<StructurePieceModel>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructureSpawnBoundingBoxTypeModel {
+    Piece,
+    Full,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureSpawnOverrideModel {
+    pub category: &'static str,
+    pub bounding_box: StructureSpawnBoundingBoxTypeModel,
+    pub spawns: &'static [&'static str],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureSpawnCandidateModel<'a> {
+    pub structure: &'static str,
+    pub start: &'a StructureStartModel,
+    pub override_model: Option<StructureSpawnOverrideModel>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructureStartTagModel {
     pub id: &'static str,
@@ -18927,6 +18947,36 @@ pub fn structure_start_contains_pos(pos: BlockPos, start: &StructureStartModel) 
     start
         .bounding_box()
         .is_some_and(|bounding_box| bounding_box.is_inside(pos))
+}
+
+pub fn structure_spawn_override_applies(
+    pos: BlockPos,
+    start: &StructureStartModel,
+    override_model: StructureSpawnOverrideModel,
+) -> bool {
+    match override_model.bounding_box {
+        StructureSpawnBoundingBoxTypeModel::Piece => structure_has_piece_at(pos, start),
+        StructureSpawnBoundingBoxTypeModel::Full => structure_start_contains_pos(pos, start),
+    }
+}
+
+pub fn chunk_generator_mobs_at<'a>(
+    biome_spawns: &'a [&'a str],
+    mob_category: &str,
+    pos: BlockPos,
+    structures_at_pos: &[StructureSpawnCandidateModel<'_>],
+) -> Vec<&'a str> {
+    for candidate in structures_at_pos {
+        let Some(override_model) = candidate.override_model else {
+            continue;
+        };
+        if override_model.category == mob_category
+            && structure_spawn_override_applies(pos, candidate.start, override_model)
+        {
+            return override_model.spawns.to_vec();
+        }
+    }
+    biome_spawns.to_vec()
 }
 
 pub fn first_structure_start_containing_pos(
@@ -51844,6 +51894,117 @@ mod tests {
                 &[invalid, start.clone()]
             ),
             Some(start)
+        );
+    }
+
+    #[test]
+    fn chunk_generator_mob_lookup_prefers_matching_structure_spawn_overrides() {
+        let first_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 10,
+                min_z: 0,
+                max_x: 4,
+                max_y: 20,
+                max_z: 4,
+            },
+        };
+        let second_piece = super::StructurePieceModel {
+            bounding_box: super::StructureBoundingBoxModel {
+                min_x: 10,
+                min_y: 10,
+                min_z: 10,
+                max_x: 14,
+                max_y: 20,
+                max_z: 14,
+            },
+        };
+        let start = super::StructureStartModel {
+            structure: Some("minecraft:swamp_hut"),
+            chunk_pos: ChunkPos { x: 0, z: 0 },
+            references: 0,
+            pieces: vec![first_piece, second_piece],
+        };
+        let piece_override = super::StructureSpawnOverrideModel {
+            category: "monster",
+            bounding_box: super::StructureSpawnBoundingBoxTypeModel::Piece,
+            spawns: &["minecraft:witch"],
+        };
+        let full_override = super::StructureSpawnOverrideModel {
+            category: "monster",
+            bounding_box: super::StructureSpawnBoundingBoxTypeModel::Full,
+            spawns: &["minecraft:guardian"],
+        };
+        let inside_piece = BlockPos { x: 4, y: 20, z: 4 };
+        let inside_union_gap = BlockPos { x: 7, y: 15, z: 7 };
+        let biome_spawns = &["minecraft:zombie", "minecraft:skeleton"];
+
+        assert!(super::structure_spawn_override_applies(
+            inside_piece,
+            &start,
+            piece_override
+        ));
+        assert!(!super::structure_spawn_override_applies(
+            inside_union_gap,
+            &start,
+            piece_override
+        ));
+        assert!(super::structure_spawn_override_applies(
+            inside_union_gap,
+            &start,
+            full_override
+        ));
+        assert_eq!(
+            super::chunk_generator_mobs_at(
+                biome_spawns,
+                "monster",
+                inside_piece,
+                &[super::StructureSpawnCandidateModel {
+                    structure: "minecraft:swamp_hut",
+                    start: &start,
+                    override_model: Some(piece_override),
+                }]
+            ),
+            vec!["minecraft:witch"]
+        );
+        assert_eq!(
+            super::chunk_generator_mobs_at(
+                biome_spawns,
+                "monster",
+                inside_union_gap,
+                &[super::StructureSpawnCandidateModel {
+                    structure: "minecraft:swamp_hut",
+                    start: &start,
+                    override_model: Some(piece_override),
+                }]
+            ),
+            biome_spawns.to_vec()
+        );
+        assert_eq!(
+            super::chunk_generator_mobs_at(
+                biome_spawns,
+                "monster",
+                inside_union_gap,
+                &[super::StructureSpawnCandidateModel {
+                    structure: "minecraft:ocean_monument",
+                    start: &start,
+                    override_model: Some(full_override),
+                }]
+            ),
+            vec!["minecraft:guardian"]
+        );
+        assert_eq!(
+            super::chunk_generator_mobs_at(
+                biome_spawns,
+                "creature",
+                inside_piece,
+                &[super::StructureSpawnCandidateModel {
+                    structure: "minecraft:swamp_hut",
+                    start: &start,
+                    override_model: Some(piece_override),
+                }]
+            ),
+            biome_spawns.to_vec()
         );
     }
 
