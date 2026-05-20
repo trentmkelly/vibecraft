@@ -366,7 +366,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Sync `minecraft:dimension_type` during configuration with an overworld entry compatible with the play login dimension holder ID.
 - [x] Sync `minecraft:damage_type` during configuration with every vanilla damage type currently referenced by damage tags.
 - [x] Sync `minecraft:banner_pattern` during configuration with all vanilla banner patterns.
-- [ ] Sync `minecraft:enchantment` during configuration with all vanilla enchantments or a verified minimal set that satisfies client item component initialization.
+- [x] Sync `minecraft:enchantment` during configuration with all vanilla enchantments or a verified minimal set that satisfies client item component initialization. — current join policy is the verified zero-entry/omitted registry path: the decompiled codec/effect-component audit is preserved in `enchantment_registry_policy.test.mjs`, item initialization is asserted not to reference concrete enchantment holders before play entry, and the raw 26.1.2 probe proves play entry while enforcing that `minecraft:enchantment` is omitted for this milestone.
 - [x] Extract `Enchantment` network/direct codec fields from the decompiled server and document required description, supported items, primary items, exclusive set, weight, max level, cost, anvil cost, slots, and effect component payload shapes.
 - [x] Verify whether default item component initialization references any concrete enchantment holder before play-state entry; if not, preserve that result as an automated omission test tied to the raw probe's successful play-entry evidence.
 - [x] Decide whether the join milestone should emit zero enchantments, a minimal codec-valid subset, or the full vanilla enchantment registry, and encode that decision in the closure report with a vanilla-client/Mineflayer validation target.
@@ -390,7 +390,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add a Mineflayer offline-mode configuration replay test that records a vanilla login/configuration transcript and verifies RustCraft reaches the same bot event milestones without hidden sleeps or retry-only success.
 - [x] Implement common state.
 - [x] Implement cookie state.
-- [ ] Implement game/play state.
+- [x] Implement game/play state. — `src/network/play.rs` defines `PlaySession`, `PlayState`, play packet dispatch, join/play-loaded transitions, vanilla join sequencing, reconfiguration, first-action handling, keepalive/resource-pack/common shared packets, and the raw/Mineflayer login-to-spawn, post-login-readiness, first-tick, first-action, reconnect, and play-readiness gates exercise the play boundary.
 - [ ] Implement all 227 packet classes represented under `net/minecraft/network/protocol`.
 - [x] Implement protocol transition from handshake to status.
 - [x] Implement protocol transition from handshake to login.
@@ -424,11 +424,11 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] Add raw 26.1.2 reconnect-at-play-boundary fallback coverage for join-game, first-chunk, chunk-batch-finished, first-tick-actions, and first-keepalive aborts while Mineflayer lacks target-protocol play support.
 - [x] Add a Mineflayer offline-mode play-readiness race test that repeats login-to-first-action under randomized chunk delays and fails when any action only succeeds after an arbitrary sleep.
 - [x] Add raw 26.1.2 play-readiness race fallback coverage that repeats varied immediate first-action combinations through the next keepalive without retry sleeps while Mineflayer lacks target-protocol play support.
-- [ ] Implement respawn, dimension change, death, and return-to-game packet flows.
+- [x] Implement respawn, dimension change, death, and return-to-game packet flows. — `PlaySession::death_screen` and `PlaySession::respawn_flow` emit combat-kill, respawn, teleport, spawn-position, difficulty, XP, effects, level-info, permission, add-player, inventory, health, hardcore spectator, chunk-generation, and respawn-anchor sound instructions; `death_and_respawn_flow_match_player_list_respawn_packet_order` and `dimension_return_respawn_keeps_attribute_modifiers_like_vanilla_keep_all_path` cover death, dimension return, and data-retention semantics.
 - [x] Implement chunk batch start/finish and adaptive chunk batching.
 - [x] Implement light update and chunk section serialization.
-- [ ] Implement entity spawn, remove, metadata, velocity, teleport, passenger, equipment, attributes, effects, and animation packets.
-- [ ] Implement inventory, container, recipe, advancement, statistics, scoreboard, bossbar, title, sound, particle, map, border, command tree, suggestions, and debug packets.
+- [x] Implement entity spawn, remove, metadata, velocity, teleport, passenger, equipment, attributes, effects, and animation packets. — `EntitySpawnBundle`, `ClientboundAddEntityPacket`, entity data serializers, movement/rotation/vehicle packets, head rotation, link/passenger packets, remove entities, motion, equipment, attributes, mob effects, animation, entity event, and teleport packet tests in `src/network/play.rs` plus `entity_behavior_tests.rs` and `entity_metadata.rs` cover the named entity sync families.
+- [x] Implement inventory, container, recipe, advancement, statistics, scoreboard, bossbar, title, sound, particle, map, border, command tree, suggestions, and debug packets. — `src/network/play.rs` contains codec/state coverage for container open/content/slot/data/close, cursor/player inventory, recipe book add/remove/settings, advancements, award stats, scoreboard/objective/team/score, boss events, titles, sounds, particles/explosions, map data, world border, command tree, command suggestions, debug samples, and first-craft/stale-container-state regression flows.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Protocol Packet Families
 

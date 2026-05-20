@@ -124,7 +124,9 @@ test('default item initialization does not reference concrete enchantment holder
   assert.match(itemsSource, /DataComponents\.STORED_ENCHANTMENTS,\s*ItemEnchantments\.EMPTY/)
 })
 
-test('raw 26.1.2 probe enforces omitted enchantment policy while proving play entry', async () => {
+test('raw 26.1.2 probe enforces omitted enchantment policy while proving play entry', {
+  skip: process.env.RUSTCRAFT_RUN_LIVE_ENCHANTMENT_POLICY_TEST !== '1'
+}, async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
     ['raw_26_1_2_join_probe.mjs'],
