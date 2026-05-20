@@ -9,6 +9,7 @@ use super::region::ChunkPos;
 pub const CHUNK_WIDTH: i32 = 16;
 pub const SECTION_VOLUME: usize = 16 * 16 * 16;
 pub const BIOME_SECTION_VOLUME: usize = 4 * 4 * 4;
+pub const LIGHT_DATA_LAYER_LENGTH: usize = 2048;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SectionBlockPos {
@@ -504,6 +505,37 @@ impl LevelChunk {
         true
     }
 
+    pub fn set_section_light_arrays(
+        &mut self,
+        section_y: i8,
+        block_light: Option<Vec<i8>>,
+        sky_light: Option<Vec<i8>>,
+    ) -> bool {
+        if !block_light
+            .as_ref()
+            .is_none_or(|light| light.len() == LIGHT_DATA_LAYER_LENGTH)
+            || !sky_light
+                .as_ref()
+                .is_none_or(|light| light.len() == LIGHT_DATA_LAYER_LENGTH)
+        {
+            return false;
+        }
+        let Some(section) = self
+            .sections
+            .iter_mut()
+            .find(|section| section.y == section_y)
+        else {
+            return false;
+        };
+        section.block_light = block_light;
+        section.sky_light = sky_light;
+        self.light_correct = self
+            .sections
+            .iter()
+            .all(|section| section.block_light.is_some() || section.sky_light.is_some());
+        true
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -949,7 +981,7 @@ mod tests {
         chunk_status, chunk_status_is_or_after, pack_postprocessing_offset, BlockStateEntry,
         ChunkSection, ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, PalettedContainer,
         SectionBlockPos, TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE,
-        FINAL_HEIGHTMAPS, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+        FINAL_HEIGHTMAPS, LIGHT_DATA_LAYER_LENGTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
     };
     use crate::storage::datafix::TARGET_DATA_VERSION;
     use crate::storage::nbt::Tag;
@@ -1181,6 +1213,40 @@ mod tests {
                 ("p".to_string(), Tag::Int(2)),
             ])]
         );
+    }
+
+    #[test]
+    fn level_chunk_sets_valid_section_light_arrays() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.sections = vec![
+            ChunkSection {
+                y: -1,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: None,
+                sky_light: None,
+            },
+            ChunkSection {
+                y: 0,
+                block_states: Tag::Compound(Vec::new()),
+                biomes: Tag::Compound(Vec::new()),
+                block_light: None,
+                sky_light: None,
+            },
+        ];
+
+        assert!(!chunk.set_section_light_arrays(-1, Some(vec![0; 17]), None));
+        assert!(!chunk.set_section_light_arrays(1, Some(vec![0; LIGHT_DATA_LAYER_LENGTH]), None));
+        assert!(chunk.set_section_light_arrays(-1, Some(vec![0; LIGHT_DATA_LAYER_LENGTH]), None));
+        assert!(!chunk.light_correct);
+        assert!(chunk.set_section_light_arrays(0, None, Some(vec![15; LIGHT_DATA_LAYER_LENGTH])));
+
+        assert_eq!(
+            chunk.sections[0].block_light.as_ref().unwrap().len(),
+            LIGHT_DATA_LAYER_LENGTH
+        );
+        assert_eq!(chunk.sections[1].sky_light.as_ref().unwrap()[0], 15);
+        assert!(chunk.light_correct);
     }
 
     #[test]
