@@ -233,7 +233,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 
 ## Spawn Position Parity
 
-- [ ] Implement `NoiseBasedChunkGenerator.findSpawnPosition()` using climate spawn targets and heightmap valid-block checks
+- [x] Implement `NoiseBasedChunkGenerator.findSpawnPosition()` using climate spawn targets and heightmap valid-block checks
 - [x] Implement server-level default spawn persistence in `level.dat` (`SpawnX`, `SpawnY`, `SpawnZ`, `SpawnAngle`)
 - [ ] Implement initial chunk readiness check before spawn position is considered safe
 - [ ] Add parity test: first-join spawn position matches vanilla for fixed seed (within vanilla's randomized search radius)

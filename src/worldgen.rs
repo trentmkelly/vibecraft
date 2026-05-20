@@ -23463,6 +23463,60 @@ pub fn generator_base_height_for_stem(
     }
 }
 
+pub fn generator_find_spawn_position_for_stem(
+    stem: &ResolvedLevelStem,
+    seed: i64,
+) -> Result<BlockPos, String> {
+    match &stem.generator {
+        ResolvedChunkGenerator::Noise { noise_settings, .. } => {
+            let router_id = noise_router_id_for_settings(**noise_settings);
+            let noise_router = builtin_noise_router(router_id)
+                .map(|entry| entry.router)
+                .unwrap_or(NONE_NOISE_ROUTER);
+            let climate_pos = climate_spawn_position(
+                noise_settings.spawn_target,
+                noise_router,
+                **noise_settings,
+                seed,
+            );
+            let chunk_pos = ChunkPos {
+                x: climate_pos.x.div_euclid(16),
+                z: climate_pos.z.div_euclid(16),
+            };
+            let chunk = generator_build_surface_for_stem(chunk_pos, stem)?;
+            let local_x = climate_pos.x.rem_euclid(16) as usize;
+            let local_z = climate_pos.z.rem_euclid(16) as usize;
+            let surface_y = read_world_surface_wg(&chunk, local_x, local_z);
+            let spawn_y = fixup_spawn_height(
+                surface_y,
+                noise_settings.noise.min_y,
+                noise_settings.noise.min_y + noise_settings.noise.height,
+                |y| {
+                    let block = chunk
+                        .get_block_state(climate_pos.x, y, climate_pos.z)
+                        .unwrap_or_else(|| "minecraft:air".to_string());
+                    matches!(spawn_block_kind(&block), SpawnBlockKind::Air)
+                },
+            );
+            Ok(BlockPos {
+                x: climate_pos.x,
+                y: spawn_y,
+                z: climate_pos.z,
+            })
+        }
+        ResolvedChunkGenerator::Flat { settings, .. } => {
+            let y = flat_base_height(
+                &settings.expanded_layers,
+                FLAT_GENERATOR_MIN_Y,
+                FLAT_GENERATOR_GEN_DEPTH,
+                HeightmapKind::MotionBlocking,
+            );
+            Ok(BlockPos { x: 8, y, z: 8 })
+        }
+        ResolvedChunkGenerator::Debug { .. } => Ok(BlockPos { x: 0, y: 80, z: 0 }),
+    }
+}
+
 pub fn generator_base_column_for_stem(
     x: i32,
     z: i32,
@@ -36690,6 +36744,80 @@ pub fn initial_spawn_chunk_spiral_offsets() -> Vec<(i32, i32)> {
     offsets
 }
 
+pub fn climate_spawn_position(
+    target_climates: &[ClimateParameterPoint],
+    noise_router: NoiseRouter,
+    settings: NoiseGeneratorSettings,
+    seed: i64,
+) -> BlockPos {
+    if target_climates.is_empty() {
+        return BlockPos { x: 0, y: 0, z: 0 };
+    }
+    let sampler = ClimateSampler::from_noise_router(&noise_router, seed, settings);
+    let mut best = climate_spawn_position_and_fitness(target_climates, &sampler, 0, 0);
+    climate_spawn_radial_search(target_climates, &sampler, &mut best, 2048.0, 512.0);
+    climate_spawn_radial_search(target_climates, &sampler, &mut best, 512.0, 32.0);
+    best.location
+}
+
+fn climate_spawn_radial_search(
+    target_climates: &[ClimateParameterPoint],
+    sampler: &ClimateSampler,
+    best: &mut ClimateSpawnCandidate,
+    max_radius: f32,
+    radius_increment: f32,
+) {
+    let mut angle = 0.0_f32;
+    let mut radius = radius_increment;
+    let search_origin = best.location;
+    while radius <= max_radius {
+        let x = search_origin.x + (angle.sin() * radius) as i32;
+        let z = search_origin.z + (angle.cos() * radius) as i32;
+        let candidate = climate_spawn_position_and_fitness(target_climates, sampler, x, z);
+        if candidate.fitness < best.fitness {
+            *best = candidate;
+        }
+        angle += radius_increment / radius;
+        if angle > std::f32::consts::TAU {
+            angle = 0.0;
+            radius += radius_increment;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ClimateSpawnCandidate {
+    location: BlockPos,
+    fitness: i64,
+}
+
+fn climate_spawn_position_and_fitness(
+    target_climates: &[ClimateParameterPoint],
+    sampler: &ClimateSampler,
+    block_x: i32,
+    block_z: i32,
+) -> ClimateSpawnCandidate {
+    let target = sampler.sample(block_x.div_euclid(4), 0, block_z.div_euclid(4));
+    let zero_depth_target = ClimateTarget { depth: 0, ..target };
+    let min_fitness = target_climates
+        .iter()
+        .map(|point| point.fitness(zero_depth_target))
+        .min()
+        .unwrap_or(i64::MAX);
+    let distance_bias =
+        i64::from(block_x) * i64::from(block_x) + i64::from(block_z) * i64::from(block_z);
+    ClimateSpawnCandidate {
+        location: BlockPos {
+            x: block_x,
+            y: 0,
+            z: block_z,
+        },
+        fitness: min_fitness
+            .saturating_mul(2048_i64 * 2048_i64)
+            .saturating_add(distance_bias),
+    }
+}
+
 pub fn spawn_search_candidate_count(radius: i32) -> i32 {
     let side = i64::from(radius.max(0)) * 2 + 1;
     i64::from(SPAWN_SELECTION_CONSTANTS.spawn_search_absolute_max_attempts).min(side * side) as i32
@@ -36781,6 +36909,19 @@ pub fn fixup_spawn_height(
         y -= 1;
     }
     y + 1
+}
+
+pub fn spawn_block_kind(block: &str) -> SpawnBlockKind {
+    match block {
+        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air" => SpawnBlockKind::Air,
+        "minecraft:water" | "minecraft:lava" => SpawnBlockKind::Fluid,
+        "minecraft:short_grass"
+        | "minecraft:tall_grass"
+        | "minecraft:snow"
+        | "minecraft:fire"
+        | "minecraft:soul_fire" => SpawnBlockKind::NonSolid,
+        _ => SpawnBlockKind::Solid,
+    }
 }
 
 pub fn carver_can_reach(
@@ -56065,6 +56206,58 @@ mod tests {
         assert_eq!(offsets.last(), Some(&(5, -5)));
         assert!(offsets.contains(&(-5, -5)));
         assert!(offsets.contains(&(5, 5)));
+    }
+
+    #[test]
+    fn climate_spawn_position_uses_vanilla_two_pass_radial_search() {
+        let settings = *super::builtin_noise_generator_settings("overworld").unwrap();
+        let router = super::builtin_noise_router("overworld").unwrap().router;
+        let spawn = super::climate_spawn_position(settings.spawn_target, router, settings, 0);
+        assert_eq!(spawn.y, 0);
+        assert_ne!(
+            spawn,
+            BlockPos { x: 0, y: 0, z: 0 },
+            "overworld spawn target search should move away from origin when climate fitness improves"
+        );
+        assert!(
+            spawn.x.abs() <= 2560 && spawn.z.abs() <= 2560,
+            "two-pass radial search must stay inside the vanilla 2048+512 search envelope"
+        );
+        assert_eq!(
+            super::climate_spawn_position(&[], router, settings, 0),
+            BlockPos { x: 0, y: 0, z: 0 }
+        );
+    }
+
+    #[test]
+    fn noise_generator_find_spawn_position_uses_generated_surface_column() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let spawn = super::generator_find_spawn_position_for_stem(&normal.overworld, 0)
+            .expect("overworld spawn position should resolve");
+        let chunk_pos = ChunkPos {
+            x: spawn.x.div_euclid(16),
+            z: spawn.z.div_euclid(16),
+        };
+        let chunk = super::generator_build_surface_for_stem(chunk_pos, &normal.overworld)
+            .expect("spawn chunk should generate");
+        assert_eq!(
+            chunk
+                .get_block_state(spawn.x, spawn.y, spawn.z)
+                .as_deref()
+                .map(super::spawn_block_kind),
+            Some(SpawnBlockKind::Air),
+            "spawn position must be in a non-colliding, non-liquid block"
+        );
+        assert!(
+            matches!(
+                chunk
+                    .get_block_state(spawn.x, spawn.y - 1, spawn.z)
+                    .as_deref()
+                    .map(super::spawn_block_kind),
+                Some(SpawnBlockKind::Solid)
+            ),
+            "spawn position must stand on a solid generated block"
+        );
     }
 
     #[test]
