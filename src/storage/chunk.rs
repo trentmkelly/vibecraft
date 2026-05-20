@@ -390,7 +390,6 @@ impl LevelChunk {
                 "block_entities".to_string(),
                 Tag::List(self.block_entities.clone()),
             ),
-            ("entities".to_string(), Tag::List(self.entities.clone())),
             ("structures".to_string(), self.structures.clone()),
             (
                 "block_ticks".to_string(),
@@ -417,11 +416,16 @@ impl LevelChunk {
                 below_zero_retrogen.clone(),
             ));
         }
-        if let Some(carving_mask) = &self.carving_mask {
-            fields.push((
-                "carving_mask".to_string(),
-                Tag::LongArray(carving_mask.clone()),
-            ));
+        if self.has_proto_only_storage_fields() {
+            fields.push(("entities".to_string(), Tag::List(self.entities.clone())));
+        }
+        if self.has_proto_only_storage_fields() {
+            if let Some(carving_mask) = &self.carving_mask {
+                fields.push((
+                    "carving_mask".to_string(),
+                    Tag::LongArray(carving_mask.clone()),
+                ));
+            }
         }
         if self.light_correct {
             fields.push(("isLightOn".to_string(), Tag::Byte(1)));
@@ -540,6 +544,10 @@ impl LevelChunk {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
 
+    fn has_proto_only_storage_fields(&self) -> bool {
+        chunk_status(&self.status).is_some_and(|status| status.chunk_type == ChunkType::ProtoChunk)
+    }
+
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
         require_current_tag_data_version("chunk", tag)?;
         let root = compound(tag)?;
@@ -569,7 +577,7 @@ impl LevelChunk {
                 .map(|(name, value)| (name.clone(), value.clone()))
                 .collect(),
             block_entities: list_field(root, "block_entities")?.to_vec(),
-            entities: list_field(root, "entities")?.to_vec(),
+            entities: optional_list_field(root, "entities")?.unwrap_or_default(),
             structures: field(root, "structures")?.clone(),
             upgrade_data: optional_field(root, "UpgradeData").cloned(),
             blending_data: optional_field(root, "blending_data").cloned(),
@@ -951,6 +959,17 @@ fn list_field<'a>(compound: &'a [(String, Tag)], name: &str) -> Result<&'a [Tag]
     }
 }
 
+fn optional_list_field<'a>(
+    compound: &'a [(String, Tag)],
+    name: &str,
+) -> Result<Option<Vec<Tag>>, String> {
+    match optional_field(compound, name) {
+        Some(Tag::List(values)) => Ok(Some(values.clone())),
+        Some(_) => Err(format!("NBT field {name} must be a list")),
+        None => Ok(None),
+    }
+}
+
 fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i8>>, String> {
     match compound.iter().find(|(field_name, _)| field_name == name) {
         Some((_name, Tag::ByteArray(values))) => Ok(Some(values.clone())),
@@ -997,7 +1016,7 @@ mod tests {
             pos,
             min_section_y: -4,
             last_update: 1234,
-            status: "minecraft:full".to_string(),
+            status: "minecraft:spawn".to_string(),
             inhabited_time: 42,
             sections: vec![ChunkSection {
                 y: 0,
@@ -1040,7 +1059,7 @@ mod tests {
         assert_eq!(decoded.pos, pos);
         assert_eq!(decoded.min_section_y, -4);
         assert_eq!(decoded.last_update, 1234);
-        assert_eq!(decoded.status, "minecraft:full");
+        assert_eq!(decoded.status, "minecraft:spawn");
         assert_eq!(
             decoded.sections[0].block_light.as_ref().unwrap().len(),
             2048
@@ -1057,6 +1076,28 @@ mod tests {
         assert_eq!(decoded.fluid_ticks.len(), 1);
         assert_eq!(decoded.post_processing.len(), 1);
         assert!(decoded.light_correct);
+    }
+
+    #[test]
+    fn full_chunk_serialization_omits_proto_only_entity_and_carver_fields() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.status = "minecraft:full".to_string();
+        chunk.entities = vec![Tag::Compound(vec![(
+            "id".to_string(),
+            Tag::String("minecraft:pig".to_string()),
+        )])];
+        chunk.carving_mask = Some(vec![1, 2, 3]);
+
+        let encoded = chunk.to_nbt(TARGET_DATA_VERSION);
+        let Tag::Compound(fields) = &encoded else {
+            panic!("chunk should encode as a compound");
+        };
+        assert!(fields.iter().all(|(name, _)| name != "entities"));
+        assert!(fields.iter().all(|(name, _)| name != "carving_mask"));
+
+        let decoded = LevelChunk::from_nbt(chunk.pos, &encoded).unwrap();
+        assert!(decoded.entities.is_empty());
+        assert!(decoded.carving_mask.is_none());
     }
 
     #[test]
