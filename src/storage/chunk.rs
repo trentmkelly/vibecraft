@@ -653,6 +653,14 @@ impl LevelChunk {
         migrated_entities
     }
 
+    pub fn set_inhabited_time(&mut self, inhabited_time: i64) {
+        self.inhabited_time = inhabited_time;
+    }
+
+    pub fn increment_inhabited_time(&mut self, inhabited_time_delta: i64) {
+        self.inhabited_time += inhabited_time_delta;
+    }
+
     pub fn light_handoff_plan(&self, has_sky_light: bool) -> ChunkLightHandoffPlan {
         let mut queued_sections = Vec::new();
         for section in &self.sections {
@@ -2248,6 +2256,20 @@ mod tests {
         assert!(chunk.below_zero_retrogen.is_none());
         assert!(fields.iter().all(|(name, _)| name != "entities"));
         assert!(fields.iter().all(|(name, _)| name != "carving_mask"));
+    }
+
+    #[test]
+    fn level_chunk_updates_inhabited_time_like_chunk_access() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+
+        chunk.set_inhabited_time(40);
+        chunk.increment_inhabited_time(2);
+
+        assert_eq!(chunk.inhabited_time, 42);
+
+        let decoded = LevelChunk::from_nbt(chunk.pos, &chunk.to_nbt(TARGET_DATA_VERSION)).unwrap();
+
+        assert_eq!(decoded.inhabited_time, 42);
     }
 
     #[test]
