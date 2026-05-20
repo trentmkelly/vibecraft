@@ -775,6 +775,59 @@ impl LevelChunk {
         values
     }
 
+    fn update_heightmaps_after_block_change(
+        &mut self,
+        local_x: i32,
+        world_y: i32,
+        local_z: i32,
+        block_name: &str,
+    ) {
+        let column_index = local_z as usize * 16 + local_x as usize;
+        let min_y = self.min_section_y * 16;
+        let existing_heightmaps = self
+            .heightmaps
+            .keys()
+            .filter_map(|name| HeightmapKind::from_storage_name(name))
+            .collect::<Vec<_>>();
+        for heightmap in existing_heightmaps {
+            let Some(Tag::LongArray(raw_values)) = self.heightmaps.get(heightmap.storage_name())
+            else {
+                continue;
+            };
+            let mut values = unpack_heightmap_values(raw_values);
+            let first_available = values[column_index];
+            if world_y <= first_available - 2 {
+                continue;
+            }
+            if heightmap_block_matches(heightmap, block_name) {
+                if world_y >= first_available {
+                    values[column_index] = world_y + 1;
+                    self.heightmaps.insert(
+                        heightmap.storage_name().to_string(),
+                        Tag::LongArray(pack_heightmap_values(&values)),
+                    );
+                }
+            } else if first_available - 1 == world_y {
+                values[column_index] = (min_y..world_y)
+                    .rev()
+                    .find(|y| {
+                        self.get_block_state(
+                            self.pos.x * CHUNK_WIDTH + local_x,
+                            *y,
+                            self.pos.z * CHUNK_WIDTH + local_z,
+                        )
+                        .is_some_and(|block| heightmap_block_matches(heightmap, &block))
+                    })
+                    .map(|y| y + 1)
+                    .unwrap_or(min_y);
+                self.heightmaps.insert(
+                    heightmap.storage_name().to_string(),
+                    Tag::LongArray(pack_heightmap_values(&values)),
+                );
+            }
+        }
+    }
+
     fn contains_block_pos(&self, x: i32, z: i32) -> bool {
         x.div_euclid(CHUNK_WIDTH) == self.pos.x && z.div_euclid(CHUNK_WIDTH) == self.pos.z
     }
@@ -931,6 +984,29 @@ fn pack_heightmap_values(values: &[i32; 16 * 16]) -> Vec<i64> {
         }
     }
     packed.into_iter().map(|word| word as i64).collect()
+}
+
+fn unpack_heightmap_values(data: &[i64]) -> [i32; 16 * 16] {
+    const BITS_PER_ENTRY: usize = 9;
+    let mut values = [0; 16 * 16];
+    let mask = (1_u64 << BITS_PER_ENTRY) - 1;
+    for (index, value) in values.iter_mut().enumerate() {
+        let bit_offset = index * BITS_PER_ENTRY;
+        let word_index = bit_offset / 64;
+        let bit_index = bit_offset % 64;
+        let Some(word) = data.get(word_index).copied() else {
+            continue;
+        };
+        let mut unpacked = (word as u64) >> bit_index;
+        let spill = bit_index + BITS_PER_ENTRY;
+        if spill > 64 {
+            if let Some(next_word) = data.get(word_index + 1).copied() {
+                unpacked |= (next_word as u64) << (64 - bit_index);
+            }
+        }
+        *value = (unpacked & mask) as i32;
+    }
+    values
 }
 
 fn heightmap_block_matches(heightmap: HeightmapKind, block: &str) -> bool {
@@ -1281,13 +1357,23 @@ impl LevelChunk {
             Tag::String(block_name.to_string()),
         )]);
 
+        let mut changed = false;
         if let Some(section) = self.sections.iter_mut().find(|s| s.y == section_y) {
             if let Ok(mut container) =
                 PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
             {
                 container.set_entry(index, entry);
                 section.block_states = container.to_nbt();
+                changed = true;
             }
+        }
+        if changed {
+            self.update_heightmaps_after_block_change(
+                local_x as i32,
+                world_y,
+                local_z as i32,
+                block_name,
+            );
         }
     }
 }
@@ -1301,6 +1387,18 @@ impl HeightmapKind {
             Self::OceanFloor => "OCEAN_FLOOR",
             Self::MotionBlocking => "MOTION_BLOCKING",
             Self::MotionBlockingNoLeaves => "MOTION_BLOCKING_NO_LEAVES",
+        }
+    }
+
+    pub fn from_storage_name(name: &str) -> Option<Self> {
+        match name {
+            "WORLD_SURFACE_WG" => Some(Self::WorldSurfaceWg),
+            "WORLD_SURFACE" => Some(Self::WorldSurface),
+            "OCEAN_FLOOR_WG" => Some(Self::OceanFloorWg),
+            "OCEAN_FLOOR" => Some(Self::OceanFloor),
+            "MOTION_BLOCKING" => Some(Self::MotionBlocking),
+            "MOTION_BLOCKING_NO_LEAVES" => Some(Self::MotionBlockingNoLeaves),
+            _ => None,
         }
     }
 }
@@ -2904,6 +3002,42 @@ mod tests {
         );
         assert!(chunk.heightmaps.contains_key("MOTION_BLOCKING"));
         assert!(chunk.heightmaps.contains_key("MOTION_BLOCKING_NO_LEAVES"));
+    }
+
+    #[test]
+    fn level_chunk_updates_existing_heightmaps_after_block_changes() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.min_section_y = 0;
+        chunk.sections = vec![ChunkSection {
+            y: 0,
+            block_states: default_block_states_container(),
+            biomes: default_biomes_container(),
+            block_light: None,
+            sky_light: None,
+        }];
+        chunk.prime_heightmaps(&[HeightmapKind::WorldSurface]);
+        let column_index = 4 * 16 + 2;
+
+        chunk.set_block_state(2, 3, 4, "minecraft:stone");
+        let values = match chunk.heightmaps.get("WORLD_SURFACE").unwrap() {
+            Tag::LongArray(values) => super::unpack_heightmap_values(values),
+            _ => panic!("heightmap should be a long array"),
+        };
+        assert_eq!(values[column_index], 4);
+
+        chunk.set_block_state(2, 8, 4, "minecraft:stone");
+        let values = match chunk.heightmaps.get("WORLD_SURFACE").unwrap() {
+            Tag::LongArray(values) => super::unpack_heightmap_values(values),
+            _ => panic!("heightmap should be a long array"),
+        };
+        assert_eq!(values[column_index], 9);
+
+        chunk.set_block_state(2, 8, 4, "minecraft:air");
+        let values = match chunk.heightmaps.get("WORLD_SURFACE").unwrap() {
+            Tag::LongArray(values) => super::unpack_heightmap_values(values),
+            _ => panic!("heightmap should be a long array"),
+        };
+        assert_eq!(values[column_index], 4);
     }
 
     #[test]
