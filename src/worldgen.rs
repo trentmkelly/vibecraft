@@ -31282,6 +31282,79 @@ pub fn iceberg_smooth_action(
     }
 }
 
+pub fn blue_ice_can_start(
+    origin_y: i32,
+    sea_level: i32,
+    origin_state: &str,
+    below_state: &str,
+    adjacent_without_down: &[&str],
+) -> bool {
+    origin_y <= sea_level - 1
+        && (origin_state == "minecraft:water" || below_state == "minecraft:water")
+        && adjacent_without_down
+            .iter()
+            .any(|state| *state == "minecraft:packed_ice")
+}
+
+pub fn blue_ice_xz_diff(y_offset: i32) -> i32 {
+    let mut xz_diff = 3;
+    if y_offset < 2 {
+        xz_diff += y_offset / 2;
+    }
+    xz_diff
+}
+
+pub fn blue_ice_spread_candidate(
+    origin: BlockPos,
+    y_offset: i32,
+    x_first_roll: i32,
+    x_second_roll: i32,
+    z_first_roll: i32,
+    z_second_roll: i32,
+) -> Option<BlockPos> {
+    let xz_diff = blue_ice_xz_diff(y_offset);
+    if xz_diff < 1 {
+        return None;
+    }
+    Some(BlockPos {
+        x: origin.x + x_first_roll.rem_euclid(xz_diff) - x_second_roll.rem_euclid(xz_diff),
+        y: origin.y + y_offset,
+        z: origin.z + z_first_roll.rem_euclid(xz_diff) - z_second_roll.rem_euclid(xz_diff),
+    })
+}
+
+pub fn blue_ice_candidate_offset(
+    origin: BlockPos,
+    y_first_roll: i32,
+    y_second_roll: i32,
+    x_first_roll: i32,
+    x_second_roll: i32,
+    z_first_roll: i32,
+    z_second_roll: i32,
+) -> Option<BlockPos> {
+    blue_ice_spread_candidate(
+        origin,
+        y_first_roll.rem_euclid(5) - y_second_roll.rem_euclid(6),
+        x_first_roll,
+        x_second_roll,
+        z_first_roll,
+        z_second_roll,
+    )
+}
+
+pub fn blue_ice_spread_can_place(candidate_state: &str, adjacent_states: &[&str]) -> bool {
+    matches!(
+        candidate_state,
+        "minecraft:air" | "minecraft:water" | "minecraft:packed_ice" | "minecraft:ice"
+    ) && adjacent_states
+        .iter()
+        .any(|state| *state == "minecraft:blue_ice")
+}
+
+pub fn blue_ice_spread_can_replace(candidate_state: &str, adjacent_states: &[&str]) -> bool {
+    blue_ice_spread_can_place(candidate_state, adjacent_states)
+}
+
 pub fn validate_weighted_placed_feature(
     feature: WeightedPlacedFeatureModel,
 ) -> Result<WeightedPlacedFeatureModel, &'static str> {
@@ -46839,6 +46912,87 @@ mod tests {
             super::iceberg_smooth_action("minecraft:snow", true, 0),
             super::IcebergBlockAction::Air
         );
+        assert!(super::blue_ice_can_start(
+            62,
+            63,
+            "minecraft:water",
+            "minecraft:air",
+            &["minecraft:packed_ice"]
+        ));
+        assert!(!super::blue_ice_can_start(
+            63,
+            63,
+            "minecraft:water",
+            "minecraft:air",
+            &["minecraft:packed_ice"]
+        ));
+        assert!(!super::blue_ice_can_start(
+            62,
+            63,
+            "minecraft:air",
+            "minecraft:stone",
+            &["minecraft:packed_ice"]
+        ));
+        assert!(!super::blue_ice_can_start(
+            62,
+            63,
+            "minecraft:water",
+            "minecraft:air",
+            &["minecraft:ice"]
+        ));
+        assert_eq!(super::blue_ice_xz_diff(1), 3);
+        assert_eq!(super::blue_ice_xz_diff(-5), 1);
+        assert_eq!(super::blue_ice_xz_diff(-6), 0);
+        assert_eq!(
+            super::blue_ice_spread_candidate(
+                BlockPos {
+                    x: 10,
+                    y: 64,
+                    z: 10
+                },
+                -1,
+                2,
+                0,
+                1,
+                0
+            ),
+            Some(BlockPos {
+                x: 12,
+                y: 63,
+                z: 11
+            })
+        );
+        assert_eq!(
+            super::blue_ice_spread_candidate(
+                BlockPos {
+                    x: 10,
+                    y: 64,
+                    z: 10
+                },
+                -6,
+                0,
+                0,
+                0,
+                0
+            ),
+            None
+        );
+        assert!(super::blue_ice_spread_can_place(
+            "minecraft:water",
+            &["minecraft:blue_ice"]
+        ));
+        assert!(super::blue_ice_spread_can_place(
+            "minecraft:ice",
+            &["minecraft:blue_ice"]
+        ));
+        assert!(!super::blue_ice_spread_can_place(
+            "minecraft:stone",
+            &["minecraft:blue_ice"]
+        ));
+        assert!(!super::blue_ice_spread_can_place(
+            "minecraft:water",
+            &["minecraft:packed_ice"]
+        ));
         let random_feature = super::RandomFeatureConfigurationModel {
             features: vec![
                 super::WeightedPlacedFeatureModel {
