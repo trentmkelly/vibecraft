@@ -180,6 +180,7 @@
 - [ ] Implement `Panda`: 7 personality traits (lazy/playful/worried/aggressive/weak/brown/normal), sneeze mechanic, rolling animation, bamboo eating
 - [ ] Implement `Parrot`: imitation of nearby mob sounds, shoulder riding, dancing to jukebox within range, cookie-poisoning death
 - [ ] Implement `Pig`: saddle+ride, carrot-on-a-stick steering and durability, lightning → ZombifiedPiglin conversion
+  - [x] Implement Java-matched `Pig` riding and conversion gates: saddle-slot/adult checks, carrot-on-a-stick controller gate, 140-980 tick boost timer, ridden speed boost factor, 7-damage/25-durability boost item use, breeding variant inheritance, and non-peaceful lightning conversion
 - [ ] Implement `PolarBear`: neutral until cub is nearby, aggressive to foxes, swim AI
 - [ ] Implement `Rabbit`: farmland/carrot-griefing AI, toast skin (username-triggered), killer bunny variant (only via `/summon`+NBT)
 - [ ] Implement `Sheep`: color-based wool drop, regrow wool after eating grass (`EatGrassGoal`), dyeing via dye item interaction

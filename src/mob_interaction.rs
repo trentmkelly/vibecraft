@@ -1201,6 +1201,157 @@ pub fn goat_ram_knockback_force(baby: bool) -> f32 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PigState {
+    pub saddled: bool,
+    pub boost_time_total: i32,
+    pub boosting: bool,
+    pub boost_time: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PigInteraction {
+    StartRide,
+    DelegateToAnimal,
+    EquipSaddle,
+    Pass,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PigBoostUseResult {
+    BoostStarted {
+        damage: i32,
+        converts_to_fishing_rod: bool,
+    },
+    Pass,
+}
+
+pub const PIG_MAX_HEALTH: f32 = 10.0;
+pub const PIG_MOVEMENT_SPEED: f64 = 0.25;
+pub const PIG_RIDDEN_SPEED_FACTOR: f64 = 0.225;
+pub const PIG_BOOST_MIN_TIME: i32 = 140;
+pub const PIG_BOOST_MAX_TIME: i32 = 980;
+pub const PIG_BOOST_RANDOM_BOUND: i32 = 841;
+pub const PIG_BOOST_SPEED_AMPLIFIER: f32 = 1.15;
+pub const PIG_CARROT_ON_A_STICK_DURABILITY: i32 = 25;
+pub const PIG_CARROT_ON_A_STICK_DAMAGE_PER_BOOST: i32 = 7;
+pub const PIG_TEMPT_SPEED: f32 = 1.2;
+pub const PIG_PANIC_SPEED: f32 = 1.25;
+pub const PIG_FOLLOW_PARENT_SPEED: f32 = 1.1;
+pub const PIG_LEASH_EYE_HEIGHT_FACTOR: f32 = 0.6;
+pub const PIG_LEASH_WIDTH_FACTOR: f32 = 0.4;
+
+impl PigState {
+    pub fn new() -> Self {
+        Self {
+            saddled: false,
+            boost_time_total: 0,
+            boosting: false,
+            boost_time: 0,
+        }
+    }
+
+    pub fn controlling_passenger(
+        self,
+        first_passenger_is_player: bool,
+        player_holds_carrot_on_a_stick: bool,
+    ) -> bool {
+        self.saddled && first_passenger_is_player && player_holds_carrot_on_a_stick
+    }
+
+    pub fn can_use_saddle_slot(alive: bool, baby: bool) -> bool {
+        alive && !baby
+    }
+
+    pub fn boost(&mut self, random_offset_0_to_840: i32) -> bool {
+        if self.boosting {
+            return false;
+        }
+        self.boosting = true;
+        self.boost_time = 0;
+        self.boost_time_total =
+            PIG_BOOST_MIN_TIME + random_offset_0_to_840.clamp(0, PIG_BOOST_RANDOM_BOUND - 1);
+        true
+    }
+
+    pub fn tick_boost(&mut self) {
+        if self.boosting {
+            let previous_boost_time = self.boost_time;
+            self.boost_time += 1;
+            if previous_boost_time > self.boost_time_total {
+                self.boosting = false;
+            }
+        }
+    }
+
+    pub fn boost_factor(self) -> f32 {
+        if self.boosting {
+            1.0 + PIG_BOOST_SPEED_AMPLIFIER
+                * ((self.boost_time as f32 / self.boost_time_total as f32) * std::f32::consts::PI)
+                    .sin()
+        } else {
+            1.0
+        }
+    }
+
+    pub fn ridden_speed(self, movement_speed: f64) -> f32 {
+        (movement_speed * PIG_RIDDEN_SPEED_FACTOR * self.boost_factor() as f64) as f32
+    }
+}
+
+pub fn pig_interaction(
+    has_food: bool,
+    saddled: bool,
+    is_vehicle: bool,
+    player_secondary_use_active: bool,
+    super_interaction_consumes: bool,
+    item_equippable_saddle: bool,
+) -> PigInteraction {
+    if !has_food && saddled && !is_vehicle && !player_secondary_use_active {
+        PigInteraction::StartRide
+    } else if super_interaction_consumes {
+        PigInteraction::DelegateToAnimal
+    } else if item_equippable_saddle {
+        PigInteraction::EquipSaddle
+    } else {
+        PigInteraction::Pass
+    }
+}
+
+pub fn pig_thunder_converts_to_zombified_piglin(difficulty: &str) -> bool {
+    difficulty != "peaceful"
+}
+
+pub fn pig_food_on_a_stick_use(
+    server_side: bool,
+    player_is_passenger: bool,
+    controlled_vehicle_is_pig: bool,
+    boost_started: bool,
+    current_damage: i32,
+) -> PigBoostUseResult {
+    if server_side && player_is_passenger && controlled_vehicle_is_pig && boost_started {
+        PigBoostUseResult::BoostStarted {
+            damage: PIG_CARROT_ON_A_STICK_DAMAGE_PER_BOOST,
+            converts_to_fishing_rod: current_damage + PIG_CARROT_ON_A_STICK_DAMAGE_PER_BOOST
+                >= PIG_CARROT_ON_A_STICK_DURABILITY,
+        }
+    } else {
+        PigBoostUseResult::Pass
+    }
+}
+
+pub fn pig_offspring_variant<'a>(
+    first_parent_variant: &'a str,
+    second_parent_variant: &'a str,
+    choose_first_parent: bool,
+) -> &'a str {
+    if choose_first_parent {
+        first_parent_variant
+    } else {
+        second_parent_variant
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
@@ -2398,6 +2549,103 @@ mod tests {
             lowering.tick_lower_head(false);
         }
         assert_eq!(lowering.lower_head_tick, 0);
+    }
+
+    #[test]
+    fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
+        assert_eq!(PIG_MAX_HEALTH, 10.0);
+        assert_eq!(PIG_MOVEMENT_SPEED, 0.25);
+        assert_eq!(PIG_RIDDEN_SPEED_FACTOR, 0.225);
+        assert_eq!(PIG_BOOST_MIN_TIME, 140);
+        assert_eq!(PIG_BOOST_MAX_TIME, 980);
+        assert_eq!(PIG_BOOST_RANDOM_BOUND, 841);
+        assert_eq!(PIG_BOOST_SPEED_AMPLIFIER, 1.15);
+        assert_eq!(PIG_CARROT_ON_A_STICK_DURABILITY, 25);
+        assert_eq!(PIG_CARROT_ON_A_STICK_DAMAGE_PER_BOOST, 7);
+        assert_eq!(PIG_TEMPT_SPEED, 1.2);
+        assert_eq!(PIG_PANIC_SPEED, 1.25);
+        assert_eq!(PIG_FOLLOW_PARENT_SPEED, 1.1);
+        assert_eq!(PIG_LEASH_EYE_HEIGHT_FACTOR, 0.6);
+        assert_eq!(PIG_LEASH_WIDTH_FACTOR, 0.4);
+
+        let mut pig = PigState::new();
+        assert!(!pig.controlling_passenger(true, true));
+        pig.saddled = true;
+        assert!(pig.controlling_passenger(true, true));
+        assert!(!pig.controlling_passenger(false, true));
+        assert!(!pig.controlling_passenger(true, false));
+        assert!(PigState::can_use_saddle_slot(true, false));
+        assert!(!PigState::can_use_saddle_slot(false, false));
+        assert!(!PigState::can_use_saddle_slot(true, true));
+
+        assert_eq!(
+            pig_interaction(false, true, false, false, false, false),
+            PigInteraction::StartRide
+        );
+        assert_eq!(
+            pig_interaction(true, true, false, false, true, false),
+            PigInteraction::DelegateToAnimal
+        );
+        assert_eq!(
+            pig_interaction(false, true, true, false, false, true),
+            PigInteraction::EquipSaddle
+        );
+        assert_eq!(
+            pig_interaction(false, false, false, false, false, false),
+            PigInteraction::Pass
+        );
+
+        assert!(pig.boost(0));
+        assert_eq!(pig.boost_time_total, PIG_BOOST_MIN_TIME);
+        assert_eq!(pig.boost_time, 0);
+        assert!(!pig.boost(840), "ItemBasedSteering rejects nested boosts");
+        pig.boost_time = pig.boost_time_total / 2;
+        assert!((pig.boost_factor() - 2.15).abs() < 0.00001);
+        assert!((pig.ridden_speed(PIG_MOVEMENT_SPEED) - 0.1209375).abs() < 0.00001);
+        pig.boost_time = pig.boost_time_total;
+        pig.tick_boost();
+        assert!(
+            pig.boosting,
+            "Java stops only after old boostTime is greater than total"
+        );
+        pig.tick_boost();
+        assert!(!pig.boosting);
+        assert_eq!(pig.boost_factor(), 1.0);
+
+        let mut max_boost = PigState::new();
+        assert!(max_boost.boost(840));
+        assert_eq!(max_boost.boost_time_total, PIG_BOOST_MAX_TIME);
+        assert!(max_boost.boost(999) == false);
+
+        assert_eq!(
+            pig_food_on_a_stick_use(true, true, true, true, 0),
+            PigBoostUseResult::BoostStarted {
+                damage: 7,
+                converts_to_fishing_rod: false,
+            }
+        );
+        assert_eq!(
+            pig_food_on_a_stick_use(true, true, true, true, 18),
+            PigBoostUseResult::BoostStarted {
+                damage: 7,
+                converts_to_fishing_rod: true,
+            }
+        );
+        assert_eq!(
+            pig_food_on_a_stick_use(false, true, true, true, 0),
+            PigBoostUseResult::Pass
+        );
+
+        assert!(!pig_thunder_converts_to_zombified_piglin("peaceful"));
+        assert!(pig_thunder_converts_to_zombified_piglin("easy"));
+        assert_eq!(
+            pig_offspring_variant("minecraft:temperate", "minecraft:cold", true),
+            "minecraft:temperate"
+        );
+        assert_eq!(
+            pig_offspring_variant("minecraft:temperate", "minecraft:cold", false),
+            "minecraft:cold"
+        );
     }
 
     #[test]
