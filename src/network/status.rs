@@ -3450,6 +3450,31 @@ fn write_minimal_play_join(
     write_framed_packet_with_compression(
         stream,
         compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, center_chunk_x)?;
+            write_var_i32(payload, center_chunk_z)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+        |payload| write_var_i32(payload, properties.view_distance as i32),
+    )?;
+    write_play_chunk_delta(
+        stream,
+        compression,
+        center_chunk_x,
+        center_chunk_z,
+        &[(center_chunk_x, center_chunk_z)],
+        false,
+        world_root,
+        world_seed,
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
         CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
         |payload| {
             write_var_i32(payload, 0)?;
@@ -3471,21 +3496,6 @@ fn write_minimal_play_join(
         compression,
         CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
         |payload| write_default_spawn_position_packet(payload, 0, SPAWN_Y as i32, 0),
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-        |payload| {
-            write_var_i32(payload, center_chunk_x)?;
-            write_var_i32(payload, center_chunk_z)
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-        |payload| write_var_i32(payload, properties.view_distance as i32),
     )?;
     // Type 2 = StopRaining (used to initialise client weather state even when not raining).
     // Java: ServerLevel.sendLevelInfo() sends BeginRaining/StopRaining on join.
@@ -3539,6 +3549,7 @@ fn write_play_chunk_batch(
     }
     let chunks: Vec<_> = ((center_chunk_z - radius)..=(center_chunk_z + radius))
         .flat_map(|z| ((center_chunk_x - radius)..=(center_chunk_x + radius)).map(move |x| (x, z)))
+        .filter(|&(x, z)| x != center_chunk_x || z != center_chunk_z)
         .collect();
     write_play_chunk_delta(
         stream,
@@ -3906,18 +3917,46 @@ fn write_generated_spawn_chunk_payload<W: Write>(
 }
 
 fn load_or_generate_spawn_chunk(x: i32, z: i32, world_root: &Path, world_seed: i64) -> LevelChunk {
+    let started = Instant::now();
     let pos = ChunkPos { x, z };
     let region_dir = world_root.join("region");
-    try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
-        generate_overworld_spawn_chunk_for_preset_with_mode(
+    let mut source = "region";
+    let chunk = try_load_chunk_from_region(&region_dir, pos).unwrap_or_else(|| {
+        source = match live_chunk_generation_mode() {
+            LiveChunkGenerationMode::Preview => "generated-preview",
+            LiveChunkGenerationMode::RealSurface => "generated-real-surface",
+        };
+        match generate_overworld_spawn_chunk_for_preset_with_mode(
             pos,
             "normal",
             live_chunk_generation_mode(),
             world_seed,
             true,
-        )
-        .unwrap_or_else(|_| crate::storage::chunk::LevelChunk::empty(pos))
-    })
+        ) {
+            Ok(chunk) => chunk,
+            Err(err) => {
+                source = "generated-fallback-empty";
+                eprintln!(
+                    "[worldgen] chunk=({}, {}) generation failed after {}ms: {}",
+                    x,
+                    z,
+                    started.elapsed().as_millis(),
+                    err
+                );
+                crate::storage::chunk::LevelChunk::empty(pos)
+            }
+        }
+    });
+    eprintln!(
+        "[worldgen] chunk=({}, {}) source={} status={} sections={} elapsed={}ms",
+        x,
+        z,
+        source,
+        chunk.status,
+        chunk.sections.len(),
+        started.elapsed().as_millis()
+    );
+    chunk
 }
 
 fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
