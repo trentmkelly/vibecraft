@@ -23849,8 +23849,67 @@ pub fn spawn_placement_type(entity_type: &str) -> &'static str {
     }
 }
 
+pub fn chunk_generation_spawn_position_ok(
+    chunk: &LevelChunk,
+    entity_type: &str,
+    pos: BlockPos,
+) -> bool {
+    match spawn_placement_type(entity_type) {
+        "no_restrictions" => true,
+        "in_water" => {
+            chunk
+                .get_block_state(pos.x, pos.y, pos.z)
+                .as_deref()
+                .is_some_and(|block| block == "minecraft:water")
+                && !chunk
+                    .get_block_state(pos.x, pos.y + 1, pos.z)
+                    .as_deref()
+                    .is_some_and(spawn_redstone_conductor_block)
+        }
+        "in_lava" => chunk
+            .get_block_state(pos.x, pos.y, pos.z)
+            .as_deref()
+            .is_some_and(|block| block == "minecraft:lava"),
+        "on_ground" => {
+            chunk
+                .get_block_state(pos.x, pos.y - 1, pos.z)
+                .as_deref()
+                .is_some_and(|block| spawn_valid_ground_block(block, entity_type))
+                && chunk
+                    .get_block_state(pos.x, pos.y, pos.z)
+                    .as_deref()
+                    .is_some_and(spawn_valid_empty_block)
+                && chunk
+                    .get_block_state(pos.x, pos.y + 1, pos.z)
+                    .as_deref()
+                    .is_some_and(spawn_valid_empty_block)
+        }
+        _ => false,
+    }
+}
+
 fn spawn_pathfindable_land_block(block: &str) -> bool {
     is_surface_air(block)
+}
+
+fn spawn_valid_ground_block(block: &str, entity_type: &str) -> bool {
+    match block {
+        "minecraft:ice" | "minecraft:packed_ice" | "minecraft:blue_ice" => {
+            entity_type == "minecraft:polar_bear"
+        }
+        _ => matches!(spawn_block_kind(block), SpawnBlockKind::Solid),
+    }
+}
+
+fn spawn_valid_empty_block(block: &str) -> bool {
+    matches!(
+        spawn_block_kind(block),
+        SpawnBlockKind::Air | SpawnBlockKind::NonSolid
+    )
+}
+
+fn spawn_redstone_conductor_block(block: &str) -> bool {
+    matches!(spawn_block_kind(block), SpawnBlockKind::Solid)
 }
 
 pub fn generator_base_height_for_stem(
@@ -57953,6 +58012,47 @@ mod tests {
                 .as_deref()
                 .is_some_and(|block| !super::is_surface_air(block)),
             "on-ground top position should stand above a non-air block"
+        );
+    }
+
+    #[test]
+    fn chunk_generation_spawn_position_ok_matches_placement_type_primitives() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let chunk_pos = ChunkPos { x: 2, z: -3 };
+        let chunk = super::generator_build_surface_for_stem(chunk_pos, &normal.overworld)
+            .expect("surface chunk should generate");
+        let pos = super::chunk_generation_mob_top_non_colliding_pos(
+            &chunk,
+            "minecraft:pig",
+            37,
+            -37,
+            false,
+        )
+        .pos;
+
+        assert!(super::chunk_generation_spawn_position_ok(
+            &chunk,
+            "minecraft:pig",
+            pos
+        ));
+        assert!(!super::chunk_generation_spawn_position_ok(
+            &chunk,
+            "minecraft:pig",
+            BlockPos {
+                x: pos.x,
+                y: pos.y - 1,
+                z: pos.z,
+            }
+        ));
+        assert_eq!(super::spawn_placement_type("minecraft:squid"), "in_water");
+        assert_eq!(super::spawn_placement_type("minecraft:strider"), "in_lava");
+        assert_eq!(
+            super::spawn_placement_type("minecraft:fox"),
+            "no_restrictions"
+        );
+        assert_eq!(
+            super::spawn_placement_heightmap("minecraft:pig"),
+            HeightmapKind::MotionBlockingNoLeaves
         );
     }
 
