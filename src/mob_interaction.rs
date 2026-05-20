@@ -1080,6 +1080,185 @@ pub fn evoker_vex_summon_plan(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SilverfishAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+    pub attack_damage: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SilverfishWakeStep {
+    pub offset: (i32, i32, i32),
+    pub action: SilverfishWakeAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SilverfishWakeAction {
+    DestroyInfestedBlock,
+    RestoreHostBlock,
+}
+
+pub const SILVERFISH_MAX_HEALTH: f32 = 8.0;
+pub const SILVERFISH_MOVEMENT_SPEED: f32 = 0.25;
+pub const SILVERFISH_ATTACK_DAMAGE: f32 = 1.0;
+pub const SILVERFISH_WAKE_DELAY_TICKS: i32 = 20;
+pub const SILVERFISH_WAKE_SCAN_XZ_RADIUS: i32 = 10;
+pub const SILVERFISH_WAKE_SCAN_Y_RADIUS: i32 = 5;
+pub const SILVERFISH_MERGE_RANDOM_BOUND: i32 = 10;
+pub const SILVERFISH_MERGE_SPEED: f32 = 1.0;
+pub const SILVERFISH_MERGE_INTERVAL_TICKS: i32 = 10;
+pub const SILVERFISH_WALK_TARGET_HOST_VALUE: f32 = 10.0;
+pub const SILVERFISH_NEAR_PLAYER_SPAWN_BLOCK_RANGE: f64 = 5.0;
+pub const SILVERFISH_STEP_SOUND_VOLUME: f32 = 0.15;
+pub const SILVERFISH_STEP_SOUND_PITCH: f32 = 1.0;
+
+pub fn silverfish_attributes() -> SilverfishAttributes {
+    SilverfishAttributes {
+        max_health: SILVERFISH_MAX_HEALTH,
+        movement_speed: SILVERFISH_MOVEMENT_SPEED,
+        attack_damage: SILVERFISH_ATTACK_DAMAGE,
+    }
+}
+
+pub fn silverfish_spawn_allowed(
+    any_light_monster_rules_pass: bool,
+    spawn_reason_is_spawner: bool,
+    nearest_player_within_5_blocks: bool,
+) -> bool {
+    any_light_monster_rules_pass && (spawn_reason_is_spawner || !nearest_player_within_5_blocks)
+}
+
+pub fn silverfish_notify_hurt_delay(
+    current_look_for_friends: i32,
+    source_has_entity: bool,
+    source_always_triggers_silverfish: bool,
+) -> i32 {
+    if current_look_for_friends == 0 && (source_has_entity || source_always_triggers_silverfish) {
+        SILVERFISH_WAKE_DELAY_TICKS
+    } else {
+        current_look_for_friends
+    }
+}
+
+pub fn silverfish_merge_can_use(
+    has_target: bool,
+    navigation_done: bool,
+    mob_griefing: bool,
+    random_0_to_9: i32,
+    adjacent_block: &'static str,
+) -> bool {
+    !has_target
+        && navigation_done
+        && mob_griefing
+        && random_0_to_9.rem_euclid(SILVERFISH_MERGE_RANDOM_BOUND) == 0
+        && silverfish_infested_block_for_host(adjacent_block).is_some()
+}
+
+pub fn silverfish_walk_target_value(block_below: &'static str, fallback: f32) -> f32 {
+    if silverfish_infested_block_for_host(block_below).is_some() {
+        SILVERFISH_WALK_TARGET_HOST_VALUE
+    } else {
+        fallback
+    }
+}
+
+pub fn silverfish_infested_block_for_host(host_block: &'static str) -> Option<&'static str> {
+    match host_block {
+        "minecraft:stone" => Some("minecraft:infested_stone"),
+        "minecraft:cobblestone" => Some("minecraft:infested_cobblestone"),
+        "minecraft:stone_bricks" => Some("minecraft:infested_stone_bricks"),
+        "minecraft:mossy_stone_bricks" => Some("minecraft:infested_mossy_stone_bricks"),
+        "minecraft:cracked_stone_bricks" => Some("minecraft:infested_cracked_stone_bricks"),
+        "minecraft:chiseled_stone_bricks" => Some("minecraft:infested_chiseled_stone_bricks"),
+        "minecraft:deepslate" => Some("minecraft:infested_deepslate"),
+        _ => None,
+    }
+}
+
+pub fn silverfish_host_block_for_infested(infested_block: &'static str) -> Option<&'static str> {
+    match infested_block {
+        "minecraft:infested_stone" => Some("minecraft:stone"),
+        "minecraft:infested_cobblestone" => Some("minecraft:cobblestone"),
+        "minecraft:infested_stone_bricks" => Some("minecraft:stone_bricks"),
+        "minecraft:infested_mossy_stone_bricks" => Some("minecraft:mossy_stone_bricks"),
+        "minecraft:infested_cracked_stone_bricks" => Some("minecraft:cracked_stone_bricks"),
+        "minecraft:infested_chiseled_stone_bricks" => Some("minecraft:chiseled_stone_bricks"),
+        "minecraft:infested_deepslate" => Some("minecraft:deepslate"),
+        _ => None,
+    }
+}
+
+pub fn silverfish_infested_break_spawns_silverfish(
+    block_drops_enabled: bool,
+    tool_prevents_infested_spawns: bool,
+) -> bool {
+    block_drops_enabled && !tool_prevents_infested_spawns
+}
+
+pub fn silverfish_wake_scan_offsets() -> Vec<(i32, i32, i32)> {
+    let mut offsets = Vec::new();
+    for y in silverfish_java_symmetric_offsets(SILVERFISH_WAKE_SCAN_Y_RADIUS) {
+        for x in silverfish_java_symmetric_offsets(SILVERFISH_WAKE_SCAN_XZ_RADIUS) {
+            for z in silverfish_java_symmetric_offsets(SILVERFISH_WAKE_SCAN_XZ_RADIUS) {
+                offsets.push((x, y, z));
+            }
+        }
+    }
+    offsets
+}
+
+pub fn silverfish_wake_step(
+    offset: (i32, i32, i32),
+    block: &'static str,
+    mob_griefing: bool,
+) -> Option<SilverfishWakeStep> {
+    silverfish_host_block_for_infested(block).map(|_| SilverfishWakeStep {
+        offset,
+        action: if mob_griefing {
+            SilverfishWakeAction::DestroyInfestedBlock
+        } else {
+            SilverfishWakeAction::RestoreHostBlock
+        },
+    })
+}
+
+pub fn silverfish_wake_steps_until_random_stop(
+    blocks_in_java_scan_order: &[&'static str],
+    mob_griefing: bool,
+    random_stop_after_each_hit: &[bool],
+) -> Vec<SilverfishWakeStep> {
+    let mut steps = Vec::new();
+    let mut hit_index = 0;
+    for (offset, block) in silverfish_wake_scan_offsets()
+        .into_iter()
+        .zip(blocks_in_java_scan_order.iter())
+    {
+        if let Some(step) = silverfish_wake_step(offset, block, mob_griefing) {
+            steps.push(step);
+            let should_stop = random_stop_after_each_hit
+                .get(hit_index)
+                .copied()
+                .unwrap_or(false);
+            hit_index += 1;
+            if should_stop {
+                break;
+            }
+        }
+    }
+    steps
+}
+
+fn silverfish_java_symmetric_offsets(radius: i32) -> Vec<i32> {
+    let mut values = Vec::new();
+    let mut value = 0;
+    while value <= radius && value >= -radius {
+        values.push(value);
+        value = if value <= 0 { 1 } else { 0 } - value;
+    }
+    values
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GiantAttributes {
     pub max_health: f32,
     pub movement_speed: f32,
@@ -7093,6 +7272,169 @@ mod tests {
         );
         assert_eq!(EVOKER_VEX_SUMMON_CASTING_TIME, 100);
         assert_eq!(EVOKER_VEX_SUMMON_INTERVAL, 340);
+    }
+
+    #[test]
+    fn silverfish_infested_merge_and_wake_rules_match_java_rules() {
+        assert_eq!(
+            silverfish_attributes(),
+            SilverfishAttributes {
+                max_health: 8.0,
+                movement_speed: 0.25,
+                attack_damage: 1.0,
+            }
+        );
+        assert!(silverfish_spawn_allowed(true, true, true));
+        assert!(silverfish_spawn_allowed(true, false, false));
+        assert!(!silverfish_spawn_allowed(true, false, true));
+        assert!(!silverfish_spawn_allowed(false, true, false));
+        assert_eq!(SILVERFISH_NEAR_PLAYER_SPAWN_BLOCK_RANGE, 5.0);
+        assert_eq!(SILVERFISH_STEP_SOUND_VOLUME, 0.15);
+        assert_eq!(SILVERFISH_STEP_SOUND_PITCH, 1.0);
+
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:stone"),
+            Some("minecraft:infested_stone")
+        );
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:cobblestone"),
+            Some("minecraft:infested_cobblestone")
+        );
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:stone_bricks"),
+            Some("minecraft:infested_stone_bricks")
+        );
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:mossy_stone_bricks"),
+            Some("minecraft:infested_mossy_stone_bricks")
+        );
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:cracked_stone_bricks"),
+            Some("minecraft:infested_cracked_stone_bricks")
+        );
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:chiseled_stone_bricks"),
+            Some("minecraft:infested_chiseled_stone_bricks")
+        );
+        assert_eq!(
+            silverfish_infested_block_for_host("minecraft:deepslate"),
+            Some("minecraft:infested_deepslate")
+        );
+        assert_eq!(silverfish_infested_block_for_host("minecraft:dirt"), None);
+        assert_eq!(
+            silverfish_host_block_for_infested("minecraft:infested_deepslate"),
+            Some("minecraft:deepslate")
+        );
+
+        assert_eq!(
+            silverfish_walk_target_value("minecraft:stone", 0.25),
+            SILVERFISH_WALK_TARGET_HOST_VALUE
+        );
+        assert_eq!(silverfish_walk_target_value("minecraft:dirt", 0.25), 0.25);
+        assert!(silverfish_merge_can_use(
+            false,
+            true,
+            true,
+            0,
+            "minecraft:stone"
+        ));
+        assert!(!silverfish_merge_can_use(
+            true,
+            true,
+            true,
+            0,
+            "minecraft:stone"
+        ));
+        assert!(!silverfish_merge_can_use(
+            false,
+            false,
+            true,
+            0,
+            "minecraft:stone"
+        ));
+        assert!(!silverfish_merge_can_use(
+            false,
+            true,
+            false,
+            0,
+            "minecraft:stone"
+        ));
+        assert!(!silverfish_merge_can_use(
+            false,
+            true,
+            true,
+            1,
+            "minecraft:stone"
+        ));
+        assert!(!silverfish_merge_can_use(
+            false,
+            true,
+            true,
+            0,
+            "minecraft:dirt"
+        ));
+        assert_eq!(SILVERFISH_MERGE_SPEED, 1.0);
+        assert_eq!(SILVERFISH_MERGE_INTERVAL_TICKS, 10);
+
+        assert_eq!(
+            silverfish_notify_hurt_delay(0, true, false),
+            SILVERFISH_WAKE_DELAY_TICKS
+        );
+        assert_eq!(
+            silverfish_notify_hurt_delay(0, false, true),
+            SILVERFISH_WAKE_DELAY_TICKS
+        );
+        assert_eq!(silverfish_notify_hurt_delay(7, true, false), 7);
+        assert_eq!(silverfish_notify_hurt_delay(0, false, false), 0);
+
+        assert!(silverfish_infested_break_spawns_silverfish(true, false));
+        assert!(!silverfish_infested_break_spawns_silverfish(false, false));
+        assert!(!silverfish_infested_break_spawns_silverfish(true, true));
+
+        let offsets = silverfish_wake_scan_offsets();
+        assert_eq!(offsets.len(), 11 * 21 * 21);
+        assert_eq!(offsets[0], (0, 0, 0));
+        assert_eq!(offsets[1], (0, 0, 1));
+        assert_eq!(offsets[2], (0, 0, -1));
+        assert_eq!(offsets[21], (1, 0, 0));
+        assert_eq!(offsets[21 * 21], (0, 1, 0));
+        assert_eq!(*offsets.last().unwrap(), (-10, -5, -10));
+
+        assert_eq!(
+            silverfish_wake_step((1, 0, -1), "minecraft:infested_stone", true),
+            Some(SilverfishWakeStep {
+                offset: (1, 0, -1),
+                action: SilverfishWakeAction::DestroyInfestedBlock,
+            })
+        );
+        assert_eq!(
+            silverfish_wake_step((1, 0, -1), "minecraft:infested_stone", false),
+            Some(SilverfishWakeStep {
+                offset: (1, 0, -1),
+                action: SilverfishWakeAction::RestoreHostBlock,
+            })
+        );
+        assert_eq!(
+            silverfish_wake_step((0, 0, 0), "minecraft:stone", true),
+            None
+        );
+
+        let mut scan = vec!["minecraft:air"; offsets.len()];
+        scan[2] = "minecraft:infested_stone";
+        scan[21] = "minecraft:infested_deepslate";
+        assert_eq!(
+            silverfish_wake_steps_until_random_stop(&scan, true, &[false, true]),
+            vec![
+                SilverfishWakeStep {
+                    offset: (0, 0, -1),
+                    action: SilverfishWakeAction::DestroyInfestedBlock,
+                },
+                SilverfishWakeStep {
+                    offset: (1, 0, 0),
+                    action: SilverfishWakeAction::DestroyInfestedBlock,
+                },
+            ]
+        );
     }
 
     #[test]
