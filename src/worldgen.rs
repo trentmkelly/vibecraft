@@ -24153,7 +24153,7 @@ pub fn entity_type_height(entity_type: &str) -> f32 {
 }
 
 pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, uuid: &str) -> Tag {
-    Tag::Compound(vec![
+    let mut fields = vec![
         ("id".to_string(), Tag::String(snap.entity_type.to_string())),
         ("UUID".to_string(), Tag::String(uuid.to_string())),
         (
@@ -24178,7 +24178,49 @@ pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, u
         ("OnGround".to_string(), Tag::Byte(0)),
         ("Invulnerable".to_string(), Tag::Byte(0)),
         ("PortalCooldown".to_string(), Tag::Int(0)),
-    ])
+    ];
+    if chunk_generation_mob_is_ageable(snap.entity_type) {
+        fields.push(("Age".to_string(), Tag::Int(0)));
+        fields.push(("ForcedAge".to_string(), Tag::Int(0)));
+        fields.push(("AgeLocked".to_string(), Tag::Byte(0)));
+    }
+    Tag::Compound(fields)
+}
+
+fn chunk_generation_mob_is_ageable(entity_type: &str) -> bool {
+    matches!(
+        entity_type,
+        "minecraft:armadillo"
+            | "minecraft:axolotl"
+            | "minecraft:camel"
+            | "minecraft:cat"
+            | "minecraft:chicken"
+            | "minecraft:cow"
+            | "minecraft:dolphin"
+            | "minecraft:donkey"
+            | "minecraft:fox"
+            | "minecraft:frog"
+            | "minecraft:glow_squid"
+            | "minecraft:goat"
+            | "minecraft:hoglin"
+            | "minecraft:horse"
+            | "minecraft:llama"
+            | "minecraft:mooshroom"
+            | "minecraft:mule"
+            | "minecraft:ocelot"
+            | "minecraft:panda"
+            | "minecraft:parrot"
+            | "minecraft:pig"
+            | "minecraft:polar_bear"
+            | "minecraft:rabbit"
+            | "minecraft:sheep"
+            | "minecraft:squid"
+            | "minecraft:strider"
+            | "minecraft:trader_llama"
+            | "minecraft:turtle"
+            | "minecraft:wolf"
+            | "minecraft:zombie_horse"
+    )
 }
 
 pub fn queue_chunk_generation_mob_entity(
@@ -58690,6 +58732,32 @@ mod tests {
         assert!(fields.contains(&("OnGround".to_string(), Tag::Byte(0))));
         assert!(fields.contains(&("Invulnerable".to_string(), Tag::Byte(0))));
         assert!(fields.contains(&("PortalCooldown".to_string(), Tag::Int(0))));
+        assert!(fields.contains(&("Age".to_string(), Tag::Int(0))));
+        assert!(fields.contains(&("ForcedAge".to_string(), Tag::Int(0))));
+        assert!(fields.contains(&("AgeLocked".to_string(), Tag::Byte(0))));
+    }
+
+    #[test]
+    fn chunk_generation_mob_entity_nbt_omits_ageable_fields_for_non_ageable_mobs() {
+        let snap = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:creeper",
+            width: 0.6,
+            x: 32.5,
+            y: 70.0,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let Tag::Compound(fields) =
+            super::chunk_generation_mob_entity_nbt(snap, "00000000-0000-0000-0000-000000000124")
+        else {
+            panic!("generated entity nbt must be a compound");
+        };
+
+        assert!(!fields.iter().any(|(name, _)| name == "Age"));
+        assert!(!fields.iter().any(|(name, _)| name == "ForcedAge"));
+        assert!(!fields.iter().any(|(name, _)| name == "AgeLocked"));
     }
 
     #[test]
