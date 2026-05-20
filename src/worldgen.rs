@@ -1054,6 +1054,19 @@ pub struct ChunkGenerationMobEntitySnapPlan {
     pub pitch: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChunkGenerationMobCollisionPlan {
+    pub entity_type: &'static str,
+    pub width: f32,
+    pub height: f32,
+    pub min_x: f64,
+    pub min_y: f64,
+    pub min_z: f64,
+    pub max_x: f64,
+    pub max_y: f64,
+    pub max_z: f64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkGenerationMobSpawnPlan {
     pub chunk: ChunkPos,
@@ -23932,6 +23945,65 @@ pub fn entity_type_width(entity_type: &str) -> f32 {
     }
 }
 
+pub fn chunk_generation_mob_collision_plan(
+    snap: ChunkGenerationMobEntitySnapPlan,
+) -> ChunkGenerationMobCollisionPlan {
+    let width = snap.width;
+    let height = entity_type_height(snap.entity_type);
+    let half_width = f64::from(width) / 2.0;
+    ChunkGenerationMobCollisionPlan {
+        entity_type: snap.entity_type,
+        width,
+        height,
+        min_x: snap.x - half_width,
+        min_y: snap.y,
+        min_z: snap.z - half_width,
+        max_x: snap.x + half_width,
+        max_y: snap.y + f64::from(height),
+        max_z: snap.z + half_width,
+    }
+}
+
+pub fn chunk_generation_mob_no_collision(
+    chunk: &LevelChunk,
+    collision: ChunkGenerationMobCollisionPlan,
+) -> bool {
+    let min_x = collision.min_x.floor() as i32;
+    let min_y = collision.min_y.floor() as i32;
+    let min_z = collision.min_z.floor() as i32;
+    let max_x = (collision.max_x - 1.0E-7).floor() as i32;
+    let max_y = (collision.max_y - 1.0E-7).floor() as i32;
+    let max_z = (collision.max_z - 1.0E-7).floor() as i32;
+
+    for y in min_y..=max_y {
+        for z in min_z..=max_z {
+            for x in min_x..=max_x {
+                if chunk
+                    .get_block_state(x, y, z)
+                    .as_deref()
+                    .is_some_and(spawn_colliding_block)
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    true
+}
+
+pub fn entity_type_height(entity_type: &str) -> f32 {
+    match entity_type {
+        "minecraft:chicken" => 0.7,
+        "minecraft:cow" | "minecraft:mooshroom" => 1.4,
+        "minecraft:pig" | "minecraft:sheep" => 0.9,
+        "minecraft:donkey" | "minecraft:horse" | "minecraft:mule" => 1.6,
+        "minecraft:rabbit" => 0.5,
+        "minecraft:polar_bear" => 1.4,
+        _ => 1.8,
+    }
+}
+
 pub fn chunk_generation_mob_entity_nbt(snap: ChunkGenerationMobEntitySnapPlan, uuid: &str) -> Tag {
     Tag::Compound(vec![
         ("id".to_string(), Tag::String(snap.entity_type.to_string())),
@@ -23992,10 +24064,13 @@ pub fn apply_chunk_generation_mob_batch_to_chunk(
                         position.pos,
                         random,
                     );
-                    if let Some(uuid) = uuids.get(spawned) {
-                        if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
-                            spawned += 1;
-                            success = true;
+                    let collision = chunk_generation_mob_collision_plan(snap);
+                    if chunk_generation_mob_no_collision(chunk, collision) {
+                        if let Some(uuid) = uuids.get(spawned) {
+                            if queue_chunk_generation_mob_entity(chunk, snap, uuid) {
+                                spawned += 1;
+                                success = true;
+                            }
                         }
                     }
                 }
@@ -24063,6 +24138,10 @@ fn spawn_valid_empty_block(block: &str) -> bool {
 }
 
 fn spawn_redstone_conductor_block(block: &str) -> bool {
+    matches!(spawn_block_kind(block), SpawnBlockKind::Solid)
+}
+
+fn spawn_colliding_block(block: &str) -> bool {
     matches!(spawn_block_kind(block), SpawnBlockKind::Solid)
 }
 
@@ -58236,6 +58315,45 @@ mod tests {
         assert_eq!(snap.z, -33.0);
         assert!((snap.yaw - 263.11615).abs() < 0.0001);
         assert_eq!(snap.pitch, 0.0);
+    }
+
+    #[test]
+    fn chunk_generation_mob_collision_plan_rejects_solid_blocks_inside_spawn_aabb() {
+        let normal = super::resolve_world_preset("normal").unwrap();
+        let mut chunk =
+            super::generator_build_surface_for_stem(ChunkPos { x: 2, z: -3 }, &normal.overworld)
+                .expect("surface chunk should generate");
+        let pos = super::chunk_generation_mob_top_non_colliding_pos(
+            &chunk,
+            "minecraft:pig",
+            37,
+            -37,
+            false,
+        )
+        .pos;
+        let snap = super::ChunkGenerationMobEntitySnapPlan {
+            entity_type: "minecraft:pig",
+            width: 0.9,
+            x: 37.0,
+            y: f64::from(pos.y),
+            z: -37.0,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
+
+        let collision = super::chunk_generation_mob_collision_plan(snap);
+        assert_eq!(collision.entity_type, "minecraft:pig");
+        assert_eq!(collision.width, 0.9);
+        assert_eq!(collision.height, 0.9);
+        assert!((collision.min_x - 36.55).abs() < 0.000001);
+        assert_eq!(collision.min_y, f64::from(pos.y));
+        assert!((collision.max_x - 37.45).abs() < 0.000001);
+        assert!((collision.max_y - (f64::from(pos.y) + 0.9)).abs() < 0.000001);
+        assert!(super::chunk_generation_mob_no_collision(&chunk, collision));
+
+        chunk.set_block_state(37, pos.y, -37, "minecraft:stone");
+
+        assert!(!super::chunk_generation_mob_no_collision(&chunk, collision));
     }
 
     #[test]
