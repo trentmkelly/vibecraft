@@ -24415,6 +24415,8 @@ pub enum LiveChunkGenerationMode {
 pub struct LiveChunkGenerationTimings {
     pub resolve_preset_ms: u128,
     pub terrain_ms: u128,
+    pub base_generation_ms: u128,
+    pub region_biome_steps_ms: u128,
     pub carvers_ms: u128,
     pub carver_blocks: usize,
     pub ore_decoration_ms: u128,
@@ -26302,6 +26304,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                 materialize_noise_preview_chunk(pos, biome_source_model, noise_settings)
             }
             LiveChunkGenerationMode::RealSurface => {
+                let base_started = Instant::now();
                 match generate_real_surface_base_chunk(
                     pos,
                     biome_source_model,
@@ -26309,13 +26312,14 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                     seed,
                 ) {
                     Some((mut chunk, terrain_timings, mut noise_context)) => {
+                        timings.base_generation_ms = base_started.elapsed().as_millis();
                         timings.terrain = terrain_timings;
-                        let region_biome_steps = decoration_region_biome_steps_for_chunk(
-                            chunk.pos,
+                        let phase_started = Instant::now();
+                        let region_biome_steps = decoration_region_biome_steps_from_generated_chunk(
+                            &chunk,
                             biome_source_model,
-                            noise_settings,
-                            seed,
                         );
+                        timings.region_biome_steps_ms = phase_started.elapsed().as_millis();
 
                         let phase_started = Instant::now();
                         timings.carver_blocks =
@@ -33519,6 +33523,36 @@ fn possible_biome_feature_steps_for_decoration_region(
         }
     }
 
+    if steps.is_empty() {
+        possible_biome_feature_steps_for_source(biome_source_model)
+    } else {
+        steps
+    }
+}
+
+fn decoration_region_biome_steps_from_generated_chunk(
+    chunk: &LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+) -> Vec<&'static [&'static [&'static str]]> {
+    let mut steps = Vec::new();
+    let mut seen = Vec::new();
+    for section in &chunk.sections {
+        let Ok(biomes) = PalettedContainer::from_nbt(&section.biomes, BIOME_SECTION_VOLUME) else {
+            continue;
+        };
+        for entry in biomes.palette {
+            let Tag::String(biome) = entry else {
+                continue;
+            };
+            if seen.iter().any(|candidate| candidate == &biome) {
+                continue;
+            }
+            if let Some(generation) = biome_generation_settings(&biome) {
+                seen.push(biome);
+                steps.push(generation.feature_steps);
+            }
+        }
+    }
     if steps.is_empty() {
         possible_biome_feature_steps_for_source(biome_source_model)
     } else {
@@ -48381,12 +48415,14 @@ mod tests {
             "generated chunk should contain non-air blocks in the origin column"
         );
         eprintln!(
-            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
+            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms base_generation={}ms region_biome_steps={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
             pos.x,
             pos.z,
             elapsed_ms,
             max_ms,
             timings.terrain_ms,
+            timings.base_generation_ms,
+            timings.region_biome_steps_ms,
             timings.carvers_ms,
             timings.carver_blocks,
             timings.ore_decoration_ms,
