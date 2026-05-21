@@ -1,4 +1,5 @@
 use crate::base_entity::{BaseEntity, EntityDimensions, RemovalReason, Vec3};
+use crate::storage::nbt::Tag;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectileOwner {
@@ -355,6 +356,55 @@ impl HurtingProjectileState {
         } else {
             0.95
         }
+    }
+
+    pub fn wither_skull_explosion_resistance(
+        &self,
+        block_is_air: bool,
+        block_is_wither_immune: bool,
+        resistance: f32,
+    ) -> f32 {
+        if self.kind == HurtingProjectileKind::WitherSkull
+            && self.dangerous
+            && !block_is_air
+            && !block_is_wither_immune
+        {
+            resistance.min(0.8)
+        } else {
+            resistance
+        }
+    }
+
+    pub fn wither_skull_additional_save_data(&self) -> Tag {
+        Tag::Compound(vec![(
+            "dangerous".to_string(),
+            Tag::Byte(
+                if self.kind == HurtingProjectileKind::WitherSkull && self.dangerous {
+                    1
+                } else {
+                    0
+                },
+            ),
+        )])
+    }
+
+    pub fn read_wither_skull_additional_save_data(&mut self, tag: &Tag) {
+        if self.kind != HurtingProjectileKind::WitherSkull {
+            return;
+        }
+        let Tag::Compound(fields) = tag else {
+            self.dangerous = false;
+            return;
+        };
+        self.dangerous = fields
+            .iter()
+            .find_map(|(name, value)| {
+                (name == "dangerous").then(|| match value {
+                    Tag::Byte(value) => *value != 0,
+                    _ => false,
+                })
+            })
+            .unwrap_or(false);
     }
 
     pub fn deflect(&mut self, by_attack: bool, new_owner: Option<ProjectileOwner>) {
@@ -878,8 +928,34 @@ mod tests {
         );
 
         let mut skull = HurtingProjectileState::new(13, HurtingProjectileKind::WitherSkull);
+        assert_eq!(skull.inertia(false), 0.95);
+        assert_eq!(
+            skull.wither_skull_additional_save_data(),
+            Tag::Compound(vec![("dangerous".to_string(), Tag::Byte(0))])
+        );
         skull.dangerous = true;
         assert_eq!(skull.inertia(false), 0.73);
+        assert_eq!(
+            skull.wither_skull_explosion_resistance(false, false, 6.0),
+            0.8
+        );
+        assert_eq!(
+            skull.wither_skull_explosion_resistance(false, true, 6.0),
+            6.0
+        );
+        assert_eq!(
+            skull.wither_skull_explosion_resistance(true, false, 6.0),
+            6.0
+        );
+        assert_eq!(
+            skull.wither_skull_additional_save_data(),
+            Tag::Compound(vec![("dangerous".to_string(), Tag::Byte(1))])
+        );
+        let mut loaded = HurtingProjectileState::new(14, HurtingProjectileKind::WitherSkull);
+        loaded.read_wither_skull_additional_save_data(&skull.wither_skull_additional_save_data());
+        assert!(loaded.dangerous);
+        loaded.read_wither_skull_additional_save_data(&Tag::Compound(Vec::new()));
+        assert!(!loaded.dangerous);
         assert_eq!(
             skull.impact(false),
             HurtingImpact::WitherSkull {

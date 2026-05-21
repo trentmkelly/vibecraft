@@ -43,6 +43,7 @@
 ### Wither Boss
 - [ ] Implement `WitherBoss` three-head targeting (distinct target per head), skull projectile alternation
 - [ ] Implement `WitherSkull` projectile: normal (gray, faster, larger blast) and blue/charged (breaks hard blocks)
+  - [x] Verify Java edge case: charged wither skulls do not increase explosion power; `WitherSkull.getBlockExplosionResistance()` caps destructible block resistance at `min(0.8, resistance)` while `onHit()` still explodes at power 1.0
 - [ ] Implement wither charge attack at target once below half health
 - [ ] Implement wither shield/invulnerability below half health (only damaged by explosions and skulls)
 - [ ] Implement wither self-healing over time and on skull hit
@@ -51,7 +52,7 @@
 - [ ] Implement wither summoning precondition check (T-shape soul sand/soil + 3 wither skulls, not in superflat End)
 - [x] Implement wither bossbar: `BossEvent.BossBarColor.PURPLE`, health %
 - [ ] Implement wither block-breaking behavior (breaks most blocks in path)
-- [ ] Add parity test: wither skull target assignment, blue skull vs. normal skull NBT
+- [x] Add parity test: wither skull target assignment, blue skull vs. normal skull NBT
 - [x] Add parity test: shield phase invulnerability threshold and self-heal rate
 
 ## Monster Families

@@ -25,6 +25,11 @@ pub const WITHER_SPAWN_EXPLOSION_POWER: f32 = 7.0;
 pub const WITHER_BLOCK_DESTROY_DELAY: i32 = 20;
 pub const WITHER_IDLE_HEAD_ATTACK_THRESHOLD: i32 = 15;
 pub const WITHER_HEAD_TARGET_RANGE_SQUARED: f32 = 900.0;
+pub const WITHER_ALT_HEAD_UPDATE_DELAY_MIN: i32 = 10;
+pub const WITHER_ALT_HEAD_UPDATE_DELAY_RANDOM_BOUND: i32 = 10;
+pub const WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_MIN: i32 = 40;
+pub const WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_RANDOM_BOUND: i32 = 20;
+pub const WITHER_BLUE_SKULL_CHANCE: f32 = 0.001;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DragonPhaseDef {
@@ -414,6 +419,88 @@ pub fn wither_is_powered(health: f32, max_health: f32) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WitherHeadTickAction {
+    Wait,
+    FireAtCurrentTarget {
+        head: i32,
+        dangerous: bool,
+        next_update_delay: i32,
+        reset_idle_updates: bool,
+    },
+    FireIdleBlueSkull {
+        head: i32,
+        next_update_delay: i32,
+        reset_idle_updates: bool,
+    },
+    AcquireNearbyTarget {
+        head: i32,
+    },
+    ClearInvalidTarget {
+        head: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitherMainHeadSync {
+    pub alternative_target_head: i32,
+    pub target_entity_id: i32,
+}
+
+pub fn wither_main_head_sync(main_target_entity_id: Option<i32>) -> WitherMainHeadSync {
+    WitherMainHeadSync {
+        alternative_target_head: 0,
+        target_entity_id: main_target_entity_id.unwrap_or(0),
+    }
+}
+
+pub fn wither_alt_head_tick_action(
+    head: i32,
+    tick_count: i32,
+    next_head_update: i32,
+    difficulty_allows_idle_attack: bool,
+    idle_head_updates: i32,
+    random_0_to_9: i32,
+    alternative_target_entity_id: Option<i32>,
+    current_target_valid: bool,
+    current_target_distance_sqr: f32,
+    current_target_line_of_sight: bool,
+    nearby_targets_available: bool,
+) -> WitherHeadTickAction {
+    if tick_count < next_head_update {
+        return WitherHeadTickAction::Wait;
+    }
+    let next_update_delay = WITHER_ALT_HEAD_UPDATE_DELAY_MIN
+        + random_0_to_9.rem_euclid(WITHER_ALT_HEAD_UPDATE_DELAY_RANDOM_BOUND);
+    if difficulty_allows_idle_attack && idle_head_updates > WITHER_IDLE_HEAD_ATTACK_THRESHOLD {
+        return WitherHeadTickAction::FireIdleBlueSkull {
+            head,
+            next_update_delay,
+            reset_idle_updates: true,
+        };
+    }
+    if alternative_target_entity_id.is_some() {
+        if current_target_valid
+            && current_target_distance_sqr <= WITHER_HEAD_TARGET_RANGE_SQUARED
+            && current_target_line_of_sight
+        {
+            return WitherHeadTickAction::FireAtCurrentTarget {
+                head,
+                dangerous: false,
+                next_update_delay: WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_MIN
+                    + random_0_to_9.rem_euclid(WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_RANDOM_BOUND),
+                reset_idle_updates: true,
+            };
+        }
+        return WitherHeadTickAction::ClearInvalidTarget { head };
+    }
+    if nearby_targets_available {
+        WitherHeadTickAction::AcquireNearbyTarget { head }
+    } else {
+        WitherHeadTickAction::Wait
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BossFightCoverage {
     pub source: &'static str,
     pub covered_rules: &'static [&'static str],
@@ -694,6 +781,73 @@ mod tests {
         assert_eq!(wither_ai_tick(11, 220, 0, true, 100.0).heal_amount, 0.0);
         assert_eq!(wither_ai_tick(20, 0, 0, true, 150.0).heal_amount, 1.0);
         assert_eq!(wither_ai_tick(21, 0, 0, true, 150.0).heal_amount, 0.0);
+    }
+
+    #[test]
+    fn wither_head_target_assignment_and_skull_delay_rules_match_java() {
+        assert_eq!(
+            wither_main_head_sync(Some(42)),
+            WitherMainHeadSync {
+                alternative_target_head: 0,
+                target_entity_id: 42
+            }
+        );
+        assert_eq!(wither_main_head_sync(None).target_entity_id, 0);
+        assert_eq!(WITHER_BLUE_SKULL_CHANCE, 0.001);
+
+        assert_eq!(
+            wither_alt_head_tick_action(1, 9, 10, true, 16, 3, None, false, 0.0, false, true),
+            WitherHeadTickAction::Wait
+        );
+        assert_eq!(
+            wither_alt_head_tick_action(1, 10, 10, true, 16, 3, None, false, 0.0, false, false),
+            WitherHeadTickAction::FireIdleBlueSkull {
+                head: 1,
+                next_update_delay: 13,
+                reset_idle_updates: true
+            }
+        );
+        assert_eq!(
+            wither_alt_head_tick_action(
+                2,
+                20,
+                20,
+                true,
+                0,
+                7,
+                Some(99),
+                true,
+                WITHER_HEAD_TARGET_RANGE_SQUARED,
+                true,
+                false
+            ),
+            WitherHeadTickAction::FireAtCurrentTarget {
+                head: 2,
+                dangerous: false,
+                next_update_delay: 47,
+                reset_idle_updates: true
+            }
+        );
+        assert_eq!(
+            wither_alt_head_tick_action(
+                2,
+                20,
+                20,
+                true,
+                0,
+                7,
+                Some(99),
+                true,
+                WITHER_HEAD_TARGET_RANGE_SQUARED + 1.0,
+                true,
+                false
+            ),
+            WitherHeadTickAction::ClearInvalidTarget { head: 2 }
+        );
+        assert_eq!(
+            wither_alt_head_tick_action(2, 20, 20, true, 0, 7, None, false, 0.0, false, true),
+            WitherHeadTickAction::AcquireNearbyTarget { head: 2 }
+        );
     }
 
     #[test]
