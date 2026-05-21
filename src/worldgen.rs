@@ -48757,6 +48757,233 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic; run explicitly when inspecting visible chunk-border terrain artifacts"]
+    fn real_surface_adjacent_chunk_border_continuity_diagnostic() {
+        #[derive(Debug)]
+        struct EdgeSample {
+            axis: &'static str,
+            chunk_a: ChunkPos,
+            chunk_b: ChunkPos,
+            world_x_a: i32,
+            world_z_a: i32,
+            world_x_b: i32,
+            world_z_b: i32,
+            height_a: i32,
+            height_b: i32,
+            terrain_height_a: i32,
+            terrain_height_b: i32,
+            top_a: String,
+            top_b: String,
+        }
+
+        fn top_block(chunk: &LevelChunk, world_x: i32, world_z: i32) -> (i32, i32, String) {
+            let local_x = world_x.rem_euclid(16) as usize;
+            let local_z = world_z.rem_euclid(16) as usize;
+            let height = chunk
+                .heightmap_value(HeightmapKind::WorldSurface, local_x, local_z)
+                .or_else(|| chunk.heightmap_value(HeightmapKind::WorldSurfaceWg, local_x, local_z))
+                .unwrap_or(0);
+            let terrain_height = chunk
+                .heightmap_value(HeightmapKind::MotionBlockingNoLeaves, local_x, local_z)
+                .or_else(|| chunk.heightmap_value(HeightmapKind::OceanFloorWg, local_x, local_z))
+                .unwrap_or(0);
+            let top_y = height - 1;
+            let top = chunk
+                .get_block_state(world_x, top_y, world_z)
+                .unwrap_or_else(|| "minecraft:air".to_string());
+            (height, terrain_height, top)
+        }
+
+        let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+            .ok()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
+        let radius = std::env::var("RUSTCRAFT_WORLDGEN_BORDER_RADIUS")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(1);
+        let mut chunks = BTreeMap::<(i32, i32), LevelChunk>::new();
+        let mut total_generation_ms = 0_u128;
+
+        for chunk_z in -radius..=radius {
+            for chunk_x in -radius..=radius {
+                let pos = ChunkPos {
+                    x: chunk_x,
+                    z: chunk_z,
+                };
+                let started = std::time::Instant::now();
+                let chunk = super::generate_overworld_spawn_chunk_for_preset_with_mode(
+                    pos,
+                    "normal",
+                    super::LiveChunkGenerationMode::RealSurface,
+                    seed,
+                    true,
+                )
+                .expect("real-surface diagnostic chunk generation should succeed");
+                total_generation_ms += started.elapsed().as_millis();
+                chunks.insert((chunk_x, chunk_z), chunk);
+            }
+        }
+
+        let mut samples = Vec::<EdgeSample>::new();
+        for chunk_z in -radius..=radius {
+            for chunk_x in -radius..=radius {
+                let Some(chunk) = chunks.get(&(chunk_x, chunk_z)) else {
+                    continue;
+                };
+                if let Some(east) = chunks.get(&(chunk_x + 1, chunk_z)) {
+                    for local_z in 0..16_i32 {
+                        let world_z = chunk_z * 16 + local_z;
+                        let world_x_a = chunk_x * 16 + 15;
+                        let world_x_b = (chunk_x + 1) * 16;
+                        let (height_a, terrain_height_a, top_a) =
+                            top_block(chunk, world_x_a, world_z);
+                        let (height_b, terrain_height_b, top_b) =
+                            top_block(east, world_x_b, world_z);
+                        samples.push(EdgeSample {
+                            axis: "x",
+                            chunk_a: ChunkPos {
+                                x: chunk_x,
+                                z: chunk_z,
+                            },
+                            chunk_b: ChunkPos {
+                                x: chunk_x + 1,
+                                z: chunk_z,
+                            },
+                            world_x_a,
+                            world_z_a: world_z,
+                            world_x_b,
+                            world_z_b: world_z,
+                            height_a,
+                            height_b,
+                            terrain_height_a,
+                            terrain_height_b,
+                            top_a,
+                            top_b,
+                        });
+                    }
+                }
+                if let Some(south) = chunks.get(&(chunk_x, chunk_z + 1)) {
+                    for local_x in 0..16_i32 {
+                        let world_x = chunk_x * 16 + local_x;
+                        let world_z_a = chunk_z * 16 + 15;
+                        let world_z_b = (chunk_z + 1) * 16;
+                        let (height_a, terrain_height_a, top_a) =
+                            top_block(chunk, world_x, world_z_a);
+                        let (height_b, terrain_height_b, top_b) =
+                            top_block(south, world_x, world_z_b);
+                        samples.push(EdgeSample {
+                            axis: "z",
+                            chunk_a: ChunkPos {
+                                x: chunk_x,
+                                z: chunk_z,
+                            },
+                            chunk_b: ChunkPos {
+                                x: chunk_x,
+                                z: chunk_z + 1,
+                            },
+                            world_x_a: world_x,
+                            world_z_a,
+                            world_x_b: world_x,
+                            world_z_b,
+                            height_a,
+                            height_b,
+                            terrain_height_a,
+                            terrain_height_b,
+                            top_a,
+                            top_b,
+                        });
+                    }
+                }
+            }
+        }
+
+        samples.sort_by_key(|sample| {
+            std::cmp::Reverse(
+                (sample.height_a - sample.height_b)
+                    .abs()
+                    .max((sample.terrain_height_a - sample.terrain_height_b).abs()),
+            )
+        });
+        let total_delta: i32 = samples
+            .iter()
+            .map(|sample| (sample.height_a - sample.height_b).abs())
+            .sum();
+        let total_terrain_delta: i32 = samples
+            .iter()
+            .map(|sample| (sample.terrain_height_a - sample.terrain_height_b).abs())
+            .sum();
+        let max_delta = samples
+            .first()
+            .map(|sample| (sample.height_a - sample.height_b).abs())
+            .unwrap_or(0);
+        let max_terrain_delta = samples
+            .iter()
+            .map(|sample| (sample.terrain_height_a - sample.terrain_height_b).abs())
+            .max()
+            .unwrap_or(0);
+        let high_delta_count = samples
+            .iter()
+            .filter(|sample| (sample.height_a - sample.height_b).abs() >= 8)
+            .count();
+        let high_terrain_delta_count = samples
+            .iter()
+            .filter(|sample| (sample.terrain_height_a - sample.terrain_height_b).abs() >= 8)
+            .count();
+        let material_mismatch_count = samples
+            .iter()
+            .filter(|sample| sample.top_a != sample.top_b)
+            .count();
+
+        eprintln!(
+            "[worldgen-border-diagnostic] seed={} radius={} chunks={} generation_total={}ms samples={} max_height_delta={} avg_height_delta={:.3} high_delta_ge_8={} max_no_leaves_delta={} avg_no_leaves_delta={:.3} high_no_leaves_delta_ge_8={} top_block_mismatches={}",
+            seed,
+            radius,
+            chunks.len(),
+            total_generation_ms,
+            samples.len(),
+            max_delta,
+            if samples.is_empty() {
+                0.0
+            } else {
+                f64::from(total_delta) / samples.len() as f64
+            },
+            high_delta_count,
+            max_terrain_delta,
+            if samples.is_empty() {
+                0.0
+            } else {
+                f64::from(total_terrain_delta) / samples.len() as f64
+            },
+            high_terrain_delta_count,
+            material_mismatch_count
+        );
+
+        for sample in samples.iter().take(16) {
+            eprintln!(
+                "[worldgen-border-diagnostic-sample] axis={} chunks=({},{})->({},{}) a=({}, {}) h={} no_leaves_h={} top={} b=({}, {}) h={} no_leaves_h={} top={} delta={} no_leaves_delta={}",
+                sample.axis,
+                sample.chunk_a.x,
+                sample.chunk_a.z,
+                sample.chunk_b.x,
+                sample.chunk_b.z,
+                sample.world_x_a,
+                sample.world_z_a,
+                sample.height_a,
+                sample.terrain_height_a,
+                sample.top_a,
+                sample.world_x_b,
+                sample.world_z_b,
+                sample.height_b,
+                sample.terrain_height_b,
+                sample.top_b,
+                (sample.height_a - sample.height_b).abs(),
+                (sample.terrain_height_a - sample.terrain_height_b).abs()
+            );
+        }
+    }
+
+    #[test]
     #[ignore = "diagnostic parity stocktake; run explicitly while aligning worldgen stages"]
     fn normal_overworld_stage_parity_stocktake() {
         let fixture_json =
