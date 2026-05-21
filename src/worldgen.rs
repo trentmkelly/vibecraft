@@ -33078,7 +33078,10 @@ fn apply_underground_ore_decoration_to_chunk(
         Err(_) => return 0,
     };
     let feature_sort_ms = started.elapsed().as_millis();
-    let skip_biome_filter = possible_steps.len() == 1;
+    let skip_biome_filter = biome_steps_share_decoration_step_features(
+        &possible_steps,
+        GenerationDecorationStep::UndergroundOres,
+    );
     let started = Instant::now();
     let plan = biome_decoration_feature_plan(
         seed,
@@ -33171,6 +33174,19 @@ fn apply_underground_ore_decoration_to_chunk(
     }
 
     placed
+}
+
+fn biome_steps_share_decoration_step_features(
+    biome_steps: &[&'static [&'static [&'static str]]],
+    step: GenerationDecorationStep,
+) -> bool {
+    let Some((first, rest)) = biome_steps.split_first() else {
+        return false;
+    };
+    let step_index = step as usize;
+    let first_features = first.get(step_index).copied().unwrap_or(&[]);
+    rest.iter()
+        .all(|steps| steps.get(step_index).copied().unwrap_or(&[]) == first_features)
 }
 
 fn possible_biome_feature_steps_for_decoration_region(
