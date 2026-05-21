@@ -299,6 +299,12 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
     chunk in the 17x17 carving window and resetting the carver index per source
     chunk for `WorldgenRandom#setLargeFeatureSeed(levelSeed + index, sourceX,
     sourceZ)`.
+  - [x] Match vanilla `CaveWorldCarver` cave-count RNG consumption by sampling
+    the nested `random.nextInt(random.nextInt(random.nextInt(getCaveBound()) + 1) + 1)`
+    chain with bounded `LegacyRandom::next_i32_bound` calls instead of deriving
+    counts from raw signed random values. References:
+    `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/carver/CaveWorldCarver.java`,
+    `src/worldgen.rs`.
 - [ ] Implement features.
   - [x] Wire the existing tree placement model into the live `RealSurface`
     overworld path as an initial biome-decoration pass so tree-capable biomes

@@ -31260,6 +31260,19 @@ pub fn cave_carver_cave_count(
     third_roll.rem_euclid(second + 1)
 }
 
+pub fn sample_cave_carver_cave_count(
+    carver_type: WorldCarverType,
+    random: &mut LegacyRandom,
+) -> i32 {
+    let cave_bound = carver_cave_bound(carver_type);
+    if cave_bound <= 0 {
+        return 0;
+    }
+    let first = random.next_i32_bound(cave_bound);
+    let second = random.next_i32_bound(first + 1);
+    random.next_i32_bound(second + 1)
+}
+
 pub fn cave_carver_thickness(
     first_float: f32,
     second_float: f32,
@@ -31754,12 +31767,7 @@ fn carve_configured_carver_from_source_chunk(
             vertical_radius_multiplier,
             floor_level,
         } => {
-            let cave_count = cave_carver_cave_count(
-                carver_cave_bound(carver.carver_type),
-                random.next_i32(),
-                random.next_i32(),
-                random.next_i32(),
-            );
+            let cave_count = sample_cave_carver_cave_count(carver.carver_type, random);
             let max_distance = (4 * 2 - 1) << 4;
             let mut carved = 0;
             for _ in 0..cave_count {
@@ -47985,6 +47993,19 @@ mod tests {
         .is_empty());
         assert_eq!(super::cave_carver_cave_count(15, 14, 7, 3), 3);
         assert_eq!(super::cave_carver_cave_count(15, 0, 9, 9), 0);
+        let mut cave_random = super::LegacyRandom::new(12345);
+        assert_eq!(
+            super::sample_cave_carver_cave_count(super::WorldCarverType::Cave, &mut cave_random),
+            1
+        );
+        let mut nether_cave_random = super::LegacyRandom::new(8675309);
+        assert_eq!(
+            super::sample_cave_carver_cave_count(
+                super::WorldCarverType::NetherCave,
+                &mut nether_cave_random
+            ),
+            0
+        );
         assert!((super::cave_carver_thickness(0.5, 0.25, 1, 1.0, 1.0) - 1.25).abs() < 0.0001);
         assert!((super::cave_carver_thickness(0.5, 0.25, 0, 0.5, 0.5) - 2.1875).abs() < 0.0001);
         assert_eq!(super::cave_room_radii(2.5, 0.5), (4.0, 2.0));
