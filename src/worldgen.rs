@@ -50548,6 +50548,198 @@ mod tests {
         );
     }
 
+    #[test]
+    #[ignore = "diagnostic for missing cave-air that may come from underground structures"]
+    fn normal_overworld_cave_air_structure_candidate_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let fixture_chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut generated_chunks = Vec::new();
+        for fixture_chunk in fixture_chunks {
+            let pos = ChunkPos {
+                x: fixture_chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: fixture_chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut chunk = base;
+            super::apply_configured_carvers_for_biome_source(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+            super::apply_underground_ore_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            super::apply_initial_tree_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+                None,
+            );
+            generated_chunks.push(chunk);
+        }
+
+        let mut missing_cave_air = Vec::new();
+        for (chunk_index, fixture_chunk) in fixture_chunks.iter().enumerate() {
+            let chunk_x = fixture_chunk
+                .get("chunkX")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkX") as i32;
+            let chunk_z = fixture_chunk
+                .get("chunkZ")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkZ") as i32;
+            let y_min = fixture_chunk
+                .get("yMin")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include yMin") as i32;
+            let blocks = fixture_chunk
+                .get("blocks")
+                .and_then(serde_json::Value::as_array)
+                .expect("fixture chunk should include blocks");
+            let generated = &generated_chunks[chunk_index];
+
+            for (local_x, y_column) in blocks.iter().enumerate() {
+                let y_column = y_column.as_array().expect("x column should be an array");
+                for (y_offset, z_column) in y_column.iter().enumerate() {
+                    let world_y = y_min + y_offset as i32;
+                    let z_column = z_column.as_array().expect("z column should be an array");
+                    for (local_z, expected) in z_column.iter().enumerate() {
+                        let expected = expected
+                            .as_str()
+                            .expect("fixture block should be a string")
+                            .split_once('[')
+                            .map_or_else(|| expected.as_str().unwrap(), |(id, _)| id);
+                        if expected != "minecraft:cave_air" {
+                            continue;
+                        }
+                        let world_x = chunk_x * 16 + local_x as i32;
+                        let world_z = chunk_z * 16 + local_z as i32;
+                        let actual = generated
+                            .get_block_state(world_x, world_y, world_z)
+                            .unwrap_or_else(|| "minecraft:air".to_string());
+                        if actual == "minecraft:deepslate" || actual == "minecraft:stone" {
+                            missing_cave_air.push(BlockPos {
+                                x: world_x,
+                                y: world_y,
+                                z: world_z,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        let missing_box = missing_cave_air.iter().copied().fold(None, |acc, pos| {
+            Some(acc.map_or_else(
+                || super::StructureBoundingBoxModel {
+                    min_x: pos.x,
+                    min_y: pos.y,
+                    min_z: pos.z,
+                    max_x: pos.x,
+                    max_y: pos.y,
+                    max_z: pos.z,
+                },
+                |box_: super::StructureBoundingBoxModel| box_.encapsulate_pos(pos),
+            ))
+        });
+        eprintln!(
+            "[cave-air-structure] missing_cave_air={} missing_box={:?}",
+            missing_cave_air.len(),
+            missing_box
+        );
+
+        let mut candidate_count = 0usize;
+        let mut near_missing_count = 0usize;
+        for source_x in -64..=64 {
+            for source_z in -64..=64 {
+                if !super::structure_frequency_reducer_should_generate(
+                    super::FrequencyReductionMethod::LegacyType3,
+                    seed,
+                    0,
+                    source_x,
+                    source_z,
+                    0.004,
+                )
+                .expect("mineshaft frequency check should be valid")
+                {
+                    continue;
+                }
+                candidate_count += 1;
+
+                let mut random = super::RandomSourceKind::Legacy(super::LegacyRandom::new(
+                    crate::random_source::large_feature_seed(seed, source_x, source_z),
+                ));
+                let first_roll = super::random_next_f64(&mut random);
+                let room = super::mineshaft_room(
+                    ChunkPos {
+                        x: source_x,
+                        z: source_z,
+                    },
+                    super::MineshaftTypeModel::Normal,
+                    super::random_next_i32_bound(&mut random, 6),
+                    super::random_next_i32_bound(&mut random, 6),
+                    super::random_next_i32_bound(&mut random, 6),
+                )
+                .expect("room rolls should be valid");
+                let intersects_missing = missing_box
+                    .is_some_and(|missing| room.bounding_box.inflated_by(96).intersects(missing));
+                if intersects_missing {
+                    near_missing_count += 1;
+                    eprintln!(
+                        "[cave-air-structure-candidate] chunk=({}, {}) first_roll={:.9} room={:?}",
+                        source_x, source_z, first_roll, room.bounding_box
+                    );
+                }
+            }
+        }
+        eprintln!(
+            "[cave-air-structure] candidate_count={} near_missing_count={}",
+            candidate_count, near_missing_count
+        );
+    }
+
     fn unpack_heightmap_column(values: &[i64], index: usize) -> i32 {
         const BITS_PER_ENTRY: usize = 9;
         let bit_offset = index * BITS_PER_ENTRY;
