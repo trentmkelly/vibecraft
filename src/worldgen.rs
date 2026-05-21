@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use crate::biome::{
     biome_source_from_stem_id, climate_target, multi_noise_parameter_list_preset,
-    select_biome_from_source, select_end_biome, span, BiomeSourceModel, ClimateParameterPoint,
-    ClimateTarget,
+    overworld_biome_parameters, select_biome_from_source, select_climate_biome,
+    select_end_biome, span, BiomeSourceModel, ClimateParameterPoint, ClimateTarget,
 };
 pub use crate::random_source::RandomAlgorithm;
 
@@ -31166,9 +31166,14 @@ fn populate_noise_chunk_biomes(
     seed: i64,
     noise_router: NoiseRouter,
 ) {
+    let debug_enabled = std::env::var_os("RUSTCRAFT_WORLDGEN_BIOME_DEBUG").is_some();
+    let total_started = debug_enabled.then(Instant::now);
+    let climate_started = debug_enabled.then(Instant::now);
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
+    let climate_ms = climate_started.map(|started| started.elapsed().as_millis());
     let chunk_quart_x = chunk.pos.x * 4;
     let chunk_quart_z = chunk.pos.z * 4;
+    let cache_started = debug_enabled.then(Instant::now);
     let overworld_2d_climate = overworld_biome_2d_climate_cache(
         biome_source_model,
         settings,
@@ -31176,14 +31181,35 @@ fn populate_noise_chunk_biomes(
         chunk_quart_x,
         chunk_quart_z,
     );
+    let cache_ms = cache_started.map(|started| started.elapsed().as_millis());
     let mut biome_tags: HashMap<&'static str, Tag> = HashMap::new();
+    let overworld_column_biomes = overworld_2d_climate.as_ref().map(|cache| {
+        let mut biomes = ["minecraft:plains"; 16];
+        for local_z in 0..4_usize {
+            for local_x in 0..4_usize {
+                let cached = cache[local_z * 4 + local_x];
+                let climate = climate_target(
+                    cached.temperature,
+                    cached.humidity,
+                    cached.continentalness,
+                    cached.erosion,
+                    0.0,
+                    cached.weirdness,
+                );
+                biomes[local_z * 4 + local_x] =
+                    select_climate_biome(overworld_biome_parameters(), climate)
+                        .unwrap_or("minecraft:plains");
+            }
+        }
+        biomes
+    });
 
+    let fill_started = debug_enabled.then(Instant::now);
+    let mut selections = 0_usize;
     for section in &mut chunk.sections {
         let section_quart_y = i32::from(section.y) * 4;
-        let mut biomes = PalettedContainer::single(
-            Tag::String("minecraft:plains".to_string()),
-            BIOME_SECTION_VOLUME,
-        );
+        let mut palette_names: Vec<&'static str> = Vec::with_capacity(2);
+        let mut indices = vec![0_u64; BIOME_SECTION_VOLUME];
 
         for local_y in 0..4_usize {
             for local_z in 0..4_usize {
@@ -31191,9 +31217,12 @@ fn populate_noise_chunk_biomes(
                     let quart_x = chunk_quart_x + local_x as i32;
                     let quart_y = section_quart_y + local_y as i32;
                     let quart_z = chunk_quart_z + local_z as i32;
-                    let biome = overworld_2d_climate
-                        .as_ref()
-                        .and_then(|cache| {
+                    let biome = if let Some(column_biomes) = &overworld_column_biomes {
+                        column_biomes[local_z * 4 + local_x]
+                    } else {
+                        overworld_2d_climate
+                            .as_ref()
+                            .and_then(|cache| {
                             let cached = cache[local_z * 4 + local_x];
                             let block_y = quart_y * 4;
                             let depth = cached.depth_offset
@@ -31224,17 +31253,63 @@ fn populate_noise_chunk_biomes(
                                 &climate_sampler,
                             )
                         })
-                        .unwrap_or("minecraft:plains");
+                        .unwrap_or("minecraft:plains")
+                    };
+                    selections += 1;
                     let index = local_y * 16 + local_z * 4 + local_x;
-                    let tag = biome_tags
-                        .entry(biome)
-                        .or_insert_with(|| Tag::String(biome.to_string()));
-                    biomes.set_entry_ref(index, tag);
+                    let palette_index = match palette_names
+                        .iter()
+                        .position(|candidate| *candidate == biome)
+                    {
+                        Some(index) => index,
+                        None => {
+                            palette_names.push(biome);
+                            palette_names.len() - 1
+                        }
+                    };
+                    indices[index] = palette_index as u64;
                 }
             }
         }
 
-        section.biomes = biomes.to_nbt();
+        let palette = palette_names
+            .iter()
+            .map(|biome| {
+                biome_tags
+                    .entry(*biome)
+                    .or_insert_with(|| Tag::String((*biome).to_string()))
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        section.biomes = if palette.len() == 1 {
+            PalettedContainer::single(palette[0].clone(), BIOME_SECTION_VOLUME).to_nbt()
+        } else {
+            PalettedContainer {
+                data: Some(pack_palette_indices(
+                    &indices,
+                    palette_bits_for_size(palette.len()),
+                )),
+                palette,
+                expected_entries: BIOME_SECTION_VOLUME,
+            }
+            .to_nbt()
+        };
+    }
+    if debug_enabled {
+        eprintln!(
+            "[biome-storage-debug] total={}ms climate={}ms cache={}ms fill={}ms sections={} selections={} tags={}",
+            total_started
+                .map(|started| started.elapsed().as_millis())
+                .unwrap_or(0),
+            climate_ms.unwrap_or(0),
+            cache_ms.unwrap_or(0),
+            fill_started
+                .map(|started| started.elapsed().as_millis())
+                .unwrap_or(0),
+            chunk.sections.len(),
+            selections,
+            biome_tags.len()
+        );
     }
 }
 
