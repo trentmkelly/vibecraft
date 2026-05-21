@@ -1363,6 +1363,7 @@ pub enum RuleTestModel {
     AlwaysTrue,
     BlockMatch(&'static str),
     TagMatch(&'static [&'static str]),
+    BlockTag(&'static str),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32903,6 +32904,7 @@ pub fn rule_test_matches(test: RuleTestModel, block: &str) -> bool {
         RuleTestModel::AlwaysTrue => true,
         RuleTestModel::BlockMatch(expected) => block == expected,
         RuleTestModel::TagMatch(blocks) => blocks.contains(&block),
+        RuleTestModel::BlockTag(tag) => block_matches_tag(block, tag),
     }
 }
 
@@ -50767,6 +50769,14 @@ mod tests {
         assert!(super::block_matches_tag(
             "minecraft:blackstone",
             "minecraft:base_stone_nether"
+        ));
+        assert!(super::rule_test_matches(
+            super::RuleTestModel::BlockTag("minecraft:base_stone_overworld"),
+            "minecraft:deepslate"
+        ));
+        assert!(!super::rule_test_matches(
+            super::RuleTestModel::BlockTag("minecraft:base_stone_overworld"),
+            "minecraft:netherrack"
         ));
 
         let ore_config = super::OreConfigurationModel {
