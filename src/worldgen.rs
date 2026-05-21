@@ -33242,18 +33242,20 @@ fn decoration_region_biome_steps_for_chunk(
     settings: &NoiseGeneratorSettings,
     seed: i64,
 ) -> Vec<&'static [&'static [&'static str]]> {
-    let Some(router) =
-        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
-    else {
-        return Vec::new();
-    };
-    let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
-    possible_biome_feature_steps_for_decoration_region(
-        pos,
-        biome_source_model,
-        settings,
-        &climate_sampler,
-    )
+    with_noise_snapshot_cache(|| {
+        let Some(router) =
+            builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
+        else {
+            return Vec::new();
+        };
+        let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
+        possible_biome_feature_steps_for_decoration_region(
+            pos,
+            biome_source_model,
+            settings,
+            &climate_sampler,
+        )
+    })
 }
 
 struct OreBlockCache {
