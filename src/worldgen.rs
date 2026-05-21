@@ -8192,11 +8192,11 @@ pub const OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY: DensityFunction =
     DensityFunction::Reference("minecraft:overworld/caves/noodle");
 
 // --- underground() ---
-// layerNoiseSource = noise(cave_layer, 8.0)  [xzScale=yScale=8]
+// layerNoiseSource = noise(cave_layer, xzScale=1.0, yScale=8.0)
 pub const OVERWORLD_UNDERGROUND_CAVE_LAYER_NOISE_DENSITY: DensityFunction =
     DensityFunction::Noise {
         noise: "minecraft:cave_layer",
-        xz_scale: 8.0,
+        xz_scale: 1.0,
         y_scale: 8.0,
     };
 // layerNoiseSource.square()
@@ -8214,11 +8214,11 @@ pub const OVERWORLD_UNDERGROUND_LAYERIZED_CAVERNS_DENSITY: DensityFunction =
         argument1: &OVERWORLD_UNDERGROUND_LAYER_CAVERNS_SCALE_DENSITY,
         argument2: &OVERWORLD_UNDERGROUND_CAVE_LAYER_SQUARED_DENSITY,
     };
-// cheese = noise(cave_cheese, 2.0/3.0)
+// cheese = noise(cave_cheese, xzScale=1.0, yScale=2.0/3.0)
 pub const OVERWORLD_UNDERGROUND_CAVE_CHEESE_NOISE_DENSITY: DensityFunction =
     DensityFunction::Noise {
         noise: "minecraft:cave_cheese",
-        xz_scale: 0.6666666666666666,
+        xz_scale: 1.0,
         y_scale: 0.6666666666666666,
     };
 // clamp(0.27 + cheese, -1, 1)
