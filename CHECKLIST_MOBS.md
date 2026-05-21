@@ -51,7 +51,7 @@
 - [ ] Implement wither death sequence: explosion, nether star drop, `BossEvent` removal
 - [ ] Implement wither summoning precondition check (T-shape soul sand/soil + 3 wither skulls, not in superflat End)
 - [x] Implement wither bossbar: `BossEvent.BossBarColor.PURPLE`, health %
-- [ ] Implement wither block-breaking behavior (breaks most blocks in path)
+- [x] Implement wither block-breaking behavior (breaks most blocks in path)
 - [x] Add parity test: wither skull target assignment, blue skull vs. normal skull NBT
 - [x] Add parity test: shield phase invulnerability threshold and self-heal rate
 

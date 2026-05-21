@@ -384,6 +384,13 @@ pub struct WitherAiTickOutcome {
     pub destroy_blocks_now: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitherBlockDestroyPlan {
+    pub next_destroy_blocks_tick: i32,
+    pub should_scan_blocks: bool,
+    pub emit_level_event_1022: bool,
+}
+
 pub fn wither_ai_tick(
     tick_count: i32,
     invulnerable_ticks: i32,
@@ -407,6 +414,38 @@ pub fn wither_ai_tick(
         heal_amount: if tick_count % 20 == 0 { 1.0 } else { 0.0 },
         explode: false,
         destroy_blocks_now: destroy_blocks_tick == 1 && mob_griefing,
+    }
+}
+
+pub fn wither_can_destroy_block(block_is_air: bool, block_is_wither_immune: bool) -> bool {
+    !block_is_air && !block_is_wither_immune
+}
+
+pub fn wither_block_destroy_scan_volume(bb_width: f32, bb_height: f32) -> (i32, i32) {
+    (
+        (bb_width / 2.0 + 1.0).floor() as i32,
+        bb_height.floor() as i32,
+    )
+}
+
+pub fn wither_block_destroy_plan(
+    destroy_blocks_tick: i32,
+    mob_griefing: bool,
+    any_block_destroyed: bool,
+) -> WitherBlockDestroyPlan {
+    if destroy_blocks_tick <= 0 {
+        return WitherBlockDestroyPlan {
+            next_destroy_blocks_tick: destroy_blocks_tick,
+            should_scan_blocks: false,
+            emit_level_event_1022: false,
+        };
+    }
+    let next_destroy_blocks_tick = destroy_blocks_tick - 1;
+    let should_scan_blocks = next_destroy_blocks_tick == 0 && mob_griefing;
+    WitherBlockDestroyPlan {
+        next_destroy_blocks_tick,
+        should_scan_blocks,
+        emit_level_event_1022: should_scan_blocks && any_block_destroyed,
     }
 }
 
@@ -752,6 +791,47 @@ mod tests {
         assert_eq!(
             wither_damage_result(0, false, 0, WitherDamageSourceKind::WitherFriend),
             WitherDamageResult::Ignored
+        );
+    }
+
+    #[test]
+    fn wither_block_destroy_delay_scan_volume_and_filters_match_java() {
+        assert!(!wither_can_destroy_block(true, false));
+        assert!(!wither_can_destroy_block(false, true));
+        assert!(wither_can_destroy_block(false, false));
+        assert_eq!(wither_block_destroy_scan_volume(0.9, 3.5), (1, 3));
+
+        assert_eq!(
+            wither_block_destroy_plan(20, true, false),
+            WitherBlockDestroyPlan {
+                next_destroy_blocks_tick: 19,
+                should_scan_blocks: false,
+                emit_level_event_1022: false,
+            }
+        );
+        assert_eq!(
+            wither_block_destroy_plan(1, false, true),
+            WitherBlockDestroyPlan {
+                next_destroy_blocks_tick: 0,
+                should_scan_blocks: false,
+                emit_level_event_1022: false,
+            }
+        );
+        assert_eq!(
+            wither_block_destroy_plan(1, true, false),
+            WitherBlockDestroyPlan {
+                next_destroy_blocks_tick: 0,
+                should_scan_blocks: true,
+                emit_level_event_1022: false,
+            }
+        );
+        assert_eq!(
+            wither_block_destroy_plan(1, true, true),
+            WitherBlockDestroyPlan {
+                next_destroy_blocks_tick: 0,
+                should_scan_blocks: true,
+                emit_level_event_1022: true,
+            }
         );
     }
 
