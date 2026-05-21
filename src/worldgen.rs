@@ -29376,6 +29376,65 @@ pub fn blended_noise_snapshot(
     })
 }
 
+static GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE: OnceLock<
+    Mutex<HashMap<BlendedNoiseSnapshotCacheKey, BlendedNoiseSnapshot>>,
+> = OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct BlendedNoiseSnapshotCacheKey {
+    seed: i64,
+    settings_id: &'static str,
+    xz_scale: u64,
+    y_scale: u64,
+    xz_factor: u64,
+    y_factor: u64,
+    smear_scale_multiplier: u64,
+}
+
+fn random_state_blended_noise_snapshot(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    xz_scale: f64,
+    y_scale: f64,
+    xz_factor: f64,
+    y_factor: f64,
+    smear_scale_multiplier: f64,
+) -> Result<BlendedNoiseSnapshot, &'static str> {
+    let key = BlendedNoiseSnapshotCacheKey {
+        seed,
+        settings_id: settings.id,
+        xz_scale: xz_scale.to_bits(),
+        y_scale: y_scale.to_bits(),
+        xz_factor: xz_factor.to_bits(),
+        y_factor: y_factor.to_bits(),
+        smear_scale_multiplier: smear_scale_multiplier.to_bits(),
+    };
+    if let Some(snapshot) = GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("global blended noise snapshot cache lock should not be poisoned")
+        .get(&key)
+        .cloned()
+    {
+        return Ok(snapshot);
+    }
+
+    let snapshot = blended_noise_snapshot(
+        random_state_terrain_random(seed, settings),
+        xz_scale,
+        y_scale,
+        xz_factor,
+        y_factor,
+        smear_scale_multiplier,
+    )?;
+    GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("global blended noise snapshot cache lock should not be poisoned")
+        .insert(key, snapshot.clone());
+    Ok(snapshot)
+}
+
 pub fn blended_noise_sample(snapshot: &BlendedNoiseSnapshot, x: f64, y: f64, z: f64) -> f64 {
     let limit_x = x * snapshot.xz_multiplier;
     let limit_y = y * snapshot.y_multiplier;
@@ -44851,8 +44910,9 @@ impl NoiseChunk {
             .iter()
             .any(|(cached_key, _)| *cached_key == key)
         {
-            let Ok(snapshot) = blended_noise_snapshot(
-                random_state_terrain_random(self.seed, self.settings),
+            let Ok(snapshot) = random_state_blended_noise_snapshot(
+                self.seed,
+                self.settings,
                 xz_scale,
                 y_scale,
                 xz_factor,
