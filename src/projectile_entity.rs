@@ -434,6 +434,7 @@ impl HurtingProjectileState {
                 HurtingImpact::WitherSkull {
                     owner_damage: 8,
                     magic_damage: 5,
+                    owner_heal_on_kill: 5.0,
                     explosion_power: 1.0,
                 }
             }
@@ -513,6 +514,7 @@ pub enum HurtingImpact {
     WitherSkull {
         owner_damage: i32,
         magic_damage: i32,
+        owner_heal_on_kill: f32,
         explosion_power: f32,
     },
     AreaEffectCloud {
@@ -961,6 +963,7 @@ mod tests {
             HurtingImpact::WitherSkull {
                 owner_damage: 8,
                 magic_damage: 5,
+                owner_heal_on_kill: 5.0,
                 explosion_power: 1.0
             }
         );
