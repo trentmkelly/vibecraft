@@ -31489,7 +31489,9 @@ impl OreVeinMaterialRule {
         timings: &mut LiveTerrainTimings,
         detailed_timing: bool,
     ) -> Option<&'static str> {
-        if !(ORE_VEIN_TYPES[1].min_y..=ORE_VEIN_TYPES[0].max_y).contains(&y) {
+        if !(ORE_VEIN_TYPES[0].min_y..=ORE_VEIN_TYPES[0].max_y).contains(&y)
+            && !(ORE_VEIN_TYPES[1].min_y..=ORE_VEIN_TYPES[1].max_y).contains(&y)
+        {
             return None;
         }
         timings.ore_vein_samples += 1;
