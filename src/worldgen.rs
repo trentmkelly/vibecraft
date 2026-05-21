@@ -33825,6 +33825,9 @@ impl OreBlockCache {
     }
 
     fn block_state_name(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
+        if !self.contains_world_xz(world_x, world_z) {
+            return None;
+        }
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
         let local_y = world_y.rem_euclid(16) as usize;
@@ -33845,6 +33848,9 @@ impl OreBlockCache {
         world_z: i32,
         block_name: &'static str,
     ) {
+        if !self.contains_world_xz(world_x, world_z) {
+            return;
+        }
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
         let local_y = world_y.rem_euclid(16) as usize;
@@ -33940,6 +33946,10 @@ impl OreBlockCache {
         self.sections
             .iter_mut()
             .find(|section| section.y == section_y)
+    }
+
+    fn contains_world_xz(&self, world_x: i32, world_z: i32) -> bool {
+        world_x.div_euclid(16) == self.chunk_pos.x && world_z.div_euclid(16) == self.chunk_pos.z
     }
 }
 
@@ -49166,6 +49176,62 @@ mod tests {
         assert_eq!(unpack_heightmap_column(world_surface, 0), 3);
         assert_eq!(unpack_heightmap_column(motion_blocking, 0), 3);
         assert_eq!(unpack_heightmap_column(motion_blocking_no_leaves, 0), 2);
+    }
+
+    #[test]
+    fn ore_block_cache_uses_world_coordinates_without_chunk_wrapping() {
+        let pos = ChunkPos { x: 2, z: -3 };
+        let origin_x = pos.x * 16;
+        let origin_z = pos.z * 16;
+        let mut chunk = LevelChunk::empty(pos);
+        chunk.min_section_y = 0;
+
+        let mut block_states =
+            PalettedContainer::single(super::block_state_tag("minecraft:stone"), SECTION_VOLUME);
+        block_states.set_entry(
+            1 * 256 + 5 * 16 + 15,
+            super::block_state_tag("minecraft:dirt"),
+        );
+        chunk.sections.push(ChunkSection {
+            y: 0,
+            block_states: block_states.to_nbt(),
+            biomes: PalettedContainer::single(
+                Tag::String("minecraft:plains".to_string()),
+                BIOME_SECTION_VOLUME,
+            )
+            .to_nbt(),
+            block_light: None,
+            sky_light: None,
+        });
+
+        let mut block_cache = super::OreBlockCache::from_chunk(&chunk);
+        assert_eq!(
+            block_cache.block_state_name(origin_x + 15, 1, origin_z + 5),
+            Some("minecraft:dirt")
+        );
+        assert_eq!(
+            block_cache.block_state_name(origin_x - 1, 1, origin_z + 5),
+            None,
+            "neighboring chunk reads must not wrap onto local x=15"
+        );
+
+        block_cache.set_block_state(origin_x - 1, 1, origin_z + 5, "minecraft:gold_ore");
+        block_cache.set_block_state(origin_x + 1, 1, origin_z + 1, "minecraft:iron_ore");
+        block_cache.flush_to_chunk(&mut chunk);
+
+        assert_eq!(
+            chunk
+                .get_block_state(origin_x + 15, 1, origin_z + 5)
+                .as_deref(),
+            Some("minecraft:dirt"),
+            "neighboring chunk writes must not wrap onto local x=15"
+        );
+        assert_eq!(
+            chunk
+                .get_block_state(origin_x + 1, 1, origin_z + 1)
+                .as_deref(),
+            Some("minecraft:iron_ore")
+        );
     }
 
     fn unpack_heightmap_column(values: &[i64], index: usize) -> i32 {
