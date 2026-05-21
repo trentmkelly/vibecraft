@@ -26208,26 +26208,6 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                 materialize_noise_preview_chunk(pos, biome_source_model, noise_settings)
             }
             LiveChunkGenerationMode::RealSurface => std::thread::scope(|scope| {
-                let tree_context_handle = {
-                    let surface_rule = load_surface_rule(noise_settings.id);
-                    scope.spawn(move || {
-                        surface_rule.map(|surface_rule| {
-                            let router_id = noise_router_id_for_settings(**noise_settings);
-                            let noise_router = builtin_noise_router(router_id)
-                                .map(|e| e.router)
-                                .unwrap_or(NONE_NOISE_ROUTER);
-                            build_tree_decoration_context_cache(
-                                pos,
-                                biome_source_model,
-                                noise_settings,
-                                seed,
-                                noise_router,
-                                &surface_rule,
-                            )
-                        })
-                    })
-                };
-
                 match generate_real_surface_base_chunk(
                     pos,
                     biome_source_model,
@@ -26236,6 +26216,25 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                 ) {
                     Some((mut chunk, terrain_timings)) => {
                         timings.terrain = terrain_timings;
+                        let tree_context_handle = {
+                            let surface_rule = load_surface_rule(noise_settings.id);
+                            scope.spawn(move || {
+                                surface_rule.map(|surface_rule| {
+                                    let router_id = noise_router_id_for_settings(**noise_settings);
+                                    let noise_router = builtin_noise_router(router_id)
+                                        .map(|e| e.router)
+                                        .unwrap_or(NONE_NOISE_ROUTER);
+                                    build_tree_decoration_context_cache(
+                                        pos,
+                                        biome_source_model,
+                                        noise_settings,
+                                        seed,
+                                        noise_router,
+                                        &surface_rule,
+                                    )
+                                })
+                            })
+                        };
                         let region_biome_steps = decoration_region_biome_steps_for_chunk(
                             chunk.pos,
                             biome_source_model,
@@ -26278,7 +26277,6 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         chunk
                     }
                     None => {
-                        let _ = tree_context_handle.join();
                         let router_id = noise_router_id_for_settings(**noise_settings);
                         let noise_router = builtin_noise_router(router_id)
                             .map(|e| e.router)
