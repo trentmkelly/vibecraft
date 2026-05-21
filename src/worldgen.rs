@@ -45570,16 +45570,55 @@ impl NoiseChunk {
         }
         if needs_noodle {
             let mut noodle = self.take_density_array_scratch(output.len());
-            fill_density_array_with_interp(
-                OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
-                self,
-                &mut noodle,
-                DensityArrayFillMode::Cell,
-            );
+            if !self.fill_overworld_noodle_density_cache(&mut noodle) {
+                fill_density_array_with_interp(
+                    OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
+                    self,
+                    &mut noodle,
+                    DensityArrayFillMode::Cell,
+                );
+            }
             for (value, noodle_value) in output.iter_mut().zip(noodle.iter()) {
                 *value = value.min(*noodle_value);
             }
             self.return_density_array_scratch(noodle);
+        }
+        true
+    }
+
+    fn fill_overworld_noodle_density_cache(&mut self, output: &mut [f64]) -> bool {
+        let toggle_ptr = &NOODLE_TOGGLE_RANGE_DENSITY as *const DensityFunction as usize;
+        let thickness_ptr = &NOODLE_THICKNESS_RANGE_DENSITY as *const DensityFunction as usize;
+        let ridge_a_ptr = &NOODLE_RIDGE_A_RANGE_DENSITY as *const DensityFunction as usize;
+        let ridge_b_ptr = &NOODLE_RIDGE_B_RANGE_DENSITY as *const DensityFunction as usize;
+        let (Some(toggle_index), Some(thickness_index), Some(ridge_a_index), Some(ridge_b_index)) = (
+            lookup_density_index(&self.interp_by_ptr, toggle_ptr),
+            lookup_density_index(&self.interp_by_ptr, thickness_ptr),
+            lookup_density_index(&self.interp_by_ptr, ridge_a_ptr),
+            lookup_density_index(&self.interp_by_ptr, ridge_b_ptr),
+        ) else {
+            return false;
+        };
+
+        self.array_index = 0;
+        for y_in_cell in (0..self.cell_height).rev() {
+            self.in_cell_y = y_in_cell;
+            for x_in_cell in 0..self.cell_width {
+                self.in_cell_x = x_in_cell;
+                for z_in_cell in 0..self.cell_width {
+                    self.in_cell_z = z_in_cell;
+                    let toggle = self.interpolator_value(toggle_index);
+                    output[self.array_index] = if (-1_000_000.0..0.0).contains(&toggle) {
+                        64.0
+                    } else {
+                        let thickness = self.interpolator_value(thickness_index);
+                        let ridge_a = self.interpolator_value(ridge_a_index).abs();
+                        let ridge_b = self.interpolator_value(ridge_b_index).abs();
+                        thickness + 1.5 * ridge_a.max(ridge_b)
+                    };
+                    self.array_index += 1;
+                }
+            }
         }
         true
     }
