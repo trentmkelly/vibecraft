@@ -95,6 +95,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement `ChunkGenerator` generator methods invoked per status: `createBiomes()`, `fillFromNoise()`, `buildSurface()`, `applyCarvers()`, `applyBiomeDecoration()`, `createStructures()`, `createReferences()`, `spawnOriginalMobs()`
 - [x] Route live join-time chunk batch through generated `LevelChunk` output and `ClientboundLevelChunkWithLightPacket::from_chunk` serializer (replacing the current synthetic chunk writer)
 - [x] Add parity test: chunk at overworld (0,0) reaches FULL status with correct section count and heightmap entries
+- [ ] Replace the current single-chunk `RealSurface` shortcut with a Java-shaped status/dependency pipeline for live/timed generation. Java `FEATURES` receives `CARVERS`-status neighbor chunks from `WorldGenRegion`/`StaticCache2D` and has `blockStateWriteRadius(1)`; RustCraft currently builds decoration-neighbor context inside the target chunk call, so the speed test is charging target generation for dependency work that Java has already scheduled as neighboring chunk statuses. This is now a primary structural blocker for the 4ms/chunk budget and for correct feature write semantics. References: `ChunkPyramid.GENERATION_PYRAMID`, `ChunkStatusTasks.generateFeatures`, `WorldGenRegion.ensureCanWrite`, `src/worldgen.rs`.
 
 ## Noise Settings and Router
 
