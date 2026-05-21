@@ -5789,18 +5789,16 @@ fn live_tree_placement_plan(
         },
     };
     if !matches!(trunk.kind, TrunkPlacerKind::Fancy) {
-        return simple_tree_placement_plan(
+        return live_straight_blob_tree_placement_plan(
             origin,
-            TrunkPlacerModel {
-                kind: TrunkPlacerKind::Straight,
-                ..trunk
-            },
+            trunk,
             config.foliage,
             config.trunk_state,
             config.leaves_state,
             "minecraft:dirt",
             rand_a,
             rand_b,
+            random,
         );
     }
 
@@ -5840,6 +5838,80 @@ fn live_tree_placement_plan(
             );
         }
     }
+    Ok(TreePlacementPlan { blocks })
+}
+
+fn live_straight_blob_tree_placement_plan(
+    origin: BlockPos,
+    trunk: TrunkPlacerModel,
+    foliage: FoliagePlacerModel,
+    trunk_state: &'static str,
+    foliage_state: &'static str,
+    below_trunk_state: &'static str,
+    rand_a: i32,
+    rand_b: i32,
+    random: &mut RandomSourceKind,
+) -> Result<TreePlacementPlan, String> {
+    validate_trunk_placer(trunk)?;
+    validate_foliage_placer(foliage)?;
+    if trunk.kind != TrunkPlacerKind::Straight {
+        return Err("live blob tree placement requires a straight trunk placer".to_string());
+    }
+    let FoliagePlacerKind::Blob {
+        height: foliage_height,
+    } = foliage.kind
+    else {
+        return Err("live straight tree placement currently requires blob foliage".to_string());
+    };
+
+    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
+    let leaf_radius = sample_inclusive_i32(foliage.radius_min, foliage.radius_max, rand_a);
+    let foliage_offset = sample_inclusive_i32(foliage.offset_min, foliage.offset_max, rand_b);
+    let foliage_origin = BlockPos {
+        x: origin.x,
+        y: origin.y + tree_height + foliage_offset,
+        z: origin.z,
+    };
+    let mut blocks = Vec::new();
+    push_tree_block(
+        &mut blocks,
+        TreePlacementBlock {
+            pos: BlockPos {
+                x: origin.x,
+                y: origin.y - 1,
+                z: origin.z,
+            },
+            state: below_trunk_state,
+            kind: TreePlacementBlockKind::DirtBelowTrunk,
+        },
+    );
+    for y in 0..tree_height {
+        push_tree_block(
+            &mut blocks,
+            TreePlacementBlock {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: origin.y + y,
+                    z: origin.z,
+                },
+                state: trunk_state,
+                kind: TreePlacementBlockKind::Log,
+            },
+        );
+    }
+
+    for y_offset in (-foliage_height..=0).rev() {
+        let current_radius = (leaf_radius - 1 - y_offset / 2).max(0);
+        place_live_blob_leaves_row(
+            &mut blocks,
+            foliage_origin,
+            current_radius,
+            y_offset,
+            foliage_state,
+            random,
+        );
+    }
+
     Ok(TreePlacementPlan { blocks })
 }
 
@@ -41146,6 +41218,35 @@ fn place_simple_leaves_row(
     }
 }
 
+fn place_live_blob_leaves_row(
+    blocks: &mut Vec<TreePlacementBlock>,
+    origin: BlockPos,
+    radius: i32,
+    y_offset: i32,
+    state: &'static str,
+    random: &mut RandomSourceKind,
+) {
+    for dx in -radius..=radius {
+        for dz in -radius..=radius {
+            if live_blob_leaves_row_should_skip(dx, y_offset, dz, radius, random) {
+                continue;
+            }
+            push_tree_block(
+                blocks,
+                TreePlacementBlock {
+                    pos: BlockPos {
+                        x: origin.x + dx,
+                        y: origin.y + y_offset,
+                        z: origin.z + dz,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::Leaves,
+                },
+            );
+        }
+    }
+}
+
 fn place_acacia_leaves_row(
     blocks: &mut Vec<TreePlacementBlock>,
     origin: BlockPos,
@@ -41528,6 +41629,19 @@ fn simple_leaves_row_should_skip_corner(
         return true;
     }
     simple_tree_corner_roll(dx, y_offset, dz, rand_a, rand_b) == 0
+}
+
+fn live_blob_leaves_row_should_skip(
+    dx: i32,
+    y_offset: i32,
+    dz: i32,
+    radius: i32,
+    random: &mut RandomSourceKind,
+) -> bool {
+    if dx.abs() != radius || dz.abs() != radius {
+        return false;
+    }
+    random_next_i32_bound(random, 2) == 0 || y_offset == 0
 }
 
 fn acacia_leaves_row_should_skip(dx: i32, y_offset: i32, dz: i32, radius: i32) -> bool {
@@ -47980,6 +48094,75 @@ mod tests {
     }
 
     #[test]
+    fn live_blob_tree_foliage_consumes_java_corner_rolls() {
+        let seed = 12345;
+        let origin = BlockPos { x: 8, y: 64, z: 8 };
+        let trunk = TrunkPlacerModel {
+            base_height: 4,
+            height_rand_a: 2,
+            height_rand_b: 0,
+            kind: TrunkPlacerKind::Straight,
+        };
+        let mut random = crate::random_source::RandomSourceKind::new(
+            seed,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
+        let mut expected_random = crate::random_source::RandomSourceKind::new(
+            seed,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
+        for _ in 0..16 {
+            super::random_next_i32_bound(&mut expected_random, 2);
+        }
+
+        let plan = super::live_straight_blob_tree_placement_plan(
+            origin,
+            trunk,
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Blob { height: 3 },
+            },
+            "minecraft:oak_log",
+            "minecraft:oak_leaves",
+            "minecraft:dirt",
+            1,
+            0,
+            &mut random,
+        )
+        .expect("live straight blob tree should plan");
+
+        assert_eq!(
+            super::random_next_i32_bound(&mut random, 10_000),
+            super::random_next_i32_bound(&mut expected_random, 10_000),
+            "BlobFoliagePlacer checks four signed corners across four rows and consumes one random roll for each corner"
+        );
+        assert!(!plan.blocks.iter().any(|block| {
+            block.kind == TreePlacementBlockKind::Leaves
+                && block.pos
+                    == BlockPos {
+                        x: origin.x - 1,
+                        y: origin.y + 5,
+                        z: origin.z - 1,
+                    }
+        }));
+
+        let top_leaf_count = plan
+            .blocks
+            .iter()
+            .filter(|block| {
+                block.kind == TreePlacementBlockKind::Leaves && block.pos.y == origin.y + 5
+            })
+            .count();
+        assert_eq!(
+            top_leaf_count, 5,
+            "BlobFoliagePlacer top row still consumes corner rolls, but y=0 skips every corner"
+        );
+    }
+
+    #[test]
     #[ignore = "wall-clock performance guard; run explicitly after worldgen optimization changes"]
     fn real_surface_spawn_chunk_generation_stays_under_debug_budget() {
         let max_ms = std::env::var("RUSTCRAFT_WORLDGEN_CHUNK_MAX_MS")
@@ -48127,6 +48310,123 @@ mod tests {
             elapsed_ms <= max_total_ms,
             "real-surface 3x3 spawn-area generation took {elapsed_ms}ms, above {max_total_ms}ms budget (~4ms/chunk Java target); slowest_chunk={slowest_chunk:?}"
         );
+    }
+
+    #[test]
+    #[ignore = "diagnostic parity stocktake; run explicitly while aligning worldgen stages"]
+    fn normal_overworld_stage_parity_stocktake() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("vanilla fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut base_chunks = Vec::new();
+        let mut carver_chunks = Vec::new();
+        let mut ore_chunks = Vec::new();
+        let mut full_chunks = Vec::new();
+        for chunk in chunks {
+            let pos = ChunkPos {
+                x: chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            let (base, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut carver = base.clone();
+            super::apply_configured_carvers_for_biome_source(
+                &mut carver,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+            let mut ore = carver.clone();
+            super::apply_underground_ore_decoration_to_chunk(
+                &mut ore,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            let mut full = ore.clone();
+            super::apply_initial_tree_decoration_to_chunk(
+                &mut full,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+                None,
+            );
+            base_chunks.push(base);
+            carver_chunks.push(carver);
+            ore_chunks.push(ore);
+            full_chunks.push(full);
+        }
+
+        for (label, chunks) in [
+            ("noise_surface", &base_chunks),
+            ("carvers", &carver_chunks),
+            ("ores", &ore_chunks),
+            ("trees", &full_chunks),
+        ] {
+            let block = crate::worldgen_comparison::vanilla_worldgen_block_array_parity_score(
+                fixture_json,
+                chunks,
+            )
+            .expect("block parity score should compute");
+            let heightmap = crate::worldgen_comparison::vanilla_worldgen_heightmap_parity_score(
+                fixture_json,
+                chunks,
+            )
+            .expect("heightmap parity score should compute");
+            let column = crate::worldgen_comparison::vanilla_worldgen_column_profile_parity_score(
+                fixture_json,
+                chunks,
+            )
+            .expect("column-profile parity score should compute");
+            eprintln!(
+                "[worldgen-stage-parity] stage={} block={:.6} ({}/{}) heightmap={:.6} ({}/{}) column={:.6} ({}/{})",
+                label,
+                block.score,
+                block.matching_blocks,
+                block.total_blocks,
+                heightmap.score,
+                heightmap.matching_columns,
+                heightmap.total_columns,
+                column.score,
+                column.matching_columns,
+                column.total_columns
+            );
+        }
     }
 
     #[test]
