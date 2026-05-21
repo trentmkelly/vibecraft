@@ -28,6 +28,8 @@ use crate::world_time::{OVERWORLD_CLOCK_ID, THE_END_CLOCK_ID};
 
 pub const SERVERBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 69;
 pub const CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2: usize = 141;
+pub const OVERWORLD_MIN_SECTION_Y: i32 = -4;
+pub const OVERWORLD_SECTION_COUNT: usize = 24;
 
 pub const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
 pub const SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID: i32 = 4;
@@ -2192,6 +2194,7 @@ pub struct NetworkPalettedContainer {
     pub bits_per_entry: u8,
     pub palette_ids: Vec<i32>,
     pub data: Vec<i64>,
+    pub uses_global_palette: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5306,8 +5309,14 @@ impl ClientboundLevelChunkPacketData {
 
     pub fn from_chunk(chunk: &LevelChunk) -> Self {
         let mut buffer = Vec::new();
-        for section in &chunk.sections {
-            NetworkChunkSection::from_storage_section(section)
+        // Java's LevelChunk owns a dense section array sized from the dimension
+        // height accessor.  The anvil NBT section list is sparse, so packet
+        // serialization must rebuild the dense overworld range or the client
+        // renders stored sections at the wrong Y.
+        for section_y in
+            OVERWORLD_MIN_SECTION_Y..OVERWORLD_MIN_SECTION_Y + OVERWORLD_SECTION_COUNT as i32
+        {
+            NetworkChunkSection::from_chunk_section_y(chunk, section_y)
                 .write(&mut buffer)
                 .expect("writing chunk section to vec");
         }
@@ -5396,6 +5405,39 @@ impl LevelChunkBlockEntityInfo {
 impl ClientboundLightUpdatePacketData {
     pub const DATA_LAYER_SIZE: usize = 2048;
 
+    pub fn from_chunk(chunk: &LevelChunk) -> Self {
+        let mut data = Self {
+            sky_y_mask: Vec::new(),
+            block_y_mask: Vec::new(),
+            empty_sky_y_mask: Vec::new(),
+            empty_block_y_mask: Vec::new(),
+            sky_updates: Vec::new(),
+            block_updates: Vec::new(),
+        };
+
+        for (section_index, section_y) in (OVERWORLD_MIN_SECTION_Y
+            ..OVERWORLD_MIN_SECTION_Y + OVERWORLD_SECTION_COUNT as i32)
+            .enumerate()
+        {
+            let section = chunk
+                .sections
+                .iter()
+                .find(|section| i32::from(section.y) == section_y);
+            data.add_layer(
+                section_index,
+                section.and_then(|section| section.sky_light.as_deref()),
+                true,
+            );
+            data.add_layer(
+                section_index,
+                section.and_then(|section| section.block_light.as_deref()),
+                false,
+            );
+        }
+
+        data
+    }
+
     pub fn from_chunk_sections(sections: &[ChunkSection]) -> Self {
         let mut data = Self {
             sky_y_mask: Vec::new(),
@@ -5466,6 +5508,24 @@ impl NetworkChunkSection {
         }
     }
 
+    fn from_chunk_section_y(chunk: &LevelChunk, section_y: i32) -> Self {
+        chunk
+            .sections
+            .iter()
+            .find(|section| i32::from(section.y) == section_y)
+            .map(Self::from_storage_section)
+            .unwrap_or_else(Self::empty)
+    }
+
+    fn empty() -> Self {
+        Self {
+            non_empty_block_count: 0,
+            fluid_count: 0,
+            block_states: NetworkPalettedContainer::single(0),
+            biomes: NetworkPalettedContainer::single(40),
+        }
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&self.non_empty_block_count.to_be_bytes())?;
         writer.write_all(&self.fluid_count.to_be_bytes())?;
@@ -5480,6 +5540,7 @@ impl NetworkPalettedContainer {
             bits_per_entry: 0,
             palette_ids: vec![global_id],
             data: Vec::new(),
+            uses_global_palette: false,
         }
     }
 
@@ -5493,18 +5554,41 @@ impl NetworkPalettedContainer {
             .map(|entry| storage_palette_entry_network_id(entry, kind))
             .collect::<Vec<_>>();
         let data = container.data.unwrap_or_default();
+        let palette_ids = if palette_ids.is_empty() {
+            vec![0]
+        } else {
+            palette_ids
+        };
+        let storage_bits = if data.is_empty() {
+            0
+        } else {
+            packed_storage_bits_per_entry(container.palette.len())
+        };
+        let uses_global_palette = storage_bits > kind.max_indirect_bits();
+        if uses_global_palette {
+            let bits_per_entry = direct_palette_bits(&palette_ids).max(kind.min_direct_bits());
+            let indices = crate::storage::chunk::unpack_palette_indices(
+                &data,
+                storage_bits,
+                kind.entry_count(),
+            );
+            let global_ids = indices
+                .into_iter()
+                .map(|index| palette_ids.get(index as usize).copied().unwrap_or(0) as u64)
+                .collect::<Vec<_>>();
+            return Self {
+                bits_per_entry: bits_per_entry as u8,
+                palette_ids: Vec::new(),
+                data: crate::storage::chunk::pack_palette_indices(&global_ids, bits_per_entry),
+                uses_global_palette: true,
+            };
+        }
+
         Self {
-            bits_per_entry: if data.is_empty() {
-                0
-            } else {
-                packed_storage_bits_per_entry(container.palette.len()) as u8
-            },
-            palette_ids: if palette_ids.is_empty() {
-                vec![0]
-            } else {
-                palette_ids
-            },
+            bits_per_entry: storage_bits as u8,
+            palette_ids,
             data,
+            uses_global_palette: false,
         }
     }
 
@@ -5512,7 +5596,7 @@ impl NetworkPalettedContainer {
         writer.write_all(&[self.bits_per_entry])?;
         if self.bits_per_entry == 0 {
             write_var_i32(writer, self.palette_ids.first().copied().unwrap_or(0))?;
-        } else {
+        } else if !self.uses_global_palette {
             write_var_i32(writer, self.palette_ids.len() as i32)?;
             for id in &self.palette_ids {
                 write_var_i32(writer, *id)?;
@@ -5529,6 +5613,29 @@ impl NetworkPalettedContainer {
 enum PaletteKind {
     BlockState,
     Biome,
+}
+
+impl PaletteKind {
+    fn entry_count(self) -> usize {
+        match self {
+            Self::BlockState => 4096,
+            Self::Biome => 64,
+        }
+    }
+
+    fn max_indirect_bits(self) -> usize {
+        match self {
+            Self::BlockState => 8,
+            Self::Biome => 3,
+        }
+    }
+
+    fn min_direct_bits(self) -> usize {
+        match self {
+            Self::BlockState => 15,
+            Self::Biome => 7,
+        }
+    }
 }
 
 fn set_bit(mask: &mut Vec<u64>, index: usize) {
@@ -5681,6 +5788,11 @@ fn packed_storage_bits_per_entry(palette_len: usize) -> usize {
     let palette_len = palette_len.max(1) as u64;
     let needed = 64 - palette_len.saturating_sub(1).leading_zeros() as usize;
     needed.max(4)
+}
+
+fn direct_palette_bits(palette_ids: &[i32]) -> usize {
+    let max_id = palette_ids.iter().copied().max().unwrap_or(0).max(0) as u64;
+    (64 - max_id.leading_zeros() as usize).max(1)
 }
 
 fn storage_palette_entry_is_air(tag: &Tag) -> bool {
@@ -11156,6 +11268,42 @@ mod tests {
     }
 
     #[test]
+    fn large_block_palettes_use_global_palette_without_indirect_list() {
+        let palette = (0..300).map(Tag::Int).collect::<Vec<_>>();
+        let indices = vec![299_u64; 4096];
+        let container = PalettedContainer {
+            palette,
+            data: Some(crate::storage::chunk::pack_palette_indices(&indices, 9)),
+            expected_entries: 4096,
+        };
+
+        let network = NetworkPalettedContainer::from_storage_container(
+            &container.to_nbt(),
+            PaletteKind::BlockState,
+        );
+
+        assert!(network.uses_global_palette);
+        assert_eq!(network.bits_per_entry, 15);
+        assert!(network.palette_ids.is_empty());
+        assert_eq!(
+            crate::storage::chunk::unpack_palette_indices(
+                &network.data,
+                network.bits_per_entry as usize,
+                1,
+            )[0],
+            299
+        );
+
+        let mut bytes = Vec::new();
+        network.write(&mut bytes).unwrap();
+        assert_eq!(bytes[0], 15);
+        assert_ne!(
+            bytes[1], 0xac,
+            "global palette containers must not write an indirect palette length"
+        );
+    }
+
+    #[test]
     fn biome_palette_network_ids_follow_synchronized_biome_registry_order() {
         assert_eq!(biome_name_network_id("minecraft:plains"), Some(40));
         assert_eq!(biome_name_network_id("plains"), Some(40));
@@ -11205,7 +11353,7 @@ mod tests {
             post_processing: Vec::new(),
             light_correct: false,
         };
-        let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
+        let light_data = ClientboundLightUpdatePacketData::from_chunk(&chunk);
         let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data.clone());
 
         assert_eq!(packet.pos, chunk.pos);
@@ -11216,7 +11364,18 @@ mod tests {
         assert_eq!(chunk_data.block_entities[0].packed_xz, 0x1e);
         assert_eq!(chunk_data.block_entities[0].y, 70);
         assert_eq!(chunk_data.block_entities[0].block_entity_type_id, 1);
-        assert_eq!(chunk_data.buffer, vec![0x10, 0, 0, 0, 0, 5, 0, 7]);
+        assert_eq!(chunk_data.buffer.len(), OVERWORLD_SECTION_COUNT * 8);
+        assert_eq!(
+            &chunk_data.buffer[0..8],
+            &[0, 0, 0, 0, 0, 0, 0, 40],
+            "missing sections before Y=0 are serialized as air/plains"
+        );
+        let y0_offset = (0 - OVERWORLD_MIN_SECTION_Y) as usize * 8;
+        assert_eq!(
+            &chunk_data.buffer[y0_offset..y0_offset + 8],
+            &[0x10, 0, 0, 0, 0, 5, 0, 7],
+            "storage section Y=0 must remain at network section index 4"
+        );
         assert_eq!(packet.light_data, Some(light_data.clone()));
 
         let mut chunk_payload = Vec::new();
@@ -11229,7 +11388,10 @@ mod tests {
         assert_eq!(&chunk_payload[11..19], &1_i64.to_be_bytes());
         assert_eq!(&chunk_payload[19..27], &2_i64.to_be_bytes());
         assert_eq!(&chunk_payload[27..35], &3_i64.to_be_bytes());
-        assert_eq!(&chunk_payload[35..44], &[8, 0x10, 0, 0, 0, 0, 5, 0, 7]);
+        assert_eq!(
+            read_var_i32(&mut cursor(chunk_payload[35..].to_vec())).unwrap(),
+            (OVERWORLD_SECTION_COUNT * 8) as i32
+        );
         assert!(
             chunk_payload
                 .windows(4)
@@ -11240,11 +11402,52 @@ mod tests {
         let mut light_payload = Vec::new();
         ClientboundLightUpdatePacket {
             pos: chunk.pos,
-            light_data,
+            light_data: light_data.clone(),
         }
         .write(&mut light_payload)
         .unwrap();
         assert_eq!(&light_payload[..2], &[4, 0xfe]);
+        assert!(
+            light_data
+                .sky_y_mask
+                .first()
+                .is_some_and(|mask| mask & (1 << 4) != 0),
+            "storage section Y=0 light must be mapped to overworld network section index 4"
+        );
+    }
+
+    #[test]
+    fn sparse_chunk_sections_are_padded_to_vanilla_overworld_height() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.min_section_y = OVERWORLD_MIN_SECTION_Y;
+        chunk.sections = vec![ChunkSection {
+            y: 4,
+            block_states: PalettedContainer::single(Tag::Int(1), 4096).to_nbt(),
+            biomes: PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64)
+                .to_nbt(),
+            block_light: None,
+            sky_light: Some(vec![-1; 2048]),
+        }];
+
+        let data = ClientboundLevelChunkPacketData::from_chunk(&chunk);
+        assert_eq!(data.buffer.len(), OVERWORLD_SECTION_COUNT * 8);
+        let section_y_4_offset = (4 - OVERWORLD_MIN_SECTION_Y) as usize * 8;
+        assert_eq!(
+            &data.buffer[section_y_4_offset..section_y_4_offset + 8],
+            &[0x10, 0, 0, 0, 0, 1, 0, 40],
+            "section Y=4 must serialize at index 8, not at the bottom of the packet"
+        );
+        assert_eq!(
+            &data.buffer[0..8],
+            &[0, 0, 0, 0, 0, 0, 0, 40],
+            "lower missing sections must remain explicit air sections"
+        );
+
+        let light = ClientboundLightUpdatePacketData::from_chunk(&chunk);
+        assert!(light
+            .sky_y_mask
+            .first()
+            .is_some_and(|mask| mask & (1 << 8) != 0));
     }
 
     #[test]

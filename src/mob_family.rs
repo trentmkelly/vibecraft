@@ -1,3 +1,6 @@
+use crate::living_entity::EquipmentSlot;
+use crate::map_state::DyeColor;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MobSourceFamily {
     Ambient,
@@ -148,6 +151,199 @@ pub struct MobRuntimeState {
     pub anger_target: Option<i32>,
     pub conversion_timer: Option<i32>,
     pub passengers: Vec<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WolfTameRoll {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WolfInteractionOutcome {
+    NoAction,
+    ConsumedBoneTameSuccess,
+    ConsumedBoneTameFailure,
+    DyedCollar,
+    EquippedArmor,
+    RepairedArmor,
+    ToggledSitting,
+    Fed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WolfArmorState {
+    pub item: &'static str,
+    pub damage: i32,
+    pub max_damage: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WolfRuntimeState {
+    pub mob: MobRuntimeState,
+    pub collar_color: DyeColor,
+    pub ordered_to_sit: bool,
+    pub health: i32,
+    pub max_health: i32,
+    pub baby: bool,
+    pub angry: bool,
+    pub body_armor: Option<WolfArmorState>,
+    pub target_entity_id: Option<i32>,
+}
+
+impl WolfRuntimeState {
+    pub fn new() -> Self {
+        Self {
+            mob: MobRuntimeState::new("wolf"),
+            collar_color: DyeColor::Red,
+            ordered_to_sit: false,
+            health: 8,
+            max_health: 8,
+            baby: false,
+            angry: false,
+            body_armor: None,
+            target_entity_id: None,
+        }
+    }
+
+    pub fn is_tame(&self) -> bool {
+        self.mob.owner_uuid.is_some()
+    }
+
+    pub fn try_tame_with_bone(
+        &mut self,
+        owner_uuid: impl Into<String>,
+        roll: WolfTameRoll,
+    ) -> WolfInteractionOutcome {
+        if self.is_tame() || self.angry {
+            return WolfInteractionOutcome::NoAction;
+        }
+        match roll {
+            WolfTameRoll::Success => {
+                self.mob
+                    .tame(
+                        family_by_id("wolf").expect("wolf family exists"),
+                        owner_uuid.into(),
+                    )
+                    .expect("wolf is tameable");
+                self.max_health = 40;
+                self.health = 40;
+                self.ordered_to_sit = true;
+                self.target_entity_id = None;
+                WolfInteractionOutcome::ConsumedBoneTameSuccess
+            }
+            WolfTameRoll::Failure => WolfInteractionOutcome::ConsumedBoneTameFailure,
+        }
+    }
+
+    pub fn dye_collar(&mut self, player_uuid: &str, dye: DyeColor) -> WolfInteractionOutcome {
+        if self.mob.owner_uuid.as_deref() != Some(player_uuid) || self.collar_color == dye {
+            return WolfInteractionOutcome::NoAction;
+        }
+        self.collar_color = dye;
+        WolfInteractionOutcome::DyedCollar
+    }
+
+    pub fn equip_body_armor(
+        &mut self,
+        player_uuid: &str,
+        item: &'static str,
+        max_damage: i32,
+    ) -> WolfInteractionOutcome {
+        if self.mob.owner_uuid.as_deref() != Some(player_uuid)
+            || self.baby
+            || self.body_armor.is_some()
+            || !wolf_body_armor_slot_accepts(item)
+        {
+            return WolfInteractionOutcome::NoAction;
+        }
+        self.body_armor = Some(WolfArmorState {
+            item,
+            damage: 0,
+            max_damage: max_damage.max(1),
+        });
+        WolfInteractionOutcome::EquippedArmor
+    }
+
+    pub fn repair_body_armor(
+        &mut self,
+        player_uuid: &str,
+        item: &'static str,
+    ) -> WolfInteractionOutcome {
+        if self.mob.owner_uuid.as_deref() != Some(player_uuid)
+            || !self.ordered_to_sit
+            || item != "minecraft:armadillo_scute"
+        {
+            return WolfInteractionOutcome::NoAction;
+        }
+        let Some(armor) = self.body_armor.as_mut() else {
+            return WolfInteractionOutcome::NoAction;
+        };
+        if armor.damage <= 0 {
+            return WolfInteractionOutcome::NoAction;
+        }
+        let repair_unit = (armor.max_damage as f32 * 0.125) as i32;
+        armor.damage = (armor.damage - repair_unit).max(0);
+        WolfInteractionOutcome::RepairedArmor
+    }
+
+    pub fn toggle_sitting(&mut self, player_uuid: &str) -> WolfInteractionOutcome {
+        if self.mob.owner_uuid.as_deref() != Some(player_uuid) {
+            return WolfInteractionOutcome::NoAction;
+        }
+        self.ordered_to_sit = !self.ordered_to_sit;
+        self.target_entity_id = None;
+        WolfInteractionOutcome::ToggledSitting
+    }
+
+    pub fn feed(&mut self, item: &'static str) -> WolfInteractionOutcome {
+        if !wolf_food_accepts(item) || self.health >= self.max_health {
+            return WolfInteractionOutcome::NoAction;
+        }
+        self.health = (self.health + 2).min(self.max_health);
+        WolfInteractionOutcome::Fed
+    }
+
+    pub fn owner_was_hurt_by(&mut self, owner_uuid: &str, attacker_entity_id: i32) -> bool {
+        if self.mob.owner_uuid.as_deref() != Some(owner_uuid) || self.ordered_to_sit {
+            return false;
+        }
+        self.target_entity_id = Some(attacker_entity_id);
+        true
+    }
+
+    pub fn hurt_owner_target(&mut self, owner_uuid: &str, target_entity_id: i32) -> bool {
+        if self.mob.owner_uuid.as_deref() != Some(owner_uuid) || self.ordered_to_sit {
+            return false;
+        }
+        self.target_entity_id = Some(target_entity_id);
+        true
+    }
+}
+
+pub fn wolf_body_armor_slot_accepts(item: &str) -> bool {
+    item == "minecraft:wolf_armor"
+}
+
+pub fn wolf_equipment_slot_for_item(item: &str) -> Option<EquipmentSlot> {
+    wolf_body_armor_slot_accepts(item).then_some(EquipmentSlot::Body)
+}
+
+pub fn wolf_food_accepts(item: &str) -> bool {
+    matches!(
+        item,
+        "minecraft:beef"
+            | "minecraft:chicken"
+            | "minecraft:cooked_beef"
+            | "minecraft:cooked_chicken"
+            | "minecraft:cooked_mutton"
+            | "minecraft:cooked_porkchop"
+            | "minecraft:cooked_rabbit"
+            | "minecraft:mutton"
+            | "minecraft:porkchop"
+            | "minecraft:rabbit"
+            | "minecraft:rotten_flesh"
+    )
 }
 
 impl MobRuntimeState {
@@ -543,6 +739,110 @@ mod tests {
         assert!(camel_state.add_passenger(camel, 5));
         assert!(!camel_state.add_passenger(camel, 5));
         assert!(!camel_state.add_passenger(wolf, 7));
+    }
+
+    #[test]
+    fn wolf_interactions_match_java_tame_collar_armor_and_owner_targets() {
+        let owner = "00000000-0000-0000-0000-000000000001";
+        let other = "00000000-0000-0000-0000-000000000002";
+        let mut wolf = WolfRuntimeState::new();
+
+        assert_eq!(wolf.collar_color, DyeColor::Red);
+        assert_eq!(
+            wolf.try_tame_with_bone(owner, WolfTameRoll::Failure),
+            WolfInteractionOutcome::ConsumedBoneTameFailure
+        );
+        assert!(!wolf.is_tame());
+        assert_eq!(
+            wolf.try_tame_with_bone(owner, WolfTameRoll::Success),
+            WolfInteractionOutcome::ConsumedBoneTameSuccess
+        );
+        assert!(wolf.is_tame());
+        assert_eq!(wolf.max_health, 40);
+        assert_eq!(wolf.health, 40);
+        assert!(wolf.ordered_to_sit);
+
+        assert_eq!(
+            wolf.dye_collar(other, DyeColor::Blue),
+            WolfInteractionOutcome::NoAction
+        );
+        assert_eq!(
+            wolf.dye_collar(owner, DyeColor::Blue),
+            WolfInteractionOutcome::DyedCollar
+        );
+        assert_eq!(wolf.collar_color, DyeColor::Blue);
+        assert_eq!(
+            wolf.dye_collar(owner, DyeColor::Blue),
+            WolfInteractionOutcome::NoAction
+        );
+
+        assert_eq!(
+            wolf.equip_body_armor(other, "minecraft:wolf_armor", 64),
+            WolfInteractionOutcome::NoAction
+        );
+        assert_eq!(
+            wolf_equipment_slot_for_item("minecraft:wolf_armor"),
+            Some(EquipmentSlot::Body)
+        );
+        assert_eq!(
+            wolf.equip_body_armor(owner, "minecraft:wolf_armor", 64),
+            WolfInteractionOutcome::EquippedArmor
+        );
+        assert_eq!(
+            wolf.equip_body_armor(owner, "minecraft:wolf_armor", 64),
+            WolfInteractionOutcome::NoAction
+        );
+
+        wolf.body_armor.as_mut().unwrap().damage = 16;
+        assert_eq!(
+            wolf.repair_body_armor(owner, "minecraft:armadillo_scute"),
+            WolfInteractionOutcome::RepairedArmor
+        );
+        assert_eq!(wolf.body_armor.as_ref().unwrap().damage, 8);
+
+        assert_eq!(
+            wolf.toggle_sitting(owner),
+            WolfInteractionOutcome::ToggledSitting
+        );
+        assert!(!wolf.ordered_to_sit);
+        assert!(wolf.owner_was_hurt_by(owner, 42));
+        assert_eq!(wolf.target_entity_id, Some(42));
+        assert!(wolf.hurt_owner_target(owner, 43));
+        assert_eq!(wolf.target_entity_id, Some(43));
+        assert!(!wolf.owner_was_hurt_by(other, 99));
+    }
+
+    #[test]
+    fn wolf_rejects_java_guarded_interactions() {
+        let owner = "owner";
+        let mut wild = WolfRuntimeState::new();
+        wild.angry = true;
+        assert_eq!(
+            wild.try_tame_with_bone(owner, WolfTameRoll::Success),
+            WolfInteractionOutcome::NoAction
+        );
+
+        let mut baby = WolfRuntimeState::new();
+        baby.try_tame_with_bone(owner, WolfTameRoll::Success);
+        baby.baby = true;
+        assert_eq!(
+            baby.equip_body_armor(owner, "minecraft:wolf_armor", 64),
+            WolfInteractionOutcome::NoAction
+        );
+
+        let mut hurt = WolfRuntimeState::new();
+        hurt.try_tame_with_bone(owner, WolfTameRoll::Success);
+        hurt.health = 20;
+        assert_eq!(
+            hurt.feed("minecraft:bone"),
+            WolfInteractionOutcome::NoAction
+        );
+        assert_eq!(
+            hurt.feed("minecraft:cooked_beef"),
+            WolfInteractionOutcome::Fed
+        );
+        assert_eq!(hurt.health, 22);
+        assert!(!hurt.owner_was_hurt_by(owner, 7));
     }
 
     #[test]

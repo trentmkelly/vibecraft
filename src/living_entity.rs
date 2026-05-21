@@ -142,8 +142,7 @@ impl LivingEntityState {
             last_damage: self.last_damage_taken,
             bypasses_cooldown: false,
         })
-        .accepted_damage(original_damage)
-        else {
+        .accepted_damage(original_damage) else {
             return DamageReport {
                 original_damage,
                 accepted_damage: 0.0,

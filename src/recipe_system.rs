@@ -571,7 +571,12 @@ pub fn load_item_tag_directory(tag_dir: &std::path::Path) -> ItemTagMap {
         std::collections::HashMap::new();
 
     for tag_id in &tag_ids {
-        resolve_tag(tag_id, &raw, &mut resolved, &mut std::collections::HashSet::new());
+        resolve_tag(
+            tag_id,
+            &raw,
+            &mut resolved,
+            &mut std::collections::HashSet::new(),
+        );
     }
 
     ItemTagMap { tags: resolved }
@@ -908,7 +913,10 @@ fn parse_optional_field_ingredient(
 ///
 /// A plain string like `"minecraft:stick"` becomes `IngredientSpec::Item(...)`.
 /// An array of strings or tag references produces a merged `AnyOf` list.
-fn parse_ingredient(value: &serde_json::Value, tags: &ItemTagMap) -> Result<IngredientSpec, String> {
+fn parse_ingredient(
+    value: &serde_json::Value,
+    tags: &ItemTagMap,
+) -> Result<IngredientSpec, String> {
     if let Some(item) = value.as_str() {
         return resolve_ingredient_string(item, tags);
     }
@@ -4116,8 +4124,8 @@ mod tests {
     fn recipe_manager_loads_all_vanilla_recipe_json_files() {
         let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../decompiled-server-26.1.2/data/minecraft/recipe");
-        let manager = load_recipe_directory(&recipe_dir)
-            .expect("vanilla recipe directory should load");
+        let manager =
+            load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
         assert_eq!(manager.recipe_map().values().len(), 1515);
         assert_eq!(manager.recipe_map().by_type("crafting").len(), 1094);
         assert_eq!(manager.recipe_map().by_type("smelting").len(), 73);
@@ -4219,7 +4227,10 @@ mod tests {
 
         // An unknown tag should return an empty slice without panicking.
         let unknown = tags.resolve("minecraft:does_not_exist");
-        assert!(unknown.is_empty(), "unknown tag should resolve to empty slice");
+        assert!(
+            unknown.is_empty(),
+            "unknown tag should resolve to empty slice"
+        );
     }
 
     #[test]
@@ -4229,17 +4240,15 @@ mod tests {
         // to the recipe directory.
         let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../decompiled-server-26.1.2/data/minecraft/recipe");
-        let manager = load_recipe_directory(&recipe_dir)
-            .expect("vanilla recipe directory should load");
+        let manager =
+            load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
 
         // oak_planks: type=crafting_shapeless, ingredient=#minecraft:oak_logs
         // Any oak log variant in slot 0 of a 1×1 grid should match.
-        let oak_planks_from_log = manager.recipe_map().get_recipe_for(
-            "crafting",
-            1,
-            1,
-            &[Some("minecraft:oak_log")],
-        );
+        let oak_planks_from_log =
+            manager
+                .recipe_map()
+                .get_recipe_for("crafting", 1, 1, &[Some("minecraft:oak_log")]);
         assert!(
             oak_planks_from_log.is_some(),
             "should find oak_planks recipe for minecraft:oak_log (tag #minecraft:oak_logs)"

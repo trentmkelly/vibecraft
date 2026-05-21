@@ -146,6 +146,43 @@ export function decodeChunkBlockStateArray (chunkNbt) {
   return { yMin, yMaxExclusive, blocks }
 }
 
+export function decodeChunkBiomeArray (chunkNbt) {
+  const root = chunkNbt?.type === 'compound' ? chunkNbt : chunkNbt?.value ?? chunkNbt
+  const sections = (arrayValue(compoundField(root, 'sections')) ?? [])
+    .map(decodeBiomeSection)
+    .filter(Boolean)
+    .sort((left, right) => left.sectionY - right.sectionY)
+  if (sections.length === 0) {
+    return {
+      quartYMin: 0,
+      quartYMaxExclusive: 0,
+      biomes: Array.from({ length: 4 }, () => [])
+    }
+  }
+
+  const quartYMin = Math.min(...sections.map(section => section.sectionY)) * 4
+  const quartYMaxExclusive = (Math.max(...sections.map(section => section.sectionY)) + 1) * 4
+  const sectionByY = new Map(sections.map(section => [section.sectionY, section.biomes]))
+  const biomes = Array.from({ length: 4 }, () =>
+    Array.from({ length: quartYMaxExclusive - quartYMin }, () =>
+      Array.from({ length: 4 }, () => 'minecraft:plains')
+    )
+  )
+
+  for (let x = 0; x < 4; x++) {
+    for (let quartY = quartYMin; quartY < quartYMaxExclusive; quartY++) {
+      const sectionY = Math.floor(quartY / 4)
+      const section = sectionByY.get(sectionY)
+      if (!section) continue
+      for (let z = 0; z < 4; z++) {
+        biomes[x][quartY - quartYMin][z] = section[x][quartY & 3][z]
+      }
+    }
+  }
+
+  return { quartYMin, quartYMaxExclusive, biomes }
+}
+
 export function regionPosFromFileName (filePath) {
   const match = path.basename(filePath).match(/^r\.(-?\d+)\.(-?\d+)\.mca$/)
   if (!match) return { x: 0, z: 0 }
@@ -214,6 +251,36 @@ function decodeBlockSection (section) {
   }
 
   return { sectionY, blocks }
+}
+
+function decodeBiomeSection (section) {
+  const sectionY = numericValue(compoundField(section, 'Y'))
+  const biomes = compoundField(section, 'biomes')
+  const palette = arrayValue(compoundField(biomes, 'palette')) ?? []
+  if (!Number.isInteger(sectionY) || palette.length === 0) return undefined
+
+  const paletteValues = palette.map(stringValue).filter(Boolean)
+  const data = arrayValue(compoundField(biomes, 'data'))
+  const paletteIndexes = decodePalettedContainerIndexes({
+    data,
+    paletteSize: paletteValues.length,
+    entryCount: 4 * 4 * 4,
+    minBits: 0
+  })
+  const decoded = Array.from({ length: 4 }, () =>
+    Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => paletteValues[0] ?? 'minecraft:plains'))
+  )
+
+  for (let y = 0; y < 4; y++) {
+    for (let z = 0; z < 4; z++) {
+      for (let x = 0; x < 4; x++) {
+        const index = (y << 4) | (z << 2) | x
+        decoded[x][y][z] = paletteValues[paletteIndexes[index]] ?? `<invalid-palette:${paletteIndexes[index]}>`
+      }
+    }
+  }
+
+  return { sectionY, biomes: decoded }
 }
 
 export function decodePalettedContainerIndexes ({ data, paletteSize, entryCount, minBits }) {

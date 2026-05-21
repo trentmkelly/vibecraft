@@ -31,6 +31,255 @@ pub const WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_MIN: i32 = 40;
 pub const WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_RANDOM_BOUND: i32 = 20;
 pub const WITHER_BLUE_SKULL_CHANCE: f32 = 0.001;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vec3Plan {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitherTargetMovementInput {
+    pub powered: bool,
+    pub has_main_target: bool,
+    pub self_y: f32,
+    pub target_y: f32,
+    pub target_dx: f32,
+    pub target_dz: f32,
+    pub delta: Vec3Plan,
+}
+
+pub fn wither_target_movement_step(input: WitherTargetMovementInput) -> Vec3Plan {
+    let mut next = Vec3Plan {
+        x: input.delta.x,
+        y: input.delta.y * 0.6,
+        z: input.delta.z,
+    };
+    if !input.has_main_target {
+        return next;
+    }
+
+    if input.self_y < input.target_y || (!input.powered && input.self_y < input.target_y + 5.0) {
+        next.y = next.y.max(0.0);
+        next.y += 0.3 - next.y * 0.6;
+    }
+
+    let horizontal_distance_sqr =
+        input.target_dx * input.target_dx + input.target_dz * input.target_dz;
+    if horizontal_distance_sqr > 9.0 {
+        let horizontal_distance = horizontal_distance_sqr.sqrt();
+        let nx = input.target_dx / horizontal_distance;
+        let nz = input.target_dz / horizontal_distance;
+        next.x += nx * 0.3 - next.x * 0.6;
+        next.z += nz * 0.3 - next.z * 0.6;
+    }
+
+    next
+}
+
+pub fn wither_yaw_from_delta(delta: Vec3Plan) -> Option<f32> {
+    if delta.x * delta.x + delta.z * delta.z <= 0.05 {
+        return None;
+    }
+    Some(delta.z.atan2(delta.x).to_degrees() - 90.0)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitherSkullLaunchPlan {
+    pub head: i32,
+    pub origin: Vec3Plan,
+    pub direction: Vec3Plan,
+    pub dangerous: bool,
+    pub level_event: Option<i32>,
+}
+
+pub fn wither_skull_launch_plan(
+    head: i32,
+    position: Vec3Plan,
+    y_body_rot_degrees: f32,
+    scale: f32,
+    target: Vec3Plan,
+    main_head_blue_skull_roll: f32,
+    silent: bool,
+) -> WitherSkullLaunchPlan {
+    let origin = wither_head_position(head, position, y_body_rot_degrees, scale);
+    let direction = normalize_vec3(Vec3Plan {
+        x: target.x - origin.x,
+        y: target.y - origin.y,
+        z: target.z - origin.z,
+    });
+    WitherSkullLaunchPlan {
+        head,
+        origin,
+        direction,
+        dangerous: head == 0 && main_head_blue_skull_roll < WITHER_BLUE_SKULL_CHANCE,
+        level_event: (!silent).then_some(1024),
+    }
+}
+
+pub fn wither_head_position(
+    head: i32,
+    position: Vec3Plan,
+    y_body_rot_degrees: f32,
+    scale: f32,
+) -> Vec3Plan {
+    if head <= 0 {
+        return Vec3Plan {
+            x: position.x,
+            y: position.y + 3.0 * scale,
+            z: position.z,
+        };
+    }
+    let head_angle = (y_body_rot_degrees + 180.0 * (head - 1) as f32).to_radians();
+    Vec3Plan {
+        x: position.x + head_angle.cos() * 1.3 * scale,
+        y: position.y + 2.2 * scale,
+        z: position.z + head_angle.sin() * 1.3 * scale,
+    }
+}
+
+fn normalize_vec3(vector: Vec3Plan) -> Vec3Plan {
+    let length = (vector.x * vector.x + vector.y * vector.y + vector.z * vector.z).sqrt();
+    if length == 0.0 {
+        return Vec3Plan {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+    }
+    Vec3Plan {
+        x: vector.x / length,
+        y: vector.y / length,
+        z: vector.z / length,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WitherSummonAxis {
+    X,
+    Z,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitherSummonPrecondition {
+    pub item: &'static str,
+    pub placed_y: i32,
+    pub min_y: i32,
+    pub peaceful: bool,
+    pub client_side: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitherSummonPlan {
+    pub axis: WitherSummonAxis,
+    pub spawn_offset: (i32, i32, i32),
+    pub yaw_degrees: i32,
+    pub invulnerable_ticks: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WitherDeathLootPlan {
+    pub drop_item: &'static str,
+    pub extended_lifetime: bool,
+    pub death_explosion: bool,
+    pub bossbar_visible_after_removal: bool,
+}
+
+pub fn wither_death_loot_plan() -> WitherDeathLootPlan {
+    WitherDeathLootPlan {
+        drop_item: "minecraft:nether_star",
+        extended_lifetime: true,
+        death_explosion: false,
+        bossbar_visible_after_removal: false,
+    }
+}
+
+pub fn wither_summon_precondition_allows_item(
+    precondition: WitherSummonPrecondition,
+    block_at: impl Fn(i32, i32, i32) -> &'static str,
+) -> Option<WitherSummonPlan> {
+    if precondition.item != "minecraft:wither_skeleton_skull"
+        || precondition.placed_y < precondition.min_y + 2
+        || precondition.peaceful
+        || precondition.client_side
+    {
+        return None;
+    }
+    wither_summon_full_pattern(block_at)
+}
+
+pub fn wither_summon_full_pattern(
+    block_at: impl Fn(i32, i32, i32) -> &'static str,
+) -> Option<WitherSummonPlan> {
+    if wither_summon_pattern_for_axis(WitherSummonAxis::X, &block_at) {
+        return Some(WitherSummonPlan {
+            axis: WitherSummonAxis::X,
+            spawn_offset: (0, 1, 0),
+            yaw_degrees: 0,
+            invulnerable_ticks: WITHER_INVULNERABLE_TICKS,
+        });
+    }
+    if wither_summon_pattern_for_axis(WitherSummonAxis::Z, &block_at) {
+        return Some(WitherSummonPlan {
+            axis: WitherSummonAxis::Z,
+            spawn_offset: (0, 1, 0),
+            yaw_degrees: 90,
+            invulnerable_ticks: WITHER_INVULNERABLE_TICKS,
+        });
+    }
+    None
+}
+
+fn wither_summon_pattern_for_axis(
+    axis: WitherSummonAxis,
+    block_at: &impl Fn(i32, i32, i32) -> &'static str,
+) -> bool {
+    for side in [-1, 1] {
+        if !is_air_for_wither_pattern(block_at(
+            axis_offset(axis, side).0,
+            0,
+            axis_offset(axis, side).1,
+        )) {
+            return false;
+        }
+    }
+    if !is_wither_base_block(block_at(0, 0, 0)) {
+        return false;
+    }
+    for side in [-1, 0, 1] {
+        let (x, z) = axis_offset(axis, side);
+        if !is_wither_base_block(block_at(x, 1, z)) {
+            return false;
+        }
+        if !is_wither_skull_block(block_at(x, 2, z)) {
+            return false;
+        }
+    }
+    true
+}
+
+fn axis_offset(axis: WitherSummonAxis, side: i32) -> (i32, i32) {
+    match axis {
+        WitherSummonAxis::X => (side, 0),
+        WitherSummonAxis::Z => (0, side),
+    }
+}
+
+pub fn is_wither_base_block(block: &str) -> bool {
+    matches!(block, "minecraft:soul_sand" | "minecraft:soul_soil")
+}
+
+pub fn is_wither_skull_block(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:wither_skeleton_skull" | "minecraft:wither_skeleton_wall_skull"
+    )
+}
+
+fn is_air_for_wither_pattern(block: &str) -> bool {
+    block == "minecraft:air"
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DragonPhaseDef {
     pub id: i32,
@@ -833,6 +1082,250 @@ mod tests {
                 emit_level_event_1022: true,
             }
         );
+    }
+
+    #[test]
+    fn wither_summoning_precondition_matches_skull_block_pattern() {
+        let x_axis = |x, y, z| match (x, y, z) {
+            (-1, 2, 0) | (0, 2, 0) | (1, 2, 0) => "minecraft:wither_skeleton_skull",
+            (-1, 1, 0) | (0, 1, 0) | (1, 1, 0) => "minecraft:soul_sand",
+            (0, 0, 0) => "minecraft:soul_soil",
+            _ => "minecraft:air",
+        };
+        assert_eq!(
+            wither_summon_precondition_allows_item(
+                WitherSummonPrecondition {
+                    item: "minecraft:wither_skeleton_skull",
+                    placed_y: 64,
+                    min_y: -64,
+                    peaceful: false,
+                    client_side: false,
+                },
+                x_axis,
+            ),
+            Some(WitherSummonPlan {
+                axis: WitherSummonAxis::X,
+                spawn_offset: (0, 1, 0),
+                yaw_degrees: 0,
+                invulnerable_ticks: WITHER_INVULNERABLE_TICKS,
+            })
+        );
+
+        let z_axis = |x, y, z| match (x, y, z) {
+            (0, 2, -1) | (0, 2, 0) | (0, 2, 1) => "minecraft:wither_skeleton_wall_skull",
+            (0, 1, -1) | (0, 1, 0) | (0, 1, 1) => "minecraft:soul_soil",
+            (0, 0, 0) => "minecraft:soul_sand",
+            _ => "minecraft:air",
+        };
+        assert_eq!(wither_summon_full_pattern(z_axis).unwrap().yaw_degrees, 90);
+
+        for blocked in [
+            WitherSummonPrecondition {
+                item: "minecraft:skeleton_skull",
+                placed_y: 64,
+                min_y: -64,
+                peaceful: false,
+                client_side: false,
+            },
+            WitherSummonPrecondition {
+                item: "minecraft:wither_skeleton_skull",
+                placed_y: -63,
+                min_y: -64,
+                peaceful: false,
+                client_side: false,
+            },
+            WitherSummonPrecondition {
+                item: "minecraft:wither_skeleton_skull",
+                placed_y: 64,
+                min_y: -64,
+                peaceful: true,
+                client_side: false,
+            },
+            WitherSummonPrecondition {
+                item: "minecraft:wither_skeleton_skull",
+                placed_y: 64,
+                min_y: -64,
+                peaceful: false,
+                client_side: true,
+            },
+        ] {
+            assert_eq!(
+                wither_summon_precondition_allows_item(blocked, x_axis),
+                None
+            );
+        }
+
+        let obstructed_air_slot = |x, y, z| match (x, y, z) {
+            (-1, 0, 0) => "minecraft:stone",
+            (-1, 2, 0) | (0, 2, 0) | (1, 2, 0) => "minecraft:wither_skeleton_skull",
+            (-1, 1, 0) | (0, 1, 0) | (1, 1, 0) => "minecraft:soul_sand",
+            (0, 0, 0) => "minecraft:soul_soil",
+            _ => "minecraft:air",
+        };
+        assert_eq!(wither_summon_full_pattern(obstructed_air_slot), None);
+    }
+
+    #[test]
+    fn wither_death_drop_matches_java_nether_star_behavior() {
+        assert_eq!(
+            wither_death_loot_plan(),
+            WitherDeathLootPlan {
+                drop_item: "minecraft:nether_star",
+                extended_lifetime: true,
+                death_explosion: false,
+                bossbar_visible_after_removal: false,
+            }
+        );
+        assert_eq!(WITHER_SPAWN_EXPLOSION_POWER, 7.0);
+    }
+
+    #[test]
+    fn wither_powered_target_movement_matches_java_ai_step_gate() {
+        let unpowered_above_target = wither_target_movement_step(WitherTargetMovementInput {
+            powered: false,
+            has_main_target: true,
+            self_y: 68.0,
+            target_y: 64.0,
+            target_dx: 4.0,
+            target_dz: 0.0,
+            delta: Vec3Plan {
+                x: 0.0,
+                y: -0.2,
+                z: 0.0,
+            },
+        });
+        assert!((unpowered_above_target.y - 0.3).abs() < 0.0001);
+        assert!((unpowered_above_target.x - 0.3).abs() < 0.0001);
+        assert_eq!(wither_yaw_from_delta(unpowered_above_target), Some(-90.0));
+
+        let powered_above_target = wither_target_movement_step(WitherTargetMovementInput {
+            powered: true,
+            has_main_target: true,
+            self_y: 68.0,
+            target_y: 64.0,
+            target_dx: 4.0,
+            target_dz: 0.0,
+            delta: Vec3Plan {
+                x: 0.0,
+                y: -0.2,
+                z: 0.0,
+            },
+        });
+        assert!((powered_above_target.y - -0.12).abs() < 0.0001);
+        assert!((powered_above_target.x - 0.3).abs() < 0.0001);
+
+        let powered_below_target = wither_target_movement_step(WitherTargetMovementInput {
+            powered: true,
+            has_main_target: true,
+            self_y: 63.0,
+            target_y: 64.0,
+            target_dx: 0.0,
+            target_dz: 2.0,
+            delta: Vec3Plan {
+                x: 0.0,
+                y: -0.2,
+                z: 0.0,
+            },
+        });
+        assert!((powered_below_target.y - 0.3).abs() < 0.0001);
+        assert_eq!(powered_below_target.z, 0.0);
+        assert_eq!(wither_yaw_from_delta(powered_below_target), None);
+
+        let no_target = wither_target_movement_step(WitherTargetMovementInput {
+            powered: false,
+            has_main_target: false,
+            self_y: 60.0,
+            target_y: 80.0,
+            target_dx: 20.0,
+            target_dz: 20.0,
+            delta: Vec3Plan {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+        });
+        assert_eq!(
+            no_target,
+            Vec3Plan {
+                x: 1.0,
+                y: 0.6,
+                z: 1.0
+            }
+        );
+    }
+
+    #[test]
+    fn wither_skull_launch_head_offsets_direction_and_dangerous_roll_match_java() {
+        let main = wither_skull_launch_plan(
+            0,
+            Vec3Plan {
+                x: 10.0,
+                y: 64.0,
+                z: -5.0,
+            },
+            90.0,
+            1.0,
+            Vec3Plan {
+                x: 10.0,
+                y: 67.0,
+                z: -1.0,
+            },
+            0.0005,
+            false,
+        );
+        assert_eq!(
+            main.origin,
+            Vec3Plan {
+                x: 10.0,
+                y: 67.0,
+                z: -5.0
+            }
+        );
+        assert_eq!(
+            main.direction,
+            Vec3Plan {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0
+            }
+        );
+        assert!(main.dangerous);
+        assert_eq!(main.level_event, Some(1024));
+
+        let side = wither_skull_launch_plan(
+            2,
+            Vec3Plan {
+                x: 10.0,
+                y: 64.0,
+                z: -5.0,
+            },
+            90.0,
+            1.0,
+            Vec3Plan {
+                x: 10.0,
+                y: 66.2,
+                z: -3.7,
+            },
+            0.0,
+            true,
+        );
+        assert!((side.origin.x - 10.0).abs() < 0.0001);
+        assert!((side.origin.y - 66.2).abs() < 0.0001);
+        assert!((side.origin.z - -6.3).abs() < 0.0001);
+        assert!(!side.dangerous);
+        assert_eq!(side.level_event, None);
+
+        let side_head_one = wither_head_position(
+            1,
+            Vec3Plan {
+                x: 10.0,
+                y: 64.0,
+                z: -5.0,
+            },
+            90.0,
+            1.0,
+        );
+        assert!((side_head_one.z - -3.7).abs() < 0.0001);
     }
 
     #[test]

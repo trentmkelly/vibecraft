@@ -1200,18 +1200,17 @@ fn heightmap_block_matches(heightmap: HeightmapKind, block: &str) -> bool {
             block,
             "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
         ),
-        HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg | HeightmapKind::MotionBlocking => {
-            motion_blocking_block(block)
-        }
+        HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg => block_blocks_motion(block),
+        HeightmapKind::MotionBlocking => block_blocks_motion(block) || block_has_fluid(block),
         HeightmapKind::MotionBlockingNoLeaves => {
-            motion_blocking_block(block) && !block.ends_with("_leaves")
+            (block_blocks_motion(block) || block_has_fluid(block)) && !block_is_leaves(block)
         }
     }
 }
 
-fn motion_blocking_block(block: &str) -> bool {
+fn block_blocks_motion(block: &str) -> bool {
     !matches!(
-        block,
+        block_state_id(block),
         "minecraft:air"
             | "minecraft:cave_air"
             | "minecraft:void_air"
@@ -1219,6 +1218,19 @@ fn motion_blocking_block(block: &str) -> bool {
             | "minecraft:lava"
             | "minecraft:snow"
     )
+}
+
+fn block_has_fluid(block: &str) -> bool {
+    matches!(block_state_id(block), "minecraft:water" | "minecraft:lava")
+        || block.contains("waterlogged=true")
+}
+
+fn block_is_leaves(block: &str) -> bool {
+    block_state_id(block).ends_with("_leaves")
+}
+
+fn block_state_id(block: &str) -> &str {
+    block.split_once('[').map_or(block, |(id, _)| id)
 }
 
 fn empty_structures_payload() -> Tag {
@@ -1603,6 +1615,17 @@ impl LevelChunk {
         )]);
 
         let mut changed = false;
+        if self.sections.iter().all(|s| s.y != section_y) {
+            self.sections.push(ChunkSection {
+                y: section_y,
+                block_states: default_block_states_container(),
+                biomes: default_biomes_container(),
+                block_light: None,
+                sky_light: Some(vec![-1i8; LIGHT_DATA_LAYER_LENGTH]),
+            });
+            self.sections.sort_by_key(|section| section.y);
+        }
+
         if let Some(section) = self.sections.iter_mut().find(|s| s.y == section_y) {
             if let Ok(mut container) =
                 PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
@@ -3462,11 +3485,11 @@ mod tests {
         );
         assert_eq!(
             chunk.compute_heightmap_values(HeightmapKind::MotionBlocking)[column_index],
-            11
+            21
         );
         assert_eq!(
             chunk.compute_heightmap_values(HeightmapKind::MotionBlockingNoLeaves)[column_index],
-            5
+            21
         );
 
         chunk.prime_missing_heightmaps();
@@ -3520,6 +3543,23 @@ mod tests {
             _ => panic!("heightmap should be a long array"),
         };
         assert_eq!(values[column_index], 4);
+    }
+
+    #[test]
+    fn level_chunk_set_block_state_creates_missing_section() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.min_section_y = -4;
+
+        chunk.set_block_state(2, 70, 4, "minecraft:oak_planks");
+
+        assert_eq!(
+            chunk.get_block_state(2, 70, 4).as_deref(),
+            Some("minecraft:oak_planks")
+        );
+        assert!(
+            chunk.sections.iter().any(|section| section.y == 4),
+            "world Y=70 belongs to section Y=4"
+        );
     }
 
     #[test]

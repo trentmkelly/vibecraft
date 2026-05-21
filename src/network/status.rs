@@ -3995,7 +3995,7 @@ fn write_generated_spawn_chunk_payload<W: Write>(
     chunk: &LevelChunk,
 ) -> io::Result<()> {
     let started = Instant::now();
-    let light_data = ClientboundLightUpdatePacketData::from_chunk_sections(&chunk.sections);
+    let light_data = ClientboundLightUpdatePacketData::from_chunk(&chunk);
     let light_ms = started.elapsed().as_millis();
     let packet_started = Instant::now();
     let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);

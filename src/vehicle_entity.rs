@@ -602,7 +602,10 @@ impl CommandBlockMinecartState {
             ),
         ];
         if self.track_output && !self.last_output.is_empty() {
-            entries.push(("LastOutput".to_string(), Tag::String(self.last_output.clone())));
+            entries.push((
+                "LastOutput".to_string(),
+                Tag::String(self.last_output.clone()),
+            ));
         }
         Tag::Compound(entries)
     }
@@ -662,24 +665,30 @@ fn compound_entries(tag: &Tag) -> Option<&[(String, Tag)]> {
 }
 
 fn get_string<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a str> {
-    entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
-        (entry, Tag::String(value)) if entry == key => Some(value.as_str()),
-        _ => None,
-    })
+    entries
+        .iter()
+        .find_map(|(name, tag)| match (name.as_str(), tag) {
+            (entry, Tag::String(value)) if entry == key => Some(value.as_str()),
+            _ => None,
+        })
 }
 
 fn get_int(entries: &[(String, Tag)], key: &str) -> Option<i32> {
-    entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
-        (entry, Tag::Int(value)) if entry == key => Some(*value),
-        _ => None,
-    })
+    entries
+        .iter()
+        .find_map(|(name, tag)| match (name.as_str(), tag) {
+            (entry, Tag::Int(value)) if entry == key => Some(*value),
+            _ => None,
+        })
 }
 
 fn get_bool(entries: &[(String, Tag)], key: &str) -> Option<bool> {
-    entries.iter().find_map(|(name, tag)| match (name.as_str(), tag) {
-        (entry, Tag::Byte(value)) if entry == key => Some(*value != 0),
-        _ => None,
-    })
+    entries
+        .iter()
+        .find_map(|(name, tag)| match (name.as_str(), tag) {
+            (entry, Tag::Byte(value)) if entry == key => Some(*value != 0),
+            _ => None,
+        })
 }
 
 pub const VEHICLE_ENTITY_FAMILIES: &[&str] = &[
@@ -993,7 +1002,10 @@ mod tests {
         command.command = "say rail".to_string();
         command.last_output = "{\"text\":\"ok\"}".to_string();
         let saved = command.save_additional();
-        assert_eq!(CommandBlockMinecartState::load_additional(10, &saved), command);
+        assert_eq!(
+            CommandBlockMinecartState::load_additional(10, &saved),
+            command
+        );
         let loaded_without_tracking = CommandBlockMinecartState::load_additional(
             11,
             &Tag::Compound(vec![

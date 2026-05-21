@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { decodeChunkBlockStateArray, readRegionFile, summarizeRegion } from './vanilla_region_reader.mjs'
+import { decodeChunkBiomeArray, decodeChunkBlockStateArray, readRegionFile, summarizeRegion } from './vanilla_region_reader.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
@@ -228,6 +228,7 @@ export async function collectRequestedChunkBlockArrays (root, regionFiles, reque
       const key = `${dimension},${chunk.chunkX},${chunk.chunkZ}`
       if (!requestedByKey.has(key)) continue
       const decoded = decodeChunkBlockStateArray(chunk.nbt)
+      const decodedBiomes = decodeChunkBiomeArray(chunk.nbt)
       chunks.push({
         dimension,
         chunkX: chunk.chunkX,
@@ -235,7 +236,10 @@ export async function collectRequestedChunkBlockArrays (root, regionFiles, reque
         status: chunk.summary.status,
         yMin: decoded.yMin,
         yMaxExclusive: decoded.yMaxExclusive,
-        blocks: decoded.blocks
+        blocks: decoded.blocks,
+        quartYMin: decodedBiomes.quartYMin,
+        quartYMaxExclusive: decodedBiomes.quartYMaxExclusive,
+        biomes: decodedBiomes.biomes
       })
     }
   }

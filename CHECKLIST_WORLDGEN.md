@@ -170,7 +170,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement `CanyonWorldCarver`: canyon trench carving with angled ceiling
 - [x] Implement `NetherWorldCarver`: nether cave variants
 - [x] Implement carver execution during `ChunkGenerator.applyCarvers()`: AIR/LIQUID carving step, mask tracking to avoid double-carving
-- [ ] Add parity test: cave opening at overworld coordinates known to have caves for a fixed seed
+- [x] Add parity test: cave opening at overworld coordinates known to have caves for a fixed seed
 
 ## Placed Features and Decoration
 
@@ -187,6 +187,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement tree features: OakFeature, BirchFeature, JungleTreeFeature, AcaciaFeature, DarkOakFeature, SpruceFeature, CherryTreeFeature, MangroveTreeFeature; all trunk/foliage placers with correct randomness
 - [ ] Implement vegetation features: grass patch, flower patch, mushroom, huge mushroom, bamboo, kelp, sea grass, coral, jungle bush, nether fungi, twisting/weeping vines, small dripleaf, big dripleaf, cave vines, pointed dripstone cluster, dripstone room
 - [ ] Implement ore features: `OreFeature`, `ScatteredOreFeature`, ore placement configs for all vanilla ores
+  - [ ] Integrate ore placed features through the same Java-shaped region decoration context used by `ChunkGenerator.applyBiomeDecoration`, not as a target-chunk-only post pass. A direct initial `OreFeature` ellipsoid pass using existing `PlacedOreFeatureModel`/`OreConfigurationModel` primitives regressed block parity from `0.905358` to `0.879554` by adding tuff/granite/diorite/andesite in wrong positions, so the next implementation needs full `PlacedFeature.placeWithBiomeCheck` stream ordering, region writes, source-chunk feature seeds, and live height/context reads first. References: `decompiled-server-26.1.2/net/minecraft/world/level/chunk/ChunkGenerator.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/placement/PlacedFeature.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/OreFeature.java`, `src/worldgen.rs`.
 - [x] Implement spring features: water/lava spring pocket
 - [x] Implement lake features: water/lava lake (now placed rarely)
 - [x] Implement disk features: gravel/sand/clay disk
@@ -299,6 +300,12 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
     chunk in the 17x17 carving window and resetting the carver index per source
     chunk for `WorldgenRandom#setLargeFeatureSeed(levelSeed + index, sourceX,
     sourceZ)`.
+  - [x] Resolve source-chunk carver biome settings through the real biome source
+    and climate sampler at `QuartPos.fromBlock(sourcePos.getMinBlockX())`, y=0,
+    and `QuartPos.fromBlock(sourcePos.getMinBlockZ())`, instead of the old
+    zero-climate preview-biome shortcut. References:
+    `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator.java`,
+    `src/worldgen.rs`.
   - [x] Match vanilla `CaveWorldCarver` cave-count RNG consumption by sampling
     the nested `random.nextInt(random.nextInt(random.nextInt(getCaveBound()) + 1) + 1)`
     chain with bounded `LegacyRandom::next_i32_bound` calls instead of deriving

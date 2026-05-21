@@ -274,7 +274,7 @@ impl RandomSourceKind {
         match self {
             Self::Legacy(random) => random.next_f32(),
             Self::Xoroshiro(random) => {
-                ((random.next_i32() as u32 >> 8) as f32) / ((1_u32 << 24) as f32)
+                ((random.next_i64() as u64 >> 40) as f32) / ((1_u32 << 24) as f32)
             }
         }
     }
@@ -288,7 +288,10 @@ pub fn random_source_next_i32(random: &mut RandomSourceKind, bound: i32) -> i32 
 }
 
 pub fn random_source_next_bool(random: &mut RandomSourceKind) -> bool {
-    random_source_next_i32(random, 2) == 0
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_bits(1) != 0,
+        RandomSourceKind::Xoroshiro(random) => (random.next_i64() & 1) != 0,
+    }
 }
 
 pub fn random_source_next_f64(random: &mut RandomSourceKind) -> f64 {

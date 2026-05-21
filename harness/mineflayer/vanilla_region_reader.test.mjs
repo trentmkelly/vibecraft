@@ -3,6 +3,7 @@ import test from 'node:test'
 import { deflateSync } from 'node:zlib'
 
 import {
+  decodeChunkBiomeArray,
   decodeChunkBlockStateArray,
   decodePalettedContainerIndexes,
   readRegionBuffer,
@@ -150,6 +151,49 @@ test('paletted container indexes follow Java SimpleBitStorage values-per-long pa
     decodePalettedContainerIndexes({ data: packed.map(value => value.toString()), paletteSize: 10, entryCount: indexes.length, minBits: 4 }),
     indexes
   )
+})
+
+test('biome arrays decode quart x, y, z local coordinates from Java paletted sections', () => {
+  const packed = packSimpleBitStorage([0, 1, 2, ...Array.from({ length: 61 }, () => 0)], 2)
+  const chunkNbt = {
+    type: 'compound',
+    value: {
+      sections: {
+        type: 'list',
+        value: [{
+          type: 'compound',
+          value: {
+            Y: { type: 'byte', value: -4 },
+            biomes: {
+              type: 'compound',
+              value: {
+                palette: {
+                  type: 'list',
+                  value: [
+                    { type: 'string', value: 'minecraft:forest' },
+                    { type: 'string', value: 'minecraft:river' },
+                    { type: 'string', value: 'minecraft:plains' }
+                  ]
+                },
+                data: { type: 'long_array', value: packed.map(value => value.toString()) }
+              }
+            }
+          }
+        }]
+      }
+    }
+  }
+
+  const decoded = decodeChunkBiomeArray(chunkNbt)
+
+  assert.equal(decoded.quartYMin, -16)
+  assert.equal(decoded.quartYMaxExclusive, -12)
+  assert.equal(decoded.biomes.length, 4)
+  assert.equal(decoded.biomes[0].length, 4)
+  assert.equal(decoded.biomes[0][0].length, 4)
+  assert.equal(decoded.biomes[0][0][0], 'minecraft:forest')
+  assert.equal(decoded.biomes[1][0][0], 'minecraft:river')
+  assert.equal(decoded.biomes[2][0][0], 'minecraft:plains')
 })
 
 function namedCompound (name, fields) {

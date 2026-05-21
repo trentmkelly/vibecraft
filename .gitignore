@@ -1,9 +1,12 @@
 /target/
 /.agents/
 /.codex/
+/.claude/
 /logs/
 /live/
 /world/
+/world-backup-*/
+/world-fresh-terrain-check-backup-*/
 /crash-reports/
 /debug/
 /server.pid
