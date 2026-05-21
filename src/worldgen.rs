@@ -985,11 +985,26 @@ pub struct MobSpawnerDataModel {
     pub max_count: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FeatureSorterData {
     pub feature_index: usize,
     pub step: usize,
     pub feature: &'static str,
+}
+
+impl PartialOrd for FeatureSorterData {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FeatureSorterData {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.step
+            .cmp(&other.step)
+            .then_with(|| self.feature_index.cmp(&other.feature_index))
+            .then_with(|| self.feature.cmp(other.feature))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54405,16 +54420,24 @@ mod tests {
         assert!(sorted[9]
             .feature_names()
             .contains(&"minecraft:trees_birch_and_oak_leaf_litter"));
+        assert!(
+            super::FeatureSorterData {
+                feature_index: 99,
+                step: 1,
+                feature: "minecraft:earlier_step",
+            } < super::FeatureSorterData {
+                feature_index: 0,
+                step: 9,
+                feature: "minecraft:later_step",
+            },
+            "FeatureSorter comparator must match Java: step first, then feature index"
+        );
+        let trees_plains_index = sorted[9]
+            .index_mapping("minecraft:trees_plains")
+            .expect("trees_plains should have an index in the vegetal decoration step");
         assert_eq!(
-            sorted[9].index_mapping("minecraft:trees_plains"),
-            Some(
-                sorted[9]
-                    .features
-                    .iter()
-                    .find(|feature| feature.feature == "minecraft:trees_plains")
-                    .map(|feature| feature.feature_index)
-                    .unwrap()
-            )
+            sorted[9].features[trees_plains_index].feature,
+            "minecraft:trees_plains"
         );
         assert_eq!(sorted[9].index_mapping("minecraft:missing"), None);
     }
