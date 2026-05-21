@@ -24528,12 +24528,13 @@ pub fn generate_chunk_for_stem_with_mode(
                     noise_settings,
                     seed,
                 ) {
-                    Some((mut chunk, _terrain_timings, _noise_context)) => {
-                        apply_configured_carvers_for_biome_source(
+                    Some((mut chunk, _terrain_timings, mut noise_context)) => {
+                        apply_configured_carvers_for_biome_source_with_noise_context(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
                             seed,
+                            &mut noise_context,
                         );
                         apply_underground_ore_decoration_to_chunk(
                             &mut chunk,
@@ -26307,7 +26308,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                     noise_settings,
                     seed,
                 ) {
-                    Some((mut chunk, terrain_timings, _noise_context)) => {
+                    Some((mut chunk, terrain_timings, mut noise_context)) => {
                         timings.terrain = terrain_timings;
                         let tree_context_handle = {
                             let surface_rule = load_surface_rule(noise_settings.id);
@@ -26336,12 +26337,14 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         );
 
                         let phase_started = Instant::now();
-                        timings.carver_blocks = apply_configured_carvers_for_biome_source(
-                            &mut chunk,
-                            biome_source_model,
-                            noise_settings,
-                            seed,
-                        );
+                        timings.carver_blocks =
+                            apply_configured_carvers_for_biome_source_with_noise_context(
+                                &mut chunk,
+                                biome_source_model,
+                                noise_settings,
+                                seed,
+                                &mut noise_context,
+                            );
                         timings.carvers_ms = phase_started.elapsed().as_millis();
 
                         let phase_started = Instant::now();
@@ -32830,15 +32833,23 @@ pub fn apply_configured_carvers_for_biome_source(
     settings: &NoiseGeneratorSettings,
     seed: i64,
 ) -> usize {
-    let height_context = WorldGenerationHeightContext {
-        min_y: settings.noise.min_y,
-        height: settings.noise.height,
-    };
-    let target_chunk = chunk.pos;
-    let chunk_min_x = target_chunk.x * 16;
-    let chunk_min_z = target_chunk.z * 16;
-    let mut mask = Vec::new();
-    let mut carved_blocks = 0;
+    let mut noise_context = create_live_noise_generation_context(chunk.pos, settings, seed);
+    apply_configured_carvers_for_biome_source_with_noise_context(
+        chunk,
+        biome_source_model,
+        settings,
+        seed,
+        &mut noise_context,
+    )
+}
+
+fn create_live_noise_generation_context(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+) -> LiveNoiseGenerationContext {
+    let chunk_min_x = pos.x * 16;
+    let chunk_min_z = pos.z * 16;
     let router_id = noise_router_id_for_settings(*settings);
     let noise_router = builtin_noise_router(router_id)
         .map(|e| e.router)
@@ -32850,7 +32861,7 @@ pub fn apply_configured_carvers_for_biome_source(
         crate::random_source::RandomAlgorithm::Xoroshiro
     };
     let factories = crate::random_source::random_state_seed_factories(seed, algorithm);
-    let mut aquifer = settings.aquifers_enabled.then(|| {
+    let aquifer = settings.aquifers_enabled.then(|| {
         NoiseBasedAquifer::new(
             &mut noise_chunk,
             chunk_min_x,
@@ -32865,6 +32876,28 @@ pub fn apply_configured_carvers_for_biome_source(
             factories.aquifer,
         )
     });
+    LiveNoiseGenerationContext {
+        noise_chunk,
+        aquifer,
+    }
+}
+
+fn apply_configured_carvers_for_biome_source_with_noise_context(
+    chunk: &mut LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_context: &mut LiveNoiseGenerationContext,
+) -> usize {
+    let height_context = WorldGenerationHeightContext {
+        min_y: settings.noise.min_y,
+        height: settings.noise.height,
+    };
+    let target_chunk = chunk.pos;
+    let chunk_min_x = target_chunk.x * 16;
+    let chunk_min_z = target_chunk.z * 16;
+    let mut mask = Vec::new();
+    let mut carved_blocks = 0;
     let common_overworld_carvers = matches!(
         biome_source_model,
         BiomeSourceModel::MultiNoisePreset {
@@ -32915,8 +32948,8 @@ pub fn apply_configured_carvers_for_biome_source(
                     &mut random,
                     &mut mask,
                     settings,
-                    &noise_chunk,
-                    aquifer.as_mut(),
+                    &noise_context.noise_chunk,
+                    noise_context.aquifer.as_mut(),
                 );
             }
         }
@@ -48582,7 +48615,7 @@ mod tests {
                     .and_then(serde_json::Value::as_i64)
                     .expect("fixture chunk should include chunkZ") as i32,
             };
-            let (base, _) = super::generate_real_surface_base_chunk(
+            let (base, _, _) = super::generate_real_surface_base_chunk(
                 pos,
                 biome_source_model,
                 noise_settings,
