@@ -26301,7 +26301,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
             LiveChunkGenerationMode::Preview => {
                 materialize_noise_preview_chunk(pos, biome_source_model, noise_settings)
             }
-            LiveChunkGenerationMode::RealSurface => std::thread::scope(|scope| {
+            LiveChunkGenerationMode::RealSurface => {
                 match generate_real_surface_base_chunk(
                     pos,
                     biome_source_model,
@@ -26310,25 +26310,6 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                 ) {
                     Some((mut chunk, terrain_timings, mut noise_context)) => {
                         timings.terrain = terrain_timings;
-                        let tree_context_handle = {
-                            let surface_rule = load_surface_rule(noise_settings.id);
-                            scope.spawn(move || {
-                                surface_rule.map(|surface_rule| {
-                                    let router_id = noise_router_id_for_settings(**noise_settings);
-                                    let noise_router = builtin_noise_router(router_id)
-                                        .map(|e| e.router)
-                                        .unwrap_or(NONE_NOISE_ROUTER);
-                                    build_tree_decoration_context_cache(
-                                        pos,
-                                        biome_source_model,
-                                        noise_settings,
-                                        seed,
-                                        noise_router,
-                                        &surface_rule,
-                                    )
-                                })
-                            })
-                        };
                         let region_biome_steps = decoration_region_biome_steps_for_chunk(
                             chunk.pos,
                             biome_source_model,
@@ -26357,14 +26338,6 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         );
                         timings.ore_decoration_ms = phase_started.elapsed().as_millis();
 
-                        let precomputed_tree_context = tree_context_handle
-                            .join()
-                            .expect("tree context generation should not panic");
-                        if let Some(context) = precomputed_tree_context.as_ref() {
-                            timings.tree_context_ms =
-                                context.context_chunk_build_ms + context.context_heightmap_ms;
-                            timings.tree_context_chunks = context.context_chunks;
-                        }
                         let phase_started = Instant::now();
                         timings.tree_blocks = apply_initial_tree_decoration_to_chunk(
                             &mut chunk,
@@ -26372,7 +26345,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             noise_settings,
                             seed,
                             Some(&region_biome_steps),
-                            precomputed_tree_context,
+                            None,
                         );
                         timings.tree_decoration_ms = phase_started.elapsed().as_millis();
                         chunk
@@ -26389,7 +26362,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         chunk
                     }
                 }
-            }),
+            }
         },
         ResolvedChunkGenerator::Debug { .. } => {
             return Err("Debug overworld chunk generation is not implemented".to_string())
@@ -32984,9 +32957,9 @@ fn apply_initial_tree_decoration_to_chunk(
     let noise_router = builtin_noise_router(router_id)
         .map(|entry| entry.router)
         .unwrap_or(NONE_NOISE_ROUTER);
-    let Some(surface_rule) = load_surface_rule(settings.id) else {
+    if load_surface_rule(settings.id).is_none() {
         return 0;
-    };
+    }
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
     let global_features_per_step = if global_biome_steps.is_empty() {
@@ -33005,137 +32978,91 @@ fn apply_initial_tree_decoration_to_chunk(
             )
         });
     let mut diagnostics = TreeDecorationDiagnostics::default();
-    let context_cache = precomputed_context.unwrap_or_else(|| {
-        build_tree_decoration_context_cache(
-            chunk.pos,
-            biome_source_model,
-            settings,
-            seed,
-            noise_router,
-            &surface_rule,
-        )
-    });
-    diagnostics.context_chunks = context_cache.context_chunks;
-    diagnostics.context_chunk_build_ms = context_cache.context_chunk_build_ms;
-    diagnostics.context_heightmap_ms = context_cache.context_heightmap_ms;
-    let cached_region_chunks = context_cache.cached_region_chunks;
+    if let Some(context_cache) = precomputed_context {
+        diagnostics.context_chunks = context_cache.context_chunks;
+        diagnostics.context_chunk_build_ms = context_cache.context_chunk_build_ms;
+        diagnostics.context_heightmap_ms = context_cache.context_heightmap_ms;
+    }
 
-    for source_z in chunk.pos.z - 1..=chunk.pos.z + 1 {
-        for source_x in chunk.pos.x - 1..=chunk.pos.x + 1 {
-            let source_pos = ChunkPos {
-                x: source_x,
-                z: source_z,
-            };
-            let (source_chunk, terrain_heights) = if source_pos == chunk.pos {
-                (
-                    TreeContextChunkRef::Full(&*chunk),
-                    &*target_terrain_heights.get_or_insert_with(|| {
-                        tree_decoration_terrain_heights_from_wg(chunk, settings)
-                    }),
-                )
-            } else {
-                let Some(cached_chunk) = cached_region_chunks.get(&source_pos) else {
-                    continue;
-                };
-                (
-                    TreeContextChunkRef::Lightweight(cached_chunk),
-                    &cached_chunk.terrain_heights,
-                )
-            };
-            let source_min_x = source_pos.x * 16;
-            let source_min_z = source_pos.z * 16;
-            let started = Instant::now();
-            let mut generated_chunks = HashMap::new();
-            for region_z in source_pos.z - 1..=source_pos.z + 1 {
-                for region_x in source_pos.x - 1..=source_pos.x + 1 {
-                    let region_pos = ChunkPos {
-                        x: region_x,
-                        z: region_z,
-                    };
-                    if region_pos == source_pos || region_pos == chunk.pos {
-                        continue;
-                    }
-                    let Some(region_chunk) = cached_region_chunks.get(&region_pos) else {
-                        continue;
-                    };
-                    generated_chunks
-                        .insert(region_pos, TreeContextChunkRef::Lightweight(region_chunk));
-                }
-            }
-            diagnostics.source_context_map_ms += started.elapsed().as_millis();
-            let block_context = TreeDecorationBlockContext {
-                source_pos,
-                source_chunk,
-                target_pos: chunk.pos,
-                target_chunk: &*chunk,
-                generated_chunks,
-            };
+    let source_pos = chunk.pos;
+    let source_chunk = TreeContextChunkRef::Full(&*chunk);
+    let terrain_heights = &*target_terrain_heights
+        .get_or_insert_with(|| tree_decoration_terrain_heights_from_wg(chunk, settings));
+    let source_min_x = source_pos.x * 16;
+    let source_min_z = source_pos.z * 16;
+    let block_context = TreeDecorationBlockContext {
+        source_pos,
+        source_chunk,
+        target_pos: chunk.pos,
+        target_chunk: &*chunk,
+        generated_chunks: HashMap::new(),
+    };
 
-            for block in live_tree_decoration_blocks(
-                source_pos,
-                seed,
-                settings,
-                biome_source_model,
-                &climate_sampler,
-                global_features_per_step.as_deref(),
-                &region_biome_steps,
-                &block_context,
-                terrain_heights,
-                &mut diagnostics,
-            ) {
-                diagnostics.output_blocks_seen += 1;
-                let started = Instant::now();
-                let world_x = source_min_x + block.pos.x;
-                let world_z = source_min_z + block.pos.z;
-                if world_x < chunk_min_x
-                    || world_x > chunk_max_x
-                    || world_z < chunk_min_z
-                    || world_z > chunk_max_z
-                {
-                    diagnostics.source_write_filter_ms += started.elapsed().as_millis();
-                    continue;
-                }
-                diagnostics.output_blocks_in_target += 1;
-
-                let current = chunk
-                    .get_block_state_name(world_x, block.pos.y, world_z)
-                    .unwrap_or("minecraft:air");
-                let can_replace = match block.kind {
-                    TreePlacementBlockKind::DirtBelowTrunk => matches!(
-                        current,
-                        "minecraft:grass_block"
-                            | "minecraft:dirt"
-                            | "minecraft:coarse_dirt"
-                            | "minecraft:podzol"
-                            | "minecraft:rooted_dirt"
-                            | "minecraft:moss_block"
-                    ),
-                    TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
-                        matches!(
-                            current,
-                            "minecraft:air"
-                                | "minecraft:cave_air"
-                                | "minecraft:void_air"
-                                | "minecraft:water"
-                                | "minecraft:oak_leaves"
-                                | "minecraft:birch_leaves"
-                        ) || block_matches_tag(current, "minecraft:leaves")
-                    }
-                    TreePlacementBlockKind::GroundCover => matches!(
-                        current,
-                        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-                    ),
-                };
-                if !can_replace {
-                    diagnostics.source_write_filter_ms += started.elapsed().as_millis();
-                    continue;
-                }
-                chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
-                diagnostics.output_blocks_written += 1;
-                diagnostics.source_write_filter_ms += started.elapsed().as_millis();
-                placed += 1;
-            }
+    for block in live_tree_decoration_blocks(
+        source_pos,
+        seed,
+        settings,
+        biome_source_model,
+        &climate_sampler,
+        global_features_per_step.as_deref(),
+        &region_biome_steps,
+        &block_context,
+        terrain_heights,
+        &mut diagnostics,
+    ) {
+        diagnostics.output_blocks_seen += 1;
+        let started = Instant::now();
+        let world_x = source_min_x + block.pos.x;
+        let world_z = source_min_z + block.pos.z;
+        if world_x < chunk_min_x
+            || world_x > chunk_max_x
+            || world_z < chunk_min_z
+            || world_z > chunk_max_z
+        {
+            diagnostics.source_write_filter_ms += started.elapsed().as_millis();
+            continue;
         }
+        diagnostics.output_blocks_in_target += 1;
+
+        let current = chunk
+            .get_block_state_name(world_x, block.pos.y, world_z)
+            .unwrap_or("minecraft:air");
+        let can_replace = match block.kind {
+            TreePlacementBlockKind::DirtBelowTrunk => matches!(
+                current,
+                "minecraft:grass_block"
+                    | "minecraft:dirt"
+                    | "minecraft:coarse_dirt"
+                    | "minecraft:podzol"
+                    | "minecraft:rooted_dirt"
+                    | "minecraft:moss_block"
+            ),
+            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
+                matches!(
+                    current,
+                    "minecraft:air"
+                        | "minecraft:cave_air"
+                        | "minecraft:void_air"
+                        | "minecraft:water"
+                        | "minecraft:oak_leaves"
+                        | "minecraft:birch_leaves"
+                ) || block_matches_tag(current, "minecraft:leaves")
+            }
+            TreePlacementBlockKind::GroundCover => {
+                matches!(
+                    current,
+                    "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+                )
+            }
+        };
+        if !can_replace {
+            diagnostics.source_write_filter_ms += started.elapsed().as_millis();
+            continue;
+        }
+        chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
+        diagnostics.output_blocks_written += 1;
+        diagnostics.source_write_filter_ms += started.elapsed().as_millis();
+        placed += 1;
     }
     if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_some() {
         eprintln!(
