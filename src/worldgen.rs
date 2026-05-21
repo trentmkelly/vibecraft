@@ -29397,6 +29397,133 @@ fn section_block_index(world_x: i32, world_y: i32, world_z: i32) -> usize {
     local_y * 256 + local_z * 16 + local_x
 }
 
+struct GeneratedSectionBlocks {
+    min_section_y: i32,
+    sections: Vec<GeneratedSection>,
+    palette_names: Vec<String>,
+    palette_lookup: HashMap<String, u16>,
+}
+
+struct GeneratedSection {
+    ids: Vec<u16>,
+    non_air_blocks: usize,
+}
+
+impl GeneratedSectionBlocks {
+    fn new(min_section_y: i32, section_count: i32) -> Self {
+        let mut palette_lookup = HashMap::new();
+        palette_lookup.insert("minecraft:air".to_string(), 0);
+        Self {
+            min_section_y,
+            sections: (0..section_count)
+                .map(|_| GeneratedSection {
+                    ids: vec![0; SECTION_VOLUME],
+                    non_air_blocks: 0,
+                })
+                .collect(),
+            palette_names: vec!["minecraft:air".to_string()],
+            palette_lookup,
+        }
+    }
+
+    fn id_for(&mut self, block: &str) -> u16 {
+        if let Some(id) = self.palette_lookup.get(block).copied() {
+            return id;
+        }
+        let id = u16::try_from(self.palette_names.len())
+            .expect("generated chunk block palette exceeded u16 ids");
+        self.palette_names.push(block.to_string());
+        self.palette_lookup.insert(block.to_string(), id);
+        id
+    }
+
+    fn get_name(&self, world_x: i32, world_y: i32, world_z: i32) -> &str {
+        let Some(section_index) =
+            section_index_for_y(self.min_section_y, self.sections.len(), world_y)
+        else {
+            return "minecraft:air";
+        };
+        let index = section_block_index(world_x, world_y, world_z);
+        let id = self.sections[section_index].ids[index] as usize;
+        self.palette_names
+            .get(id)
+            .map(String::as_str)
+            .unwrap_or("minecraft:air")
+    }
+
+    fn set_id(&mut self, world_x: i32, world_y: i32, world_z: i32, id: u16) {
+        let Some(section_index) =
+            section_index_for_y(self.min_section_y, self.sections.len(), world_y)
+        else {
+            return;
+        };
+        let index = section_block_index(world_x, world_y, world_z);
+        let section = &mut self.sections[section_index];
+        let old_id = section.ids[index];
+        if old_id == id {
+            return;
+        }
+        if old_id == 0 && id != 0 {
+            section.non_air_blocks += 1;
+        } else if old_id != 0 && id == 0 {
+            section.non_air_blocks = section.non_air_blocks.saturating_sub(1);
+        }
+        section.ids[index] = id;
+    }
+
+    fn set_name(&mut self, world_x: i32, world_y: i32, world_z: i32, block: &str) {
+        let id = self.id_for(block);
+        self.set_id(world_x, world_y, world_z, id);
+    }
+
+    fn to_paletted_containers(&self) -> Vec<PalettedContainer> {
+        self.sections
+            .iter()
+            .map(|section| {
+                if section.non_air_blocks == 0 {
+                    return PalettedContainer::single(
+                        block_state_tag_fast("minecraft:air"),
+                        SECTION_VOLUME,
+                    );
+                }
+
+                let mut local_lookup = HashMap::<u16, u64>::new();
+                let mut palette = Vec::<Tag>::new();
+                let mut indices = Vec::<u64>::with_capacity(SECTION_VOLUME);
+                for id in section.ids.iter().copied() {
+                    let local_index = if let Some(index) = local_lookup.get(&id).copied() {
+                        index
+                    } else {
+                        let index = palette.len() as u64;
+                        let name = self
+                            .palette_names
+                            .get(id as usize)
+                            .map(String::as_str)
+                            .unwrap_or("minecraft:air");
+                        palette.push(block_state_tag_fast(name));
+                        local_lookup.insert(id, index);
+                        index
+                    };
+                    indices.push(local_index);
+                }
+
+                if palette.len() == 1 {
+                    PalettedContainer::single(palette.remove(0), SECTION_VOLUME)
+                } else {
+                    PalettedContainer {
+                        data: Some(pack_palette_indices(
+                            &indices,
+                            palette_bits_for_size(palette.len()),
+                        )),
+                        palette,
+                        expected_entries: SECTION_VOLUME,
+                    }
+                }
+            })
+            .collect()
+    }
+}
+
 fn get_generated_block<'a>(
     sections: &'a [PalettedContainer],
     min_section: i32,
@@ -31059,7 +31186,7 @@ fn build_surface_for_chunk_timed(
 #[allow(clippy::too_many_arguments)]
 fn build_surface_for_chunk_timed_with_sections(
     chunk: &mut crate::storage::chunk::LevelChunk,
-    predecoded_section_blocks: Option<&mut Vec<PalettedContainer>>,
+    predecoded_section_blocks: Option<&mut GeneratedSectionBlocks>,
     rule: &DynSurfaceRule,
     biome_source_model: &BiomeSourceModel,
     noise_router: NoiseRouter,
@@ -31093,27 +31220,42 @@ fn build_surface_for_chunk_timed_with_sections(
 
     let chunk_min_x = chunk.pos.x * 16;
     let chunk_min_z = chunk.pos.z * 16;
-    let min_section = chunk.min_section_y;
     let mut owned_section_blocks;
-    let section_blocks: &mut [PalettedContainer] =
-        if let Some(section_blocks) = predecoded_section_blocks {
-            section_blocks.as_mut_slice()
-        } else {
-            owned_section_blocks = chunk
-                .sections
-                .iter()
-                .map(|section| {
+    let section_blocks: &mut GeneratedSectionBlocks = if let Some(section_blocks) =
+        predecoded_section_blocks
+    {
+        section_blocks
+    } else {
+        owned_section_blocks = chunk.sections.iter().fold(
+            GeneratedSectionBlocks::new(chunk.min_section_y, chunk.sections.len() as i32),
+            |mut generated, section| {
+                if let Ok(container) =
                     PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
-                        .unwrap_or_else(|_| {
-                            PalettedContainer::single(
-                                block_state_tag_fast("minecraft:air"),
-                                SECTION_VOLUME,
-                            )
-                        })
-                })
-                .collect::<Vec<_>>();
-            owned_section_blocks.as_mut_slice()
-        };
+                {
+                    let section_index = i32::from(section.y) - generated.min_section_y;
+                    if section_index >= 0 && (section_index as usize) < generated.sections.len() {
+                        for index in 0..SECTION_VOLUME {
+                            let Some(name) = container
+                                .get_entry(index)
+                                .and_then(block_name_from_tag_fast)
+                            else {
+                                continue;
+                            };
+                            if name == "minecraft:air" {
+                                continue;
+                            }
+                            let id = generated.id_for(name);
+                            let section_cache = &mut generated.sections[section_index as usize];
+                            section_cache.ids[index] = id;
+                            section_cache.non_air_blocks += 1;
+                        }
+                    }
+                }
+                generated
+            },
+        );
+        &mut owned_section_blocks
+    };
 
     let started = Instant::now();
     // Pre-compute the 4 preliminary-surface-level corner values used by all
@@ -31262,8 +31404,7 @@ fn build_surface_for_chunk_timed_with_sections(
 
             for y in (end_y..=start_height).rev() {
                 timings.surface_block_samples += 1;
-                let block_str =
-                    get_generated_block(&section_blocks, min_section, block_x, y, block_z);
+                let block_str = section_blocks.get_name(block_x, y, block_z);
 
                 if is_surface_air(block_str) {
                     stone_depth_above = 0;
@@ -31278,13 +31419,7 @@ fn build_surface_for_chunk_timed_with_sections(
                         next_ceiling_stone_y = WAY_BELOW_MIN_Y;
                         let mut la = y - 1;
                         while la >= end_y - 1 {
-                            let la_block = get_generated_block(
-                                &section_blocks,
-                                min_section,
-                                block_x,
-                                la,
-                                block_z,
-                            );
+                            let la_block = section_blocks.get_name(block_x, la, block_z);
                             if !is_surface_stone(la_block) {
                                 next_ceiling_stone_y = la + 1;
                                 break;
@@ -31308,14 +31443,7 @@ fn build_surface_for_chunk_timed_with_sections(
                             if new_block == block_str {
                                 continue;
                             }
-                            set_generated_block(
-                                section_blocks,
-                                min_section,
-                                block_x,
-                                y,
-                                block_z,
-                                &new_block,
-                            );
+                            section_blocks.set_name(block_x, y, block_z, &new_block);
                             timings.surface_block_writes += 1;
                         }
                     }
@@ -31323,9 +31451,7 @@ fn build_surface_for_chunk_timed_with_sections(
             }
         }
     }
-    for (section, blocks) in chunk.sections.iter_mut().zip(section_blocks.iter()) {
-        section.block_states = blocks.to_nbt();
-    }
+    flush_generated_section_blocks(chunk, section_blocks);
     timings.surface_column_loop_ms = started.elapsed().as_millis();
     timings.surface_total_ms = total_started.elapsed().as_millis();
 }
@@ -45680,7 +45806,7 @@ fn fill_from_noise_chunk_inner_sections_timed(
 ) -> (
     LevelChunk,
     LiveTerrainTimings,
-    Vec<PalettedContainer>,
+    GeneratedSectionBlocks,
     LiveNoiseGenerationContext,
 ) {
     let total_started = Instant::now();
@@ -45695,13 +45821,7 @@ fn fill_from_noise_chunk_inner_sections_timed(
     chunk.min_section_y = min_section;
 
     let started = Instant::now();
-    let mut section_blocks: Vec<PalettedContainer> = (0..section_count)
-        .map(|_| PalettedContainer::single(block_state_tag_fast("minecraft:air"), SECTION_VOLUME))
-        .collect();
-    let mut section_palette_indices = (0..section_count)
-        .map(|_| HashMap::<&'static str, usize>::new())
-        .collect::<Vec<_>>();
-    let block_tags = GeneratedBlockTags::new(settings);
+    let mut section_blocks = GeneratedSectionBlocks::new(min_section, section_count);
     // Initialise all chunk sections to air.
     chunk.sections = (0..section_count)
         .map(|i| {
@@ -45709,7 +45829,11 @@ fn fill_from_noise_chunk_inner_sections_timed(
             let biome = Tag::String("minecraft:plains".to_string());
             ChunkSection {
                 y: section_y as i8,
-                block_states: section_blocks[i as usize].to_nbt(),
+                block_states: PalettedContainer::single(
+                    block_state_tag_fast("minecraft:air"),
+                    SECTION_VOLUME,
+                )
+                .to_nbt(),
                 biomes: PalettedContainer::single(biome, BIOME_SECTION_VOLUME).to_nbt(),
                 block_light: None,
                 sky_light: Some(vec![-1i8; 2048]),
@@ -45838,19 +45962,14 @@ fn fill_from_noise_chunk_inner_sections_timed(
                             );
 
                             if block != "minecraft:air" {
+                                let block_id = section_blocks.id_for(block);
                                 let block_index = local_y * 256 + local_z * 16 + local_x;
-                                let palette_index = if let Some(index) =
-                                    section_palette_indices[section_index].get(block).copied()
-                                {
-                                    index
-                                } else {
-                                    let index = section_blocks[section_index]
-                                        .ensure_palette_entry(block_tags.tag_for(block));
-                                    section_palette_indices[section_index].insert(block, index);
-                                    index
-                                };
-                                section_blocks[section_index]
-                                    .set_palette_index(block_index, palette_index);
+                                let section = &mut section_blocks.sections[section_index];
+                                let old_id = section.ids[block_index];
+                                if old_id == 0 {
+                                    section.non_air_blocks += 1;
+                                }
+                                section.ids[block_index] = block_id;
                                 timings.block_writes += 1;
                                 let idx = local_z * 16 + local_x;
                                 if pos_y + 1 > world_surface[idx] {
@@ -45912,8 +46031,9 @@ fn fill_from_noise_chunk_inner_sections_timed(
     )
 }
 
-fn flush_generated_section_blocks(chunk: &mut LevelChunk, section_blocks: &[PalettedContainer]) {
-    for (section, blocks) in chunk.sections.iter_mut().zip(section_blocks.iter()) {
+fn flush_generated_section_blocks(chunk: &mut LevelChunk, section_blocks: &GeneratedSectionBlocks) {
+    let containers = section_blocks.to_paletted_containers();
+    for (section, blocks) in chunk.sections.iter_mut().zip(containers.iter()) {
         section.block_states = blocks.to_nbt();
     }
 }
