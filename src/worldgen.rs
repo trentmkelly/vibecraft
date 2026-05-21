@@ -24493,6 +24493,11 @@ pub struct LiveMobGenerationTimings {
     pub mobs_spawned: usize,
 }
 
+struct LiveNoiseGenerationContext {
+    noise_chunk: NoiseChunk,
+    aquifer: Option<NoiseBasedAquifer>,
+}
+
 pub fn generate_chunk_for_stem(
     pos: ChunkPos,
     stem: &ResolvedLevelStem,
@@ -24523,7 +24528,7 @@ pub fn generate_chunk_for_stem_with_mode(
                     noise_settings,
                     seed,
                 ) {
-                    Some((mut chunk, _terrain_timings)) => {
+                    Some((mut chunk, _terrain_timings, _noise_context)) => {
                         apply_configured_carvers_for_biome_source(
                             &mut chunk,
                             biome_source_model,
@@ -26302,7 +26307,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                     noise_settings,
                     seed,
                 ) {
-                    Some((mut chunk, terrain_timings)) => {
+                    Some((mut chunk, terrain_timings, _noise_context)) => {
                         timings.terrain = terrain_timings;
                         let tree_context_handle = {
                             let surface_rule = load_surface_rule(noise_settings.id);
@@ -31331,8 +31336,31 @@ pub fn fill_noise_and_build_surface_timed(
     noise_router: NoiseRouter,
     surface_rule: &DynSurfaceRule,
 ) -> (crate::storage::chunk::LevelChunk, LiveTerrainTimings) {
+    let (chunk, timings, _) = fill_noise_and_build_surface_timed_with_context(
+        pos,
+        biome_source_model,
+        settings,
+        seed,
+        noise_router,
+        surface_rule,
+    );
+    (chunk, timings)
+}
+
+fn fill_noise_and_build_surface_timed_with_context(
+    pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+    surface_rule: &DynSurfaceRule,
+) -> (
+    crate::storage::chunk::LevelChunk,
+    LiveTerrainTimings,
+    LiveNoiseGenerationContext,
+) {
     with_noise_snapshot_cache(|| {
-        let (mut chunk, mut timings, mut section_blocks) =
+        let (mut chunk, mut timings, mut section_blocks, noise_context) =
             fill_from_noise_chunk_inner_sections_timed(pos, settings, seed, noise_router);
         let started = Instant::now();
         populate_noise_chunk_biomes(&mut chunk, biome_source_model, settings, seed, noise_router);
@@ -31348,7 +31376,7 @@ pub fn fill_noise_and_build_surface_timed(
             &mut timings,
         );
         chunk.status = "minecraft:surface".to_string();
-        (chunk, timings)
+        (chunk, timings, noise_context)
     })
 }
 
@@ -31357,13 +31385,13 @@ fn generate_real_surface_base_chunk(
     biome_source_model: &BiomeSourceModel,
     noise_settings: &NoiseGeneratorSettings,
     seed: i64,
-) -> Option<(LevelChunk, LiveTerrainTimings)> {
+) -> Option<(LevelChunk, LiveTerrainTimings, LiveNoiseGenerationContext)> {
     let router_id = noise_router_id_for_settings(*noise_settings);
     let noise_router = builtin_noise_router(router_id)
         .map(|e| e.router)
         .unwrap_or(NONE_NOISE_ROUTER);
     let rule = load_surface_rule(noise_settings.id)?;
-    Some(fill_noise_and_build_surface_timed(
+    Some(fill_noise_and_build_surface_timed_with_context(
         pos,
         biome_source_model,
         noise_settings,
@@ -45586,7 +45614,7 @@ fn fill_from_noise_chunk_inner_timed(
     seed: i64,
     noise_router: NoiseRouter,
 ) -> (LevelChunk, LiveTerrainTimings) {
-    let (mut chunk, timings, section_blocks) =
+    let (mut chunk, timings, section_blocks, _) =
         fill_from_noise_chunk_inner_sections_timed(pos, settings, seed, noise_router);
     flush_generated_section_blocks(&mut chunk, &section_blocks);
     (chunk, timings)
@@ -45597,7 +45625,12 @@ fn fill_from_noise_chunk_inner_sections_timed(
     settings: &NoiseGeneratorSettings,
     seed: i64,
     noise_router: NoiseRouter,
-) -> (LevelChunk, LiveTerrainTimings, Vec<PalettedContainer>) {
+) -> (
+    LevelChunk,
+    LiveTerrainTimings,
+    Vec<PalettedContainer>,
+    LiveNoiseGenerationContext,
+) {
     let total_started = Instant::now();
     let mut timings = LiveTerrainTimings::default();
     let mut chunk = LevelChunk::empty(pos);
@@ -45814,7 +45847,15 @@ fn fill_from_noise_chunk_inner_sections_timed(
     timings.fill_heightmap_pack_ms = started.elapsed().as_millis();
     timings.fill_total_ms = total_started.elapsed().as_millis();
 
-    (chunk, timings, section_blocks)
+    (
+        chunk,
+        timings,
+        section_blocks,
+        LiveNoiseGenerationContext {
+            noise_chunk,
+            aquifer,
+        },
+    )
 }
 
 fn flush_generated_section_blocks(chunk: &mut LevelChunk, section_blocks: &[PalettedContainer]) {
