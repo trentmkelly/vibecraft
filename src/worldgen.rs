@@ -4170,11 +4170,6 @@ pub const NORMAL_NOISE_PARAMETERS: &[NormalNoiseParameters] = &[
         amplitudes: &[1.0, 1.0, 1.0, 0.0],
     },
     NormalNoiseParameters {
-        id: "minecraft:shift",
-        first_octave: -3,
-        amplitudes: &[1.0, 1.0, 1.0, 0.0],
-    },
-    NormalNoiseParameters {
         id: "minecraft:aquifer_barrier",
         first_octave: -3,
         amplitudes: &[1.0],
@@ -6360,7 +6355,7 @@ pub const SHIFT_X_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     input: &SHIFT_A_DENSITY,
 };
 pub const SHIFT_A_DENSITY: DensityFunction = DensityFunction::ShiftA {
-    noise: "minecraft:shift",
+    noise: "minecraft:offset",
 };
 pub const SHIFT_Z_DENSITY: DensityFunction = DensityFunction::Marker {
     kind: DensityMarker::FlatCache,
@@ -6371,7 +6366,7 @@ pub const SHIFT_Z_CACHE_2D_DENSITY: DensityFunction = DensityFunction::Marker {
     input: &SHIFT_B_DENSITY,
 };
 pub const SHIFT_B_DENSITY: DensityFunction = DensityFunction::ShiftB {
-    noise: "minecraft:shift",
+    noise: "minecraft:offset",
 };
 pub const BASE_3D_NOISE_OVERWORLD_DENSITY: DensityFunction = DensityFunction::BlendedNoise {
     xz_scale: 0.25,
@@ -42612,7 +42607,7 @@ mod tests {
                 "minecraft:blended_noise",
             ]
         );
-        assert_eq!(NORMAL_NOISE_PARAMETERS.len(), 63);
+        assert_eq!(NORMAL_NOISE_PARAMETERS.len(), 62);
         assert_eq!(NORMAL_NOISE_INPUT_FACTOR, 1.0181268882175227);
         assert_eq!(NORMAL_NOISE_TARGET_DEVIATION, 1.0 / 3.0);
 
@@ -42621,7 +42616,7 @@ mod tests {
             .map(|entry| entry.id)
             .collect::<Vec<_>>();
         assert_eq!(
-            &ids[..13],
+            &ids[..12],
             &[
                 "minecraft:temperature",
                 "minecraft:vegetation",
@@ -42635,7 +42630,6 @@ mod tests {
                 "minecraft:nether/vegetation",
                 "minecraft:ridge",
                 "minecraft:offset",
-                "minecraft:shift",
             ]
         );
         assert_eq!(
@@ -45973,7 +45967,7 @@ mod tests {
         assert_eq!(super::SHIFT_A_DENSITY.type_name(), "shift_a");
         assert_eq!(super::SHIFT_B_DENSITY.type_name(), "shift_b");
         let shift_bounds = super::SHIFT_A_DENSITY.value_bounds();
-        let shift_noise_bounds = super::normal_noise_value_bounds("minecraft:shift").unwrap();
+        let shift_noise_bounds = super::normal_noise_value_bounds("minecraft:offset").unwrap();
         assert_eq!(
             shift_bounds,
             (shift_noise_bounds.0 * 4.0, shift_noise_bounds.1 * 4.0)
@@ -46115,14 +46109,14 @@ mod tests {
         let shift_a_value =
             super::SHIFT_A_DENSITY.compute_with_noise(12345, overworld, 16, 64, -32);
         assert!((noise_value - -0.02846337681055331).abs() < 1e-12);
-        assert!((shifted_value - -0.025431380181795832).abs() < 1e-12);
+        assert!((shifted_value - -0.02854944566757223).abs() < 1e-12);
         assert!((weird_value - 0.5833159524778098).abs() < 1e-12);
         assert!(
             (shift_a_value
                 - super::density_shift_noise_sample(
                     12345,
                     overworld,
-                    "minecraft:shift",
+                    "minecraft:offset",
                     16.0,
                     0.0,
                     -32.0,
@@ -63692,6 +63686,35 @@ mod tests {
             (result - VANILLA_FINAL_DENSITY_0_100_0_SEED_0).abs() < 1e-15,
             "finalDensity at (0,100,0) seed 0 must match vanilla {VANILLA_FINAL_DENSITY_0_100_0_SEED_0}, got {result}"
         );
+    }
+
+    #[test]
+    fn overworld_shift_noise_uses_vanilla_offset_noise_key() {
+        let seed = 8_675_309_i64;
+        let settings = *builtin_noise_generator_settings("minecraft:overworld").unwrap();
+        assert!(
+            super::builtin_normal_noise_parameters("minecraft:shift").is_none(),
+            "vanilla Noises.SHIFT is ResourceKey minecraft:offset; Rust must not invent minecraft:shift"
+        );
+
+        let samples = [
+            ((0, 62, 0), -3.7094676845533336, -3.7094676845533336),
+            ((3, 62, 0), -3.3318550257927586, -2.9289862624467620),
+            ((31, 62, 6), -0.42489011889609285, -0.4626364685144386),
+        ];
+
+        for ((x, y, z), expected_x, expected_z) in samples {
+            let shift_x = super::SHIFT_X_DENSITY.compute_with_noise(seed, settings, x, y, z);
+            let shift_z = super::SHIFT_Z_DENSITY.compute_with_noise(seed, settings, x, y, z);
+            assert!(
+                (shift_x - expected_x).abs() < 1e-12,
+                "SHIFT_X at ({x},{y},{z}) seed {seed} should match Java Noises.SHIFT offset noise"
+            );
+            assert!(
+                (shift_z - expected_z).abs() < 1e-12,
+                "SHIFT_Z at ({x},{y},{z}) seed {seed} should match Java Noises.SHIFT offset noise"
+            );
+        }
     }
 
     /// Verifies that every NoiseRouter field for the standard overworld evaluates to a finite,
