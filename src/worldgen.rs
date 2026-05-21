@@ -24443,7 +24443,9 @@ pub struct LiveTerrainTimings {
     pub fill_ore_decision_us: u128,
     pub fill_interpolation_update_us: u128,
     pub fill_full_noise_cache_ms: u128,
+    pub fill_full_noise_cache_us: u128,
     pub fill_vein_noise_cache_ms: u128,
+    pub fill_vein_noise_cache_us: u128,
     pub fill_heightmap_pack_ms: u128,
     pub biome_storage_ms: u128,
     pub surface_total_ms: u128,
@@ -44924,8 +44926,10 @@ impl FlatCacheState {
 #[derive(Debug, Clone, Copy, Default)]
 struct NoiseChunkFillStats {
     full_noise_cache_ms: u128,
+    full_noise_cache_us: u128,
     full_noise_cache_fills: usize,
     vein_noise_cache_ms: u128,
+    vein_noise_cache_us: u128,
     vein_noise_cache_fills: usize,
     cache_once_scalar_hits: usize,
     cache_once_scalar_misses: usize,
@@ -45400,7 +45404,9 @@ impl NoiseChunk {
         // RustCraft's current Beardifier is a zero stub; keep this cell cache
         // on the same final-density-only path until structure density is wired.
         self.full_noise_values = values;
-        self.fill_stats.full_noise_cache_ms += started.elapsed().as_millis();
+        let elapsed = started.elapsed();
+        self.fill_stats.full_noise_cache_ms += elapsed.as_millis();
+        self.fill_stats.full_noise_cache_us += elapsed.as_micros();
         self.fill_stats.full_noise_cache_fills += 1;
     }
 
@@ -45460,7 +45466,9 @@ impl NoiseChunk {
             DensityArrayFillMode::Cell,
         );
         self.vein_toggle_values = toggle;
-        self.fill_stats.vein_noise_cache_ms += started.elapsed().as_millis();
+        let elapsed = started.elapsed();
+        self.fill_stats.vein_noise_cache_ms += elapsed.as_millis();
+        self.fill_stats.vein_noise_cache_us += elapsed.as_micros();
         self.fill_stats.vein_noise_cache_fills += 1;
     }
 
@@ -45865,8 +45873,10 @@ fn fill_from_noise_chunk_inner_sections_timed(
     timings.fill_block_loop_ms = started.elapsed().as_millis();
     let fill_stats = noise_chunk.take_fill_stats();
     timings.fill_full_noise_cache_ms = fill_stats.full_noise_cache_ms;
+    timings.fill_full_noise_cache_us = fill_stats.full_noise_cache_us;
     timings.full_noise_cache_fills = fill_stats.full_noise_cache_fills;
     timings.fill_vein_noise_cache_ms = fill_stats.vein_noise_cache_ms;
+    timings.fill_vein_noise_cache_us = fill_stats.vein_noise_cache_us;
     timings.vein_noise_cache_fills = fill_stats.vein_noise_cache_fills;
     timings.cache_once_scalar_hits = fill_stats.cache_once_scalar_hits;
     timings.cache_once_scalar_misses = fill_stats.cache_once_scalar_misses;
@@ -48461,7 +48471,7 @@ mod tests {
             "generated chunk should contain non-air blocks in the origin column"
         );
         eprintln!(
-            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms base_generation={}ms region_biome_steps={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
+            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms base_generation={}ms region_biome_steps={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms full_noise_cache={}us/{}fills biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
             pos.x,
             pos.z,
             elapsed_ms,
@@ -48482,6 +48492,8 @@ mod tests {
             timings.terrain.fill_noise_chunk_init_ms,
             timings.terrain.fill_aquifer_init_ms,
             timings.terrain.fill_block_loop_ms,
+            timings.terrain.fill_full_noise_cache_us,
+            timings.terrain.full_noise_cache_fills,
             timings.terrain.biome_storage_ms,
             timings.terrain.fill_density_lookup_us,
             timings.terrain.fill_aquifer_compute_us,
