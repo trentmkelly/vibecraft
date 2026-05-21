@@ -23106,6 +23106,23 @@ fn block_matches_tag(block: &str, tag: &str) -> bool {
                 || block == "minecraft:cave_air"
                 || block == "minecraft:void_air"
         }
+        "stone_ore_replaceables" => matches!(
+            block,
+            "minecraft:stone" | "minecraft:granite" | "minecraft:diorite" | "minecraft:andesite"
+        ),
+        "deepslate_ore_replaceables" => {
+            matches!(block, "minecraft:deepslate" | "minecraft:tuff")
+        }
+        "base_stone_overworld" => {
+            block_matches_tag(block, "minecraft:stone_ore_replaceables")
+                || block_matches_tag(block, "minecraft:deepslate_ore_replaceables")
+        }
+        "base_stone_nether" => {
+            matches!(
+                block,
+                "minecraft:netherrack" | "minecraft:basalt" | "minecraft:blackstone"
+            )
+        }
         "logs" => matches!(
             block,
             "minecraft:oak_log"
@@ -50715,6 +50732,42 @@ mod tests {
             Some("minecraft:air")
         );
         assert_eq!(super::replace_block_result("minecraft:stone", &[]), None);
+        assert!(super::block_matches_tag(
+            "minecraft:stone",
+            "minecraft:stone_ore_replaceables"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:andesite",
+            "minecraft:stone_ore_replaceables"
+        ));
+        assert!(!super::block_matches_tag(
+            "minecraft:tuff",
+            "minecraft:stone_ore_replaceables"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:deepslate",
+            "minecraft:deepslate_ore_replaceables"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:tuff",
+            "minecraft:deepslate_ore_replaceables"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:granite",
+            "minecraft:base_stone_overworld"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:tuff",
+            "minecraft:base_stone_overworld"
+        ));
+        assert!(!super::block_matches_tag(
+            "minecraft:netherrack",
+            "minecraft:base_stone_overworld"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:blackstone",
+            "minecraft:base_stone_nether"
+        ));
 
         let ore_config = super::OreConfigurationModel {
             target_states: vec![super::TargetBlockStateModel {
