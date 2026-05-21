@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use crate::biome::{
     biome_source_from_stem_id, climate_target, multi_noise_parameter_list_preset,
-    overworld_biome_parameters, select_biome_from_source, select_climate_biome,
-    select_end_biome, span, BiomeSourceModel, ClimateParameterPoint, ClimateTarget,
+    overworld_biome_parameters, select_biome_from_source, select_climate_biome, select_end_biome,
+    span, BiomeSourceModel, ClimateParameterPoint, ClimateTarget,
 };
 pub use crate::random_source::RandomAlgorithm;
 
@@ -30407,7 +30407,7 @@ struct SurfaceRulesContext {
     water_height: i32,
     stone_depth_above: i32,
     stone_depth_below: i32,
-    biome: String,
+    biome: &'static str,
     temperature: f32,
 }
 
@@ -30431,7 +30431,7 @@ impl SurfaceRulesContext {
             water_height: i32::MIN,
             stone_depth_above: 0,
             stone_depth_below: 0,
-            biome: "minecraft:plains".to_string(),
+            biome: "minecraft:plains",
             temperature: 0.8,
         }
     }
@@ -30456,8 +30456,7 @@ impl SurfaceRulesContext {
         self.steep = steep;
         self.hole = hole;
         self.min_surface_level = min_surface_level;
-        self.biome.clear();
-        self.biome.push_str(biome);
+        self.biome = biome;
         self.temperature = temperature;
     }
 
@@ -30587,17 +30586,15 @@ fn dyn_surface_condition_test(
 ///
 /// Returns the block ID to place, or `None` if no rule matches.
 /// Mirrors Java's `SurfaceRules.SurfaceRule::tryApply(blockX, blockY, blockZ)`.
-fn dyn_surface_rule_apply(
-    rule: &DynSurfaceRule,
+fn dyn_surface_rule_apply<'a>(
+    rule: &'a DynSurfaceRule,
     state: &SurfaceRulesContext,
     settings: NoiseGeneratorSettings,
     band_fn: &impl Fn(i32, i32, i32) -> &'static str,
-) -> Option<String> {
+) -> Option<&'a str> {
     match rule {
-        DynSurfaceRule::Bandlands => {
-            Some(band_fn(state.block_x, state.block_y, state.block_z).to_string())
-        }
-        DynSurfaceRule::Block(block) => Some(block.clone()),
+        DynSurfaceRule::Bandlands => Some(band_fn(state.block_x, state.block_y, state.block_z)),
+        DynSurfaceRule::Block(block) => Some(block.as_str()),
         DynSurfaceRule::Sequence(rules) => rules
             .iter()
             .find_map(|r| dyn_surface_rule_apply(r, state, settings, band_fn)),
@@ -30840,6 +30837,29 @@ fn build_surface_for_chunk_timed(
     seed: i64,
     timings: &mut LiveTerrainTimings,
 ) {
+    build_surface_for_chunk_timed_with_sections(
+        chunk,
+        None,
+        rule,
+        biome_source_model,
+        noise_router,
+        settings,
+        seed,
+        timings,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_surface_for_chunk_timed_with_sections(
+    chunk: &mut crate::storage::chunk::LevelChunk,
+    predecoded_section_blocks: Option<&mut Vec<PalettedContainer>>,
+    rule: &DynSurfaceRule,
+    biome_source_model: &BiomeSourceModel,
+    noise_router: NoiseRouter,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    timings: &mut LiveTerrainTimings,
+) {
     let total_started = Instant::now();
     let min_y = settings.noise.min_y;
     let heights = WorldGenerationHeightContext {
@@ -30867,17 +30887,26 @@ fn build_surface_for_chunk_timed(
     let chunk_min_x = chunk.pos.x * 16;
     let chunk_min_z = chunk.pos.z * 16;
     let min_section = chunk.min_section_y;
-    let mut section_blocks: Vec<PalettedContainer> = chunk
-        .sections
-        .iter()
-        .map(|section| {
-            PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).unwrap_or_else(
-                |_| {
-                    PalettedContainer::single(block_state_tag_fast("minecraft:air"), SECTION_VOLUME)
-                },
-            )
-        })
-        .collect();
+    let mut owned_section_blocks;
+    let section_blocks: &mut [PalettedContainer] =
+        if let Some(section_blocks) = predecoded_section_blocks {
+            section_blocks.as_mut_slice()
+        } else {
+            owned_section_blocks = chunk
+                .sections
+                .iter()
+                .map(|section| {
+                    PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
+                        .unwrap_or_else(|_| {
+                            PalettedContainer::single(
+                                block_state_tag_fast("minecraft:air"),
+                                SECTION_VOLUME,
+                            )
+                        })
+                })
+                .collect::<Vec<_>>();
+            owned_section_blocks.as_mut_slice()
+        };
 
     let started = Instant::now();
     // Pre-compute the 4 preliminary-surface-level corner values used by all
@@ -30902,7 +30931,6 @@ fn build_surface_for_chunk_timed(
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
     let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
     let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
-
     let started = Instant::now();
     for local_z in 0..16_i32 {
         for local_x in 0..16_i32 {
@@ -31036,8 +31064,11 @@ fn build_surface_for_chunk_timed(
                         if let Some(new_block) =
                             dyn_surface_rule_apply(rule, &surface_context, *settings, &band_fn)
                         {
+                            if new_block == block_str {
+                                continue;
+                            }
                             set_generated_block(
-                                &mut section_blocks,
+                                section_blocks,
                                 min_section,
                                 block_x,
                                 y,
@@ -31093,13 +31124,14 @@ pub fn fill_noise_and_build_surface_timed(
     surface_rule: &DynSurfaceRule,
 ) -> (crate::storage::chunk::LevelChunk, LiveTerrainTimings) {
     with_noise_snapshot_cache(|| {
-        let (mut chunk, mut timings) =
-            fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router);
+        let (mut chunk, mut timings, mut section_blocks) =
+            fill_from_noise_chunk_inner_sections_timed(pos, settings, seed, noise_router);
         let started = Instant::now();
         populate_noise_chunk_biomes(&mut chunk, biome_source_model, settings, seed, noise_router);
         timings.biome_storage_ms = started.elapsed().as_millis();
-        build_surface_for_chunk_timed(
+        build_surface_for_chunk_timed_with_sections(
             &mut chunk,
+            Some(&mut section_blocks),
             surface_rule,
             biome_source_model,
             noise_router,
@@ -31223,37 +31255,37 @@ fn populate_noise_chunk_biomes(
                         overworld_2d_climate
                             .as_ref()
                             .and_then(|cache| {
-                            let cached = cache[local_z * 4 + local_x];
-                            let block_y = quart_y * 4;
-                            let depth = cached.depth_offset
-                                + OVERWORLD_DEPTH_GRADIENT_DENSITY.compute(block_y);
-                            let climate = climate_target(
-                                cached.temperature,
-                                cached.humidity,
-                                cached.continentalness,
-                                cached.erosion,
-                                depth as f32,
-                                cached.weirdness,
-                            );
-                            select_biome_from_source(
-                                biome_source_model,
-                                quart_x,
-                                quart_y,
-                                quart_z,
-                                climate,
-                                0.0,
-                            )
-                        })
-                        .or_else(|| {
-                            get_biome(
-                                biome_source_model,
-                                quart_x,
-                                quart_y,
-                                quart_z,
-                                &climate_sampler,
-                            )
-                        })
-                        .unwrap_or("minecraft:plains")
+                                let cached = cache[local_z * 4 + local_x];
+                                let block_y = quart_y * 4;
+                                let depth = cached.depth_offset
+                                    + OVERWORLD_DEPTH_GRADIENT_DENSITY.compute(block_y);
+                                let climate = climate_target(
+                                    cached.temperature,
+                                    cached.humidity,
+                                    cached.continentalness,
+                                    cached.erosion,
+                                    depth as f32,
+                                    cached.weirdness,
+                                );
+                                select_biome_from_source(
+                                    biome_source_model,
+                                    quart_x,
+                                    quart_y,
+                                    quart_z,
+                                    climate,
+                                    0.0,
+                                )
+                            })
+                            .or_else(|| {
+                                get_biome(
+                                    biome_source_model,
+                                    quart_x,
+                                    quart_y,
+                                    quart_z,
+                                    &climate_sampler,
+                                )
+                            })
+                            .unwrap_or("minecraft:plains")
                     };
                     selections += 1;
                     let index = local_y * 16 + local_z * 4 + local_x;
@@ -33477,14 +33509,8 @@ fn place_vanilla_ore_feature_fast(
         {
             continue;
         }
-        report += place_configured_ore_in_chunk(
-            chunk,
-            block_cache,
-            settings,
-            config,
-            position,
-            random,
-        );
+        report +=
+            place_configured_ore_in_chunk(chunk, block_cache, settings, config, position, random);
     }
     Some(report)
 }
@@ -33675,9 +33701,9 @@ fn place_ore_feature_positions_depth_first(
                 random_next_i32_bound(random, i32::MAX),
                 random_next_i32_bound(random, i32::MAX),
             );
-            positions
-                .into_iter()
-                .fold(OrePlacementReport::default(), |mut report, next_position| {
+            positions.into_iter().fold(
+                OrePlacementReport::default(),
+                |mut report, next_position| {
                     report += place_ore_feature_positions_depth_first(
                         chunk,
                         block_cache,
@@ -33693,7 +33719,8 @@ fn place_ore_feature_positions_depth_first(
                         skip_biome_filter,
                     );
                     report
-                })
+                },
+            )
         }
     }
 }
@@ -45102,6 +45129,18 @@ fn fill_from_noise_chunk_inner_timed(
     seed: i64,
     noise_router: NoiseRouter,
 ) -> (LevelChunk, LiveTerrainTimings) {
+    let (mut chunk, timings, section_blocks) =
+        fill_from_noise_chunk_inner_sections_timed(pos, settings, seed, noise_router);
+    flush_generated_section_blocks(&mut chunk, &section_blocks);
+    (chunk, timings)
+}
+
+fn fill_from_noise_chunk_inner_sections_timed(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> (LevelChunk, LiveTerrainTimings, Vec<PalettedContainer>) {
     let total_started = Instant::now();
     let mut timings = LiveTerrainTimings::default();
     let mut chunk = LevelChunk::empty(pos);
@@ -45291,10 +45330,6 @@ fn fill_from_noise_chunk_inner_timed(
     timings.cache_once_array_hits = fill_stats.cache_once_array_hits;
     timings.cache_once_array_misses = fill_stats.cache_once_array_misses;
 
-    for (section, blocks) in chunk.sections.iter_mut().zip(section_blocks.iter()) {
-        section.block_states = blocks.to_nbt();
-    }
-
     let started = Instant::now();
     chunk.heightmaps = BTreeMap::from([
         (
@@ -45309,7 +45344,13 @@ fn fill_from_noise_chunk_inner_timed(
     timings.fill_heightmap_pack_ms = started.elapsed().as_millis();
     timings.fill_total_ms = total_started.elapsed().as_millis();
 
-    (chunk, timings)
+    (chunk, timings, section_blocks)
+}
+
+fn flush_generated_section_blocks(chunk: &mut LevelChunk, section_blocks: &[PalettedContainer]) {
+    for (section, blocks) in chunk.sections.iter_mut().zip(section_blocks.iter()) {
+        section.block_states = blocks.to_nbt();
+    }
 }
 
 #[cfg(test)]
@@ -49992,7 +50033,7 @@ mod tests {
             water_height: 63,
             stone_depth_above: 2,
             stone_depth_below: quiet_desert_floor.stone_depth_below,
-            biome: quiet_desert_floor.biome.to_string(),
+            biome: quiet_desert_floor.biome,
             temperature: quiet_desert_floor.temperature,
         };
         assert!(super::dyn_surface_condition_test(
