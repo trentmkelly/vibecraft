@@ -45289,6 +45289,9 @@ pub struct NoiseChunk {
     vein_toggle_values: Vec<f64>,
     vein_ridged_values: Vec<f64>,
     vein_gap_values: Vec<f64>,
+    vein_toggle_interp_index: Option<usize>,
+    vein_a_interp_index: Option<usize>,
+    vein_b_interp_index: Option<usize>,
 
     // Current position tracking (updated during the iteration loops).
     pub cell_start_block_x: i32,
@@ -45395,6 +45398,16 @@ impl NoiseChunk {
         let vein_ridged_values = vec![0.0; cell_value_count];
         let vein_gap_values = vec![0.0; cell_value_count];
 
+        let lookup_interp = |function: &'static DensityFunction| {
+            lookup_density_index(
+                &template.interp_by_ptr,
+                function as *const DensityFunction as usize,
+            )
+        };
+        let vein_toggle_interp_index = lookup_interp(&OVERWORLD_VEIN_TOGGLE_RANGE_DENSITY);
+        let vein_a_interp_index = lookup_interp(&OVERWORLD_VEIN_A_RANGE_DENSITY);
+        let vein_b_interp_index = lookup_interp(&OVERWORLD_VEIN_B_RANGE_DENSITY);
+
         // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
         let mut chunk = Self {
             cell_width,
@@ -45417,6 +45430,9 @@ impl NoiseChunk {
             vein_toggle_values,
             vein_ridged_values,
             vein_gap_values,
+            vein_toggle_interp_index,
+            vein_a_interp_index,
+            vein_b_interp_index,
             cell_start_block_x: first_cell_x * cell_width,
             cell_start_block_y: cell_noise_min_y * cell_height,
             cell_start_block_z: first_cell_z * cell_width,
@@ -45894,10 +45910,26 @@ impl NoiseChunk {
     }
 
     fn cached_vein_toggle(&self, x: i32, y: i32, z: i32) -> f64 {
+        if self.noise_router.vein_toggle == OVERWORLD_VEIN_TOGGLE_DENSITY {
+            if let Some(index) = self.vein_toggle_interp_index {
+                return self.interpolator_value(index);
+            }
+        }
         eval_density_fn_with_interp(self.noise_router.vein_toggle, self, x, y, z)
     }
 
     fn vein_ridged_at(&self, x: i32, y: i32, z: i32) -> f64 {
+        if self.noise_router.vein_ridged == OVERWORLD_VEIN_RIDGED_DENSITY {
+            if let (Some(a_index), Some(b_index)) =
+                (self.vein_a_interp_index, self.vein_b_interp_index)
+            {
+                return -0.079_999_998_211_860_66
+                    + self
+                        .interpolator_value(a_index)
+                        .abs()
+                        .max(self.interpolator_value(b_index).abs());
+            }
+        }
         eval_density_fn_with_interp(self.noise_router.vein_ridged, self, x, y, z)
     }
 
