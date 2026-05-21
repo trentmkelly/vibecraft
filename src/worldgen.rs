@@ -36072,14 +36072,14 @@ pub fn ore_vein_position_candidates(
                         x - x_start + (y - y_start) * size_xz + (z - z_start) * size_xz * size_y;
                     if bitset_index >= 0 {
                         let bitset_index = bitset_index as usize;
-                        if visited.get_mut(bitset_index).is_some_and(|seen| {
-                            if *seen {
-                                false
-                            } else {
-                                *seen = true;
-                                true
-                            }
-                        }) {
+                        if bitset_index >= visited.len() {
+                            // Java's BitSet grows past the requested initial
+                            // size; OreFeature's inclusive coordinate loops can
+                            // address boundary slots beyond sizeXZ*sizeY*sizeXZ.
+                            visited.resize(bitset_index + 1, false);
+                        }
+                        if !visited[bitset_index] {
+                            visited[bitset_index] = true;
                             positions.push(BlockPos { x, y, z });
                         }
                     }
@@ -48426,6 +48426,12 @@ mod tests {
                 column.matching_columns,
                 column.total_columns
             );
+            for mismatch in block.mismatches.iter().take(8) {
+                eprintln!(
+                    "[worldgen-stage-parity-mismatch] stage={} count={} expected={} actual={}",
+                    label, mismatch.count, mismatch.expected, mismatch.actual
+                );
+            }
         }
     }
 
@@ -54272,6 +54278,24 @@ mod tests {
         let ore_candidates =
             super::ore_vein_position_candidates(&ore_spheres, 6, 28, 6, 6, 6, 0..384);
         assert!(!ore_candidates.is_empty());
+        let boundary_candidates = super::ore_vein_position_candidates(
+            &[super::OreVeinSphere {
+                center_x: 6.5,
+                center_y: 28.5,
+                center_z: 12.5,
+                radius: 0.51,
+            }],
+            6,
+            28,
+            6,
+            6,
+            6,
+            0..384,
+        );
+        assert!(
+            boundary_candidates.contains(&BlockPos { x: 6, y: 28, z: 12 }),
+            "OreFeature's Java BitSet expands for inclusive high-z boundary candidates"
+        );
         let sampled_candidate = ore_candidates[0];
         assert_eq!(
             ore_candidates
