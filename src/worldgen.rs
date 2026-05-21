@@ -24596,6 +24596,10 @@ fn add_client_heightmaps_from_blocks_timed(chunk: &mut LevelChunk) -> LiveHeight
     let mut found_ocean_floor = [false; 16 * 16];
     let mut found_motion_blocking = [false; 16 * 16];
     let mut found_motion_blocking_no_leaves = [false; 16 * 16];
+    let mut remaining_world_surface = 16 * 16;
+    let mut remaining_ocean_floor = 16 * 16;
+    let mut remaining_motion_blocking = 16 * 16;
+    let mut remaining_motion_blocking_no_leaves = 16 * 16;
 
     let mut sections: Vec<_> = chunk
         .sections
@@ -24611,7 +24615,7 @@ fn add_client_heightmaps_from_blocks_timed(chunk: &mut LevelChunk) -> LiveHeight
 
     let scan_started = Instant::now();
     let mut block_samples = 0;
-    for (section_y, container) in sections.into_iter().rev() {
+    'sections: for (section_y, container) in sections.into_iter().rev() {
         let section_min_y = i32::from(section_y) * 16;
         for local_y in (0..16).rev() {
             let world_height = section_min_y + local_y as i32 + 1;
@@ -24636,24 +24640,35 @@ fn add_client_heightmaps_from_blocks_timed(chunk: &mut LevelChunk) -> LiveHeight
                     {
                         world_surface[column] = world_height;
                         found_world_surface[column] = true;
+                        remaining_world_surface -= 1;
                     }
                     if !found_ocean_floor[column]
                         && heightmap_opaque(HeightmapKind::OceanFloor, block)
                     {
                         ocean_floor[column] = world_height;
                         found_ocean_floor[column] = true;
+                        remaining_ocean_floor -= 1;
                     }
                     if !found_motion_blocking[column]
                         && heightmap_opaque(HeightmapKind::MotionBlocking, block)
                     {
                         motion_blocking[column] = world_height;
                         found_motion_blocking[column] = true;
+                        remaining_motion_blocking -= 1;
                     }
                     if !found_motion_blocking_no_leaves[column]
                         && heightmap_opaque(HeightmapKind::MotionBlockingNoLeaves, block)
                     {
                         motion_blocking_no_leaves[column] = world_height;
                         found_motion_blocking_no_leaves[column] = true;
+                        remaining_motion_blocking_no_leaves -= 1;
+                    }
+                    if remaining_world_surface == 0
+                        && remaining_ocean_floor == 0
+                        && remaining_motion_blocking == 0
+                        && remaining_motion_blocking_no_leaves == 0
+                    {
+                        break 'sections;
                     }
                 }
             }
