@@ -31489,6 +31489,9 @@ impl OreVeinMaterialRule {
         timings: &mut LiveTerrainTimings,
         detailed_timing: bool,
     ) -> Option<&'static str> {
+        if !(ORE_VEIN_TYPES[1].min_y..=ORE_VEIN_TYPES[0].max_y).contains(&y) {
+            return None;
+        }
         timings.ore_vein_samples += 1;
         let vein_toggle = if detailed_timing {
             let ore_lookup_started = Instant::now();
