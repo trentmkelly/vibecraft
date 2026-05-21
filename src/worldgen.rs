@@ -30413,6 +30413,7 @@ pub fn fill_noise_and_build_surface_timed(
     with_noise_snapshot_cache(|| {
         let (mut chunk, mut timings) =
             fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router);
+        populate_noise_chunk_biomes(&mut chunk, biome_source_model, settings, seed, noise_router);
         build_surface_for_chunk_timed(
             &mut chunk,
             surface_rule,
@@ -30425,6 +30426,48 @@ pub fn fill_noise_and_build_surface_timed(
         chunk.status = "minecraft:surface".to_string();
         (chunk, timings)
     })
+}
+
+fn populate_noise_chunk_biomes(
+    chunk: &mut crate::storage::chunk::LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) {
+    let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
+    let chunk_quart_x = chunk.pos.x * 4;
+    let chunk_quart_z = chunk.pos.z * 4;
+
+    for section in &mut chunk.sections {
+        let section_quart_y = i32::from(section.y) * 4;
+        let mut biomes = PalettedContainer::single(
+            Tag::String("minecraft:plains".to_string()),
+            BIOME_SECTION_VOLUME,
+        );
+
+        for local_y in 0..4_usize {
+            for local_z in 0..4_usize {
+                for local_x in 0..4_usize {
+                    let quart_x = chunk_quart_x + local_x as i32;
+                    let quart_y = section_quart_y + local_y as i32;
+                    let quart_z = chunk_quart_z + local_z as i32;
+                    let biome = get_biome(
+                        biome_source_model,
+                        quart_x,
+                        quart_y,
+                        quart_z,
+                        &climate_sampler,
+                    )
+                    .unwrap_or("minecraft:plains");
+                    let index = local_y * 16 + local_z * 4 + local_x;
+                    biomes.set_entry(index, Tag::String(biome.to_string()));
+                }
+            }
+        }
+
+        section.biomes = biomes.to_nbt();
+    }
 }
 
 pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily> {
@@ -36353,7 +36396,7 @@ pub fn configured_tree_placement_plan(
             .expect("tree configuration was validated"),
         block_state_provider_sample(&config.foliage_provider, rand_b)
             .expect("tree configuration was validated"),
-        block_state_provider_sample(&config.dirt_provider, rand_a + rand_b)
+        block_state_provider_sample(&config.dirt_provider, rand_a.wrapping_add(rand_b))
             .expect("tree configuration was validated"),
         rand_a,
         rand_b,
