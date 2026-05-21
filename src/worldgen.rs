@@ -49132,6 +49132,194 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic for base material-rule drift against the vanilla fixture"]
+    fn normal_overworld_ore_vein_material_mismatch_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("vanilla fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut base_chunks = Vec::new();
+        for chunk in chunks {
+            let pos = ChunkPos {
+                x: chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            base_chunks.push(base);
+        }
+
+        let block = crate::worldgen_comparison::vanilla_worldgen_block_array_parity_score(
+            fixture_json,
+            &base_chunks,
+        )
+        .expect("block parity score should compute");
+        eprintln!(
+            "[ore-vein-material-diagnostic] base_block_score={:.6} ({}/{})",
+            block.score, block.matching_blocks, block.total_blocks
+        );
+
+        let interesting = [
+            "minecraft:tuff",
+            "minecraft:deepslate",
+            "minecraft:granite",
+            "minecraft:diorite",
+            "minecraft:andesite",
+            "minecraft:gravel",
+            "minecraft:stone",
+        ];
+        let mut printed = 0;
+        for sample in &block.samples {
+            if !interesting.contains(&sample.expected.as_str())
+                && !interesting.contains(&sample.actual.as_str())
+            {
+                continue;
+            }
+            let world_x = sample.chunk.x * 16 + sample.local_x as i32;
+            let world_z = sample.chunk.z * 16 + sample.local_z as i32;
+            let detail = ore_vein_material_detail_at(
+                ChunkPos {
+                    x: sample.chunk.x,
+                    z: sample.chunk.z,
+                },
+                world_x,
+                sample.y,
+                world_z,
+                noise_settings,
+                seed,
+            );
+            eprintln!(
+                "[ore-vein-material-sample] chunk=({}, {}) local=({}, {}, {}) world=({}, {}, {}) expected={} actual={} density={:.6} toggle={:.6} ridged={:.6} gap={:.6} decision={:?}",
+                sample.chunk.x,
+                sample.chunk.z,
+                sample.local_x,
+                sample.y,
+                sample.local_z,
+                world_x,
+                sample.y,
+                world_z,
+                sample.expected,
+                sample.actual,
+                detail.density,
+                detail.vein_toggle,
+                detail.vein_ridged,
+                detail.vein_gap,
+                detail.decision
+            );
+            printed += 1;
+            if printed >= 24 {
+                break;
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct OreVeinMaterialDetail {
+        density: f64,
+        vein_toggle: f64,
+        vein_ridged: f64,
+        vein_gap: f64,
+        decision: Option<&'static str>,
+    }
+
+    fn ore_vein_material_detail_at(
+        chunk_pos: ChunkPos,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+        settings: &super::NoiseGeneratorSettings,
+        seed: i64,
+    ) -> OreVeinMaterialDetail {
+        let router_id = super::noise_router_id_for_settings(*settings);
+        let noise_router = super::builtin_noise_router(router_id)
+            .map(|entry| entry.router)
+            .unwrap_or(super::NONE_NOISE_ROUTER);
+        let chunk_min_x = chunk_pos.x * 16;
+        let chunk_min_z = chunk_pos.z * 16;
+        let mut noise_chunk =
+            super::NoiseChunk::new(chunk_min_x, chunk_min_z, *settings, seed, noise_router);
+        let cell_width = settings.noise.cell_width();
+        let cell_height = settings.noise.cell_height();
+        let cell_x_index = (world_x - chunk_min_x).div_euclid(cell_width);
+        let cell_z_index = (world_z - chunk_min_z).div_euclid(cell_width);
+        let cell_noise_y = world_y.div_euclid(cell_height);
+        let cell_y_index = cell_noise_y - settings.noise.min_y.div_euclid(cell_height);
+
+        noise_chunk.advance_cell_x(cell_x_index);
+        noise_chunk.select_cell_yz(cell_y_index, cell_z_index);
+        noise_chunk.update_for_y(
+            world_y,
+            f64::from(world_y.rem_euclid(cell_height)) / f64::from(cell_height),
+        );
+        noise_chunk.update_for_x(
+            world_x,
+            f64::from((world_x - chunk_min_x).rem_euclid(cell_width)) / f64::from(cell_width),
+        );
+        noise_chunk.update_for_z(
+            world_z,
+            f64::from((world_z - chunk_min_z).rem_euclid(cell_width)) / f64::from(cell_width),
+        );
+
+        let vein_toggle = noise_chunk.cached_vein_toggle(world_x, world_y, world_z);
+        let vein_ridged = noise_chunk.vein_ridged_at(world_x, world_y, world_z);
+        let vein_gap = noise_chunk.vein_gap_at(world_x, world_y, world_z);
+        let algorithm = if settings.legacy_random_source {
+            crate::random_source::RandomAlgorithm::Legacy
+        } else {
+            crate::random_source::RandomAlgorithm::Xoroshiro
+        };
+        let ore_factory = crate::random_source::random_state_seed_factories(seed, algorithm).ore;
+        OreVeinMaterialDetail {
+            density: noise_chunk.interpolated_density(world_x, world_y, world_z),
+            vein_toggle,
+            vein_ridged,
+            vein_gap,
+            decision: super::ore_vein_decision_after_toggle(
+                ore_factory,
+                world_x,
+                world_y,
+                world_z,
+                vein_toggle,
+                || vein_ridged,
+                || vein_gap,
+                false,
+            ),
+        }
+    }
+
+    #[test]
     fn final_client_heightmaps_are_computed_from_blocks() {
         let mut chunk = crate::storage::chunk::LevelChunk::empty(ChunkPos { x: 0, z: 0 });
         let mut block_states = crate::storage::chunk::PalettedContainer::single(
