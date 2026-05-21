@@ -16,6 +16,22 @@ pub const HORSE_CHEST_SLOT_OFFSET: i32 = 499;
 pub const HORSE_INVENTORY_SLOT_OFFSET: i32 = 500;
 pub const HORSE_BREEDING_CROSS_FACTOR: f64 = 0.15;
 pub const HORSE_INVENTORY_ROWS: i32 = 3;
+pub const HORSE_VARIANT_COUNT: i32 = 7;
+pub const HORSE_MARKINGS_COUNT: i32 = 5;
+pub const HORSE_BABY_SCALE: f32 = 0.7;
+pub const CHESTED_HORSE_BABY_SCALE: f32 = 0.5;
+pub const CHESTED_HORSE_INVENTORY_COLUMNS: i32 = 5;
+pub const CHESTED_HORSE_MOVEMENT_SPEED: f32 = 0.175;
+pub const CHESTED_HORSE_JUMP_STRENGTH: f64 = 0.5;
+pub const LLAMA_MAX_STRENGTH: i32 = 5;
+pub const LLAMA_COMMON_MAX_STRENGTH: i32 = 3;
+pub const LLAMA_RARE_MAX_STRENGTH_CHANCE: f32 = 0.04;
+pub const LLAMA_BREED_STRENGTH_BONUS_CHANCE: f32 = 0.03;
+pub const LLAMA_MAX_TEMPER: i32 = 30;
+pub const LLAMA_RANGED_ATTACK_INTERVAL_TICKS: i32 = 40;
+pub const LLAMA_RANGED_ATTACK_RADIUS: f32 = 20.0;
+pub const LLAMA_SPIT_SPEED: f32 = 1.5;
+pub const LLAMA_SPIT_INACCURACY: f32 = 10.0;
 pub const VILLAGER_INVENTORY_SIZE: usize = 8;
 pub const VILLAGER_INVENTORY_SLOT_OFFSET: i32 = 300;
 pub const NO_ANGER_END_TIME: i64 = -1;
@@ -8112,6 +8128,102 @@ pub struct HorseState {
     pub alive: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HorseVariant {
+    White,
+    Creamy,
+    Chestnut,
+    Brown,
+    Black,
+    Gray,
+    DarkBrown,
+}
+
+impl HorseVariant {
+    pub fn by_id(id: i32) -> Self {
+        match id.rem_euclid(HORSE_VARIANT_COUNT) {
+            0 => Self::White,
+            1 => Self::Creamy,
+            2 => Self::Chestnut,
+            3 => Self::Brown,
+            4 => Self::Black,
+            5 => Self::Gray,
+            _ => Self::DarkBrown,
+        }
+    }
+
+    pub fn id(self) -> i32 {
+        match self {
+            Self::White => 0,
+            Self::Creamy => 1,
+            Self::Chestnut => 2,
+            Self::Brown => 3,
+            Self::Black => 4,
+            Self::Gray => 5,
+            Self::DarkBrown => 6,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HorseMarkings {
+    None,
+    White,
+    WhiteField,
+    WhiteDots,
+    BlackDots,
+}
+
+impl HorseMarkings {
+    pub fn by_id(id: i32) -> Self {
+        match id.rem_euclid(HORSE_MARKINGS_COUNT) {
+            0 => Self::None,
+            1 => Self::White,
+            2 => Self::WhiteField,
+            3 => Self::WhiteDots,
+            _ => Self::BlackDots,
+        }
+    }
+
+    pub fn id(self) -> i32 {
+        match self {
+            Self::None => 0,
+            Self::White => 1,
+            Self::WhiteField => 2,
+            Self::WhiteDots => 3,
+            Self::BlackDots => 4,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlamaVariant {
+    Creamy,
+    White,
+    Brown,
+    Gray,
+}
+
+impl LlamaVariant {
+    pub fn by_id(id: i32) -> Self {
+        match id.clamp(0, 3) {
+            0 => Self::Creamy,
+            1 => Self::White,
+            2 => Self::Brown,
+            _ => Self::Gray,
+        }
+    }
+
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Creamy => 0,
+            Self::White => 1,
+            Self::Brown => 2,
+            Self::Gray => 3,
+        }
+    }
+}
+
 impl HorseState {
     pub fn is_tamed(self) -> bool {
         self.flags & HORSE_FLAG_TAME != 0
@@ -8124,6 +8236,108 @@ impl HorseState {
     pub fn modify_temper(mut self, amount: i32) -> Self {
         self.temper = (self.temper + amount).clamp(0, self.max_temper);
         self
+    }
+}
+
+pub fn horse_type_variant(variant: HorseVariant, markings: HorseMarkings) -> i32 {
+    variant.id() & 0xFF | (markings.id() << 8) & 0xFF00
+}
+
+pub fn horse_variant_from_type(type_variant: i32) -> HorseVariant {
+    HorseVariant::by_id(type_variant & 0xFF)
+}
+
+pub fn horse_markings_from_type(type_variant: i32) -> HorseMarkings {
+    HorseMarkings::by_id((type_variant & 0xFF00) >> 8)
+}
+
+pub fn horse_offspring_variant(
+    first_parent: HorseVariant,
+    second_parent: HorseVariant,
+    select_skin_roll: i32,
+    random_variant_roll: i32,
+) -> HorseVariant {
+    let roll = select_skin_roll.rem_euclid(9);
+    if roll < 4 {
+        first_parent
+    } else if roll < 8 {
+        second_parent
+    } else {
+        HorseVariant::by_id(random_variant_roll)
+    }
+}
+
+pub fn horse_offspring_markings(
+    first_parent: HorseMarkings,
+    second_parent: HorseMarkings,
+    select_marking_roll: i32,
+    random_marking_roll: i32,
+) -> HorseMarkings {
+    let roll = select_marking_roll.rem_euclid(5);
+    if roll < 2 {
+        first_parent
+    } else if roll < 4 {
+        second_parent
+    } else {
+        HorseMarkings::by_id(random_marking_roll)
+    }
+}
+
+pub fn chested_horse_inventory_columns(has_chest: bool) -> i32 {
+    if has_chest {
+        CHESTED_HORSE_INVENTORY_COLUMNS
+    } else {
+        0
+    }
+}
+
+pub fn chested_horse_can_equip_chest(has_chest: bool, tamed: bool, baby: bool, item: &str) -> bool {
+    !has_chest && tamed && !baby && item == "minecraft:chest"
+}
+
+pub fn llama_strength_from_spawn(max_strength_roll_hits: bool, strength_roll: i32) -> i32 {
+    let max_strength = if max_strength_roll_hits {
+        LLAMA_MAX_STRENGTH
+    } else {
+        LLAMA_COMMON_MAX_STRENGTH
+    };
+    1 + strength_roll.rem_euclid(max_strength)
+}
+
+pub fn llama_inventory_columns(has_chest: bool, strength: i32) -> i32 {
+    if has_chest {
+        strength.clamp(1, LLAMA_MAX_STRENGTH)
+    } else {
+        0
+    }
+}
+
+pub fn llama_offspring_strength(
+    first_parent_strength: i32,
+    second_parent_strength: i32,
+    strength_roll: i32,
+    bonus_roll_hits: bool,
+) -> i32 {
+    let max_parent = first_parent_strength
+        .max(second_parent_strength)
+        .clamp(1, LLAMA_MAX_STRENGTH);
+    let strength = 1 + strength_roll.rem_euclid(max_parent);
+    if bonus_roll_hits {
+        (strength + 1).clamp(1, LLAMA_MAX_STRENGTH)
+    } else {
+        strength
+    }
+}
+
+pub fn llama_offspring_variant(
+    first_parent: LlamaVariant,
+    second_parent: LlamaVariant,
+    choose_first_parent: bool,
+) -> LlamaVariant {
+    if choose_first_parent {
+        first_parent
+    } else {
+        second_parent
     }
 }
 
@@ -8390,6 +8604,88 @@ mod tests {
         assert_eq!(HORSE_CHEST_SLOT_OFFSET, 499);
         assert_eq!(HORSE_INVENTORY_SLOT_OFFSET, 500);
         assert_eq!(HORSE_BREEDING_CROSS_FACTOR, 0.15);
+        assert_eq!(HORSE_INVENTORY_ROWS, 3);
+        assert_eq!(HORSE_FLAG_BRED, 8);
+        assert_eq!(HORSE_FLAG_EATING, 16);
+        assert_eq!(HORSE_FLAG_STANDING, 32);
+        assert_eq!(HORSE_FLAG_OPEN_MOUTH, 64);
+        assert_eq!(HORSE_BABY_SCALE, 0.7);
+        assert_eq!(CHESTED_HORSE_BABY_SCALE, 0.5);
+        assert_eq!(CHESTED_HORSE_MOVEMENT_SPEED, 0.175);
+        assert_eq!(CHESTED_HORSE_JUMP_STRENGTH, 0.5);
+        assert_eq!(
+            horse_type_variant(HorseVariant::DarkBrown, HorseMarkings::BlackDots),
+            1030
+        );
+        assert_eq!(horse_variant_from_type(1030), HorseVariant::DarkBrown);
+        assert_eq!(horse_markings_from_type(1030), HorseMarkings::BlackDots);
+        assert_eq!(HorseVariant::by_id(7), HorseVariant::White);
+        assert_eq!(HorseMarkings::by_id(5), HorseMarkings::None);
+        assert_eq!(
+            horse_offspring_variant(HorseVariant::White, HorseVariant::Black, 3, 6),
+            HorseVariant::White
+        );
+        assert_eq!(
+            horse_offspring_variant(HorseVariant::White, HorseVariant::Black, 7, 6),
+            HorseVariant::Black
+        );
+        assert_eq!(
+            horse_offspring_variant(HorseVariant::White, HorseVariant::Black, 8, 6),
+            HorseVariant::DarkBrown
+        );
+        assert_eq!(
+            horse_offspring_markings(HorseMarkings::White, HorseMarkings::BlackDots, 1, 2),
+            HorseMarkings::White
+        );
+        assert_eq!(
+            horse_offspring_markings(HorseMarkings::White, HorseMarkings::BlackDots, 3, 2),
+            HorseMarkings::BlackDots
+        );
+        assert_eq!(
+            horse_offspring_markings(HorseMarkings::White, HorseMarkings::BlackDots, 4, 2),
+            HorseMarkings::WhiteField
+        );
+        assert_eq!(chested_horse_inventory_columns(false), 0);
+        assert_eq!(chested_horse_inventory_columns(true), 5);
+        assert!(chested_horse_can_equip_chest(
+            false,
+            true,
+            false,
+            "minecraft:chest"
+        ));
+        assert!(!chested_horse_can_equip_chest(
+            true,
+            true,
+            false,
+            "minecraft:chest"
+        ));
+        assert_eq!(LLAMA_MAX_STRENGTH, 5);
+        assert_eq!(LLAMA_COMMON_MAX_STRENGTH, 3);
+        assert_eq!(LLAMA_RARE_MAX_STRENGTH_CHANCE, 0.04);
+        assert_eq!(LLAMA_BREED_STRENGTH_BONUS_CHANCE, 0.03);
+        assert_eq!(LLAMA_MAX_TEMPER, 30);
+        assert_eq!(LLAMA_RANGED_ATTACK_INTERVAL_TICKS, 40);
+        assert_eq!(LLAMA_RANGED_ATTACK_RADIUS, 20.0);
+        assert_eq!(LLAMA_SPIT_SPEED, 1.5);
+        assert_eq!(LLAMA_SPIT_INACCURACY, 10.0);
+        assert_eq!(LlamaVariant::by_id(-1), LlamaVariant::Creamy);
+        assert_eq!(LlamaVariant::by_id(9), LlamaVariant::Gray);
+        assert_eq!(LlamaVariant::Brown.id(), 2);
+        assert_eq!(llama_strength_from_spawn(false, 2), 3);
+        assert_eq!(llama_strength_from_spawn(true, 4), 5);
+        assert_eq!(llama_inventory_columns(false, 5), 0);
+        assert_eq!(llama_inventory_columns(true, 5), 5);
+        assert_eq!(llama_inventory_columns(true, 9), 5);
+        assert_eq!(llama_offspring_strength(2, 4, 3, false), 4);
+        assert_eq!(llama_offspring_strength(2, 4, 3, true), 5);
+        assert_eq!(
+            llama_offspring_variant(LlamaVariant::White, LlamaVariant::Gray, true),
+            LlamaVariant::White
+        );
+        assert_eq!(
+            llama_offspring_variant(LlamaVariant::White, LlamaVariant::Gray, false),
+            LlamaVariant::Gray
+        );
         assert_eq!(villager_slot_index(300), Some(0));
         assert_eq!(villager_slot_index(307), Some(7));
         assert_eq!(villager_slot_index(308), None);
