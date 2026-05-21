@@ -33003,19 +33003,29 @@ fn apply_underground_ore_decoration_to_chunk(
     let mut ore_candidate_us = 0_u128;
     let mut ore_block_us = 0_u128;
     let mut ore_origin_us = 0_u128;
+    let mut ore_total_us = 0_u128;
     let mut ore_configured_calls = 0_usize;
     let mut ore_candidate_count = 0_usize;
     let mut ore_in_chunk_candidates = 0_usize;
+    let mut ore_model_cache: HashMap<&'static str, (PlacedOreFeatureModel, OreConfigurationModel)> =
+        HashMap::new();
     let placement_started = Instant::now();
-    for call in plan.feature_calls.iter().filter(|call| {
-        call.step_index == GenerationDecorationStep::UndergroundOres as usize
-            && placed_ore_feature(call.feature).is_some()
-    }) {
+    for call in plan
+        .feature_calls
+        .iter()
+        .filter(|call| call.step_index == GenerationDecorationStep::UndergroundOres as usize)
+    {
         calls += 1;
-        let Some(feature) = placed_ore_feature(call.feature) else {
-            continue;
-        };
-        let Some(config) = configured_ore_configuration(feature.configured_feature) else {
+        if !ore_model_cache.contains_key(call.feature) {
+            let Some(feature) = placed_ore_feature(call.feature) else {
+                continue;
+            };
+            let Some(config) = configured_ore_configuration(feature.configured_feature) else {
+                continue;
+            };
+            ore_model_cache.insert(call.feature, (feature, config));
+        }
+        let Some((feature, config)) = ore_model_cache.get(call.feature) else {
             continue;
         };
         let report = place_ore_feature_in_chunk(
@@ -33026,8 +33036,8 @@ fn apply_underground_ore_decoration_to_chunk(
             seed,
             &climate_sampler,
             call.feature,
-            &feature,
-            &config,
+            feature,
+            config,
             call.seed,
             skip_biome_filter,
         );
@@ -33035,6 +33045,7 @@ fn apply_underground_ore_decoration_to_chunk(
         ore_candidate_us += report.candidate_us;
         ore_block_us += report.block_us;
         ore_origin_us += report.origin_us;
+        ore_total_us += report.total_us;
         ore_configured_calls += report.configured_calls;
         ore_candidate_count += report.candidate_count;
         ore_in_chunk_candidates += report.in_chunk_candidates;
@@ -33045,7 +33056,7 @@ fn apply_underground_ore_decoration_to_chunk(
     let placement_ms = placement_started.elapsed().as_millis();
     if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DEBUG").is_some() {
         eprintln!(
-            "[ore-debug] total={}ms biome_steps={}ms possible_steps={} global_steps={} feature_sort={}ms plan={}ms placement={}ms flush={}ms calls={} configured_calls={} candidates={} in_chunk={} origin_time={}us candidate_time={}us block_time={}us placed={}",
+            "[ore-debug] total={}ms biome_steps={}ms possible_steps={} global_steps={} feature_sort={}ms plan={}ms placement={}ms flush={}ms calls={} configured_calls={} candidates={} in_chunk={} configured_time={}us origin_time={}us candidate_time={}us block_time={}us placed={}",
             total_started.elapsed().as_millis(),
             biome_steps_ms,
             possible_steps.len(),
@@ -33058,6 +33069,7 @@ fn apply_underground_ore_decoration_to_chunk(
             ore_configured_calls,
             ore_candidate_count,
             ore_in_chunk_candidates,
+            ore_total_us,
             ore_origin_us,
             ore_candidate_us,
             ore_block_us,
@@ -33326,6 +33338,7 @@ fn paletted_block_name(tag: &Tag) -> Option<&str> {
 struct OrePlacementReport {
     placed: usize,
     configured_calls: usize,
+    total_us: u128,
     candidate_count: usize,
     in_chunk_candidates: usize,
     origin_us: u128,
@@ -33337,6 +33350,7 @@ impl std::ops::AddAssign for OrePlacementReport {
     fn add_assign(&mut self, rhs: Self) {
         self.placed += rhs.placed;
         self.configured_calls += rhs.configured_calls;
+        self.total_us += rhs.total_us;
         self.candidate_count += rhs.candidate_count;
         self.in_chunk_candidates += rhs.in_chunk_candidates;
         self.origin_us += rhs.origin_us;
@@ -33849,6 +33863,7 @@ fn place_configured_ore_in_chunk(
     if !ore_origin_overlaps_ocean_floor_wg(chunk, x_start, y_start, z_start, size_xz) {
         return OrePlacementReport {
             configured_calls: 1,
+            total_us: total_started.elapsed().as_micros(),
             origin_us: started.elapsed().as_micros(),
             ..OrePlacementReport::default()
         };
@@ -33917,6 +33932,7 @@ fn place_configured_ore_in_chunk(
     OrePlacementReport {
         placed,
         configured_calls: 1,
+        total_us: total_started.elapsed().as_micros(),
         candidate_count,
         in_chunk_candidates,
         origin_us,
