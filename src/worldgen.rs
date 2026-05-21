@@ -947,6 +947,12 @@ pub struct PlacedOreFeatureModel {
     pub placement: Vec<PlacementModifier>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacedDiskFeatureModel {
+    pub configured_feature: &'static str,
+    pub placement: Vec<PlacementModifier>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlacementContextModel {
     pub min_y: i32,
@@ -1929,7 +1935,7 @@ pub struct BlockPileConfigurationModel {
 pub struct DiskConfigurationModel {
     pub state_provider: BlockStateProviderModel,
     pub target: BlockPredicate,
-    pub radius: i32,
+    pub radius: IntProviderModel,
     pub half_height: i32,
 }
 
@@ -33685,55 +33691,27 @@ fn apply_underground_ore_decoration_to_chunk(
     };
     let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
     let started = Instant::now();
-    let possible_steps = decoration_region_biome_steps
-        .map(|steps| steps.to_vec())
-        .unwrap_or_else(|| {
-            possible_biome_feature_steps_for_decoration_region(
-                chunk.pos,
-                biome_source_model,
-                settings,
-                &climate_sampler,
-            )
-        });
-    let biome_steps_ms = if decoration_region_biome_steps.is_some() {
-        0
-    } else {
-        started.elapsed().as_millis()
-    };
-    if possible_steps.is_empty() {
-        return 0;
-    }
-
-    let started = Instant::now();
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
-    let feature_source_steps = if global_biome_steps.is_empty() {
-        &possible_steps
-    } else {
+    let target_possible_steps = decoration_region_biome_steps
+        .map(|steps| steps.to_vec())
+        .unwrap_or_default();
+    let feature_source_steps = if !global_biome_steps.is_empty() {
         &global_biome_steps
+    } else {
+        &target_possible_steps
     };
     let features_per_step = match build_features_per_step(feature_source_steps, true) {
         Ok(features) => features,
         Err(_) => return 0,
     };
     let feature_sort_ms = started.elapsed().as_millis();
-    let skip_biome_filter = biome_steps_share_decoration_step_features(
-        &possible_steps,
-        GenerationDecorationStep::UndergroundOres,
-    );
-    let started = Instant::now();
-    let plan = biome_decoration_feature_plan(
-        seed,
-        chunk.pos.x,
-        chunk.pos.z,
-        settings.noise.min_y.div_euclid(16),
-        &features_per_step,
-        &possible_steps,
-    );
-    let plan_ms = started.elapsed().as_millis();
 
     let mut placed = 0;
     let mut calls = 0;
     let mut block_cache = OreBlockCache::from_chunk(chunk);
+    let mut biome_steps_ms = 0_u128;
+    let mut plan_ms = 0_u128;
+    let mut possible_step_sets = 0_usize;
     let mut ore_candidate_us = 0_u128;
     let mut ore_block_us = 0_u128;
     let mut ore_origin_us = 0_u128;
@@ -33743,46 +33721,119 @@ fn apply_underground_ore_decoration_to_chunk(
     let mut ore_in_chunk_candidates = 0_usize;
     let mut ore_model_cache: HashMap<&'static str, (PlacedOreFeatureModel, OreConfigurationModel)> =
         HashMap::new();
+    let mut disk_model_cache: HashMap<
+        &'static str,
+        (PlacedDiskFeatureModel, DiskConfigurationModel),
+    > = HashMap::new();
     let placement_started = Instant::now();
-    for call in plan
-        .feature_calls
-        .iter()
-        .filter(|call| call.step_index == GenerationDecorationStep::UndergroundOres as usize)
-    {
-        calls += 1;
-        if !ore_model_cache.contains_key(call.feature) {
-            let Some(feature) = placed_ore_feature(call.feature) else {
-                continue;
+    for source_z in chunk.pos.z - 1..=chunk.pos.z + 1 {
+        for source_x in chunk.pos.x - 1..=chunk.pos.x + 1 {
+            let source_pos = ChunkPos {
+                x: source_x,
+                z: source_z,
             };
-            let Some(config) = configured_ore_configuration(feature.configured_feature) else {
+            let started = Instant::now();
+            let possible_steps = decoration_region_biome_steps
+                .map(|steps| steps.to_vec())
+                .unwrap_or_else(|| {
+                    possible_biome_feature_steps_for_decoration_region(
+                        source_pos,
+                        biome_source_model,
+                        settings,
+                        &climate_sampler,
+                    )
+                });
+            if decoration_region_biome_steps.is_none() {
+                biome_steps_ms += started.elapsed().as_millis();
+            }
+            if possible_steps.is_empty() {
                 continue;
-            };
-            ore_model_cache.insert(call.feature, (feature, config));
+            }
+            possible_step_sets += possible_steps.len();
+
+            let skip_biome_filter = biome_steps_share_decoration_step_features(
+                &possible_steps,
+                GenerationDecorationStep::UndergroundOres,
+            );
+            let started = Instant::now();
+            let plan = biome_decoration_feature_plan(
+                seed,
+                source_pos.x,
+                source_pos.z,
+                settings.noise.min_y.div_euclid(16),
+                &features_per_step,
+                &possible_steps,
+            );
+            plan_ms += started.elapsed().as_millis();
+
+            for call in plan.feature_calls.iter().filter(|call| {
+                call.step_index == GenerationDecorationStep::UndergroundOres as usize
+            }) {
+                calls += 1;
+                if let Some(report) = {
+                    if !ore_model_cache.contains_key(call.feature) {
+                        if let Some(feature) = placed_ore_feature(call.feature) {
+                            if let Some(config) =
+                                configured_ore_configuration(feature.configured_feature)
+                            {
+                                ore_model_cache.insert(call.feature, (feature, config));
+                            }
+                        }
+                    }
+                    ore_model_cache.get(call.feature).map(|(feature, config)| {
+                        place_ore_feature_in_chunk(
+                            &*chunk,
+                            &mut block_cache,
+                            source_pos,
+                            biome_source_model,
+                            settings,
+                            seed,
+                            &climate_sampler,
+                            call.feature,
+                            feature,
+                            config,
+                            call.seed,
+                            skip_biome_filter,
+                        )
+                    })
+                } {
+                    placed += report.placed;
+                    ore_candidate_us += report.candidate_us;
+                    ore_block_us += report.block_us;
+                    ore_origin_us += report.origin_us;
+                    ore_total_us += report.total_us;
+                    ore_configured_calls += report.configured_calls;
+                    ore_candidate_count += report.candidate_count;
+                    ore_in_chunk_candidates += report.in_chunk_candidates;
+                    continue;
+                }
+
+                if !disk_model_cache.contains_key(call.feature) {
+                    if let Some(feature) = placed_disk_feature(call.feature) {
+                        if let Some(config) =
+                            configured_disk_configuration(feature.configured_feature)
+                        {
+                            disk_model_cache.insert(call.feature, (feature, config));
+                        }
+                    }
+                }
+                if let Some((feature, config)) = disk_model_cache.get(call.feature) {
+                    let disk_placed = place_disk_feature_in_chunk(
+                        &mut block_cache,
+                        source_pos,
+                        biome_source_model,
+                        settings,
+                        &climate_sampler,
+                        call.feature,
+                        feature,
+                        config,
+                        call.seed,
+                        skip_biome_filter,
+                    );
+                    placed += disk_placed;
+                }
+            }
         }
-        let Some((feature, config)) = ore_model_cache.get(call.feature) else {
-            continue;
-        };
-        let report = place_ore_feature_in_chunk(
-            &*chunk,
-            &mut block_cache,
-            biome_source_model,
-            settings,
-            seed,
-            &climate_sampler,
-            call.feature,
-            feature,
-            config,
-            call.seed,
-            skip_biome_filter,
-        );
-        placed += report.placed;
-        ore_candidate_us += report.candidate_us;
-        ore_block_us += report.block_us;
-        ore_origin_us += report.origin_us;
-        ore_total_us += report.total_us;
-        ore_configured_calls += report.configured_calls;
-        ore_candidate_count += report.candidate_count;
-        ore_in_chunk_candidates += report.in_chunk_candidates;
     }
     let flush_started = Instant::now();
     block_cache.flush_to_chunk(chunk);
@@ -33793,7 +33844,7 @@ fn apply_underground_ore_decoration_to_chunk(
             "[ore-debug] total={}ms biome_steps={}ms possible_steps={} global_steps={} feature_sort={}ms plan={}ms placement={}ms flush={}ms calls={} configured_calls={} candidates={} in_chunk={} configured_time={}us origin_time={}us candidate_time={}us block_time={}us placed={}",
             total_started.elapsed().as_millis(),
             biome_steps_ms,
-            possible_steps.len(),
+            possible_step_sets,
             global_biome_steps.len(),
             feature_sort_ms,
             plan_ms,
@@ -33996,6 +34047,28 @@ impl OreBlockCache {
             .and_then(|name| name.as_deref())
     }
 
+    fn heightmap_value_by_scan(&self, heightmap: HeightmapKind, world_x: i32, world_z: i32) -> i32 {
+        if !self.contains_world_xz(world_x, world_z) {
+            return self.min_section_y * 16;
+        }
+        let min_y = self.min_section_y * 16;
+        let max_y = self
+            .sections
+            .iter()
+            .map(|section| i32::from(section.y) * 16 + 15)
+            .max()
+            .unwrap_or(min_y);
+        for y in (min_y..=max_y).rev() {
+            let block = self
+                .block_state_name(world_x, y, world_z)
+                .unwrap_or("minecraft:air");
+            if heightmap_opaque(heightmap, block) {
+                return y + 1;
+            }
+        }
+        min_y
+    }
+
     fn set_block_state(
         &mut self,
         world_x: i32,
@@ -34151,6 +34224,7 @@ impl std::ops::AddAssign for OrePlacementReport {
 fn place_ore_feature_in_chunk(
     chunk: &LevelChunk,
     block_cache: &mut OreBlockCache,
+    source_pos: ChunkPos,
     biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     seed: i64,
@@ -34167,9 +34241,9 @@ fn place_ore_feature_in_chunk(
     };
     let mut random = RandomSourceKind::new(feature_seed_value, RandomAlgorithm::Xoroshiro);
     let origin = BlockPos {
-        x: chunk.pos.x * 16,
+        x: source_pos.x * 16,
         y: settings.noise.min_y,
-        z: chunk.pos.z * 16,
+        z: source_pos.z * 16,
     };
     if let Some(report) = place_vanilla_ore_feature_fast(
         chunk,
@@ -34477,6 +34551,329 @@ fn place_ore_feature_positions_depth_first(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn place_disk_feature_in_chunk(
+    block_cache: &mut OreBlockCache,
+    source_pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    climate_sampler: &ClimateSampler,
+    placed_feature_id: &str,
+    feature: &PlacedDiskFeatureModel,
+    config: &DiskConfigurationModel,
+    feature_seed_value: i64,
+    skip_biome_filter: bool,
+) -> usize {
+    let context = WorldGenerationHeightContext {
+        min_y: settings.noise.min_y,
+        height: settings.noise.height,
+    };
+    let mut random = RandomSourceKind::new(feature_seed_value, RandomAlgorithm::Xoroshiro);
+    let origin = BlockPos {
+        x: source_pos.x * 16,
+        y: settings.noise.min_y,
+        z: source_pos.z * 16,
+    };
+    place_disk_feature_positions_depth_first(
+        block_cache,
+        biome_source_model,
+        settings,
+        climate_sampler,
+        placed_feature_id,
+        &feature.placement,
+        context,
+        config,
+        origin,
+        &mut random,
+        skip_biome_filter,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_disk_feature_positions_depth_first(
+    block_cache: &mut OreBlockCache,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    climate_sampler: &ClimateSampler,
+    placed_feature_id: &str,
+    modifiers: &[PlacementModifier],
+    context: WorldGenerationHeightContext,
+    config: &DiskConfigurationModel,
+    position: BlockPos,
+    random: &mut RandomSourceKind,
+    skip_biome_filter: bool,
+) -> usize {
+    let Some((modifier, remaining_modifiers)) = modifiers.split_first() else {
+        return place_configured_disk_in_chunk(block_cache, settings, config, position, random);
+    };
+
+    match *modifier {
+        PlacementModifier::Count { count } => {
+            let mut placed = 0;
+            for _ in 0..count.max(0) {
+                placed += place_disk_feature_positions_depth_first(
+                    block_cache,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    remaining_modifiers,
+                    context,
+                    config,
+                    position,
+                    random,
+                    skip_biome_filter,
+                );
+            }
+            placed
+        }
+        PlacementModifier::CountProvider { provider, .. } => {
+            let mut placed = 0;
+            for _ in 0..sample_int_provider(provider, random).max(0) {
+                placed += place_disk_feature_positions_depth_first(
+                    block_cache,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    remaining_modifiers,
+                    context,
+                    config,
+                    position,
+                    random,
+                    skip_biome_filter,
+                );
+            }
+            placed
+        }
+        PlacementModifier::RarityFilter { chance } => {
+            if chance > 0 && feature_random_next_f32(random) < 1.0 / chance as f32 {
+                place_disk_feature_positions_depth_first(
+                    block_cache,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    remaining_modifiers,
+                    context,
+                    config,
+                    position,
+                    random,
+                    skip_biome_filter,
+                )
+            } else {
+                0
+            }
+        }
+        PlacementModifier::InSquare => place_disk_feature_positions_depth_first(
+            block_cache,
+            biome_source_model,
+            settings,
+            climate_sampler,
+            placed_feature_id,
+            remaining_modifiers,
+            context,
+            config,
+            BlockPos {
+                x: position.x + feature_random_next_i32_bound(random, 16),
+                y: position.y,
+                z: position.z + feature_random_next_i32_bound(random, 16),
+            },
+            random,
+            skip_biome_filter,
+        ),
+        PlacementModifier::Heightmap { heightmap } => {
+            let x = position.x;
+            let z = position.z;
+            let y = block_cache.heightmap_value_by_scan(heightmap, x, z);
+            if y <= settings.noise.min_y {
+                0
+            } else {
+                place_disk_feature_positions_depth_first(
+                    block_cache,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    remaining_modifiers,
+                    context,
+                    config,
+                    BlockPos { x, y, z },
+                    random,
+                    skip_biome_filter,
+                )
+            }
+        }
+        PlacementModifier::HeightRange { height } => place_disk_feature_positions_depth_first(
+            block_cache,
+            biome_source_model,
+            settings,
+            climate_sampler,
+            placed_feature_id,
+            remaining_modifiers,
+            context,
+            config,
+            BlockPos {
+                x: position.x,
+                y: height_provider_sample_with_random(height, context, random),
+                z: position.z,
+            },
+            random,
+            skip_biome_filter,
+        ),
+        PlacementModifier::BlockPredicateFilter { predicate } => {
+            let block = block_cache
+                .block_state_name(position.x, position.y, position.z)
+                .and_then(carver_static_block_name)
+                .unwrap_or("minecraft:air");
+            let predicate_context = block_predicate_context_for_state(
+                block,
+                settings.noise.min_y,
+                settings.noise.height,
+            );
+            if block_predicate_test(predicate, predicate_context, position.y) {
+                place_disk_feature_positions_depth_first(
+                    block_cache,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    remaining_modifiers,
+                    context,
+                    config,
+                    position,
+                    random,
+                    skip_biome_filter,
+                )
+            } else {
+                0
+            }
+        }
+        PlacementModifier::BiomeFilter => {
+            if skip_biome_filter
+                || biome_allows_feature_at(
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    position,
+                    placed_feature_id,
+                )
+            {
+                place_disk_feature_positions_depth_first(
+                    block_cache,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    remaining_modifiers,
+                    context,
+                    config,
+                    position,
+                    random,
+                    skip_biome_filter,
+                )
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+fn place_configured_disk_in_chunk(
+    block_cache: &mut OreBlockCache,
+    settings: &NoiseGeneratorSettings,
+    config: &DiskConfigurationModel,
+    origin: BlockPos,
+    random: &mut RandomSourceKind,
+) -> usize {
+    let radius = sample_int_provider(config.radius, random).clamp(0, 8);
+    let half_height = config.half_height.clamp(0, 4);
+    let top = origin.y + half_height;
+    let bottom_exclusive = origin.y - half_height - 1;
+    let mut placed = 0;
+    for z in origin.z - radius..=origin.z + radius {
+        for x in origin.x - radius..=origin.x + radius {
+            let dx = x - origin.x;
+            let dz = z - origin.z;
+            if dx * dx + dz * dz > radius * radius {
+                continue;
+            }
+            for y in (bottom_exclusive + 1..=top).rev() {
+                let Some(current) = block_cache
+                    .block_state_name(x, y, z)
+                    .and_then(carver_static_block_name)
+                else {
+                    continue;
+                };
+                let context = block_predicate_context_for_state(
+                    current,
+                    settings.noise.min_y,
+                    settings.noise.height,
+                );
+                if !block_predicate_test(config.target, context, y) {
+                    continue;
+                }
+                let below = block_cache
+                    .block_state_name(x, y - 1, z)
+                    .and_then(carver_static_block_name)
+                    .unwrap_or("minecraft:air");
+                let provider_context = block_predicate_context_for_state(
+                    below,
+                    settings.noise.min_y,
+                    settings.noise.height,
+                );
+                let Some(state) = block_state_provider_sample_in_context(
+                    &config.state_provider,
+                    feature_random_next_i32_bound(random, i32::MAX),
+                    provider_context,
+                    y,
+                    current,
+                ) else {
+                    continue;
+                };
+                block_cache.set_block_state(x, y, z, state);
+                placed += 1;
+            }
+        }
+    }
+    placed
+}
+
+fn block_predicate_context_for_state(
+    block: &'static str,
+    min_y: i32,
+    height: i32,
+) -> BlockPredicateContext {
+    BlockPredicateContext {
+        min_y,
+        height,
+        block,
+        fluid: if block_has_fluid(block) {
+            block_state_id(block)
+        } else {
+            "minecraft:empty"
+        },
+        solid: block_blocks_motion(block),
+        replaceable: matches!(
+            block_state_id(block),
+            "minecraft:air"
+                | "minecraft:cave_air"
+                | "minecraft:void_air"
+                | "minecraft:water"
+                | "minecraft:lava"
+                | "minecraft:short_grass"
+                | "minecraft:fern"
+                | "minecraft:tall_grass"
+                | "minecraft:large_fern"
+        ),
+        unobstructed: matches!(
+            block_state_id(block),
+            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air" | "minecraft:water"
+        ),
+    }
+}
+
 fn sample_int_provider(provider: IntProviderModel, random: &mut RandomSourceKind) -> i32 {
     match provider {
         IntProviderModel::Constant(value) => value,
@@ -34489,6 +34886,22 @@ fn sample_int_provider(provider: IntProviderModel, random: &mut RandomSourceKind
             } else {
                 min_inclusive
                     + feature_random_next_i32_bound(random, max_inclusive - min_inclusive + 1)
+            }
+        }
+    }
+}
+
+fn sample_int_provider_from_roll(provider: IntProviderModel, roll: i32) -> i32 {
+    match provider {
+        IntProviderModel::Constant(value) => value,
+        IntProviderModel::Uniform {
+            min_inclusive,
+            max_inclusive,
+        } => {
+            if max_inclusive <= min_inclusive {
+                min_inclusive
+            } else {
+                min_inclusive + roll.rem_euclid(max_inclusive - min_inclusive + 1)
             }
         }
     }
@@ -35833,6 +36246,109 @@ pub fn placed_ore_feature(id: &str) -> Option<PlacedOreFeatureModel> {
         _ => return None,
     };
     Some(model)
+}
+
+pub fn placed_disk_feature(id: &str) -> Option<PlacedDiskFeatureModel> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    let model = match name {
+        "disk_clay" => PlacedDiskFeatureModel {
+            configured_feature: "minecraft:disk_clay",
+            placement: vec![
+                PlacementModifier::InSquare,
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::OceanFloorWg,
+                },
+                PlacementModifier::BlockPredicateFilter {
+                    predicate: BlockPredicate::MatchingFluids {
+                        fluids: &["minecraft:water"],
+                    },
+                },
+                PlacementModifier::BiomeFilter,
+            ],
+        },
+        "disk_gravel" => PlacedDiskFeatureModel {
+            configured_feature: "minecraft:disk_gravel",
+            placement: vec![
+                PlacementModifier::InSquare,
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::OceanFloorWg,
+                },
+                PlacementModifier::BlockPredicateFilter {
+                    predicate: BlockPredicate::MatchingFluids {
+                        fluids: &["minecraft:water"],
+                    },
+                },
+                PlacementModifier::BiomeFilter,
+            ],
+        },
+        "disk_sand" => PlacedDiskFeatureModel {
+            configured_feature: "minecraft:disk_sand",
+            placement: vec![
+                PlacementModifier::Count { count: 3 },
+                PlacementModifier::InSquare,
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::OceanFloorWg,
+                },
+                PlacementModifier::BlockPredicateFilter {
+                    predicate: BlockPredicate::MatchingFluids {
+                        fluids: &["minecraft:water"],
+                    },
+                },
+                PlacementModifier::BiomeFilter,
+            ],
+        },
+        _ => return None,
+    };
+    Some(model)
+}
+
+pub fn configured_disk_configuration(id: &str) -> Option<DiskConfigurationModel> {
+    let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    match name {
+        "disk_clay" => Some(DiskConfigurationModel {
+            state_provider: BlockStateProviderModel::Simple("minecraft:clay"),
+            target: BlockPredicate::MatchingBlocks {
+                blocks: &["minecraft:dirt", "minecraft:clay"],
+            },
+            radius: IntProviderModel::Uniform {
+                min_inclusive: 2,
+                max_inclusive: 3,
+            },
+            half_height: 1,
+        }),
+        "disk_gravel" => Some(DiskConfigurationModel {
+            state_provider: BlockStateProviderModel::Simple("minecraft:gravel"),
+            target: BlockPredicate::MatchingBlocks {
+                blocks: &["minecraft:dirt", "minecraft:grass_block"],
+            },
+            radius: IntProviderModel::Uniform {
+                min_inclusive: 2,
+                max_inclusive: 5,
+            },
+            half_height: 2,
+        }),
+        "disk_sand" => Some(DiskConfigurationModel {
+            state_provider: BlockStateProviderModel::RuleBased {
+                fallback: Some(Box::new(BlockStateProviderModel::Simple("minecraft:sand"))),
+                rules: vec![RuleBasedBlockStateProviderRule {
+                    if_true: BlockPredicate::MatchingBlocksAt {
+                        offset_y: -1,
+                        blocks: &["minecraft:air"],
+                    },
+                    then: Box::new(BlockStateProviderModel::Simple("minecraft:sandstone")),
+                }],
+            },
+            target: BlockPredicate::MatchingBlocks {
+                blocks: &["minecraft:dirt", "minecraft:grass_block"],
+            },
+            radius: IntProviderModel::Uniform {
+                min_inclusive: 2,
+                max_inclusive: 6,
+            },
+            half_height: 2,
+        }),
+        _ => None,
+    }
 }
 
 pub fn biome_generation_settings(id: &str) -> Option<&'static BiomeGenerationSettingsModel> {
@@ -39147,7 +39663,7 @@ pub fn disk_placement_plan(
     column_contexts: &[(BlockPos, BlockPredicateContext)],
     provider_rolls: &[i32],
 ) -> Vec<DiskPlacementBlock> {
-    let radius = config.radius.clamp(0, 8);
+    let radius = sample_int_provider_from_roll(config.radius, 0).clamp(0, 8);
     let half_height = config.half_height.clamp(0, 4);
     let top = origin.y + half_height;
     let bottom_exclusive = origin.y - half_height - 1;
@@ -52976,6 +53492,36 @@ mod tests {
         let copper = super::placed_ore_feature("ore_copper").unwrap();
         assert_eq!(copper.configured_feature, "minecraft:ore_copper_small");
         assert_eq!(super::placed_ore_feature("minecraft:not_ore"), None);
+
+        let disk_sand = super::placed_disk_feature("minecraft:disk_sand").unwrap();
+        assert_eq!(disk_sand.configured_feature, "minecraft:disk_sand");
+        assert_eq!(
+            disk_sand.placement,
+            vec![
+                PlacementModifier::Count { count: 3 },
+                PlacementModifier::InSquare,
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::OceanFloorWg,
+                },
+                PlacementModifier::BlockPredicateFilter {
+                    predicate: BlockPredicate::MatchingFluids {
+                        fluids: &["minecraft:water"],
+                    },
+                },
+                PlacementModifier::BiomeFilter,
+            ]
+        );
+        let disk_sand_config =
+            super::configured_disk_configuration(disk_sand.configured_feature).unwrap();
+        assert_eq!(
+            disk_sand_config.radius,
+            super::IntProviderModel::Uniform {
+                min_inclusive: 2,
+                max_inclusive: 6,
+            }
+        );
+        assert_eq!(disk_sand_config.half_height, 2);
+        assert_eq!(super::placed_disk_feature("minecraft:not_disk"), None);
     }
 
     #[test]
@@ -56954,7 +57500,7 @@ mod tests {
             target: BlockPredicate::MatchingBlocks {
                 blocks: &["minecraft:dirt"],
             },
-            radius: 1,
+            radius: super::IntProviderModel::Constant(1),
             half_height: 1,
         };
         let mut disk_contexts = Vec::new();
