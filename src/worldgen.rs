@@ -24867,7 +24867,9 @@ fn apply_spawn_original_mobs_to_generated_chunk_timed(
     let plan_ms = plan_started.elapsed().as_millis();
 
     let biome_started = Instant::now();
-    let Some(biome) = spawn_original_mobs_biome_generation_settings(stem, plan, world_seed) else {
+    let Some(biome) =
+        spawn_original_mobs_biome_generation_settings_for_chunk(chunk, stem, plan, world_seed)
+    else {
         return LiveMobGenerationTimings {
             total_ms: total_started.elapsed().as_millis(),
             plan_ms,
@@ -24908,6 +24910,50 @@ fn apply_spawn_original_mobs_to_generated_chunk_timed(
     timings.apply_batches_ms = apply_started.elapsed().as_millis();
     timings.total_ms = total_started.elapsed().as_millis();
     timings
+}
+
+fn spawn_original_mobs_biome_generation_settings_for_chunk(
+    chunk: &LevelChunk,
+    stem: &ResolvedLevelStem,
+    plan: SpawnOriginalMobsPlan,
+    world_seed: i64,
+) -> Option<&'static BiomeGenerationSettingsModel> {
+    generated_chunk_biome_generation_settings_at_block(chunk, plan.biome_sample_pos)
+        .or_else(|| spawn_original_mobs_biome_generation_settings(stem, plan, world_seed))
+}
+
+fn generated_chunk_biome_generation_settings_at_block(
+    chunk: &LevelChunk,
+    pos: BlockPos,
+) -> Option<&'static BiomeGenerationSettingsModel> {
+    let quart_x = pos.x.div_euclid(4);
+    let quart_y = (pos.y - 1).div_euclid(4);
+    let quart_z = pos.z.div_euclid(4);
+    let local_x = quart_x - chunk.pos.x * 4;
+    let local_z = quart_z - chunk.pos.z * 4;
+    if !(0..4).contains(&local_x) || !(0..4).contains(&local_z) {
+        return None;
+    }
+
+    let min_section_y = chunk.min_section_y;
+    let max_section_y = chunk
+        .sections
+        .iter()
+        .map(|section| section.y)
+        .max()
+        .map(i32::from)?;
+    let section_y = quart_y.div_euclid(4).clamp(min_section_y, max_section_y);
+    let local_y = (quart_y - section_y * 4).clamp(0, 3);
+    let section = chunk
+        .sections
+        .iter()
+        .find(|section| i32::from(section.y) == section_y)?;
+    let biomes = PalettedContainer::from_nbt(&section.biomes, BIOME_SECTION_VOLUME).ok()?;
+    let index = local_y as usize * 16 + local_z as usize * 4 + local_x as usize;
+    let Tag::String(biome) = biomes.get_entry(index)? else {
+        return None;
+    };
+    biome_generation_settings(biome)
 }
 
 fn add_timing(target: &mut u128, started: Instant) {
