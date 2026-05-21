@@ -45036,17 +45036,63 @@ impl NoiseChunk {
             (self.cell_width * self.cell_width * self.cell_height) as usize,
             0.0,
         );
-        fill_density_array_with_interp(
-            self.noise_router.final_density,
-            self,
-            &mut values,
-            DensityArrayFillMode::Cell,
-        );
+        if !self.fill_overworld_final_density_cache(&mut values) {
+            fill_density_array_with_interp(
+                self.noise_router.final_density,
+                self,
+                &mut values,
+                DensityArrayFillMode::Cell,
+            );
+        }
         // RustCraft's current Beardifier is a zero stub; keep this cell cache
         // on the same final-density-only path until structure density is wired.
         self.full_noise_values = values;
         self.fill_stats.full_noise_cache_ms += started.elapsed().as_millis();
         self.fill_stats.full_noise_cache_fills += 1;
+    }
+
+    fn fill_overworld_final_density_cache(&mut self, output: &mut [f64]) -> bool {
+        if self.settings.id != "minecraft:overworld"
+            || self.noise_router.final_density
+                != DensityFunction::Reference("minecraft:overworld/final_density")
+        {
+            return false;
+        }
+
+        let blend_ptr = &OVERWORLD_FINAL_BLEND_DENSITY as *const DensityFunction as usize;
+        let Some(blend_interp_index) = lookup_density_index(&self.interp_by_ptr, blend_ptr) else {
+            return false;
+        };
+        let noodle_min = OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY.value_bounds().0;
+
+        self.array_index = 0;
+        for y_in_cell in (0..self.cell_height).rev() {
+            self.in_cell_y = y_in_cell;
+            let pos_y = self.cell_start_block_y + y_in_cell;
+            for x_in_cell in 0..self.cell_width {
+                self.in_cell_x = x_in_cell;
+                let pos_x = self.cell_start_block_x + x_in_cell;
+                for z_in_cell in 0..self.cell_width {
+                    self.in_cell_z = z_in_cell;
+                    let pos_z = self.cell_start_block_z + z_in_cell;
+                    let post_process = MappedDensityFunction::Squeeze
+                        .transform(self.interpolator_value(blend_interp_index) * 0.64);
+                    output[self.array_index] = if post_process < noodle_min {
+                        post_process
+                    } else {
+                        post_process.min(eval_density_fn_with_interp(
+                            OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
+                            self,
+                            pos_x,
+                            pos_y,
+                            pos_z,
+                        ))
+                    };
+                    self.array_index += 1;
+                }
+            }
+        }
+        true
     }
 
     fn fill_vein_noise_cache(&mut self) {
