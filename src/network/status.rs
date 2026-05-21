@@ -84,8 +84,8 @@ use crate::storage::world::WorldLayout;
 use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomDurations};
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
 use crate::worldgen::{
-    generate_overworld_chunk_for_preset, generate_overworld_spawn_chunk_for_preset_with_mode_timed,
-    LiveChunkGenerationMode,
+    generate_overworld_spawn_chunk_for_preset_with_mode,
+    generate_overworld_spawn_chunk_for_preset_with_mode_timed, LiveChunkGenerationMode,
 };
 
 const VERSION_NAME: &str = "26.1.2";
@@ -2047,6 +2047,7 @@ fn handle_login_connection(
                         compression,
                         &mut play_state,
                         &world_layout,
+                        world_seed,
                         chunk_cache,
                         &packet,
                     )?;
@@ -2073,7 +2074,7 @@ fn handle_login_connection(
                             z: dbz.div_euclid(16),
                         };
                         let actual_block =
-                            read_block_at(&world_layout, chunk_pos_dbg, dbx, dby, dbz);
+                            read_block_at(&world_layout, world_seed, chunk_pos_dbg, dbx, dby, dbz);
                         let destroy_time = actual_block
                             .as_deref()
                             .and_then(|name| representative_state_definition(name))
@@ -2086,7 +2087,7 @@ fn handle_login_connection(
                                 x: dbx.div_euclid(16),
                                 z: dbz.div_euclid(16),
                             };
-                            read_block_at(&world_layout, chunk_pos_ib, dbx, dby, dbz)
+                            read_block_at(&world_layout, world_seed, chunk_pos_ib, dbx, dby, dbz)
                                 .as_deref()
                                 .and_then(|name| representative_state_definition(name))
                                 .map(|def| def.physical.destroy_time == 0.0)
@@ -2149,7 +2150,7 @@ fn handle_login_connection(
                             z: bz.div_euclid(16),
                         };
                         let block_name =
-                            break_block_in_region(&world_layout, chunk_pos, bx, by, bz);
+                            break_block_in_region(&world_layout, world_seed, chunk_pos, bx, by, bz);
                         chunk_cache.invalidate(chunk_pos);
                         crate::log::log_debug(&format!(
                             "block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}",
@@ -2389,6 +2390,7 @@ fn handle_use_item_on(
     compression: CompressionState,
     state: &mut PlaySessionState,
     world_layout: &WorldLayout,
+    world_seed: i64,
     chunk_cache: &GeneratedChunkCache,
     packet: &ServerboundUseItemOnPacket,
 ) -> io::Result<()> {
@@ -2458,7 +2460,14 @@ fn handle_use_item_on(
 
     // Allow placement only into air or blocks with destroy_time == 0 (short_grass, flowers, …).
     // Java: BlockItem.place() → can_replace() checks existing block's properties.
-    let existing = read_block_at(world_layout, target_chunk, target_x, target_y, target_z);
+    let existing = read_block_at(
+        world_layout,
+        world_seed,
+        target_chunk,
+        target_x,
+        target_y,
+        target_z,
+    );
     let is_replaceable = existing.as_deref().map_or(true, |name| {
         representative_state_definition(name)
             .map(|def| def.physical.destroy_time == 0.0)
@@ -2476,6 +2485,7 @@ fn handle_use_item_on(
     // Persist the new block state into the region file.
     place_block_in_region(
         world_layout,
+        world_seed,
         target_chunk,
         target_x,
         target_y,
@@ -5482,7 +5492,7 @@ fn evaluate_block_loot(block_name: &str, seed: u64) -> Vec<(&'static str, i32)> 
         .collect()
 }
 
-fn load_chunk(layout: &WorldLayout, chunk_pos: ChunkPos) -> LevelChunk {
+fn load_chunk(layout: &WorldLayout, world_seed: i64, chunk_pos: ChunkPos) -> LevelChunk {
     let region_dir = layout.region_dir();
     if let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) {
         if let Ok(Some((_name, tag))) = region.read_chunk_nbt(chunk_pos) {
@@ -5491,18 +5501,25 @@ fn load_chunk(layout: &WorldLayout, chunk_pos: ChunkPos) -> LevelChunk {
             }
         }
     }
-    generate_overworld_chunk_for_preset(chunk_pos, "normal")
-        .unwrap_or_else(|_| LevelChunk::empty(chunk_pos))
+    generate_overworld_spawn_chunk_for_preset_with_mode(
+        chunk_pos,
+        "normal",
+        live_chunk_generation_mode(),
+        world_seed,
+        true,
+    )
+    .unwrap_or_else(|_| LevelChunk::empty(chunk_pos))
 }
 
 fn read_block_at(
     layout: &WorldLayout,
+    world_seed: i64,
     chunk_pos: ChunkPos,
     bx: i32,
     by: i32,
     bz: i32,
 ) -> Option<String> {
-    load_chunk(layout, chunk_pos)
+    load_chunk(layout, world_seed, chunk_pos)
         .get_block_state(bx, by, bz)
         .filter(|n| n != "minecraft:air")
 }
@@ -5510,6 +5527,7 @@ fn read_block_at(
 // Reads the old block name from the region, sets it to air, saves, and returns the old name.
 fn break_block_in_region(
     layout: &WorldLayout,
+    world_seed: i64,
     chunk_pos: ChunkPos,
     bx: i32,
     by: i32,
@@ -5519,7 +5537,7 @@ fn break_block_in_region(
     let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) else {
         return None;
     };
-    let mut chunk = load_chunk(layout, chunk_pos);
+    let mut chunk = load_chunk(layout, world_seed, chunk_pos);
     let old_name = chunk
         .get_block_state(bx, by, bz)
         .filter(|n| n != "minecraft:air");
@@ -5535,6 +5553,7 @@ fn break_block_in_region(
 /// Java: Level.setBlock() → ChunkAccess.setBlockState()
 fn place_block_in_region(
     layout: &WorldLayout,
+    world_seed: i64,
     chunk_pos: ChunkPos,
     bx: i32,
     by: i32,
@@ -5545,7 +5564,7 @@ fn place_block_in_region(
     let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) else {
         return false;
     };
-    let mut chunk = load_chunk(layout, chunk_pos);
+    let mut chunk = load_chunk(layout, world_seed, chunk_pos);
     chunk.set_block_state(bx, by, bz, block_name);
     let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
     let _ = region.write_chunk_nbt(chunk_pos, "", &nbt);
