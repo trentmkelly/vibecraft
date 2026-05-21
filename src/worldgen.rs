@@ -5586,6 +5586,139 @@ fn live_tree_decoration_blocks(
         .collect()
 }
 
+fn apply_initial_leaf_litter_decoration_to_chunk(
+    chunk: &mut LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    terrain_heights: &[i32; 16 * 16],
+) -> usize {
+    let Some(router) =
+        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
+    else {
+        return 0;
+    };
+    let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
+
+    let mut biome_steps: Vec<&'static [&'static [&'static str]]> = Vec::new();
+    let mut biome_ids: Vec<&'static str> = Vec::new();
+    for local_z in (0..16).step_by(4) {
+        for local_x in (0..16).step_by(4) {
+            let world_x = chunk.pos.x * 16 + local_x;
+            let world_z = chunk.pos.z * 16 + local_z;
+            let surface_y = terrain_heights[local_z as usize * 16 + local_x as usize].max(0);
+            let Some(biome) = get_biome(
+                biome_source_model,
+                world_x >> 2,
+                surface_y >> 2,
+                world_z >> 2,
+                &climate_sampler,
+            ) else {
+                continue;
+            };
+            if biome_ids.contains(&biome) {
+                continue;
+            }
+            if let Some(generation) = biome_generation_settings(biome) {
+                biome_ids.push(biome);
+                biome_steps.push(generation.feature_steps);
+            }
+        }
+    }
+    if biome_steps.is_empty() {
+        return 0;
+    }
+
+    let features_per_step = match build_features_per_step(&biome_steps, true) {
+        Ok(features) => features,
+        Err(_) => return 0,
+    };
+    let plan = biome_decoration_feature_plan(
+        seed,
+        chunk.pos.x,
+        chunk.pos.z,
+        settings.noise.min_y.div_euclid(16),
+        &features_per_step,
+        &biome_steps,
+    );
+
+    let chunk_min_x = chunk.pos.x * 16;
+    let chunk_min_z = chunk.pos.z * 16;
+    let mut placed = 0;
+    for call in plan.feature_calls.iter().filter(|call| {
+        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+            && call.feature == "minecraft:patch_leaf_litter"
+    }) {
+        let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+        for _ in 0..2 {
+            let origin_local_x = random_next_i32_bound(&mut random, 16);
+            let origin_local_z = random_next_i32_bound(&mut random, 16);
+            let origin_world_x = chunk_min_x + origin_local_x;
+            let origin_world_z = chunk_min_z + origin_local_z;
+            let origin_y = terrain_heights[origin_local_z as usize * 16 + origin_local_x as usize];
+            if origin_y <= settings.noise.min_y {
+                continue;
+            }
+
+            let Some(origin_biome) = get_biome(
+                biome_source_model,
+                origin_world_x >> 2,
+                origin_y >> 2,
+                origin_world_z >> 2,
+                &climate_sampler,
+            ) else {
+                continue;
+            };
+            let Some(origin_generation) = biome_generation_settings(origin_biome) else {
+                continue;
+            };
+            if !biome_has_placed_feature(origin_generation, call.feature) {
+                continue;
+            }
+
+            for _ in 0..32 {
+                let world_x = origin_world_x + sample_triangle_int(&mut random, 7);
+                let world_y = origin_y + sample_triangle_int(&mut random, 3);
+                let world_z = origin_world_z + sample_triangle_int(&mut random, 7);
+                if world_x.div_euclid(16) != chunk.pos.x || world_z.div_euclid(16) != chunk.pos.z {
+                    continue;
+                }
+                if !(settings.noise.min_y..settings.noise.min_y + settings.noise.height)
+                    .contains(&world_y)
+                {
+                    continue;
+                }
+
+                let current = chunk
+                    .get_block_state(world_x, world_y, world_z)
+                    .unwrap_or_else(|| "minecraft:air".to_string());
+                if !matches!(
+                    current.as_str(),
+                    "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+                ) {
+                    continue;
+                }
+                let below = chunk
+                    .get_block_state(world_x, world_y - 1, world_z)
+                    .unwrap_or_else(|| "minecraft:air".to_string());
+                if below != "minecraft:grass_block" {
+                    continue;
+                }
+
+                let _leaf_litter_state_index = random_next_i32_bound(&mut random, 12);
+                chunk.set_block_state(world_x, world_y, world_z, "minecraft:leaf_litter");
+                placed += 1;
+            }
+        }
+    }
+
+    placed
+}
+
+fn sample_triangle_int(random: &mut RandomSourceKind, range: i32) -> i32 {
+    random_next_i32_bound(random, range + 1) - random_next_i32_bound(random, range + 1)
+}
+
 fn noise_preview_tree_origins(
     biome: &BiomeGenerationSettingsModel,
     world_seed: i64,
@@ -31733,6 +31866,14 @@ fn apply_initial_tree_decoration_to_chunk(
         chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
         placed += 1;
     }
+
+    placed += apply_initial_leaf_litter_decoration_to_chunk(
+        chunk,
+        biome_source_model,
+        settings,
+        seed,
+        &terrain_heights,
+    );
 
     placed
 }
