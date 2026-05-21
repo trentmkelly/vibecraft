@@ -627,6 +627,12 @@ mod tests {
         assert_eq!(normal.heal_amount, 1.0);
         assert!(normal.destroy_blocks_now);
         assert_eq!(normal.bossbar_progress, 0.5);
+
+        let bossbar = BossBarState::wither(150.0, 0);
+        assert!(bossbar.visible);
+        assert_eq!(bossbar.color, BossBarColor::Purple);
+        assert_eq!(bossbar.overlay, BossBarOverlay::Progress);
+        assert_eq!(bossbar.progress, 0.5);
     }
 
     #[test]
@@ -660,6 +666,34 @@ mod tests {
             wither_damage_result(0, false, 0, WitherDamageSourceKind::WitherFriend),
             WitherDamageResult::Ignored
         );
+    }
+
+    #[test]
+    fn wither_shield_threshold_invulnerability_and_self_heal_rate_match_java() {
+        assert!(!wither_is_powered(151.0, WITHER_MAX_HEALTH));
+        assert!(wither_is_powered(150.0, WITHER_MAX_HEALTH));
+
+        assert_eq!(
+            wither_damage_result(0, true, 0, WitherDamageSourceKind::Arrow),
+            WitherDamageResult::Ignored
+        );
+        assert_eq!(
+            wither_damage_result(0, true, 0, WitherDamageSourceKind::WindCharge),
+            WitherDamageResult::Ignored
+        );
+        assert_eq!(
+            wither_damage_result(0, true, 0, WitherDamageSourceKind::Generic),
+            WitherDamageResult::Accepted {
+                schedule_block_destroy: true
+            }
+        );
+
+        // WitherBoss#customServerAiStep heals 10 every 10 ticks while invulnerable,
+        // then 1 every 20 ticks after the spawn sequence completes.
+        assert_eq!(wither_ai_tick(10, 220, 0, true, 100.0).heal_amount, 10.0);
+        assert_eq!(wither_ai_tick(11, 220, 0, true, 100.0).heal_amount, 0.0);
+        assert_eq!(wither_ai_tick(20, 0, 0, true, 150.0).heal_amount, 1.0);
+        assert_eq!(wither_ai_tick(21, 0, 0, true, 150.0).heal_amount, 0.0);
     }
 
     #[test]

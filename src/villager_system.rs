@@ -162,8 +162,10 @@ impl VillagerTradeState {
 
     pub fn apply_reputation_prices(&mut self, player: &str) {
         let reputation = self.gossip.reputation(player);
-        for offer in &mut self.offers {
-            offer.special_price_diff = (-reputation / 10).clamp(-30, 30);
+        if reputation != 0 {
+            for offer in &mut self.offers {
+                offer.special_price_diff -= (reputation as f32 * offer.price_multiplier).floor() as i32;
+            }
         }
     }
 }
@@ -598,7 +600,36 @@ mod tests {
         villager.apply_reputation_prices("player-a");
 
         assert_eq!(villager.level, VillagerLevel::Apprentice);
-        assert_eq!(villager.offers[0].special_price_diff, -10);
+        assert_eq!(villager.offers[0].special_price_diff, -20);
+        assert_eq!(villager.offers[0].cost_a_count(), 1);
+    }
+
+    #[test]
+    fn zombie_villager_cure_duration_and_cured_reputation_discount_values_match_java() {
+        assert_eq!(crate::mob_interaction::zombie_villager_conversion_time_from_roll(0), 3600);
+        assert_eq!(
+            crate::mob_interaction::zombie_villager_conversion_time_from_roll(2400),
+            6000
+        );
+        assert!(crate::mob_interaction::zombie_villager_finish_conversion(true, true, false)
+            .emit_reputation_event);
+
+        let player = "curing-player";
+        let mut villager = VillagerTradeState::new(VillagerProfession::Toolsmith);
+        villager.xp = 10;
+        villager.level = VillagerLevel::from_xp(villager.xp);
+        villager.generate_level_offers();
+
+        // Villager.java#onReputationEventFrom adds both cure gossips, and
+        // updateSpecialPrices applies -floor(reputation * offer.priceMultiplier).
+        villager.gossip.add(player, GossipType::MajorPositive, 20);
+        villager.gossip.add(player, GossipType::MinorPositive, 25);
+        assert_eq!(villager.gossip.reputation(player), 125);
+
+        villager.apply_reputation_prices(player);
+
+        assert_eq!(villager.offers[0].price_multiplier, 0.2);
+        assert_eq!(villager.offers[0].special_price_diff, -25);
         assert_eq!(villager.offers[0].cost_a_count(), 1);
     }
 
