@@ -1426,7 +1426,7 @@ pub fn select_biome_from_source(
         } => select_climate_biome(NETHER_BIOME_PARAMETERS, climate),
         BiomeSourceModel::MultiNoisePreset {
             preset: "minecraft:overworld",
-        } => select_climate_biome(overworld_biome_parameters(), climate),
+        } => Some(overworld_biome_parameter_list().find_value_index(climate)),
         BiomeSourceModel::MultiNoisePreset { .. } => None,
         BiomeSourceModel::TheEnd => Some(select_end_biome(quart_x, quart_y, quart_z, end_erosion)),
     }
@@ -1477,9 +1477,17 @@ const fn square(value: i64) -> i64 {
 // Mirrors Java's `new OverworldBiomeBuilder().addBiomes(...)` call inside
 // MultiNoiseBiomeSourceParameterList.
 static OVERWORLD_BIOME_PARAMETERS_CACHE: OnceLock<Vec<ClimateBiomeEntry>> = OnceLock::new();
+static OVERWORLD_BIOME_PARAMETER_LIST_CACHE: OnceLock<ClimateParameterList> = OnceLock::new();
 
 pub fn overworld_biome_parameters() -> &'static [ClimateBiomeEntry] {
     OVERWORLD_BIOME_PARAMETERS_CACHE.get_or_init(|| OverworldBiomeBuilder::new().build())
+}
+
+fn overworld_biome_parameter_list() -> &'static ClimateParameterList {
+    OVERWORLD_BIOME_PARAMETER_LIST_CACHE.get_or_init(|| {
+        ClimateParameterList::new(overworld_biome_parameters().to_vec())
+            .expect("overworld biome parameter list is non-empty")
+    })
 }
 
 // ---- OverworldBiomeBuilder ----

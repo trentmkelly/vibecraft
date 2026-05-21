@@ -2,6 +2,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::biome::{
@@ -17,8 +18,8 @@ use crate::random_source::{
 };
 use crate::registry::Identifier;
 use crate::storage::chunk::{
-    chunk_status, BlockStateEntry, ChunkSection, HeightmapKind, LevelChunk, PalettedContainer,
-    BIOME_SECTION_VOLUME, SECTION_VOLUME,
+    chunk_status, palette_bits_for_size, unpack_palette_indices, BlockStateEntry, ChunkSection,
+    HeightmapKind, LevelChunk, PalettedContainer, BIOME_SECTION_VOLUME, SECTION_VOLUME,
 };
 use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
@@ -5851,20 +5852,24 @@ struct TreeDecorationBlockContext<'a> {
 }
 
 impl TreeDecorationBlockContext<'_> {
-    fn block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<String> {
+    fn block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
         let chunk_pos = ChunkPos {
             x: world_x.div_euclid(16),
             z: world_z.div_euclid(16),
         };
         if chunk_pos == self.source_pos {
-            return self.source_chunk.get_block_state(world_x, world_y, world_z);
+            return self
+                .source_chunk
+                .get_block_state_name(world_x, world_y, world_z);
         }
         if chunk_pos == self.target_pos {
-            return self.target_chunk.get_block_state(world_x, world_y, world_z);
+            return self
+                .target_chunk
+                .get_block_state_name(world_x, world_y, world_z);
         }
         self.generated_chunks
             .get(&chunk_pos)
-            .and_then(|chunk| chunk.get_block_state(world_x, world_y, world_z))
+            .and_then(|chunk| chunk.get_block_state_name(world_x, world_y, world_z))
     }
 }
 
@@ -5893,7 +5898,8 @@ fn live_tree_replaceable_rows(
                     } else {
                         block_context
                             .block_state(world_x, world_y, world_z)
-                            .unwrap_or_else(|| "minecraft:air".to_string())
+                            .unwrap_or("minecraft:air")
+                            .to_string()
                     };
                     row.push(state);
                 }
@@ -5945,7 +5951,7 @@ fn live_tree_can_place_in_chunk(
                 let world_z = block_context.source_pos.z * 16 + local_z;
                 if block_context
                     .block_state(world_x, world_y, world_z)
-                    .is_some_and(|state| !tree_valid_pos(&state))
+                    .is_some_and(|state| !tree_valid_pos(state))
                 {
                     clipped_tree_height = y_offset - 2;
                     break 'height_scan;
@@ -5966,7 +5972,9 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
     settings: &NoiseGeneratorSettings,
     seed: i64,
     terrain_heights: &TreeDecorationHeights,
+    biome_steps: &[&'static [&'static [&'static str]]],
 ) -> usize {
+    let total_started = Instant::now();
     let Some(router) =
         builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
     else {
@@ -5974,19 +5982,15 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
     };
     let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
 
-    let biome_steps = possible_biome_feature_steps_for_decoration_region(
-        chunk.pos,
-        biome_source_model,
-        settings,
-        &climate_sampler,
-    );
     if biome_steps.is_empty() {
         return 0;
     }
+    let biome_steps_ms = 0;
 
+    let started = Instant::now();
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
     let feature_source_steps = if global_biome_steps.is_empty() {
-        &biome_steps
+        biome_steps
     } else {
         &global_biome_steps
     };
@@ -5994,6 +5998,8 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
         Ok(features) => features,
         Err(_) => return 0,
     };
+    let feature_sort_ms = started.elapsed().as_millis();
+    let started = Instant::now();
     let plan = biome_decoration_feature_plan(
         seed,
         chunk.pos.x,
@@ -6002,16 +6008,23 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
         &features_per_step,
         &biome_steps,
     );
+    let plan_ms = started.elapsed().as_millis();
 
     let chunk_min_x = chunk.pos.x * 16;
     let chunk_min_z = chunk.pos.z * 16;
     let mut placed = 0;
+    let mut calls = 0;
+    let mut origin_checks = 0;
+    let mut candidate_checks = 0;
+    let placement_started = Instant::now();
     for call in plan.feature_calls.iter().filter(|call| {
         call.step_index == GenerationDecorationStep::VegetalDecoration as usize
             && call.feature == "minecraft:patch_leaf_litter"
     }) {
+        calls += 1;
         let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
         for _ in 0..2 {
+            origin_checks += 1;
             let origin_local_x = random_next_i32_bound(&mut random, 16);
             let origin_local_z = random_next_i32_bound(&mut random, 16);
             let origin_world_x = chunk_min_x + origin_local_x;
@@ -6039,6 +6052,7 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
             }
 
             for _ in 0..32 {
+                candidate_checks += 1;
                 let world_x = origin_world_x + sample_triangle_int(&mut random, 7);
                 let world_y = origin_y + sample_triangle_int(&mut random, 3);
                 let world_z = origin_world_z + sample_triangle_int(&mut random, 7);
@@ -6052,17 +6066,17 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
                 }
 
                 let current = chunk
-                    .get_block_state(world_x, world_y, world_z)
-                    .unwrap_or_else(|| "minecraft:air".to_string());
+                    .get_block_state_name(world_x, world_y, world_z)
+                    .unwrap_or("minecraft:air");
                 if !matches!(
-                    current.as_str(),
+                    current,
                     "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
                 ) {
                     continue;
                 }
                 let below = chunk
-                    .get_block_state(world_x, world_y - 1, world_z)
-                    .unwrap_or_else(|| "minecraft:air".to_string());
+                    .get_block_state_name(world_x, world_y - 1, world_z)
+                    .unwrap_or("minecraft:air");
                 if below != "minecraft:grass_block" {
                     continue;
                 }
@@ -6072,6 +6086,21 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
                 placed += 1;
             }
         }
+    }
+    let placement_ms = placement_started.elapsed().as_millis();
+    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_some() {
+        eprintln!(
+            "[leaf-litter-debug] total={}ms biome_steps={}ms feature_sort={}ms plan={}ms placement={}ms calls={} origins={} candidates={} placed={}",
+            total_started.elapsed().as_millis(),
+            biome_steps_ms,
+            feature_sort_ms,
+            plan_ms,
+            placement_ms,
+            calls,
+            origin_checks,
+            candidate_checks,
+            placed
+        );
     }
 
     placed
@@ -24326,6 +24355,7 @@ pub struct LiveTerrainTimings {
     pub fill_full_noise_cache_ms: u128,
     pub fill_vein_noise_cache_ms: u128,
     pub fill_heightmap_pack_ms: u128,
+    pub biome_storage_ms: u128,
     pub surface_total_ms: u128,
     pub surface_noise_setup_ms: u128,
     pub surface_prelim_ms: u128,
@@ -24417,12 +24447,15 @@ pub fn generate_chunk_for_stem_with_mode(
                             biome_source_model,
                             noise_settings,
                             seed,
+                            None,
                         );
                         apply_initial_tree_decoration_to_chunk(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
                             seed,
+                            None,
+                            None,
                         );
                         chunk
                     }
@@ -26174,7 +26207,27 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
             LiveChunkGenerationMode::Preview => {
                 materialize_noise_preview_chunk(pos, biome_source_model, noise_settings)
             }
-            LiveChunkGenerationMode::RealSurface => {
+            LiveChunkGenerationMode::RealSurface => std::thread::scope(|scope| {
+                let tree_context_handle = {
+                    let surface_rule = load_surface_rule(noise_settings.id);
+                    scope.spawn(move || {
+                        surface_rule.map(|surface_rule| {
+                            let router_id = noise_router_id_for_settings(**noise_settings);
+                            let noise_router = builtin_noise_router(router_id)
+                                .map(|e| e.router)
+                                .unwrap_or(NONE_NOISE_ROUTER);
+                            build_tree_decoration_context_cache(
+                                pos,
+                                biome_source_model,
+                                noise_settings,
+                                seed,
+                                noise_router,
+                                &surface_rule,
+                            )
+                        })
+                    })
+                };
+
                 match generate_real_surface_base_chunk(
                     pos,
                     biome_source_model,
@@ -26183,6 +26236,13 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                 ) {
                     Some((mut chunk, terrain_timings)) => {
                         timings.terrain = terrain_timings;
+                        let region_biome_steps = decoration_region_biome_steps_for_chunk(
+                            chunk.pos,
+                            biome_source_model,
+                            noise_settings,
+                            seed,
+                        );
+
                         let phase_started = Instant::now();
                         timings.carver_blocks = apply_configured_carvers_for_biome_source(
                             &mut chunk,
@@ -26198,20 +26258,27 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             biome_source_model,
                             noise_settings,
                             seed,
+                            Some(&region_biome_steps),
                         );
                         timings.ore_decoration_ms = phase_started.elapsed().as_millis();
 
+                        let precomputed_tree_context = tree_context_handle
+                            .join()
+                            .expect("tree context generation should not panic");
                         let phase_started = Instant::now();
                         timings.tree_blocks = apply_initial_tree_decoration_to_chunk(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
                             seed,
+                            Some(&region_biome_steps),
+                            precomputed_tree_context,
                         );
                         timings.tree_decoration_ms = phase_started.elapsed().as_millis();
                         chunk
                     }
                     None => {
+                        let _ = tree_context_handle.join();
                         let router_id = noise_router_id_for_settings(**noise_settings);
                         let noise_router = builtin_noise_router(router_id)
                             .map(|e| e.router)
@@ -26223,7 +26290,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         chunk
                     }
                 }
-            }
+            }),
         },
         ResolvedChunkGenerator::Debug { .. } => {
             return Err("Debug overworld chunk generation is not implemented".to_string())
@@ -29728,6 +29795,16 @@ thread_local! {
     static NOISE_SNAPSHOT_CACHE: std::cell::RefCell<Option<HashMap<String, NormalNoiseSnapshot>>>
         = std::cell::RefCell::new(None);
 }
+static GLOBAL_NOISE_SNAPSHOT_CACHE: OnceLock<Mutex<HashMap<String, NormalNoiseSnapshot>>> =
+    OnceLock::new();
+
+fn normal_noise_snapshot_cache_key(
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    noise_id: &str,
+) -> String {
+    format!("{seed}:{}:{noise_id}", settings.id)
+}
 
 /// Activate the thread-local noise cache, run `f`, then tear it down.
 /// Any `random_state_normal_noise_snapshot` call inside `f` will use the cache.
@@ -29747,13 +29824,29 @@ pub fn random_state_normal_noise_snapshot(
     settings: NoiseGeneratorSettings,
     noise_id: &str,
 ) -> Option<NormalNoiseSnapshot> {
+    let cache_key = normal_noise_snapshot_cache_key(seed, settings, noise_id);
     // Fast path: return a clone from the thread-local cache if active.
     let cached = NOISE_SNAPSHOT_CACHE.with(|cell| {
         cell.borrow()
             .as_ref()
-            .and_then(|m| m.get(noise_id).cloned())
+            .and_then(|m| m.get(&cache_key).cloned())
     });
     if let Some(snapshot) = cached {
+        return Some(snapshot);
+    }
+
+    if let Some(snapshot) = GLOBAL_NOISE_SNAPSHOT_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("global noise snapshot cache lock should not be poisoned")
+        .get(&cache_key)
+        .cloned()
+    {
+        NOISE_SNAPSHOT_CACHE.with(|cell| {
+            if let Some(ref mut m) = *cell.borrow_mut() {
+                m.insert(cache_key.clone(), snapshot.clone());
+            }
+        });
         return Some(snapshot);
     }
 
@@ -29761,11 +29854,16 @@ pub fn random_state_normal_noise_snapshot(
     let parameters = builtin_normal_noise_parameters(plan.id)?;
     let snapshot =
         normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization).ok()?;
+    GLOBAL_NOISE_SNAPSHOT_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("global noise snapshot cache lock should not be poisoned")
+        .insert(cache_key.clone(), snapshot.clone());
 
     // Store in cache if active.
     NOISE_SNAPSHOT_CACHE.with(|cell| {
         if let Some(ref mut m) = *cell.borrow_mut() {
-            m.insert(noise_id.to_string(), snapshot.clone());
+            m.insert(cache_key, snapshot.clone());
         }
     });
 
@@ -29780,23 +29878,17 @@ fn with_random_state_normal_noise_snapshot<T>(
 ) -> Option<T> {
     NOISE_SNAPSHOT_CACHE.with(|cell| {
         if cell.borrow().is_some() {
+            let cache_key = normal_noise_snapshot_cache_key(seed, settings, noise_id);
             if !cell
                 .borrow()
                 .as_ref()
-                .is_some_and(|cache| cache.contains_key(noise_id))
+                .is_some_and(|cache| cache.contains_key(&cache_key))
             {
-                let plan = random_state_normal_noise_instantiation_plan(seed, settings, noise_id)?;
-                let parameters = builtin_normal_noise_parameters(plan.id)?;
-                let snapshot =
-                    normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization)
-                        .ok()?;
-                cell.borrow_mut()
-                    .as_mut()?
-                    .insert(noise_id.to_string(), snapshot);
+                random_state_normal_noise_snapshot(seed, settings, noise_id)?;
             }
 
             let cache = cell.borrow();
-            cache.as_ref()?.get(noise_id).map(f)
+            cache.as_ref()?.get(&cache_key).map(f)
         } else {
             let snapshot = random_state_normal_noise_snapshot(seed, settings, noise_id)?;
             Some(f(&snapshot))
@@ -31005,7 +31097,9 @@ pub fn fill_noise_and_build_surface_timed(
     with_noise_snapshot_cache(|| {
         let (mut chunk, mut timings) =
             fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router);
+        let started = Instant::now();
         populate_noise_chunk_biomes(&mut chunk, biome_source_model, settings, seed, noise_router);
+        timings.biome_storage_ms = started.elapsed().as_millis();
         build_surface_for_chunk_timed(
             &mut chunk,
             surface_rule,
@@ -31049,19 +31143,22 @@ fn fill_noise_and_build_surface_without_biome_storage_timed(
     noise_router: NoiseRouter,
     surface_rule: &DynSurfaceRule,
 ) -> (crate::storage::chunk::LevelChunk, LiveTerrainTimings) {
-    let (mut chunk, mut timings) =
-        fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router);
-    build_surface_for_chunk_timed(
-        &mut chunk,
-        surface_rule,
-        biome_source_model,
-        noise_router,
-        settings,
-        seed,
-        &mut timings,
-    );
-    chunk.status = "minecraft:surface".to_string();
-    (chunk, timings)
+    with_noise_snapshot_cache(|| {
+        let (mut chunk, mut timings) =
+            fill_from_noise_chunk_inner_timed(pos, settings, seed, noise_router);
+        timings.biome_storage_ms = 0;
+        build_surface_for_chunk_timed(
+            &mut chunk,
+            surface_rule,
+            biome_source_model,
+            noise_router,
+            settings,
+            seed,
+            &mut timings,
+        );
+        chunk.status = "minecraft:surface".to_string();
+        (chunk, timings)
+    })
 }
 
 fn populate_noise_chunk_biomes(
@@ -31074,6 +31171,14 @@ fn populate_noise_chunk_biomes(
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
     let chunk_quart_x = chunk.pos.x * 4;
     let chunk_quart_z = chunk.pos.z * 4;
+    let overworld_2d_climate = overworld_biome_2d_climate_cache(
+        biome_source_model,
+        settings,
+        &climate_sampler,
+        chunk_quart_x,
+        chunk_quart_z,
+    );
+    let mut biome_tags: HashMap<&'static str, Tag> = HashMap::new();
 
     for section in &mut chunk.sections {
         let section_quart_y = i32::from(section.y) * 4;
@@ -31088,22 +31193,118 @@ fn populate_noise_chunk_biomes(
                     let quart_x = chunk_quart_x + local_x as i32;
                     let quart_y = section_quart_y + local_y as i32;
                     let quart_z = chunk_quart_z + local_z as i32;
-                    let biome = get_biome(
-                        biome_source_model,
-                        quart_x,
-                        quart_y,
-                        quart_z,
-                        &climate_sampler,
-                    )
-                    .unwrap_or("minecraft:plains");
+                    let biome = overworld_2d_climate
+                        .as_ref()
+                        .and_then(|cache| {
+                            let cached = cache[local_z * 4 + local_x];
+                            let block_y = quart_y * 4;
+                            let depth = cached.depth_offset
+                                + OVERWORLD_DEPTH_GRADIENT_DENSITY.compute(block_y);
+                            let climate = climate_target(
+                                cached.temperature,
+                                cached.humidity,
+                                cached.continentalness,
+                                cached.erosion,
+                                depth as f32,
+                                cached.weirdness,
+                            );
+                            select_biome_from_source(
+                                biome_source_model,
+                                quart_x,
+                                quart_y,
+                                quart_z,
+                                climate,
+                                0.0,
+                            )
+                        })
+                        .or_else(|| {
+                            get_biome(
+                                biome_source_model,
+                                quart_x,
+                                quart_y,
+                                quart_z,
+                                &climate_sampler,
+                            )
+                        })
+                        .unwrap_or("minecraft:plains");
                     let index = local_y * 16 + local_z * 4 + local_x;
-                    biomes.set_entry(index, Tag::String(biome.to_string()));
+                    let tag = biome_tags
+                        .entry(biome)
+                        .or_insert_with(|| Tag::String(biome.to_string()));
+                    biomes.set_entry_ref(index, tag);
                 }
             }
         }
 
         section.biomes = biomes.to_nbt();
     }
+}
+
+#[derive(Clone, Copy)]
+struct OverworldBiome2dClimate {
+    temperature: f32,
+    humidity: f32,
+    continentalness: f32,
+    erosion: f32,
+    depth_offset: f64,
+    weirdness: f32,
+}
+
+fn overworld_biome_2d_climate_cache(
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    climate_sampler: &ClimateSampler,
+    chunk_quart_x: i32,
+    chunk_quart_z: i32,
+) -> Option<[OverworldBiome2dClimate; 16]> {
+    if !matches!(
+        biome_source_model,
+        BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:overworld"
+        }
+    ) || !matches!(
+        settings.id,
+        "minecraft:overworld" | "minecraft:large_biomes" | "minecraft:amplified"
+    ) {
+        return None;
+    }
+
+    let mut cache = [OverworldBiome2dClimate {
+        temperature: 0.0,
+        humidity: 0.0,
+        continentalness: 0.0,
+        erosion: 0.0,
+        depth_offset: 0.0,
+        weirdness: 0.0,
+    }; 16];
+    let y0 = 0;
+    let depth_gradient_at_y0 = OVERWORLD_DEPTH_GRADIENT_DENSITY.compute(y0);
+    for local_z in 0..4_usize {
+        for local_x in 0..4_usize {
+            let quart_x = chunk_quart_x + local_x as i32;
+            let quart_z = chunk_quart_z + local_z as i32;
+            let block_x = quart_x * 4;
+            let block_z = quart_z * 4;
+            let eval = |function: DensityFunction| {
+                function.compute_with_noise(
+                    climate_sampler.seed,
+                    climate_sampler.settings,
+                    block_x,
+                    y0,
+                    block_z,
+                )
+            };
+            cache[local_z * 4 + local_x] = OverworldBiome2dClimate {
+                temperature: eval(climate_sampler.temperature) as f32,
+                humidity: eval(climate_sampler.humidity) as f32,
+                continentalness: eval(climate_sampler.continentalness) as f32,
+                erosion: eval(climate_sampler.erosion) as f32,
+                depth_offset: eval(climate_sampler.depth) - depth_gradient_at_y0,
+                weirdness: eval(climate_sampler.weirdness) as f32,
+            };
+        }
+    }
+    Some(cache)
 }
 
 pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily> {
@@ -32318,6 +32519,15 @@ pub fn apply_configured_carvers_for_biome_source(
             factories.aquifer,
         )
     });
+    let common_overworld_carvers = matches!(
+        biome_source_model,
+        BiomeSourceModel::MultiNoisePreset {
+            preset: "minecraft:overworld"
+        }
+    ) && matches!(
+        settings.id,
+        "minecraft:overworld" | "minecraft:large_biomes" | "minecraft:amplified"
+    );
 
     for source_chunk_x in target_chunk.x - 8..=target_chunk.x + 8 {
         for source_chunk_z in target_chunk.z - 8..=target_chunk.z + 8 {
@@ -32325,12 +32535,16 @@ pub fn apply_configured_carvers_for_biome_source(
                 x: source_chunk_x,
                 z: source_chunk_z,
             };
-            let carver_ids = carvers_for_biome_source_and_noise_settings(
-                biome_source_model,
-                source_pos,
-                settings,
-                seed,
-            );
+            let carver_ids = if common_overworld_carvers {
+                carvers_for_noise_settings(settings.id)
+            } else {
+                carvers_for_biome_source_and_noise_settings(
+                    biome_source_model,
+                    source_pos,
+                    settings,
+                    seed,
+                )
+            };
             for (carver_index, carver_id) in carver_ids.iter().enumerate() {
                 let Some(carver) = configured_carver(carver_id) else {
                     continue;
@@ -32374,6 +32588,8 @@ fn apply_initial_tree_decoration_to_chunk(
     biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     seed: i64,
+    decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
+    precomputed_context: Option<TreeDecorationContextCache>,
 ) -> usize {
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return 0;
@@ -32399,40 +32615,31 @@ fn apply_initial_tree_decoration_to_chunk(
     } else {
         build_features_per_step(&global_biome_steps, true).ok()
     };
-    let region_biome_steps = possible_biome_feature_steps_for_decoration_region(
-        chunk.pos,
-        biome_source_model,
-        settings,
-        &climate_sampler,
-    );
-    let mut diagnostics = TreeDecorationDiagnostics::default();
-    let mut cached_region_chunks = HashMap::new();
-    for region_z in chunk.pos.z - 1..=chunk.pos.z + 1 {
-        for region_x in chunk.pos.x - 1..=chunk.pos.x + 1 {
-            let region_pos = ChunkPos {
-                x: region_x,
-                z: region_z,
-            };
-            if region_pos == chunk.pos {
-                continue;
-            }
-            diagnostics.context_chunks += 1;
-            let started = Instant::now();
-            let (region_chunk, _) = fill_noise_and_build_surface_without_biome_storage_timed(
-                region_pos,
+    let region_biome_steps = decoration_region_biome_steps
+        .map(|steps| steps.to_vec())
+        .unwrap_or_else(|| {
+            possible_biome_feature_steps_for_decoration_region(
+                chunk.pos,
                 biome_source_model,
                 settings,
-                seed,
-                noise_router,
-                &surface_rule,
-            );
-            diagnostics.context_chunk_build_ms += started.elapsed().as_millis();
-            let started = Instant::now();
-            let terrain_heights = tree_decoration_terrain_heights(&region_chunk, settings);
-            diagnostics.context_heightmap_ms += started.elapsed().as_millis();
-            cached_region_chunks.insert(region_pos, (region_chunk, terrain_heights));
-        }
-    }
+                &climate_sampler,
+            )
+        });
+    let mut diagnostics = TreeDecorationDiagnostics::default();
+    let context_cache = precomputed_context.unwrap_or_else(|| {
+        build_tree_decoration_context_cache(
+            chunk.pos,
+            biome_source_model,
+            settings,
+            seed,
+            noise_router,
+            &surface_rule,
+        )
+    });
+    diagnostics.context_chunks = context_cache.context_chunks;
+    diagnostics.context_chunk_build_ms = context_cache.context_chunk_build_ms;
+    diagnostics.context_heightmap_ms = context_cache.context_heightmap_ms;
+    let cached_region_chunks = context_cache.cached_region_chunks;
 
     for source_z in chunk.pos.z - 1..=chunk.pos.z + 1 {
         for source_x in chunk.pos.x - 1..=chunk.pos.x + 1 {
@@ -32443,8 +32650,9 @@ fn apply_initial_tree_decoration_to_chunk(
             let (base_chunk, terrain_heights) = if source_pos == chunk.pos {
                 (
                     &*chunk,
-                    &*target_terrain_heights
-                        .get_or_insert_with(|| tree_decoration_terrain_heights(chunk, settings)),
+                    &*target_terrain_heights.get_or_insert_with(|| {
+                        tree_decoration_terrain_heights_from_wg(chunk, settings)
+                    }),
                 )
             } else {
                 let Some((base_chunk, terrain_heights)) = cached_region_chunks.get(&source_pos)
@@ -32509,11 +32717,11 @@ fn apply_initial_tree_decoration_to_chunk(
                 diagnostics.output_blocks_in_target += 1;
 
                 let current = chunk
-                    .get_block_state(world_x, block.pos.y, world_z)
-                    .unwrap_or_else(|| "minecraft:air".to_string());
+                    .get_block_state_name(world_x, block.pos.y, world_z)
+                    .unwrap_or("minecraft:air");
                 let can_replace = match block.kind {
                     TreePlacementBlockKind::DirtBelowTrunk => matches!(
-                        current.as_str(),
+                        current,
                         "minecraft:grass_block"
                             | "minecraft:dirt"
                             | "minecraft:coarse_dirt"
@@ -32523,17 +32731,17 @@ fn apply_initial_tree_decoration_to_chunk(
                     ),
                     TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
                         matches!(
-                            current.as_str(),
+                            current,
                             "minecraft:air"
                                 | "minecraft:cave_air"
                                 | "minecraft:void_air"
                                 | "minecraft:water"
                                 | "minecraft:oak_leaves"
                                 | "minecraft:birch_leaves"
-                        ) || block_matches_tag(current.as_str(), "minecraft:leaves")
+                        ) || block_matches_tag(current, "minecraft:leaves")
                     }
                     TreePlacementBlockKind::GroundCover => matches!(
-                        current.as_str(),
+                        current,
                         "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
                     ),
                 };
@@ -32586,9 +32794,72 @@ fn apply_initial_tree_decoration_to_chunk(
         settings,
         seed,
         &terrain_heights,
+        &region_biome_steps,
     );
 
     placed
+}
+
+struct TreeDecorationContextCache {
+    cached_region_chunks: HashMap<ChunkPos, (LevelChunk, TreeDecorationHeights)>,
+    context_chunk_build_ms: u128,
+    context_heightmap_ms: u128,
+    context_chunks: usize,
+}
+
+fn build_tree_decoration_context_cache(
+    chunk_pos: ChunkPos,
+    _biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+    _surface_rule: &DynSurfaceRule,
+) -> TreeDecorationContextCache {
+    let mut cached_region_chunks = HashMap::new();
+    let mut context_positions = Vec::with_capacity(8);
+    for region_z in chunk_pos.z - 1..=chunk_pos.z + 1 {
+        for region_x in chunk_pos.x - 1..=chunk_pos.x + 1 {
+            let region_pos = ChunkPos {
+                x: region_x,
+                z: region_z,
+            };
+            if region_pos != chunk_pos {
+                context_positions.push(region_pos);
+            }
+        }
+    }
+    let context_started = Instant::now();
+    let region_chunks = std::thread::scope(|scope| {
+        context_positions
+            .iter()
+            .map(|&region_pos| {
+                scope.spawn(move || {
+                    let (region_chunk, _) =
+                        fill_from_noise_chunk_timed(region_pos, settings, seed, noise_router);
+                    (region_pos, region_chunk)
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|handle| {
+                handle
+                    .join()
+                    .expect("tree context generation should not panic")
+            })
+            .collect::<Vec<_>>()
+    });
+    let context_chunk_build_ms = context_started.elapsed().as_millis();
+    let heightmap_started = Instant::now();
+    for (region_pos, region_chunk) in region_chunks {
+        let terrain_heights = tree_decoration_terrain_heights_from_wg(&region_chunk, settings);
+        cached_region_chunks.insert(region_pos, (region_chunk, terrain_heights));
+    }
+    TreeDecorationContextCache {
+        cached_region_chunks,
+        context_chunk_build_ms,
+        context_heightmap_ms: heightmap_started.elapsed().as_millis(),
+        context_chunks: context_positions.len(),
+    }
 }
 
 fn apply_underground_ore_decoration_to_chunk(
@@ -32596,7 +32867,9 @@ fn apply_underground_ore_decoration_to_chunk(
     biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     seed: i64,
+    decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
 ) -> usize {
+    let total_started = Instant::now();
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return 0;
     }
@@ -32607,16 +32880,27 @@ fn apply_underground_ore_decoration_to_chunk(
         return 0;
     };
     let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
-    let possible_steps = possible_biome_feature_steps_for_decoration_region(
-        chunk.pos,
-        biome_source_model,
-        settings,
-        &climate_sampler,
-    );
+    let started = Instant::now();
+    let possible_steps = decoration_region_biome_steps
+        .map(|steps| steps.to_vec())
+        .unwrap_or_else(|| {
+            possible_biome_feature_steps_for_decoration_region(
+                chunk.pos,
+                biome_source_model,
+                settings,
+                &climate_sampler,
+            )
+        });
+    let biome_steps_ms = if decoration_region_biome_steps.is_some() {
+        0
+    } else {
+        started.elapsed().as_millis()
+    };
     if possible_steps.is_empty() {
         return 0;
     }
 
+    let started = Instant::now();
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
     let feature_source_steps = if global_biome_steps.is_empty() {
         &possible_steps
@@ -32627,6 +32911,9 @@ fn apply_underground_ore_decoration_to_chunk(
         Ok(features) => features,
         Err(_) => return 0,
     };
+    let feature_sort_ms = started.elapsed().as_millis();
+    let skip_biome_filter = possible_steps.len() == 1;
+    let started = Instant::now();
     let plan = biome_decoration_feature_plan(
         seed,
         chunk.pos.x,
@@ -32635,20 +32922,32 @@ fn apply_underground_ore_decoration_to_chunk(
         &features_per_step,
         &possible_steps,
     );
+    let plan_ms = started.elapsed().as_millis();
 
     let mut placed = 0;
+    let mut calls = 0;
+    let mut block_cache = OreBlockCache::from_chunk(chunk);
+    let mut ore_candidate_us = 0_u128;
+    let mut ore_block_us = 0_u128;
+    let mut ore_origin_us = 0_u128;
+    let mut ore_configured_calls = 0_usize;
+    let mut ore_candidate_count = 0_usize;
+    let mut ore_in_chunk_candidates = 0_usize;
+    let placement_started = Instant::now();
     for call in plan.feature_calls.iter().filter(|call| {
         call.step_index == GenerationDecorationStep::UndergroundOres as usize
             && placed_ore_feature(call.feature).is_some()
     }) {
+        calls += 1;
         let Some(feature) = placed_ore_feature(call.feature) else {
             continue;
         };
         let Some(config) = configured_ore_configuration(feature.configured_feature) else {
             continue;
         };
-        placed += place_ore_feature_in_chunk(
-            chunk,
+        let report = place_ore_feature_in_chunk(
+            &*chunk,
+            &mut block_cache,
             biome_source_model,
             settings,
             seed,
@@ -32657,6 +32956,39 @@ fn apply_underground_ore_decoration_to_chunk(
             &feature,
             &config,
             call.seed,
+            skip_biome_filter,
+        );
+        placed += report.placed;
+        ore_candidate_us += report.candidate_us;
+        ore_block_us += report.block_us;
+        ore_origin_us += report.origin_us;
+        ore_configured_calls += report.configured_calls;
+        ore_candidate_count += report.candidate_count;
+        ore_in_chunk_candidates += report.in_chunk_candidates;
+    }
+    let flush_started = Instant::now();
+    block_cache.flush_to_chunk(chunk);
+    let flush_ms = flush_started.elapsed().as_millis();
+    let placement_ms = placement_started.elapsed().as_millis();
+    if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DEBUG").is_some() {
+        eprintln!(
+            "[ore-debug] total={}ms biome_steps={}ms possible_steps={} global_steps={} feature_sort={}ms plan={}ms placement={}ms flush={}ms calls={} configured_calls={} candidates={} in_chunk={} origin_time={}us candidate_time={}us block_time={}us placed={}",
+            total_started.elapsed().as_millis(),
+            biome_steps_ms,
+            possible_steps.len(),
+            global_biome_steps.len(),
+            feature_sort_ms,
+            plan_ms,
+            placement_ms,
+            flush_ms,
+            calls,
+            ore_configured_calls,
+            ore_candidate_count,
+            ore_in_chunk_candidates,
+            ore_origin_us,
+            ore_candidate_us,
+            ore_block_us,
+            placed
         );
     }
 
@@ -32710,8 +33042,239 @@ fn possible_biome_feature_steps_for_decoration_region(
     }
 }
 
+fn decoration_region_biome_steps_for_chunk(
+    pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+) -> Vec<&'static [&'static [&'static str]]> {
+    let Some(router) =
+        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
+    else {
+        return Vec::new();
+    };
+    let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
+    possible_biome_feature_steps_for_decoration_region(
+        pos,
+        biome_source_model,
+        settings,
+        &climate_sampler,
+    )
+}
+
+struct OreBlockCache {
+    chunk_pos: ChunkPos,
+    min_section_y: i32,
+    sections: Vec<OreSectionCache>,
+    block_state_entries: HashMap<&'static str, Tag>,
+    palette_indices: HashMap<(i8, &'static str), usize>,
+}
+
+struct OreSectionCache {
+    y: i8,
+    palette: Vec<Tag>,
+    palette_names: Vec<Option<String>>,
+    indices: Vec<u64>,
+    dirty: bool,
+}
+
+impl OreBlockCache {
+    fn from_chunk(chunk: &LevelChunk) -> Self {
+        let sections = chunk
+            .sections
+            .iter()
+            .filter_map(|section| {
+                let container =
+                    PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).ok()?;
+                let bits = palette_bits_for_size(container.palette.len());
+                let indices = container
+                    .data
+                    .as_ref()
+                    .map(|data| unpack_palette_indices(data, bits, SECTION_VOLUME))
+                    .unwrap_or_else(|| vec![0_u64; SECTION_VOLUME]);
+                let palette_names = container
+                    .palette
+                    .iter()
+                    .map(|tag| paletted_block_name(tag).map(str::to_string))
+                    .collect();
+                Some(OreSectionCache {
+                    y: section.y,
+                    palette: container.palette,
+                    palette_names,
+                    indices,
+                    dirty: false,
+                })
+            })
+            .collect();
+        Self {
+            chunk_pos: chunk.pos,
+            min_section_y: chunk.min_section_y,
+            sections,
+            block_state_entries: HashMap::new(),
+            palette_indices: HashMap::new(),
+        }
+    }
+
+    fn block_state_name(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
+        let section_y = world_y.div_euclid(16) as i8;
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_y = world_y.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_y * 256 + local_z * 16 + local_x;
+        let section = self.section(section_y)?;
+        let palette_index = *section.indices.get(index)? as usize;
+        section
+            .palette_names
+            .get(palette_index)
+            .and_then(|name| name.as_deref())
+    }
+
+    fn set_block_state(
+        &mut self,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+        block_name: &'static str,
+    ) {
+        let section_y = world_y.div_euclid(16) as i8;
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_y = world_y.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_y * 256 + local_z * 16 + local_x;
+        let cache_key = (section_y, block_name);
+        let cached_palette_index = self.palette_indices.get(&cache_key).copied();
+        let entry = if cached_palette_index.is_none() {
+            Some(
+                self.block_state_entries
+                    .entry(block_name)
+                    .or_insert_with(|| {
+                        Tag::Compound(vec![(
+                            "Name".to_string(),
+                            Tag::String(block_name.to_string()),
+                        )])
+                    })
+                    .clone(),
+            )
+        } else {
+            None
+        };
+        if let Some(section) = self.section_mut(section_y) {
+            let palette_index = cached_palette_index.unwrap_or_else(|| {
+                let entry = entry.as_ref().expect("entry exists when uncached");
+                let palette_index = section
+                    .palette
+                    .iter()
+                    .position(|candidate| candidate == entry)
+                    .unwrap_or_else(|| {
+                        section.palette.push(entry.clone());
+                        section.palette_names.push(Some(block_name.to_string()));
+                        section.palette.len() - 1
+                    });
+                if section.palette_names.len() < section.palette.len() {
+                    section
+                        .palette_names
+                        .push(paletted_block_name(entry).map(str::to_string));
+                }
+                palette_index
+            });
+            if let Some(current) = section.indices.get_mut(index) {
+                *current = palette_index as u64;
+                section.dirty = true;
+            }
+            self.palette_indices.insert(cache_key, palette_index);
+        }
+    }
+
+    fn flush_to_chunk(self, chunk: &mut LevelChunk) {
+        for section_cache in self.sections {
+            if !section_cache.dirty {
+                continue;
+            }
+            if let Some(section) = chunk
+                .sections
+                .iter_mut()
+                .find(|section| section.y == section_cache.y)
+            {
+                let bits = palette_bits_for_size(section_cache.palette.len());
+                let data = if section_cache.palette.len() == 1 {
+                    None
+                } else {
+                    Some(pack_palette_indices(&section_cache.indices, bits))
+                };
+                section.block_states = PalettedContainer {
+                    palette: section_cache.palette,
+                    data,
+                    expected_entries: SECTION_VOLUME,
+                }
+                .to_nbt();
+            }
+        }
+    }
+
+    fn section(&self, section_y: i8) -> Option<&OreSectionCache> {
+        self.sections
+            .get((i32::from(section_y) - self.min_section_y) as usize)
+            .filter(|section| section.y == section_y)
+            .or_else(|| self.sections.iter().find(|section| section.y == section_y))
+    }
+
+    fn section_mut(&mut self, section_y: i8) -> Option<&mut OreSectionCache> {
+        let section_index = i32::from(section_y) - self.min_section_y;
+        if section_index >= 0
+            && self
+                .sections
+                .get(section_index as usize)
+                .is_some_and(|section| section.y == section_y)
+        {
+            return self.sections.get_mut(section_index as usize);
+        }
+        self.sections
+            .iter_mut()
+            .find(|section| section.y == section_y)
+    }
+}
+
+fn paletted_block_name(tag: &Tag) -> Option<&str> {
+    let Tag::Compound(fields) = tag else {
+        return None;
+    };
+    fields.iter().find_map(|(name, value)| {
+        (name == "Name").then_some(value).and_then(|value| {
+            if let Tag::String(block_name) = value {
+                Some(block_name.as_str())
+            } else {
+                None
+            }
+        })
+    })
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct OrePlacementReport {
+    placed: usize,
+    configured_calls: usize,
+    candidate_count: usize,
+    in_chunk_candidates: usize,
+    origin_us: u128,
+    candidate_us: u128,
+    block_us: u128,
+}
+
+impl std::ops::AddAssign for OrePlacementReport {
+    fn add_assign(&mut self, rhs: Self) {
+        self.placed += rhs.placed;
+        self.configured_calls += rhs.configured_calls;
+        self.candidate_count += rhs.candidate_count;
+        self.in_chunk_candidates += rhs.in_chunk_candidates;
+        self.origin_us += rhs.origin_us;
+        self.candidate_us += rhs.candidate_us;
+        self.block_us += rhs.block_us;
+    }
+}
+
 fn place_ore_feature_in_chunk(
-    chunk: &mut LevelChunk,
+    chunk: &LevelChunk,
+    block_cache: &mut OreBlockCache,
     biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     seed: i64,
@@ -32720,7 +33283,8 @@ fn place_ore_feature_in_chunk(
     feature: &PlacedOreFeatureModel,
     config: &OreConfigurationModel,
     feature_seed_value: i64,
-) -> usize {
+    skip_biome_filter: bool,
+) -> OrePlacementReport {
     let context = WorldGenerationHeightContext {
         min_y: settings.noise.min_y,
         height: settings.noise.height,
@@ -32731,8 +33295,9 @@ fn place_ore_feature_in_chunk(
         y: settings.noise.min_y,
         z: chunk.pos.z * 16,
     };
-    let placed = place_ore_feature_positions_depth_first(
+    if let Some(report) = place_vanilla_ore_feature_fast(
         chunk,
+        block_cache,
         biome_source_model,
         settings,
         climate_sampler,
@@ -32742,13 +33307,99 @@ fn place_ore_feature_in_chunk(
         config,
         origin,
         &mut random,
+        skip_biome_filter,
+    ) {
+        let _ = seed;
+        return report;
+    }
+    let report = place_ore_feature_positions_depth_first(
+        chunk,
+        block_cache,
+        biome_source_model,
+        settings,
+        climate_sampler,
+        placed_feature_id,
+        &feature.placement,
+        context,
+        config,
+        origin,
+        &mut random,
+        skip_biome_filter,
     );
     let _ = seed;
-    placed
+    report
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_vanilla_ore_feature_fast(
+    chunk: &LevelChunk,
+    block_cache: &mut OreBlockCache,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    climate_sampler: &ClimateSampler,
+    placed_feature_id: &str,
+    modifiers: &[PlacementModifier],
+    context: WorldGenerationHeightContext,
+    config: &OreConfigurationModel,
+    origin: BlockPos,
+    random: &mut RandomSourceKind,
+    skip_biome_filter: bool,
+) -> Option<OrePlacementReport> {
+    let [frequency, PlacementModifier::InSquare, PlacementModifier::HeightRange { height }, PlacementModifier::BiomeFilter] =
+        modifiers
+    else {
+        return None;
+    };
+    let count = match *frequency {
+        PlacementModifier::Count { count } => count.max(0),
+        PlacementModifier::CountProvider { provider, .. } => {
+            sample_int_provider(provider, random).max(0)
+        }
+        PlacementModifier::RarityFilter { chance } => {
+            if chance > 0 && random_source_next_f32(random) < 1.0 / chance as f32 {
+                1
+            } else {
+                0
+            }
+        }
+        _ => return None,
+    };
+
+    let mut report = OrePlacementReport::default();
+    for _ in 0..count {
+        let x = origin.x + random_next_i32_bound(random, 16);
+        let z = origin.z + random_next_i32_bound(random, 16);
+        let position = BlockPos {
+            x,
+            y: height_provider_sample_with_random(*height, context, random),
+            z,
+        };
+        if !skip_biome_filter
+            && !biome_allows_feature_at(
+                biome_source_model,
+                settings,
+                climate_sampler,
+                position,
+                placed_feature_id,
+            )
+        {
+            continue;
+        }
+        report += place_configured_ore_in_chunk(
+            chunk,
+            block_cache,
+            settings,
+            config,
+            position,
+            random,
+        );
+    }
+    Some(report)
 }
 
 fn place_ore_feature_positions_depth_first(
-    chunk: &mut LevelChunk,
+    chunk: &LevelChunk,
+    block_cache: &mut OreBlockCache,
     biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     climate_sampler: &ClimateSampler,
@@ -32758,17 +33409,26 @@ fn place_ore_feature_positions_depth_first(
     config: &OreConfigurationModel,
     position: BlockPos,
     random: &mut RandomSourceKind,
-) -> usize {
+    skip_biome_filter: bool,
+) -> OrePlacementReport {
     let Some((modifier, remaining_modifiers)) = modifiers.split_first() else {
-        return place_configured_ore_in_chunk(chunk, settings, config, position, random);
+        return place_configured_ore_in_chunk(
+            chunk,
+            block_cache,
+            settings,
+            config,
+            position,
+            random,
+        );
     };
 
     match *modifier {
         PlacementModifier::Count { count } => {
-            let mut placed = 0;
+            let mut report = OrePlacementReport::default();
             for _ in 0..count.max(0) {
-                placed += place_ore_feature_positions_depth_first(
+                report += place_ore_feature_positions_depth_first(
                     chunk,
+                    block_cache,
                     biome_source_model,
                     settings,
                     climate_sampler,
@@ -32778,16 +33438,18 @@ fn place_ore_feature_positions_depth_first(
                     config,
                     position,
                     random,
+                    skip_biome_filter,
                 );
             }
-            placed
+            report
         }
         PlacementModifier::CountProvider { provider, .. } => {
             let count = sample_int_provider(provider, random);
-            let mut placed = 0;
+            let mut report = OrePlacementReport::default();
             for _ in 0..count.max(0) {
-                placed += place_ore_feature_positions_depth_first(
+                report += place_ore_feature_positions_depth_first(
                     chunk,
+                    block_cache,
                     biome_source_model,
                     settings,
                     climate_sampler,
@@ -32797,14 +33459,16 @@ fn place_ore_feature_positions_depth_first(
                     config,
                     position,
                     random,
+                    skip_biome_filter,
                 );
             }
-            placed
+            report
         }
         PlacementModifier::RarityFilter { chance } => {
             if chance > 0 && random_source_next_f32(random) < 1.0 / chance as f32 {
                 place_ore_feature_positions_depth_first(
                     chunk,
+                    block_cache,
                     biome_source_model,
                     settings,
                     climate_sampler,
@@ -32814,13 +33478,15 @@ fn place_ore_feature_positions_depth_first(
                     config,
                     position,
                     random,
+                    skip_biome_filter,
                 )
             } else {
-                0
+                OrePlacementReport::default()
             }
         }
         PlacementModifier::InSquare => place_ore_feature_positions_depth_first(
             chunk,
+            block_cache,
             biome_source_model,
             settings,
             climate_sampler,
@@ -32834,9 +33500,11 @@ fn place_ore_feature_positions_depth_first(
                 z: position.z + random_next_i32_bound(random, 16),
             },
             random,
+            skip_biome_filter,
         ),
         PlacementModifier::HeightRange { height } => place_ore_feature_positions_depth_first(
             chunk,
+            block_cache,
             biome_source_model,
             settings,
             climate_sampler,
@@ -32850,17 +33518,21 @@ fn place_ore_feature_positions_depth_first(
                 z: position.z,
             },
             random,
+            skip_biome_filter,
         ),
         PlacementModifier::BiomeFilter => {
-            if biome_allows_feature_at(
-                biome_source_model,
-                settings,
-                climate_sampler,
-                position,
-                placed_feature_id,
-            ) {
+            if skip_biome_filter
+                || biome_allows_feature_at(
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    position,
+                    placed_feature_id,
+                )
+            {
                 place_ore_feature_positions_depth_first(
                     chunk,
+                    block_cache,
                     biome_source_model,
                     settings,
                     climate_sampler,
@@ -32870,9 +33542,10 @@ fn place_ore_feature_positions_depth_first(
                     config,
                     position,
                     random,
+                    skip_biome_filter,
                 )
             } else {
-                0
+                OrePlacementReport::default()
             }
         }
         _ => {
@@ -32912,9 +33585,10 @@ fn place_ore_feature_positions_depth_first(
             );
             positions
                 .into_iter()
-                .map(|next_position| {
-                    place_ore_feature_positions_depth_first(
+                .fold(OrePlacementReport::default(), |mut report, next_position| {
+                    report += place_ore_feature_positions_depth_first(
                         chunk,
+                        block_cache,
                         biome_source_model,
                         settings,
                         climate_sampler,
@@ -32924,9 +33598,10 @@ fn place_ore_feature_positions_depth_first(
                         config,
                         next_position,
                         random,
-                    )
+                        skip_biome_filter,
+                    );
+                    report
                 })
-                .sum()
         }
     }
 }
@@ -33075,12 +33750,14 @@ fn biome_allows_feature_at(
 }
 
 fn place_configured_ore_in_chunk(
-    chunk: &mut LevelChunk,
+    chunk: &LevelChunk,
+    block_cache: &mut OreBlockCache,
     settings: &NoiseGeneratorSettings,
     config: &OreConfigurationModel,
     origin: BlockPos,
     random: &mut RandomSourceKind,
-) -> usize {
+) -> OrePlacementReport {
+    let total_started = Instant::now();
     let direction = random_source_next_f32(random);
     let spread_xy = config.size as f32 / 8.0;
     let max_radius = ((config.size as f32 / 16.0 * 2.0 + 1.0) / 2.0).ceil() as i32;
@@ -33095,10 +33772,17 @@ fn place_configured_ore_in_chunk(
         random_next_i32_bound(random, 3),
     )];
 
+    let started = Instant::now();
     if !ore_origin_overlaps_ocean_floor_wg(chunk, x_start, y_start, z_start, size_xz) {
-        return 0;
+        return OrePlacementReport {
+            configured_calls: 1,
+            origin_us: started.elapsed().as_micros(),
+            ..OrePlacementReport::default()
+        };
     }
+    let origin_us = started.elapsed().as_micros();
 
+    let started = Instant::now();
     let radius_rolls = (0..config.size.max(0))
         .map(|_| random_next_f64(random))
         .collect::<Vec<_>>();
@@ -33113,30 +33797,59 @@ fn place_configured_ore_in_chunk(
         size_y,
         settings.noise.min_y..settings.noise.min_y + settings.noise.height,
     );
+    let candidate_us = started.elapsed().as_micros();
+    let candidate_count = candidates.len();
 
     let mut placed = 0;
+    let mut in_chunk_candidates = 0;
+    let block_started = Instant::now();
     for pos in candidates {
         if pos.x.div_euclid(16) != chunk.pos.x || pos.z.div_euclid(16) != chunk.pos.z {
             continue;
         }
-        let current = chunk
-            .get_block_state(pos.x, pos.y, pos.z)
-            .unwrap_or_else(|| "minecraft:air".to_string());
+        in_chunk_candidates += 1;
+        let current = block_cache
+            .block_state_name(pos.x, pos.y, pos.z)
+            .unwrap_or("minecraft:air");
         let Some(new_block) = config.target_states.iter().find_map(|target| {
-            (rule_test_matches(target.target, current.as_str())
-                && (ore_should_skip_air_check(
-                    config.discard_chance_on_air_exposure,
-                    random_source_next_f32(random),
-                ) || !is_adjacent_to_ore_air(chunk, pos)))
-            .then_some(target.state)
+            if !rule_test_matches(target.target, current) {
+                return None;
+            }
+            let skip_air_check = match config.discard_chance_on_air_exposure {
+                chance if chance <= 0.0 => true,
+                chance if chance >= 1.0 => false,
+                chance => random_source_next_f32(random) >= chance,
+            };
+            (skip_air_check || !is_adjacent_to_ore_air(block_cache, pos)).then_some(target.state)
         }) else {
             continue;
         };
-        chunk.set_block_state(pos.x, pos.y, pos.z, new_block);
+        block_cache.set_block_state(pos.x, pos.y, pos.z, new_block);
         placed += 1;
     }
+    let block_us = block_started.elapsed().as_micros();
+    if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DETAIL_DEBUG").is_some() {
+        eprintln!(
+            "[ore-detail] total={}ms candidates={}us block={}us candidate_count={} in_chunk={} placed={} size={}",
+            total_started.elapsed().as_millis(),
+            candidate_us,
+            block_us,
+            candidate_count,
+            in_chunk_candidates,
+            placed,
+            config.size
+        );
+    }
 
-    placed
+    OrePlacementReport {
+        placed,
+        configured_calls: 1,
+        candidate_count,
+        in_chunk_candidates,
+        origin_us,
+        candidate_us,
+        block_us,
+    }
 }
 
 fn ore_origin_overlaps_ocean_floor_wg(
@@ -33169,7 +33882,7 @@ fn ore_origin_overlaps_ocean_floor_wg(
     !checked_target_column
 }
 
-fn is_adjacent_to_ore_air(chunk: &LevelChunk, pos: BlockPos) -> bool {
+fn is_adjacent_to_ore_air(block_cache: &OreBlockCache, pos: BlockPos) -> bool {
     const OFFSETS: [(i32, i32, i32); 6] = [
         (1, 0, 0),
         (-1, 0, 0),
@@ -33179,9 +33892,9 @@ fn is_adjacent_to_ore_air(chunk: &LevelChunk, pos: BlockPos) -> bool {
         (0, 0, -1),
     ];
     OFFSETS.iter().any(|(dx, dy, dz)| {
-        chunk
-            .get_block_state(pos.x + dx, pos.y + dy, pos.z + dz)
-            .is_some_and(|block| block_matches_tag(block.as_str(), "minecraft:air"))
+        block_cache
+            .block_state_name(pos.x + dx, pos.y + dy, pos.z + dz)
+            .is_some_and(|block| block_matches_tag(block, "minecraft:air"))
     })
 }
 
@@ -33189,6 +33902,32 @@ fn is_adjacent_to_ore_air(chunk: &LevelChunk, pos: BlockPos) -> bool {
 struct TreeDecorationHeights {
     ocean_floor: [i32; 16 * 16],
     world_surface: [i32; 16 * 16],
+}
+
+fn tree_decoration_terrain_heights_from_wg(
+    chunk: &LevelChunk,
+    settings: &NoiseGeneratorSettings,
+) -> TreeDecorationHeights {
+    let mut ocean_floor = [settings.sea_level + 1; 16 * 16];
+    let mut world_surface = [settings.sea_level + 1; 16 * 16];
+    for z in 0..16 {
+        for x in 0..16 {
+            let index = z * 16 + x;
+            ocean_floor[index] = chunk
+                .heightmap_value(HeightmapKind::OceanFloorWg, x, z)
+                .or_else(|| chunk.heightmap_value(HeightmapKind::OceanFloor, x, z))
+                .or_else(|| chunk.heightmap_value(HeightmapKind::WorldSurfaceWg, x, z))
+                .unwrap_or(settings.sea_level + 1);
+            world_surface[index] = chunk
+                .heightmap_value(HeightmapKind::WorldSurfaceWg, x, z)
+                .or_else(|| chunk.heightmap_value(HeightmapKind::WorldSurface, x, z))
+                .unwrap_or(ocean_floor[index]);
+        }
+    }
+    TreeDecorationHeights {
+        ocean_floor,
+        world_surface,
+    }
 }
 
 fn tree_decoration_terrain_heights(
@@ -33408,10 +34147,10 @@ fn carve_ellipsoid_into_chunk(
     );
     let mut carved = 0;
     for pos in positions {
-        let Some(block) = chunk.get_block_state(pos.x, pos.y, pos.z) else {
+        let Some(block) = chunk.get_block_state_name(pos.x, pos.y, pos.z) else {
             continue;
         };
-        let Some(block) = carver_static_block_name(&block) else {
+        let Some(block) = carver_static_block_name(block) else {
             continue;
         };
         let (aquifer_state, should_schedule_fluid_update) = carver_aquifer_carve_state(
@@ -34965,6 +35704,10 @@ pub fn ore_vein_position_candidates(
     build_height: std::ops::Range<i32>,
 ) -> Vec<BlockPos> {
     let mut positions = Vec::new();
+    let bitset_len = (size_xz.max(0) as usize)
+        .saturating_mul(size_y.max(0) as usize)
+        .saturating_mul(size_xz.max(0) as usize);
+    let mut visited = vec![false; bitset_len];
     for sphere in spheres {
         let x_min = (sphere.center_x - sphere.radius)
             .floor()
@@ -35002,9 +35745,16 @@ pub fn ore_vein_position_candidates(
                     let bitset_index =
                         x - x_start + (y - y_start) * size_xz + (z - z_start) * size_xz * size_y;
                     if bitset_index >= 0 {
-                        let pos = BlockPos { x, y, z };
-                        if !positions.contains(&pos) {
-                            positions.push(pos);
+                        let bitset_index = bitset_index as usize;
+                        if visited.get_mut(bitset_index).is_some_and(|seen| {
+                            if *seen {
+                                false
+                            } else {
+                                *seen = true;
+                                true
+                            }
+                        }) {
+                            positions.push(BlockPos { x, y, z });
                         }
                     }
                 }
@@ -42453,6 +43203,96 @@ fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static Densi
     collect_marker_inputs(df, DensityMarker::Interpolated, out);
 }
 
+#[derive(Clone)]
+struct NoiseChunkTemplate {
+    interpolated_inputs: Vec<&'static DensityFunction>,
+    cache_all_inputs: Vec<&'static DensityFunction>,
+    flat_cache_inputs: Vec<&'static DensityFunction>,
+    cache_2d_inputs: Vec<&'static DensityFunction>,
+    cache_once_inputs: Vec<&'static DensityFunction>,
+    interp_by_ptr: HashMap<usize, usize>,
+    cache_all_by_ptr: HashMap<usize, usize>,
+    flat_cache_by_ptr: HashMap<usize, usize>,
+    cache_2d_by_ptr: HashMap<usize, usize>,
+    cache_once_by_ptr: HashMap<usize, usize>,
+}
+
+static NOISE_CHUNK_TEMPLATE_CACHE: OnceLock<Mutex<HashMap<&'static str, NoiseChunkTemplate>>> =
+    OnceLock::new();
+
+fn noise_chunk_template(
+    settings_id: &'static str,
+    noise_router: NoiseRouter,
+) -> NoiseChunkTemplate {
+    let cache = NOISE_CHUNK_TEMPLATE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(cache) = cache.lock() {
+        if let Some(template) = cache.get(settings_id) {
+            return template.clone();
+        }
+    }
+
+    let mut interpolated_inputs: Vec<&'static DensityFunction> = Vec::new();
+    for function in [
+        noise_router.final_density,
+        noise_router.vein_toggle,
+        noise_router.vein_ridged,
+        noise_router.vein_gap,
+        noise_router.barrier,
+        noise_router.fluid_level_floodedness,
+        noise_router.fluid_level_spread,
+        noise_router.lava,
+        noise_router.erosion,
+        noise_router.depth,
+        noise_router.preliminary_surface_level,
+    ] {
+        collect_interpolated_inputs(function, &mut interpolated_inputs);
+    }
+
+    let mut cache_all_inputs: Vec<&'static DensityFunction> = Vec::new();
+    let mut flat_cache_inputs: Vec<&'static DensityFunction> = Vec::new();
+    let mut cache_2d_inputs: Vec<&'static DensityFunction> = Vec::new();
+    let mut cache_once_inputs: Vec<&'static DensityFunction> = Vec::new();
+    for function in [
+        noise_router.final_density,
+        noise_router.vein_toggle,
+        noise_router.vein_ridged,
+        noise_router.vein_gap,
+        noise_router.barrier,
+        noise_router.fluid_level_floodedness,
+        noise_router.fluid_level_spread,
+        noise_router.lava,
+        noise_router.erosion,
+        noise_router.depth,
+        noise_router.preliminary_surface_level,
+    ] {
+        collect_marker_inputs(
+            function,
+            DensityMarker::CacheAllInCell,
+            &mut cache_all_inputs,
+        );
+        collect_marker_inputs(function, DensityMarker::FlatCache, &mut flat_cache_inputs);
+        collect_marker_inputs(function, DensityMarker::Cache2D, &mut cache_2d_inputs);
+        collect_marker_inputs(function, DensityMarker::CacheOnce, &mut cache_once_inputs);
+    }
+
+    let template = NoiseChunkTemplate {
+        interp_by_ptr: build_density_lookup(&interpolated_inputs),
+        cache_all_by_ptr: build_density_lookup(&cache_all_inputs),
+        flat_cache_by_ptr: build_density_lookup(&flat_cache_inputs),
+        cache_2d_by_ptr: build_density_lookup(&cache_2d_inputs),
+        cache_once_by_ptr: build_density_lookup(&cache_once_inputs),
+        interpolated_inputs,
+        cache_all_inputs,
+        flat_cache_inputs,
+        cache_2d_inputs,
+        cache_once_inputs,
+    };
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(settings_id, template.clone());
+    }
+    template
+}
+
 #[derive(Debug, Clone)]
 struct CacheOnceState {
     last_counter: i64,
@@ -43592,159 +44432,33 @@ impl NoiseChunk {
         let first_cell_z = chunk_min_block_z.div_euclid(cell_width);
         let noise_size_xz = (cell_count_xz * cell_width) >> 2;
 
-        // Collect all Interpolated-marker inner functions from the final_density
-        // tree, in depth-first left-to-right order without duplicates.
-        //
-        // Java's NoiseChunk applies mapAll(this::wrap) to the *entire* NoiseRouter,
-        // so the vein density functions also get their Interpolated markers registered
-        // as trilinear interpolators. We mirror that by also collecting from the vein
-        // functions here so eval_density_fn_with_interp returns interpolated values for
-        // them rather than falling back to per-block point evaluation.
-        let mut inputs: Vec<&'static DensityFunction> = Vec::new();
-        collect_interpolated_inputs(noise_router.final_density, &mut inputs);
-        collect_interpolated_inputs(noise_router.vein_toggle, &mut inputs);
-        collect_interpolated_inputs(noise_router.vein_ridged, &mut inputs);
-        collect_interpolated_inputs(noise_router.vein_gap, &mut inputs);
-        collect_interpolated_inputs(noise_router.barrier, &mut inputs);
-        collect_interpolated_inputs(noise_router.fluid_level_floodedness, &mut inputs);
-        collect_interpolated_inputs(noise_router.fluid_level_spread, &mut inputs);
-        collect_interpolated_inputs(noise_router.lava, &mut inputs);
-        collect_interpolated_inputs(noise_router.erosion, &mut inputs);
-        collect_interpolated_inputs(noise_router.depth, &mut inputs);
-        collect_interpolated_inputs(noise_router.preliminary_surface_level, &mut inputs);
-
-        let mut cache_all_inputs: Vec<&'static DensityFunction> = Vec::new();
-        collect_marker_inputs(
-            noise_router.final_density,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.vein_toggle,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.vein_ridged,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.vein_gap,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.barrier,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.fluid_level_floodedness,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.fluid_level_spread,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.lava,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.erosion,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.depth,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        collect_marker_inputs(
-            noise_router.preliminary_surface_level,
-            DensityMarker::CacheAllInCell,
-            &mut cache_all_inputs,
-        );
-        let mut flat_cache_inputs: Vec<&'static DensityFunction> = Vec::new();
-        for function in [
-            noise_router.final_density,
-            noise_router.vein_toggle,
-            noise_router.vein_ridged,
-            noise_router.vein_gap,
-            noise_router.barrier,
-            noise_router.fluid_level_floodedness,
-            noise_router.fluid_level_spread,
-            noise_router.lava,
-            noise_router.erosion,
-            noise_router.depth,
-            noise_router.preliminary_surface_level,
-        ] {
-            collect_marker_inputs(function, DensityMarker::FlatCache, &mut flat_cache_inputs);
-        }
-        let mut cache_2d_inputs: Vec<&'static DensityFunction> = Vec::new();
-        for function in [
-            noise_router.final_density,
-            noise_router.vein_toggle,
-            noise_router.vein_ridged,
-            noise_router.vein_gap,
-            noise_router.barrier,
-            noise_router.fluid_level_floodedness,
-            noise_router.fluid_level_spread,
-            noise_router.lava,
-            noise_router.erosion,
-            noise_router.depth,
-            noise_router.preliminary_surface_level,
-        ] {
-            collect_marker_inputs(function, DensityMarker::Cache2D, &mut cache_2d_inputs);
-        }
-        let mut cache_once_inputs: Vec<&'static DensityFunction> = Vec::new();
-        for function in [
-            noise_router.final_density,
-            noise_router.vein_toggle,
-            noise_router.vein_ridged,
-            noise_router.vein_gap,
-            noise_router.barrier,
-            noise_router.fluid_level_floodedness,
-            noise_router.fluid_level_spread,
-            noise_router.lava,
-            noise_router.erosion,
-            noise_router.depth,
-            noise_router.preliminary_surface_level,
-        ] {
-            collect_marker_inputs(function, DensityMarker::CacheOnce, &mut cache_once_inputs);
-        }
-
-        // Build Java-style identity lookup maps: pointer → wrapper index.
-        let interp_by_ptr = build_density_lookup(&inputs);
-        let cache_all_by_ptr = build_density_lookup(&cache_all_inputs);
-        let flat_cache_by_ptr = build_density_lookup(&flat_cache_inputs);
-        let cache_2d_by_ptr = build_density_lookup(&cache_2d_inputs);
-        let cache_once_by_ptr = build_density_lookup(&cache_once_inputs);
+        let template = noise_chunk_template(settings.id, noise_router);
 
         // Allocate one interpolator per unique inner function.
-        let interpolators: Vec<NoiseInterpolatorState> = inputs
+        let interpolators: Vec<NoiseInterpolatorState> = template
+            .interpolated_inputs
             .iter()
             .map(|&fn_ref| {
                 NoiseInterpolatorState::new(cell_count_y as usize, cell_count_xz as usize, fn_ref)
             })
             .collect();
-        let cache_all_in_cell: Vec<CacheAllInCellState> = cache_all_inputs
+        let cache_all_in_cell: Vec<CacheAllInCellState> = template
+            .cache_all_inputs
             .iter()
             .map(|&fn_ref| CacheAllInCellState::new(cell_width, cell_height, fn_ref))
             .collect();
-        let cache_2d: Vec<Cache2DState> = cache_2d_inputs
+        let cache_2d: Vec<Cache2DState> = template
+            .cache_2d_inputs
             .iter()
             .map(|&fn_ref| Cache2DState::new(fn_ref))
             .collect();
-        let cache_once_values: Vec<CacheOnceState> = cache_once_inputs
+        let cache_once_values: Vec<CacheOnceState> = template
+            .cache_once_inputs
             .iter()
             .map(|_| CacheOnceState::default())
             .collect();
-        let flat_cache: Vec<FlatCacheState> = flat_cache_inputs
+        let flat_cache: Vec<FlatCacheState> = template
+            .flat_cache_inputs
             .iter()
             .map(|&fn_ref| {
                 FlatCacheState::new(
@@ -43774,13 +44488,13 @@ impl NoiseChunk {
             first_cell_z,
             noise_size_xz,
             interpolators,
-            interp_by_ptr,
+            interp_by_ptr: template.interp_by_ptr,
             cache_all_in_cell,
-            cache_all_by_ptr,
+            cache_all_by_ptr: template.cache_all_by_ptr,
             cache_2d: RefCell::new(cache_2d),
-            cache_2d_by_ptr,
+            cache_2d_by_ptr: template.cache_2d_by_ptr,
             flat_cache,
-            flat_cache_by_ptr,
+            flat_cache_by_ptr: template.flat_cache_by_ptr,
             full_noise_values,
             vein_toggle_values,
             vein_ridged_values,
@@ -43794,7 +44508,7 @@ impl NoiseChunk {
             interpolating: false,
             prelim_surface_cache: RefCell::new(HashMap::new()),
             cache_once_values: RefCell::new(cache_once_values),
-            cache_once_by_ptr,
+            cache_once_by_ptr: template.cache_once_by_ptr,
             normal_noise_cache: RefCell::new(HashMap::new()),
             blended_noise_cache: RefCell::new(Vec::new()),
             density_value_bounds_cache: RefCell::new(HashMap::new()),
@@ -46992,7 +47706,7 @@ mod tests {
             "generated chunk should contain non-air blocks in the origin column"
         );
         eprintln!(
-            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
+            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
             pos.x,
             pos.z,
             elapsed_ms,
@@ -47009,6 +47723,7 @@ mod tests {
             timings.terrain.fill_noise_chunk_init_ms,
             timings.terrain.fill_aquifer_init_ms,
             timings.terrain.fill_block_loop_ms,
+            timings.terrain.biome_storage_ms,
             timings.terrain.fill_density_lookup_us,
             timings.terrain.fill_aquifer_compute_us,
             timings.terrain.fill_ore_vein_lookup_us,

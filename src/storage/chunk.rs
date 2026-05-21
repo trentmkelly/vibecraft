@@ -858,7 +858,7 @@ impl LevelChunk {
             for z in 0..16 {
                 let index = z * 16 + x;
                 for y in (min_y..=max_y).rev() {
-                    let Some(block) = self.get_block_state(
+                    let Some(block) = self.get_block_state_name(
                         self.pos.x * CHUNK_WIDTH + x as i32,
                         y,
                         self.pos.z * CHUNK_WIDTH + z as i32,
@@ -894,13 +894,13 @@ impl LevelChunk {
             else {
                 continue;
             };
-            let mut values = unpack_heightmap_values(raw_values);
-            let first_available = values[column_index];
+            let first_available = unpack_heightmap_value(raw_values, column_index);
             if world_y <= first_available - 2 {
                 continue;
             }
             if heightmap_block_matches(heightmap, block_name) {
                 if world_y >= first_available {
+                    let mut values = unpack_heightmap_values(raw_values);
                     values[column_index] = world_y + 1;
                     self.heightmaps.insert(
                         heightmap.storage_name().to_string(),
@@ -908,15 +908,16 @@ impl LevelChunk {
                     );
                 }
             } else if first_available - 1 == world_y {
+                let mut values = unpack_heightmap_values(raw_values);
                 values[column_index] = (min_y..world_y)
                     .rev()
                     .find(|y| {
-                        self.get_block_state(
+                        self.get_block_state_name(
                             self.pos.x * CHUNK_WIDTH + local_x,
                             *y,
                             self.pos.z * CHUNK_WIDTH + local_z,
                         )
-                        .is_some_and(|block| heightmap_block_matches(heightmap, &block))
+                        .is_some_and(|block| heightmap_block_matches(heightmap, block))
                     })
                     .map(|y| y + 1)
                     .unwrap_or(min_y);
@@ -1520,6 +1521,51 @@ impl PalettedContainer {
         self.set_entry_ref(index, &entry);
     }
 
+    pub fn ensure_palette_entry(&mut self, entry: &Tag) -> usize {
+        let old_palette_len = self.palette.len();
+        let palette_idx = match self.palette.iter().position(|e| e == entry) {
+            Some(i) => i,
+            None => {
+                self.palette.push(entry.clone());
+                self.palette.len() - 1
+            }
+        };
+        let old_bits = palette_bits_for_size(old_palette_len.max(1));
+        let bits = palette_bits_for_size(self.palette.len());
+        if old_bits != bits {
+            let count = self.expected_entries;
+            let indices = self
+                .data
+                .as_ref()
+                .map(|d| unpack_palette_indices(d, old_bits, count))
+                .unwrap_or_else(|| vec![0_u64; count]);
+            self.data = Some(pack_palette_indices(&indices, bits));
+        }
+        palette_idx
+    }
+
+    pub fn set_palette_index(&mut self, index: usize, palette_idx: usize) {
+        if index >= self.expected_entries || palette_idx >= self.palette.len() {
+            return;
+        }
+        if self.palette.len() == 1 {
+            self.data = None;
+            return;
+        }
+        let bits = palette_bits_for_size(self.palette.len());
+        let values_per_long = 64 / bits;
+        let word_len = self.expected_entries.div_ceil(values_per_long);
+        let data = self.data.get_or_insert_with(|| vec![0_i64; word_len]);
+        if data.len() < word_len {
+            data.resize(word_len, 0);
+        }
+        let word = index / values_per_long;
+        let bit = (index % values_per_long) * bits;
+        let mask = ((1_u64 << bits) - 1) << bit;
+        let current = data[word] as u64;
+        data[word] = ((current & !mask) | ((palette_idx as u64) << bit)) as i64;
+    }
+
     pub fn set_entry_ref(&mut self, index: usize, entry: &Tag) {
         if index >= self.expected_entries {
             return;
@@ -1564,6 +1610,130 @@ impl PalettedContainer {
     }
 }
 
+fn paletted_container_entry_from_nbt(
+    tag: &Tag,
+    expected_entries: usize,
+    index: usize,
+) -> Option<&Tag> {
+    if index >= expected_entries {
+        return None;
+    }
+    let Tag::Compound(fields) = tag else {
+        return None;
+    };
+    let palette = fields.iter().find_map(|(name, value)| {
+        (name == "palette").then_some(value).and_then(|value| {
+            if let Tag::List(entries) = value {
+                Some(entries)
+            } else {
+                None
+            }
+        })
+    })?;
+    if palette.len() == 1 {
+        return palette.first();
+    }
+    let data = fields.iter().find_map(|(name, value)| {
+        (name == "data").then_some(value).and_then(|value| {
+            if let Tag::LongArray(data) = value {
+                Some(data)
+            } else {
+                None
+            }
+        })
+    })?;
+    let bits = palette_bits_for_size(palette.len());
+    let values_per_long = 64 / bits;
+    let word = index / values_per_long;
+    let bit = (index % values_per_long) * bits;
+    let mask = (1_u64 << bits) - 1;
+    let palette_idx = ((data.get(word).copied()? as u64 >> bit) & mask) as usize;
+    palette.get(palette_idx)
+}
+
+fn set_paletted_container_entry_in_nbt(
+    tag: &mut Tag,
+    expected_entries: usize,
+    index: usize,
+    entry: &Tag,
+) -> bool {
+    if index >= expected_entries {
+        return false;
+    }
+    let Tag::Compound(fields) = tag else {
+        return false;
+    };
+    let Some(palette_field_index) = fields.iter().position(|(name, _)| name == "palette") else {
+        return false;
+    };
+    let Tag::List(palette) = &mut fields[palette_field_index].1 else {
+        return false;
+    };
+    if palette.is_empty() {
+        return false;
+    }
+
+    let old_palette_len = palette.len();
+    let palette_idx = match palette.iter().position(|candidate| candidate == entry) {
+        Some(index) => index,
+        None => {
+            palette.push(entry.clone());
+            palette.len() - 1
+        }
+    };
+    if palette.len() == 1 {
+        fields.retain(|(name, _)| name != "data");
+        return true;
+    }
+
+    let old_bits = palette_bits_for_size(old_palette_len.max(1));
+    let bits = palette_bits_for_size(palette.len());
+    let values_per_long = 64 / bits;
+    let word_len = expected_entries.div_ceil(values_per_long);
+    let data_field_index = fields.iter().position(|(name, _)| name == "data");
+
+    if old_bits == bits {
+        let data = match data_field_index {
+            Some(index) => match &mut fields[index].1 {
+                Tag::LongArray(data) => data,
+                _ => return false,
+            },
+            None => {
+                fields.push(("data".to_string(), Tag::LongArray(vec![0_i64; word_len])));
+                match &mut fields.last_mut().expect("data field was just inserted").1 {
+                    Tag::LongArray(data) => data,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        if data.len() < word_len {
+            data.resize(word_len, 0);
+        }
+        let word = index / values_per_long;
+        let bit = (index % values_per_long) * bits;
+        let mask = ((1_u64 << bits) - 1) << bit;
+        let current = data[word] as u64;
+        data[word] = ((current & !mask) | ((palette_idx as u64) << bit)) as i64;
+        return true;
+    }
+
+    let old_data = data_field_index.and_then(|index| match &fields[index].1 {
+        Tag::LongArray(data) => Some(data.as_slice()),
+        _ => None,
+    });
+    let mut indices = old_data
+        .map(|data| unpack_palette_indices(data, old_bits, expected_entries))
+        .unwrap_or_else(|| vec![0_u64; expected_entries]);
+    indices[index] = palette_idx as u64;
+    let packed = pack_palette_indices(&indices, bits);
+    if let Some(index) = data_field_index {
+        fields[index].1 = Tag::LongArray(packed);
+    } else {
+        fields.push(("data".to_string(), Tag::LongArray(packed)));
+    }
+    true
+}
+
 impl LevelChunk {
     pub fn heightmap_value(
         &self,
@@ -1581,18 +1751,27 @@ impl LevelChunk {
     }
 
     pub fn get_block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<String> {
+        self.get_block_state_name(world_x, world_y, world_z)
+            .map(str::to_string)
+    }
+
+    pub fn get_block_state_name(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
         let local_y = world_y.rem_euclid(16) as usize;
         let local_z = world_z.rem_euclid(16) as usize;
         let index = local_y * 256 + local_z * 16 + local_x;
-        let section = self.sections.iter().find(|s| s.y == section_y)?;
-        let container = PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).ok()?;
-        let entry = container.get_entry(index)?;
+        let section = self
+            .sections
+            .get((i32::from(section_y) - self.min_section_y) as usize)
+            .filter(|section| section.y == section_y)
+            .or_else(|| self.sections.iter().find(|section| section.y == section_y))?;
+        let entry =
+            paletted_container_entry_from_nbt(&section.block_states, SECTION_VOLUME, index)?;
         if let Tag::Compound(fields) = entry {
             fields.iter().find(|(k, _)| k == "Name").and_then(|(_, v)| {
                 if let Tag::String(name) = v {
-                    Some(name.clone())
+                    Some(name.as_str())
                 } else {
                     None
                 }
@@ -1603,6 +1782,30 @@ impl LevelChunk {
     }
 
     pub fn set_block_state(&mut self, world_x: i32, world_y: i32, world_z: i32, block_name: &str) {
+        if self.set_block_state_raw(world_x, world_y, world_z, block_name) {
+            let local_x = world_x.rem_euclid(16);
+            let local_z = world_z.rem_euclid(16);
+            self.update_heightmaps_after_block_change(local_x, world_y, local_z, block_name);
+        }
+    }
+
+    pub fn set_block_state_without_heightmap_update(
+        &mut self,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+        block_name: &str,
+    ) {
+        self.set_block_state_raw(world_x, world_y, world_z, block_name);
+    }
+
+    fn set_block_state_raw(
+        &mut self,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+        block_name: &str,
+    ) -> bool {
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
         let local_y = world_y.rem_euclid(16) as usize;
@@ -1614,8 +1817,13 @@ impl LevelChunk {
             Tag::String(block_name.to_string()),
         )]);
 
-        let mut changed = false;
-        if self.sections.iter().all(|s| s.y != section_y) {
+        let section_index = i32::from(section_y) - self.min_section_y;
+        let has_direct_section = section_index >= 0
+            && self
+                .sections
+                .get(section_index as usize)
+                .is_some_and(|section| section.y == section_y);
+        if !has_direct_section && self.sections.iter().all(|s| s.y != section_y) {
             self.sections.push(ChunkSection {
                 y: section_y,
                 block_states: default_block_states_container(),
@@ -1626,23 +1834,27 @@ impl LevelChunk {
             self.sections.sort_by_key(|section| section.y);
         }
 
-        if let Some(section) = self.sections.iter_mut().find(|s| s.y == section_y) {
-            if let Ok(mut container) =
-                PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
-            {
-                container.set_entry(index, entry);
-                section.block_states = container.to_nbt();
-                changed = true;
-            }
-        }
-        if changed {
-            self.update_heightmaps_after_block_change(
-                local_x as i32,
-                world_y,
-                local_z as i32,
-                block_name,
+        let section = if section_index >= 0 {
+            self.sections
+                .get_mut(section_index as usize)
+                .filter(|section| section.y == section_y)
+        } else {
+            None
+        };
+        let section = match section {
+            Some(section) => Some(section),
+            None => self.sections.iter_mut().find(|s| s.y == section_y),
+        };
+
+        if let Some(section) = section {
+            return set_paletted_container_entry_in_nbt(
+                &mut section.block_states,
+                SECTION_VOLUME,
+                index,
+                &entry,
             );
         }
+        false
     }
 }
 
