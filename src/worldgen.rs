@@ -41710,15 +41710,16 @@ impl NoiseChunk {
     }
 
     fn fill_interpolator_slice(&mut self, use_slice0: bool, block_x: i32) {
-        for interp_index in 0..self.interpolators.len() {
-            let inner_fn = self.interpolators[interp_index].inner_fn;
-            for z_idx in 0..=(self.cell_count_xz as usize) {
-                let block_z = (self.first_cell_z + z_idx as i32) * self.cell_width;
-                self.cell_start_block_z = block_z;
-                self.in_cell_z = 0;
-                if interp_index == 0 {
-                    self.array_interpolation_counter += 1;
-                }
+        self.cell_start_block_x = block_x;
+        self.in_cell_x = 0;
+        for z_idx in 0..=(self.cell_count_xz as usize) {
+            let block_z = (self.first_cell_z + z_idx as i32) * self.cell_width;
+            self.cell_start_block_z = block_z;
+            self.in_cell_z = 0;
+            self.array_interpolation_counter += 1;
+
+            for interp_index in 0..self.interpolators.len() {
+                let inner_fn = self.interpolators[interp_index].inner_fn;
                 let mut row = {
                     let interp = &mut self.interpolators[interp_index];
                     if use_slice0 {
