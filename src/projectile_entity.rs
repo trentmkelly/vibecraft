@@ -407,6 +407,14 @@ impl HurtingProjectileState {
             .unwrap_or(false);
     }
 
+    pub fn wither_skull_effect_ticks(difficulty: ProjectileDifficulty) -> i32 {
+        match difficulty {
+            ProjectileDifficulty::Peaceful | ProjectileDifficulty::Easy => 0,
+            ProjectileDifficulty::Normal => 200,
+            ProjectileDifficulty::Hard => 800,
+        }
+    }
+
     pub fn deflect(&mut self, by_attack: bool, new_owner: Option<ProjectileOwner>) {
         self.projectile.owner = new_owner;
         self.acceleration_power = if by_attack {
@@ -435,6 +443,7 @@ impl HurtingProjectileState {
                     owner_damage: 8,
                     magic_damage: 5,
                     owner_heal_on_kill: 5.0,
+                    wither_effect_amplifier: 1,
                     explosion_power: 1.0,
                 }
             }
@@ -502,6 +511,14 @@ pub enum ExplosionInteraction {
     Trigger,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectileDifficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HurtingImpact {
     Explosion {
@@ -515,6 +532,7 @@ pub enum HurtingImpact {
         owner_damage: i32,
         magic_damage: i32,
         owner_heal_on_kill: f32,
+        wither_effect_amplifier: i32,
         explosion_power: f32,
     },
     AreaEffectCloud {
@@ -964,8 +982,25 @@ mod tests {
                 owner_damage: 8,
                 magic_damage: 5,
                 owner_heal_on_kill: 5.0,
+                wither_effect_amplifier: 1,
                 explosion_power: 1.0
             }
+        );
+        assert_eq!(
+            HurtingProjectileState::wither_skull_effect_ticks(ProjectileDifficulty::Peaceful),
+            0
+        );
+        assert_eq!(
+            HurtingProjectileState::wither_skull_effect_ticks(ProjectileDifficulty::Easy),
+            0
+        );
+        assert_eq!(
+            HurtingProjectileState::wither_skull_effect_ticks(ProjectileDifficulty::Normal),
+            200
+        );
+        assert_eq!(
+            HurtingProjectileState::wither_skull_effect_ticks(ProjectileDifficulty::Hard),
+            800
         );
 
         let mut small = HurtingProjectileState::new(20, HurtingProjectileKind::SmallFireball);

@@ -47,7 +47,7 @@
 - [ ] Implement wither charge attack at target once below half health
 - [ ] Implement wither shield/invulnerability below half health (only damaged by explosions and skulls)
 - [x] Implement wither self-healing over time and on skull hit
-- [ ] Implement wither "wither effect" aura on hit
+- [x] Implement wither "wither effect" aura on hit
 - [ ] Implement wither death sequence: explosion, nether star drop, `BossEvent` removal
 - [ ] Implement wither summoning precondition check (T-shape soul sand/soil + 3 wither skulls, not in superflat End)
 - [x] Implement wither bossbar: `BossEvent.BossBarColor.PURPLE`, health %
