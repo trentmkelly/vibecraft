@@ -163,6 +163,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [x] Implement `SurfaceSystem.buildSurface()`: iterate each chunk column, evaluate surface rule tree top-down, place surface blocks (grass, dirt, gravel, sand, etc.) per biome
 - [x] Implement surface rule data loading from `data/minecraft/worldgen/noise_settings/<name>.json` `surface_rule` field
 - [x] Add parity test: plains biome at y=64 surface has grass block, y=63 has dirt, stone below matches vanilla for seed 0
+- [ ] Replace the current overworld surface biome 2-D shortcut with a Java-shaped cache keyed by the `SurfaceSystem.buildSurface` biome sample Y. Java samples `biomeManager.getBiome(blockX, useLegacy ? 0 : startingHeight, blockZ)`, while RustCraft currently preselects one 2-D biome per quart column for speed. A naive y-correct fallback preserved Java semantics but raised debug surface time from ~8ms to ~27ms/chunk without moving the current stocktake fixture, so the eventual fix needs a cheap y-aware climate/depth cache rather than per-column full biome lookup. References: `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/SurfaceSystem.java`, `src/worldgen.rs`.
 
 ## Carvers
 
