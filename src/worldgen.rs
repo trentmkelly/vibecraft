@@ -45424,32 +45424,36 @@ impl NoiseChunk {
         };
         let noodle_min = OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY.value_bounds().0;
 
+        let mut needs_noodle = false;
         self.array_index = 0;
         for y_in_cell in (0..self.cell_height).rev() {
             self.in_cell_y = y_in_cell;
-            let pos_y = self.cell_start_block_y + y_in_cell;
             for x_in_cell in 0..self.cell_width {
                 self.in_cell_x = x_in_cell;
-                let pos_x = self.cell_start_block_x + x_in_cell;
                 for z_in_cell in 0..self.cell_width {
                     self.in_cell_z = z_in_cell;
-                    let pos_z = self.cell_start_block_z + z_in_cell;
                     let post_process = MappedDensityFunction::Squeeze
                         .transform(self.interpolator_value(blend_interp_index) * 0.64);
-                    output[self.array_index] = if post_process < noodle_min {
-                        post_process
-                    } else {
-                        post_process.min(eval_density_fn_with_interp(
-                            OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
-                            self,
-                            pos_x,
-                            pos_y,
-                            pos_z,
-                        ))
-                    };
+                    if post_process >= noodle_min {
+                        needs_noodle = true;
+                    }
+                    output[self.array_index] = post_process;
                     self.array_index += 1;
                 }
             }
+        }
+        if needs_noodle {
+            let mut noodle = self.take_density_array_scratch(output.len());
+            fill_density_array_with_interp(
+                OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
+                self,
+                &mut noodle,
+                DensityArrayFillMode::Cell,
+            );
+            for (value, noodle_value) in output.iter_mut().zip(noodle.iter()) {
+                *value = value.min(*noodle_value);
+            }
+            self.return_density_array_scratch(noodle);
         }
         true
     }
