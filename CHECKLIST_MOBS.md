@@ -45,7 +45,7 @@
 - [ ] Implement `WitherSkull` projectile: normal (gray, faster, larger blast) and blue/charged (breaks hard blocks)
   - [x] Verify Java edge case: charged wither skulls do not increase explosion power; `WitherSkull.getBlockExplosionResistance()` caps destructible block resistance at `min(0.8, resistance)` while `onHit()` still explodes at power 1.0
 - [ ] Implement wither charge attack at target once below half health
-- [ ] Implement wither shield/invulnerability below half health (only damaged by explosions and skulls)
+- [x] Implement wither shield/invulnerability below half health (Java powered gate rejects arrows and wind charges; other non-immune damage still passes normal gates)
 - [x] Implement wither self-healing over time and on skull hit
 - [x] Implement wither "wither effect" aura on hit
 - [ ] Implement wither death sequence: explosion, nether star drop, `BossEvent` removal
