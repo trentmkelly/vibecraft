@@ -334,6 +334,15 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
     `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_swamp.json`,
     `decompiled-server-26.1.2/data/minecraft/worldgen/placed_feature/trees_mangrove.json`,
     `src/worldgen.rs`.
+  - [x] Move the live tree-decoration bridge closer to Java biome-decoration
+    structure by building the per-step feature set from sampled biomes in the
+    target chunk and applying a biome-feature gate at each candidate position,
+    instead of treating the whole chunk as one center biome. Full
+    `PlacedFeature.placeWithContext` execution and exact tree configured-feature
+    shapes remain open under the parent feature items. References:
+    `decompiled-server-26.1.2/net/minecraft/world/level/chunk/ChunkGenerator.java`,
+    `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/placement/BiomeFilter.java`,
+    `src/worldgen.rs`.
 - [ ] Implement configured features.
 - [ ] Implement placed features.
 - [ ] Implement tree, vegetation, spring, ore, disk, lake, geode, fossil, monster room, and special feature placement behavior.

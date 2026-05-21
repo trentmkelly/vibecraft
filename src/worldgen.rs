@@ -5428,6 +5428,169 @@ fn noise_preview_tree_blocks(
         .collect()
 }
 
+fn live_tree_decoration_blocks(
+    chunk_pos: ChunkPos,
+    world_seed: i64,
+    settings: &NoiseGeneratorSettings,
+    biome_source_model: &BiomeSourceModel,
+    terrain_heights: &[i32; 16 * 16],
+) -> Vec<TreePlacementBlock> {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return Vec::new();
+    }
+
+    let Some(router) =
+        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
+    else {
+        return Vec::new();
+    };
+    let climate_sampler = ClimateSampler::from_noise_router(&router, world_seed, *settings);
+
+    let mut biome_steps: Vec<&'static [&'static [&'static str]]> = Vec::new();
+    let mut biome_ids: Vec<&'static str> = Vec::new();
+    for local_z in (0..16).step_by(4) {
+        for local_x in (0..16).step_by(4) {
+            let world_x = chunk_pos.x * 16 + local_x;
+            let world_z = chunk_pos.z * 16 + local_z;
+            let surface_y = terrain_heights[local_z as usize * 16 + local_x as usize].max(0);
+            let Some(biome) = get_biome(
+                biome_source_model,
+                world_x >> 2,
+                surface_y >> 2,
+                world_z >> 2,
+                &climate_sampler,
+            ) else {
+                continue;
+            };
+            if biome_ids.contains(&biome) {
+                continue;
+            }
+            if let Some(generation) = biome_generation_settings(biome) {
+                biome_ids.push(biome);
+                biome_steps.push(generation.feature_steps);
+            }
+        }
+    }
+    if biome_steps.is_empty() {
+        return Vec::new();
+    }
+
+    let features_per_step = match build_features_per_step(&biome_steps, true) {
+        Ok(features) => features,
+        Err(_) => return Vec::new(),
+    };
+    let plan = biome_decoration_feature_plan(
+        world_seed,
+        chunk_pos.x,
+        chunk_pos.z,
+        settings.noise.min_y.div_euclid(16),
+        &features_per_step,
+        &biome_steps,
+    );
+
+    let mut blocks = Vec::new();
+    for call in plan.feature_calls.iter().filter(|call| {
+        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+            && noise_preview_tree_feature_count_kind(call.feature).is_some()
+    }) {
+        let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+        let count = match noise_preview_tree_feature_count_kind(call.feature).unwrap() {
+            NoisePreviewTreeCountKind::SparsePlains => {
+                let index = select_weighted_index([19, 1].into_iter(), 2, &mut random);
+                [0, 1][index]
+            }
+            NoisePreviewTreeCountKind::DenseForest => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [10, 11][index]
+            }
+            NoisePreviewTreeCountKind::Moderate => 2 + random_next_i32_bound(&mut random, 3),
+            NoisePreviewTreeCountKind::FlowerForest => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [6, 7][index]
+            }
+            NoisePreviewTreeCountKind::DenseCanopy => 16,
+            NoisePreviewTreeCountKind::Cherry => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [10, 11][index]
+            }
+            NoisePreviewTreeCountKind::Swamp => {
+                let index = select_weighted_index([9, 1].into_iter(), 2, &mut random);
+                [2, 3][index]
+            }
+            NoisePreviewTreeCountKind::Mangrove => 25,
+        };
+
+        for index in 0..count {
+            let local_x = random_next_i32_bound(&mut random, 16) as usize;
+            let local_z = random_next_i32_bound(&mut random, 16) as usize;
+            let tree_seed = random_next_i64(&mut random) as u64;
+            let surface_height = terrain_heights[local_z * 16 + local_x];
+            if surface_height <= settings.sea_level + 2 {
+                continue;
+            }
+
+            let world_x = chunk_pos.x * 16 + local_x as i32;
+            let world_z = chunk_pos.z * 16 + local_z as i32;
+            let Some(candidate_biome) = get_biome(
+                biome_source_model,
+                world_x >> 2,
+                surface_height >> 2,
+                world_z >> 2,
+                &climate_sampler,
+            ) else {
+                continue;
+            };
+            let Some(candidate_generation) = biome_generation_settings(candidate_biome) else {
+                continue;
+            };
+            if !biome_has_placed_feature(candidate_generation, call.feature) {
+                continue;
+            }
+
+            let tree_seed = tree_seed ^ (index as i64).wrapping_mul(10_000) as u64;
+            let (trunk_state, leaves_state, base_height) =
+                noise_preview_tree_materials(candidate_generation, tree_seed);
+            let plan = simple_tree_placement_plan(
+                BlockPos {
+                    x: local_x as i32,
+                    y: surface_height,
+                    z: local_z as i32,
+                },
+                TrunkPlacerModel {
+                    base_height,
+                    height_rand_a: 2,
+                    height_rand_b: 0,
+                    kind: TrunkPlacerKind::Straight,
+                },
+                FoliagePlacerModel {
+                    radius_min: 2,
+                    radius_max: 2,
+                    offset_min: 0,
+                    offset_max: 0,
+                    kind: FoliagePlacerKind::Blob { height: 3 },
+                },
+                trunk_state,
+                leaves_state,
+                "minecraft:dirt",
+                (tree_seed & 0xffff) as i32,
+                ((tree_seed >> 16) & 0xffff) as i32,
+            )
+            .expect("hard-coded preview tree configuration must validate");
+            blocks.extend(plan.blocks);
+        }
+    }
+
+    blocks
+        .into_iter()
+        .filter(|block| {
+            (0..16).contains(&block.pos.x)
+                && (settings.noise.min_y..settings.noise.min_y + settings.noise.height)
+                    .contains(&block.pos.y)
+                && (0..16).contains(&block.pos.z)
+        })
+        .collect()
+}
+
 fn noise_preview_tree_origins(
     biome: &BiomeGenerationSettingsModel,
     world_seed: i64,
@@ -31458,14 +31621,6 @@ fn apply_initial_tree_decoration_to_chunk(
         return 0;
     }
 
-    let biome = noise_preview_biome(biome_source_model, chunk.pos);
-    let Some(generation) = biome_generation_settings(biome) else {
-        return 0;
-    };
-    if !biome_has_any_tree_placed_feature(generation) {
-        return 0;
-    }
-
     let mut terrain_heights = [settings.sea_level + 1; 16 * 16];
     for z in 0..16 {
         for x in 0..16 {
@@ -31480,7 +31635,13 @@ fn apply_initial_tree_decoration_to_chunk(
     let chunk_min_x = chunk.pos.x * 16;
     let chunk_min_z = chunk.pos.z * 16;
     let mut placed = 0;
-    for block in noise_preview_tree_blocks(chunk.pos, seed, settings, biome, &terrain_heights) {
+    for block in live_tree_decoration_blocks(
+        chunk.pos,
+        seed,
+        settings,
+        biome_source_model,
+        &terrain_heights,
+    ) {
         if !(0..16).contains(&block.pos.x) || !(0..16).contains(&block.pos.z) {
             continue;
         }
