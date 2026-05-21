@@ -144,6 +144,10 @@ impl Xoroshiro128PlusPlus {
         self.next_i64() as i32
     }
 
+    pub fn next_bits(&mut self, bits: u32) -> i32 {
+        ((self.next_i64() as u64) >> (64 - bits)) as i32
+    }
+
     pub fn next_i32_bound(&mut self, bound: i32) -> i32 {
         assert!(bound > 0, "Bound must be positive");
         let mut random_bits = self.next_i32() as u32 as u64;
@@ -299,6 +303,43 @@ pub fn random_source_next_f64(random: &mut RandomSourceKind) -> f64 {
         RandomSourceKind::Legacy(random) => random.next_f64(),
         RandomSourceKind::Xoroshiro(random) => random.next_f64(),
     }
+}
+
+pub fn worldgen_random_next_bits(random: &mut RandomSourceKind, bits: u32) -> i32 {
+    match random {
+        RandomSourceKind::Legacy(random) => random.next_bits(bits),
+        RandomSourceKind::Xoroshiro(random) => random.next_bits(bits),
+    }
+}
+
+pub fn worldgen_random_next_i64(random: &mut RandomSourceKind) -> i64 {
+    let upper = worldgen_random_next_bits(random, 32) as i64;
+    let lower = worldgen_random_next_bits(random, 32) as i64;
+    (upper << 32).wrapping_add(lower)
+}
+
+pub fn worldgen_random_next_i32_bound(random: &mut RandomSourceKind, bound: i32) -> i32 {
+    assert!(bound > 0, "Bound must be positive");
+    if (bound & (bound - 1)) == 0 {
+        return (((bound as i64) * (worldgen_random_next_bits(random, 31) as i64)) >> 31) as i32;
+    }
+    loop {
+        let sample = worldgen_random_next_bits(random, 31);
+        let modulo = sample % bound;
+        if sample.wrapping_sub(modulo).wrapping_add(bound - 1) >= 0 {
+            return modulo;
+        }
+    }
+}
+
+pub fn worldgen_random_next_f32(random: &mut RandomSourceKind) -> f32 {
+    (worldgen_random_next_bits(random, 24) as f32) / ((1_u32 << 24) as f32)
+}
+
+pub fn worldgen_random_next_f64(random: &mut RandomSourceKind) -> f64 {
+    let upper = worldgen_random_next_bits(random, 26) as i64;
+    let lower = worldgen_random_next_bits(random, 27) as i64;
+    (((upper << 27) + lower) as f64) * DOUBLE_UNIT
 }
 
 pub fn random_state_seed_factories(
@@ -482,9 +523,9 @@ pub fn decoration_seed(
                 ^ world_seed
         }
         RandomAlgorithm::Xoroshiro => {
-            let mut random = Xoroshiro128PlusPlus::from_i64_seed(world_seed);
-            let x_scale = random.next_i64() | 1;
-            let z_scale = random.next_i64() | 1;
+            let mut random = RandomSourceKind::new(world_seed, RandomAlgorithm::Xoroshiro);
+            let x_scale = worldgen_random_next_i64(&mut random) | 1;
+            let z_scale = worldgen_random_next_i64(&mut random) | 1;
             (chunk_x as i64)
                 .wrapping_mul(x_scale)
                 .wrapping_add((chunk_z as i64).wrapping_mul(z_scale))
@@ -544,10 +585,12 @@ mod tests {
     use super::{
         block_pos_seed, carver_seed, decoration_seed, feature_seed, java_string_hash,
         large_feature_seed, large_feature_seed_with_salt, linear_congruential_next,
-        mix_stafford_13, random_state_named_factory, random_state_seed_factories, slime_chunk_seed,
-        upgrade_seed_to_128bit, upgrade_seed_to_128bit_unmixed, LegacyRandom,
-        PositionalRandomFactory, RandomAlgorithm, RandomSourceKind, Seed128, Xoroshiro128PlusPlus,
-        GOLDEN_RATIO_64, SILVER_RATIO_64,
+        mix_stafford_13, random_source_next_f64, random_source_next_i32,
+        random_state_named_factory, random_state_seed_factories, slime_chunk_seed,
+        upgrade_seed_to_128bit, upgrade_seed_to_128bit_unmixed, worldgen_random_next_f32,
+        worldgen_random_next_f64, worldgen_random_next_i32_bound, worldgen_random_next_i64,
+        LegacyRandom, PositionalRandomFactory, RandomAlgorithm, RandomSourceKind, Seed128,
+        Xoroshiro128PlusPlus, GOLDEN_RATIO_64, SILVER_RATIO_64,
     };
 
     #[test]
@@ -607,6 +650,99 @@ mod tests {
 
         let mut zero_seed = Xoroshiro128PlusPlus::from_seed128(Seed128 { lo: 0, hi: 0 });
         assert_eq!(zero_seed.next_i64(), 6_807_859_099_481_836_695);
+    }
+
+    #[test]
+    fn xoroshiro_worldgen_random_matches_java_fixture() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../harness/mineflayer/fixtures/java_prng_xoroshiro_worldgen_seed_12345.json"
+        ))
+        .expect("Java PRNG fixture must parse");
+        assert_eq!(
+            fixture["format"].as_str(),
+            Some("rustcraft-java-prng-fixture-v1")
+        );
+        let seed = fixture["seed"].as_i64().expect("fixture seed must be i64");
+        let bound = fixture["bound"]
+            .as_i64()
+            .expect("fixture bound must be i64") as i32;
+
+        let raw = &fixture["raw_xoroshiro"];
+        let mut raw_long = Xoroshiro128PlusPlus::from_i64_seed(seed);
+        assert_i64_sequence(raw, "next_long", || raw_long.next_i64());
+
+        let mut raw_int = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i32_sequence(raw, "next_int_bound", || {
+            random_source_next_i32(&mut raw_int, bound)
+        });
+
+        let mut raw_float = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i64_sequence(raw, "next_float_bits", || {
+            raw_float.next_f32().to_bits() as i64
+        });
+
+        let mut raw_double = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i64_sequence(raw, "next_double_bits", || {
+            random_source_next_f64(&mut raw_double).to_bits() as i64
+        });
+
+        let worldgen = &fixture["worldgen_xoroshiro"];
+        let mut worldgen_long = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i64_sequence(worldgen, "next_long", || {
+            worldgen_random_next_i64(&mut worldgen_long)
+        });
+
+        let mut worldgen_int = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i32_sequence(worldgen, "next_int_bound", || {
+            worldgen_random_next_i32_bound(&mut worldgen_int, bound)
+        });
+
+        let mut worldgen_float = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i64_sequence(worldgen, "next_float_bits", || {
+            worldgen_random_next_f32(&mut worldgen_float).to_bits() as i64
+        });
+
+        let mut worldgen_double = RandomSourceKind::new(seed, RandomAlgorithm::Xoroshiro);
+        assert_i64_sequence(worldgen, "next_double_bits", || {
+            worldgen_random_next_f64(&mut worldgen_double).to_bits() as i64
+        });
+    }
+
+    fn assert_i64_sequence<F>(fixture: &serde_json::Value, key: &str, mut next: F)
+    where
+        F: FnMut() -> i64,
+    {
+        let expected = fixture[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("fixture key {key} must be an array"));
+        for (index, value) in expected.iter().enumerate() {
+            assert_eq!(
+                next(),
+                value
+                    .as_i64()
+                    .unwrap_or_else(|| panic!("fixture {key}[{index}] must fit i64")),
+                "fixture mismatch for {key}[{index}]"
+            );
+        }
+    }
+
+    fn assert_i32_sequence<F>(fixture: &serde_json::Value, key: &str, mut next: F)
+    where
+        F: FnMut() -> i32,
+    {
+        let expected = fixture[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("fixture key {key} must be an array"));
+        for (index, value) in expected.iter().enumerate() {
+            assert_eq!(
+                next(),
+                value
+                    .as_i64()
+                    .unwrap_or_else(|| panic!("fixture {key}[{index}] must fit i32"))
+                    as i32,
+                "fixture mismatch for {key}[{index}]"
+            );
+        }
     }
 
     #[test]

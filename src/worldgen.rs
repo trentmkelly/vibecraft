@@ -14,7 +14,9 @@ pub use crate::random_source::RandomAlgorithm;
 
 use crate::random_source::{
     carver_seed, large_feature_seed_with_salt, random_state_named_factory,
-    random_state_seed_factories, LegacyRandom, PositionalRandomFactory, RandomSourceKind,
+    random_state_seed_factories, worldgen_random_next_f32, worldgen_random_next_f64,
+    worldgen_random_next_i32_bound, worldgen_random_next_i64, LegacyRandom,
+    PositionalRandomFactory, RandomSourceKind,
 };
 use crate::registry::Identifier;
 use crate::storage::chunk::{
@@ -5562,8 +5564,8 @@ fn live_tree_decoration_blocks(
         diagnostics.tree_attempts += count as usize;
 
         for _ in 0..count {
-            let local_x = random_next_i32_bound(&mut random, 16) as usize;
-            let local_z = random_next_i32_bound(&mut random, 16) as usize;
+            let local_x = feature_random_next_i32_bound(&mut random, 16) as usize;
+            let local_z = feature_random_next_i32_bound(&mut random, 16) as usize;
             let height_index = local_z * 16 + local_x;
             let surface_height = terrain_heights.ocean_floor[height_index];
             if surface_height <= settings.noise.min_y {
@@ -5597,8 +5599,8 @@ fn live_tree_decoration_blocks(
             let Some(tree_config) = live_tree_feature_config(call.feature, &mut random) else {
                 continue;
             };
-            let rand_a = random_next_i32_bound(&mut random, tree_config.rand_a_bound);
-            let rand_b = random_next_i32_bound(&mut random, tree_config.rand_b_bound);
+            let rand_a = feature_random_next_i32_bound(&mut random, tree_config.rand_a_bound);
+            let rand_b = feature_random_next_i32_bound(&mut random, tree_config.rand_b_bound);
             let origin = BlockPos {
                 x: local_x as i32,
                 y: surface_height,
@@ -5691,31 +5693,31 @@ fn live_tree_feature_config(
     let feature = feature.strip_prefix("minecraft:").unwrap_or(feature);
     match feature {
         "trees_birch_and_oak_leaf_litter" => {
-            if random_source_next_f32(random) < 0.0025 {
+            if feature_random_next_f32(random) < 0.0025 {
                 return None;
             }
-            if random_source_next_f32(random) < 0.2 {
+            if feature_random_next_f32(random) < 0.2 {
                 return Some(live_birch_tree_config());
             }
-            if random_source_next_f32(random) < 0.1 {
+            if feature_random_next_f32(random) < 0.1 {
                 return Some(live_fancy_oak_tree_config());
             }
-            if random_source_next_f32(random) < 0.0125 {
+            if feature_random_next_f32(random) < 0.0125 {
                 return None;
             }
             Some(live_oak_tree_config())
         }
         "trees_plains" => {
-            if random_source_next_f32(random) < 0.33333334 {
+            if feature_random_next_f32(random) < 0.33333334 {
                 return Some(live_fancy_oak_tree_config());
             }
-            if random_source_next_f32(random) < 0.0125 {
+            if feature_random_next_f32(random) < 0.0125 {
                 return None;
             }
             Some(live_oak_tree_config())
         }
         "trees_birch" => {
-            if random_source_next_f32(random) < 0.0125 {
+            if feature_random_next_f32(random) < 0.0125 {
                 None
             } else {
                 Some(live_birch_tree_config())
@@ -5819,8 +5821,8 @@ fn live_tree_placement_plan(
     let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
     let cluster_rolls = (0..32)
         .map(|_| FancyTrunkClusterRollModel {
-            shape_float: random_source_next_f32(random),
-            angle_float: random_source_next_f32(random),
+            shape_float: feature_random_next_f32(random),
+            angle_float: feature_random_next_f32(random),
         })
         .collect::<Vec<_>>();
     let trunk_plan = fancy_trunk_placement_plan(
@@ -6126,8 +6128,8 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
         let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
         for _ in 0..2 {
             origin_checks += 1;
-            let origin_local_x = random_next_i32_bound(&mut random, 16);
-            let origin_local_z = random_next_i32_bound(&mut random, 16);
+            let origin_local_x = feature_random_next_i32_bound(&mut random, 16);
+            let origin_local_z = feature_random_next_i32_bound(&mut random, 16);
             let origin_world_x = chunk_min_x + origin_local_x;
             let origin_world_z = chunk_min_z + origin_local_z;
             let origin_y =
@@ -6182,7 +6184,7 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
                     continue;
                 }
 
-                let _leaf_litter_state_index = random_next_i32_bound(&mut random, 12);
+                let _leaf_litter_state_index = feature_random_next_i32_bound(&mut random, 12);
                 chunk.set_block_state(world_x, world_y, world_z, "minecraft:leaf_litter");
                 placed += 1;
             }
@@ -6208,7 +6210,8 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
 }
 
 fn sample_triangle_int(random: &mut RandomSourceKind, range: i32) -> i32 {
-    random_next_i32_bound(random, range + 1) - random_next_i32_bound(random, range + 1)
+    feature_random_next_i32_bound(random, range + 1)
+        - feature_random_next_i32_bound(random, range + 1)
 }
 
 fn noise_preview_tree_origins(
@@ -6246,9 +6249,13 @@ fn noise_preview_tree_origins(
         );
 
         for _ in 0..count {
-            let local_x = random_next_i32_bound(&mut random, 16) as usize;
-            let local_z = random_next_i32_bound(&mut random, 16) as usize;
-            origins.push((local_x, local_z, random_next_i64(&mut random) as u64));
+            let local_x = feature_random_next_i32_bound(&mut random, 16) as usize;
+            let local_z = feature_random_next_i32_bound(&mut random, 16) as usize;
+            origins.push((
+                local_x,
+                local_z,
+                feature_random_next_i64(&mut random) as u64,
+            ));
         }
     }
 
@@ -6276,7 +6283,7 @@ fn live_count_extra(
     inverse_chance_weight: i32,
     extra: i32,
 ) -> i32 {
-    let roll = random_next_i32_bound(random, inverse_chance_weight);
+    let roll = feature_random_next_i32_bound(random, inverse_chance_weight);
     if roll < inverse_chance_weight - 1 {
         count
     } else {
@@ -6293,7 +6300,7 @@ fn live_tree_count(kind: NoisePreviewTreeCountKind, random: &mut RandomSourceKin
         } => live_count_extra(random, count, inverse_chance_weight, extra),
         NoisePreviewTreeCountKind::Constant(count) => count,
         NoisePreviewTreeCountKind::CountPlusUniform { count, bound } => {
-            count + random_next_i32_bound(random, bound)
+            count + feature_random_next_i32_bound(random, bound)
         }
         NoisePreviewTreeCountKind::DenseCanopy => 16,
     }
@@ -18259,6 +18266,22 @@ fn random_next_f64(random: &mut RandomSourceKind) -> f64 {
     }
 }
 
+fn feature_random_next_i32_bound(random: &mut RandomSourceKind, bound: i32) -> i32 {
+    worldgen_random_next_i32_bound(random, bound)
+}
+
+fn feature_random_next_i64(random: &mut RandomSourceKind) -> i64 {
+    worldgen_random_next_i64(random)
+}
+
+fn feature_random_next_f32(random: &mut RandomSourceKind) -> f32 {
+    worldgen_random_next_f32(random)
+}
+
+fn feature_random_next_f64(random: &mut RandomSourceKind) -> f64 {
+    worldgen_random_next_f64(random)
+}
+
 pub fn improved_noise_snapshot(random: &mut RandomSourceKind) -> ImprovedNoiseSnapshot {
     let xo = random_next_f64(random) * 256.0;
     let yo = random_next_f64(random) * 256.0;
@@ -24602,6 +24625,12 @@ fn add_client_heightmaps_from_blocks(chunk: &mut LevelChunk) {
 
 fn add_client_heightmaps_from_blocks_timed(chunk: &mut LevelChunk) -> LiveHeightmapTimings {
     let total_started = Instant::now();
+    if final_client_heightmaps_present(chunk) {
+        return LiveHeightmapTimings {
+            total_ms: total_started.elapsed().as_millis(),
+            ..LiveHeightmapTimings::default()
+        };
+    }
     let decode_started = Instant::now();
     let mut world_surface = [0_i32; 16 * 16];
     let mut ocean_floor = [0_i32; 16 * 16];
@@ -24712,6 +24741,116 @@ fn add_client_heightmaps_from_blocks_timed(chunk: &mut LevelChunk) -> LiveHeight
         pack_store_ms,
         sections_decoded: chunk.sections.len(),
         block_samples,
+    }
+}
+
+fn final_client_heightmaps_present(chunk: &LevelChunk) -> bool {
+    [
+        HeightmapKind::WorldSurface,
+        HeightmapKind::OceanFloor,
+        HeightmapKind::MotionBlocking,
+        HeightmapKind::MotionBlockingNoLeaves,
+    ]
+    .iter()
+    .all(|heightmap| chunk.heightmaps.contains_key(heightmap.storage_name()))
+}
+
+fn add_client_heightmaps_from_generated_sections(
+    chunk: &mut LevelChunk,
+    section_blocks: &GeneratedSectionBlocks,
+) {
+    let mut world_surface = [0_i32; 16 * 16];
+    let mut ocean_floor = [0_i32; 16 * 16];
+    let mut motion_blocking = [0_i32; 16 * 16];
+    let mut motion_blocking_no_leaves = [0_i32; 16 * 16];
+    let mut found_world_surface = [false; 16 * 16];
+    let mut found_ocean_floor = [false; 16 * 16];
+    let mut found_motion_blocking = [false; 16 * 16];
+    let mut found_motion_blocking_no_leaves = [false; 16 * 16];
+    let mut remaining_world_surface = 16 * 16;
+    let mut remaining_ocean_floor = 16 * 16;
+    let mut remaining_motion_blocking = 16 * 16;
+    let mut remaining_motion_blocking_no_leaves = 16 * 16;
+
+    'sections: for (section_index, section) in section_blocks.sections.iter().enumerate().rev() {
+        if section.non_air_blocks == 0 {
+            continue;
+        }
+        let section_min_y = (section_blocks.min_section_y + section_index as i32) * 16;
+        for local_y in (0..16).rev() {
+            let world_height = section_min_y + local_y as i32 + 1;
+            for z in 0..16 {
+                for x in 0..16 {
+                    let column = z * 16 + x;
+                    if found_world_surface[column]
+                        && found_ocean_floor[column]
+                        && found_motion_blocking[column]
+                        && found_motion_blocking_no_leaves[column]
+                    {
+                        continue;
+                    }
+                    let index = local_y * 256 + z * 16 + x;
+                    let block = section_blocks
+                        .palette_names
+                        .get(section.ids[index] as usize)
+                        .map(String::as_str)
+                        .unwrap_or("minecraft:air");
+                    if block == "minecraft:air" {
+                        continue;
+                    }
+                    if !found_world_surface[column]
+                        && heightmap_opaque(HeightmapKind::WorldSurface, block)
+                    {
+                        world_surface[column] = world_height;
+                        found_world_surface[column] = true;
+                        remaining_world_surface -= 1;
+                    }
+                    if !found_ocean_floor[column]
+                        && heightmap_opaque(HeightmapKind::OceanFloor, block)
+                    {
+                        ocean_floor[column] = world_height;
+                        found_ocean_floor[column] = true;
+                        remaining_ocean_floor -= 1;
+                    }
+                    if !found_motion_blocking[column]
+                        && heightmap_opaque(HeightmapKind::MotionBlocking, block)
+                    {
+                        motion_blocking[column] = world_height;
+                        found_motion_blocking[column] = true;
+                        remaining_motion_blocking -= 1;
+                    }
+                    if !found_motion_blocking_no_leaves[column]
+                        && heightmap_opaque(HeightmapKind::MotionBlockingNoLeaves, block)
+                    {
+                        motion_blocking_no_leaves[column] = world_height;
+                        found_motion_blocking_no_leaves[column] = true;
+                        remaining_motion_blocking_no_leaves -= 1;
+                    }
+                    if remaining_world_surface == 0
+                        && remaining_ocean_floor == 0
+                        && remaining_motion_blocking == 0
+                        && remaining_motion_blocking_no_leaves == 0
+                    {
+                        break 'sections;
+                    }
+                }
+            }
+        }
+    }
+
+    for (heightmap, values) in [
+        (HeightmapKind::WorldSurface, world_surface),
+        (HeightmapKind::OceanFloor, ocean_floor),
+        (HeightmapKind::MotionBlocking, motion_blocking),
+        (
+            HeightmapKind::MotionBlockingNoLeaves,
+            motion_blocking_no_leaves,
+        ),
+    ] {
+        chunk
+            .heightmaps
+            .entry(heightmap.storage_name().to_string())
+            .or_insert_with(|| Tag::LongArray(pack_heightmap(values)));
     }
 }
 
@@ -31481,6 +31620,7 @@ fn build_surface_for_chunk_timed_with_sections(
             }
         }
     }
+    add_client_heightmaps_from_generated_sections(chunk, section_blocks);
     flush_generated_section_blocks(chunk, section_blocks);
     timings.surface_column_loop_ms = started.elapsed().as_millis();
     timings.surface_total_ms = total_started.elapsed().as_millis();
@@ -34092,7 +34232,7 @@ fn place_vanilla_ore_feature_fast(
             sample_int_provider(provider, random).max(0)
         }
         PlacementModifier::RarityFilter { chance } => {
-            if chance > 0 && random_source_next_f32(random) < 1.0 / chance as f32 {
+            if chance > 0 && feature_random_next_f32(random) < 1.0 / chance as f32 {
                 1
             } else {
                 0
@@ -34103,8 +34243,8 @@ fn place_vanilla_ore_feature_fast(
 
     let mut report = OrePlacementReport::default();
     for _ in 0..count {
-        let x = origin.x + random_next_i32_bound(random, 16);
-        let z = origin.z + random_next_i32_bound(random, 16);
+        let x = origin.x + feature_random_next_i32_bound(random, 16);
+        let z = origin.z + feature_random_next_i32_bound(random, 16);
         let position = BlockPos {
             x,
             y: height_provider_sample_with_random(*height, context, random),
@@ -34195,7 +34335,7 @@ fn place_ore_feature_positions_depth_first(
             report
         }
         PlacementModifier::RarityFilter { chance } => {
-            if chance > 0 && random_source_next_f32(random) < 1.0 / chance as f32 {
+            if chance > 0 && feature_random_next_f32(random) < 1.0 / chance as f32 {
                 place_ore_feature_positions_depth_first(
                     chunk,
                     block_cache,
@@ -34225,9 +34365,9 @@ fn place_ore_feature_positions_depth_first(
             context,
             config,
             BlockPos {
-                x: position.x + random_next_i32_bound(random, 16),
+                x: position.x + feature_random_next_i32_bound(random, 16),
                 y: position.y,
-                z: position.z + random_next_i32_bound(random, 16),
+                z: position.z + feature_random_next_i32_bound(random, 16),
             },
             random,
             skip_biome_filter,
@@ -34309,9 +34449,9 @@ fn place_ore_feature_positions_depth_first(
                         height: settings.noise.height,
                     },
                 },
-                random_next_i32_bound(random, i32::MAX),
-                random_next_i32_bound(random, i32::MAX),
-                random_next_i32_bound(random, i32::MAX),
+                feature_random_next_i32_bound(random, i32::MAX),
+                feature_random_next_i32_bound(random, i32::MAX),
+                feature_random_next_i32_bound(random, i32::MAX),
             );
             positions.into_iter().fold(
                 OrePlacementReport::default(),
@@ -34347,7 +34487,8 @@ fn sample_int_provider(provider: IntProviderModel, random: &mut RandomSourceKind
             if max_inclusive <= min_inclusive {
                 min_inclusive
             } else {
-                min_inclusive + random_next_i32_bound(random, max_inclusive - min_inclusive + 1)
+                min_inclusive
+                    + feature_random_next_i32_bound(random, max_inclusive - min_inclusive + 1)
             }
         }
     }
@@ -34383,8 +34524,8 @@ fn height_provider_sample_with_random(
             if outer_bound <= 0 {
                 min
             } else {
-                let limit = random_next_i32_bound(random, outer_bound);
-                min + random_next_i32_bound(random, limit + inner)
+                let limit = feature_random_next_i32_bound(random, outer_bound);
+                min + feature_random_next_i32_bound(random, limit + inner)
             }
         }
         HeightProvider::VeryBiasedToBottom {
@@ -34432,7 +34573,7 @@ fn height_provider_sample_with_random(
                 return context.min_y;
             }
 
-            let mut choice = random_next_i32_bound(random, positive_weight_total);
+            let mut choice = feature_random_next_i32_bound(random, positive_weight_total);
             let selected = distribution
                 .iter()
                 .find(|entry| {
@@ -34456,7 +34597,7 @@ fn random_next_i32_between_inclusive(
     max_inclusive: i32,
 ) -> i32 {
     debug_assert!(min_inclusive <= max_inclusive);
-    min_inclusive + random_next_i32_bound(random, max_inclusive - min_inclusive + 1)
+    min_inclusive + feature_random_next_i32_bound(random, max_inclusive - min_inclusive + 1)
 }
 
 fn biome_allows_feature_at(
@@ -34489,7 +34630,7 @@ fn place_configured_ore_in_chunk(
     random: &mut RandomSourceKind,
 ) -> OrePlacementReport {
     let total_started = Instant::now();
-    let direction = random_source_next_f32(random);
+    let direction = feature_random_next_f32(random);
     let spread_xy = config.size as f32 / 8.0;
     let max_radius = ((config.size as f32 / 16.0 * 2.0 + 1.0) / 2.0).ceil() as i32;
     let spread_ceil = spread_xy.ceil() as i32;
@@ -34499,8 +34640,8 @@ fn place_configured_ore_in_chunk(
     let size_xz = 2 * (spread_ceil + max_radius);
     let size_y = 2 * (2 + max_radius);
     let y_rolls = [(
-        random_next_i32_bound(random, 3),
-        random_next_i32_bound(random, 3),
+        feature_random_next_i32_bound(random, 3),
+        feature_random_next_i32_bound(random, 3),
     )];
 
     let started = Instant::now();
@@ -34516,7 +34657,7 @@ fn place_configured_ore_in_chunk(
 
     let started = Instant::now();
     let radius_rolls = (0..config.size.max(0))
-        .map(|_| random_next_f64(random))
+        .map(|_| feature_random_next_f64(random))
         .collect::<Vec<_>>();
 
     let spheres = ore_vein_spheres(origin, config.size, direction, &y_rolls, &radius_rolls);
@@ -34550,7 +34691,7 @@ fn place_configured_ore_in_chunk(
             let skip_air_check = match config.discard_chance_on_air_exposure {
                 chance if chance <= 0.0 => true,
                 chance if chance >= 1.0 => false,
-                chance => random_source_next_f32(random) >= chance,
+                chance => feature_random_next_f32(random) >= chance,
             };
             (skip_air_check || !is_adjacent_to_ore_air(block_cache, pos)).then_some(target.state)
         }) else {
@@ -54539,13 +54680,13 @@ mod tests {
             .find(|call| call.feature == "minecraft:trees_plains")
             .expect("plains decoration should schedule trees_plains");
 
-        assert_eq!(plan.decoration_seed, -3_791_487_430_447_585_527);
+        assert_eq!(plan.decoration_seed, -6_006_185_048_957_774_615);
         assert_eq!(
             trees.step_index,
             GenerationDecorationStep::VegetalDecoration as usize
         );
         assert_eq!(trees.global_feature_index, 3);
-        assert_eq!(trees.seed, -3_791_487_430_447_495_524);
+        assert_eq!(trees.seed, -6_006_185_048_957_684_612);
     }
 
     #[test]
