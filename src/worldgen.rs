@@ -44809,16 +44809,8 @@ impl NoiseChunk {
 
     fn normal_noise_sample(&self, noise_id: &'static str, x: f64, y: f64, z: f64) -> f64 {
         if !self.normal_noise_cache.borrow().contains_key(noise_id) {
-            let Some(plan) =
-                random_state_normal_noise_instantiation_plan(self.seed, self.settings, noise_id)
-            else {
-                return 0.0;
-            };
-            let Some(parameters) = builtin_normal_noise_parameters(plan.id) else {
-                return 0.0;
-            };
-            let Ok(snapshot) =
-                normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization)
+            let Some(snapshot) =
+                random_state_normal_noise_snapshot(self.seed, self.settings, noise_id)
             else {
                 return 0.0;
             };
