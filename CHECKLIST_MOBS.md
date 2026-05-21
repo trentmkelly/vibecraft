@@ -159,8 +159,9 @@
   - [x] Implement Java-matched `Axolotl` color variant model: lucy/wild/gold/cyan common variants, rare blue variant, default lucy, and 1/1200 rare breeding chance
   - [x] Implement Java-matched `Axolotl` play-dead gates: 200-tick memory on nonfatal in-water entity damage, ambient/enemy visibility suppression, and rehydrate/max-air constants
   - [x] Implement Java-matched `Axolotl` bucket/attack/support gates: water-bucket pickup, bucket save fields, from-bucket persistence/despawn rule, hunt target tags and cooldown, always-hostile aquatic targets, assisted-kill player regeneration/mining-fatigue removal, attributes, and baby dimensions
-- [ ] Implement `Bee`: pollination flight from flower to hive, honey level increment (0–5), honeycomb drop on shear, sting → death, hive memory `MemoryModuleType.BEE_HIVE_REMEMBERED`, anger propagation
+- [x] Implement `Bee`: pollination flight from flower to hive, honey level increment (0–5), honeycomb drop on shear, sting → death, hive memory `MemoryModuleType.BEE_HIVE_REMEMBERED`, anger propagation
   - [x] Implement Java-matched `Bee` server-visible state gates: roll/stung/nectar flags, saved pollination/hive counters, 20-39s anger range, sting poison/death timing, underwater damage threshold, and hive-entry conditions
+  - [x] Implement Java-matched `Bee` hive/block gates: 3-bee occupancy cap, 600/2400 tick hive stays by nectar state, honey delivery level increment capped at 5 with 1% +2 roll, crop-growth cap/chance, honeycomb/shear and bottle reset interactions, smoke sedation anger suppression, emergency/front-blocked release behavior, and saved flower transfer
 - [x] Implement `Camel`: sitting/standing animation with transition ticks, dash ability cooldown, two-passenger riding with separate seat offsets
   - [x] Implement Java-matched `Camel` movement state: 55-tick dash cooldown, 5-tick minimum dash duration, sit/stand pose tick encoding, 40/52 tick pose-transition gates, sprint speed bonus, baby/sitting dimensions, and two-passenger attachment offsets
 - [x] Implement `Chicken`: egg-laying timer (5–10 minute interval), flutter-fall (no fall damage), baby chick → adult transition
