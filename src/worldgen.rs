@@ -24419,6 +24419,8 @@ pub struct LiveChunkGenerationTimings {
     pub carver_blocks: usize,
     pub ore_decoration_ms: u128,
     pub ore_blocks: usize,
+    pub tree_context_ms: u128,
+    pub tree_context_chunks: usize,
     pub tree_decoration_ms: u128,
     pub tree_blocks: usize,
     pub terrain: LiveTerrainTimings,
@@ -26350,6 +26352,11 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         let precomputed_tree_context = tree_context_handle
                             .join()
                             .expect("tree context generation should not panic");
+                        if let Some(context) = precomputed_tree_context.as_ref() {
+                            timings.tree_context_ms =
+                                context.context_chunk_build_ms + context.context_heightmap_ms;
+                            timings.tree_context_chunks = context.context_chunks;
+                        }
                         let phase_started = Instant::now();
                         timings.tree_blocks = apply_initial_tree_decoration_to_chunk(
                             &mut chunk,
@@ -48373,7 +48380,7 @@ mod tests {
             "generated chunk should contain non-air blocks in the origin column"
         );
         eprintln!(
-            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
+            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
             pos.x,
             pos.z,
             elapsed_ms,
@@ -48383,6 +48390,8 @@ mod tests {
             timings.carver_blocks,
             timings.ore_decoration_ms,
             timings.ore_blocks,
+            timings.tree_context_ms,
+            timings.tree_context_chunks,
             timings.tree_decoration_ms,
             timings.tree_blocks,
             timings.terrain.fill_total_ms,
