@@ -35307,8 +35307,8 @@ fn carve_configured_carver_from_source_chunk(
                         x + 1.0,
                         y,
                         z,
-                        base_horizontal_radius * horizontal_radius_multiplier,
-                        base_vertical_radius * vertical_radius_multiplier,
+                        base_horizontal_radius,
+                        base_vertical_radius,
                         CarverSkipModel::Cave { floor_level },
                         mask,
                         settings,
@@ -35448,19 +35448,30 @@ fn carve_ellipsoid_into_chunk(
             aquifer.as_deref_mut(),
             pos,
         );
-        let Some(outcome) = carver_carve_block(
-            carver,
-            height_context,
-            CarverBlockInput {
-                pos,
+        let input = CarverBlockInput {
+            pos,
+            block,
+            was_masked: carver_mask_index(pos.x, pos.y, pos.z, height_context.min_y)
+                .is_some_and(|index| mask.contains(&index)),
+            aquifer_state,
+            should_schedule_fluid_update,
+            debug_enabled: false,
+        };
+        let outcome = carver_carve_block(carver, height_context, input);
+        if carver_trace_matches(pos) {
+            eprintln!(
+                "[carver-trace] carver={} pos=({},{},{}) block={} was_masked={} aquifer_state={:?} outcome={:?}",
+                carver.id,
+                pos.x,
+                pos.y,
+                pos.z,
                 block,
-                was_masked: carver_mask_index(pos.x, pos.y, pos.z, height_context.min_y)
-                    .is_some_and(|index| mask.contains(&index)),
-                aquifer_state,
-                should_schedule_fluid_update,
-                debug_enabled: false,
-            },
-        ) else {
+                input.was_masked,
+                input.aquifer_state,
+                outcome.as_ref().map(|outcome| outcome.state)
+            );
+        }
+        let Some(outcome) = outcome else {
             continue;
         };
         chunk.set_block_state(pos.x, pos.y, pos.z, outcome.state);
@@ -35468,6 +35479,34 @@ fn carve_ellipsoid_into_chunk(
         carved += 1;
     }
     carved
+}
+
+fn carver_trace_matches(pos: BlockPos) -> bool {
+    let Ok(raw) = std::env::var("RUSTCRAFT_WORLDGEN_CARVER_TRACE") else {
+        return false;
+    };
+    raw.split(';').any(|entry| {
+        let mut parts = entry.split(',');
+        let Some(x) = parts
+            .next()
+            .and_then(|part| part.trim().parse::<i32>().ok())
+        else {
+            return false;
+        };
+        let Some(y) = parts
+            .next()
+            .and_then(|part| part.trim().parse::<i32>().ok())
+        else {
+            return false;
+        };
+        let Some(z) = parts
+            .next()
+            .and_then(|part| part.trim().parse::<i32>().ok())
+        else {
+            return false;
+        };
+        parts.next().is_none() && pos.x == x && pos.y == y && pos.z == z
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -49836,6 +49875,339 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic parity buckets for base-stone and cave material mismatches"]
+    fn normal_overworld_base_stone_mismatch_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let fixture_chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut stage_chunks: Vec<(&'static str, Vec<LevelChunk>)> = vec![
+            ("noise_surface", Vec::new()),
+            ("carvers", Vec::new()),
+            ("ores", Vec::new()),
+            ("trees", Vec::new()),
+        ];
+
+        for fixture_chunk in fixture_chunks {
+            let pos = ChunkPos {
+                x: fixture_chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: fixture_chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut carver = base.clone();
+            super::apply_configured_carvers_for_biome_source(
+                &mut carver,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+            let mut ore = carver.clone();
+            super::apply_underground_ore_decoration_to_chunk(
+                &mut ore,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            let mut full = ore.clone();
+            super::apply_initial_tree_decoration_to_chunk(
+                &mut full,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+                None,
+            );
+
+            stage_chunks[0].1.push(base);
+            stage_chunks[1].1.push(carver);
+            stage_chunks[2].1.push(ore);
+            stage_chunks[3].1.push(full);
+        }
+
+        let tracked_pairs = [
+            ("minecraft:tuff", "minecraft:deepslate"),
+            ("minecraft:deepslate", "minecraft:tuff"),
+            ("minecraft:granite", "minecraft:stone"),
+            ("minecraft:stone", "minecraft:granite"),
+            ("minecraft:cave_air", "minecraft:deepslate"),
+            ("minecraft:deepslate", "minecraft:cave_air"),
+            ("minecraft:cave_air", "minecraft:stone"),
+            ("minecraft:stone", "minecraft:cave_air"),
+        ];
+
+        for (stage_name, chunks) in &stage_chunks {
+            let mut counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+            let mut y_ranges: BTreeMap<(String, String), (i32, i32)> = BTreeMap::new();
+            let mut examples: BTreeMap<(String, String), Vec<BlockPos>> = BTreeMap::new();
+
+            for (chunk_index, fixture_chunk) in fixture_chunks.iter().enumerate() {
+                let chunk_x = fixture_chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX")
+                    as i32;
+                let chunk_z = fixture_chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ")
+                    as i32;
+                let y_min = fixture_chunk
+                    .get("yMin")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include yMin") as i32;
+                let blocks = fixture_chunk
+                    .get("blocks")
+                    .and_then(serde_json::Value::as_array)
+                    .expect("fixture chunk should include blocks");
+                let generated = &chunks[chunk_index];
+
+                for (local_x, y_column) in blocks.iter().enumerate() {
+                    let y_column = y_column.as_array().expect("x column should be an array");
+                    for (y_offset, z_column) in y_column.iter().enumerate() {
+                        let world_y = y_min + y_offset as i32;
+                        let z_column = z_column.as_array().expect("z column should be an array");
+                        for (local_z, expected) in z_column.iter().enumerate() {
+                            let expected = expected
+                                .as_str()
+                                .expect("fixture block should be a string")
+                                .split_once('[')
+                                .map_or_else(|| expected.as_str().unwrap(), |(id, _)| id);
+                            let world_x = chunk_x * 16 + local_x as i32;
+                            let world_z = chunk_z * 16 + local_z as i32;
+                            let actual = generated
+                                .get_block_state(world_x, world_y, world_z)
+                                .unwrap_or_else(|| "minecraft:air".to_string());
+                            if !tracked_pairs.contains(&(expected, actual.as_str())) {
+                                continue;
+                            }
+                            let key = (expected.to_string(), actual);
+
+                            *counts.entry(key.clone()).or_insert(0) += 1;
+                            y_ranges
+                                .entry(key.clone())
+                                .and_modify(|range| {
+                                    range.0 = range.0.min(world_y);
+                                    range.1 = range.1.max(world_y);
+                                })
+                                .or_insert((world_y, world_y));
+                            let examples = examples.entry(key).or_default();
+                            if examples.len() < 5 {
+                                examples.push(BlockPos {
+                                    x: world_x,
+                                    y: world_y,
+                                    z: world_z,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            eprintln!("[base-stone-diagnostic] stage={stage_name}");
+            for &(expected, actual) in &tracked_pairs {
+                let key = (expected.to_string(), actual.to_string());
+                let count = counts.get(&key).copied().unwrap_or(0);
+                if count == 0 {
+                    continue;
+                }
+                let (min_y, max_y) = y_ranges[&key];
+                let examples = examples
+                    .get(&key)
+                    .map(|positions| {
+                        positions
+                            .iter()
+                            .map(|pos| format!("({}, {}, {})", pos.x, pos.y, pos.z))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
+                eprintln!(
+                    "[base-stone-diagnostic] stage={} expected={} actual={} count={} y={}..{} examples={}",
+                    stage_name, expected, actual, count, min_y, max_y, examples
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic for cave-air mismatches while aligning carver/aquifer parity"]
+    fn normal_overworld_cave_air_mismatch_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("vanilla fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut printed = 0_usize;
+        for fixture_chunk in chunks {
+            let chunk_x = fixture_chunk
+                .get("chunkX")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkX") as i32;
+            let chunk_z = fixture_chunk
+                .get("chunkZ")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkZ") as i32;
+            let y_min = fixture_chunk
+                .get("yMin")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include yMin") as i32;
+            let blocks = fixture_chunk
+                .get("blocks")
+                .and_then(serde_json::Value::as_array)
+                .expect("fixture chunk should include blocks");
+            let pos = ChunkPos {
+                x: chunk_x,
+                z: chunk_z,
+            };
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut carver = base.clone();
+            let carved = super::apply_configured_carvers_for_biome_source(
+                &mut carver,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+
+            for (local_x, y_column) in blocks.iter().enumerate() {
+                let y_column = y_column.as_array().expect("x column should be an array");
+                for (y_offset, z_column) in y_column.iter().enumerate() {
+                    let world_y = y_min + y_offset as i32;
+                    let z_column = z_column.as_array().expect("z column should be an array");
+                    for (local_z, expected) in z_column.iter().enumerate() {
+                        let expected = expected
+                            .as_str()
+                            .expect("fixture block should be a string")
+                            .split_once('[')
+                            .map_or_else(
+                                || expected.as_str().unwrap().to_string(),
+                                |(id, _)| id.to_string(),
+                            );
+                        if expected != "minecraft:cave_air" {
+                            continue;
+                        }
+                        let world_x = chunk_x * 16 + local_x as i32;
+                        let world_z = chunk_z * 16 + local_z as i32;
+                        let actual = carver
+                            .get_block_state(world_x, world_y, world_z)
+                            .unwrap_or_else(|| "minecraft:air".to_string());
+                        if matches!(
+                            actual.as_str(),
+                            "minecraft:cave_air"
+                                | "minecraft:air"
+                                | "minecraft:water"
+                                | "minecraft:lava"
+                        ) {
+                            continue;
+                        }
+                        let before = base
+                            .get_block_state(world_x, world_y, world_z)
+                            .unwrap_or_else(|| "minecraft:air".to_string());
+                        let mask_index = super::carver_mask_index(
+                            world_x,
+                            world_y,
+                            world_z,
+                            noise_settings.noise.min_y,
+                        )
+                        .expect("fixture y should be in mask range");
+                        let mask_set = carver.carving_mask.as_ref().is_some_and(|words| {
+                            let word = mask_index / 64;
+                            let bit = mask_index % 64;
+                            words
+                                .get(word)
+                                .is_some_and(|value| ((*value as u64) & (1_u64 << bit)) != 0)
+                        });
+                        let detail = ore_vein_material_detail_at(
+                            pos,
+                            world_x,
+                            world_y,
+                            world_z,
+                            noise_settings,
+                            seed,
+                        );
+                        eprintln!(
+                            "[cave-air-diagnostic] chunk=({chunk_x},{chunk_z}) local=({local_x},{world_y},{local_z}) world=({world_x},{world_y},{world_z}) before={before} after_carvers={actual} mask_set={mask_set} carved_blocks={carved} density={:.6} direct={:.6} sloped={:.6} entrances={:.6} underground={:.6} caves={:.6} post={:.6} noodle={:.6}",
+                            detail.density,
+                            detail.direct_density,
+                            detail.sloped_cheese,
+                            detail.entrances,
+                            detail.underground,
+                            detail.caves,
+                            detail.post_process,
+                            detail.noodle
+                        );
+                        printed += 1;
+                        if printed >= 32 {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(printed > 0, "diagnostic should find cave-air mismatches");
+    }
+
+    #[test]
     #[ignore = "diagnostic for base material-rule drift against the vanilla fixture"]
     fn normal_overworld_ore_vein_material_mismatch_diagnostic() {
         let fixture_json =
@@ -49952,6 +50324,13 @@ mod tests {
     #[derive(Debug)]
     struct OreVeinMaterialDetail {
         density: f64,
+        direct_density: f64,
+        sloped_cheese: f64,
+        entrances: f64,
+        underground: f64,
+        caves: f64,
+        post_process: f64,
+        noodle: f64,
         vein_toggle: f64,
         vein_ridged: f64,
         vein_gap: f64,
@@ -50007,6 +50386,49 @@ mod tests {
         let ore_factory = crate::random_source::random_state_seed_factories(seed, algorithm).ore;
         OreVeinMaterialDetail {
             density: noise_chunk.interpolated_density(world_x, world_y, world_z),
+            direct_density: noise_chunk.full_noise_uncached_at(world_x, world_y, world_z),
+            sloped_cheese: super::eval_density_fn_with_interp(
+                super::OVERWORLD_SLOPED_CHEESE_REFERENCE_DENSITY,
+                &noise_chunk,
+                world_x,
+                world_y,
+                world_z,
+            ),
+            entrances: super::eval_density_fn_with_interp(
+                super::OVERWORLD_CAVES_ENTRANCES_REFERENCE_DENSITY,
+                &noise_chunk,
+                world_x,
+                world_y,
+                world_z,
+            ),
+            underground: super::eval_density_fn_with_interp(
+                super::OVERWORLD_UNDERGROUND_DENSITY,
+                &noise_chunk,
+                world_x,
+                world_y,
+                world_z,
+            ),
+            caves: super::eval_density_fn_with_interp(
+                super::OVERWORLD_CAVES_DENSITY,
+                &noise_chunk,
+                world_x,
+                world_y,
+                world_z,
+            ),
+            post_process: super::eval_density_fn_with_interp(
+                super::OVERWORLD_FINAL_POST_PROCESS_DENSITY,
+                &noise_chunk,
+                world_x,
+                world_y,
+                world_z,
+            ),
+            noodle: super::eval_density_fn_with_interp(
+                super::OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
+                &noise_chunk,
+                world_x,
+                world_y,
+                world_z,
+            ),
             vein_toggle,
             vein_ridged,
             vein_gap,
