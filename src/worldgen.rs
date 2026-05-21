@@ -29792,9 +29792,18 @@ pub fn normal_noise_sample(snapshot: &NormalNoiseSnapshot, x: f64, y: f64, z: f6
 thread_local! {
     static NOISE_SNAPSHOT_CACHE: std::cell::RefCell<Option<HashMap<String, NormalNoiseSnapshot>>>
         = std::cell::RefCell::new(None);
+    static STATIC_NOISE_SNAPSHOT_CACHE: std::cell::RefCell<Option<HashMap<StaticNoiseSnapshotCacheKey, NormalNoiseSnapshot>>>
+        = std::cell::RefCell::new(None);
 }
 static GLOBAL_NOISE_SNAPSHOT_CACHE: OnceLock<Mutex<HashMap<String, NormalNoiseSnapshot>>> =
     OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct StaticNoiseSnapshotCacheKey {
+    seed: i64,
+    settings_id: &'static str,
+    noise_id: &'static str,
+}
 
 fn normal_noise_snapshot_cache_key(
     seed: i64,
@@ -29810,7 +29819,13 @@ fn with_noise_snapshot_cache<T>(f: impl FnOnce() -> T) -> T {
     NOISE_SNAPSHOT_CACHE.with(|cell| {
         *cell.borrow_mut() = Some(HashMap::new());
     });
+    STATIC_NOISE_SNAPSHOT_CACHE.with(|cell| {
+        *cell.borrow_mut() = Some(HashMap::new());
+    });
     let result = f();
+    STATIC_NOISE_SNAPSHOT_CACHE.with(|cell| {
+        *cell.borrow_mut() = None;
+    });
     NOISE_SNAPSHOT_CACHE.with(|cell| {
         *cell.borrow_mut() = None;
     });
@@ -29874,23 +29889,30 @@ fn with_random_state_normal_noise_snapshot<T>(
     noise_id: &'static str,
     f: impl FnOnce(&NormalNoiseSnapshot) -> T,
 ) -> Option<T> {
-    NOISE_SNAPSHOT_CACHE.with(|cell| {
-        if cell.borrow().is_some() {
-            let cache_key = normal_noise_snapshot_cache_key(seed, settings, noise_id);
-            if !cell
-                .borrow()
-                .as_ref()
-                .is_some_and(|cache| cache.contains_key(&cache_key))
-            {
-                random_state_normal_noise_snapshot(seed, settings, noise_id)?;
-            }
-
-            let cache = cell.borrow();
-            cache.as_ref()?.get(&cache_key).map(f)
-        } else {
+    STATIC_NOISE_SNAPSHOT_CACHE.with(|cell| {
+        if cell.borrow().is_none() {
             let snapshot = random_state_normal_noise_snapshot(seed, settings, noise_id)?;
-            Some(f(&snapshot))
+            return Some(f(&snapshot));
         }
+
+        let cache_key = StaticNoiseSnapshotCacheKey {
+            seed,
+            settings_id: settings.id,
+            noise_id,
+        };
+        if !cell
+            .borrow()
+            .as_ref()
+            .is_some_and(|cache| cache.contains_key(&cache_key))
+        {
+            let snapshot = random_state_normal_noise_snapshot(seed, settings, noise_id)?;
+            if let Some(ref mut cache) = *cell.borrow_mut() {
+                cache.insert(cache_key, snapshot);
+            }
+        }
+
+        let cache = cell.borrow();
+        cache.as_ref()?.get(&cache_key).map(f)
     })
 }
 
@@ -30929,6 +30951,35 @@ fn build_surface_for_chunk_timed_with_sections(
 
     let base_rng = random_state_seed_factories(seed, algorithm).base;
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
+    let chunk_quart_x = chunk.pos.x * 4;
+    let chunk_quart_z = chunk.pos.z * 4;
+    let overworld_surface_column_biomes = overworld_biome_2d_climate_cache(
+        biome_source_model,
+        settings,
+        &climate_sampler,
+        chunk_quart_x,
+        chunk_quart_z,
+    )
+    .map(|cache| {
+        let mut biomes = ["minecraft:plains"; 16];
+        for local_z in 0..4_usize {
+            for local_x in 0..4_usize {
+                let cached = cache[local_z * 4 + local_x];
+                let climate = climate_target(
+                    cached.temperature,
+                    cached.humidity,
+                    cached.continentalness,
+                    cached.erosion,
+                    0.0,
+                    cached.weirdness,
+                );
+                biomes[local_z * 4 + local_x] =
+                    select_climate_biome(overworld_biome_parameters(), climate)
+                        .unwrap_or("minecraft:plains");
+            }
+        }
+        biomes
+    });
     let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
     let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
     let started = Instant::now();
@@ -30986,7 +31037,12 @@ fn build_surface_for_chunk_timed_with_sections(
             };
             let biome_key = (block_x >> 2, biome_y >> 2, block_z >> 2);
             let (surface_biome, temperature) =
-                if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
+                if let Some(column_biomes) = &overworld_surface_column_biomes {
+                    let local_quart_x = (biome_key.0 - chunk_quart_x) as usize;
+                    let local_quart_z = (biome_key.2 - chunk_quart_z) as usize;
+                    let biome = column_biomes[local_quart_z * 4 + local_quart_x];
+                    (biome, surface_biome_temperature(biome))
+                } else if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
                     cached
                 } else {
                     let biome = get_biome(
