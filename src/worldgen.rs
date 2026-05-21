@@ -45442,6 +45442,9 @@ fn fill_from_noise_chunk_inner_sections_timed(
     let mut section_blocks: Vec<PalettedContainer> = (0..section_count)
         .map(|_| PalettedContainer::single(block_state_tag_fast("minecraft:air"), SECTION_VOLUME))
         .collect();
+    let mut section_palette_indices = (0..section_count)
+        .map(|_| HashMap::<&'static str, usize>::new())
+        .collect::<Vec<_>>();
     let block_tags = GeneratedBlockTags::new(settings);
     // Initialise all chunk sections to air.
     chunk.sections = (0..section_count)
@@ -45580,8 +45583,18 @@ fn fill_from_noise_chunk_inner_sections_timed(
 
                             if block != "minecraft:air" {
                                 let block_index = local_y * 256 + local_z * 16 + local_x;
+                                let palette_index = if let Some(index) =
+                                    section_palette_indices[section_index].get(block).copied()
+                                {
+                                    index
+                                } else {
+                                    let index = section_blocks[section_index]
+                                        .ensure_palette_entry(block_tags.tag_for(block));
+                                    section_palette_indices[section_index].insert(block, index);
+                                    index
+                                };
                                 section_blocks[section_index]
-                                    .set_entry_ref(block_index, block_tags.tag_for(block));
+                                    .set_palette_index(block_index, palette_index);
                                 timings.block_writes += 1;
                                 let idx = local_z * 16 + local_x;
                                 if pos_y + 1 > world_surface[idx] {
