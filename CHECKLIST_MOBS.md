@@ -41,15 +41,15 @@
 - [ ] Add parity test: dragon respawn beacon positions and timing relative to crystal placement
 
 ### Wither Boss
-- [ ] Implement `WitherBoss` three-head targeting (distinct target per head), skull projectile alternation
-- [ ] Implement `WitherSkull` projectile: normal (gray, faster, larger blast) and blue/charged (breaks hard blocks)
+- [x] Implement `WitherBoss` three-head targeting (distinct target per head), skull projectile alternation, Java head launch offsets/direction, main-head 0.1% blue-skull roll, and level event 1024 on non-silent launch
+- [x] Implement `WitherSkull` projectile: normal/charged dangerous state, Java inertia 0.95 vs 0.73, save/load `dangerous`, owner/magic damage, owner heal-on-kill, Normal/Hard wither effect durations, power-1.0 explosion, and charged resistance cap for destructible blocks
   - [x] Verify Java edge case: charged wither skulls do not increase explosion power; `WitherSkull.getBlockExplosionResistance()` caps destructible block resistance at `min(0.8, resistance)` while `onHit()` still explodes at power 1.0
-- [ ] Implement wither charge attack at target once below half health
+- [x] Implement Java-matched Wither powered target movement below half health: `isPowered()` changes vertical chase gating while main-target horizontal acceleration/yaw follow `WitherBoss.aiStep`; Java 26.1.2 does not define a separate charge-attack phase
 - [x] Implement wither shield/invulnerability below half health (Java powered gate rejects arrows and wind charges; other non-immune damage still passes normal gates)
 - [x] Implement wither self-healing over time and on skull hit
 - [x] Implement wither "wither effect" aura on hit
-- [ ] Implement wither death sequence: explosion, nether star drop, `BossEvent` removal
-- [ ] Implement wither summoning precondition check (T-shape soul sand/soil + 3 wither skulls, not in superflat End)
+- [x] Implement wither death/drop sequence: Java death loot drops an extended-lifetime nether star; the 7.0 explosion belongs to the spawn invulnerability completion, and bossbar visibility ends with entity/player tracking removal
+- [x] Implement wither summoning precondition check (wither skeleton skull item, Y >= minY+2, non-peaceful server level, T-shape soul sand/soil base + 3 wither skulls/wall skulls, both X/Z orientations; Java 26.1.2 `WitherSkullBlock.canSpawnMob` has no superflat-End gate)
 - [x] Implement wither bossbar: `BossEvent.BossBarColor.PURPLE`, health %
 - [x] Implement wither block-breaking behavior (breaks most blocks in path)
 - [x] Add parity test: wither skull target assignment, blue skull vs. normal skull NBT
@@ -112,10 +112,12 @@
 - [ ] Add parity test: raid wave composition per difficulty for each wave (illager types, counts)
 
 ### Piglin Family
-- [ ] Implement `AbstractPiglin`: zombification when 15 s in Overworld/End
+- [x] Implement `AbstractPiglin`: zombification when 15 s in Overworld/End
+  - [x] Implement Java-matched `AbstractPiglin` conversion gates: default pickup/immune/time-in-overworld save values, `PIGLINS_ZOMBIFY && !NoAI && !IsImmuneToZombification`, increment/reset `TimeInOverworld`, convert after `> 300` ticks to zombified piglin with `ConversionParams.single(..., keepEquipment=true, preserveCanPickUpLoot=true)`, 200-tick nausea, and Piglin override behavior that cancels admiring and drops inventory before conversion
 - [ ] Implement `Piglin`: bartering mechanic (gold ingot throw → loot drop from `data/minecraft/loot_table/gameplay/piglin_bartering.json`), admire-item behavior, anger-on-gold-theft, crossbow attack, dance-to-jukebox memory, baby piglin
 - [ ] Implement `PiglinAi` full behavior tree: `StartAdmiringItemIfSeen`, `StopAdmiringIfItemTooFarAway`, `StopAdmiringIfTiredOfTryingToReachItem`, `StopHoldingItemIfNoLongerAdmiring`, `RememberIfHoglinWasKilled`, `StartHuntingHoglin`
-- [ ] Implement `PiglinBrute`: no bartering, enhanced attack, always hostile to players (never passive)
+- [x] Implement `PiglinBrute`: no bartering, enhanced attack, always hostile to players (never passive)
+  - [x] Implement Java-matched `PiglinBrute` gates: 50 health, 0.35 movement speed, 7 attack damage, 12 follow range, 20 XP, guaranteed golden axe main hand, `canHunt=false`, only picks up golden axes if base pickup accepts them, anger memory 600 ticks, melee attack cooldown 20 ticks, idle/fight activity constants, targeting priority `ANGRY_AT` then nearest visible attackable player then nearest visible nemesis, no retaliation against other abstract piglins, and melee attacking arm pose
 - [ ] Implement `PiglinBruteAi` brain behavior tree
 - [ ] Add parity test: piglin bartering loot table output distribution across gold throws
 - [ ] Add parity test: piglin anger triggers (opening gold chest, picking up gold in front of piglin)
@@ -155,7 +157,9 @@
 ## Animal Families
 
 - [ ] Implement `Allay`: follow note-block memory, collect items matching held item, duplicate on jukebox play + amethyst shard, dancing-to-jukebox memory
+  - [x] Implement Java-matched `Allay` server-visible gates: 20 health/0.1 flying and movement speed/2 attack attributes, 1x1x1 pickup reach, one-slot inventory, liked-player immunity/ally behavior, liked-player distance/game-mode gate, item give/take interactions and sounds, mobGriefing-gated wanted-item pickup with potion-content equality, noteblock vibration memory and 600 tick cooldown, noteblock/player deposit-target selection, jukebox play/stop dancing memory and stop conditions, dancing/spinning animation timing, amethyst-shard duplication with 6000 tick parent/child cooldowns and event 18/3 hearts, 10-tick passive healing cadence, no far-away despawn, leash offset, and throw-sound timing gate
 - [ ] Implement `Armadillo`: roll into ball on threat (player sprint/mount approach), scute dropping, wolf-armor crafting ingredient source
+  - [x] Implement Java-matched `Armadillo` server-visible gates: idle/rolling/scared/unrolling state ids, names, animation durations and shell-hide thresholds, 12 health/0.14 speed attributes, 0.6 baby scale, spider-eye food, grass/badlands/red-sand/coarse-dirt spawn blocks, 6000-11999 tick scute shed timer, shed/brush loot tables and sounds, 16 durability brush cost, scare detection from undead/last-hurt-by/sprinting-or-riding non-spectator players inside 7x2x7 box, roll-up/out sounds and state transitions, scared damage reduction, 80 tick danger memory, environmental roll-out, fall-in-love and ambient/hurt/head-rotation gates, and peek/unroll ball-up timing
 - [x] Implement `Axolotl`: play-dead behavior (`DeathAnimation`), attack aquatic hostiles (guardians, drowned, etc.), `BucketableEntity` bucket capture, axolotl color variants (5 types including rare blue)
   - [x] Implement Java-matched `Axolotl` color variant model: lucy/wild/gold/cyan common variants, rare blue variant, default lucy, and 1/1200 rare breeding chance
   - [x] Implement Java-matched `Axolotl` play-dead gates: 200-tick memory on nonfatal in-water entity damage, ambient/enemy visibility suppression, and rehydrate/max-air constants
@@ -174,21 +178,28 @@
 - [ ] Implement equine family: `AbstractHorse` (taming, `temper`, inventory, saddle, rider), `Horse` (armor slot, variants), `Donkey`/`Mule` (chest attachment), `ZombieHorse`, `SkeletonHorse` (trap activation), `Llama` (chest, carpet decoration, spit attack, caravan following), `TraderLlama`
   - [x] Implement Java-matched equine server-visible gates: `AbstractHorse` flags/slot offsets/temper clamp, horse variant+marking packed metadata and breeding inheritance rolls, chested-horse chest inventory columns/equip gate, llama strength/variant clamping, chest columns, spit attack constants, max temper, and breeding strength/variant rolls
 - [ ] Implement feline family: `Cat` (gifts after player sleeps, biome-variant spawning, scared of players until tamed), `Ocelot` (chest-sitting prevention, trusts after fish feeding)
+  - [x] Implement Java-matched feline server-visible gates: shared 10 health/0.3 movement/3 attack attributes, crouch/walk/sprint move-control pose mapping, cod/salmon food tags, cat default black variant plus all-black structure/moon spawn priority, red default collar and dye interactions, cat taming/heal/toggle-sit interaction flow, untamed player avoidance and despawn timing, bed/chest/furnace sitting target rules, owner-sleep relax and morning-gift gates, stray cat spawner village/hut caps, ocelot trust feeding event gates, ocelot player avoidance/despawn/spawn obstruction, and ocelot leash offset
 - [x] Implement fish family: `Cod`, `Salmon`, `TropicalFish` (pattern/color variants, 2400 variant IDs), `Pufferfish` (inflation stages 0/1/2, poisonous contact at stage 2); all with `BucketableEntity`
   - [x] Implement Java-matched `AbstractFish`/`AbstractSchoolingFish` gates: 3 health, from-bucket persistence/despawn rules, water-bucket pickup surface, flop jump/sync/sound, water travel/no-target gravity, avoid-player/swim goal constants, max cluster size 8, schooling follower/leader limits, neighbor reset scan, Cod/Salmon/TropicalFish/Pufferfish bucket items, and Salmon max school size 5
   - [x] Implement Java-matched `Pufferfish` puff timing and contact effect model: states 0/1/2, inflate thresholds, deflate thresholds, `1 + puffState` damage, `60 * puffState` poison duration
   - [x] Implement Java-matched `Salmon` size variants: `small`/`medium`/`large` ids, default medium, bounding-box scales, and 30/50/15 spawn weights
   - [x] Implement Java-matched `TropicalFish` packed variant model: 12 pattern ids, base/pattern color bit layout, default KOB white/white, and 22 common variants
 - [ ] Implement `Fox`: nocturnal chicken-hunting, item-holding/stealing, sweet-berry eating, trusting (bred from trusted parents), snow-dive pounce
-- [ ] Implement `Frog`: tongue-attack on small slimes/magma cubes (absorb into stomach), tadpole-laying in water on breed, frog variant = biome (temperate/warm/cold)
+  - [x] Implement Java-matched `Fox` server-visible gates: red/snow biome variant ids, sitting/crouching/interested/pouncing/sleeping/faceplanted/defending flags, trusted offspring slots from breeding players, sweet/glow berry food and item replacement rules, mobGriefing-gated berry harvest wait/counts, and chicken/rabbit stalking state transition gates
+- [x] Implement `Frog`: Java-matched biome-tag variant selection (warm/cold with temperate fallback), frog-food gate for size-1 slimes and magma cubes, tongue catch/eat timing and pose/sounds, and breeding `IS_PREGNANT`/`LAY_SPAWN` frogspawn placement plan
 - [x] Implement `Goat`: ram-charge targeting (scream variant more frequent), horn-drop on successful ram, milking via bucket
   - [x] Implement Java-matched `Goat` server-visible gates: 2% screaming spawn chance, 10% adult missing-horn spawn chance, bucket milking gate, left/right horn-drop selection, ram/long-jump timing ranges, ram knockback, and lowered-head rotation
 - [ ] Implement `IronGolem`: village-protection patrol AI, crack-stage visual from health percentage, pumpkin-carved face after player placement, rose-offer to villagers
-- [ ] Implement `SnowGolem`: trail snow layer placement, melt in rain/warm biomes, pumpkin-carved face
+  - [x] Implement Java-matched `IronGolem` server-visible gates: player-created metadata/save flag from carved pumpkin/jack-o-lantern block summoning, player-created/player and creeper attack exclusions, 100 health/0.25 speed/1.0 knockback resistance/15 attack damage attributes, crackiness thresholds at 75%/50%/25%, 400-tick offer-flower event ids 11/34, 10-tick attack event id 4, iron-ingot repair for up to 25 health, and vertical attack knockback scaled by target knockback resistance
+- [x] Implement `SnowGolem`: Java-matched pumpkin flag/save state, shearing gate/drop/tool damage, warm/rain environment melt damage, mobGriefing-gated four-offset snow trail placement, and snowball attack vector/speed/inaccuracy
 - [ ] Implement `HappyGhast` (new in 26.1.2): large passive Nether mob, multiple-passenger riding (up to 4 harness slots), leads attachment, taming with dried ghast item, does not deal damage
+  - [x] Correct Java parity edge case: Happy Ghasts are not tamed with a dried ghast item; `DriedGhastBlock` water hydration increments to level 3, then removes the block and spawns a baby Happy Ghast with the ghastling spawn sound
+  - [x] Implement Java-matched `HappyGhast` server-visible gates: 20 health/16 tempt range/0.05 movement and flying speed/16 follow range/8 camera distance attributes, 0.2375 baby scale, snowball food, 16 harness items, adult-only body harness slot, harness-gated riding, max 4 passengers, harness/still-timeout/player first-passenger control gate, 64/32 restriction radius selection, 20/600 tick continuous heal intervals, still-timeout decay and player-above reset, collision gates, quad-leash offsets/support, 10/16 leash distances, and 5-tick leash-holder notification
 - [x] Implement `Nautilus` variants (new variant types in 26.1.2 registry): `zombie_nautilus_variant` temperate/warm registry data, default save field, and warm metadata sync match Java `ZombieNautilusVariants`/`ZombieNautilus`
 - [ ] Implement `Panda`: 7 personality traits (lazy/playful/worried/aggressive/weak/brown/normal), sneeze mechanic, rolling animation, bamboo eating
+  - [x] Implement Java-matched `Panda` server-visible gates: seven-gene id/name/recessive model and random weights, variant derivation from main/hidden genes, sneeze/roll/sit/on-back flags, weak/lazy attribute overrides, bamboo/cake food gates, bamboo interaction outcomes, 32-step roll movement timing, and sneeze sound/particle/loot lifecycle
 - [ ] Implement `Parrot`: imitation of nearby mob sounds, shoulder riding, dancing to jukebox within range, cookie-poisoning death
+  - [x] Implement Java-matched `Parrot` server-visible gates: five variant ids/names with clamped legacy decode, 6 health/0.4 flying speed/0.2 movement/3 attack attributes, seed tag taming with 1-in-10 event ids 7/6, cookie poison for 900 ticks plus lethal damage unless invulnerable, owner sitting toggle only while grounded, jukebox dance invalidation at 3.46 blocks or missing jukebox, 1-in-400 AI mimic attempt and 1-in-2 mimic sound gate over the vanilla hostile sound map, and shoulder riding cooldown/owner/player acceptance gates
 - [x] Implement `Pig`: saddle+ride, carrot-on-a-stick steering and durability, lightning → ZombifiedPiglin conversion
   - [x] Implement Java-matched `Pig` riding and conversion gates: saddle-slot/adult checks, carrot-on-a-stick controller gate, 140-980 tick boost timer, ridden speed boost factor, 7-damage/25-durability boost item use, breeding variant inheritance, and non-peaceful lightning conversion
 - [x] Implement `PolarBear`: neutral until cub is nearby, aggressive to foxes, swim AI
@@ -198,26 +209,42 @@
 - [x] Implement `Sheep`: color-based wool drop, regrow wool after eating grass (`EatGrassGoal`), dyeing via dye item interaction
   - [x] Implement Java-matched `Sheep` server-visible wool model: packed color/sheared byte, 16-color legacy ids, shearing interaction gate and state change, grass-eating regrowth plus 60s baby age-up, 40-tick eat animation curves, biome spawn color weights including 1/500 pink common roll, and offspring dye-mix fallback
 - [ ] Implement `Sniffer`: sniff animation, ancient-seed dropping at discovered location, digging-up animation, egg hatching, sniffing-exploration AI
+  - [x] Implement Java-matched `Sniffer` server-visible gates: state ids 0-6 with zero fallback, 14 health/0.1 speed attributes, -48000 baby age, torchflower seed food, diggable block/hatch boost tags, can-sniff/can-dig body gates, transition sounds/events including digging event 63 and seed drop at tick+120, digging particle/seed/game-event timing, 20 remembered explored-position cap, mating states, breeding sniffer egg drop, 9600 tick sniff cooldown timing, 160-180/40/600 tick dig/search behavior constants, and sniffer egg 24000/12000 hatch schedule with crack/hatch behavior
 - [x] Implement `Squid`/`GlowSquid`: ink-squirt flee mechanic, glow squid dark-rendering effect, glowing while alive
   - [x] Implement Java-matched `Squid`/`GlowSquid` server-visible gates: 30-particle ink squirt only after mob-caused hurt, flee use within 10 blocks in water, flee vector speed taper 5-10 blocks with air Y clamp, bubble phase, baby dimensions, tentacle reset event, glow squid 100-tick darkening on hurt, dark tick decay/save field, and dark-water spawn checks
 - [ ] Implement `Turtle`: beach-homing memory (home beach coordinates), egg-laying behavior, scute drop on growth, turtle-egg placement, egg-hatching process
+  - [x] Implement Java-matched `Turtle` server-visible gates: home-pos save/default model, has-egg/laying-egg flags and counter reset, 30 health/0.25 movement/1.0 step attributes, 0.3 baby scale, seagrass food, breeding sets egg instead of spawning child plus parent ages/xp/stat trigger, egg-laying target/home gates and 200-tick placement delay with 1-4 eggs, 5-tick digging particle event, scute gift loot on adult growth, spawn-on-sand/sea-level gate, go-home/go-water/travel gates, water sinking rule, no leash, lethal lightning damage, and turtle egg crush/crack/hatch/replacement behavior
 - [ ] Implement `Wolf`: taming (bone-feed `temper`), collar color (default red, dyeable), wolf-armor equipping and display, pack-anger propagation on owner hit
-- [ ] Add parity test for each animal's unique interaction: bee hive population, allay item pickup, sniffer dig timing, armadillo roll conditions
+  - [x] Implement Java-matched `Wolf` server-visible interaction gates: untamed bone consume with 1-in-3 tame success, tame side effects to 40 max health and ordered sitting, default red owner-only collar dyeing, owner-only adult body armor equip, sitting armor repair by armadillo scute at 12.5% max durability, meat healing, and owner-hurt/owner-target anger assignment.
+- [x] Add parity test for each animal's unique interaction: bee hive population, allay item pickup, sniffer dig timing, armadillo roll conditions
+  - [x] Add focused Java parity tests for bee hive population, sniffer dig timing, and armadillo roll conditions
+  - [x] Add focused Java parity test for Allay item pickup, note-block deposit memory, jukebox dancing, and amethyst duplication gates
 
 ## NPC Families
 
 - [ ] Implement `Villager` profession assignment: scans for POI workstations within range, acquires profession on first work block find, loses profession if work block removed
+  - [x] Implement Java-matched villager profession/job-site gates: default plains/none/level-1 data, level XP thresholds 0/10/70/150/250, workstation-to-profession mapping, held/acquirable job-site predicates, work sounds, offer clearing on profession change, job-site ticket acquire/release intent, stop-trading when profession becomes none, breeding spawn profession reset, structure spawn assign-profession flag, and profession loss when remembered job-site no longer matches
 - [ ] Implement villager trade offers: load from `data/minecraft/villager_trade/<profession>.json` and `data/minecraft/trade_set/`, apply demand multiplier, hero-of-the-village discount
+  - [x] Implement Java-matched trade resource and pricing gates: decode `VillagerTrade` JSON defaults for wants/additional_wants/gives/max_uses/reputation_discount/xp/predicates/modifiers/double-price enchantments, decode `TradeSet` holder sets/random sequences, apply demand multiplier in `MerchantOffer.getModifiedCostCount`, apply reputation discounts via `-floor(reputation * priceMultiplier)`, apply Hero of the Village discount `floor((0.3 + 0.0625 * amplifier) * baseCostA)` with minimum 1, and reset special prices when trading stops
 - [ ] Implement villager gossip system: `GossipType` (MAJOR_NEGATIVE/MINOR_NEGATIVE/TRADING/MAJOR_POSITIVE/MINOR_POSITIVE), gossip decay, propagation on villager meeting
-- [ ] Implement villager schedule: `VillagerSchedules` (ADULT work/sleep/idle/meet, BABY play/sleep), `ActivitySchedule` time-of-day activity selection
-- [ ] Implement villager restocking: 2 restock attempts per day at workstation, max 2 per day
+  - [x] Implement Java-matched villager gossip gates: five gossip types with serialized names, weights, max values, daily decay, transfer decay, discard threshold 2, capped additions, daily decay removal below threshold, deterministic selected-gossip transfer with max(old, transferred) merge, villager meeting transfer gate at 1200 ticks for both participants, 24000 tick gossip decay cadence, and reputation event mappings for cured/trade/hurt/killed events
+- [x] Implement villager schedule: `VillagerSchedules` (ADULT work/sleep/idle/meet, BABY play/sleep), `ActivitySchedule` time-of-day activity selection
+  - [x] Implement Java 26.1.2 timeline-backed villager activity gates: adult `VILLAGER_ACTIVITY` keyframes at 10 idle / 2000 work / 9000 meet / 11000 idle / 12000 rest, baby `BABY_VILLAGER_ACTIVITY` keyframes at 10 idle / 3000 play / 6000 idle / 10000 play / 12000 rest, 24000-tick periodic wrap, age-based schedule selection, and Brain schedule update cadence of `gameTime - lastScheduleUpdate > 20`
+- [x] Implement villager restocking: 2 restock attempts per day at workstation, max 2 per day
+  - [x] Implement Java-matched villager restock gates: always reports `canRestock`, restock updates demand/resets uses/resends offers, records `lastRestockGameTime`, increments `numberOfRestocksToday`, allows first restock or second only after `> 2400` ticks, resets daily restock count after `lastRestock + 12000` or day-period advance, requires at least one offer needing restock, and catch-up demand applies `2 - restocksToday` demand updates with use reset when positive
 - [ ] Implement villager breeding: willingness from trades + food, child spawning, child following parents
-- [ ] Implement villager zombification and curing: weakness + golden apple conversion, cure-discount stack
+  - [x] Implement Java-matched villager breeding/food gates: bread=4 and potato/carrot/beetroot=1 food points, 12-point breed/hunger threshold, 24-point excess threshold, sleep/adult breed blockers, eat-until-full inventory consumption order, 12-point digestion, pickup gate for villager food/plantable seeds plus farmer requested items, inventory-capacity gate, and offspring villager type selection with 50% biome / 25% first parent / 25% second parent weights
+- [x] Implement villager zombification and curing: weakness + golden apple conversion, cure-discount stack
+  - [x] Covered by Java-matched zombie-villager and villager trade tests: Weakness + golden apple interaction, 3600-6000 tick cure timer, conversion tick/progress with iron-bars/bed acceleration, villager data/gossips/offers/XP preservation, cured-player advancement/reputation event gate, 200-tick nausea, level event 1027, despawn gate, and cured-villager major/minor positive gossip discounts
 - [ ] Implement `WanderingTrader`: spawn timer (24000-tick cycle), offer generation, lead-llamas attachment (2 trader llamas), despawn after 48000 ticks
 - [ ] Implement `CatSpawner`: swamp hut (witch's hut) cat spawning, max 1 cat per hut
+  - [x] Implement Java-matched `CatSpawner` server-visible gates as part of feline slice: 1200 tick delay, player-relative 8-31 block offset, 10-block chunk-ready check surface, village home/cat caps, swamp-hut one-cat cap, and persistent hut cat spawn flag
 - [ ] Implement `WanderingTraderSpawner`: periodic spawn attempts near players (24h cycle)
+  - [x] Implement Java-matched `WanderingTraderSpawner` server-visible gates: 1200 tick custom-spawner cadence, saved spawn delay decrement by 1200, 24000 reset, 25/75 spawn-chance clamp with 25 increments, `nextInt(100) <= chance` outer roll, no-player attempt success behavior, 1-in-10 spawn gate, meeting-POI/player reference radius 48, 10 candidate positions inside +/-48, 12-block collision-space check, biome exclusion gate, two trader llamas within radius 4, trader despawn delay 48000, home radius 16, and no far-away despawn
 - [ ] Add parity test: villager profession binding to specific POI type, trade restock timing, gossip propagation
+  - [x] Add focused Java parity test for villager profession binding to workstation POIs, profession change/loss behavior, level XP thresholds, and existing restock/gossip trade model
 - [ ] Add parity test: wandering trader spawn distance, llama count, despawn timer
+  - [x] Add focused Java parity test for wandering trader spawner timing, spawn chance, candidate offsets, llama count, and despawn countdown
 
 ## Raid Package
 

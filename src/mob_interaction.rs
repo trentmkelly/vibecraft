@@ -35,6 +35,172 @@ pub const LLAMA_SPIT_INACCURACY: f32 = 10.0;
 pub const VILLAGER_INVENTORY_SIZE: usize = 8;
 pub const VILLAGER_INVENTORY_SLOT_OFFSET: i32 = 300;
 pub const NO_ANGER_END_TIME: i64 = -1;
+pub const SNOW_GOLEM_PUMPKIN_FLAG: u8 = 16;
+pub const SNOW_GOLEM_MAX_HEALTH: f32 = 4.0;
+pub const SNOW_GOLEM_MOVEMENT_SPEED: f32 = 0.2;
+pub const SNOW_GOLEM_RANGED_ATTACK_INTERVAL_TICKS: i32 = 20;
+pub const SNOW_GOLEM_RANGED_ATTACK_RADIUS: f32 = 10.0;
+pub const SNOW_GOLEM_SNOWBALL_SPEED: f32 = 1.6;
+pub const SNOW_GOLEM_SNOWBALL_INACCURACY: f32 = 12.0;
+pub const IRON_GOLEM_PLAYER_CREATED_FLAG: u8 = 1;
+pub const IRON_GOLEM_MAX_HEALTH: f32 = 100.0;
+pub const IRON_GOLEM_MOVEMENT_SPEED: f32 = 0.25;
+pub const IRON_GOLEM_KNOCKBACK_RESISTANCE: f32 = 1.0;
+pub const IRON_GOLEM_ATTACK_DAMAGE: f32 = 15.0;
+pub const IRON_GOLEM_STEP_HEIGHT: f32 = 1.0;
+pub const IRON_GOLEM_REPAIR_HEAL_AMOUNT: f32 = 25.0;
+pub const IRON_GOLEM_ATTACK_ANIMATION_TICKS: i32 = 10;
+pub const IRON_GOLEM_OFFER_FLOWER_TICKS: i32 = 400;
+pub const FOX_FLAG_SITTING: u8 = 1;
+pub const FOX_FLAG_CROUCHING: u8 = 4;
+pub const FOX_FLAG_INTERESTED: u8 = 8;
+pub const FOX_FLAG_POUNCING: u8 = 16;
+pub const FOX_FLAG_SLEEPING: u8 = 32;
+pub const FOX_FLAG_FACEPLANTED: u8 = 64;
+pub const FOX_FLAG_DEFENDING: u8 = 128;
+pub const FOX_MIN_TICKS_BEFORE_EAT: i32 = 600;
+pub const FOX_BERRY_WAIT_TICKS: i32 = 40;
+pub const FOX_STALK_DISTANCE_SQR: f32 = 36.0;
+pub const FOX_POUNCE_JUMP_SCALE: f32 = 0.4;
+pub const PANDA_FLAG_SNEEZE: u8 = 2;
+pub const PANDA_FLAG_ROLL: u8 = 4;
+pub const PANDA_FLAG_SIT: u8 = 8;
+pub const PANDA_FLAG_ON_BACK: u8 = 16;
+pub const PANDA_EAT_TICK_INTERVAL: i32 = 5;
+pub const PANDA_TOTAL_ROLL_STEPS: i32 = 32;
+pub const PANDA_TOTAL_UNHAPPY_TIME: i32 = 32;
+pub const PANDA_BASE_MOVEMENT_SPEED: f32 = 0.15;
+pub const PANDA_LAZY_MOVEMENT_SPEED: f32 = 0.07;
+pub const PANDA_ATTACK_DAMAGE: f32 = 6.0;
+pub const PANDA_WEAK_MAX_HEALTH: f32 = 10.0;
+pub const PARROT_MAX_HEALTH: f32 = 6.0;
+pub const PARROT_FLYING_SPEED: f32 = 0.4;
+pub const PARROT_MOVEMENT_SPEED: f32 = 0.2;
+pub const PARROT_ATTACK_DAMAGE: f32 = 3.0;
+pub const PARROT_TAME_ROLL_BOUND: i32 = 10;
+pub const PARROT_POISON_TICKS: i32 = 900;
+pub const PARROT_JUKEBOX_PARTY_DISTANCE: f32 = 3.46;
+pub const PARROT_MIMIC_SCAN_RADIUS: f32 = 20.0;
+pub const PARROT_MIMIC_TICK_ROLL_BOUND: i32 = 400;
+pub const PARROT_MIMIC_SOUND_ROLL_BOUND: i32 = 2;
+pub const SHOULDER_RIDING_COOLDOWN_TICKS: i32 = 100;
+pub const HAPPY_GHAST_BABY_SCALE: f32 = 0.2375;
+pub const HAPPY_GHAST_WANDER_GROUND_DISTANCE: i32 = 16;
+pub const HAPPY_GHAST_SMALL_RESTRICTION_RADIUS: i32 = 32;
+pub const HAPPY_GHAST_LARGE_RESTRICTION_RADIUS: i32 = 64;
+pub const HAPPY_GHAST_RESTRICTION_RADIUS_BUFFER: i32 = 16;
+pub const HAPPY_GHAST_FAST_HEALING_TICKS: i32 = 20;
+pub const HAPPY_GHAST_SLOW_HEALING_TICKS: i32 = 600;
+pub const HAPPY_GHAST_MAX_PASSENGERS: usize = 4;
+pub const HAPPY_GHAST_STILL_TIMEOUT_ON_LOAD_GRACE_PERIOD: i32 = 60;
+pub const HAPPY_GHAST_MAX_STILL_TIMEOUT: i32 = 10;
+pub const HAPPY_GHAST_SPEED_MULTIPLIER_WHEN_PANICKING: f32 = 2.0;
+pub const HAPPY_GHAST_MAX_HEALTH: f32 = 20.0;
+pub const HAPPY_GHAST_TEMPT_RANGE: f32 = 16.0;
+pub const HAPPY_GHAST_FLYING_SPEED: f32 = 0.05;
+pub const HAPPY_GHAST_MOVEMENT_SPEED: f32 = 0.05;
+pub const HAPPY_GHAST_FOLLOW_RANGE: f32 = 16.0;
+pub const HAPPY_GHAST_CAMERA_DISTANCE: f32 = 8.0;
+pub const HAPPY_GHAST_LEASH_ELASTIC_DISTANCE: f32 = 10.0;
+pub const HAPPY_GHAST_LEASH_SNAP_DISTANCE: f32 = 16.0;
+pub const DRIED_GHAST_READY_HYDRATION_LEVEL: i32 = 3;
+pub const SNIFFER_DIGGING_PARTICLES_DELAY_TICKS: i32 = 1700;
+pub const SNIFFER_DIGGING_PARTICLES_DURATION_TICKS: i32 = 6000;
+pub const SNIFFER_DIGGING_PARTICLES_AMOUNT: i32 = 30;
+pub const SNIFFER_DIGGING_DROP_SEED_OFFSET_TICKS: i32 = 120;
+pub const SNIFFER_BABY_START_AGE: i32 = -48000;
+pub const SNIFFER_DIGGING_BB_HEIGHT_OFFSET: f32 = 0.4;
+pub const SNIFFER_MOVEMENT_SPEED: f32 = 0.1;
+pub const SNIFFER_MAX_HEALTH: f32 = 14.0;
+pub const SNIFFER_EXPLORED_POSITION_LIMIT: usize = 20;
+pub const SNIFFER_SNIFF_COOLDOWN_TICKS: i32 = 9600;
+pub const SNIFFER_DIGGING_MIN_TICKS: i32 = 160;
+pub const SNIFFER_DIGGING_MAX_TICKS: i32 = 180;
+pub const SNIFFER_FINISHED_DIGGING_TICKS: i32 = 40;
+pub const SNIFFER_SEARCHING_TICKS: i32 = 600;
+pub const SNIFFER_EGG_MAX_HATCH_LEVEL: i32 = 2;
+pub const SNIFFER_EGG_REGULAR_HATCH_TIME_TICKS: i32 = 24000;
+pub const SNIFFER_EGG_BOOSTED_HATCH_TIME_TICKS: i32 = 12000;
+pub const SNIFFER_EGG_RANDOM_HATCH_OFFSET_TICKS: i32 = 300;
+pub const TURTLE_BABY_SCALE: f32 = 0.3;
+pub const TURTLE_MAX_HEALTH: f32 = 30.0;
+pub const TURTLE_MOVEMENT_SPEED: f32 = 0.25;
+pub const TURTLE_STEP_HEIGHT: f32 = 1.0;
+pub const TURTLE_AMBIENT_SOUND_INTERVAL: i32 = 200;
+pub const TURTLE_BREED_PARENT_AGE: i32 = 6000;
+pub const TURTLE_LAY_EGG_DELAY_TICKS: i32 = 200;
+pub const TURTLE_LAY_EGG_PARTICLE_INTERVAL_TICKS: i32 = 5;
+pub const TURTLE_GO_HOME_RANDOM_INTERVAL: i32 = 700;
+pub const TURTLE_GO_HOME_GIVE_UP_TICKS: i32 = 600;
+pub const TURTLE_GO_HOME_DISTANCE: f32 = 64.0;
+pub const TURTLE_GO_HOME_CLOSE_DISTANCE: f32 = 7.0;
+pub const TURTLE_LAY_EGG_HOME_DISTANCE: f32 = 9.0;
+pub const TURTLE_GO_TO_WATER_GIVE_UP_TICKS: i32 = 1200;
+pub const TURTLE_GO_TO_WATER_RECALC_INTERVAL_TICKS: i32 = 160;
+pub const TURTLE_TRAVEL_XZ_RANGE: i32 = 512;
+pub const TURTLE_TRAVEL_Y_RANGE: i32 = 4;
+pub const TURTLE_EGG_MAX_HATCH_LEVEL: i32 = 2;
+pub const TURTLE_EGG_MIN_EGGS: i32 = 1;
+pub const TURTLE_EGG_MAX_EGGS: i32 = 4;
+pub const TURTLE_EGG_STEP_RANDOM_BOUND: i32 = 100;
+pub const TURTLE_EGG_FALL_RANDOM_BOUND: i32 = 3;
+pub const TURTLE_HATCHLING_AGE: i32 = -24000;
+pub const ARMADILLO_BABY_SCALE: f32 = 0.6;
+pub const ARMADILLO_MAX_HEAD_ROTATION_EXTENT: f32 = 32.5;
+pub const ARMADILLO_SCARE_CHECK_INTERVAL: i32 = 80;
+pub const ARMADILLO_SCARE_DISTANCE_HORIZONTAL: f32 = 7.0;
+pub const ARMADILLO_SCARE_DISTANCE_VERTICAL: f32 = 2.0;
+pub const ARMADILLO_MAX_HEALTH: f32 = 12.0;
+pub const ARMADILLO_MOVEMENT_SPEED: f32 = 0.14;
+pub const ARMADILLO_SCUTE_DROP_MIN_TICKS: i32 = 20 * 60 * 5;
+pub const ARMADILLO_SCUTE_DROP_RANDOM_BOUND: i32 = 20 * 60 * 5;
+pub const ARMADILLO_BRUSH_DAMAGE: i32 = 16;
+pub const ARMADILLO_BALL_UP_STAY_IN_STATE_TICKS: i32 = 5 * 60 * 20;
+pub const ARMADILLO_DANGER_DELAY_TICKS: i32 = 5;
+pub const ARMADILLO_DANGER_THRESHOLD_TICKS: i32 = 75;
+pub const ARMADILLO_PEEK_EVENT: u8 = 64;
+pub const ALLAY_ITEM_PICKUP_REACH: (i32, i32, i32) = (1, 1, 1);
+pub const ALLAY_LIFTING_ITEM_ANIMATION_DURATION: i32 = 5;
+pub const ALLAY_DANCING_LOOP_DURATION: f32 = 55.0;
+pub const ALLAY_SPINNING_ANIMATION_DURATION: f32 = 15.0;
+pub const ALLAY_DEFAULT_DUPLICATION_COOLDOWN: i32 = 0;
+pub const ALLAY_DUPLICATION_COOLDOWN_TICKS: i32 = 6000;
+pub const ALLAY_NUM_DUPLICATION_HEARTS: i32 = 3;
+pub const ALLAY_MAX_NOTEBLOCK_DISTANCE: i32 = 1024;
+pub const ALLAY_VIBRATION_LISTENER_RANGE: i32 = 16;
+pub const ALLAY_TIME_TO_FORGET_NOTEBLOCK: i32 = 600;
+pub const ALLAY_DISTANCE_TO_WANTED_ITEM: i32 = 32;
+pub const ALLAY_GIVE_ITEM_TIMEOUT_DURATION: i32 = 20;
+pub const ALLAY_LIKED_PLAYER_DISTANCE: f32 = 64.0;
+pub const ALLAY_MAX_HEALTH: f32 = 20.0;
+pub const ALLAY_FLYING_SPEED: f32 = 0.1;
+pub const ALLAY_MOVEMENT_SPEED: f32 = 0.1;
+pub const ALLAY_ATTACK_DAMAGE: f32 = 2.0;
+pub const ALLAY_DUPLICATION_EVENT: u8 = 18;
+pub const FELINE_CROUCH_SPEED_MOD: f32 = 0.6;
+pub const FELINE_WALK_SPEED_MOD: f32 = 0.8;
+pub const FELINE_SPRINT_SPEED_MOD: f32 = 1.33;
+pub const FELINE_MAX_HEALTH: f32 = 10.0;
+pub const FELINE_MOVEMENT_SPEED: f32 = 0.3;
+pub const FELINE_ATTACK_DAMAGE: f32 = 3.0;
+pub const FELINE_PLAYER_AVOID_DISTANCE: f32 = 16.0;
+pub const FELINE_REMOVE_WHEN_FAR_TICKS: i32 = 2400;
+pub const CAT_AMBIENT_SOUND_INTERVAL: i32 = 120;
+pub const OCELOT_AMBIENT_SOUND_INTERVAL: i32 = 900;
+pub const CAT_OWNER_RELAX_DISTANCE_SQR: f32 = 100.0;
+pub const CAT_LIE_ON_OWNER_DISTANCE_SQR: f32 = 2.5;
+pub const CAT_ON_BED_RELAX_TICKS: i32 = 16;
+pub const CAT_BEG_SOUND_INTERVAL_TICKS: i32 = 100;
+pub const CAT_TEMPT_SELECT_INTERVAL_TICKS: i32 = 600;
+pub const CAT_TEMPT_FORGET_INTERVAL_TICKS: i32 = 500;
+pub const CAT_TAME_ROLL_BOUND: i32 = 3;
+pub const OCELOT_TRUST_ROLL_BOUND: i32 = 3;
+pub const CAT_STRAY_SPAWNER_TICK_DELAY: i32 = 1200;
+pub const CAT_VILLAGE_HOME_POI_RADIUS: i32 = 48;
+pub const CAT_VILLAGE_MIN_OCCUPIED_HOMES: i32 = 5;
+pub const CAT_VILLAGE_MAX_CATS: usize = 5;
+pub const CAT_HUT_CAT_RADIUS: i32 = 16;
+pub const OCELOT_SPAWN_ROLL_BOUND: i32 = 3;
 
 pub const TAMABLE_FLAG_SITTING: u8 = 1;
 pub const TAMABLE_FLAG_TAME: u8 = 4;
@@ -43,6 +209,3114 @@ pub const HORSE_FLAG_BRED: u8 = 8;
 pub const HORSE_FLAG_EATING: u8 = 16;
 pub const HORSE_FLAG_STANDING: u8 = 32;
 pub const HORSE_FLAG_OPEN_MOUTH: u8 = 64;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SnowGolemState {
+    pumpkin_flags: u8,
+    pub alive: bool,
+}
+
+impl SnowGolemState {
+    pub fn new() -> Self {
+        Self {
+            pumpkin_flags: SNOW_GOLEM_PUMPKIN_FLAG,
+            alive: true,
+        }
+    }
+
+    pub fn from_saved_pumpkin(has_pumpkin: bool) -> Self {
+        let mut state = Self::new();
+        state.set_pumpkin(has_pumpkin);
+        state
+    }
+
+    pub fn has_pumpkin(self) -> bool {
+        (self.pumpkin_flags & SNOW_GOLEM_PUMPKIN_FLAG) != 0
+    }
+
+    pub fn set_pumpkin(&mut self, pumpkin: bool) {
+        if pumpkin {
+            self.pumpkin_flags |= SNOW_GOLEM_PUMPKIN_FLAG;
+        } else {
+            self.pumpkin_flags &= !SNOW_GOLEM_PUMPKIN_FLAG;
+        }
+    }
+
+    pub fn saved_pumpkin(self) -> bool {
+        self.has_pumpkin()
+    }
+
+    pub fn ready_for_shearing(self) -> bool {
+        self.alive && self.has_pumpkin()
+    }
+
+    pub fn shear(&mut self) -> SnowGolemShearResult {
+        if !self.ready_for_shearing() {
+            return SnowGolemShearResult::Pass;
+        }
+        self.set_pumpkin(false);
+        SnowGolemShearResult::Sheared {
+            sound: "minecraft:entity.snow_golem.shear",
+            game_event: "minecraft:shear",
+            loot_table: "minecraft:entities/shear/snow_golem",
+            tool_damage: 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnowGolemShearResult {
+    Pass,
+    Sheared {
+        sound: &'static str,
+        game_event: &'static str,
+        loot_table: &'static str,
+        tool_damage: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnowGolemAiStepPlan {
+    pub melt_damage: Option<i32>,
+    pub snow_positions: [(i32, i32, i32); 4],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SnowGolemSnowballPlan {
+    pub item: &'static str,
+    pub velocity: (f32, f32, f32),
+    pub speed: f32,
+    pub inaccuracy: f32,
+    pub sound: &'static str,
+}
+
+pub fn snow_golem_ai_step_plan(
+    x: f32,
+    y: f32,
+    z: f32,
+    melts_in_environment: bool,
+    mob_griefing: bool,
+) -> SnowGolemAiStepPlan {
+    let mut snow_positions = [(0, 0, 0); 4];
+    if mob_griefing {
+        for (i, slot) in snow_positions.iter_mut().enumerate() {
+            let xx = (x + ((i % 2) as i32 * 2 - 1) as f32 * 0.25).floor() as i32;
+            let yy = y.floor() as i32;
+            let zz = (z + (((i / 2) % 2) as i32 * 2 - 1) as f32 * 0.25).floor() as i32;
+            *slot = (xx, yy, zz);
+        }
+    }
+    SnowGolemAiStepPlan {
+        melt_damage: melts_in_environment.then_some(1),
+        snow_positions,
+    }
+}
+
+pub fn snow_golem_snow_placement_allowed(
+    current_block: &'static str,
+    snow_can_survive: bool,
+) -> bool {
+    current_block == "minecraft:air" && snow_can_survive
+}
+
+pub fn snow_golem_ranged_attack_plan(
+    self_x: f32,
+    self_z: f32,
+    target_x: f32,
+    target_eye_y: f32,
+    target_z: f32,
+    projectile_y: f32,
+) -> SnowGolemSnowballPlan {
+    let xd = target_x - self_x;
+    let yd = target_eye_y - 1.1;
+    let zd = target_z - self_z;
+    let yo = (xd * xd + zd * zd).sqrt() * 0.2;
+    SnowGolemSnowballPlan {
+        item: "minecraft:snowball",
+        velocity: (xd, yd + yo - projectile_y, zd),
+        speed: SNOW_GOLEM_SNOWBALL_SPEED,
+        inaccuracy: SNOW_GOLEM_SNOWBALL_INACCURACY,
+        sound: "minecraft:entity.snow_golem.shoot",
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IronGolemCrackiness {
+    None,
+    Low,
+    Medium,
+    High,
+}
+
+pub fn iron_golem_crackiness(health: f32, max_health: f32) -> IronGolemCrackiness {
+    let fraction = health / max_health;
+    if fraction < 0.25 {
+        IronGolemCrackiness::High
+    } else if fraction < 0.5 {
+        IronGolemCrackiness::Medium
+    } else if fraction < 0.75 {
+        IronGolemCrackiness::Low
+    } else {
+        IronGolemCrackiness::None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IronGolemState {
+    flags: u8,
+    pub health: f32,
+    pub max_health: f32,
+    pub attack_animation_tick: i32,
+    pub offer_flower_tick: i32,
+}
+
+impl IronGolemState {
+    pub fn new() -> Self {
+        Self {
+            flags: 0,
+            health: IRON_GOLEM_MAX_HEALTH,
+            max_health: IRON_GOLEM_MAX_HEALTH,
+            attack_animation_tick: 0,
+            offer_flower_tick: 0,
+        }
+    }
+
+    pub fn from_saved_player_created(player_created: bool) -> Self {
+        let mut state = Self::new();
+        state.set_player_created(player_created);
+        state
+    }
+
+    pub fn is_player_created(self) -> bool {
+        (self.flags & IRON_GOLEM_PLAYER_CREATED_FLAG) != 0
+    }
+
+    pub fn set_player_created(&mut self, value: bool) {
+        if value {
+            self.flags |= IRON_GOLEM_PLAYER_CREATED_FLAG;
+        } else {
+            self.flags &= !IRON_GOLEM_PLAYER_CREATED_FLAG;
+        }
+    }
+
+    pub fn saved_player_created(self) -> bool {
+        self.is_player_created()
+    }
+
+    pub fn ai_step(&mut self) {
+        self.attack_animation_tick = (self.attack_animation_tick - 1).max(0);
+        self.offer_flower_tick = (self.offer_flower_tick - 1).max(0);
+    }
+
+    pub fn handle_entity_event(&mut self, event_id: u8) {
+        match event_id {
+            4 => self.attack_animation_tick = IRON_GOLEM_ATTACK_ANIMATION_TICKS,
+            11 => self.offer_flower_tick = IRON_GOLEM_OFFER_FLOWER_TICKS,
+            34 => self.offer_flower_tick = 0,
+            _ => {}
+        }
+    }
+
+    pub fn offer_flower(&mut self, offer: bool) -> u8 {
+        if offer {
+            self.offer_flower_tick = IRON_GOLEM_OFFER_FLOWER_TICKS;
+            11
+        } else {
+            self.offer_flower_tick = 0;
+            34
+        }
+    }
+
+    pub fn repair_with_iron_ingot(&mut self, item: &'static str) -> IronGolemRepairResult {
+        if item != "minecraft:iron_ingot" {
+            return IronGolemRepairResult::Pass;
+        }
+        let before = self.health;
+        self.health = (self.health + IRON_GOLEM_REPAIR_HEAL_AMOUNT).min(self.max_health);
+        if self.health == before {
+            IronGolemRepairResult::Pass
+        } else {
+            IronGolemRepairResult::Repaired {
+                consumed: 1,
+                healed: self.health - before,
+                sound: "minecraft:entity.iron_golem.repair",
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum IronGolemRepairResult {
+    Pass,
+    Repaired {
+        consumed: i32,
+        healed: f32,
+        sound: &'static str,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IronGolemAttackPlan {
+    pub event_id: u8,
+    pub attack_animation_tick: i32,
+    pub damage: f32,
+    pub target_delta_y: f32,
+    pub sound: &'static str,
+}
+
+pub fn iron_golem_attack_plan(
+    attack_damage: f32,
+    random_next_int_attack_damage: i32,
+    target_knockback_resistance: f32,
+) -> IronGolemAttackPlan {
+    let damage = if attack_damage as i32 > 0 {
+        attack_damage / 2.0 + random_next_int_attack_damage as f32
+    } else {
+        attack_damage
+    };
+    IronGolemAttackPlan {
+        event_id: 4,
+        attack_animation_tick: IRON_GOLEM_ATTACK_ANIMATION_TICKS,
+        damage,
+        target_delta_y: 0.4 * (1.0 - target_knockback_resistance).max(0.0),
+        sound: "minecraft:entity.iron_golem.attack",
+    }
+}
+
+pub fn iron_golem_can_attack_target(
+    player_created: bool,
+    target_entity_type: &'static str,
+) -> bool {
+    if target_entity_type == "minecraft:creeper" {
+        return false;
+    }
+    !(player_created && target_entity_type == "minecraft:player")
+}
+
+pub fn iron_golem_block_summon_sets_player_created(top_block: &'static str) -> bool {
+    matches!(
+        top_block,
+        "minecraft:carved_pumpkin" | "minecraft:jack_o_lantern"
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrogVariantModel {
+    Temperate,
+    Warm,
+    Cold,
+}
+
+impl FrogVariantModel {
+    pub fn registry_id(self) -> &'static str {
+        match self {
+            FrogVariantModel::Temperate => "minecraft:temperate",
+            FrogVariantModel::Warm => "minecraft:warm",
+            FrogVariantModel::Cold => "minecraft:cold",
+        }
+    }
+
+    pub fn texture(self) -> &'static str {
+        match self {
+            FrogVariantModel::Temperate => "minecraft:entity/frog/frog_temperate",
+            FrogVariantModel::Warm => "minecraft:entity/frog/frog_warm",
+            FrogVariantModel::Cold => "minecraft:entity/frog/frog_cold",
+        }
+    }
+}
+
+pub fn frog_variant_for_spawn_biome(biome: &'static str) -> FrogVariantModel {
+    if frog_warm_variant_biome(biome) {
+        FrogVariantModel::Warm
+    } else if frog_cold_variant_biome(biome) {
+        FrogVariantModel::Cold
+    } else {
+        FrogVariantModel::Temperate
+    }
+}
+
+pub fn frog_warm_variant_biome(biome: &'static str) -> bool {
+    matches!(
+        biome,
+        "minecraft:desert"
+            | "minecraft:warm_ocean"
+            | "minecraft:jungle"
+            | "minecraft:sparse_jungle"
+            | "minecraft:bamboo_jungle"
+            | "minecraft:savanna"
+            | "minecraft:savanna_plateau"
+            | "minecraft:windswept_savanna"
+            | "minecraft:nether_wastes"
+            | "minecraft:soul_sand_valley"
+            | "minecraft:crimson_forest"
+            | "minecraft:warped_forest"
+            | "minecraft:basalt_deltas"
+            | "minecraft:badlands"
+            | "minecraft:eroded_badlands"
+            | "minecraft:wooded_badlands"
+            | "minecraft:mangrove_swamp"
+    )
+}
+
+pub fn frog_cold_variant_biome(biome: &'static str) -> bool {
+    matches!(
+        biome,
+        "minecraft:snowy_plains"
+            | "minecraft:ice_spikes"
+            | "minecraft:frozen_peaks"
+            | "minecraft:jagged_peaks"
+            | "minecraft:snowy_slopes"
+            | "minecraft:frozen_ocean"
+            | "minecraft:deep_frozen_ocean"
+            | "minecraft:grove"
+            | "minecraft:deep_dark"
+            | "minecraft:frozen_river"
+            | "minecraft:snowy_taiga"
+            | "minecraft:snowy_beach"
+            | "minecraft:the_end"
+            | "minecraft:end_highlands"
+            | "minecraft:end_midlands"
+            | "minecraft:small_end_islands"
+            | "minecraft:end_barrens"
+    )
+}
+
+pub fn frog_can_eat(entity_type: &'static str, slime_size: Option<i32>) -> bool {
+    match entity_type {
+        "minecraft:slime" => slime_size == Some(1),
+        "minecraft:magma_cube" => true,
+        _ => false,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FrogTongueCatchPlan {
+    pub tongue_sound: &'static str,
+    pub eat_sound: &'static str,
+    pub pose: &'static str,
+    pub target_velocity_scale: f32,
+    pub catch_animation_ticks: i32,
+    pub eat_animation_ticks: i32,
+    pub max_eating_distance: f32,
+}
+
+pub fn frog_tongue_catch_plan(
+    entity_type: &'static str,
+    slime_size: Option<i32>,
+    path_distance: f32,
+    panicking: bool,
+    pose: &'static str,
+) -> Option<FrogTongueCatchPlan> {
+    if panicking
+        || pose == "croaking"
+        || path_distance >= 1.75
+        || !frog_can_eat(entity_type, slime_size)
+    {
+        return None;
+    }
+    Some(FrogTongueCatchPlan {
+        tongue_sound: "minecraft:entity.frog.tongue",
+        eat_sound: "minecraft:entity.frog.eat",
+        pose: "using_tongue",
+        target_velocity_scale: 0.75,
+        catch_animation_ticks: 6,
+        eat_animation_ticks: 10,
+        max_eating_distance: 1.75,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrogBreedingPlan {
+    pub memory: &'static str,
+    pub activity: &'static str,
+    pub placed_block: &'static str,
+    pub land_search_radius: i32,
+}
+
+pub fn frog_breeding_lay_spawn_plan() -> FrogBreedingPlan {
+    FrogBreedingPlan {
+        memory: "minecraft:is_pregnant",
+        activity: "minecraft:lay_spawn",
+        placed_block: "minecraft:frogspawn",
+        land_search_radius: 8,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoxVariantModel {
+    Red,
+    Snow,
+}
+
+impl FoxVariantModel {
+    pub fn id(self) -> i32 {
+        match self {
+            FoxVariantModel::Red => 0,
+            FoxVariantModel::Snow => 1,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            FoxVariantModel::Red => "red",
+            FoxVariantModel::Snow => "snow",
+        }
+    }
+}
+
+pub fn fox_variant_by_id(id: i32) -> FoxVariantModel {
+    match id {
+        1 => FoxVariantModel::Snow,
+        _ => FoxVariantModel::Red,
+    }
+}
+
+pub fn fox_variant_for_spawn_biome(biome: &'static str) -> FoxVariantModel {
+    if matches!(
+        biome,
+        "minecraft:snowy_plains"
+            | "minecraft:ice_spikes"
+            | "minecraft:frozen_ocean"
+            | "minecraft:snowy_taiga"
+            | "minecraft:frozen_river"
+            | "minecraft:snowy_beach"
+    ) {
+        FoxVariantModel::Snow
+    } else {
+        FoxVariantModel::Red
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FoxState {
+    pub variant: FoxVariantModel,
+    flags: u8,
+    pub trusted: [Option<&'static str>; 2],
+    pub ticks_since_eaten: i32,
+}
+
+impl FoxState {
+    pub fn new() -> Self {
+        Self {
+            variant: FoxVariantModel::Red,
+            flags: 0,
+            trusted: [None, None],
+            ticks_since_eaten: 0,
+        }
+    }
+
+    pub fn get_flag(self, flag: u8) -> bool {
+        (self.flags & flag) != 0
+    }
+
+    pub fn set_flag(&mut self, flag: u8, value: bool) {
+        if value {
+            self.flags |= flag;
+        } else {
+            self.flags &= !flag;
+        }
+    }
+
+    pub fn is_sitting(self) -> bool {
+        self.get_flag(FOX_FLAG_SITTING)
+    }
+
+    pub fn is_crouching(self) -> bool {
+        self.get_flag(FOX_FLAG_CROUCHING)
+    }
+
+    pub fn is_interested(self) -> bool {
+        self.get_flag(FOX_FLAG_INTERESTED)
+    }
+
+    pub fn is_pouncing(self) -> bool {
+        self.get_flag(FOX_FLAG_POUNCING)
+    }
+
+    pub fn is_sleeping(self) -> bool {
+        self.get_flag(FOX_FLAG_SLEEPING)
+    }
+
+    pub fn is_faceplanted(self) -> bool {
+        self.get_flag(FOX_FLAG_FACEPLANTED)
+    }
+
+    pub fn is_defending(self) -> bool {
+        self.get_flag(FOX_FLAG_DEFENDING)
+    }
+
+    pub fn clear_states(&mut self) {
+        self.set_flag(FOX_FLAG_INTERESTED, false);
+        self.set_flag(FOX_FLAG_CROUCHING, false);
+        self.set_flag(FOX_FLAG_SITTING, false);
+        self.set_flag(FOX_FLAG_SLEEPING, false);
+        self.set_flag(FOX_FLAG_DEFENDING, false);
+        self.set_flag(FOX_FLAG_FACEPLANTED, false);
+    }
+
+    pub fn can_move(self) -> bool {
+        !self.is_sleeping() && !self.is_sitting() && !self.is_faceplanted()
+    }
+
+    pub fn add_trusted(&mut self, entity_id: &'static str) {
+        if self.trusted[0].is_some() {
+            self.trusted[1] = Some(entity_id);
+        } else {
+            self.trusted[0] = Some(entity_id);
+        }
+    }
+
+    pub fn trusts(self, entity_id: &'static str) -> bool {
+        self.trusted.contains(&Some(entity_id))
+    }
+}
+
+pub fn fox_food_item(item: &'static str) -> bool {
+    matches!(item, "minecraft:sweet_berries" | "minecraft:glow_berries")
+}
+
+pub fn fox_can_eat_held_item(
+    held_item: &'static str,
+    has_target: bool,
+    on_ground: bool,
+    sleeping: bool,
+) -> bool {
+    fox_food_item(held_item) && !has_target && on_ground && !sleeping
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoxHeldItemDecision {
+    Reject,
+    Hold,
+    ReplaceAndSpitOld,
+}
+
+pub fn fox_can_hold_item(
+    held_item: Option<&'static str>,
+    candidate_item: &'static str,
+    ticks_since_eaten: i32,
+) -> FoxHeldItemDecision {
+    match held_item {
+        None => FoxHeldItemDecision::Hold,
+        Some(current)
+            if ticks_since_eaten > 0
+                && fox_food_item(candidate_item)
+                && !fox_food_item(current) =>
+        {
+            FoxHeldItemDecision::ReplaceAndSpitOld
+        }
+        _ => FoxHeldItemDecision::Reject,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FoxBreedPlan {
+    pub baby_variant: FoxVariantModel,
+    pub trusted: [Option<&'static str>; 2],
+    pub parent_age: i32,
+    pub baby_age: i32,
+    pub event_id: u8,
+    pub xp_min: i32,
+    pub xp_max_inclusive: i32,
+}
+
+pub fn fox_breed_plan(
+    parent_variant: FoxVariantModel,
+    partner_variant: FoxVariantModel,
+    choose_parent_variant: bool,
+    parent_love_cause: Option<&'static str>,
+    partner_love_cause: Option<&'static str>,
+) -> FoxBreedPlan {
+    let mut trusted = [None, None];
+    if let Some(parent) = parent_love_cause {
+        trusted[0] = Some(parent);
+    }
+    if let Some(partner) = partner_love_cause {
+        if parent_love_cause == Some(partner) {
+            trusted[0] = Some(partner);
+        } else if trusted[0].is_some() {
+            trusted[1] = Some(partner);
+        } else {
+            trusted[0] = Some(partner);
+        }
+    }
+    FoxBreedPlan {
+        baby_variant: if choose_parent_variant {
+            parent_variant
+        } else {
+            partner_variant
+        },
+        trusted,
+        parent_age: 6000,
+        baby_age: -24000,
+        event_id: 18,
+        xp_min: 1,
+        xp_max_inclusive: 7,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoxBerryHarvestPlan {
+    None,
+    PickSweetBerries {
+        held_item: Option<&'static str>,
+        dropped_count: i32,
+        new_age: i32,
+        sound: &'static str,
+        game_event: &'static str,
+    },
+    PickGlowBerry,
+}
+
+pub fn fox_berry_harvest_plan(
+    block: &'static str,
+    age: i32,
+    held_item: Option<&'static str>,
+    random_next_int_2: i32,
+    mob_griefing: bool,
+    sleeping: bool,
+    ticks_waited: i32,
+) -> FoxBerryHarvestPlan {
+    if sleeping || !mob_griefing || ticks_waited < FOX_BERRY_WAIT_TICKS {
+        return FoxBerryHarvestPlan::None;
+    }
+    match block {
+        "minecraft:sweet_berry_bush" if age >= 2 => {
+            let mut count = 1 + random_next_int_2 + i32::from(age == 3);
+            let mut new_held_item = held_item;
+            if held_item.is_none() {
+                new_held_item = Some("minecraft:sweet_berries");
+                count -= 1;
+            }
+            FoxBerryHarvestPlan::PickSweetBerries {
+                held_item: new_held_item,
+                dropped_count: count.max(0),
+                new_age: 1,
+                sound: "minecraft:block.sweet_berry_bush.pick_berries",
+                game_event: "minecraft:block_change",
+            }
+        }
+        "minecraft:cave_vines" if age > 0 => FoxBerryHarvestPlan::PickGlowBerry,
+        _ => FoxBerryHarvestPlan::None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FoxStalkPlan {
+    pub interested: bool,
+    pub crouching: bool,
+    pub move_speed: Option<f32>,
+}
+
+pub fn fox_stalk_prey_plan(
+    target_entity_type: &'static str,
+    distance_sqr: f32,
+    sleeping: bool,
+    crouching: bool,
+    interested: bool,
+    jumping: bool,
+    path_clear: bool,
+) -> Option<FoxStalkPlan> {
+    let stalkable = matches!(target_entity_type, "minecraft:chicken" | "minecraft:rabbit");
+    if sleeping
+        || !stalkable
+        || distance_sqr <= FOX_STALK_DISTANCE_SQR
+        || crouching
+        || interested
+        || jumping
+    {
+        return None;
+    }
+    if path_clear {
+        Some(FoxStalkPlan {
+            interested: true,
+            crouching: true,
+            move_speed: None,
+        })
+    } else {
+        Some(FoxStalkPlan {
+            interested: false,
+            crouching: false,
+            move_speed: Some(1.5),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PandaGene {
+    Normal,
+    Lazy,
+    Worried,
+    Playful,
+    Brown,
+    Weak,
+    Aggressive,
+}
+
+impl PandaGene {
+    pub fn id(self) -> i32 {
+        match self {
+            PandaGene::Normal => 0,
+            PandaGene::Lazy => 1,
+            PandaGene::Worried => 2,
+            PandaGene::Playful => 3,
+            PandaGene::Brown => 4,
+            PandaGene::Weak => 5,
+            PandaGene::Aggressive => 6,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            PandaGene::Normal => "normal",
+            PandaGene::Lazy => "lazy",
+            PandaGene::Worried => "worried",
+            PandaGene::Playful => "playful",
+            PandaGene::Brown => "brown",
+            PandaGene::Weak => "weak",
+            PandaGene::Aggressive => "aggressive",
+        }
+    }
+
+    pub fn is_recessive(self) -> bool {
+        matches!(self, PandaGene::Brown | PandaGene::Weak)
+    }
+}
+
+pub fn panda_gene_by_id(id: i32) -> PandaGene {
+    match id {
+        1 => PandaGene::Lazy,
+        2 => PandaGene::Worried,
+        3 => PandaGene::Playful,
+        4 => PandaGene::Brown,
+        5 => PandaGene::Weak,
+        6 => PandaGene::Aggressive,
+        _ => PandaGene::Normal,
+    }
+}
+
+pub fn panda_random_gene(next_int_16: i32) -> PandaGene {
+    match next_int_16.rem_euclid(16) {
+        0 => PandaGene::Lazy,
+        1 => PandaGene::Worried,
+        2 => PandaGene::Playful,
+        4 => PandaGene::Aggressive,
+        3 | 5 | 6 | 7 | 8 => PandaGene::Weak,
+        9 | 10 => PandaGene::Brown,
+        _ => PandaGene::Normal,
+    }
+}
+
+pub fn panda_variant_from_genes(main: PandaGene, hidden: PandaGene) -> PandaGene {
+    if main.is_recessive() {
+        if main == hidden {
+            main
+        } else {
+            PandaGene::Normal
+        }
+    } else {
+        main
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PandaState {
+    pub main_gene: PandaGene,
+    pub hidden_gene: PandaGene,
+    flags: u8,
+    pub unhappy_counter: i32,
+    pub sneeze_counter: i32,
+    pub eat_counter: i32,
+    pub roll_counter: i32,
+}
+
+impl PandaState {
+    pub fn new() -> Self {
+        Self {
+            main_gene: PandaGene::Normal,
+            hidden_gene: PandaGene::Normal,
+            flags: 0,
+            unhappy_counter: 0,
+            sneeze_counter: 0,
+            eat_counter: 0,
+            roll_counter: 0,
+        }
+    }
+
+    pub fn variant(self) -> PandaGene {
+        panda_variant_from_genes(self.main_gene, self.hidden_gene)
+    }
+
+    pub fn get_flag(self, flag: u8) -> bool {
+        (self.flags & flag) != 0
+    }
+
+    pub fn set_flag(&mut self, flag: u8, value: bool) {
+        if value {
+            self.flags |= flag;
+        } else {
+            self.flags &= !flag;
+        }
+    }
+
+    pub fn is_sneezing(self) -> bool {
+        self.get_flag(PANDA_FLAG_SNEEZE)
+    }
+
+    pub fn is_rolling(self) -> bool {
+        self.get_flag(PANDA_FLAG_ROLL)
+    }
+
+    pub fn is_sitting(self) -> bool {
+        self.get_flag(PANDA_FLAG_SIT)
+    }
+
+    pub fn is_on_back(self) -> bool {
+        self.get_flag(PANDA_FLAG_ON_BACK)
+    }
+
+    pub fn is_eating(self) -> bool {
+        self.eat_counter > 0
+    }
+
+    pub fn can_perform_action(self, scared: bool) -> bool {
+        !self.is_on_back()
+            && !scared
+            && !self.is_eating()
+            && !self.is_rolling()
+            && !self.is_sitting()
+    }
+
+    pub fn set_sneezing(&mut self, value: bool) {
+        self.set_flag(PANDA_FLAG_SNEEZE, value);
+        if !value {
+            self.sneeze_counter = 0;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PandaAttributes {
+    pub movement_speed: f32,
+    pub attack_damage: f32,
+    pub max_health_override: Option<f32>,
+}
+
+pub fn panda_attributes_for_variant(variant: PandaGene) -> PandaAttributes {
+    PandaAttributes {
+        movement_speed: if variant == PandaGene::Lazy {
+            PANDA_LAZY_MOVEMENT_SPEED
+        } else {
+            PANDA_BASE_MOVEMENT_SPEED
+        },
+        attack_damage: PANDA_ATTACK_DAMAGE,
+        max_health_override: (variant == PandaGene::Weak).then_some(PANDA_WEAK_MAX_HEALTH),
+    }
+}
+
+pub fn panda_food_item(item: &'static str) -> bool {
+    item == "minecraft:bamboo"
+}
+
+pub fn panda_eats_from_ground_item(item: &'static str) -> bool {
+    matches!(item, "minecraft:bamboo" | "minecraft:cake")
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PandaInteractResult {
+    Pass,
+    SuccessServer {
+        consumed: i32,
+        sit: bool,
+        eat: bool,
+        held_item: Option<&'static str>,
+    },
+    Success {
+        on_back: bool,
+    },
+}
+
+pub fn panda_interact_plan(
+    item: &'static str,
+    scared: bool,
+    on_back: bool,
+    target_present: bool,
+    can_age_up: bool,
+    baby: bool,
+    age: i32,
+    can_fall_in_love: bool,
+    sitting: bool,
+    in_water: bool,
+    current_held_item: Option<&'static str>,
+    player_infinite_materials: bool,
+) -> PandaInteractResult {
+    if scared {
+        return PandaInteractResult::Pass;
+    }
+    if on_back {
+        return PandaInteractResult::Success { on_back: false };
+    }
+    if !panda_food_item(item) {
+        return PandaInteractResult::Pass;
+    }
+    if target_present {
+        return PandaInteractResult::SuccessServer {
+            consumed: 0,
+            sit: sitting,
+            eat: false,
+            held_item: current_held_item,
+        };
+    }
+    if can_age_up {
+        return PandaInteractResult::SuccessServer {
+            consumed: 1,
+            sit: sitting,
+            eat: false,
+            held_item: current_held_item,
+        };
+    }
+    if baby {
+        return PandaInteractResult::Pass;
+    }
+    if age == 0 && can_fall_in_love {
+        return PandaInteractResult::SuccessServer {
+            consumed: 1,
+            sit: sitting,
+            eat: false,
+            held_item: current_held_item,
+        };
+    }
+    if sitting || in_water {
+        return PandaInteractResult::Pass;
+    }
+    let _drops_previous = current_held_item.is_some() && !player_infinite_materials;
+    PandaInteractResult::SuccessServer {
+        consumed: 1,
+        sit: true,
+        eat: true,
+        held_item: Some(item),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PandaRollStep {
+    pub rolling_after_step: bool,
+    pub counter: i32,
+    pub delta: (f32, f32, f32),
+}
+
+pub fn panda_roll_step(
+    roll_counter: i32,
+    baby: bool,
+    yaw_degrees: f32,
+    current_delta: (f32, f32, f32),
+    roll_delta: (f32, f32, f32),
+    on_ground: bool,
+) -> PandaRollStep {
+    let counter = roll_counter + 1;
+    if counter > PANDA_TOTAL_ROLL_STEPS {
+        return PandaRollStep {
+            rolling_after_step: false,
+            counter,
+            delta: current_delta,
+        };
+    }
+    if counter == 1 {
+        let angle = yaw_degrees.to_radians();
+        let multiplier = if baby { 0.1 } else { 0.2 };
+        let x = current_delta.0 + -angle.sin() * multiplier;
+        let z = current_delta.2 + angle.cos() * multiplier;
+        PandaRollStep {
+            rolling_after_step: true,
+            counter,
+            delta: (x, 0.27, z),
+        }
+    } else if matches!(counter, 7 | 15 | 23) {
+        PandaRollStep {
+            rolling_after_step: true,
+            counter,
+            delta: (0.0, if on_ground { 0.27 } else { current_delta.1 }, 0.0),
+        }
+    } else {
+        PandaRollStep {
+            rolling_after_step: true,
+            counter,
+            delta: (roll_delta.0, current_delta.1, roll_delta.2),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PandaSneezeTick {
+    None,
+    PreSneezeSound,
+    Finish {
+        sound: &'static str,
+        particle: &'static str,
+        loot_table: &'static str,
+    },
+}
+
+pub fn panda_sneeze_tick(state: &mut PandaState, mob_drops: bool) -> PandaSneezeTick {
+    if !state.is_sneezing() {
+        return PandaSneezeTick::None;
+    }
+    state.sneeze_counter += 1;
+    if state.sneeze_counter > 20 {
+        state.set_sneezing(false);
+        PandaSneezeTick::Finish {
+            sound: "minecraft:entity.panda.sneeze",
+            particle: "minecraft:sneeze",
+            loot_table: if mob_drops {
+                "minecraft:gameplay/panda_sneeze"
+            } else {
+                ""
+            },
+        }
+    } else if state.sneeze_counter == 1 {
+        PandaSneezeTick::PreSneezeSound
+    } else {
+        PandaSneezeTick::None
+    }
+}
+
+pub fn panda_sneeze_goal_can_use(
+    baby: bool,
+    can_perform_action: bool,
+    weak: bool,
+    weak_roll_one_of_500: bool,
+    normal_roll_one_of_6000: bool,
+) -> bool {
+    baby && can_perform_action && ((weak && weak_roll_one_of_500) || normal_roll_one_of_6000)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParrotVariantModel {
+    RedBlue,
+    Blue,
+    Green,
+    YellowBlue,
+    Gray,
+}
+
+impl ParrotVariantModel {
+    pub fn id(self) -> i32 {
+        match self {
+            Self::RedBlue => 0,
+            Self::Blue => 1,
+            Self::Green => 2,
+            Self::YellowBlue => 3,
+            Self::Gray => 4,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::RedBlue => "red_blue",
+            Self::Blue => "blue",
+            Self::Green => "green",
+            Self::YellowBlue => "yellow_blue",
+            Self::Gray => "gray",
+        }
+    }
+}
+
+pub fn parrot_variant_by_id(id: i32) -> ParrotVariantModel {
+    match id.clamp(0, 4) {
+        0 => ParrotVariantModel::RedBlue,
+        1 => ParrotVariantModel::Blue,
+        2 => ParrotVariantModel::Green,
+        3 => ParrotVariantModel::YellowBlue,
+        _ => ParrotVariantModel::Gray,
+    }
+}
+
+pub fn parrot_food_item(item: &str) -> bool {
+    matches!(
+        item,
+        "minecraft:wheat_seeds"
+            | "minecraft:melon_seeds"
+            | "minecraft:pumpkin_seeds"
+            | "minecraft:beetroot_seeds"
+            | "minecraft:torchflower_seeds"
+            | "minecraft:pitcher_pod"
+    )
+}
+
+pub fn parrot_poisonous_item(item: &str) -> bool {
+    item == "minecraft:cookie"
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParrotInteractResult {
+    Pass,
+    TameFood {
+        consumed: i32,
+        eat_sound: &'static str,
+        tame_event: u8,
+        tamed: bool,
+    },
+    ToggleSitting,
+    Poisoned {
+        consumed: i32,
+        effect: &'static str,
+        duration_ticks: i32,
+        lethal_damage: bool,
+    },
+}
+
+pub fn parrot_interact_plan(
+    item: &str,
+    tame: bool,
+    flying: bool,
+    owned_by_player: bool,
+    tame_roll_zero: bool,
+    invulnerable: bool,
+) -> ParrotInteractResult {
+    if !tame && parrot_food_item(item) {
+        return ParrotInteractResult::TameFood {
+            consumed: 1,
+            eat_sound: "minecraft:entity.parrot.eat",
+            tame_event: if tame_roll_zero { 7 } else { 6 },
+            tamed: tame_roll_zero,
+        };
+    }
+    if parrot_poisonous_item(item) {
+        return ParrotInteractResult::Poisoned {
+            consumed: 1,
+            effect: "minecraft:poison",
+            duration_ticks: PARROT_POISON_TICKS,
+            lethal_damage: !invulnerable,
+        };
+    }
+    if !flying && tame && owned_by_player {
+        ParrotInteractResult::ToggleSitting
+    } else {
+        ParrotInteractResult::Pass
+    }
+}
+
+pub fn parrot_party_state_after_ai_step(
+    jukebox_present: bool,
+    jukebox_is_still_jukebox: bool,
+    distance_to_jukebox_center: f32,
+    currently_partying: bool,
+) -> bool {
+    jukebox_present
+        && jukebox_is_still_jukebox
+        && distance_to_jukebox_center < PARROT_JUKEBOX_PARTY_DISTANCE
+        && currently_partying
+}
+
+pub fn parrot_should_attempt_mimic(alive: bool, silent: bool, ai_step_roll: i32) -> bool {
+    alive && !silent && ai_step_roll == 0
+}
+
+pub fn parrot_mimic_sound(entity_type: &str) -> Option<&'static str> {
+    match entity_type {
+        "minecraft:blaze" => Some("minecraft:entity.parrot.imitate.blaze"),
+        "minecraft:bogged" => Some("minecraft:entity.parrot.imitate.bogged"),
+        "minecraft:breeze" => Some("minecraft:entity.parrot.imitate.breeze"),
+        "minecraft:camel_husk" => Some("minecraft:entity.parrot.imitate.camel_husk"),
+        "minecraft:cave_spider" | "minecraft:spider" => {
+            Some("minecraft:entity.parrot.imitate.spider")
+        }
+        "minecraft:creaking" => Some("minecraft:entity.parrot.imitate.creaking"),
+        "minecraft:creeper" => Some("minecraft:entity.parrot.imitate.creeper"),
+        "minecraft:drowned" => Some("minecraft:entity.parrot.imitate.drowned"),
+        "minecraft:elder_guardian" => Some("minecraft:entity.parrot.imitate.elder_guardian"),
+        "minecraft:ender_dragon" => Some("minecraft:entity.parrot.imitate.ender_dragon"),
+        "minecraft:endermite" => Some("minecraft:entity.parrot.imitate.endermite"),
+        "minecraft:evoker" => Some("minecraft:entity.parrot.imitate.evoker"),
+        "minecraft:ghast" => Some("minecraft:entity.parrot.imitate.ghast"),
+        "minecraft:happy_ghast" => Some("minecraft:empty"),
+        "minecraft:guardian" => Some("minecraft:entity.parrot.imitate.guardian"),
+        "minecraft:hoglin" => Some("minecraft:entity.parrot.imitate.hoglin"),
+        "minecraft:husk" => Some("minecraft:entity.parrot.imitate.husk"),
+        "minecraft:illusioner" => Some("minecraft:entity.parrot.imitate.illusioner"),
+        "minecraft:magma_cube" => Some("minecraft:entity.parrot.imitate.magma_cube"),
+        "minecraft:parched" => Some("minecraft:entity.parrot.imitate.parched"),
+        "minecraft:phantom" => Some("minecraft:entity.parrot.imitate.phantom"),
+        "minecraft:piglin" => Some("minecraft:entity.parrot.imitate.piglin"),
+        "minecraft:piglin_brute" => Some("minecraft:entity.parrot.imitate.piglin_brute"),
+        "minecraft:pillager" => Some("minecraft:entity.parrot.imitate.pillager"),
+        "minecraft:ravager" => Some("minecraft:entity.parrot.imitate.ravager"),
+        "minecraft:shulker" => Some("minecraft:entity.parrot.imitate.shulker"),
+        "minecraft:silverfish" => Some("minecraft:entity.parrot.imitate.silverfish"),
+        "minecraft:skeleton" => Some("minecraft:entity.parrot.imitate.skeleton"),
+        "minecraft:slime" => Some("minecraft:entity.parrot.imitate.slime"),
+        "minecraft:stray" => Some("minecraft:entity.parrot.imitate.stray"),
+        "minecraft:vex" => Some("minecraft:entity.parrot.imitate.vex"),
+        "minecraft:vindicator" => Some("minecraft:entity.parrot.imitate.vindicator"),
+        "minecraft:warden" => Some("minecraft:entity.parrot.imitate.warden"),
+        "minecraft:witch" => Some("minecraft:entity.parrot.imitate.witch"),
+        "minecraft:wither" => Some("minecraft:entity.parrot.imitate.wither"),
+        "minecraft:wither_skeleton" => Some("minecraft:entity.parrot.imitate.wither_skeleton"),
+        "minecraft:zoglin" => Some("minecraft:entity.parrot.imitate.zoglin"),
+        "minecraft:zombie" => Some("minecraft:entity.parrot.imitate.zombie"),
+        "minecraft:zombie_horse" => Some("minecraft:entity.parrot.imitate.zombie_horse"),
+        "minecraft:zombie_nautilus" => Some("minecraft:entity.parrot.imitate.zombie_nautilus"),
+        "minecraft:zombie_villager" => Some("minecraft:entity.parrot.imitate.zombie_villager"),
+        _ => None,
+    }
+}
+
+pub fn parrot_mimic_nearby_plan(
+    alive: bool,
+    silent: bool,
+    sound_roll_zero: bool,
+    nearby_entity_type: Option<&str>,
+    nearby_entity_silent: bool,
+) -> Option<&'static str> {
+    if !alive || silent || !sound_roll_zero || nearby_entity_silent {
+        return None;
+    }
+    nearby_entity_type.and_then(parrot_mimic_sound)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParrotShoulderPlan {
+    pub can_use_goal: bool,
+    pub can_mount_now: bool,
+}
+
+pub fn parrot_shoulder_plan(
+    has_server_player_owner: bool,
+    ordered_to_sit: bool,
+    owner_spectator: bool,
+    owner_flying: bool,
+    owner_in_water: bool,
+    owner_in_powder_snow: bool,
+    ride_cooldown_counter: i32,
+    in_sitting_pose: bool,
+    leashed: bool,
+    bounding_boxes_intersect: bool,
+    owner_is_passenger: bool,
+    owner_on_ground: bool,
+) -> ParrotShoulderPlan {
+    let owner_can_be_sat_on =
+        !owner_spectator && !owner_flying && !owner_in_water && !owner_in_powder_snow;
+    let can_use_goal = has_server_player_owner
+        && !ordered_to_sit
+        && owner_can_be_sat_on
+        && ride_cooldown_counter > SHOULDER_RIDING_COOLDOWN_TICKS;
+    let player_accepts_shoulder_entity =
+        !owner_is_passenger && owner_on_ground && !owner_in_water && !owner_in_powder_snow;
+    ParrotShoulderPlan {
+        can_use_goal,
+        can_mount_now: can_use_goal
+            && !in_sitting_pose
+            && !leashed
+            && bounding_boxes_intersect
+            && player_accepts_shoulder_entity,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HappyGhastAttributes {
+    pub max_health: f32,
+    pub tempt_range: f32,
+    pub flying_speed: f32,
+    pub movement_speed: f32,
+    pub follow_range: f32,
+    pub camera_distance: f32,
+}
+
+pub fn happy_ghast_attributes() -> HappyGhastAttributes {
+    HappyGhastAttributes {
+        max_health: HAPPY_GHAST_MAX_HEALTH,
+        tempt_range: HAPPY_GHAST_TEMPT_RANGE,
+        flying_speed: HAPPY_GHAST_FLYING_SPEED,
+        movement_speed: HAPPY_GHAST_MOVEMENT_SPEED,
+        follow_range: HAPPY_GHAST_FOLLOW_RANGE,
+        camera_distance: HAPPY_GHAST_CAMERA_DISTANCE,
+    }
+}
+
+pub fn happy_ghast_food_item(item: &str) -> bool {
+    item == "minecraft:snowball"
+}
+
+pub fn happy_ghast_harness_item(item: &str) -> bool {
+    matches!(
+        item,
+        "minecraft:white_harness"
+            | "minecraft:orange_harness"
+            | "minecraft:magenta_harness"
+            | "minecraft:light_blue_harness"
+            | "minecraft:yellow_harness"
+            | "minecraft:lime_harness"
+            | "minecraft:pink_harness"
+            | "minecraft:gray_harness"
+            | "minecraft:light_gray_harness"
+            | "minecraft:cyan_harness"
+            | "minecraft:purple_harness"
+            | "minecraft:blue_harness"
+            | "minecraft:brown_harness"
+            | "minecraft:green_harness"
+            | "minecraft:red_harness"
+            | "minecraft:black_harness"
+    )
+}
+
+pub fn happy_ghast_tempt_item(item: &str, baby: bool, wearing_harness: bool) -> bool {
+    if !baby && !wearing_harness {
+        happy_ghast_food_item(item) || happy_ghast_harness_item(item)
+    } else {
+        happy_ghast_food_item(item)
+    }
+}
+
+pub fn happy_ghast_can_use_body_slot(alive: bool, baby: bool) -> bool {
+    alive && !baby
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HappyGhastInteractPlan {
+    Pass,
+    EquipHarness,
+    StartRide,
+}
+
+pub fn happy_ghast_interact_plan(
+    baby: bool,
+    item: &str,
+    wearing_harness: bool,
+    secondary_use_active: bool,
+    item_interaction_consumed: bool,
+) -> HappyGhastInteractPlan {
+    if baby {
+        return HappyGhastInteractPlan::Pass;
+    }
+    if !item.is_empty() && item_interaction_consumed {
+        return if happy_ghast_harness_item(item) && !wearing_harness {
+            HappyGhastInteractPlan::EquipHarness
+        } else {
+            HappyGhastInteractPlan::Pass
+        };
+    }
+    if wearing_harness && !secondary_use_active {
+        HappyGhastInteractPlan::StartRide
+    } else {
+        HappyGhastInteractPlan::Pass
+    }
+}
+
+pub fn happy_ghast_can_add_passenger(current_passengers: usize) -> bool {
+    current_passengers < HAPPY_GHAST_MAX_PASSENGERS
+}
+
+pub fn happy_ghast_controlling_passenger(
+    wearing_harness: bool,
+    still_timeout: bool,
+    first_passenger_is_player: bool,
+) -> bool {
+    wearing_harness && !still_timeout && first_passenger_is_player
+}
+
+pub fn happy_ghast_restriction_radius(baby: bool, wearing_harness: bool) -> i32 {
+    if !baby && !wearing_harness {
+        HAPPY_GHAST_LARGE_RESTRICTION_RADIUS
+    } else {
+        HAPPY_GHAST_SMALL_RESTRICTION_RADIUS
+    }
+}
+
+pub fn happy_ghast_heal_interval_ticks(in_clouds_or_precipitation: bool) -> i32 {
+    if in_clouds_or_precipitation {
+        HAPPY_GHAST_FAST_HEALING_TICKS
+    } else {
+        HAPPY_GHAST_SLOW_HEALING_TICKS
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HappyGhastStillTimeoutStep {
+    pub timeout: i32,
+    pub stays_still: bool,
+}
+
+pub fn happy_ghast_still_timeout_tick(
+    current_timeout: i32,
+    tick_count: i32,
+    player_above: bool,
+) -> HappyGhastStillTimeoutStep {
+    let mut timeout = current_timeout;
+    if timeout > 0 && tick_count > HAPPY_GHAST_STILL_TIMEOUT_ON_LOAD_GRACE_PERIOD {
+        timeout -= 1;
+    }
+    if player_above {
+        timeout = HAPPY_GHAST_MAX_STILL_TIMEOUT;
+    }
+    HappyGhastStillTimeoutStep {
+        timeout,
+        stays_still: timeout > 0,
+    }
+}
+
+pub fn happy_ghast_still_timeout_after_add_passenger(
+    current_timeout: i32,
+    player_above: bool,
+) -> i32 {
+    if !player_above {
+        0
+    } else if current_timeout > HAPPY_GHAST_MAX_STILL_TIMEOUT {
+        HAPPY_GHAST_MAX_STILL_TIMEOUT
+    } else {
+        current_timeout
+    }
+}
+
+pub fn happy_ghast_still_timeout_after_remove_passenger() -> i32 {
+    HAPPY_GHAST_MAX_STILL_TIMEOUT
+}
+
+pub fn happy_ghast_can_be_collided_with(
+    baby: bool,
+    alive: bool,
+    client_side: bool,
+    other_is_player_above: bool,
+    is_vehicle: bool,
+    other_is_happy_ghast: bool,
+    still_timeout: bool,
+) -> bool {
+    if baby || !alive {
+        return false;
+    }
+    if client_side && other_is_player_above {
+        true
+    } else if is_vehicle && other_is_happy_ghast {
+        true
+    } else {
+        still_timeout
+    }
+}
+
+pub fn happy_ghast_leash_holder_offsets() -> [(f32, f32, f32); 4] {
+    [
+        (-0.03125, 0.4375, 0.46875),
+        (0.03125, 0.4375, 0.46875),
+        (-0.03125, 0.4375, -0.46875),
+        (0.03125, 0.4375, -0.46875),
+    ]
+}
+
+pub fn happy_ghast_notify_leash_holder_time(holder_supports_quad_leash: bool) -> i32 {
+    if holder_supports_quad_leash {
+        5
+    } else {
+        0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriedGhastTickPlan {
+    Dehydrate {
+        hydration_level: i32,
+        game_event: &'static str,
+    },
+    Hydrate {
+        hydration_level: i32,
+        sound: &'static str,
+        game_event: &'static str,
+    },
+    SpawnGhastling {
+        remove_block: bool,
+        baby: bool,
+        sound: &'static str,
+    },
+}
+
+pub fn dried_ghast_tick_plan(waterlogged: bool, hydration_level: i32) -> DriedGhastTickPlan {
+    if waterlogged {
+        if hydration_level == DRIED_GHAST_READY_HYDRATION_LEVEL {
+            DriedGhastTickPlan::SpawnGhastling {
+                remove_block: true,
+                baby: true,
+                sound: "minecraft:entity.ghastling.spawn",
+            }
+        } else {
+            DriedGhastTickPlan::Hydrate {
+                hydration_level: hydration_level + 1,
+                sound: "minecraft:block.dried_ghast.transition",
+                game_event: "minecraft:block_change",
+            }
+        }
+    } else if hydration_level > 0 {
+        DriedGhastTickPlan::Dehydrate {
+            hydration_level: hydration_level - 1,
+            game_event: "minecraft:block_change",
+        }
+    } else {
+        DriedGhastTickPlan::Dehydrate {
+            hydration_level: 0,
+            game_event: "",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnifferStateModel {
+    Idling,
+    FeelingHappy,
+    Scenting,
+    Sniffing,
+    Searching,
+    Digging,
+    Rising,
+}
+
+impl SnifferStateModel {
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Idling => 0,
+            Self::FeelingHappy => 1,
+            Self::Scenting => 2,
+            Self::Sniffing => 3,
+            Self::Searching => 4,
+            Self::Digging => 5,
+            Self::Rising => 6,
+        }
+    }
+}
+
+pub fn sniffer_state_by_id(id: i32) -> SnifferStateModel {
+    match id {
+        1 => SnifferStateModel::FeelingHappy,
+        2 => SnifferStateModel::Scenting,
+        3 => SnifferStateModel::Sniffing,
+        4 => SnifferStateModel::Searching,
+        5 => SnifferStateModel::Digging,
+        6 => SnifferStateModel::Rising,
+        _ => SnifferStateModel::Idling,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SnifferAttributes {
+    pub movement_speed: f32,
+    pub max_health: f32,
+}
+
+pub fn sniffer_attributes() -> SnifferAttributes {
+    SnifferAttributes {
+        movement_speed: SNIFFER_MOVEMENT_SPEED,
+        max_health: SNIFFER_MAX_HEALTH,
+    }
+}
+
+pub fn sniffer_food_item(item: &str) -> bool {
+    item == "minecraft:torchflower_seeds"
+}
+
+pub fn sniffer_diggable_block(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:grass_block"
+            | "minecraft:podzol"
+            | "minecraft:dirt"
+            | "minecraft:coarse_dirt"
+            | "minecraft:rooted_dirt"
+            | "minecraft:mud"
+            | "minecraft:muddy_mangrove_roots"
+            | "minecraft:moss_block"
+    )
+}
+
+pub fn sniffer_egg_hatch_boost_block(block: &str) -> bool {
+    block == "minecraft:moss_block"
+}
+
+pub fn sniffer_can_sniff(
+    tempted: bool,
+    panicking: bool,
+    in_water: bool,
+    in_love: bool,
+    on_ground: bool,
+    passenger: bool,
+    leashed: bool,
+) -> bool {
+    !tempted && !panicking && !in_water && !in_love && on_ground && !passenger && !leashed
+}
+
+pub fn sniffer_can_dig_body_state(
+    panicking: bool,
+    tempted: bool,
+    baby: bool,
+    in_water: bool,
+    on_ground: bool,
+    passenger: bool,
+    head_block_below_diggable: bool,
+    explored_position: bool,
+    path_can_reach: bool,
+) -> bool {
+    !panicking
+        && !tempted
+        && !baby
+        && !in_water
+        && on_ground
+        && !passenger
+        && head_block_below_diggable
+        && !explored_position
+        && path_can_reach
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnifferTransitionPlan {
+    pub state: SnifferStateModel,
+    pub sound: Option<&'static str>,
+    pub drop_seed_at_tick: Option<i32>,
+    pub event: Option<u8>,
+}
+
+pub fn sniffer_transition_plan(
+    state: SnifferStateModel,
+    tick_count: i32,
+    baby: bool,
+) -> SnifferTransitionPlan {
+    match state {
+        SnifferStateModel::Idling => SnifferTransitionPlan {
+            state,
+            sound: None,
+            drop_seed_at_tick: None,
+            event: None,
+        },
+        SnifferStateModel::FeelingHappy => SnifferTransitionPlan {
+            state,
+            sound: Some("minecraft:entity.sniffer.happy"),
+            drop_seed_at_tick: None,
+            event: None,
+        },
+        SnifferStateModel::Scenting => SnifferTransitionPlan {
+            state,
+            sound: Some(if baby {
+                "minecraft:entity.sniffer.scenting@1.3"
+            } else {
+                "minecraft:entity.sniffer.scenting@1.0"
+            }),
+            drop_seed_at_tick: None,
+            event: None,
+        },
+        SnifferStateModel::Sniffing => SnifferTransitionPlan {
+            state,
+            sound: Some("minecraft:entity.sniffer.sniffing"),
+            drop_seed_at_tick: None,
+            event: None,
+        },
+        SnifferStateModel::Searching => SnifferTransitionPlan {
+            state,
+            sound: None,
+            drop_seed_at_tick: None,
+            event: None,
+        },
+        SnifferStateModel::Digging => SnifferTransitionPlan {
+            state,
+            sound: None,
+            drop_seed_at_tick: Some(tick_count + SNIFFER_DIGGING_DROP_SEED_OFFSET_TICKS),
+            event: Some(63),
+        },
+        SnifferStateModel::Rising => SnifferTransitionPlan {
+            state,
+            sound: Some("minecraft:entity.sniffer.digging_stop"),
+            drop_seed_at_tick: None,
+            event: None,
+        },
+    }
+}
+
+pub fn sniffer_can_play_digging_sound(state: SnifferStateModel) -> bool {
+    matches!(
+        state,
+        SnifferStateModel::Digging | SnifferStateModel::Searching
+    )
+}
+
+pub fn sniffer_ambient_sound(state: SnifferStateModel) -> Option<&'static str> {
+    if sniffer_can_play_digging_sound(state) {
+        None
+    } else {
+        Some("minecraft:entity.sniffer.idle")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnifferDiggingTickPlan {
+    pub drop_seed: bool,
+    pub seed_loot_table: Option<&'static str>,
+    pub seed_sound: Option<&'static str>,
+    pub particles: i32,
+    pub block_hit_sound: bool,
+    pub game_event: bool,
+}
+
+pub fn sniffer_digging_tick_plan(
+    state: SnifferStateModel,
+    tick_count: i32,
+    drop_seed_at_tick: i32,
+    digging_animation_time_ms: i32,
+    state_below_visible: bool,
+) -> SnifferDiggingTickPlan {
+    let digging = state == SnifferStateModel::Digging;
+    let emit_particles = digging
+        && digging_animation_time_ms > SNIFFER_DIGGING_PARTICLES_DELAY_TICKS
+        && digging_animation_time_ms < SNIFFER_DIGGING_PARTICLES_DURATION_TICKS
+        && state_below_visible;
+    let drop_seed = digging && tick_count == drop_seed_at_tick;
+    SnifferDiggingTickPlan {
+        drop_seed,
+        seed_loot_table: drop_seed.then_some("minecraft:gameplay/sniffer_digging"),
+        seed_sound: drop_seed.then_some("minecraft:entity.sniffer.drop_seed"),
+        particles: if emit_particles {
+            SNIFFER_DIGGING_PARTICLES_AMOUNT
+        } else {
+            0
+        },
+        block_hit_sound: emit_particles && tick_count % 10 == 0,
+        game_event: digging && tick_count % 10 == 0,
+    }
+}
+
+pub fn sniffer_store_explored_position<T: Copy>(existing: &[T], new_pos: T) -> Vec<T> {
+    let mut updated: Vec<T> = existing
+        .iter()
+        .copied()
+        .take(SNIFFER_EXPLORED_POSITION_LIMIT)
+        .collect();
+    updated.insert(0, new_pos);
+    updated
+}
+
+pub fn sniffer_can_mate_state(first: SnifferStateModel, second: SnifferStateModel) -> bool {
+    let allowed = |state| {
+        matches!(
+            state,
+            SnifferStateModel::Idling
+                | SnifferStateModel::Scenting
+                | SnifferStateModel::FeelingHappy
+        )
+    };
+    allowed(first) && allowed(second)
+}
+
+pub fn sniffer_breeding_drop_plan() -> (&'static str, &'static str) {
+    ("minecraft:sniffer_egg", "minecraft:block.sniffer_egg.plop")
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnifferEggTickPlan {
+    Crack {
+        hatch_level: i32,
+        sound: &'static str,
+    },
+    Hatch {
+        destroy_block: bool,
+        spawn_baby: bool,
+        sound: &'static str,
+    },
+}
+
+pub fn sniffer_egg_next_tick_delay(boosted: bool, random_offset: i32) -> i32 {
+    let hatch_time = if boosted {
+        SNIFFER_EGG_BOOSTED_HATCH_TIME_TICKS
+    } else {
+        SNIFFER_EGG_REGULAR_HATCH_TIME_TICKS
+    };
+    hatch_time / 3 + random_offset
+}
+
+pub fn sniffer_egg_tick_plan(hatch_level: i32) -> SnifferEggTickPlan {
+    if hatch_level < SNIFFER_EGG_MAX_HATCH_LEVEL {
+        SnifferEggTickPlan::Crack {
+            hatch_level: hatch_level + 1,
+            sound: "minecraft:block.sniffer_egg.crack",
+        }
+    } else {
+        SnifferEggTickPlan::Hatch {
+            destroy_block: true,
+            spawn_baby: true,
+            sound: "minecraft:block.sniffer_egg.hatch",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TurtleAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+    pub step_height: f32,
+}
+
+pub fn turtle_attributes() -> TurtleAttributes {
+    TurtleAttributes {
+        max_health: TURTLE_MAX_HEALTH,
+        movement_speed: TURTLE_MOVEMENT_SPEED,
+        step_height: TURTLE_STEP_HEIGHT,
+    }
+}
+
+pub fn turtle_food_item(item: &str) -> bool {
+    item == "minecraft:seagrass"
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TurtleStateModel {
+    pub home_pos: (i32, i32, i32),
+    pub has_egg: bool,
+    pub laying_egg: bool,
+    pub lay_egg_counter: i32,
+    pub going_home: bool,
+}
+
+impl TurtleStateModel {
+    pub fn new(home_pos: (i32, i32, i32)) -> Self {
+        Self {
+            home_pos,
+            has_egg: false,
+            laying_egg: false,
+            lay_egg_counter: 0,
+            going_home: false,
+        }
+    }
+
+    pub fn set_laying_egg(&mut self, value: bool) {
+        self.lay_egg_counter = if value { 1 } else { 0 };
+        self.laying_egg = value;
+    }
+}
+
+pub fn turtle_can_fall_in_love(super_can_fall_in_love: bool, has_egg: bool) -> bool {
+    super_can_fall_in_love && !has_egg
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TurtleBreedPlan {
+    pub has_egg_after: bool,
+    pub parent_age: i32,
+    pub reset_love: bool,
+    pub bred_animals_stat: bool,
+    pub xp_min: i32,
+    pub xp_max: i32,
+}
+
+pub fn turtle_breed_plan(has_love_cause: bool, mob_drops: bool) -> TurtleBreedPlan {
+    TurtleBreedPlan {
+        has_egg_after: true,
+        parent_age: TURTLE_BREED_PARENT_AGE,
+        reset_love: true,
+        bred_animals_stat: has_love_cause,
+        xp_min: if mob_drops { 1 } else { 0 },
+        xp_max: if mob_drops { 7 } else { 0 },
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurtleLayEggStep {
+    None,
+    StartLaying,
+    DigParticles {
+        level_event: i32,
+        game_event: &'static str,
+    },
+    PlaceEggs {
+        egg_count: i32,
+        sound: &'static str,
+        game_event: &'static str,
+        has_egg_after: bool,
+        laying_after: bool,
+        in_love_time: i32,
+    },
+}
+
+pub fn turtle_lay_egg_step(
+    has_egg: bool,
+    laying_egg: bool,
+    lay_egg_counter: i32,
+    in_water: bool,
+    reached_target: bool,
+    on_sand: bool,
+    random_egg_count_zero_to_three: i32,
+) -> TurtleLayEggStep {
+    if !has_egg || in_water || !reached_target {
+        return TurtleLayEggStep::None;
+    }
+    if !laying_egg || lay_egg_counter < 1 {
+        return TurtleLayEggStep::StartLaying;
+    }
+    if lay_egg_counter > TURTLE_LAY_EGG_DELAY_TICKS {
+        return TurtleLayEggStep::PlaceEggs {
+            egg_count: random_egg_count_zero_to_three.clamp(0, 3) + 1,
+            sound: "minecraft:entity.turtle.lay_egg",
+            game_event: "minecraft:block_place",
+            has_egg_after: false,
+            laying_after: false,
+            in_love_time: 600,
+        };
+    }
+    if on_sand && lay_egg_counter % TURTLE_LAY_EGG_PARTICLE_INTERVAL_TICKS == 0 {
+        TurtleLayEggStep::DigParticles {
+            level_event: 2001,
+            game_event: "minecraft:entity_action",
+        }
+    } else {
+        TurtleLayEggStep::None
+    }
+}
+
+pub fn turtle_grow_drop_loot(adult_after_growth: bool, mob_drops: bool) -> Option<&'static str> {
+    (adult_after_growth && mob_drops).then_some("minecraft:gameplay/turtle_grow")
+}
+
+pub fn turtle_spawn_allowed(
+    pos_y: i32,
+    sea_level: i32,
+    on_sand: bool,
+    bright_enough: bool,
+) -> bool {
+    pos_y < sea_level + 4 && on_sand && bright_enough
+}
+
+pub fn turtle_go_home_can_use(
+    baby: bool,
+    has_egg: bool,
+    home_distance: f32,
+    random_roll_zero: bool,
+) -> bool {
+    if baby {
+        false
+    } else if has_egg {
+        true
+    } else {
+        random_roll_zero && home_distance >= TURTLE_GO_HOME_DISTANCE
+    }
+}
+
+pub fn turtle_lay_egg_goal_can_use(has_egg: bool, home_distance: f32, super_can_use: bool) -> bool {
+    has_egg && home_distance < TURTLE_LAY_EGG_HOME_DISTANCE && super_can_use
+}
+
+pub fn turtle_go_to_water_can_use(
+    baby: bool,
+    in_water: bool,
+    going_home: bool,
+    has_egg: bool,
+    super_can_use: bool,
+) -> bool {
+    if baby && !in_water {
+        super_can_use
+    } else {
+        !going_home && !in_water && !has_egg && super_can_use
+    }
+}
+
+pub fn turtle_travel_can_use(going_home: bool, has_egg: bool, in_water: bool) -> bool {
+    !going_home && !has_egg && in_water
+}
+
+pub fn turtle_water_travel_sinking(
+    has_target: bool,
+    going_home: bool,
+    home_distance: f32,
+) -> Option<(f32, f32, f32)> {
+    if !has_target && (!going_home || home_distance >= 20.0) {
+        Some((0.0, -0.005, 0.0))
+    } else {
+        None
+    }
+}
+
+pub fn turtle_can_be_leashed() -> bool {
+    false
+}
+
+pub fn turtle_lightning_damage() -> f32 {
+    f32::MAX
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurtleEggDestroyPlan {
+    None,
+    DecreaseEggs {
+        eggs_after: i32,
+        sound: &'static str,
+        destroy_block: bool,
+        game_event: Option<&'static str>,
+    },
+}
+
+pub fn turtle_egg_destroy_plan(
+    eggs: i32,
+    entity_is_turtle: bool,
+    entity_is_bat: bool,
+    entity_is_living: bool,
+    entity_is_player: bool,
+    mob_griefing: bool,
+    random_roll_zero: bool,
+) -> TurtleEggDestroyPlan {
+    let can_destroy = !entity_is_turtle
+        && !entity_is_bat
+        && entity_is_living
+        && (entity_is_player || mob_griefing);
+    if !can_destroy || !random_roll_zero {
+        return TurtleEggDestroyPlan::None;
+    }
+    if eggs <= 1 {
+        TurtleEggDestroyPlan::DecreaseEggs {
+            eggs_after: 0,
+            sound: "minecraft:entity.turtle.egg_break",
+            destroy_block: true,
+            game_event: None,
+        }
+    } else {
+        TurtleEggDestroyPlan::DecreaseEggs {
+            eggs_after: eggs - 1,
+            sound: "minecraft:entity.turtle.egg_break",
+            destroy_block: false,
+            game_event: Some("minecraft:block_destroy"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TurtleEggRandomTickPlan {
+    None,
+    Crack {
+        hatch: i32,
+        sound: &'static str,
+        game_event: &'static str,
+    },
+    Hatch {
+        hatchlings: i32,
+        hatchling_age: i32,
+        sound: &'static str,
+        game_event: &'static str,
+    },
+}
+
+pub fn turtle_egg_random_tick_plan(
+    on_sand: bool,
+    should_update_hatch_level: bool,
+    hatch: i32,
+    eggs: i32,
+) -> TurtleEggRandomTickPlan {
+    if !on_sand || !should_update_hatch_level {
+        return TurtleEggRandomTickPlan::None;
+    }
+    if hatch < TURTLE_EGG_MAX_HATCH_LEVEL {
+        TurtleEggRandomTickPlan::Crack {
+            hatch: hatch + 1,
+            sound: "minecraft:entity.turtle.egg_crack",
+            game_event: "minecraft:block_change",
+        }
+    } else {
+        TurtleEggRandomTickPlan::Hatch {
+            hatchlings: eggs.clamp(TURTLE_EGG_MIN_EGGS, TURTLE_EGG_MAX_EGGS),
+            hatchling_age: TURTLE_HATCHLING_AGE,
+            sound: "minecraft:entity.turtle.egg_hatch",
+            game_event: "minecraft:block_destroy",
+        }
+    }
+}
+
+pub fn turtle_egg_can_be_replaced(
+    secondary_use_active: bool,
+    item_is_turtle_egg: bool,
+    eggs: i32,
+) -> bool {
+    !secondary_use_active && item_is_turtle_egg && eggs < TURTLE_EGG_MAX_EGGS
+}
+
+pub fn turtle_egg_placement_eggs(existing_eggs: Option<i32>) -> i32 {
+    existing_eggs
+        .map(|eggs| (eggs + 1).min(TURTLE_EGG_MAX_EGGS))
+        .unwrap_or(TURTLE_EGG_MIN_EGGS)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArmadilloStateModel {
+    Idle,
+    Rolling,
+    Scared,
+    Unrolling,
+}
+
+impl ArmadilloStateModel {
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Idle => 0,
+            Self::Rolling => 1,
+            Self::Scared => 2,
+            Self::Unrolling => 3,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Rolling => "rolling",
+            Self::Scared => "scared",
+            Self::Unrolling => "unrolling",
+        }
+    }
+
+    pub fn animation_duration(self) -> i32 {
+        match self {
+            Self::Idle => 0,
+            Self::Rolling => 10,
+            Self::Scared => 50,
+            Self::Unrolling => 30,
+        }
+    }
+
+    pub fn is_threatened(self) -> bool {
+        self != Self::Idle
+    }
+
+    pub fn should_hide_in_shell(self, ticks_in_state: i64) -> bool {
+        match self {
+            Self::Idle => false,
+            Self::Rolling => ticks_in_state > 5,
+            Self::Scared => true,
+            Self::Unrolling => ticks_in_state < 26,
+        }
+    }
+}
+
+pub fn armadillo_state_by_id(id: i32) -> ArmadilloStateModel {
+    match id {
+        1 => ArmadilloStateModel::Rolling,
+        2 => ArmadilloStateModel::Scared,
+        3 => ArmadilloStateModel::Unrolling,
+        _ => ArmadilloStateModel::Idle,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ArmadilloAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+}
+
+pub fn armadillo_attributes() -> ArmadilloAttributes {
+    ArmadilloAttributes {
+        max_health: ARMADILLO_MAX_HEALTH,
+        movement_speed: ARMADILLO_MOVEMENT_SPEED,
+    }
+}
+
+pub fn armadillo_food_item(item: &str) -> bool {
+    item == "minecraft:spider_eye"
+}
+
+pub fn armadillo_spawnable_on(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:grass_block"
+            | "minecraft:red_sand"
+            | "minecraft:coarse_dirt"
+            | "minecraft:terracotta"
+            | "minecraft:white_terracotta"
+            | "minecraft:orange_terracotta"
+            | "minecraft:magenta_terracotta"
+            | "minecraft:light_blue_terracotta"
+            | "minecraft:yellow_terracotta"
+            | "minecraft:lime_terracotta"
+            | "minecraft:pink_terracotta"
+            | "minecraft:gray_terracotta"
+            | "minecraft:light_gray_terracotta"
+            | "minecraft:cyan_terracotta"
+            | "minecraft:purple_terracotta"
+            | "minecraft:blue_terracotta"
+            | "minecraft:brown_terracotta"
+            | "minecraft:green_terracotta"
+            | "minecraft:red_terracotta"
+            | "minecraft:black_terracotta"
+    )
+}
+
+pub fn armadillo_spawn_allowed(block_below: &str, bright_enough: bool) -> bool {
+    armadillo_spawnable_on(block_below) && bright_enough
+}
+
+pub fn armadillo_pick_next_scute_drop_time(random_offset: i32) -> i32 {
+    ARMADILLO_SCUTE_DROP_MIN_TICKS + random_offset.clamp(0, ARMADILLO_SCUTE_DROP_RANDOM_BOUND - 1)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArmadilloScuteDropPlan {
+    pub next_scute_time: i32,
+    pub loot_table: Option<&'static str>,
+    pub sound: Option<&'static str>,
+    pub game_event: Option<&'static str>,
+}
+
+pub fn armadillo_scute_drop_tick(
+    alive: bool,
+    scute_time: i32,
+    should_drop_loot: bool,
+    loot_dropped: bool,
+    next_random_offset: i32,
+) -> ArmadilloScuteDropPlan {
+    if alive && scute_time - 1 <= 0 && should_drop_loot {
+        ArmadilloScuteDropPlan {
+            next_scute_time: armadillo_pick_next_scute_drop_time(next_random_offset),
+            loot_table: Some("minecraft:gameplay/armadillo_shed"),
+            sound: loot_dropped.then_some("minecraft:entity.armadillo.scute_drop"),
+            game_event: loot_dropped.then_some("minecraft:entity_place"),
+        }
+    } else {
+        ArmadilloScuteDropPlan {
+            next_scute_time: scute_time - 1,
+            loot_table: None,
+            sound: None,
+            game_event: None,
+        }
+    }
+}
+
+pub fn armadillo_is_scared_by(
+    intersects_in_scare_box: bool,
+    target_undead: bool,
+    target_last_hurt_by: bool,
+    target_is_player: bool,
+    player_spectator: bool,
+    player_sprinting: bool,
+    player_passenger: bool,
+) -> bool {
+    if !intersects_in_scare_box {
+        false
+    } else if target_undead || target_last_hurt_by {
+        true
+    } else if target_is_player {
+        !player_spectator && (player_sprinting || player_passenger)
+    } else {
+        false
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArmadilloRollPlan {
+    pub state: ArmadilloStateModel,
+    pub sound: &'static str,
+    pub game_event: &'static str,
+    pub stop_in_place: bool,
+    pub reset_love: bool,
+}
+
+pub fn armadillo_roll_up_plan(state: ArmadilloStateModel) -> Option<ArmadilloRollPlan> {
+    if state.is_threatened() {
+        None
+    } else {
+        Some(ArmadilloRollPlan {
+            state: ArmadilloStateModel::Rolling,
+            sound: "minecraft:entity.armadillo.roll",
+            game_event: "minecraft:entity_action",
+            stop_in_place: true,
+            reset_love: true,
+        })
+    }
+}
+
+pub fn armadillo_roll_out_plan(state: ArmadilloStateModel) -> Option<ArmadilloRollPlan> {
+    if state.is_threatened() {
+        Some(ArmadilloRollPlan {
+            state: ArmadilloStateModel::Idle,
+            sound: "minecraft:entity.armadillo.unroll_finish",
+            game_event: "minecraft:entity_action",
+            stop_in_place: false,
+            reset_love: false,
+        })
+    } else {
+        None
+    }
+}
+
+pub fn armadillo_can_stay_rolled_up(
+    panicking: bool,
+    in_liquid: bool,
+    leashed: bool,
+    passenger: bool,
+    vehicle: bool,
+) -> bool {
+    !panicking && !in_liquid && !leashed && !passenger && !vehicle
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArmadilloHurtReaction {
+    DangerMemory { ticks: i32, roll_up: bool },
+    RollOutEnvironmental,
+    None,
+}
+
+pub fn armadillo_damage_after_shell(state: ArmadilloStateModel, damage: f32) -> f32 {
+    if state.is_threatened() {
+        (damage - 1.0) / 2.0
+    } else {
+        damage
+    }
+}
+
+pub fn armadillo_hurt_reaction(
+    no_ai: bool,
+    dead_or_dying: bool,
+    source_entity_living: bool,
+    panic_environmental_source: bool,
+    can_stay_rolled_up: bool,
+) -> ArmadilloHurtReaction {
+    if no_ai || dead_or_dying {
+        ArmadilloHurtReaction::None
+    } else if source_entity_living {
+        ArmadilloHurtReaction::DangerMemory {
+            ticks: ARMADILLO_SCARE_CHECK_INTERVAL,
+            roll_up: can_stay_rolled_up,
+        }
+    } else if panic_environmental_source {
+        ArmadilloHurtReaction::RollOutEnvironmental
+    } else {
+        ArmadilloHurtReaction::None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArmadilloInteractPlan {
+    Brush {
+        loot_table: &'static str,
+        sound: &'static str,
+        game_event: &'static str,
+        tool_damage: i32,
+    },
+    FailScared,
+    Delegate,
+}
+
+pub fn armadillo_interact_plan(item: &str, baby: bool, scared: bool) -> ArmadilloInteractPlan {
+    if item == "minecraft:brush" && !baby {
+        ArmadilloInteractPlan::Brush {
+            loot_table: "minecraft:gameplay/armadillo_brush",
+            sound: "minecraft:entity.armadillo.brush",
+            game_event: "minecraft:entity_interact",
+            tool_damage: ARMADILLO_BRUSH_DAMAGE,
+        }
+    } else if scared {
+        ArmadilloInteractPlan::FailScared
+    } else {
+        ArmadilloInteractPlan::Delegate
+    }
+}
+
+pub fn armadillo_can_fall_in_love(super_can_fall_in_love: bool, scared: bool) -> bool {
+    super_can_fall_in_love && !scared
+}
+
+pub fn armadillo_ambient_sound(scared: bool) -> Option<&'static str> {
+    (!scared).then_some("minecraft:entity.armadillo.ambient")
+}
+
+pub fn armadillo_hurt_sound(scared: bool) -> &'static str {
+    if scared {
+        "minecraft:entity.armadillo.hurt_reduced"
+    } else {
+        "minecraft:entity.armadillo.hurt"
+    }
+}
+
+pub fn armadillo_max_head_y_rot(scared: bool) -> i32 {
+    if scared {
+        0
+    } else {
+        32
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArmadilloBallUpTickPlan {
+    SwitchToScared {
+        sound: Option<&'static str>,
+    },
+    Peek {
+        event: u8,
+        next_peek_timer_min: i32,
+        next_peek_timer_max: i32,
+    },
+    StartUnrolling {
+        sound: &'static str,
+    },
+    ReturnToScared,
+    None,
+}
+
+pub fn armadillo_ball_up_tick_plan(
+    state: ArmadilloStateModel,
+    in_state_ticks: i64,
+    on_ground: bool,
+    danger_ticks_remaining: i64,
+    next_peek_timer: i32,
+) -> ArmadilloBallUpTickPlan {
+    if state == ArmadilloStateModel::Rolling
+        && in_state_ticks > ArmadilloStateModel::Rolling.animation_duration() as i64
+    {
+        return ArmadilloBallUpTickPlan::SwitchToScared {
+            sound: on_ground.then_some("minecraft:entity.armadillo.land"),
+        };
+    }
+
+    let danger_is_around = danger_ticks_remaining > ARMADILLO_DANGER_THRESHOLD_TICKS as i64;
+    if state == ArmadilloStateModel::Scared {
+        if next_peek_timer == 0 && on_ground && danger_is_around {
+            return ArmadilloBallUpTickPlan::Peek {
+                event: ARMADILLO_PEEK_EVENT,
+                next_peek_timer_min: ArmadilloStateModel::Scared.animation_duration() + 100,
+                next_peek_timer_max: ArmadilloStateModel::Scared.animation_duration() + 400,
+            };
+        }
+        if danger_ticks_remaining < ArmadilloStateModel::Unrolling.animation_duration() as i64 {
+            return ArmadilloBallUpTickPlan::StartUnrolling {
+                sound: "minecraft:entity.armadillo.unroll_start",
+            };
+        }
+    } else if state == ArmadilloStateModel::Unrolling
+        && danger_ticks_remaining > ArmadilloStateModel::Unrolling.animation_duration() as i64
+    {
+        return ArmadilloBallUpTickPlan::ReturnToScared;
+    }
+
+    ArmadilloBallUpTickPlan::None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AllayAttributes {
+    pub max_health: f32,
+    pub flying_speed: f32,
+    pub movement_speed: f32,
+    pub attack_damage: f32,
+}
+
+pub fn allay_attributes() -> AllayAttributes {
+    AllayAttributes {
+        max_health: ALLAY_MAX_HEALTH,
+        flying_speed: ALLAY_FLYING_SPEED,
+        movement_speed: ALLAY_MOVEMENT_SPEED,
+        attack_damage: ALLAY_ATTACK_DAMAGE,
+    }
+}
+
+pub fn allay_duplicate_item(item: &str) -> bool {
+    item == "minecraft:amethyst_shard"
+}
+
+pub fn allay_can_pick_up_loot(pickup_cooldown: bool, has_item_in_hand: bool) -> bool {
+    !pickup_cooldown && has_item_in_hand
+}
+
+pub fn allay_considers_item_equal(
+    hand_item: &str,
+    pickup_item: &str,
+    hand_potion: Option<&str>,
+    pickup_potion: Option<&str>,
+) -> bool {
+    hand_item == pickup_item && hand_potion == pickup_potion
+}
+
+pub fn allay_wants_to_pick_up(
+    hand_item: &str,
+    pickup_item: &str,
+    hand_potion: Option<&str>,
+    pickup_potion: Option<&str>,
+    mob_griefing: bool,
+    inventory_can_add: bool,
+) -> bool {
+    !hand_item.is_empty()
+        && mob_griefing
+        && inventory_can_add
+        && allay_considers_item_equal(hand_item, pickup_item, hand_potion, pickup_potion)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllayInteractPlan {
+    Duplicate {
+        consumed: i32,
+        parent_cooldown: i32,
+        child_cooldown: i32,
+        event: u8,
+        hearts: i32,
+        sound: &'static str,
+    },
+    GiveItem {
+        consumed: i32,
+        held_count: i32,
+        remember_liked_player: bool,
+        sound: &'static str,
+    },
+    TakeItem {
+        clear_liked_player: bool,
+        return_held_item: bool,
+        throw_inventory: bool,
+        sound: &'static str,
+    },
+    Delegate,
+}
+
+pub fn allay_interact_plan(
+    interaction_item: &str,
+    hand_is_main_hand: bool,
+    allay_holding_item: bool,
+    dancing: bool,
+    can_duplicate: bool,
+    player_empty_hand: bool,
+) -> AllayInteractPlan {
+    if dancing && allay_duplicate_item(interaction_item) && can_duplicate {
+        return AllayInteractPlan::Duplicate {
+            consumed: 1,
+            parent_cooldown: ALLAY_DUPLICATION_COOLDOWN_TICKS,
+            child_cooldown: ALLAY_DUPLICATION_COOLDOWN_TICKS,
+            event: ALLAY_DUPLICATION_EVENT,
+            hearts: ALLAY_NUM_DUPLICATION_HEARTS,
+            sound: "minecraft:block.amethyst_block.chime",
+        };
+    }
+    if !allay_holding_item && !interaction_item.is_empty() {
+        return AllayInteractPlan::GiveItem {
+            consumed: 1,
+            held_count: 1,
+            remember_liked_player: true,
+            sound: "minecraft:entity.allay.item_given",
+        };
+    }
+    if allay_holding_item && hand_is_main_hand && player_empty_hand {
+        return AllayInteractPlan::TakeItem {
+            clear_liked_player: true,
+            return_held_item: true,
+            throw_inventory: true,
+            sound: "minecraft:entity.allay.item_taken",
+        };
+    }
+    AllayInteractPlan::Delegate
+}
+
+pub fn allay_duplication_cooldown_tick(cooldown: i32, client_side: bool) -> (i32, bool) {
+    let next = if !client_side && cooldown > 0 {
+        cooldown - 1
+    } else {
+        cooldown
+    };
+    (next, next == 0)
+}
+
+pub fn allay_set_jukebox_playing(
+    current_jukebox: Option<(i32, i32, i32)>,
+    jukebox: (i32, i32, i32),
+    is_playing: bool,
+    dancing: bool,
+) -> (Option<(i32, i32, i32)>, bool) {
+    if is_playing {
+        if !dancing {
+            (Some(jukebox), true)
+        } else {
+            (current_jukebox, dancing)
+        }
+    } else if current_jukebox == Some(jukebox) || current_jukebox.is_none() {
+        (None, false)
+    } else {
+        (current_jukebox, dancing)
+    }
+}
+
+pub fn allay_should_stop_dancing(
+    jukebox_pos: Option<(i32, i32, i32)>,
+    distance_to_jukebox_center: f32,
+    jukebox_block_still_present: bool,
+    notification_radius: f32,
+) -> bool {
+    jukebox_pos.is_none()
+        || distance_to_jukebox_center >= notification_radius
+        || !jukebox_block_still_present
+}
+
+pub fn allay_set_dancing_allowed(
+    client_side: bool,
+    effective_ai: bool,
+    new_dancing: bool,
+    panicking: bool,
+) -> bool {
+    !client_side && effective_ai && (!new_dancing || !panicking)
+}
+
+pub fn allay_is_spinning(dancing_animation_ticks: f32) -> bool {
+    dancing_animation_ticks % ALLAY_DANCING_LOOP_DURATION < ALLAY_SPINNING_ANIMATION_DURATION
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AllayNoteBlockPlan {
+    pub liked_noteblock: Option<(i32, i32, i32)>,
+    pub cooldown_ticks: Option<i32>,
+}
+
+pub fn allay_hear_noteblock(
+    current_liked: Option<(i32, i32, i32)>,
+    heard_pos: (i32, i32, i32),
+) -> AllayNoteBlockPlan {
+    if current_liked.is_none() || current_liked == Some(heard_pos) {
+        AllayNoteBlockPlan {
+            liked_noteblock: Some(heard_pos),
+            cooldown_ticks: Some(ALLAY_TIME_TO_FORGET_NOTEBLOCK),
+        }
+    } else {
+        AllayNoteBlockPlan {
+            liked_noteblock: current_liked,
+            cooldown_ticks: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllayDepositTarget {
+    NoteBlockAbove,
+    LikedPlayer,
+    None,
+}
+
+pub fn allay_deposit_target(
+    liked_noteblock: Option<(i32, i32, i32)>,
+    note_block_close_enough: bool,
+    note_block_still_present: bool,
+    noteblock_cooldown_present: bool,
+    liked_player_available: bool,
+) -> AllayDepositTarget {
+    if liked_noteblock.is_some() {
+        if note_block_close_enough && note_block_still_present && noteblock_cooldown_present {
+            AllayDepositTarget::NoteBlockAbove
+        } else if liked_player_available {
+            AllayDepositTarget::LikedPlayer
+        } else {
+            AllayDepositTarget::None
+        }
+    } else if liked_player_available {
+        AllayDepositTarget::LikedPlayer
+    } else {
+        AllayDepositTarget::None
+    }
+}
+
+pub fn allay_liked_player_available(
+    server_side: bool,
+    player_survival_or_creative: bool,
+    distance_to_allay: f32,
+) -> bool {
+    server_side && player_survival_or_creative && distance_to_allay < ALLAY_LIKED_PLAYER_DISTANCE
+}
+
+pub fn allay_can_receive_note_vibration(
+    no_ai: bool,
+    liked_noteblock: Option<(i32, i32, i32)>,
+    event_pos: (i32, i32, i32),
+    close_enough: bool,
+) -> bool {
+    if no_ai {
+        false
+    } else {
+        liked_noteblock
+            .map(|pos| close_enough && pos == event_pos)
+            .unwrap_or(true)
+    }
+}
+
+pub fn allay_hurt_allowed(source_is_liked_player: bool) -> bool {
+    !source_is_liked_player
+}
+
+pub fn allay_ambient_sound(has_item: bool) -> &'static str {
+    if has_item {
+        "minecraft:entity.allay.ambient_with_item"
+    } else {
+        "minecraft:entity.allay.ambient_without_item"
+    }
+}
+
+pub fn allay_remove_when_far_away() -> bool {
+    false
+}
+
+pub fn allay_leash_offset(eye_height: f32, width: f32) -> (f32, f32, f32) {
+    (0.0, eye_height * 0.6, width * 0.1)
+}
+
+pub fn allay_throw_sound_can_play(game_time: i64, random_under_point_nine: bool) -> bool {
+    game_time % 7 == 0 && random_under_point_nine
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatVariantModel {
+    Tabby,
+    Black,
+    Red,
+    Siamese,
+    BritishShorthair,
+    Calico,
+    Persian,
+    Ragdoll,
+    White,
+    Jellie,
+    AllBlack,
+}
+
+impl CatVariantModel {
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            CatVariantModel::Tabby => "tabby",
+            CatVariantModel::Black => "black",
+            CatVariantModel::Red => "red",
+            CatVariantModel::Siamese => "siamese",
+            CatVariantModel::BritishShorthair => "british_shorthair",
+            CatVariantModel::Calico => "calico",
+            CatVariantModel::Persian => "persian",
+            CatVariantModel::Ragdoll => "ragdoll",
+            CatVariantModel::White => "white",
+            CatVariantModel::Jellie => "jellie",
+            CatVariantModel::AllBlack => "all_black",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FelineAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+    pub attack_damage: f32,
+}
+
+pub fn feline_attributes() -> FelineAttributes {
+    FelineAttributes {
+        max_health: FELINE_MAX_HEALTH,
+        movement_speed: FELINE_MOVEMENT_SPEED,
+        attack_damage: FELINE_ATTACK_DAMAGE,
+    }
+}
+
+pub fn cat_default_variant() -> CatVariantModel {
+    CatVariantModel::Black
+}
+
+pub fn cat_spawn_variant(
+    in_black_cat_structure: bool,
+    moon_brightness_at_least_point_nine: bool,
+    fallback: CatVariantModel,
+) -> CatVariantModel {
+    if in_black_cat_structure || moon_brightness_at_least_point_nine {
+        CatVariantModel::AllBlack
+    } else {
+        fallback
+    }
+}
+
+pub fn cat_food_item(item: &str) -> bool {
+    matches!(item, "minecraft:cod" | "minecraft:salmon")
+}
+
+pub fn ocelot_food_item(item: &str) -> bool {
+    matches!(item, "minecraft:cod" | "minecraft:salmon")
+}
+
+pub fn cat_collar_dye_color_id(item: &str) -> Option<i32> {
+    match item {
+        "minecraft:white_dye" => Some(0),
+        "minecraft:orange_dye" => Some(1),
+        "minecraft:magenta_dye" => Some(2),
+        "minecraft:light_blue_dye" => Some(3),
+        "minecraft:yellow_dye" => Some(4),
+        "minecraft:lime_dye" => Some(5),
+        "minecraft:pink_dye" => Some(6),
+        "minecraft:gray_dye" => Some(7),
+        "minecraft:light_gray_dye" => Some(8),
+        "minecraft:cyan_dye" => Some(9),
+        "minecraft:purple_dye" => Some(10),
+        "minecraft:blue_dye" => Some(11),
+        "minecraft:brown_dye" => Some(12),
+        "minecraft:green_dye" => Some(13),
+        "minecraft:red_dye" => Some(14),
+        "minecraft:black_dye" => Some(15),
+        _ => None,
+    }
+}
+
+pub fn cat_default_collar_color_id() -> i32 {
+    14
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FelineMovePose {
+    Standing,
+    Crouching,
+}
+
+pub fn feline_pose_for_move(has_wanted_move: bool, speed_modifier: f32) -> (FelineMovePose, bool) {
+    if has_wanted_move && (speed_modifier - FELINE_CROUCH_SPEED_MOD).abs() < f32::EPSILON {
+        (FelineMovePose::Crouching, false)
+    } else if has_wanted_move && (speed_modifier - FELINE_SPRINT_SPEED_MOD).abs() < f32::EPSILON {
+        (FelineMovePose::Standing, true)
+    } else {
+        (FelineMovePose::Standing, false)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatInteractPlan {
+    DyeCollar {
+        color_id: i32,
+        consumed: i32,
+        persist: bool,
+    },
+    Heal {
+        consumed: i32,
+        heal_min: i32,
+        heal_max: i32,
+    },
+    ToggleSit,
+    TameFood {
+        consumed: i32,
+        tame_event: u8,
+        tamed: bool,
+        ordered_to_sit: bool,
+        persist: bool,
+        eat_sound: &'static str,
+    },
+    Delegate,
+}
+
+pub fn cat_interact_plan(
+    item: &str,
+    tame: bool,
+    owned_by_player: bool,
+    current_collar_color_id: i32,
+    health_below_max: bool,
+    parent_interaction_consumes_action: bool,
+    tame_roll_zero: bool,
+) -> CatInteractPlan {
+    if tame && owned_by_player {
+        if let Some(color_id) = cat_collar_dye_color_id(item) {
+            if color_id != current_collar_color_id {
+                return CatInteractPlan::DyeCollar {
+                    color_id,
+                    consumed: 1,
+                    persist: true,
+                };
+            }
+        } else if cat_food_item(item) && health_below_max {
+            return CatInteractPlan::Heal {
+                consumed: 1,
+                heal_min: 1,
+                heal_max: 1,
+            };
+        }
+
+        if !parent_interaction_consumes_action {
+            return CatInteractPlan::ToggleSit;
+        }
+        return CatInteractPlan::Delegate;
+    }
+
+    if !tame && cat_food_item(item) {
+        return CatInteractPlan::TameFood {
+            consumed: 1,
+            tame_event: if tame_roll_zero { 7 } else { 6 },
+            tamed: tame_roll_zero,
+            ordered_to_sit: tame_roll_zero,
+            persist: true,
+            eat_sound: "minecraft:entity.cat.eat",
+        };
+    }
+
+    CatInteractPlan::Delegate
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OcelotInteractPlan {
+    TrustFood {
+        consumed: i32,
+        event: u8,
+        trusting: bool,
+    },
+    Delegate,
+}
+
+pub fn ocelot_interact_plan(
+    item: &str,
+    tempt_goal_running_or_absent: bool,
+    trusting: bool,
+    player_distance_sqr: f32,
+    trust_roll_zero: bool,
+) -> OcelotInteractPlan {
+    if tempt_goal_running_or_absent
+        && !trusting
+        && ocelot_food_item(item)
+        && player_distance_sqr < 9.0
+    {
+        OcelotInteractPlan::TrustFood {
+            consumed: 1,
+            event: if trust_roll_zero { 41 } else { 40 },
+            trusting: trust_roll_zero,
+        }
+    } else {
+        OcelotInteractPlan::Delegate
+    }
+}
+
+pub fn feline_should_avoid_player(
+    tame_or_trusting: bool,
+    player_creative_or_spectator: bool,
+) -> bool {
+    !tame_or_trusting && !player_creative_or_spectator
+}
+
+pub fn cat_tempt_can_use(super_can_use: bool, tame: bool) -> bool {
+    super_can_use && !tame
+}
+
+pub fn cat_tempt_can_scare(selected_player_matches_current: bool, super_can_scare: bool) -> bool {
+    !selected_player_matches_current && super_can_scare
+}
+
+pub fn cat_should_play_beg_sound(tempt_running: bool, tame: bool, tick_count: i32) -> bool {
+    tempt_running && !tame && tick_count % CAT_BEG_SOUND_INTERVAL_TICKS == 0
+}
+
+pub fn cat_can_mate(
+    tame: bool,
+    partner_is_cat: bool,
+    partner_tame: bool,
+    super_can_mate: bool,
+) -> bool {
+    tame && partner_is_cat && partner_tame && super_can_mate
+}
+
+pub fn cat_remove_when_far_away(tame: bool, tick_count: i32) -> bool {
+    !tame && tick_count > FELINE_REMOVE_WHEN_FAR_TICKS
+}
+
+pub fn ocelot_remove_when_far_away(trusting: bool, tick_count: i32) -> bool {
+    !trusting && tick_count > FELINE_REMOVE_WHEN_FAR_TICKS
+}
+
+pub fn cat_relax_on_owner_can_use(
+    tame: bool,
+    ordered_to_sit: bool,
+    owner_is_player: bool,
+    owner_sleeping: bool,
+    distance_to_owner_sqr: f32,
+    owner_on_bed: bool,
+    space_occupied_by_relaxing_cat: bool,
+) -> bool {
+    tame && !ordered_to_sit
+        && owner_is_player
+        && owner_sleeping
+        && distance_to_owner_sqr <= CAT_OWNER_RELAX_DISTANCE_SQR
+        && owner_on_bed
+        && !space_occupied_by_relaxing_cat
+}
+
+pub fn cat_relax_on_owner_tick(distance_to_owner_sqr: f32, on_bed_ticks: i32) -> (bool, bool) {
+    if distance_to_owner_sqr < CAT_LIE_ON_OWNER_DISTANCE_SQR {
+        if on_bed_ticks > CAT_ON_BED_RELAX_TICKS {
+            (true, false)
+        } else {
+            (false, true)
+        }
+    } else {
+        (false, false)
+    }
+}
+
+pub fn cat_morning_gift_plan(
+    owner_sleep_timer: i32,
+    gift_chance_roll_passed: bool,
+    leashed: bool,
+) -> Option<(&'static str, bool)> {
+    (owner_sleep_timer >= 100 && gift_chance_roll_passed)
+        .then_some(("minecraft:gameplay/cat_morning_gift", leashed))
+}
+
+pub fn cat_lie_on_bed_can_use(
+    tame: bool,
+    ordered_to_sit: bool,
+    lying: bool,
+    super_can_use: bool,
+) -> bool {
+    tame && !ordered_to_sit && !lying && super_can_use
+}
+
+pub fn cat_sit_on_block_can_use(tame: bool, ordered_to_sit: bool, super_can_use: bool) -> bool {
+    tame && !ordered_to_sit && super_can_use
+}
+
+pub fn cat_sit_on_block_target_valid(
+    block: &str,
+    above_empty: bool,
+    chest_open_count: i32,
+    furnace_lit: bool,
+    bed_is_head: bool,
+) -> bool {
+    above_empty
+        && match block {
+            "minecraft:chest" => chest_open_count < 1,
+            "minecraft:furnace" => furnace_lit,
+            "minecraft:white_bed"
+            | "minecraft:orange_bed"
+            | "minecraft:magenta_bed"
+            | "minecraft:light_blue_bed"
+            | "minecraft:yellow_bed"
+            | "minecraft:lime_bed"
+            | "minecraft:pink_bed"
+            | "minecraft:gray_bed"
+            | "minecraft:light_gray_bed"
+            | "minecraft:cyan_bed"
+            | "minecraft:purple_bed"
+            | "minecraft:blue_bed"
+            | "minecraft:brown_bed"
+            | "minecraft:green_bed"
+            | "minecraft:red_bed"
+            | "minecraft:black_bed" => !bed_is_head,
+            _ => false,
+        }
+}
+
+pub fn cat_lie_on_bed_target_valid(block: &str, above_empty: bool) -> bool {
+    above_empty && block.ends_with("_bed") && block.starts_with("minecraft:")
+}
+
+pub fn cat_spawner_should_try_spawn(next_tick_after_decrement: i32, player_present: bool) -> bool {
+    next_tick_after_decrement <= 0 && player_present
+}
+
+pub fn cat_spawner_offset(random_0_to_23: i32, negative: bool) -> i32 {
+    (8 + random_0_to_23.clamp(0, 23)) * if negative { -1 } else { 1 }
+}
+
+pub fn cat_village_spawn_allowed(occupied_home_count: i64, cats_in_radius: usize) -> bool {
+    occupied_home_count > 4 && cats_in_radius < CAT_VILLAGE_MAX_CATS
+}
+
+pub fn cat_hut_spawn_allowed(cats_in_radius: usize) -> bool {
+    cats_in_radius == 0
+}
+
+pub fn ocelot_spawn_rules(random_roll: i32) -> bool {
+    random_roll != 0
+}
+
+pub fn ocelot_spawn_obstruction(
+    unobstructed: bool,
+    contains_liquid: bool,
+    y: i32,
+    sea_level: i32,
+    block_below: &str,
+) -> bool {
+    unobstructed
+        && !contains_liquid
+        && y >= sea_level
+        && (block_below == "minecraft:grass_block" || block_below.ends_with("_leaves"))
+}
+
+pub fn ocelot_leash_offset(eye_height: f32, width: f32) -> (f32, f32, f32) {
+    (0.0, 0.5 * eye_height, 0.4 * width)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreeperState {
@@ -1300,6 +4574,54 @@ pub struct HoglinConversionTick {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AbstractPiglinConversionTick {
+    pub time_in_overworld: i32,
+    pub convert_to_zombified_piglin: bool,
+    pub nausea_ticks: i32,
+    pub keep_equipment: bool,
+    pub preserve_can_pick_up_loot: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiglinFinishConversionPlan {
+    pub cancel_admiring: bool,
+    pub drop_inventory: bool,
+    pub target_entity: &'static str,
+    pub conversion_type: ConversionTypeModel,
+    pub nausea_ticks: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PiglinBruteAttributes {
+    pub max_health: f32,
+    pub movement_speed: f32,
+    pub attack_damage: f32,
+    pub follow_range: f32,
+    pub xp_reward: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiglinBruteTargetChoice {
+    AngryAt,
+    NearestVisibleAttackablePlayer,
+    NearestVisibleNemesis,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PiglinBruteAiConstants {
+    pub anger_duration_ticks: i64,
+    pub melee_attack_cooldown_ticks: i32,
+    pub activity_sound_likelihood_per_tick: f32,
+    pub max_look_dist: f32,
+    pub interaction_range: i32,
+    pub idle_speed_multiplier: f32,
+    pub home_close_enough_distance: i32,
+    pub home_too_far_distance: i32,
+    pub home_stroll_around_distance: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HoglinAttributes {
     pub max_health: f32,
     pub movement_speed: f32,
@@ -1351,6 +4673,27 @@ pub const ZOGLIN_STEP_SOUND_VOLUME: f32 = 0.15;
 pub const ZOGLIN_STEP_SOUND_PITCH: f32 = 1.0;
 pub const HOGLIN_CONVERSION_TIME_TICKS: i32 = 300;
 pub const HOGLIN_CONVERSION_NAUSEA_TICKS: i32 = 200;
+pub const ABSTRACT_PIGLIN_CONVERSION_TIME_TICKS: i32 = 300;
+pub const ABSTRACT_PIGLIN_CONVERSION_NAUSEA_TICKS: i32 = 200;
+pub const ABSTRACT_PIGLIN_DEFAULT_IMMUNE_TO_ZOMBIFICATION: bool = false;
+pub const ABSTRACT_PIGLIN_DEFAULT_PICK_UP_LOOT: bool = true;
+pub const ABSTRACT_PIGLIN_DEFAULT_TIME_IN_OVERWORLD: i32 = 0;
+pub const ABSTRACT_PIGLIN_ZOMBIFIED_TARGET: &str = "minecraft:zombified_piglin";
+pub const PIGLIN_BRUTE_MAX_HEALTH: f32 = 50.0;
+pub const PIGLIN_BRUTE_MOVEMENT_SPEED: f32 = 0.35;
+pub const PIGLIN_BRUTE_ATTACK_DAMAGE: f32 = 7.0;
+pub const PIGLIN_BRUTE_FOLLOW_RANGE: f32 = 12.0;
+pub const PIGLIN_BRUTE_XP_REWARD: i32 = 20;
+pub const PIGLIN_BRUTE_DEFAULT_MAIN_HAND: &str = "minecraft:golden_axe";
+pub const PIGLIN_BRUTE_ANGER_DURATION_TICKS: i64 = 600;
+pub const PIGLIN_BRUTE_MELEE_ATTACK_COOLDOWN_TICKS: i32 = 20;
+pub const PIGLIN_BRUTE_ACTIVITY_SOUND_LIKELIHOOD_PER_TICK: f32 = 0.0125;
+pub const PIGLIN_BRUTE_MAX_LOOK_DIST: f32 = 8.0;
+pub const PIGLIN_BRUTE_INTERACTION_RANGE: i32 = 8;
+pub const PIGLIN_BRUTE_IDLE_SPEED_MULTIPLIER: f32 = 0.6;
+pub const PIGLIN_BRUTE_HOME_CLOSE_ENOUGH_DISTANCE: i32 = 2;
+pub const PIGLIN_BRUTE_HOME_TOO_FAR_DISTANCE: i32 = 100;
+pub const PIGLIN_BRUTE_HOME_STROLL_AROUND_DISTANCE: i32 = 5;
 pub const HOGLIN_MAX_HEALTH: f32 = 40.0;
 pub const HOGLIN_MOVEMENT_SPEED: f32 = 0.3;
 pub const HOGLIN_KNOCKBACK_RESISTANCE: f32 = 0.6;
@@ -1502,6 +4845,126 @@ pub fn hoglin_conversion_tick(
             nausea_ticks: 0,
         }
     }
+}
+
+pub fn abstract_piglin_is_converting(
+    immune_to_zombification: bool,
+    no_ai: bool,
+    piglins_zombify_environment: bool,
+) -> bool {
+    !immune_to_zombification && !no_ai && piglins_zombify_environment
+}
+
+pub fn abstract_piglin_conversion_tick(
+    time_in_overworld: i32,
+    immune_to_zombification: bool,
+    no_ai: bool,
+    piglins_zombify_environment: bool,
+) -> AbstractPiglinConversionTick {
+    if abstract_piglin_is_converting(immune_to_zombification, no_ai, piglins_zombify_environment) {
+        let next = time_in_overworld + 1;
+        AbstractPiglinConversionTick {
+            time_in_overworld: next,
+            convert_to_zombified_piglin: next > ABSTRACT_PIGLIN_CONVERSION_TIME_TICKS,
+            nausea_ticks: if next > ABSTRACT_PIGLIN_CONVERSION_TIME_TICKS {
+                ABSTRACT_PIGLIN_CONVERSION_NAUSEA_TICKS
+            } else {
+                0
+            },
+            keep_equipment: true,
+            preserve_can_pick_up_loot: true,
+        }
+    } else {
+        AbstractPiglinConversionTick {
+            time_in_overworld: ABSTRACT_PIGLIN_DEFAULT_TIME_IN_OVERWORLD,
+            convert_to_zombified_piglin: false,
+            nausea_ticks: 0,
+            keep_equipment: true,
+            preserve_can_pick_up_loot: true,
+        }
+    }
+}
+
+pub fn abstract_piglin_save_defaults() -> (bool, bool, i32) {
+    (
+        ABSTRACT_PIGLIN_DEFAULT_IMMUNE_TO_ZOMBIFICATION,
+        ABSTRACT_PIGLIN_DEFAULT_PICK_UP_LOOT,
+        ABSTRACT_PIGLIN_DEFAULT_TIME_IN_OVERWORLD,
+    )
+}
+
+pub fn piglin_finish_conversion_plan() -> PiglinFinishConversionPlan {
+    PiglinFinishConversionPlan {
+        cancel_admiring: true,
+        drop_inventory: true,
+        target_entity: ABSTRACT_PIGLIN_ZOMBIFIED_TARGET,
+        conversion_type: ConversionTypeModel::Single,
+        nausea_ticks: ABSTRACT_PIGLIN_CONVERSION_NAUSEA_TICKS,
+    }
+}
+
+pub fn piglin_brute_attributes() -> PiglinBruteAttributes {
+    PiglinBruteAttributes {
+        max_health: PIGLIN_BRUTE_MAX_HEALTH,
+        movement_speed: PIGLIN_BRUTE_MOVEMENT_SPEED,
+        attack_damage: PIGLIN_BRUTE_ATTACK_DAMAGE,
+        follow_range: PIGLIN_BRUTE_FOLLOW_RANGE,
+        xp_reward: PIGLIN_BRUTE_XP_REWARD,
+    }
+}
+
+pub fn piglin_brute_ai_constants() -> PiglinBruteAiConstants {
+    PiglinBruteAiConstants {
+        anger_duration_ticks: PIGLIN_BRUTE_ANGER_DURATION_TICKS,
+        melee_attack_cooldown_ticks: PIGLIN_BRUTE_MELEE_ATTACK_COOLDOWN_TICKS,
+        activity_sound_likelihood_per_tick: PIGLIN_BRUTE_ACTIVITY_SOUND_LIKELIHOOD_PER_TICK,
+        max_look_dist: PIGLIN_BRUTE_MAX_LOOK_DIST,
+        interaction_range: PIGLIN_BRUTE_INTERACTION_RANGE,
+        idle_speed_multiplier: PIGLIN_BRUTE_IDLE_SPEED_MULTIPLIER,
+        home_close_enough_distance: PIGLIN_BRUTE_HOME_CLOSE_ENOUGH_DISTANCE,
+        home_too_far_distance: PIGLIN_BRUTE_HOME_TOO_FAR_DISTANCE,
+        home_stroll_around_distance: PIGLIN_BRUTE_HOME_STROLL_AROUND_DISTANCE,
+    }
+}
+
+pub fn piglin_brute_can_hunt() -> bool {
+    false
+}
+
+pub fn piglin_brute_default_main_hand_item() -> &'static str {
+    PIGLIN_BRUTE_DEFAULT_MAIN_HAND
+}
+
+pub fn piglin_brute_wants_to_pick_up(item: &str, super_wants_to_pick_up: bool) -> bool {
+    item == PIGLIN_BRUTE_DEFAULT_MAIN_HAND && super_wants_to_pick_up
+}
+
+pub fn piglin_brute_arm_pose(aggressive: bool, holding_melee_weapon: bool) -> &'static str {
+    if aggressive && holding_melee_weapon {
+        "attacking_with_melee_weapon"
+    } else {
+        "default"
+    }
+}
+
+pub fn piglin_brute_target_choice(
+    angry_at_attackable: bool,
+    nearest_visible_attackable_player: bool,
+    nearest_visible_nemesis: bool,
+) -> PiglinBruteTargetChoice {
+    if angry_at_attackable {
+        PiglinBruteTargetChoice::AngryAt
+    } else if nearest_visible_attackable_player {
+        PiglinBruteTargetChoice::NearestVisibleAttackablePlayer
+    } else if nearest_visible_nemesis {
+        PiglinBruteTargetChoice::NearestVisibleNemesis
+    } else {
+        PiglinBruteTargetChoice::None
+    }
+}
+
+pub fn piglin_brute_retaliates_against(attacker_is_abstract_piglin: bool) -> bool {
+    !attacker_is_abstract_piglin
 }
 
 pub fn hoglin_base_attack_damage(
@@ -8534,6 +11997,1812 @@ mod tests {
     }
 
     #[test]
+    fn snow_golem_pumpkin_shearing_melting_trail_and_snowball_match_java() {
+        assert_eq!(SNOW_GOLEM_MAX_HEALTH, 4.0);
+        assert_eq!(SNOW_GOLEM_MOVEMENT_SPEED, 0.2);
+        assert_eq!(SNOW_GOLEM_RANGED_ATTACK_INTERVAL_TICKS, 20);
+        assert_eq!(SNOW_GOLEM_RANGED_ATTACK_RADIUS, 10.0);
+
+        let mut golem = SnowGolemState::new();
+        assert!(golem.has_pumpkin());
+        assert_eq!(golem.saved_pumpkin(), true);
+        assert!(golem.ready_for_shearing());
+        assert_eq!(
+            golem.shear(),
+            SnowGolemShearResult::Sheared {
+                sound: "minecraft:entity.snow_golem.shear",
+                game_event: "minecraft:shear",
+                loot_table: "minecraft:entities/shear/snow_golem",
+                tool_damage: 1,
+            }
+        );
+        assert!(!golem.has_pumpkin());
+        assert_eq!(golem.shear(), SnowGolemShearResult::Pass);
+        assert!(SnowGolemState::from_saved_pumpkin(true).has_pumpkin());
+        assert!(!SnowGolemState::from_saved_pumpkin(false).has_pumpkin());
+
+        let plan = snow_golem_ai_step_plan(10.0, 64.9, 2.0, true, true);
+        assert_eq!(plan.melt_damage, Some(1));
+        assert_eq!(
+            plan.snow_positions,
+            [(9, 64, 1), (10, 64, 1), (9, 64, 2), (10, 64, 2)]
+        );
+        assert_eq!(
+            snow_golem_ai_step_plan(10.0, 64.9, 2.0, true, false).snow_positions,
+            [(0, 0, 0); 4]
+        );
+        assert!(snow_golem_snow_placement_allowed("minecraft:air", true));
+        assert!(!snow_golem_snow_placement_allowed("minecraft:stone", true));
+        assert!(!snow_golem_snow_placement_allowed("minecraft:air", false));
+
+        let attack = snow_golem_ranged_attack_plan(0.0, 0.0, 3.0, 66.6, 4.0, 65.0);
+        assert_eq!(attack.item, "minecraft:snowball");
+        assert_eq!(attack.velocity, (3.0, 1.5, 4.0));
+        assert_eq!(attack.speed, 1.6);
+        assert_eq!(attack.inaccuracy, 12.0);
+        assert_eq!(attack.sound, "minecraft:entity.snow_golem.shoot");
+    }
+
+    #[test]
+    fn iron_golem_flags_cracks_repair_flower_and_attack_match_java() {
+        assert_eq!(IRON_GOLEM_MAX_HEALTH, 100.0);
+        assert_eq!(IRON_GOLEM_MOVEMENT_SPEED, 0.25);
+        assert_eq!(IRON_GOLEM_KNOCKBACK_RESISTANCE, 1.0);
+        assert_eq!(IRON_GOLEM_ATTACK_DAMAGE, 15.0);
+        assert_eq!(IRON_GOLEM_STEP_HEIGHT, 1.0);
+
+        assert_eq!(
+            iron_golem_crackiness(100.0, 100.0),
+            IronGolemCrackiness::None
+        );
+        assert_eq!(iron_golem_crackiness(74.9, 100.0), IronGolemCrackiness::Low);
+        assert_eq!(
+            iron_golem_crackiness(49.9, 100.0),
+            IronGolemCrackiness::Medium
+        );
+        assert_eq!(
+            iron_golem_crackiness(24.9, 100.0),
+            IronGolemCrackiness::High
+        );
+
+        let mut golem = IronGolemState::new();
+        assert!(!golem.is_player_created());
+        golem.set_player_created(true);
+        assert!(golem.saved_player_created());
+        assert!(IronGolemState::from_saved_player_created(true).is_player_created());
+        assert!(!IronGolemState::from_saved_player_created(false).is_player_created());
+        assert!(iron_golem_block_summon_sets_player_created(
+            "minecraft:carved_pumpkin"
+        ));
+        assert!(iron_golem_block_summon_sets_player_created(
+            "minecraft:jack_o_lantern"
+        ));
+        assert!(!iron_golem_block_summon_sets_player_created(
+            "minecraft:pumpkin"
+        ));
+
+        assert_eq!(golem.offer_flower(true), 11);
+        assert_eq!(golem.offer_flower_tick, 400);
+        golem.ai_step();
+        assert_eq!(golem.offer_flower_tick, 399);
+        golem.handle_entity_event(34);
+        assert_eq!(golem.offer_flower_tick, 0);
+        golem.handle_entity_event(11);
+        assert_eq!(golem.offer_flower_tick, 400);
+        golem.handle_entity_event(4);
+        assert_eq!(golem.attack_animation_tick, 10);
+
+        golem.health = 80.0;
+        assert_eq!(
+            golem.repair_with_iron_ingot("minecraft:iron_ingot"),
+            IronGolemRepairResult::Repaired {
+                consumed: 1,
+                healed: 20.0,
+                sound: "minecraft:entity.iron_golem.repair",
+            }
+        );
+        assert_eq!(
+            golem.repair_with_iron_ingot("minecraft:iron_ingot"),
+            IronGolemRepairResult::Pass
+        );
+        assert_eq!(
+            golem.repair_with_iron_ingot("minecraft:gold_ingot"),
+            IronGolemRepairResult::Pass
+        );
+
+        let attack = iron_golem_attack_plan(15.0, 14, 0.25);
+        assert_eq!(
+            attack,
+            IronGolemAttackPlan {
+                event_id: 4,
+                attack_animation_tick: 10,
+                damage: 21.5,
+                target_delta_y: 0.3,
+                sound: "minecraft:entity.iron_golem.attack",
+            }
+        );
+        assert_eq!(iron_golem_attack_plan(15.0, 0, 1.0).damage, 7.5);
+        assert_eq!(iron_golem_attack_plan(15.0, 0, 1.0).target_delta_y, 0.0);
+        assert!(!iron_golem_can_attack_target(true, "minecraft:player"));
+        assert!(iron_golem_can_attack_target(false, "minecraft:player"));
+        assert!(!iron_golem_can_attack_target(false, "minecraft:creeper"));
+        assert!(iron_golem_can_attack_target(true, "minecraft:zombie"));
+    }
+
+    #[test]
+    fn frog_variant_tongue_and_lay_spawn_match_java() {
+        assert_eq!(
+            FrogVariantModel::Temperate.registry_id(),
+            "minecraft:temperate"
+        );
+        assert_eq!(
+            FrogVariantModel::Warm.texture(),
+            "minecraft:entity/frog/frog_warm"
+        );
+        assert_eq!(
+            frog_variant_for_spawn_biome("minecraft:mangrove_swamp"),
+            FrogVariantModel::Warm
+        );
+        assert_eq!(
+            frog_variant_for_spawn_biome("minecraft:snowy_taiga"),
+            FrogVariantModel::Cold
+        );
+        assert_eq!(
+            frog_variant_for_spawn_biome("minecraft:swamp"),
+            FrogVariantModel::Temperate
+        );
+        assert_eq!(
+            frog_variant_for_spawn_biome("minecraft:the_end"),
+            FrogVariantModel::Cold
+        );
+
+        assert!(frog_can_eat("minecraft:slime", Some(1)));
+        assert!(!frog_can_eat("minecraft:slime", Some(2)));
+        assert!(frog_can_eat("minecraft:magma_cube", Some(3)));
+        assert!(!frog_can_eat("minecraft:zombie", None));
+
+        assert_eq!(
+            frog_tongue_catch_plan("minecraft:slime", Some(1), 1.0, false, "standing"),
+            Some(FrogTongueCatchPlan {
+                tongue_sound: "minecraft:entity.frog.tongue",
+                eat_sound: "minecraft:entity.frog.eat",
+                pose: "using_tongue",
+                target_velocity_scale: 0.75,
+                catch_animation_ticks: 6,
+                eat_animation_ticks: 10,
+                max_eating_distance: 1.75,
+            })
+        );
+        assert_eq!(
+            frog_tongue_catch_plan("minecraft:slime", Some(2), 1.0, false, "standing"),
+            None
+        );
+        assert_eq!(
+            frog_tongue_catch_plan("minecraft:magma_cube", None, 1.75, false, "standing"),
+            None
+        );
+        assert_eq!(
+            frog_tongue_catch_plan("minecraft:magma_cube", None, 1.0, true, "standing"),
+            None
+        );
+        assert_eq!(
+            frog_tongue_catch_plan("minecraft:magma_cube", None, 1.0, false, "croaking"),
+            None
+        );
+
+        assert_eq!(
+            frog_breeding_lay_spawn_plan(),
+            FrogBreedingPlan {
+                memory: "minecraft:is_pregnant",
+                activity: "minecraft:lay_spawn",
+                placed_block: "minecraft:frogspawn",
+                land_search_radius: 8,
+            }
+        );
+    }
+
+    #[test]
+    fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
+        assert_eq!(FOX_FLAG_SITTING, 1);
+        assert_eq!(FOX_FLAG_CROUCHING, 4);
+        assert_eq!(FOX_FLAG_INTERESTED, 8);
+        assert_eq!(FOX_FLAG_POUNCING, 16);
+        assert_eq!(FOX_FLAG_SLEEPING, 32);
+        assert_eq!(FOX_FLAG_FACEPLANTED, 64);
+        assert_eq!(FOX_FLAG_DEFENDING, 128);
+        assert_eq!(FoxVariantModel::Red.id(), 0);
+        assert_eq!(FoxVariantModel::Snow.serialized_name(), "snow");
+        assert_eq!(fox_variant_by_id(99), FoxVariantModel::Red);
+        assert_eq!(
+            fox_variant_for_spawn_biome("minecraft:snowy_taiga"),
+            FoxVariantModel::Snow
+        );
+        assert_eq!(
+            fox_variant_for_spawn_biome("minecraft:taiga"),
+            FoxVariantModel::Red
+        );
+
+        let mut fox = FoxState::new();
+        fox.set_flag(FOX_FLAG_SITTING, true);
+        fox.set_flag(FOX_FLAG_SLEEPING, true);
+        fox.set_flag(FOX_FLAG_FACEPLANTED, true);
+        assert!(fox.is_sitting());
+        assert!(fox.is_sleeping());
+        assert!(fox.is_faceplanted());
+        assert!(!fox.can_move());
+        fox.clear_states();
+        assert!(fox.can_move());
+        fox.add_trusted("player_a");
+        fox.add_trusted("player_b");
+        fox.add_trusted("player_c");
+        assert_eq!(fox.trusted, [Some("player_a"), Some("player_c")]);
+        assert!(fox.trusts("player_c"));
+        assert!(!fox.trusts("player_b"));
+
+        assert!(fox_food_item("minecraft:sweet_berries"));
+        assert!(fox_food_item("minecraft:glow_berries"));
+        assert!(!fox_food_item("minecraft:apple"));
+        assert!(fox_can_eat_held_item(
+            "minecraft:sweet_berries",
+            false,
+            true,
+            false
+        ));
+        assert!(!fox_can_eat_held_item(
+            "minecraft:sweet_berries",
+            true,
+            true,
+            false
+        ));
+        assert_eq!(
+            fox_can_hold_item(None, "minecraft:feather", 0),
+            FoxHeldItemDecision::Hold
+        );
+        assert_eq!(
+            fox_can_hold_item(Some("minecraft:feather"), "minecraft:sweet_berries", 1),
+            FoxHeldItemDecision::ReplaceAndSpitOld
+        );
+        assert_eq!(
+            fox_can_hold_item(Some("minecraft:feather"), "minecraft:leather", 1),
+            FoxHeldItemDecision::Reject
+        );
+
+        assert_eq!(
+            fox_breed_plan(
+                FoxVariantModel::Red,
+                FoxVariantModel::Snow,
+                false,
+                Some("player_a"),
+                Some("player_b")
+            ),
+            FoxBreedPlan {
+                baby_variant: FoxVariantModel::Snow,
+                trusted: [Some("player_a"), Some("player_b")],
+                parent_age: 6000,
+                baby_age: -24000,
+                event_id: 18,
+                xp_min: 1,
+                xp_max_inclusive: 7,
+            }
+        );
+        assert_eq!(
+            fox_breed_plan(
+                FoxVariantModel::Red,
+                FoxVariantModel::Snow,
+                true,
+                Some("player_a"),
+                Some("player_a")
+            )
+            .trusted,
+            [Some("player_a"), None]
+        );
+
+        assert_eq!(
+            fox_berry_harvest_plan("minecraft:sweet_berry_bush", 3, None, 1, true, false, 40),
+            FoxBerryHarvestPlan::PickSweetBerries {
+                held_item: Some("minecraft:sweet_berries"),
+                dropped_count: 2,
+                new_age: 1,
+                sound: "minecraft:block.sweet_berry_bush.pick_berries",
+                game_event: "minecraft:block_change",
+            }
+        );
+        assert_eq!(
+            fox_berry_harvest_plan(
+                "minecraft:sweet_berry_bush",
+                2,
+                Some("minecraft:feather"),
+                0,
+                true,
+                false,
+                40
+            ),
+            FoxBerryHarvestPlan::PickSweetBerries {
+                held_item: Some("minecraft:feather"),
+                dropped_count: 1,
+                new_age: 1,
+                sound: "minecraft:block.sweet_berry_bush.pick_berries",
+                game_event: "minecraft:block_change",
+            }
+        );
+        assert_eq!(
+            fox_berry_harvest_plan("minecraft:sweet_berry_bush", 3, None, 0, false, false, 40),
+            FoxBerryHarvestPlan::None
+        );
+        assert_eq!(
+            fox_berry_harvest_plan("minecraft:sweet_berry_bush", 3, None, 0, true, true, 40),
+            FoxBerryHarvestPlan::None
+        );
+        assert_eq!(
+            fox_berry_harvest_plan("minecraft:sweet_berry_bush", 1, None, 0, true, false, 40),
+            FoxBerryHarvestPlan::None
+        );
+        assert_eq!(
+            fox_berry_harvest_plan("minecraft:cave_vines", 1, None, 0, true, false, 40),
+            FoxBerryHarvestPlan::PickGlowBerry
+        );
+
+        assert_eq!(
+            fox_stalk_prey_plan("minecraft:chicken", 49.0, false, false, false, false, true),
+            Some(FoxStalkPlan {
+                interested: true,
+                crouching: true,
+                move_speed: None,
+            })
+        );
+        assert_eq!(
+            fox_stalk_prey_plan("minecraft:rabbit", 49.0, false, false, false, false, false),
+            Some(FoxStalkPlan {
+                interested: false,
+                crouching: false,
+                move_speed: Some(1.5),
+            })
+        );
+        assert_eq!(
+            fox_stalk_prey_plan("minecraft:chicken", 36.0, false, false, false, false, true),
+            None
+        );
+        assert_eq!(
+            fox_stalk_prey_plan("minecraft:zombie", 49.0, false, false, false, false, true),
+            None
+        );
+        assert_eq!(
+            fox_stalk_prey_plan("minecraft:chicken", 49.0, true, false, false, false, true),
+            None
+        );
+    }
+
+    #[test]
+    fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
+        assert_eq!(PANDA_FLAG_SNEEZE, 2);
+        assert_eq!(PANDA_FLAG_ROLL, 4);
+        assert_eq!(PANDA_FLAG_SIT, 8);
+        assert_eq!(PANDA_FLAG_ON_BACK, 16);
+        assert_eq!(PANDA_EAT_TICK_INTERVAL, 5);
+        assert_eq!(PANDA_TOTAL_ROLL_STEPS, 32);
+        assert_eq!(PANDA_TOTAL_UNHAPPY_TIME, 32);
+
+        assert_eq!(PandaGene::Brown.id(), 4);
+        assert_eq!(PandaGene::Aggressive.serialized_name(), "aggressive");
+        assert!(PandaGene::Brown.is_recessive());
+        assert!(PandaGene::Weak.is_recessive());
+        assert!(!PandaGene::Lazy.is_recessive());
+        assert_eq!(panda_gene_by_id(99), PandaGene::Normal);
+        assert_eq!(panda_random_gene(0), PandaGene::Lazy);
+        assert_eq!(panda_random_gene(1), PandaGene::Worried);
+        assert_eq!(panda_random_gene(2), PandaGene::Playful);
+        assert_eq!(panda_random_gene(4), PandaGene::Aggressive);
+        assert_eq!(panda_random_gene(8), PandaGene::Weak);
+        assert_eq!(panda_random_gene(10), PandaGene::Brown);
+        assert_eq!(panda_random_gene(15), PandaGene::Normal);
+        assert_eq!(
+            panda_variant_from_genes(PandaGene::Brown, PandaGene::Brown),
+            PandaGene::Brown
+        );
+        assert_eq!(
+            panda_variant_from_genes(PandaGene::Brown, PandaGene::Normal),
+            PandaGene::Normal
+        );
+        assert_eq!(
+            panda_variant_from_genes(PandaGene::Lazy, PandaGene::Brown),
+            PandaGene::Lazy
+        );
+
+        let mut panda = PandaState::new();
+        panda.main_gene = PandaGene::Weak;
+        panda.hidden_gene = PandaGene::Weak;
+        panda.set_flag(PANDA_FLAG_SIT, true);
+        panda.set_flag(PANDA_FLAG_ON_BACK, true);
+        assert_eq!(panda.variant(), PandaGene::Weak);
+        assert!(panda.is_sitting());
+        assert!(panda.is_on_back());
+        assert!(!panda.can_perform_action(false));
+        panda.set_flag(PANDA_FLAG_SIT, false);
+        panda.set_flag(PANDA_FLAG_ON_BACK, false);
+        assert!(panda.can_perform_action(false));
+        assert!(!panda.can_perform_action(true));
+
+        assert_eq!(
+            panda_attributes_for_variant(PandaGene::Lazy),
+            PandaAttributes {
+                movement_speed: 0.07,
+                attack_damage: 6.0,
+                max_health_override: None,
+            }
+        );
+        assert_eq!(
+            panda_attributes_for_variant(PandaGene::Weak).max_health_override,
+            Some(10.0)
+        );
+        assert!(panda_food_item("minecraft:bamboo"));
+        assert!(!panda_food_item("minecraft:cake"));
+        assert!(panda_eats_from_ground_item("minecraft:bamboo"));
+        assert!(panda_eats_from_ground_item("minecraft:cake"));
+
+        assert_eq!(
+            panda_interact_plan(
+                "minecraft:bamboo",
+                true,
+                false,
+                false,
+                false,
+                false,
+                0,
+                false,
+                false,
+                false,
+                None,
+                false
+            ),
+            PandaInteractResult::Pass
+        );
+        assert_eq!(
+            panda_interact_plan(
+                "minecraft:bamboo",
+                false,
+                true,
+                false,
+                false,
+                false,
+                0,
+                false,
+                false,
+                false,
+                None,
+                false
+            ),
+            PandaInteractResult::Success { on_back: false }
+        );
+        assert_eq!(
+            panda_interact_plan(
+                "minecraft:bamboo",
+                false,
+                false,
+                false,
+                false,
+                false,
+                1,
+                false,
+                false,
+                false,
+                Some("minecraft:cake"),
+                false
+            ),
+            PandaInteractResult::SuccessServer {
+                consumed: 1,
+                sit: true,
+                eat: true,
+                held_item: Some("minecraft:bamboo"),
+            }
+        );
+        assert_eq!(
+            panda_interact_plan(
+                "minecraft:bamboo",
+                false,
+                false,
+                false,
+                false,
+                true,
+                0,
+                false,
+                false,
+                false,
+                None,
+                false
+            ),
+            PandaInteractResult::Pass
+        );
+
+        let first_roll = panda_roll_step(0, false, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), true);
+        assert_eq!(
+            first_roll,
+            PandaRollStep {
+                rolling_after_step: true,
+                counter: 1,
+                delta: (0.0, 0.27, 0.2),
+            }
+        );
+        assert_eq!(
+            panda_roll_step(6, false, 0.0, (0.1, 0.0, 0.2), (0.3, 0.0, 0.4), true),
+            PandaRollStep {
+                rolling_after_step: true,
+                counter: 7,
+                delta: (0.0, 0.27, 0.0),
+            }
+        );
+        assert_eq!(
+            panda_roll_step(32, false, 0.0, (0.1, 0.2, 0.3), (0.0, 0.0, 0.0), true)
+                .rolling_after_step,
+            false
+        );
+
+        let mut sneezing = PandaState::new();
+        sneezing.set_sneezing(true);
+        assert_eq!(
+            panda_sneeze_tick(&mut sneezing, true),
+            PandaSneezeTick::PreSneezeSound
+        );
+        sneezing.sneeze_counter = 20;
+        assert_eq!(
+            panda_sneeze_tick(&mut sneezing, true),
+            PandaSneezeTick::Finish {
+                sound: "minecraft:entity.panda.sneeze",
+                particle: "minecraft:sneeze",
+                loot_table: "minecraft:gameplay/panda_sneeze",
+            }
+        );
+        assert!(!sneezing.is_sneezing());
+        assert_eq!(sneezing.sneeze_counter, 0);
+        assert!(panda_sneeze_goal_can_use(true, true, true, true, false));
+        assert!(panda_sneeze_goal_can_use(true, true, false, false, true));
+        assert!(!panda_sneeze_goal_can_use(false, true, true, true, true));
+        assert!(!panda_sneeze_goal_can_use(true, false, true, true, true));
+    }
+
+    #[test]
+    fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
+        assert_eq!(PARROT_MAX_HEALTH, 6.0);
+        assert_eq!(PARROT_FLYING_SPEED, 0.4);
+        assert_eq!(PARROT_MOVEMENT_SPEED, 0.2);
+        assert_eq!(PARROT_ATTACK_DAMAGE, 3.0);
+        assert_eq!(PARROT_TAME_ROLL_BOUND, 10);
+        assert_eq!(PARROT_POISON_TICKS, 900);
+        assert_eq!(PARROT_JUKEBOX_PARTY_DISTANCE, 3.46);
+        assert_eq!(PARROT_MIMIC_SCAN_RADIUS, 20.0);
+        assert_eq!(PARROT_MIMIC_TICK_ROLL_BOUND, 400);
+        assert_eq!(PARROT_MIMIC_SOUND_ROLL_BOUND, 2);
+        assert_eq!(SHOULDER_RIDING_COOLDOWN_TICKS, 100);
+
+        assert_eq!(ParrotVariantModel::RedBlue.id(), 0);
+        assert_eq!(ParrotVariantModel::Gray.id(), 4);
+        assert_eq!(
+            ParrotVariantModel::YellowBlue.serialized_name(),
+            "yellow_blue"
+        );
+        assert_eq!(parrot_variant_by_id(-5), ParrotVariantModel::RedBlue);
+        assert_eq!(parrot_variant_by_id(99), ParrotVariantModel::Gray);
+
+        assert!(parrot_food_item("minecraft:wheat_seeds"));
+        assert!(parrot_food_item("minecraft:melon_seeds"));
+        assert!(parrot_food_item("minecraft:pumpkin_seeds"));
+        assert!(parrot_food_item("minecraft:beetroot_seeds"));
+        assert!(parrot_food_item("minecraft:torchflower_seeds"));
+        assert!(parrot_food_item("minecraft:pitcher_pod"));
+        assert!(!parrot_food_item("minecraft:cookie"));
+        assert!(parrot_poisonous_item("minecraft:cookie"));
+
+        assert_eq!(
+            parrot_interact_plan("minecraft:wheat_seeds", false, false, false, true, false),
+            ParrotInteractResult::TameFood {
+                consumed: 1,
+                eat_sound: "minecraft:entity.parrot.eat",
+                tame_event: 7,
+                tamed: true,
+            }
+        );
+        assert_eq!(
+            parrot_interact_plan("minecraft:wheat_seeds", false, false, false, false, false),
+            ParrotInteractResult::TameFood {
+                consumed: 1,
+                eat_sound: "minecraft:entity.parrot.eat",
+                tame_event: 6,
+                tamed: false,
+            }
+        );
+        assert_eq!(
+            parrot_interact_plan("minecraft:stick", true, false, true, false, false),
+            ParrotInteractResult::ToggleSitting
+        );
+        assert_eq!(
+            parrot_interact_plan("minecraft:stick", true, true, true, false, false),
+            ParrotInteractResult::Pass
+        );
+        assert_eq!(
+            parrot_interact_plan("minecraft:cookie", true, false, true, false, false),
+            ParrotInteractResult::Poisoned {
+                consumed: 1,
+                effect: "minecraft:poison",
+                duration_ticks: 900,
+                lethal_damage: true,
+            }
+        );
+        assert_eq!(
+            parrot_interact_plan("minecraft:cookie", true, false, true, false, true),
+            ParrotInteractResult::Poisoned {
+                consumed: 1,
+                effect: "minecraft:poison",
+                duration_ticks: 900,
+                lethal_damage: false,
+            }
+        );
+
+        assert!(parrot_party_state_after_ai_step(true, true, 3.45, true));
+        assert!(!parrot_party_state_after_ai_step(true, true, 3.46, true));
+        assert!(!parrot_party_state_after_ai_step(true, false, 1.0, true));
+        assert!(!parrot_party_state_after_ai_step(false, true, 1.0, true));
+        assert!(parrot_should_attempt_mimic(true, false, 0));
+        assert!(!parrot_should_attempt_mimic(true, false, 1));
+        assert!(!parrot_should_attempt_mimic(true, true, 0));
+
+        assert_eq!(
+            parrot_mimic_sound("minecraft:cave_spider"),
+            Some("minecraft:entity.parrot.imitate.spider")
+        );
+        assert_eq!(
+            parrot_mimic_sound("minecraft:happy_ghast"),
+            Some("minecraft:empty")
+        );
+        assert_eq!(parrot_mimic_sound("minecraft:parrot"), None);
+        assert_eq!(
+            parrot_mimic_nearby_plan(true, false, true, Some("minecraft:zombie_nautilus"), false),
+            Some("minecraft:entity.parrot.imitate.zombie_nautilus")
+        );
+        assert_eq!(
+            parrot_mimic_nearby_plan(true, false, true, Some("minecraft:zombie"), true),
+            None
+        );
+        assert_eq!(
+            parrot_mimic_nearby_plan(true, false, false, Some("minecraft:zombie"), false),
+            None
+        );
+
+        assert_eq!(
+            parrot_shoulder_plan(
+                true, false, false, false, false, false, 101, false, false, true, false, true,
+            ),
+            ParrotShoulderPlan {
+                can_use_goal: true,
+                can_mount_now: true,
+            }
+        );
+        assert_eq!(
+            parrot_shoulder_plan(
+                true, false, false, false, false, false, 100, false, false, true, false, true,
+            ),
+            ParrotShoulderPlan {
+                can_use_goal: false,
+                can_mount_now: false,
+            }
+        );
+        assert_eq!(
+            parrot_shoulder_plan(
+                true, true, false, false, false, false, 101, false, false, true, false, true,
+            ),
+            ParrotShoulderPlan {
+                can_use_goal: false,
+                can_mount_now: false,
+            }
+        );
+        assert_eq!(
+            parrot_shoulder_plan(
+                true, false, false, false, false, false, 101, false, false, true, true, true,
+            )
+            .can_mount_now,
+            false
+        );
+        assert_eq!(
+            parrot_shoulder_plan(
+                true, false, false, false, false, false, 101, false, false, true, false, false,
+            )
+            .can_mount_now,
+            false
+        );
+    }
+
+    #[test]
+    fn happy_ghast_harness_riding_leash_healing_and_dried_block_match_java() {
+        assert_eq!(HAPPY_GHAST_BABY_SCALE, 0.2375);
+        assert_eq!(HAPPY_GHAST_WANDER_GROUND_DISTANCE, 16);
+        assert_eq!(HAPPY_GHAST_SMALL_RESTRICTION_RADIUS, 32);
+        assert_eq!(HAPPY_GHAST_LARGE_RESTRICTION_RADIUS, 64);
+        assert_eq!(HAPPY_GHAST_RESTRICTION_RADIUS_BUFFER, 16);
+        assert_eq!(HAPPY_GHAST_FAST_HEALING_TICKS, 20);
+        assert_eq!(HAPPY_GHAST_SLOW_HEALING_TICKS, 600);
+        assert_eq!(HAPPY_GHAST_MAX_PASSENGERS, 4);
+        assert_eq!(HAPPY_GHAST_STILL_TIMEOUT_ON_LOAD_GRACE_PERIOD, 60);
+        assert_eq!(HAPPY_GHAST_MAX_STILL_TIMEOUT, 10);
+        assert_eq!(HAPPY_GHAST_SPEED_MULTIPLIER_WHEN_PANICKING, 2.0);
+        assert_eq!(
+            happy_ghast_attributes(),
+            HappyGhastAttributes {
+                max_health: 20.0,
+                tempt_range: 16.0,
+                flying_speed: 0.05,
+                movement_speed: 0.05,
+                follow_range: 16.0,
+                camera_distance: 8.0,
+            }
+        );
+
+        assert!(happy_ghast_food_item("minecraft:snowball"));
+        assert!(happy_ghast_harness_item("minecraft:white_harness"));
+        assert!(happy_ghast_harness_item("minecraft:black_harness"));
+        assert!(!happy_ghast_harness_item("minecraft:saddle"));
+        assert!(happy_ghast_tempt_item(
+            "minecraft:red_harness",
+            false,
+            false
+        ));
+        assert!(!happy_ghast_tempt_item(
+            "minecraft:red_harness",
+            false,
+            true
+        ));
+        assert!(!happy_ghast_tempt_item(
+            "minecraft:red_harness",
+            true,
+            false
+        ));
+        assert!(happy_ghast_tempt_item("minecraft:snowball", true, true));
+        assert!(happy_ghast_can_use_body_slot(true, false));
+        assert!(!happy_ghast_can_use_body_slot(true, true));
+        assert!(!happy_ghast_can_use_body_slot(false, false));
+
+        assert_eq!(
+            happy_ghast_interact_plan(false, "minecraft:blue_harness", false, false, true),
+            HappyGhastInteractPlan::EquipHarness
+        );
+        assert_eq!(
+            happy_ghast_interact_plan(false, "", true, false, false),
+            HappyGhastInteractPlan::StartRide
+        );
+        assert_eq!(
+            happy_ghast_interact_plan(false, "", true, true, false),
+            HappyGhastInteractPlan::Pass
+        );
+        assert_eq!(
+            happy_ghast_interact_plan(true, "", true, false, false),
+            HappyGhastInteractPlan::Pass
+        );
+
+        assert!(happy_ghast_can_add_passenger(3));
+        assert!(!happy_ghast_can_add_passenger(4));
+        assert!(happy_ghast_controlling_passenger(true, false, true));
+        assert!(!happy_ghast_controlling_passenger(true, true, true));
+        assert!(!happy_ghast_controlling_passenger(false, false, true));
+        assert_eq!(happy_ghast_restriction_radius(false, false), 64);
+        assert_eq!(happy_ghast_restriction_radius(false, true), 32);
+        assert_eq!(happy_ghast_restriction_radius(true, false), 32);
+        assert_eq!(happy_ghast_heal_interval_ticks(true), 20);
+        assert_eq!(happy_ghast_heal_interval_ticks(false), 600);
+
+        assert_eq!(
+            happy_ghast_still_timeout_tick(10, 60, false),
+            HappyGhastStillTimeoutStep {
+                timeout: 10,
+                stays_still: true,
+            }
+        );
+        assert_eq!(
+            happy_ghast_still_timeout_tick(10, 61, false),
+            HappyGhastStillTimeoutStep {
+                timeout: 9,
+                stays_still: true,
+            }
+        );
+        assert_eq!(
+            happy_ghast_still_timeout_tick(0, 61, true),
+            HappyGhastStillTimeoutStep {
+                timeout: 10,
+                stays_still: true,
+            }
+        );
+        assert_eq!(happy_ghast_still_timeout_after_add_passenger(20, true), 10);
+        assert_eq!(happy_ghast_still_timeout_after_add_passenger(8, true), 8);
+        assert_eq!(happy_ghast_still_timeout_after_add_passenger(8, false), 0);
+        assert_eq!(happy_ghast_still_timeout_after_remove_passenger(), 10);
+
+        assert!(happy_ghast_can_be_collided_with(
+            false, true, true, true, false, false, false
+        ));
+        assert!(happy_ghast_can_be_collided_with(
+            false, true, false, false, true, true, false
+        ));
+        assert!(happy_ghast_can_be_collided_with(
+            false, true, false, false, false, false, true
+        ));
+        assert!(!happy_ghast_can_be_collided_with(
+            true, true, true, true, true, true, true
+        ));
+        assert_eq!(
+            happy_ghast_leash_holder_offsets(),
+            [
+                (-0.03125, 0.4375, 0.46875),
+                (0.03125, 0.4375, 0.46875),
+                (-0.03125, 0.4375, -0.46875),
+                (0.03125, 0.4375, -0.46875),
+            ]
+        );
+        assert_eq!(happy_ghast_notify_leash_holder_time(true), 5);
+        assert_eq!(happy_ghast_notify_leash_holder_time(false), 0);
+        assert_eq!(HAPPY_GHAST_LEASH_ELASTIC_DISTANCE, 10.0);
+        assert_eq!(HAPPY_GHAST_LEASH_SNAP_DISTANCE, 16.0);
+
+        assert_eq!(
+            dried_ghast_tick_plan(true, 2),
+            DriedGhastTickPlan::Hydrate {
+                hydration_level: 3,
+                sound: "minecraft:block.dried_ghast.transition",
+                game_event: "minecraft:block_change",
+            }
+        );
+        assert_eq!(
+            dried_ghast_tick_plan(true, 3),
+            DriedGhastTickPlan::SpawnGhastling {
+                remove_block: true,
+                baby: true,
+                sound: "minecraft:entity.ghastling.spawn",
+            }
+        );
+        assert_eq!(
+            dried_ghast_tick_plan(false, 2),
+            DriedGhastTickPlan::Dehydrate {
+                hydration_level: 1,
+                game_event: "minecraft:block_change",
+            }
+        );
+    }
+
+    #[test]
+    fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
+        assert_eq!(SNIFFER_DIGGING_PARTICLES_DELAY_TICKS, 1700);
+        assert_eq!(SNIFFER_DIGGING_PARTICLES_DURATION_TICKS, 6000);
+        assert_eq!(SNIFFER_DIGGING_PARTICLES_AMOUNT, 30);
+        assert_eq!(SNIFFER_DIGGING_DROP_SEED_OFFSET_TICKS, 120);
+        assert_eq!(SNIFFER_BABY_START_AGE, -48000);
+        assert_eq!(SNIFFER_DIGGING_BB_HEIGHT_OFFSET, 0.4);
+        assert_eq!(SNIFFER_EXPLORED_POSITION_LIMIT, 20);
+        assert_eq!(SNIFFER_SNIFF_COOLDOWN_TICKS, 9600);
+        assert_eq!(SNIFFER_DIGGING_MIN_TICKS, 160);
+        assert_eq!(SNIFFER_DIGGING_MAX_TICKS, 180);
+        assert_eq!(SNIFFER_FINISHED_DIGGING_TICKS, 40);
+        assert_eq!(SNIFFER_SEARCHING_TICKS, 600);
+        assert_eq!(SNIFFER_EGG_MAX_HATCH_LEVEL, 2);
+        assert_eq!(SNIFFER_EGG_REGULAR_HATCH_TIME_TICKS, 24000);
+        assert_eq!(SNIFFER_EGG_BOOSTED_HATCH_TIME_TICKS, 12000);
+        assert_eq!(SNIFFER_EGG_RANDOM_HATCH_OFFSET_TICKS, 300);
+
+        assert_eq!(
+            sniffer_attributes(),
+            SnifferAttributes {
+                movement_speed: 0.1,
+                max_health: 14.0,
+            }
+        );
+        assert_eq!(SnifferStateModel::Idling.id(), 0);
+        assert_eq!(SnifferStateModel::Rising.id(), 6);
+        assert_eq!(sniffer_state_by_id(99), SnifferStateModel::Idling);
+        assert!(sniffer_food_item("minecraft:torchflower_seeds"));
+        assert!(!sniffer_food_item("minecraft:wheat_seeds"));
+        assert!(sniffer_diggable_block("minecraft:grass_block"));
+        assert!(sniffer_diggable_block("minecraft:mud"));
+        assert!(sniffer_diggable_block("minecraft:moss_block"));
+        assert!(!sniffer_diggable_block("minecraft:stone"));
+        assert!(sniffer_egg_hatch_boost_block("minecraft:moss_block"));
+
+        assert!(sniffer_can_sniff(
+            false, false, false, false, true, false, false
+        ));
+        assert!(!sniffer_can_sniff(
+            true, false, false, false, true, false, false
+        ));
+        assert!(!sniffer_can_sniff(
+            false, false, true, false, true, false, false
+        ));
+        assert!(sniffer_can_dig_body_state(
+            false, false, false, false, true, false, true, false, true,
+        ));
+        assert!(!sniffer_can_dig_body_state(
+            false, false, true, false, true, false, true, false, true,
+        ));
+        assert!(!sniffer_can_dig_body_state(
+            false, false, false, false, true, false, true, true, true,
+        ));
+        assert!(!sniffer_can_dig_body_state(
+            false, false, false, false, true, false, true, false, false,
+        ));
+
+        assert_eq!(
+            sniffer_transition_plan(SnifferStateModel::Digging, 1000, false),
+            SnifferTransitionPlan {
+                state: SnifferStateModel::Digging,
+                sound: None,
+                drop_seed_at_tick: Some(1120),
+                event: Some(63),
+            }
+        );
+        assert_eq!(
+            sniffer_transition_plan(SnifferStateModel::Scenting, 0, true).sound,
+            Some("minecraft:entity.sniffer.scenting@1.3")
+        );
+        assert_eq!(
+            sniffer_transition_plan(SnifferStateModel::Rising, 0, false).sound,
+            Some("minecraft:entity.sniffer.digging_stop")
+        );
+        assert!(sniffer_can_play_digging_sound(SnifferStateModel::Searching));
+        assert_eq!(sniffer_ambient_sound(SnifferStateModel::Digging), None);
+        assert_eq!(
+            sniffer_ambient_sound(SnifferStateModel::Idling),
+            Some("minecraft:entity.sniffer.idle")
+        );
+
+        assert_eq!(
+            sniffer_digging_tick_plan(SnifferStateModel::Digging, 1120, 1120, 1800, true),
+            SnifferDiggingTickPlan {
+                drop_seed: true,
+                seed_loot_table: Some("minecraft:gameplay/sniffer_digging"),
+                seed_sound: Some("minecraft:entity.sniffer.drop_seed"),
+                particles: 30,
+                block_hit_sound: true,
+                game_event: true,
+            }
+        );
+        assert_eq!(
+            sniffer_digging_tick_plan(SnifferStateModel::Digging, 1121, 1120, 6000, true).particles,
+            0
+        );
+        assert_eq!(
+            sniffer_digging_tick_plan(SnifferStateModel::Searching, 1120, 1120, 1800, true)
+                .drop_seed,
+            false
+        );
+
+        let explored = sniffer_store_explored_position(&(0..25).collect::<Vec<i32>>(), 99);
+        assert_eq!(explored[0], 99);
+        assert_eq!(explored.len(), 21);
+        assert_eq!(*explored.last().unwrap(), 19);
+        assert!(sniffer_can_mate_state(
+            SnifferStateModel::Idling,
+            SnifferStateModel::Scenting
+        ));
+        assert!(!sniffer_can_mate_state(
+            SnifferStateModel::Digging,
+            SnifferStateModel::Idling
+        ));
+        assert_eq!(
+            sniffer_breeding_drop_plan(),
+            ("minecraft:sniffer_egg", "minecraft:block.sniffer_egg.plop")
+        );
+
+        assert_eq!(sniffer_egg_next_tick_delay(false, 299), 8299);
+        assert_eq!(sniffer_egg_next_tick_delay(true, 299), 4299);
+        assert_eq!(
+            sniffer_egg_tick_plan(1),
+            SnifferEggTickPlan::Crack {
+                hatch_level: 2,
+                sound: "minecraft:block.sniffer_egg.crack",
+            }
+        );
+        assert_eq!(
+            sniffer_egg_tick_plan(2),
+            SnifferEggTickPlan::Hatch {
+                destroy_block: true,
+                spawn_baby: true,
+                sound: "minecraft:block.sniffer_egg.hatch",
+            }
+        );
+    }
+
+    #[test]
+    fn turtle_home_egg_laying_growth_and_egg_block_match_java() {
+        assert_eq!(TURTLE_BABY_SCALE, 0.3);
+        assert_eq!(TURTLE_AMBIENT_SOUND_INTERVAL, 200);
+        assert_eq!(TURTLE_BREED_PARENT_AGE, 6000);
+        assert_eq!(TURTLE_LAY_EGG_DELAY_TICKS, 200);
+        assert_eq!(TURTLE_LAY_EGG_PARTICLE_INTERVAL_TICKS, 5);
+        assert_eq!(TURTLE_GO_HOME_RANDOM_INTERVAL, 700);
+        assert_eq!(TURTLE_GO_HOME_GIVE_UP_TICKS, 600);
+        assert_eq!(TURTLE_GO_TO_WATER_GIVE_UP_TICKS, 1200);
+        assert_eq!(TURTLE_GO_TO_WATER_RECALC_INTERVAL_TICKS, 160);
+        assert_eq!(TURTLE_TRAVEL_XZ_RANGE, 512);
+        assert_eq!(TURTLE_TRAVEL_Y_RANGE, 4);
+        assert_eq!(TURTLE_EGG_MAX_HATCH_LEVEL, 2);
+        assert_eq!(TURTLE_EGG_MIN_EGGS, 1);
+        assert_eq!(TURTLE_EGG_MAX_EGGS, 4);
+        assert_eq!(TURTLE_EGG_STEP_RANDOM_BOUND, 100);
+        assert_eq!(TURTLE_EGG_FALL_RANDOM_BOUND, 3);
+        assert_eq!(TURTLE_HATCHLING_AGE, -24000);
+        assert_eq!(
+            turtle_attributes(),
+            TurtleAttributes {
+                max_health: 30.0,
+                movement_speed: 0.25,
+                step_height: 1.0,
+            }
+        );
+
+        let mut turtle = TurtleStateModel::new((10, 63, -4));
+        assert_eq!(turtle.home_pos, (10, 63, -4));
+        turtle.set_laying_egg(true);
+        assert!(turtle.laying_egg);
+        assert_eq!(turtle.lay_egg_counter, 1);
+        turtle.set_laying_egg(false);
+        assert_eq!(turtle.lay_egg_counter, 0);
+
+        assert!(turtle_food_item("minecraft:seagrass"));
+        assert!(!turtle_food_item("minecraft:kelp"));
+        assert!(turtle_can_fall_in_love(true, false));
+        assert!(!turtle_can_fall_in_love(true, true));
+        assert_eq!(
+            turtle_breed_plan(true, true),
+            TurtleBreedPlan {
+                has_egg_after: true,
+                parent_age: 6000,
+                reset_love: true,
+                bred_animals_stat: true,
+                xp_min: 1,
+                xp_max: 7,
+            }
+        );
+        assert_eq!(turtle_breed_plan(false, false).xp_max, 0);
+
+        assert_eq!(
+            turtle_lay_egg_step(true, false, 0, false, true, true, 2),
+            TurtleLayEggStep::StartLaying
+        );
+        assert_eq!(
+            turtle_lay_egg_step(true, true, 5, false, true, true, 2),
+            TurtleLayEggStep::DigParticles {
+                level_event: 2001,
+                game_event: "minecraft:entity_action",
+            }
+        );
+        assert_eq!(
+            turtle_lay_egg_step(true, true, 201, false, true, true, 2),
+            TurtleLayEggStep::PlaceEggs {
+                egg_count: 3,
+                sound: "minecraft:entity.turtle.lay_egg",
+                game_event: "minecraft:block_place",
+                has_egg_after: false,
+                laying_after: false,
+                in_love_time: 600,
+            }
+        );
+        assert_eq!(
+            turtle_lay_egg_step(true, true, 201, true, true, true, 2),
+            TurtleLayEggStep::None
+        );
+        assert_eq!(
+            turtle_grow_drop_loot(true, true),
+            Some("minecraft:gameplay/turtle_grow")
+        );
+        assert_eq!(turtle_grow_drop_loot(true, false), None);
+        assert!(turtle_spawn_allowed(66, 63, true, true));
+        assert!(!turtle_spawn_allowed(67, 63, true, true));
+
+        assert!(turtle_go_home_can_use(false, true, 1.0, false));
+        assert!(turtle_go_home_can_use(false, false, 64.0, true));
+        assert!(!turtle_go_home_can_use(true, true, 100.0, true));
+        assert!(turtle_lay_egg_goal_can_use(true, 8.99, true));
+        assert!(!turtle_lay_egg_goal_can_use(true, 9.0, true));
+        assert!(turtle_go_to_water_can_use(true, false, true, true, true));
+        assert!(turtle_go_to_water_can_use(false, false, false, false, true));
+        assert!(!turtle_go_to_water_can_use(false, false, false, true, true));
+        assert!(turtle_travel_can_use(false, false, true));
+        assert!(!turtle_travel_can_use(true, false, true));
+        assert_eq!(
+            turtle_water_travel_sinking(false, false, 0.0),
+            Some((0.0, -0.005, 0.0))
+        );
+        assert_eq!(turtle_water_travel_sinking(false, true, 19.0), None);
+        assert!(!turtle_can_be_leashed());
+        assert_eq!(turtle_lightning_damage(), f32::MAX);
+
+        assert_eq!(
+            turtle_egg_destroy_plan(2, false, false, true, true, false, true),
+            TurtleEggDestroyPlan::DecreaseEggs {
+                eggs_after: 1,
+                sound: "minecraft:entity.turtle.egg_break",
+                destroy_block: false,
+                game_event: Some("minecraft:block_destroy"),
+            }
+        );
+        assert_eq!(
+            turtle_egg_destroy_plan(1, false, false, true, false, true, true),
+            TurtleEggDestroyPlan::DecreaseEggs {
+                eggs_after: 0,
+                sound: "minecraft:entity.turtle.egg_break",
+                destroy_block: true,
+                game_event: None,
+            }
+        );
+        assert_eq!(
+            turtle_egg_destroy_plan(2, true, false, true, true, true, true),
+            TurtleEggDestroyPlan::None
+        );
+        assert_eq!(
+            turtle_egg_destroy_plan(2, false, false, true, false, false, true),
+            TurtleEggDestroyPlan::None
+        );
+        assert_eq!(
+            turtle_egg_random_tick_plan(true, true, 1, 3),
+            TurtleEggRandomTickPlan::Crack {
+                hatch: 2,
+                sound: "minecraft:entity.turtle.egg_crack",
+                game_event: "minecraft:block_change",
+            }
+        );
+        assert_eq!(
+            turtle_egg_random_tick_plan(true, true, 2, 3),
+            TurtleEggRandomTickPlan::Hatch {
+                hatchlings: 3,
+                hatchling_age: -24000,
+                sound: "minecraft:entity.turtle.egg_hatch",
+                game_event: "minecraft:block_destroy",
+            }
+        );
+        assert_eq!(
+            turtle_egg_random_tick_plan(false, true, 2, 3),
+            TurtleEggRandomTickPlan::None
+        );
+        assert!(turtle_egg_can_be_replaced(false, true, 3));
+        assert!(!turtle_egg_can_be_replaced(false, true, 4));
+        assert_eq!(turtle_egg_placement_eggs(None), 1);
+        assert_eq!(turtle_egg_placement_eggs(Some(3)), 4);
+        assert_eq!(turtle_egg_placement_eggs(Some(4)), 4);
+    }
+
+    #[test]
+    fn armadillo_roll_scute_brush_and_scare_gates_match_java() {
+        assert_eq!(ARMADILLO_BABY_SCALE, 0.6);
+        assert_eq!(ARMADILLO_MAX_HEAD_ROTATION_EXTENT, 32.5);
+        assert_eq!(ARMADILLO_SCARE_CHECK_INTERVAL, 80);
+        assert_eq!(ARMADILLO_SCARE_DISTANCE_HORIZONTAL, 7.0);
+        assert_eq!(ARMADILLO_SCARE_DISTANCE_VERTICAL, 2.0);
+        assert_eq!(ARMADILLO_SCUTE_DROP_MIN_TICKS, 6000);
+        assert_eq!(ARMADILLO_SCUTE_DROP_RANDOM_BOUND, 6000);
+        assert_eq!(ARMADILLO_BRUSH_DAMAGE, 16);
+        assert_eq!(ARMADILLO_BALL_UP_STAY_IN_STATE_TICKS, 6000);
+        assert_eq!(ARMADILLO_DANGER_DELAY_TICKS, 5);
+        assert_eq!(ARMADILLO_DANGER_THRESHOLD_TICKS, 75);
+        assert_eq!(ARMADILLO_PEEK_EVENT, 64);
+        assert_eq!(
+            armadillo_attributes(),
+            ArmadilloAttributes {
+                max_health: 12.0,
+                movement_speed: 0.14,
+            }
+        );
+
+        assert_eq!(ArmadilloStateModel::Idle.id(), 0);
+        assert_eq!(ArmadilloStateModel::Unrolling.id(), 3);
+        assert_eq!(ArmadilloStateModel::Scared.serialized_name(), "scared");
+        assert_eq!(armadillo_state_by_id(99), ArmadilloStateModel::Idle);
+        assert_eq!(ArmadilloStateModel::Rolling.animation_duration(), 10);
+        assert_eq!(ArmadilloStateModel::Scared.animation_duration(), 50);
+        assert!(!ArmadilloStateModel::Idle.is_threatened());
+        assert!(ArmadilloStateModel::Rolling.is_threatened());
+        assert!(!ArmadilloStateModel::Rolling.should_hide_in_shell(5));
+        assert!(ArmadilloStateModel::Rolling.should_hide_in_shell(6));
+        assert!(ArmadilloStateModel::Scared.should_hide_in_shell(0));
+        assert!(ArmadilloStateModel::Unrolling.should_hide_in_shell(25));
+        assert!(!ArmadilloStateModel::Unrolling.should_hide_in_shell(26));
+
+        assert!(armadillo_food_item("minecraft:spider_eye"));
+        assert!(!armadillo_food_item("minecraft:carrot"));
+        assert!(armadillo_spawnable_on("minecraft:grass_block"));
+        assert!(armadillo_spawnable_on("minecraft:red_sand"));
+        assert!(armadillo_spawnable_on("minecraft:orange_terracotta"));
+        assert!(!armadillo_spawnable_on("minecraft:stone"));
+        assert!(armadillo_spawn_allowed("minecraft:coarse_dirt", true));
+        assert!(!armadillo_spawn_allowed("minecraft:coarse_dirt", false));
+        assert_eq!(armadillo_pick_next_scute_drop_time(0), 6000);
+        assert_eq!(armadillo_pick_next_scute_drop_time(5999), 11999);
+        assert_eq!(
+            armadillo_scute_drop_tick(true, 1, true, true, 7),
+            ArmadilloScuteDropPlan {
+                next_scute_time: 6007,
+                loot_table: Some("minecraft:gameplay/armadillo_shed"),
+                sound: Some("minecraft:entity.armadillo.scute_drop"),
+                game_event: Some("minecraft:entity_place"),
+            }
+        );
+        assert_eq!(
+            armadillo_scute_drop_tick(true, 2, true, true, 7).next_scute_time,
+            1
+        );
+
+        assert!(armadillo_is_scared_by(
+            true, true, false, false, false, false, false
+        ));
+        assert!(armadillo_is_scared_by(
+            true, false, true, false, false, false, false
+        ));
+        assert!(armadillo_is_scared_by(
+            true, false, false, true, false, true, false
+        ));
+        assert!(armadillo_is_scared_by(
+            true, false, false, true, false, false, true
+        ));
+        assert!(!armadillo_is_scared_by(
+            true, false, false, true, true, true, true
+        ));
+        assert!(!armadillo_is_scared_by(
+            false, true, true, true, false, true, true
+        ));
+        assert_eq!(
+            armadillo_roll_up_plan(ArmadilloStateModel::Idle),
+            Some(ArmadilloRollPlan {
+                state: ArmadilloStateModel::Rolling,
+                sound: "minecraft:entity.armadillo.roll",
+                game_event: "minecraft:entity_action",
+                stop_in_place: true,
+                reset_love: true,
+            })
+        );
+        assert_eq!(armadillo_roll_up_plan(ArmadilloStateModel::Scared), None);
+        assert_eq!(
+            armadillo_roll_out_plan(ArmadilloStateModel::Scared)
+                .unwrap()
+                .state,
+            ArmadilloStateModel::Idle
+        );
+        assert!(armadillo_can_stay_rolled_up(
+            false, false, false, false, false
+        ));
+        assert!(!armadillo_can_stay_rolled_up(
+            true, false, false, false, false
+        ));
+        assert_eq!(
+            armadillo_damage_after_shell(ArmadilloStateModel::Scared, 9.0),
+            4.0
+        );
+        assert_eq!(
+            armadillo_hurt_reaction(false, false, true, false, true),
+            ArmadilloHurtReaction::DangerMemory {
+                ticks: 80,
+                roll_up: true,
+            }
+        );
+        assert_eq!(
+            armadillo_hurt_reaction(false, false, false, true, true),
+            ArmadilloHurtReaction::RollOutEnvironmental
+        );
+        assert_eq!(
+            armadillo_hurt_reaction(true, false, true, true, true),
+            ArmadilloHurtReaction::None
+        );
+
+        assert_eq!(
+            armadillo_interact_plan("minecraft:brush", false, false),
+            ArmadilloInteractPlan::Brush {
+                loot_table: "minecraft:gameplay/armadillo_brush",
+                sound: "minecraft:entity.armadillo.brush",
+                game_event: "minecraft:entity_interact",
+                tool_damage: 16,
+            }
+        );
+        assert_eq!(
+            armadillo_interact_plan("minecraft:brush", true, false),
+            ArmadilloInteractPlan::Delegate
+        );
+        assert_eq!(
+            armadillo_interact_plan("minecraft:stick", false, true),
+            ArmadilloInteractPlan::FailScared
+        );
+        assert!(armadillo_can_fall_in_love(true, false));
+        assert!(!armadillo_can_fall_in_love(true, true));
+        assert_eq!(
+            armadillo_ambient_sound(false),
+            Some("minecraft:entity.armadillo.ambient")
+        );
+        assert_eq!(armadillo_ambient_sound(true), None);
+        assert_eq!(
+            armadillo_hurt_sound(true),
+            "minecraft:entity.armadillo.hurt_reduced"
+        );
+        assert_eq!(armadillo_max_head_y_rot(true), 0);
+        assert_eq!(armadillo_max_head_y_rot(false), 32);
+
+        assert_eq!(
+            armadillo_ball_up_tick_plan(ArmadilloStateModel::Rolling, 11, true, 80, 1),
+            ArmadilloBallUpTickPlan::SwitchToScared {
+                sound: Some("minecraft:entity.armadillo.land"),
+            }
+        );
+        assert_eq!(
+            armadillo_ball_up_tick_plan(ArmadilloStateModel::Scared, 50, true, 80, 0),
+            ArmadilloBallUpTickPlan::Peek {
+                event: 64,
+                next_peek_timer_min: 150,
+                next_peek_timer_max: 450,
+            }
+        );
+        assert_eq!(
+            armadillo_ball_up_tick_plan(ArmadilloStateModel::Scared, 50, true, 29, 1),
+            ArmadilloBallUpTickPlan::StartUnrolling {
+                sound: "minecraft:entity.armadillo.unroll_start",
+            }
+        );
+        assert_eq!(
+            armadillo_ball_up_tick_plan(ArmadilloStateModel::Unrolling, 5, true, 31, 1),
+            ArmadilloBallUpTickPlan::ReturnToScared
+        );
+    }
+
+    #[test]
+    fn allay_item_pickup_noteblock_dancing_and_duplication_match_java() {
+        assert_eq!(ALLAY_ITEM_PICKUP_REACH, (1, 1, 1));
+        assert_eq!(ALLAY_LIFTING_ITEM_ANIMATION_DURATION, 5);
+        assert_eq!(ALLAY_DANCING_LOOP_DURATION, 55.0);
+        assert_eq!(ALLAY_SPINNING_ANIMATION_DURATION, 15.0);
+        assert_eq!(ALLAY_DEFAULT_DUPLICATION_COOLDOWN, 0);
+        assert_eq!(ALLAY_DUPLICATION_COOLDOWN_TICKS, 6000);
+        assert_eq!(ALLAY_NUM_DUPLICATION_HEARTS, 3);
+        assert_eq!(ALLAY_MAX_NOTEBLOCK_DISTANCE, 1024);
+        assert_eq!(ALLAY_VIBRATION_LISTENER_RANGE, 16);
+        assert_eq!(ALLAY_TIME_TO_FORGET_NOTEBLOCK, 600);
+        assert_eq!(ALLAY_DISTANCE_TO_WANTED_ITEM, 32);
+        assert_eq!(ALLAY_GIVE_ITEM_TIMEOUT_DURATION, 20);
+        assert_eq!(ALLAY_LIKED_PLAYER_DISTANCE, 64.0);
+        assert_eq!(ALLAY_DUPLICATION_EVENT, 18);
+        assert_eq!(
+            allay_attributes(),
+            AllayAttributes {
+                max_health: 20.0,
+                flying_speed: 0.1,
+                movement_speed: 0.1,
+                attack_damage: 2.0,
+            }
+        );
+
+        assert!(allay_duplicate_item("minecraft:amethyst_shard"));
+        assert!(!allay_duplicate_item("minecraft:diamond"));
+        assert!(allay_can_pick_up_loot(false, true));
+        assert!(!allay_can_pick_up_loot(true, true));
+        assert!(!allay_can_pick_up_loot(false, false));
+        assert!(allay_considers_item_equal(
+            "minecraft:potion",
+            "minecraft:potion",
+            Some("minecraft:healing"),
+            Some("minecraft:healing")
+        ));
+        assert!(!allay_considers_item_equal(
+            "minecraft:potion",
+            "minecraft:potion",
+            Some("minecraft:healing"),
+            Some("minecraft:swiftness")
+        ));
+        assert!(allay_wants_to_pick_up(
+            "minecraft:diamond",
+            "minecraft:diamond",
+            None,
+            None,
+            true,
+            true
+        ));
+        assert!(!allay_wants_to_pick_up(
+            "minecraft:diamond",
+            "minecraft:emerald",
+            None,
+            None,
+            true,
+            true
+        ));
+        assert!(!allay_wants_to_pick_up(
+            "minecraft:diamond",
+            "minecraft:diamond",
+            None,
+            None,
+            false,
+            true
+        ));
+
+        assert_eq!(
+            allay_interact_plan("minecraft:amethyst_shard", true, true, true, true, false),
+            AllayInteractPlan::Duplicate {
+                consumed: 1,
+                parent_cooldown: 6000,
+                child_cooldown: 6000,
+                event: 18,
+                hearts: 3,
+                sound: "minecraft:block.amethyst_block.chime",
+            }
+        );
+        assert_eq!(
+            allay_interact_plan("minecraft:cookie", true, false, false, true, false),
+            AllayInteractPlan::GiveItem {
+                consumed: 1,
+                held_count: 1,
+                remember_liked_player: true,
+                sound: "minecraft:entity.allay.item_given",
+            }
+        );
+        assert_eq!(
+            allay_interact_plan("", true, true, false, true, true),
+            AllayInteractPlan::TakeItem {
+                clear_liked_player: true,
+                return_held_item: true,
+                throw_inventory: true,
+                sound: "minecraft:entity.allay.item_taken",
+            }
+        );
+        assert_eq!(
+            allay_interact_plan("minecraft:amethyst_shard", true, true, true, false, false),
+            AllayInteractPlan::Delegate
+        );
+        assert_eq!(allay_duplication_cooldown_tick(2, false), (1, false));
+        assert_eq!(allay_duplication_cooldown_tick(1, false), (0, true));
+        assert_eq!(allay_duplication_cooldown_tick(2, true), (2, false));
+
+        assert_eq!(
+            allay_set_jukebox_playing(None, (1, 2, 3), true, false),
+            (Some((1, 2, 3)), true)
+        );
+        assert_eq!(
+            allay_set_jukebox_playing(Some((1, 2, 3)), (1, 2, 3), false, true),
+            (None, false)
+        );
+        assert_eq!(
+            allay_set_jukebox_playing(Some((1, 2, 3)), (4, 5, 6), false, true),
+            (Some((1, 2, 3)), true)
+        );
+        assert!(allay_should_stop_dancing(None, 0.0, true, 32.0));
+        assert!(allay_should_stop_dancing(Some((0, 0, 0)), 32.0, true, 32.0));
+        assert!(allay_should_stop_dancing(Some((0, 0, 0)), 1.0, false, 32.0));
+        assert!(!allay_should_stop_dancing(
+            Some((0, 0, 0)),
+            31.9,
+            true,
+            32.0
+        ));
+        assert!(allay_set_dancing_allowed(false, true, true, false));
+        assert!(!allay_set_dancing_allowed(false, true, true, true));
+        assert!(allay_set_dancing_allowed(false, true, false, true));
+        assert!(allay_is_spinning(14.9));
+        assert!(!allay_is_spinning(15.0));
+        assert!(allay_is_spinning(55.0));
+
+        assert_eq!(
+            allay_hear_noteblock(None, (7, 8, 9)),
+            AllayNoteBlockPlan {
+                liked_noteblock: Some((7, 8, 9)),
+                cooldown_ticks: Some(600),
+            }
+        );
+        assert_eq!(
+            allay_hear_noteblock(Some((7, 8, 9)), (7, 8, 9)).cooldown_ticks,
+            Some(600)
+        );
+        assert_eq!(
+            allay_hear_noteblock(Some((1, 2, 3)), (7, 8, 9)),
+            AllayNoteBlockPlan {
+                liked_noteblock: Some((1, 2, 3)),
+                cooldown_ticks: None,
+            }
+        );
+        assert_eq!(
+            allay_deposit_target(Some((1, 2, 3)), true, true, true, true),
+            AllayDepositTarget::NoteBlockAbove
+        );
+        assert_eq!(
+            allay_deposit_target(Some((1, 2, 3)), true, false, true, true),
+            AllayDepositTarget::LikedPlayer
+        );
+        assert_eq!(
+            allay_deposit_target(None, false, false, false, true),
+            AllayDepositTarget::LikedPlayer
+        );
+        assert_eq!(
+            allay_deposit_target(None, false, false, false, false),
+            AllayDepositTarget::None
+        );
+        assert!(allay_liked_player_available(true, true, 63.9));
+        assert!(!allay_liked_player_available(true, true, 64.0));
+        assert!(!allay_liked_player_available(true, false, 1.0));
+        assert!(allay_can_receive_note_vibration(
+            false,
+            None,
+            (1, 2, 3),
+            false
+        ));
+        assert!(allay_can_receive_note_vibration(
+            false,
+            Some((1, 2, 3)),
+            (1, 2, 3),
+            true
+        ));
+        assert!(!allay_can_receive_note_vibration(
+            false,
+            Some((1, 2, 3)),
+            (4, 5, 6),
+            true
+        ));
+        assert!(!allay_can_receive_note_vibration(
+            true,
+            None,
+            (1, 2, 3),
+            true
+        ));
+
+        assert!(!allay_hurt_allowed(true));
+        assert!(allay_hurt_allowed(false));
+        assert_eq!(
+            allay_ambient_sound(true),
+            "minecraft:entity.allay.ambient_with_item"
+        );
+        assert_eq!(
+            allay_ambient_sound(false),
+            "minecraft:entity.allay.ambient_without_item"
+        );
+        assert!(!allay_remove_when_far_away());
+        let leash_offset = allay_leash_offset(0.36, 0.35);
+        assert_eq!(leash_offset.0, 0.0);
+        assert!((leash_offset.1 - 0.216).abs() < f32::EPSILON * 2.0);
+        assert_eq!(leash_offset.2, 0.035);
+        assert!(allay_throw_sound_can_play(14, true));
+        assert!(!allay_throw_sound_can_play(15, true));
+        assert!(!allay_throw_sound_can_play(14, false));
+    }
+
+    #[test]
+    fn feline_cat_ocelot_variants_trust_gifts_and_sitting_match_java() {
+        assert_eq!(FELINE_CROUCH_SPEED_MOD, 0.6);
+        assert_eq!(FELINE_WALK_SPEED_MOD, 0.8);
+        assert_eq!(FELINE_SPRINT_SPEED_MOD, 1.33);
+        assert_eq!(FELINE_PLAYER_AVOID_DISTANCE, 16.0);
+        assert_eq!(FELINE_REMOVE_WHEN_FAR_TICKS, 2400);
+        assert_eq!(CAT_AMBIENT_SOUND_INTERVAL, 120);
+        assert_eq!(OCELOT_AMBIENT_SOUND_INTERVAL, 900);
+        assert_eq!(CAT_OWNER_RELAX_DISTANCE_SQR, 100.0);
+        assert_eq!(CAT_LIE_ON_OWNER_DISTANCE_SQR, 2.5);
+        assert_eq!(CAT_ON_BED_RELAX_TICKS, 16);
+        assert_eq!(CAT_BEG_SOUND_INTERVAL_TICKS, 100);
+        assert_eq!(CAT_TEMPT_SELECT_INTERVAL_TICKS, 600);
+        assert_eq!(CAT_TEMPT_FORGET_INTERVAL_TICKS, 500);
+        assert_eq!(CAT_TAME_ROLL_BOUND, 3);
+        assert_eq!(OCELOT_TRUST_ROLL_BOUND, 3);
+        assert_eq!(CAT_STRAY_SPAWNER_TICK_DELAY, 1200);
+        assert_eq!(CAT_VILLAGE_HOME_POI_RADIUS, 48);
+        assert_eq!(CAT_VILLAGE_MIN_OCCUPIED_HOMES, 5);
+        assert_eq!(CAT_VILLAGE_MAX_CATS, 5);
+        assert_eq!(CAT_HUT_CAT_RADIUS, 16);
+        assert_eq!(OCELOT_SPAWN_ROLL_BOUND, 3);
+
+        assert_eq!(
+            feline_attributes(),
+            FelineAttributes {
+                max_health: 10.0,
+                movement_speed: 0.3,
+                attack_damage: 3.0,
+            }
+        );
+        assert_eq!(cat_default_variant(), CatVariantModel::Black);
+        assert_eq!(CatVariantModel::AllBlack.serialized_name(), "all_black");
+        assert_eq!(
+            cat_spawn_variant(true, false, CatVariantModel::Tabby),
+            CatVariantModel::AllBlack
+        );
+        assert_eq!(
+            cat_spawn_variant(false, true, CatVariantModel::Calico),
+            CatVariantModel::AllBlack
+        );
+        assert_eq!(
+            cat_spawn_variant(false, false, CatVariantModel::Calico),
+            CatVariantModel::Calico
+        );
+        assert_eq!(cat_default_collar_color_id(), 14);
+        assert_eq!(cat_collar_dye_color_id("minecraft:blue_dye"), Some(11));
+        assert_eq!(cat_collar_dye_color_id("minecraft:stick"), None);
+        assert!(cat_food_item("minecraft:cod"));
+        assert!(cat_food_item("minecraft:salmon"));
+        assert!(!cat_food_item("minecraft:tropical_fish"));
+        assert!(ocelot_food_item("minecraft:cod"));
+        assert!(!ocelot_food_item("minecraft:chicken"));
+
+        assert_eq!(
+            feline_pose_for_move(true, FELINE_CROUCH_SPEED_MOD),
+            (FelineMovePose::Crouching, false)
+        );
+        assert_eq!(
+            feline_pose_for_move(true, FELINE_SPRINT_SPEED_MOD),
+            (FelineMovePose::Standing, true)
+        );
+        assert_eq!(
+            feline_pose_for_move(false, FELINE_SPRINT_SPEED_MOD),
+            (FelineMovePose::Standing, false)
+        );
+
+        assert_eq!(
+            cat_interact_plan(
+                "minecraft:blue_dye",
+                true,
+                true,
+                cat_default_collar_color_id(),
+                true,
+                false,
+                false,
+            ),
+            CatInteractPlan::DyeCollar {
+                color_id: 11,
+                consumed: 1,
+                persist: true,
+            }
+        );
+        assert_eq!(
+            cat_interact_plan("minecraft:cod", true, true, 14, true, false, false),
+            CatInteractPlan::Heal {
+                consumed: 1,
+                heal_min: 1,
+                heal_max: 1,
+            }
+        );
+        assert_eq!(
+            cat_interact_plan("minecraft:stick", true, true, 14, false, false, false),
+            CatInteractPlan::ToggleSit
+        );
+        assert_eq!(
+            cat_interact_plan("minecraft:cod", false, false, 14, false, false, true),
+            CatInteractPlan::TameFood {
+                consumed: 1,
+                tame_event: 7,
+                tamed: true,
+                ordered_to_sit: true,
+                persist: true,
+                eat_sound: "minecraft:entity.cat.eat",
+            }
+        );
+        assert_eq!(
+            cat_interact_plan("minecraft:cod", false, false, 14, false, false, false),
+            CatInteractPlan::TameFood {
+                consumed: 1,
+                tame_event: 6,
+                tamed: false,
+                ordered_to_sit: false,
+                persist: true,
+                eat_sound: "minecraft:entity.cat.eat",
+            }
+        );
+
+        assert_eq!(
+            ocelot_interact_plan("minecraft:salmon", true, false, 8.99, true),
+            OcelotInteractPlan::TrustFood {
+                consumed: 1,
+                event: 41,
+                trusting: true,
+            }
+        );
+        assert_eq!(
+            ocelot_interact_plan("minecraft:salmon", true, false, 8.99, false),
+            OcelotInteractPlan::TrustFood {
+                consumed: 1,
+                event: 40,
+                trusting: false,
+            }
+        );
+        assert_eq!(
+            ocelot_interact_plan("minecraft:salmon", true, false, 9.0, true),
+            OcelotInteractPlan::Delegate
+        );
+        assert!(feline_should_avoid_player(false, false));
+        assert!(!feline_should_avoid_player(true, false));
+        assert!(!feline_should_avoid_player(false, true));
+        assert!(cat_tempt_can_use(true, false));
+        assert!(!cat_tempt_can_use(true, true));
+        assert!(!cat_tempt_can_scare(true, true));
+        assert!(cat_tempt_can_scare(false, true));
+        assert!(cat_should_play_beg_sound(true, false, 200));
+        assert!(!cat_should_play_beg_sound(true, false, 201));
+        assert!(cat_can_mate(true, true, true, true));
+        assert!(!cat_can_mate(false, true, true, true));
+        assert!(cat_remove_when_far_away(false, 2401));
+        assert!(!cat_remove_when_far_away(true, 2401));
+        assert!(ocelot_remove_when_far_away(false, 2401));
+        assert!(!ocelot_remove_when_far_away(true, 2401));
+
+        assert!(cat_relax_on_owner_can_use(
+            true, false, true, true, 100.0, true, false,
+        ));
+        assert!(!cat_relax_on_owner_can_use(
+            true, false, true, true, 100.1, true, false,
+        ));
+        assert_eq!(cat_relax_on_owner_tick(2.49, 17), (true, false));
+        assert_eq!(cat_relax_on_owner_tick(2.49, 16), (false, true));
+        assert_eq!(cat_relax_on_owner_tick(2.5, 17), (false, false));
+        assert_eq!(
+            cat_morning_gift_plan(100, true, false),
+            Some(("minecraft:gameplay/cat_morning_gift", false))
+        );
+        assert_eq!(cat_morning_gift_plan(99, true, false), None);
+        assert_eq!(cat_morning_gift_plan(100, false, false), None);
+        assert!(cat_lie_on_bed_can_use(true, false, false, true));
+        assert!(!cat_lie_on_bed_can_use(true, true, false, true));
+        assert!(cat_sit_on_block_can_use(true, false, true));
+        assert!(!cat_sit_on_block_can_use(false, false, true));
+        assert!(cat_sit_on_block_target_valid(
+            "minecraft:chest",
+            true,
+            0,
+            false,
+            false
+        ));
+        assert!(!cat_sit_on_block_target_valid(
+            "minecraft:chest",
+            true,
+            1,
+            false,
+            false
+        ));
+        assert!(cat_sit_on_block_target_valid(
+            "minecraft:furnace",
+            true,
+            0,
+            true,
+            false
+        ));
+        assert!(cat_sit_on_block_target_valid(
+            "minecraft:red_bed",
+            true,
+            0,
+            false,
+            false
+        ));
+        assert!(!cat_sit_on_block_target_valid(
+            "minecraft:red_bed",
+            true,
+            0,
+            false,
+            true
+        ));
+        assert!(cat_lie_on_bed_target_valid("minecraft:black_bed", true));
+        assert!(!cat_lie_on_bed_target_valid("minecraft:chest", true));
+
+        assert!(cat_spawner_should_try_spawn(0, true));
+        assert!(!cat_spawner_should_try_spawn(1, true));
+        assert_eq!(cat_spawner_offset(23, true), -31);
+        assert_eq!(cat_spawner_offset(0, false), 8);
+        assert!(cat_village_spawn_allowed(5, 4));
+        assert!(!cat_village_spawn_allowed(4, 4));
+        assert!(!cat_village_spawn_allowed(5, 5));
+        assert!(cat_hut_spawn_allowed(0));
+        assert!(!cat_hut_spawn_allowed(1));
+        assert!(!ocelot_spawn_rules(0));
+        assert!(ocelot_spawn_rules(1));
+        assert!(ocelot_spawn_obstruction(
+            true,
+            false,
+            63,
+            63,
+            "minecraft:grass_block"
+        ));
+        assert!(ocelot_spawn_obstruction(
+            true,
+            false,
+            64,
+            63,
+            "minecraft:oak_leaves"
+        ));
+        assert!(!ocelot_spawn_obstruction(
+            true,
+            false,
+            62,
+            63,
+            "minecraft:grass_block"
+        ));
+        assert_eq!(ocelot_leash_offset(0.7, 0.6), (0.0, 0.35, 0.24000001));
+    }
+
+    #[test]
     fn tamable_flags_owner_sitting_and_teleport_distance_match_vanilla() {
         let state = TamableState {
             flags: 0,
@@ -10707,6 +15976,105 @@ mod tests {
             hoglin_conversion_tick(42, false, false, false).time_in_overworld,
             0
         );
+
+        assert!(abstract_piglin_is_converting(false, false, true));
+        assert!(!abstract_piglin_is_converting(true, false, true));
+        assert!(!abstract_piglin_is_converting(false, true, true));
+        assert!(!abstract_piglin_is_converting(false, false, false));
+        assert_eq!(
+            abstract_piglin_conversion_tick(299, false, false, true),
+            AbstractPiglinConversionTick {
+                time_in_overworld: 300,
+                convert_to_zombified_piglin: false,
+                nausea_ticks: 0,
+                keep_equipment: true,
+                preserve_can_pick_up_loot: true,
+            }
+        );
+        assert_eq!(
+            abstract_piglin_conversion_tick(300, false, false, true),
+            AbstractPiglinConversionTick {
+                time_in_overworld: 301,
+                convert_to_zombified_piglin: true,
+                nausea_ticks: 200,
+                keep_equipment: true,
+                preserve_can_pick_up_loot: true,
+            }
+        );
+        assert_eq!(
+            abstract_piglin_conversion_tick(42, false, true, true).time_in_overworld,
+            0
+        );
+        assert_eq!(abstract_piglin_save_defaults(), (false, true, 0));
+        assert_eq!(
+            piglin_finish_conversion_plan(),
+            PiglinFinishConversionPlan {
+                cancel_admiring: true,
+                drop_inventory: true,
+                target_entity: "minecraft:zombified_piglin",
+                conversion_type: ConversionTypeModel::Single,
+                nausea_ticks: 200,
+            }
+        );
+
+        assert_eq!(
+            piglin_brute_attributes(),
+            PiglinBruteAttributes {
+                max_health: 50.0,
+                movement_speed: 0.35,
+                attack_damage: 7.0,
+                follow_range: 12.0,
+                xp_reward: 20,
+            }
+        );
+        assert_eq!(
+            piglin_brute_default_main_hand_item(),
+            "minecraft:golden_axe"
+        );
+        assert!(!piglin_brute_can_hunt());
+        assert!(piglin_brute_wants_to_pick_up("minecraft:golden_axe", true));
+        assert!(!piglin_brute_wants_to_pick_up("minecraft:gold_ingot", true));
+        assert!(!piglin_brute_wants_to_pick_up(
+            "minecraft:golden_axe",
+            false
+        ));
+        assert_eq!(
+            piglin_brute_ai_constants(),
+            PiglinBruteAiConstants {
+                anger_duration_ticks: 600,
+                melee_attack_cooldown_ticks: 20,
+                activity_sound_likelihood_per_tick: 0.0125,
+                max_look_dist: 8.0,
+                interaction_range: 8,
+                idle_speed_multiplier: 0.6,
+                home_close_enough_distance: 2,
+                home_too_far_distance: 100,
+                home_stroll_around_distance: 5,
+            }
+        );
+        assert_eq!(
+            piglin_brute_target_choice(true, true, true),
+            PiglinBruteTargetChoice::AngryAt
+        );
+        assert_eq!(
+            piglin_brute_target_choice(false, true, true),
+            PiglinBruteTargetChoice::NearestVisibleAttackablePlayer
+        );
+        assert_eq!(
+            piglin_brute_target_choice(false, false, true),
+            PiglinBruteTargetChoice::NearestVisibleNemesis
+        );
+        assert_eq!(
+            piglin_brute_target_choice(false, false, false),
+            PiglinBruteTargetChoice::None
+        );
+        assert!(piglin_brute_retaliates_against(false));
+        assert!(!piglin_brute_retaliates_against(true));
+        assert_eq!(
+            piglin_brute_arm_pose(true, true),
+            "attacking_with_melee_weapon"
+        );
+        assert_eq!(piglin_brute_arm_pose(true, false), "default");
 
         assert_eq!(hoglin_base_attack_damage(false, 6.0, 5), 8.0);
         assert_eq!(hoglin_base_attack_damage(false, 6.0, 6), 3.0);
