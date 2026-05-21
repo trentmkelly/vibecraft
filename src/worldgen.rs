@@ -5493,7 +5493,6 @@ fn live_tree_decoration_blocks(
     climate_sampler: &ClimateSampler,
     global_features_per_step: Option<&[StepFeatureDataModel]>,
     region_biome_steps: &[&'static [&'static [&'static str]]],
-    _base_chunk: &LevelChunk,
     block_context: &TreeDecorationBlockContext<'_>,
     terrain_heights: &TreeDecorationHeights,
     diagnostics: &mut TreeDecorationDiagnostics,
@@ -5915,12 +5914,29 @@ fn live_straight_blob_tree_placement_plan(
     Ok(TreePlacementPlan { blocks })
 }
 
+#[derive(Clone, Copy)]
+enum TreeContextChunkRef<'a> {
+    Full(&'a LevelChunk),
+    Lightweight(&'a LightweightTreeContextChunk),
+}
+
+impl TreeContextChunkRef<'_> {
+    fn block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
+        match self {
+            Self::Full(chunk) => chunk.get_block_state_name(world_x, world_y, world_z),
+            Self::Lightweight(chunk) => {
+                Some(chunk.synthetic_block_state(world_x, world_y, world_z))
+            }
+        }
+    }
+}
+
 struct TreeDecorationBlockContext<'a> {
     source_pos: ChunkPos,
-    source_chunk: &'a LevelChunk,
+    source_chunk: TreeContextChunkRef<'a>,
     target_pos: ChunkPos,
     target_chunk: &'a LevelChunk,
-    generated_chunks: HashMap<ChunkPos, &'a LevelChunk>,
+    generated_chunks: HashMap<ChunkPos, TreeContextChunkRef<'a>>,
 }
 
 impl TreeDecorationBlockContext<'_> {
@@ -5930,9 +5946,7 @@ impl TreeDecorationBlockContext<'_> {
             z: world_z.div_euclid(16),
         };
         if chunk_pos == self.source_pos {
-            return self
-                .source_chunk
-                .get_block_state_name(world_x, world_y, world_z);
+            return self.source_chunk.block_state(world_x, world_y, world_z);
         }
         if chunk_pos == self.target_pos {
             return self
@@ -5941,7 +5955,7 @@ impl TreeDecorationBlockContext<'_> {
         }
         self.generated_chunks
             .get(&chunk_pos)
-            .and_then(|chunk| chunk.get_block_state_name(world_x, world_y, world_z))
+            .and_then(|chunk| chunk.block_state(world_x, world_y, world_z))
     }
 }
 
@@ -32944,19 +32958,21 @@ fn apply_initial_tree_decoration_to_chunk(
                 x: source_x,
                 z: source_z,
             };
-            let (base_chunk, terrain_heights) = if source_pos == chunk.pos {
+            let (source_chunk, terrain_heights) = if source_pos == chunk.pos {
                 (
-                    &*chunk,
+                    TreeContextChunkRef::Full(&*chunk),
                     &*target_terrain_heights.get_or_insert_with(|| {
                         tree_decoration_terrain_heights_from_wg(chunk, settings)
                     }),
                 )
             } else {
-                let Some((base_chunk, terrain_heights)) = cached_region_chunks.get(&source_pos)
-                else {
+                let Some(cached_chunk) = cached_region_chunks.get(&source_pos) else {
                     continue;
                 };
-                (base_chunk, terrain_heights)
+                (
+                    TreeContextChunkRef::Lightweight(cached_chunk),
+                    &cached_chunk.terrain_heights,
+                )
             };
             let source_min_x = source_pos.x * 16;
             let source_min_z = source_pos.z * 16;
@@ -32971,16 +32987,17 @@ fn apply_initial_tree_decoration_to_chunk(
                     if region_pos == source_pos || region_pos == chunk.pos {
                         continue;
                     }
-                    let Some((region_chunk, _)) = cached_region_chunks.get(&region_pos) else {
+                    let Some(region_chunk) = cached_region_chunks.get(&region_pos) else {
                         continue;
                     };
-                    generated_chunks.insert(region_pos, region_chunk);
+                    generated_chunks
+                        .insert(region_pos, TreeContextChunkRef::Lightweight(region_chunk));
                 }
             }
             diagnostics.source_context_map_ms += started.elapsed().as_millis();
             let block_context = TreeDecorationBlockContext {
                 source_pos,
-                source_chunk: base_chunk,
+                source_chunk,
                 target_pos: chunk.pos,
                 target_chunk: &*chunk,
                 generated_chunks,
@@ -32994,7 +33011,6 @@ fn apply_initial_tree_decoration_to_chunk(
                 &climate_sampler,
                 global_features_per_step.as_deref(),
                 &region_biome_steps,
-                base_chunk,
                 &block_context,
                 terrain_heights,
                 &mut diagnostics,
@@ -33097,8 +33113,34 @@ fn apply_initial_tree_decoration_to_chunk(
     placed
 }
 
+struct LightweightTreeContextChunk {
+    terrain_heights: TreeDecorationHeights,
+    min_y: i32,
+    max_y: i32,
+}
+
+impl LightweightTreeContextChunk {
+    fn synthetic_block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> &'static str {
+        if world_y < self.min_y || world_y >= self.max_y {
+            return "minecraft:air";
+        }
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_z * 16 + local_x;
+        let ocean_floor = self.terrain_heights.ocean_floor[index];
+        let world_surface = self.terrain_heights.world_surface[index];
+        if world_y >= world_surface {
+            "minecraft:air"
+        } else if world_y >= ocean_floor {
+            "minecraft:water"
+        } else {
+            "minecraft:stone"
+        }
+    }
+}
+
 struct TreeDecorationContextCache {
-    cached_region_chunks: HashMap<ChunkPos, (LevelChunk, TreeDecorationHeights)>,
+    cached_region_chunks: HashMap<ChunkPos, LightweightTreeContextChunk>,
     context_chunk_build_ms: u128,
     context_heightmap_ms: u128,
     context_chunks: usize,
@@ -33131,9 +33173,16 @@ fn build_tree_decoration_context_cache(
             .iter()
             .map(|&region_pos| {
                 scope.spawn(move || {
-                    let (region_chunk, _) =
-                        fill_from_noise_chunk_timed(region_pos, settings, seed, noise_router);
-                    (region_pos, region_chunk)
+                    let terrain_heights =
+                        noise_tree_context_heights(region_pos, settings, seed, noise_router);
+                    (
+                        region_pos,
+                        LightweightTreeContextChunk {
+                            terrain_heights,
+                            min_y: settings.noise.min_y,
+                            max_y: settings.noise.min_y + settings.noise.height,
+                        },
+                    )
                 })
             })
             .collect::<Vec<_>>()
@@ -33148,14 +33197,129 @@ fn build_tree_decoration_context_cache(
     let context_chunk_build_ms = context_started.elapsed().as_millis();
     let heightmap_started = Instant::now();
     for (region_pos, region_chunk) in region_chunks {
-        let terrain_heights = tree_decoration_terrain_heights_from_wg(&region_chunk, settings);
-        cached_region_chunks.insert(region_pos, (region_chunk, terrain_heights));
+        cached_region_chunks.insert(region_pos, region_chunk);
     }
     TreeDecorationContextCache {
         cached_region_chunks,
         context_chunk_build_ms,
         context_heightmap_ms: heightmap_started.elapsed().as_millis(),
         context_chunks: context_positions.len(),
+    }
+}
+
+fn noise_tree_context_heights(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> TreeDecorationHeights {
+    with_noise_snapshot_cache(|| {
+        noise_tree_context_heights_inner(pos, settings, seed, noise_router)
+    })
+}
+
+fn noise_tree_context_heights_inner(
+    pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> TreeDecorationHeights {
+    let min_y = settings.noise.min_y;
+    let height = settings.noise.height;
+    let chunk_min_x = pos.x * 16;
+    let chunk_min_z = pos.z * 16;
+    let cell_width = settings.noise.cell_width();
+    let cell_height = settings.noise.cell_height();
+    let cell_count_xz = 16 / cell_width;
+    let cell_count_y = height / cell_height;
+    let cell_noise_min_y = min_y.div_euclid(cell_height);
+
+    let mut noise_chunk = NoiseChunk::new(chunk_min_x, chunk_min_z, *settings, seed, noise_router);
+    let algorithm = if settings.legacy_random_source {
+        crate::random_source::RandomAlgorithm::Legacy
+    } else {
+        crate::random_source::RandomAlgorithm::Xoroshiro
+    };
+    let factories = crate::random_source::random_state_seed_factories(seed, algorithm);
+    let mut aquifer = settings.aquifers_enabled.then(|| {
+        NoiseBasedAquifer::new(
+            &mut noise_chunk,
+            chunk_min_x,
+            chunk_min_x + 15,
+            chunk_min_z,
+            chunk_min_z + 15,
+            min_y,
+            height,
+            seed,
+            *settings,
+            noise_router,
+            factories.aquifer,
+        )
+    });
+    let material_rules = NoiseMaterialRuleList::new(settings, factories.ore);
+    let mut timings = LiveTerrainTimings::default();
+    let mut ocean_floor = [min_y; 16 * 16];
+    let mut world_surface = [min_y; 16 * 16];
+    let mut found_ocean_floor = [false; 16 * 16];
+    let mut found_world_surface = [false; 16 * 16];
+
+    for cell_x_index in 0..cell_count_xz {
+        noise_chunk.advance_cell_x(cell_x_index);
+        for cell_z_index in 0..cell_count_xz {
+            for cell_y_index in (0..cell_count_y).rev() {
+                noise_chunk.select_cell_yz(cell_y_index, cell_z_index);
+                for y_in_cell in (0..cell_height).rev() {
+                    let pos_y = (cell_noise_min_y + cell_y_index) * cell_height + y_in_cell;
+                    let factor_y = y_in_cell as f64 / cell_height as f64;
+                    noise_chunk.update_for_y(pos_y, factor_y);
+                    for x_in_cell in 0..cell_width {
+                        let pos_x = chunk_min_x + cell_x_index * cell_width + x_in_cell;
+                        let local_x = (pos_x & 15) as usize;
+                        let factor_x = x_in_cell as f64 / cell_width as f64;
+                        noise_chunk.update_for_x(pos_x, factor_x);
+                        for z_in_cell in 0..cell_width {
+                            let pos_z = chunk_min_z + cell_z_index * cell_width + z_in_cell;
+                            let local_z = (pos_z & 15) as usize;
+                            let factor_z = z_in_cell as f64 / cell_width as f64;
+                            noise_chunk.update_for_z(pos_z, factor_z);
+                            let index = local_z * 16 + local_x;
+                            if found_ocean_floor[index] && found_world_surface[index] {
+                                continue;
+                            }
+                            let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
+                            let block = material_rules.calculate(
+                                aquifer.as_mut(),
+                                &noise_chunk,
+                                settings,
+                                pos_x,
+                                pos_y,
+                                pos_z,
+                                density,
+                                &mut timings,
+                                false,
+                            );
+                            if block == "minecraft:air" {
+                                continue;
+                            }
+                            if !found_world_surface[index] {
+                                world_surface[index] = pos_y + 1;
+                                found_world_surface[index] = true;
+                            }
+                            if block != "minecraft:water" && block != "minecraft:lava" {
+                                ocean_floor[index] = pos_y + 1;
+                                found_ocean_floor[index] = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        noise_chunk.swap_slices();
+    }
+
+    TreeDecorationHeights {
+        ocean_floor,
+        world_surface,
     }
 }
 
@@ -48878,6 +49042,25 @@ mod tests {
         assert!(
             chunk.heightmaps.contains_key("OCEAN_FLOOR_WG"),
             "OCEAN_FLOOR_WG heightmap must be present"
+        );
+    }
+
+    #[test]
+    fn lightweight_tree_context_heights_match_noise_chunk_heightmaps() {
+        let settings = super::builtin_noise_generator_settings("overworld").unwrap();
+        let router = super::builtin_noise_router(super::noise_router_id_for_settings(*settings))
+            .unwrap()
+            .router;
+        let pos = ChunkPos { x: 1, z: -1 };
+        let seed = 0;
+        let chunk = super::fill_from_noise_chunk(pos, settings, seed, router);
+        let full_heights = super::tree_decoration_terrain_heights_from_wg(&chunk, settings);
+        let lightweight_heights = super::noise_tree_context_heights(pos, settings, seed, router);
+
+        assert_eq!(lightweight_heights.ocean_floor, full_heights.ocean_floor);
+        assert_eq!(
+            lightweight_heights.world_surface,
+            full_heights.world_surface
         );
     }
 
