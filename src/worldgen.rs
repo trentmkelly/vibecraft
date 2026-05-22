@@ -34983,6 +34983,7 @@ struct SurfaceRulesContext {
     stone_depth_below: i32,
     biome: &'static str,
     temperature: f32,
+    biome_needs_update: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -35089,6 +35090,7 @@ impl SurfaceRulesContext {
             stone_depth_below: 0,
             biome: "minecraft:plains",
             temperature: 0.8,
+            biome_needs_update: false,
         }
     }
 
@@ -35120,16 +35122,23 @@ impl SurfaceRulesContext {
         stone_depth_below: i32,
         water_height: i32,
         block_y: i32,
-        biome: &'static str,
-        temperature: f32,
     ) {
         self.last_update_y = self.last_update_y.wrapping_add(1);
         self.block_y = block_y;
         self.water_height = water_height;
         self.stone_depth_above = stone_depth_above;
         self.stone_depth_below = stone_depth_below;
+        self.biome_needs_update = true;
+    }
+
+    fn resolve_biome(&mut self, resolver: &mut impl FnMut(i32, i32, i32) -> (&'static str, f32)) {
+        if !self.biome_needs_update {
+            return;
+        }
+        let (biome, temperature) = resolver(self.block_x, self.block_y, self.block_z);
         self.biome = biome;
         self.temperature = temperature;
+        self.biome_needs_update = false;
     }
 }
 
@@ -35186,6 +35195,47 @@ fn dyn_surface_condition_test(
     }
     let compute_started = state.profile.as_ref().map(|_| Instant::now());
     let result = dyn_surface_condition_compute(cond, state, settings);
+    if let Some(started) = compute_started {
+        if let Some(profile) = &state.profile {
+            profile
+                .borrow_mut()
+                .record_condition_compute(cond, started.elapsed().as_micros());
+        }
+    }
+    state
+        .condition_cache
+        .borrow_mut()
+        .insert(cache_key, SurfaceConditionCacheEntry { update_key, result });
+    result
+}
+
+fn dyn_surface_condition_test_live(
+    cond: &DynSurfaceCondition,
+    state: &mut SurfaceRulesContext,
+    settings: NoiseGeneratorSettings,
+    biome_resolver: &mut impl FnMut(i32, i32, i32) -> (&'static str, f32),
+) -> bool {
+    if state.profile.is_none() {
+        return dyn_surface_condition_compute_live(cond, state, settings, biome_resolver);
+    }
+    if let Some(profile) = &state.profile {
+        profile.borrow_mut().record_condition_test(cond);
+    }
+    let update_key = match cond.cache_granularity() {
+        SurfaceConditionCacheGranularity::Xz => state.last_update_xz,
+        SurfaceConditionCacheGranularity::Y => state.last_update_y,
+    };
+    let cache_key = cond as *const DynSurfaceCondition as usize;
+    if let Some(entry) = state.condition_cache.borrow().get(&cache_key).copied() {
+        if entry.update_key == update_key {
+            if let Some(profile) = &state.profile {
+                profile.borrow_mut().record_condition_cache_hit(cond);
+            }
+            return entry.result;
+        }
+    }
+    let compute_started = state.profile.as_ref().map(|_| Instant::now());
+    let result = dyn_surface_condition_compute_live(cond, state, settings, biome_resolver);
     if let Some(started) = compute_started {
         if let Some(profile) = &state.profile {
             profile
@@ -35305,15 +35355,38 @@ fn dyn_surface_condition_compute(
     }
 }
 
+fn dyn_surface_condition_compute_live(
+    cond: &DynSurfaceCondition,
+    state: &mut SurfaceRulesContext,
+    settings: NoiseGeneratorSettings,
+    biome_resolver: &mut impl FnMut(i32, i32, i32) -> (&'static str, f32),
+) -> bool {
+    match cond {
+        DynSurfaceCondition::Biome(biomes) => {
+            state.resolve_biome(biome_resolver);
+            biomes.iter().any(|b| b == &state.biome)
+        }
+        DynSurfaceCondition::Temperature => {
+            state.resolve_biome(biome_resolver);
+            state.temperature < 0.15
+        }
+        DynSurfaceCondition::Not(inner) => {
+            !dyn_surface_condition_test_live(inner, state, settings, biome_resolver)
+        }
+        _ => dyn_surface_condition_compute(cond, state, settings),
+    }
+}
+
 /// Evaluate a `DynSurfaceRule` against the current column/block state.
 ///
 /// Returns the block ID to place, or `None` if no rule matches.
 /// Mirrors Java's `SurfaceRules.SurfaceRule::tryApply(blockX, blockY, blockZ)`.
 fn dyn_surface_rule_apply<'a>(
     rule: &'a DynSurfaceRule,
-    state: &SurfaceRulesContext,
+    state: &mut SurfaceRulesContext,
     settings: NoiseGeneratorSettings,
     band_fn: &impl Fn(i32, i32, i32) -> &'static str,
+    biome_resolver: &mut impl FnMut(i32, i32, i32) -> (&'static str, f32),
 ) -> Option<&'a str> {
     if let Some(profile) = &state.profile {
         let mut profile = profile.borrow_mut();
@@ -35330,10 +35403,10 @@ fn dyn_surface_rule_apply<'a>(
         DynSurfaceRule::Block(block) => Some(block.as_str()),
         DynSurfaceRule::Sequence(rules) => rules
             .iter()
-            .find_map(|r| dyn_surface_rule_apply(r, state, settings, band_fn)),
+            .find_map(|r| dyn_surface_rule_apply(r, state, settings, band_fn, biome_resolver)),
         DynSurfaceRule::Condition { condition, rule } => {
-            if dyn_surface_condition_test(condition, state, settings) {
-                dyn_surface_rule_apply(rule, state, settings, band_fn)
+            if dyn_surface_condition_test_live(condition, state, settings, biome_resolver) {
+                dyn_surface_rule_apply(rule, state, settings, band_fn, biome_resolver)
             } else {
                 None
             }
@@ -35823,46 +35896,52 @@ fn build_surface_for_chunk_timed_with_sections(
                         if y < min_surface_level && y >= 8 {
                             continue;
                         }
-                        let biome_y = if settings.legacy_random_source { 0 } else { y };
-                        let biome_key = (block_x, biome_y, block_z);
-                        let (surface_biome, temperature) =
-                            if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
-                                cached
-                            } else {
-                                let debug_started = surface_debug.then(Instant::now);
-                                let biome = biome_manager_get_biome_cached(
-                                    biome_source_model,
-                                    biome_zoom_seed,
-                                    block_x,
-                                    biome_y,
-                                    block_z,
-                                    &climate_sampler,
-                                    Some(&chunk_noise_biomes),
-                                    &mut surface_noise_biome_cache,
-                                )
-                                .unwrap_or("minecraft:plains");
-                                let temperature = surface_biome_temperature(biome);
-                                if let Some(started) = debug_started {
-                                    surface_biome_us += started.elapsed().as_micros();
-                                }
-                                surface_biome_cache.insert(biome_key, (biome, temperature));
-                                (biome, temperature)
-                            };
                         surface_context.update_y(
                             stone_depth_above,
                             stone_depth_below,
                             water_height,
                             y,
-                            surface_biome,
-                            temperature,
                         );
                         let band_fn = |wx: i32, by: i32, wz: i32| {
                             get_clay_band(seed, algorithm, *settings, wx, by, wz)
                         };
+                        let mut biome_resolver = |block_x: i32, block_y: i32, block_z: i32| {
+                            let biome_y = if settings.legacy_random_source {
+                                0
+                            } else {
+                                block_y
+                            };
+                            let biome_key = (block_x, biome_y, block_z);
+                            if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
+                                return cached;
+                            }
+                            let debug_started = surface_debug.then(Instant::now);
+                            let biome = biome_manager_get_biome_cached(
+                                biome_source_model,
+                                biome_zoom_seed,
+                                block_x,
+                                biome_y,
+                                block_z,
+                                &climate_sampler,
+                                Some(&chunk_noise_biomes),
+                                &mut surface_noise_biome_cache,
+                            )
+                            .unwrap_or("minecraft:plains");
+                            let temperature = surface_biome_temperature(biome);
+                            if let Some(started) = debug_started {
+                                surface_biome_us += started.elapsed().as_micros();
+                            }
+                            surface_biome_cache.insert(biome_key, (biome, temperature));
+                            (biome, temperature)
+                        };
                         let debug_started = surface_debug.then(Instant::now);
-                        if let Some(new_block) =
-                            dyn_surface_rule_apply(rule, &surface_context, *settings, &band_fn)
-                        {
+                        if let Some(new_block) = dyn_surface_rule_apply(
+                            rule,
+                            &mut surface_context,
+                            *settings,
+                            &band_fn,
+                            &mut biome_resolver,
+                        ) {
                             if let Some(started) = debug_started {
                                 surface_rule_us += started.elapsed().as_micros();
                             }
@@ -59276,6 +59355,7 @@ mod tests {
             stone_depth_below: quiet_desert_floor.stone_depth_below,
             biome: quiet_desert_floor.biome,
             temperature: quiet_desert_floor.temperature,
+            biome_needs_update: false,
         };
         assert!(super::dyn_surface_condition_test(
             &super::DynSurfaceCondition::Water {
