@@ -7048,7 +7048,7 @@ fn live_tree_can_place_in_chunk(
                 let world_z = block_context.source_pos.z * 16 + local_z;
                 if block_context
                     .block_state(world_x, world_y, world_z)
-                    .is_some_and(|state| !tree_valid_pos(state))
+                    .is_some_and(|state| !tree_trunk_free_pos(state))
                 {
                     clipped_tree_height = y_offset - 2;
                     break 'height_scan;
@@ -7114,7 +7114,7 @@ fn live_tree_can_place_with_previous_blocks(
                         z: world_z,
                     },
                 );
-                if !tree_valid_pos(&state) {
+                if !tree_trunk_free_pos(&state) {
                     clipped_tree_height = y_offset - 2;
                     break 'height_scan;
                 }
@@ -43927,8 +43927,14 @@ pub fn trunk_placer_height(placer: TrunkPlacerModel, rand_a: i32, rand_b: i32) -
 }
 
 pub fn tree_valid_pos(state: &str) -> bool {
+    let state = block_state_id(state);
     block_matches_tag(state, "minecraft:air")
         || block_matches_tag(state, "minecraft:replaceable_by_trees")
+}
+
+pub fn tree_trunk_free_pos(state: &str) -> bool {
+    let state = block_state_id(state);
+    tree_valid_pos(state) || block_matches_tag(state, "minecraft:logs")
 }
 
 pub fn tree_max_free_height(
@@ -43944,7 +43950,7 @@ pub fn tree_max_free_height(
         let row = rows.get(y as usize).copied().unwrap_or(&[]);
         if row.len() < expected_width
             || row.iter().take(expected_width).any(|state| {
-                !tree_valid_pos(state) || (!ignore_vines && *state == "minecraft:vine")
+                !tree_trunk_free_pos(state) || (!ignore_vines && *state == "minecraft:vine")
             })
         {
             return y - 2;
@@ -53505,6 +53511,170 @@ mod tests {
             eprintln!(
                 "[worldgen-region-tree-parity-mismatch] count={} expected={} actual={}",
                 mismatch.count, mismatch.expected, mismatch.actual
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic for final tree-stage leaf/log placement drift"]
+    fn normal_overworld_tree_mismatch_shape_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut generated_chunks = Vec::new();
+        for chunk in chunks {
+            let pos = ChunkPos {
+                x: chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut chunk = base;
+            super::apply_configured_carvers_for_biome_source(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+            super::apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
+            super::apply_underground_ore_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            super::apply_initial_tree_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+                None,
+            );
+            generated_chunks.push(chunk);
+        }
+
+        let tracked = [
+            "minecraft:oak_leaves",
+            "minecraft:birch_leaves",
+            "minecraft:oak_log",
+            "minecraft:birch_log",
+            "minecraft:leaf_litter",
+            "minecraft:air",
+        ];
+        let mut counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+        let mut y_ranges: BTreeMap<(String, String), (i32, i32)> = BTreeMap::new();
+        let mut examples: BTreeMap<(String, String), Vec<BlockPos>> = BTreeMap::new();
+
+        for (chunk_index, fixture_chunk) in chunks.iter().enumerate() {
+            let chunk_x = fixture_chunk
+                .get("chunkX")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkX") as i32;
+            let chunk_z = fixture_chunk
+                .get("chunkZ")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkZ") as i32;
+            let y_min = fixture_chunk
+                .get("yMin")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include yMin") as i32;
+            let blocks = fixture_chunk
+                .get("blocks")
+                .and_then(serde_json::Value::as_array)
+                .expect("fixture chunk should include blocks");
+            let generated = &generated_chunks[chunk_index];
+
+            for (local_x, y_column) in blocks.iter().enumerate() {
+                let y_column = y_column.as_array().expect("x column should be an array");
+                for (y_offset, z_column) in y_column.iter().enumerate() {
+                    let world_y = y_min + y_offset as i32;
+                    let z_column = z_column.as_array().expect("z column should be an array");
+                    for (local_z, expected) in z_column.iter().enumerate() {
+                        let expected = expected
+                            .as_str()
+                            .expect("fixture block should be a string")
+                            .split_once('[')
+                            .map_or_else(|| expected.as_str().unwrap(), |(id, _)| id);
+                        let world_x = chunk_x * 16 + local_x as i32;
+                        let world_z = chunk_z * 16 + local_z as i32;
+                        let actual = generated
+                            .get_block_state(world_x, world_y, world_z)
+                            .unwrap_or_else(|| "minecraft:air".to_string());
+                        if expected == actual {
+                            continue;
+                        }
+                        if !tracked.contains(&expected) && !tracked.contains(&actual.as_str()) {
+                            continue;
+                        }
+                        let key = (expected.to_string(), actual);
+                        *counts.entry(key.clone()).or_insert(0) += 1;
+                        y_ranges
+                            .entry(key.clone())
+                            .and_modify(|range| {
+                                range.0 = range.0.min(world_y);
+                                range.1 = range.1.max(world_y);
+                            })
+                            .or_insert((world_y, world_y));
+                        let examples = examples.entry(key).or_default();
+                        if examples.len() < 8 {
+                            examples.push(BlockPos {
+                                x: world_x,
+                                y: world_y,
+                                z: world_z,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut sorted = counts.into_iter().collect::<Vec<_>>();
+        sorted.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+        for ((expected, actual), count) in sorted.into_iter().take(20) {
+            let (min_y, max_y) = y_ranges[&(expected.clone(), actual.clone())];
+            let examples = examples[&(expected.clone(), actual.clone())]
+                .iter()
+                .map(|pos| format!("({}, {}, {})", pos.x, pos.y, pos.z))
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!(
+                "[tree-shape-diagnostic] count={} expected={} actual={} y={}..{} examples={}",
+                count, expected, actual, min_y, max_y, examples
             );
         }
     }
@@ -63080,6 +63250,9 @@ mod tests {
         assert!(super::tree_valid_pos("minecraft:short_dry_grass"));
         assert!(!super::tree_valid_pos("minecraft:oak_sapling"));
         assert!(!super::tree_valid_pos("minecraft:stone"));
+        assert!(super::tree_trunk_free_pos("minecraft:oak_log"));
+        assert!(super::tree_trunk_free_pos("minecraft:birch_log[axis=y]"));
+        assert!(!super::tree_valid_pos("minecraft:oak_log"));
         let min_size = FeatureSizeModel::TwoLayers {
             limit: 1,
             lower_size: 0,
@@ -63088,7 +63261,17 @@ mod tests {
         };
         let free_row = ["minecraft:air"; 9];
         let vine_row = ["minecraft:vine"; 9];
+        let log_row = ["minecraft:oak_log"; 9];
         let stone_row = ["minecraft:stone"; 9];
+        assert_eq!(
+            super::tree_max_free_height(
+                5,
+                min_size,
+                &[&free_row, &log_row, &log_row, &log_row, &log_row, &log_row, &log_row],
+                true,
+            ),
+            5
+        );
         assert_eq!(
             super::tree_max_free_height(
                 5,
