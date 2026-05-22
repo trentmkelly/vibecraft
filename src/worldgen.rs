@@ -36042,9 +36042,11 @@ fn apply_initial_tree_decoration_to_chunk(
             )
         });
     let mut diagnostics = TreeDecorationDiagnostics::default();
+    let source_radius = tree_decoration_source_radius();
     let context_cache = precomputed_context.unwrap_or_else(|| {
         build_tree_decoration_context_cache(
             chunk.pos,
+            source_radius,
             biome_source_model,
             settings,
             seed,
@@ -36064,8 +36066,8 @@ fn apply_initial_tree_decoration_to_chunk(
         generated_chunks.insert(*pos, TreeContextChunkRef::Lightweight(cached));
     }
 
-    for source_z in target_pos.z - 1..=target_pos.z + 1 {
-        for source_x in target_pos.x - 1..=target_pos.x + 1 {
+    for source_z in target_pos.z - source_radius..=target_pos.z + source_radius {
+        for source_x in target_pos.x - source_radius..=target_pos.x + source_radius {
             let source_pos = ChunkPos {
                 x: source_x,
                 z: source_z,
@@ -36260,6 +36262,7 @@ struct TreeDecorationContextCache {
 
 fn build_tree_decoration_context_cache(
     chunk_pos: ChunkPos,
+    source_radius: i32,
     _biome_source_model: &BiomeSourceModel,
     settings: &NoiseGeneratorSettings,
     seed: i64,
@@ -36267,9 +36270,12 @@ fn build_tree_decoration_context_cache(
     _surface_rule: &DynSurfaceRule,
 ) -> TreeDecorationContextCache {
     let mut cached_region_chunks = HashMap::new();
-    let mut context_positions = Vec::with_capacity(8);
-    for region_z in chunk_pos.z - 1..=chunk_pos.z + 1 {
-        for region_x in chunk_pos.x - 1..=chunk_pos.x + 1 {
+    let radius = source_radius.max(0);
+    let diameter = radius * 2 + 1;
+    let mut context_positions =
+        Vec::with_capacity((diameter * diameter).saturating_sub(1) as usize);
+    for region_z in chunk_pos.z - radius..=chunk_pos.z + radius {
+        for region_x in chunk_pos.x - radius..=chunk_pos.x + radius {
             let region_pos = ChunkPos {
                 x: region_x,
                 z: region_z,
@@ -36308,6 +36314,14 @@ fn build_tree_decoration_context_cache(
         context_heightmap_ms: heightmap_started.elapsed().as_millis(),
         context_chunks: context_positions.len(),
     }
+}
+
+fn tree_decoration_source_radius() -> i32 {
+    std::env::var("RUSTCRAFT_WORLDGEN_TREE_SOURCE_RADIUS")
+        .ok()
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(1)
+        .clamp(0, 1)
 }
 
 fn noise_tree_context_heights(
