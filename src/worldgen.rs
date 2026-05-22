@@ -5879,10 +5879,6 @@ fn live_tree_decoration_blocks(
     let mut biome_filter_cache: HashMap<(i32, i32, i32), &'static str> = HashMap::new();
     let mut blocks = Vec::new();
     let mut block_overlay = TreeBlockOverlay::default();
-    let target_min_x = block_context.target_pos.x * 16;
-    let target_min_z = block_context.target_pos.z * 16;
-    let target_max_x = target_min_x + 15;
-    let target_max_z = target_min_z + 15;
     let mut accepted_log_positions = trace_trees.then(HashSet::new);
     for call in plan.feature_calls.iter().filter(|call| {
         call.step_index == GenerationDecorationStep::VegetalDecoration as usize
@@ -6148,14 +6144,7 @@ fn live_tree_decoration_blocks(
                         block.state,
                     );
                 }
-                blocks.extend(plan.blocks.into_iter().filter(|block| {
-                    let block_world_x = chunk_pos.x * 16 + block.pos.x;
-                    let block_world_z = chunk_pos.z * 16 + block.pos.z;
-                    block_world_x >= target_min_x
-                        && block_world_x <= target_max_x
-                        && block_world_z >= target_min_z
-                        && block_world_z <= target_max_z
-                }));
+                blocks.extend(plan.blocks);
                 continue;
             }
             let LiveTreeFeatureSelection::Tree(tree_config) = selection else {
@@ -6363,14 +6352,7 @@ fn live_tree_decoration_blocks(
                     block.state,
                 );
             }
-            blocks.extend(plan.blocks.into_iter().filter(|block| {
-                let block_world_x = chunk_pos.x * 16 + block.pos.x;
-                let block_world_z = chunk_pos.z * 16 + block.pos.z;
-                block_world_x >= target_min_x
-                    && block_world_x <= target_max_x
-                    && block_world_z >= target_min_z
-                    && block_world_z <= target_max_z
-            }));
+            blocks.extend(plan.blocks);
         }
     }
 
