@@ -8117,6 +8117,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
     settings: &NoiseGeneratorSettings,
     seed: i64,
     decoration_region_biome_steps: &[&'static [&'static [&'static str]]],
+    source_region_biome_steps: &DecorationBiomeStepsByChunk,
     target_terrain_heights: &TreeDecorationHeights,
     context_cache: &TreeDecorationContextCache,
     phase: SimpleVegetationPhase,
@@ -8169,6 +8170,13 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
             }) else {
                 continue;
             };
+            let possible_steps = source_region_biome_steps
+                .get(&source_pos)
+                .cloned()
+                .unwrap_or_else(|| decoration_region_biome_steps.to_vec());
+            if possible_steps.is_empty() {
+                continue;
+            }
             let plan_started = Instant::now();
             let plan = biome_decoration_feature_plan(
                 seed,
@@ -8176,7 +8184,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
                 source_pos.z,
                 settings.noise.min_y.div_euclid(16),
                 &features_per_step,
-                decoration_region_biome_steps,
+                &possible_steps,
             );
             plan_ms += plan_started.elapsed().as_millis();
             for call in plan.feature_calls.iter().filter(|call| {
@@ -28570,10 +28578,6 @@ pub fn generate_chunk_for_stem_with_mode(
                     seed,
                 ) {
                     Some((mut chunk, _terrain_timings, mut noise_context)) => {
-                        let region_biome_steps = decoration_region_biome_steps_from_generated_chunk(
-                            &chunk,
-                            biome_source_model,
-                        );
                         apply_configured_carvers_for_biome_source_with_noise_context(
                             &mut chunk,
                             biome_source_model,
@@ -28587,14 +28591,15 @@ pub fn generate_chunk_for_stem_with_mode(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            Some(&region_biome_steps),
+                            None,
                         );
                         apply_initial_tree_decoration_to_chunk(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
                             seed,
-                            Some(&region_biome_steps),
+                            None,
+                            None,
                             None,
                         );
                         chunk
@@ -30535,12 +30540,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                     Some((mut chunk, terrain_timings, mut noise_context)) => {
                         timings.base_generation_ms = base_started.elapsed().as_millis();
                         timings.terrain = terrain_timings;
-                        let phase_started = Instant::now();
-                        let region_biome_steps = decoration_region_biome_steps_from_generated_chunk(
-                            &chunk,
-                            biome_source_model,
-                        );
-                        timings.region_biome_steps_ms = phase_started.elapsed().as_millis();
+                        timings.region_biome_steps_ms = 0;
 
                         let phase_started = Instant::now();
                         timings.carver_blocks =
@@ -30573,6 +30573,17 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             &load_surface_rule(noise_settings.id)
                                 .expect("normal overworld surface rule must load"),
                         );
+                        let source_decoration_steps = source_decoration_biome_steps_cache(
+                            chunk.pos,
+                            source_radius,
+                            biome_source_model,
+                            noise_settings,
+                            &ClimateSampler::from_noise_router(
+                                &decoration_context_router,
+                                seed,
+                                **noise_settings,
+                            ),
+                        );
 
                         let phase_started = Instant::now();
                         timings.ore_blocks = apply_underground_ore_decoration_to_chunk_with_context(
@@ -30580,8 +30591,9 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            Some(&region_biome_steps),
+                            None,
                             Some(&decoration_context_cache.cached_region_chunks),
+                            Some(&source_decoration_steps),
                         );
                         timings.ore_decoration_ms = phase_started.elapsed().as_millis();
 
@@ -30591,8 +30603,9 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            Some(&region_biome_steps),
+                            None,
                             Some(decoration_context_cache),
+                            Some(&source_decoration_steps),
                         );
                         timings.tree_blocks = tree_result.placed_blocks;
                         timings.tree_context_ms = tree_result.context_build_ms;
@@ -30711,8 +30724,6 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
                 source_positions.push(pos);
                 continue;
             };
-            let region_biome_steps =
-                decoration_region_biome_steps_from_generated_chunk(&chunk, biome_source_model);
             apply_configured_carvers_for_biome_source_with_noise_context(
                 &mut chunk,
                 biome_source_model,
@@ -30726,7 +30737,7 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
                 biome_source_model,
                 noise_settings,
                 seed,
-                Some(&region_biome_steps),
+                None,
             );
             chunks.insert(pos, chunk);
             source_positions.push(pos);
@@ -30734,16 +30745,13 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
     }
 
     for pos in source_positions {
-        let region_biome_steps = chunks.get(&pos).map(|chunk| {
-            decoration_region_biome_steps_from_generated_chunk(chunk, biome_source_model)
-        });
         apply_initial_tree_decoration_from_source_into_region(
             &mut chunks,
             pos,
             biome_source_model,
             noise_settings,
             seed,
-            region_biome_steps.as_deref(),
+            None,
         );
     }
 
@@ -37783,6 +37791,74 @@ struct TreeDecorationResult {
     context_chunks: usize,
 }
 
+type DecorationBiomeSteps = Vec<&'static [&'static [&'static str]]>;
+type DecorationBiomeStepsByChunk = HashMap<ChunkPos, DecorationBiomeSteps>;
+
+fn source_decoration_biome_steps_cache(
+    center_pos: ChunkPos,
+    source_radius: i32,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    climate_sampler: &ClimateSampler,
+) -> DecorationBiomeStepsByChunk {
+    let mut cache = DecorationBiomeStepsByChunk::new();
+    let sample_quart_y = ((settings.sea_level + 1).clamp(
+        settings.noise.min_y,
+        settings.noise.min_y + settings.noise.height - 1,
+    )) >> 2;
+    with_noise_snapshot_cache(|| {
+        let mut biome_cache: HashMap<(i32, i32, i32), Option<&'static str>> = HashMap::new();
+        for source_z in center_pos.z - source_radius..=center_pos.z + source_radius {
+            for source_x in center_pos.x - source_radius..=center_pos.x + source_radius {
+                let source_pos = ChunkPos {
+                    x: source_x,
+                    z: source_z,
+                };
+                let mut steps = Vec::new();
+                let mut seen = Vec::new();
+                for chunk_z in source_pos.z - 1..=source_pos.z + 1 {
+                    for chunk_x in source_pos.x - 1..=source_pos.x + 1 {
+                        let chunk_quart_x = chunk_x * 4;
+                        let chunk_quart_z = chunk_z * 4;
+                        for local_z in 0..4 {
+                            for local_x in 0..4 {
+                                let quart_x = chunk_quart_x + local_x;
+                                let quart_z = chunk_quart_z + local_z;
+                                let biome = *biome_cache
+                                    .entry((quart_x, sample_quart_y, quart_z))
+                                    .or_insert_with(|| {
+                                        get_biome(
+                                            biome_source_model,
+                                            quart_x,
+                                            sample_quart_y,
+                                            quart_z,
+                                            climate_sampler,
+                                        )
+                                    });
+                                let Some(biome) = biome else {
+                                    continue;
+                                };
+                                if seen.contains(&biome) {
+                                    continue;
+                                }
+                                if let Some(generation) = biome_generation_settings(biome) {
+                                    seen.push(biome);
+                                    steps.push(generation.feature_steps);
+                                }
+                            }
+                        }
+                    }
+                }
+                if steps.is_empty() {
+                    steps = possible_biome_feature_steps_for_source(biome_source_model);
+                }
+                cache.insert(source_pos, steps);
+            }
+        }
+    });
+    cache
+}
+
 fn apply_initial_tree_decoration_to_chunk(
     chunk: &mut LevelChunk,
     biome_source_model: &BiomeSourceModel,
@@ -37790,6 +37866,7 @@ fn apply_initial_tree_decoration_to_chunk(
     seed: i64,
     decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
     precomputed_context: Option<TreeDecorationContextCache>,
+    precomputed_source_steps: Option<&DecorationBiomeStepsByChunk>,
 ) -> TreeDecorationResult {
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return TreeDecorationResult::default();
@@ -37815,18 +37892,25 @@ fn apply_initial_tree_decoration_to_chunk(
     } else {
         build_features_per_step(&global_biome_steps, true).ok()
     };
-    let region_biome_steps = decoration_region_biome_steps
-        .map(|steps| steps.to_vec())
-        .unwrap_or_else(|| {
-            possible_biome_feature_steps_for_decoration_region(
-                chunk.pos,
-                biome_source_model,
-                settings,
-                &climate_sampler,
-            )
-        });
     let mut diagnostics = TreeDecorationDiagnostics::default();
     let source_radius = tree_decoration_source_radius();
+    let owned_source_region_biome_steps;
+    let source_region_biome_steps = if let Some(source_steps) = precomputed_source_steps {
+        source_steps
+    } else {
+        owned_source_region_biome_steps = source_decoration_biome_steps_cache(
+            chunk.pos,
+            source_radius,
+            biome_source_model,
+            settings,
+            &climate_sampler,
+        );
+        &owned_source_region_biome_steps
+    };
+    let target_region_biome_steps = decoration_region_biome_steps
+        .map(|steps| steps.to_vec())
+        .or_else(|| source_region_biome_steps.get(&chunk.pos).cloned())
+        .unwrap_or_else(|| possible_biome_feature_steps_for_source(biome_source_model));
     let context_cache = precomputed_context.unwrap_or_else(|| {
         build_tree_decoration_context_cache(
             chunk.pos,
@@ -37850,7 +37934,8 @@ fn apply_initial_tree_decoration_to_chunk(
         biome_source_model,
         settings,
         seed,
-        &region_biome_steps,
+        &target_region_biome_steps,
+        &source_region_biome_steps,
         terrain_heights,
         &context_cache,
         SimpleVegetationPhase::BeforeTrees,
@@ -37895,6 +37980,10 @@ fn apply_initial_tree_decoration_to_chunk(
                 target_chunk: &*chunk,
                 generated_chunks: &generated_chunks,
             };
+            let source_region_biome_steps = source_region_biome_steps
+                .get(&source_pos)
+                .cloned()
+                .unwrap_or_else(|| possible_biome_feature_steps_for_source(biome_source_model));
             for block in live_tree_decoration_blocks(
                 source_pos,
                 seed,
@@ -37902,7 +37991,7 @@ fn apply_initial_tree_decoration_to_chunk(
                 biome_source_model,
                 &climate_sampler,
                 global_features_per_step.as_deref(),
-                &region_biome_steps,
+                &source_region_biome_steps,
                 &block_context,
                 source_terrain_heights,
                 &mut diagnostics,
@@ -37996,7 +38085,8 @@ fn apply_initial_tree_decoration_to_chunk(
         biome_source_model,
         settings,
         seed,
-        &region_biome_steps,
+        &target_region_biome_steps,
+        &source_region_biome_steps,
         terrain_heights,
         &context_cache,
         SimpleVegetationPhase::AfterTrees,
@@ -38009,7 +38099,7 @@ fn apply_initial_tree_decoration_to_chunk(
         settings,
         seed,
         &terrain_heights,
-        &region_biome_steps,
+        &target_region_biome_steps,
     );
 
     TreeDecorationResult {
@@ -38531,6 +38621,7 @@ fn apply_underground_ore_decoration_to_chunk(
         seed,
         decoration_region_biome_steps,
         None,
+        None,
     )
 }
 
@@ -38541,6 +38632,7 @@ fn apply_underground_ore_decoration_to_chunk_with_context(
     seed: i64,
     decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
     decoration_context_chunks: Option<&HashMap<ChunkPos, LightweightTreeContextChunk>>,
+    precomputed_source_steps: Option<&DecorationBiomeStepsByChunk>,
 ) -> usize {
     let total_started = Instant::now();
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
@@ -38553,6 +38645,22 @@ fn apply_underground_ore_decoration_to_chunk_with_context(
         return 0;
     };
     let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
+    let owned_source_steps_cache;
+    let source_steps_cache = if let Some(source_steps) = precomputed_source_steps {
+        source_steps
+    } else if decoration_region_biome_steps.is_some() {
+        owned_source_steps_cache = DecorationBiomeStepsByChunk::new();
+        &owned_source_steps_cache
+    } else {
+        owned_source_steps_cache = source_decoration_biome_steps_cache(
+            chunk.pos,
+            1,
+            biome_source_model,
+            settings,
+            &climate_sampler,
+        );
+        &owned_source_steps_cache
+    };
     let started = Instant::now();
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
     let target_possible_steps = decoration_region_biome_steps
@@ -38606,6 +38714,7 @@ fn apply_underground_ore_decoration_to_chunk_with_context(
             let started = Instant::now();
             let possible_steps = decoration_region_biome_steps
                 .map(|steps| steps.to_vec())
+                .or_else(|| source_steps_cache.get(&source_pos).cloned())
                 .unwrap_or_else(|| {
                     possible_biome_feature_steps_for_decoration_region(
                         source_pos,
@@ -55320,6 +55429,7 @@ mod tests {
                 seed,
                 None,
                 None,
+                None,
             );
             base_chunks.push(base);
             carver_chunks.push(carver);
@@ -55368,6 +55478,130 @@ mod tests {
                     "[worldgen-stage-parity-mismatch] stage={} count={} expected={} actual={}",
                     label, mismatch.count, mismatch.expected, mismatch.actual
                 );
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic for source-chunk decoration biome sets and scheduled features"]
+    fn normal_overworld_decoration_source_feature_schedule_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        let router =
+            super::builtin_noise_router(super::noise_router_id_for_settings(**noise_settings))
+                .expect("normal overworld should have a built-in noise router")
+                .router;
+        let climate_sampler =
+            super::ClimateSampler::from_noise_router(&router, seed, **noise_settings);
+        let global_biome_steps = super::possible_biome_feature_steps_for_source(biome_source_model);
+        let features_per_step = super::build_features_per_step(&global_biome_steps, true)
+            .expect("global features should sort");
+        let min_section_y = noise_settings.noise.min_y.div_euclid(16);
+        let sample_quart_y = ((noise_settings.sea_level + 1).clamp(
+            noise_settings.noise.min_y,
+            noise_settings.noise.min_y + noise_settings.noise.height - 1,
+        )) >> 2;
+
+        for fixture_chunk in chunks.iter().take(4) {
+            let target_pos = ChunkPos {
+                x: fixture_chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: fixture_chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            for source_z in target_pos.z - 1..=target_pos.z + 1 {
+                for source_x in target_pos.x - 1..=target_pos.x + 1 {
+                    let source_pos = ChunkPos {
+                        x: source_x,
+                        z: source_z,
+                    };
+                    let mut biomes = std::collections::BTreeSet::new();
+                    for chunk_z in source_pos.z - 1..=source_pos.z + 1 {
+                        for chunk_x in source_pos.x - 1..=source_pos.x + 1 {
+                            let chunk_quart_x = chunk_x * 4;
+                            let chunk_quart_z = chunk_z * 4;
+                            for local_z in 0..4 {
+                                for local_x in 0..4 {
+                                    if let Some(biome) = super::get_biome(
+                                        biome_source_model,
+                                        chunk_quart_x + local_x,
+                                        sample_quart_y,
+                                        chunk_quart_z + local_z,
+                                        &climate_sampler,
+                                    ) {
+                                        biomes.insert(biome);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let possible_steps = super::possible_biome_feature_steps_for_decoration_region(
+                        source_pos,
+                        biome_source_model,
+                        noise_settings,
+                        &climate_sampler,
+                    );
+                    let plan = super::biome_decoration_feature_plan(
+                        seed,
+                        source_pos.x,
+                        source_pos.z,
+                        min_section_y,
+                        &features_per_step,
+                        &possible_steps,
+                    );
+                    let ore_features = plan
+                        .feature_calls
+                        .iter()
+                        .filter(|call| {
+                            call.step_index == GenerationDecorationStep::UndergroundOres as usize
+                        })
+                        .map(|call| call.feature)
+                        .collect::<Vec<_>>();
+                    let vegetal_features = plan
+                        .feature_calls
+                        .iter()
+                        .filter(|call| {
+                            call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+                        })
+                        .map(|call| call.feature)
+                        .collect::<Vec<_>>();
+                    eprintln!(
+                        "[decoration-source-schedule] target=({}, {}) source=({}, {}) biomes=[{}] ores=[{}] vegetal=[{}]",
+                        target_pos.x,
+                        target_pos.z,
+                        source_pos.x,
+                        source_pos.z,
+                        biomes.into_iter().collect::<Vec<_>>().join(","),
+                        ore_features.join(","),
+                        vegetal_features.join(","),
+                    );
+                }
             }
         }
     }
@@ -55556,6 +55790,7 @@ mod tests {
                 biome_source_model,
                 noise_settings,
                 seed,
+                None,
                 None,
                 None,
             );
@@ -56522,6 +56757,7 @@ mod tests {
                 seed,
                 None,
                 None,
+                None,
             );
 
             stage_chunks[0].1.push(base);
@@ -57287,6 +57523,7 @@ mod tests {
                 biome_source_model,
                 noise_settings,
                 seed,
+                None,
                 None,
                 None,
             );
