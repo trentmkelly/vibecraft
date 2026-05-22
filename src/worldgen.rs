@@ -28174,7 +28174,7 @@ pub fn generate_chunk_for_stem_with_mode(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            None,
+                            Some(&region_biome_steps),
                             None,
                         );
                         chunk
@@ -30154,7 +30154,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            None,
+                            Some(&region_biome_steps),
                             None,
                         );
                         timings.tree_blocks = tree_result.placed_blocks;
@@ -37668,7 +37668,6 @@ fn noise_tree_context_heights_inner(
     let cell_width = settings.noise.cell_width();
     let cell_height = settings.noise.cell_height();
     let cell_count_xz = 16 / cell_width;
-    let cell_count_y = height / cell_height;
     let cell_noise_min_y = min_y.div_euclid(cell_height);
 
     let mut noise_chunk = NoiseChunk::new(chunk_min_x, chunk_min_z, *settings, seed, noise_router);
@@ -37705,11 +37704,27 @@ fn noise_tree_context_heights_inner(
     let mut fluid_samples = 0_usize;
     let mut lowest_sampled_y = i32::MAX;
     let mut highest_sampled_y = i32::MIN;
+    let mut scan_top_by_column = [min_y; 16 * 16];
+    let mut max_scan_top_y = min_y;
+    for local_z in 0..16 {
+        for local_x in 0..16 {
+            let world_x = chunk_min_x + local_x as i32;
+            let world_z = chunk_min_z + local_z as i32;
+            // Java already has neighbor chunks here. This lightweight fallback
+            // only needs the worldgen heightmaps, so bound the scan using the
+            // same preliminary surface signal Java feeds into aquifers/surface rules.
+            let top_y = (noise_chunk.preliminary_surface_level(world_x, world_z) + 64)
+                .clamp(min_y, min_y + height - 1);
+            scan_top_by_column[local_z * 16 + local_x] = top_y;
+            max_scan_top_y = max_scan_top_y.max(top_y);
+        }
+    }
+    let max_scan_top_cell_y = (max_scan_top_y - min_y).div_euclid(cell_height);
 
     'cells: for cell_x_index in 0..cell_count_xz {
         noise_chunk.advance_cell_x(cell_x_index);
         for cell_z_index in 0..cell_count_xz {
-            for cell_y_index in (0..cell_count_y).rev() {
+            for cell_y_index in (0..=max_scan_top_cell_y).rev() {
                 noise_chunk.select_cell_yz(cell_y_index, cell_z_index);
                 for y_in_cell in (0..cell_height).rev() {
                     let pos_y = (cell_noise_min_y + cell_y_index) * cell_height + y_in_cell;
@@ -37726,6 +37741,9 @@ fn noise_tree_context_heights_inner(
                             let factor_z = z_in_cell as f64 / cell_width as f64;
                             noise_chunk.update_for_z(pos_z, factor_z);
                             let index = local_z * 16 + local_x;
+                            if pos_y > scan_top_by_column[index] {
+                                continue;
+                            }
                             if found_ocean_floor[index] && found_world_surface[index] {
                                 continue;
                             }
@@ -56635,17 +56653,28 @@ mod tests {
         let router = super::builtin_noise_router(super::noise_router_id_for_settings(*settings))
             .unwrap()
             .router;
-        let pos = ChunkPos { x: 1, z: -1 };
-        let seed = 0;
-        let chunk = super::fill_from_noise_chunk(pos, settings, seed, router);
-        let full_heights = super::tree_decoration_terrain_heights_from_wg(&chunk, settings);
-        let lightweight_heights = super::noise_tree_context_heights(pos, settings, seed, router);
+        for (seed, pos) in [
+            (0, ChunkPos { x: 1, z: -1 }),
+            (0, ChunkPos { x: -1, z: -1 }),
+            (1, ChunkPos { x: 2, z: 0 }),
+            (42, ChunkPos { x: -2, z: 3 }),
+        ] {
+            let chunk = super::fill_from_noise_chunk(pos, settings, seed, router);
+            let full_heights = super::tree_decoration_terrain_heights_from_wg(&chunk, settings);
+            let lightweight_heights =
+                super::noise_tree_context_heights(pos, settings, seed, router);
 
-        assert_eq!(lightweight_heights.ocean_floor, full_heights.ocean_floor);
-        assert_eq!(
-            lightweight_heights.world_surface,
-            full_heights.world_surface
-        );
+            assert_eq!(
+                lightweight_heights.ocean_floor, full_heights.ocean_floor,
+                "lightweight ocean floor heightmap should match full noise chunk for seed={seed} pos=({}, {})",
+                pos.x, pos.z
+            );
+            assert_eq!(
+                lightweight_heights.world_surface, full_heights.world_surface,
+                "lightweight world surface heightmap should match full noise chunk for seed={seed} pos=({}, {})",
+                pos.x, pos.z
+            );
+        }
     }
 
     #[test]
