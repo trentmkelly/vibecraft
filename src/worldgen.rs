@@ -6019,6 +6019,38 @@ fn live_tree_decoration_blocks(
                 continue;
             }
 
+            if let Some(sapling) = tree_placement_filter_sapling(call.feature) {
+                let origin = BlockPos {
+                    x: local_x as i32,
+                    y: surface_height,
+                    z: local_z as i32,
+                };
+                if !live_tree_sapling_survives_at(
+                    chunk_pos,
+                    block_context,
+                    &block_overlay,
+                    origin,
+                    sapling,
+                ) {
+                    if trace_attempts {
+                        eprintln!(
+                            "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} origin=({}, {}, {}) candidate_biome={} skip=placement_sapling_filter",
+                            block_context.target_pos.x,
+                            block_context.target_pos.z,
+                            chunk_pos.x,
+                            chunk_pos.z,
+                            call.feature,
+                            attempt_index,
+                            world_x,
+                            surface_height,
+                            world_z,
+                            candidate_biome,
+                        );
+                    }
+                    continue;
+                }
+            }
+
             let selector_trace = trace_trees
                 .then(|| live_tree_selector_trace(call.feature, random))
                 .flatten();
@@ -6903,6 +6935,16 @@ fn live_tree_sapling_for_tree_config(config: LiveTreeFeatureConfig) -> &'static 
         "minecraft:acacia_log" => "minecraft:acacia_sapling",
         "minecraft:dark_oak_log" => "minecraft:dark_oak_sapling",
         _ => "minecraft:oak_sapling",
+    }
+}
+
+fn tree_placement_filter_sapling(feature: &str) -> Option<&'static str> {
+    match feature.strip_prefix("minecraft:").unwrap_or(feature) {
+        "trees_birch" => Some("minecraft:birch_sapling"),
+        "trees_cherry" => Some("minecraft:cherry_sapling"),
+        "trees_badlands" | "trees_swamp" => Some("minecraft:oak_sapling"),
+        "trees_snowy" => Some("minecraft:spruce_sapling"),
+        _ => None,
     }
 }
 
@@ -62772,6 +62814,15 @@ mod tests {
             Some("minecraft:rotated_block_provider")
         );
         assert_eq!(super::block_state_provider_type("missing"), None);
+        assert_eq!(
+            super::tree_placement_filter_sapling("minecraft:trees_birch"),
+            Some("minecraft:birch_sapling")
+        );
+        assert_eq!(
+            super::tree_placement_filter_sapling("minecraft:trees_birch_and_oak_leaf_litter"),
+            None,
+            "forest leaf-litter trees use vanilla treePlacement without a sapling BlockPredicateFilter"
+        );
         assert_eq!(
             super::block_state_provider_sample(
                 &BlockStateProviderModel::Simple("minecraft:oak_log"),
