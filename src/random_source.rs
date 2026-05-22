@@ -931,4 +931,18 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn random_state_terrain_random_matches_vanilla_for_parity_seed() {
+        let xoroshiro = random_state_seed_factories(8_675_309, RandomAlgorithm::Xoroshiro);
+        match xoroshiro.terrain {
+            RandomSourceKind::Xoroshiro(mut random) => {
+                assert_eq!(random.next_i64(), -538_150_423_796_969_999);
+                assert_eq!(random.next_i64(), 5_867_065_839_462_209_707);
+                assert_eq!(random.next_i64(), -5_588_548_753_765_486_191);
+                assert_eq!(random.next_i64(), -1_637_164_577_548_213_239);
+            }
+            _ => panic!("xoroshiro terrain random should hash minecraft:terrain"),
+        }
+    }
 }
