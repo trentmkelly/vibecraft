@@ -7703,7 +7703,7 @@ struct TreeDecorationBlockContext<'a> {
     source_chunk: TreeContextChunkRef<'a>,
     target_pos: ChunkPos,
     target_chunk: &'a LevelChunk,
-    generated_chunks: HashMap<ChunkPos, TreeContextChunkRef<'a>>,
+    generated_chunks: &'a HashMap<ChunkPos, TreeContextChunkRef<'a>>,
 }
 
 impl TreeDecorationBlockContext<'_> {
@@ -37679,15 +37679,12 @@ fn apply_initial_tree_decoration_to_chunk(
             };
             let source_min_x = source_pos.x * 16;
             let source_min_z = source_pos.z * 16;
-            let context_clone_started = Instant::now();
-            let generated_chunks = generated_chunks.clone();
-            diagnostics.source_context_clone_us += context_clone_started.elapsed().as_micros();
             let block_context = TreeDecorationBlockContext {
                 source_pos,
                 source_chunk,
                 target_pos,
                 target_chunk: &*chunk,
-                generated_chunks,
+                generated_chunks: &generated_chunks,
             };
 
             for block in live_tree_decoration_blocks(
@@ -37863,7 +37860,7 @@ fn apply_initial_tree_decoration_from_source_into_region(
         source_chunk: TreeContextChunkRef::Full(source_chunk),
         target_pos: source_pos,
         target_chunk: source_chunk,
-        generated_chunks,
+        generated_chunks: &generated_chunks,
     };
     let mut diagnostics = TreeDecorationDiagnostics::default();
     let planned_blocks = live_tree_decoration_blocks(
