@@ -437,6 +437,7 @@ fn biome_manager_get_biome_cached(
     block_y: i32,
     block_z: i32,
     sampler: &ClimateSampler,
+    chunk_biomes: Option<&ChunkNoiseBiomeCache>,
     noise_biome_cache: &mut HashMap<(i32, i32, i32), &'static str>,
 ) -> Option<&'static str> {
     let absolute_x = block_x - 2;
@@ -491,12 +492,77 @@ fn biome_manager_get_biome_cached(
     } else {
         parent_z + 1
     };
+    if let Some(chunk_biomes) = chunk_biomes {
+        if let Some(biome) = chunk_biomes.get(biome_x, biome_y, biome_z) {
+            return Some(biome);
+        }
+    }
     if let Some(biome) = noise_biome_cache.get(&(biome_x, biome_y, biome_z)).copied() {
         return Some(biome);
     }
     let biome = get_biome(source, biome_x, biome_y, biome_z, sampler)?;
     noise_biome_cache.insert((biome_x, biome_y, biome_z), biome);
     Some(biome)
+}
+
+struct ChunkNoiseBiomeCache {
+    chunk_pos: ChunkPos,
+    min_section_y: i32,
+    max_section_y: i32,
+    sections: Vec<[&'static str; BIOME_SECTION_VOLUME]>,
+}
+
+impl ChunkNoiseBiomeCache {
+    fn from_chunk(chunk: &LevelChunk) -> Self {
+        let min_section_y = chunk.min_section_y;
+        let max_section_y = chunk
+            .sections
+            .iter()
+            .map(|section| i32::from(section.y))
+            .max()
+            .unwrap_or(min_section_y);
+        let mut sections = vec![["minecraft:plains"; BIOME_SECTION_VOLUME]; chunk.sections.len()];
+        for section in &chunk.sections {
+            let section_index = i32::from(section.y) - min_section_y;
+            if section_index < 0 || section_index as usize >= sections.len() {
+                continue;
+            }
+            let Ok(container) = PalettedContainer::from_nbt(&section.biomes, BIOME_SECTION_VOLUME)
+            else {
+                continue;
+            };
+            for index in 0..BIOME_SECTION_VOLUME {
+                let Some(Tag::String(biome)) = container.get_entry(index) else {
+                    continue;
+                };
+                sections[section_index as usize][index] =
+                    static_biome_id(biome).unwrap_or("minecraft:plains");
+            }
+        }
+        Self {
+            chunk_pos: chunk.pos,
+            min_section_y,
+            max_section_y,
+            sections,
+        }
+    }
+
+    fn get(&self, quart_x: i32, quart_y: i32, quart_z: i32) -> Option<&'static str> {
+        let local_x = quart_x - self.chunk_pos.x * 4;
+        let local_z = quart_z - self.chunk_pos.z * 4;
+        if !(0..4).contains(&local_x) || !(0..4).contains(&local_z) {
+            return None;
+        }
+        let clamped_quart_y = quart_y.clamp(self.min_section_y * 4, self.max_section_y * 4 + 3);
+        let section_y = clamped_quart_y.div_euclid(4);
+        let section_index = section_y - self.min_section_y;
+        if section_index < 0 || section_index as usize >= self.sections.len() {
+            return None;
+        }
+        let local_y = clamped_quart_y - section_y * 4;
+        let index = local_y as usize * 16 + local_z as usize * 4 + local_x as usize;
+        Some(self.sections[section_index as usize][index])
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -35466,6 +35532,7 @@ fn build_surface_for_chunk_timed_with_sections(
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
     let biome_zoom_seed = biome_manager_obfuscate_seed(seed);
     let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
+    let chunk_noise_biomes = ChunkNoiseBiomeCache::from_chunk(chunk);
     let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
     let mut surface_noise_biome_cache: HashMap<(i32, i32, i32), &'static str> = HashMap::new();
     let default_block_id = section_blocks.id_for(default_block);
@@ -35563,6 +35630,7 @@ fn build_surface_for_chunk_timed_with_sections(
                         biome_y,
                         block_z,
                         &climate_sampler,
+                        Some(&chunk_noise_biomes),
                         &mut surface_noise_biome_cache,
                     )
                     .unwrap_or("minecraft:plains");
