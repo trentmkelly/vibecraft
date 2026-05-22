@@ -430,6 +430,75 @@ fn biome_manager_get_biome(
     get_biome(source, biome_x, biome_y, biome_z, sampler)
 }
 
+fn biome_manager_get_biome_cached(
+    source: &BiomeSourceModel,
+    biome_zoom_seed: i64,
+    block_x: i32,
+    block_y: i32,
+    block_z: i32,
+    sampler: &ClimateSampler,
+    noise_biome_cache: &mut HashMap<(i32, i32, i32), &'static str>,
+) -> Option<&'static str> {
+    let absolute_x = block_x - 2;
+    let absolute_y = block_y - 2;
+    let absolute_z = block_z - 2;
+    let parent_x = absolute_x >> 2;
+    let parent_y = absolute_y >> 2;
+    let parent_z = absolute_z >> 2;
+    let fract_x = f64::from(absolute_x & 3) / 4.0;
+    let fract_y = f64::from(absolute_y & 3) / 4.0;
+    let fract_z = f64::from(absolute_z & 3) / 4.0;
+
+    let mut nearest_corner = 0;
+    let mut nearest_distance = f64::INFINITY;
+    for corner in 0..8 {
+        let x_even = (corner & 4) == 0;
+        let y_even = (corner & 2) == 0;
+        let z_even = (corner & 1) == 0;
+        let corner_x = if x_even { parent_x } else { parent_x + 1 };
+        let corner_y = if y_even { parent_y } else { parent_y + 1 };
+        let corner_z = if z_even { parent_z } else { parent_z + 1 };
+        let distance_x = if x_even { fract_x } else { fract_x - 1.0 };
+        let distance_y = if y_even { fract_y } else { fract_y - 1.0 };
+        let distance_z = if z_even { fract_z } else { fract_z - 1.0 };
+        let distance = biome_manager_fiddled_distance(
+            biome_zoom_seed,
+            corner_x,
+            corner_y,
+            corner_z,
+            distance_x,
+            distance_y,
+            distance_z,
+        );
+        if nearest_distance > distance {
+            nearest_corner = corner;
+            nearest_distance = distance;
+        }
+    }
+
+    let biome_x = if (nearest_corner & 4) == 0 {
+        parent_x
+    } else {
+        parent_x + 1
+    };
+    let biome_y = if (nearest_corner & 2) == 0 {
+        parent_y
+    } else {
+        parent_y + 1
+    };
+    let biome_z = if (nearest_corner & 1) == 0 {
+        parent_z
+    } else {
+        parent_z + 1
+    };
+    if let Some(biome) = noise_biome_cache.get(&(biome_x, biome_y, biome_z)).copied() {
+        return Some(biome);
+    }
+    let biome = get_biome(source, biome_x, biome_y, biome_z, sampler)?;
+    noise_biome_cache.insert((biome_x, biome_y, biome_z), biome);
+    Some(biome)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NoiseRouterEntry {
     pub id: &'static str,
@@ -35398,10 +35467,20 @@ fn build_surface_for_chunk_timed_with_sections(
     let biome_zoom_seed = biome_manager_obfuscate_seed(seed);
     let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
     let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
+    let mut surface_noise_biome_cache: HashMap<(i32, i32, i32), &'static str> = HashMap::new();
     let default_block_id = section_blocks.id_for(default_block);
     let air_id = section_blocks.id_for("minecraft:air");
     let water_id = section_blocks.id_for("minecraft:water");
     let lava_id = section_blocks.id_for("minecraft:lava");
+    let surface_debug = std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG").is_some();
+    let mut surface_noise_sample_us = 0_u128;
+    let mut surface_rng_us = 0_u128;
+    let mut surface_height_read_us = 0_u128;
+    let mut surface_biome_us = 0_u128;
+    let mut surface_block_read_us = 0_u128;
+    let mut surface_ceiling_scan_us = 0_u128;
+    let mut surface_rule_us = 0_u128;
+    let mut surface_write_us = 0_u128;
     let started = Instant::now();
     for local_z in 0..16_i32 {
         for local_x in 0..16_i32 {
@@ -35412,27 +35491,43 @@ fn build_surface_for_chunk_timed_with_sections(
             let lz = local_z as usize;
 
             // getSurfaceDepth: (int)(surfaceNoise * 2.75 + 3.0 + random * 0.25)
+            let debug_started = surface_debug.then(Instant::now);
             let surface_noise_val = surface_noise
                 .as_ref()
                 .map(|snap| normal_noise_sample(snap, block_x as f64, 0.0, block_z as f64))
                 .unwrap_or(0.0);
+            if let Some(started) = debug_started {
+                surface_noise_sample_us += started.elapsed().as_micros();
+            }
             let surface_depth = {
+                let debug_started = surface_debug.then(Instant::now);
                 let mut at_rng = base_rng.at(block_x, 0, block_z);
                 let jitter = random_next_f64(&mut at_rng) * 0.25;
+                if let Some(started) = debug_started {
+                    surface_rng_us += started.elapsed().as_micros();
+                }
                 (surface_noise_val * 2.75 + 3.0 + jitter) as i32
             };
 
             // getSurfaceSecondary: surfaceSecondaryNoise.getValue(blockX, 0, blockZ)
+            let debug_started = surface_debug.then(Instant::now);
             let surface_secondary = surface_secondary_noise
                 .as_ref()
                 .map(|snap| normal_noise_sample(snap, block_x as f64, 0.0, block_z as f64))
                 .unwrap_or(0.0);
+            if let Some(started) = debug_started {
+                surface_noise_sample_us += started.elapsed().as_micros();
+            }
 
             // Steep: height-diff ≥ 4 between neighbouring columns.
+            let debug_started = surface_debug.then(Instant::now);
             let h_n = read_world_surface_wg(chunk, lx, lz.saturating_sub(1));
             let h_s = read_world_surface_wg(chunk, lx, (lz + 1).min(15));
             let h_w = read_world_surface_wg(chunk, lx.saturating_sub(1), lz);
             let h_e = read_world_surface_wg(chunk, (lx + 1).min(15), lz);
+            if let Some(started) = debug_started {
+                surface_height_read_us += started.elapsed().as_micros();
+            }
             let steep = h_s >= h_n + 4 || h_w >= h_e + 4;
             let hole = surface_depth <= 0;
 
@@ -35460,16 +35555,21 @@ fn build_surface_for_chunk_timed_with_sections(
                 if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
                     cached
                 } else {
-                    let biome = biome_manager_get_biome(
+                    let debug_started = surface_debug.then(Instant::now);
+                    let biome = biome_manager_get_biome_cached(
                         biome_source_model,
                         biome_zoom_seed,
                         block_x,
                         biome_y,
                         block_z,
                         &climate_sampler,
+                        &mut surface_noise_biome_cache,
                     )
                     .unwrap_or("minecraft:plains");
                     let temperature = surface_biome_temperature(biome);
+                    if let Some(started) = debug_started {
+                        surface_biome_us += started.elapsed().as_micros();
+                    }
                     surface_biome_cache.insert(biome_key, (biome, temperature));
                     (biome, temperature)
                 };
@@ -35493,7 +35593,11 @@ fn build_surface_for_chunk_timed_with_sections(
 
             for y in (end_y..=start_height).rev() {
                 timings.surface_block_samples += 1;
+                let debug_started = surface_debug.then(Instant::now);
                 let block_id = section_blocks.get_id(block_x, y, block_z);
+                if let Some(started) = debug_started {
+                    surface_block_read_us += started.elapsed().as_micros();
+                }
 
                 if block_id == air_id {
                     stone_depth_above = 0;
@@ -35507,6 +35611,7 @@ fn build_surface_for_chunk_timed_with_sections(
                     if next_ceiling_stone_y >= y {
                         next_ceiling_stone_y = WAY_BELOW_MIN_Y;
                         let mut la = y - 1;
+                        let debug_started = surface_debug.then(Instant::now);
                         while la >= end_y - 1 {
                             let la_block_id = section_blocks.get_id(block_x, la, block_z);
                             if la_block_id == air_id
@@ -35517,6 +35622,9 @@ fn build_surface_for_chunk_timed_with_sections(
                                 break;
                             }
                             la -= 1;
+                        }
+                        if let Some(started) = debug_started {
+                            surface_ceiling_scan_us += started.elapsed().as_micros();
                         }
                     }
 
@@ -35529,33 +35637,56 @@ fn build_surface_for_chunk_timed_with_sections(
                         let band_fn = |wx: i32, by: i32, wz: i32| {
                             get_clay_band(seed, algorithm, *settings, wx, by, wz)
                         };
+                        let debug_started = surface_debug.then(Instant::now);
                         if let Some(new_block) =
                             dyn_surface_rule_apply(rule, &surface_context, *settings, &band_fn)
                         {
+                            if let Some(started) = debug_started {
+                                surface_rule_us += started.elapsed().as_micros();
+                            }
                             if new_block == default_block {
                                 continue;
                             }
+                            let debug_started = surface_debug.then(Instant::now);
                             section_blocks.set_name(block_x, y, block_z, &new_block);
+                            if let Some(started) = debug_started {
+                                surface_write_us += started.elapsed().as_micros();
+                            }
                             timings.surface_block_writes += 1;
+                        } else if let Some(started) = debug_started {
+                            surface_rule_us += started.elapsed().as_micros();
                         }
                     }
                 }
             }
         }
     }
+    let flush_started = surface_debug.then(Instant::now);
     add_client_heightmaps_from_generated_sections(chunk, section_blocks);
     flush_generated_section_blocks(chunk, section_blocks);
+    let surface_flush_us = flush_started
+        .map(|started| started.elapsed().as_micros())
+        .unwrap_or(0);
     timings.surface_column_loop_ms = started.elapsed().as_millis();
     timings.surface_total_ms = total_started.elapsed().as_millis();
     if let Some(profile) = &surface_context.profile {
         let profile = *profile.borrow();
         eprintln!(
-            "[surface-rule-debug] total={}ms loop={}ms columns={} samples={} writes={} rule_visits={} sequence={} condition_rules={} block_rules={} bandlands={} condition_tests={} cache_hits={} computes={} compute={}us",
+            "[surface-rule-debug] total={}ms loop={}ms columns={} samples={} writes={} noise_sample={}us rng={}us height_reads={}us biome={}us block_reads={}us ceiling_scan={}us rule_apply={}us writes={}us flush={}us rule_visits={} sequence={} condition_rules={} block_rules={} bandlands={} condition_tests={} cache_hits={} computes={} compute={}us",
             timings.surface_total_ms,
             timings.surface_column_loop_ms,
             timings.surface_columns,
             timings.surface_block_samples,
             timings.surface_block_writes,
+            surface_noise_sample_us,
+            surface_rng_us,
+            surface_height_read_us,
+            surface_biome_us,
+            surface_block_read_us,
+            surface_ceiling_scan_us,
+            surface_rule_us,
+            surface_write_us,
+            surface_flush_us,
             profile.rule_visits,
             profile.sequence_rule_visits,
             profile.condition_rule_visits,
