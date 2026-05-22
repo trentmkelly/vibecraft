@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -5692,11 +5693,13 @@ fn live_tree_decoration_blocks(
         return Vec::new();
     }
 
+    let source_started = Instant::now();
     diagnostics.sources_evaluated += 1;
     let started = Instant::now();
     let biome_steps = region_biome_steps;
     diagnostics.source_biome_steps_ms += started.elapsed().as_millis();
     if biome_steps.is_empty() {
+        diagnostics.source_total_us += source_started.elapsed().as_micros();
         return Vec::new();
     }
 
@@ -5727,6 +5730,7 @@ fn live_tree_decoration_blocks(
     let trace_trees = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE").is_some();
     let trace_rejects = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE_REJECTS").is_some();
     let mut blocks = Vec::new();
+    let mut block_overlay = TreeBlockOverlay::default();
     let mut accepted_log_positions = trace_trees.then(HashSet::new);
     for call in plan.feature_calls.iter().filter(|call| {
         call.step_index == GenerationDecorationStep::VegetalDecoration as usize
@@ -5792,7 +5796,7 @@ fn live_tree_decoration_blocks(
                 if !live_tree_sapling_survives_at(
                     chunk_pos,
                     block_context,
-                    &blocks,
+                    &block_overlay,
                     origin,
                     live_tree_sapling_for_trunk_provider(&config.trunk_provider),
                 ) {
@@ -5802,7 +5806,7 @@ fn live_tree_decoration_blocks(
                 let Some(plan) = live_fallen_tree_placement_plan(
                     chunk_pos,
                     block_context,
-                    &blocks,
+                    &block_overlay,
                     origin,
                     &config,
                     &mut random,
@@ -5849,6 +5853,12 @@ fn live_tree_decoration_blocks(
                         );
                     }
                 }
+                for block in &plan.blocks {
+                    block_overlay.insert(
+                        local_tree_block_to_world_key(chunk_pos, block.pos),
+                        block.state,
+                    );
+                }
                 blocks.extend(plan.blocks);
                 continue;
             }
@@ -5858,7 +5868,7 @@ fn live_tree_decoration_blocks(
             if !live_tree_sapling_survives_at(
                 chunk_pos,
                 block_context,
-                &blocks,
+                &block_overlay,
                 origin,
                 live_tree_sapling_for_tree_config(tree_config),
             ) {
@@ -5897,12 +5907,12 @@ fn live_tree_decoration_blocks(
             let started = Instant::now();
             if !live_tree_can_place_with_previous_blocks(
                 block_context,
+                &block_overlay,
                 origin,
                 tree_config,
                 rand_a,
                 rand_b,
                 settings,
-                &blocks,
             ) {
                 diagnostics.validation_ms += started.elapsed().as_millis();
                 diagnostics.validation_rejects += 1;
@@ -5933,7 +5943,7 @@ fn live_tree_decoration_blocks(
             let started = Instant::now();
             let mut plan = live_tree_placement_plan(
                 block_context,
-                &blocks,
+                &block_overlay,
                 origin,
                 tree_config,
                 rand_a,
@@ -5946,7 +5956,7 @@ fn live_tree_decoration_blocks(
                 block_context,
                 terrain_heights,
                 settings,
-                &blocks,
+                &block_overlay,
                 &mut plan,
                 tree_config.decorators,
                 &mut random,
@@ -6035,6 +6045,12 @@ fn live_tree_decoration_blocks(
                     ));
                 }
             }
+            for block in &plan.blocks {
+                block_overlay.insert(
+                    local_tree_block_to_world_key(chunk_pos, block.pos),
+                    block.state,
+                );
+            }
             blocks.extend(plan.blocks);
         }
     }
@@ -6049,6 +6065,7 @@ fn live_tree_decoration_blocks(
         .collect::<Vec<_>>();
     diagnostics.filter_ms += started.elapsed().as_millis();
     diagnostics.filtered_blocks += filtered.len();
+    diagnostics.source_total_us += source_started.elapsed().as_micros();
     filtered
 }
 
@@ -6080,7 +6097,9 @@ struct TreeDecorationDiagnostics {
     context_chunk_build_ms: u128,
     context_heightmap_ms: u128,
     context_chunks: usize,
+    source_total_us: u128,
     sources_evaluated: usize,
+    source_context_clone_us: u128,
     source_biome_steps_ms: u128,
     source_feature_sort_ms: u128,
     source_plan_ms: u128,
@@ -6618,7 +6637,7 @@ fn live_tree_sapling_for_trunk_provider(provider: &BlockStateProviderModel) -> &
 fn live_tree_sapling_survives_at(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     origin: BlockPos,
     _sapling_state: &'static str,
 ) -> bool {
@@ -6630,12 +6649,8 @@ fn live_tree_sapling_survives_at(
             z: origin.z,
         },
     );
-    let below_state = live_tree_state_with_previous_blocks(
-        source_pos,
-        block_context,
-        previous_source_blocks,
-        below,
-    );
+    let below_state =
+        live_tree_state_with_previous_overlay(block_context, previous_source_blocks, below);
     block_matches_tag(&below_state, "minecraft:supports_vegetation")
 }
 
@@ -6671,7 +6686,7 @@ fn live_random_horizontal_direction(random: &mut RandomSourceKind) -> Horizontal
 fn live_fallen_tree_placement_plan(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     origin: BlockPos,
     config: &FallenTreeConfigurationModel,
     random: &mut RandomSourceKind,
@@ -6730,7 +6745,7 @@ fn live_fallen_tree_placement_plan(
 fn live_fallen_tree_start_pos(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     planned_blocks: &[TreePlacementBlock],
     origin: BlockPos,
     direction: HorizontalDirection,
@@ -6756,7 +6771,7 @@ fn live_fallen_tree_start_pos(
 fn live_fallen_tree_can_place_log(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     planned_blocks: &[TreePlacementBlock],
     start: BlockPos,
     direction: HorizontalDirection,
@@ -6796,7 +6811,7 @@ fn live_fallen_tree_can_place_log(
 fn live_fallen_tree_may_place_on(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     planned_blocks: &[TreePlacementBlock],
     pos: BlockPos,
 ) -> bool {
@@ -6820,7 +6835,7 @@ fn live_fallen_tree_may_place_on(
 fn live_fallen_tree_is_over_solid_ground(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     planned_blocks: &[TreePlacementBlock],
     pos: BlockPos,
 ) -> bool {
@@ -6839,23 +6854,22 @@ fn live_fallen_tree_is_over_solid_ground(
     tree_decorator_solid_render(&state)
 }
 
-fn live_tree_state_with_planned_blocks(
+fn live_tree_state_with_planned_blocks<'a>(
     source_pos: ChunkPos,
-    block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    block_context: &'a TreeDecorationBlockContext<'a>,
+    previous_source_blocks: &TreeBlockOverlay,
     planned_blocks: &[TreePlacementBlock],
     local_pos: BlockPos,
-) -> String {
+) -> Cow<'a, str> {
     planned_blocks
         .iter()
         .rev()
         .find_map(|block| {
             (block.pos.x == local_pos.x && block.pos.y == local_pos.y && block.pos.z == local_pos.z)
-                .then_some(block.state.to_string())
+                .then_some(Cow::Borrowed(block.state))
         })
         .unwrap_or_else(|| {
-            live_tree_state_with_previous_blocks(
-                source_pos,
+            live_tree_state_with_previous_overlay(
                 block_context,
                 previous_source_blocks,
                 local_tree_block_to_world(source_pos, local_pos),
@@ -6865,7 +6879,7 @@ fn live_tree_state_with_planned_blocks(
 
 fn live_tree_placement_plan(
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     origin: BlockPos,
     config: LiveTreeFeatureConfig,
     rand_a: i32,
@@ -6943,7 +6957,7 @@ fn live_tree_placement_plan(
 
 fn filter_live_tree_feature_blocks_like_java(
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     plan: &mut TreePlacementPlan,
 ) {
     let mut accepted = Vec::with_capacity(plan.blocks.len());
@@ -6973,7 +6987,7 @@ fn append_live_tree_decorators(
     block_context: &TreeDecorationBlockContext<'_>,
     source_terrain_heights: SourceTerrainHeights<'_>,
     settings: &NoiseGeneratorSettings,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     plan: &mut TreePlacementPlan,
     decorators: LiveTreeDecoratorSet,
     random: &mut RandomSourceKind,
@@ -7082,7 +7096,7 @@ fn append_live_place_on_ground_leaf_litter(
     block_context: &TreeDecorationBlockContext<'_>,
     source_terrain_heights: SourceTerrainHeights<'_>,
     settings: &NoiseGeneratorSettings,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     plan: &mut TreePlacementPlan,
     logs_world: &[BlockPos],
     tries: i32,
@@ -7109,12 +7123,14 @@ fn append_live_place_on_ground_leaf_litter(
 
     let mut decorator_blocks: HashMap<(i32, i32, i32), &'static str> = previous_source_blocks
         .iter()
-        .chain(plan.blocks.iter())
-        .map(|block| {
-            let pos = local_tree_block_to_world(source_pos, block.pos);
-            ((pos.x, pos.y, pos.z), block.state)
-        })
+        .map(|(pos, state)| (*pos, *state))
         .collect();
+    for block in &plan.blocks {
+        decorator_blocks.insert(
+            local_tree_block_to_world_key(source_pos, block.pos),
+            block.state,
+        );
+    }
     let mut motion_height_overlay: HashMap<(i32, i32), i32> = HashMap::new();
     for ((x, y, z), state) in &decorator_blocks {
         if tree_decorator_motion_blocking_no_leaves_opaque(state) {
@@ -7279,6 +7295,12 @@ fn world_tree_block_to_local(source_pos: ChunkPos, pos: BlockPos) -> BlockPos {
     }
 }
 
+type TreeBlockOverlay = HashMap<(i32, i32, i32), &'static str>;
+
+fn local_tree_block_to_world_key(source_pos: ChunkPos, pos: BlockPos) -> (i32, i32, i32) {
+    (source_pos.x * 16 + pos.x, pos.y, source_pos.z * 16 + pos.z)
+}
+
 fn live_tree_state_with_previous_blocks(
     source_pos: ChunkPos,
     block_context: &TreeDecorationBlockContext<'_>,
@@ -7302,6 +7324,22 @@ fn live_tree_state_with_previous_blocks(
                 .map(|state| block_state_id(state).to_string())
         })
         .unwrap_or_else(|| "minecraft:air".to_string())
+}
+
+fn live_tree_state_with_previous_overlay<'a>(
+    block_context: &'a TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &TreeBlockOverlay,
+    world_pos: BlockPos,
+) -> Cow<'a, str> {
+    previous_source_blocks
+        .get(&(world_pos.x, world_pos.y, world_pos.z))
+        .map(|state| Cow::Borrowed(*state))
+        .or_else(|| {
+            block_context
+                .block_state(world_pos.x, world_pos.y, world_pos.z)
+                .map(|state| Cow::Borrowed(block_state_id(state)))
+        })
+        .unwrap_or(Cow::Borrowed("minecraft:air"))
 }
 
 fn live_straight_blob_tree_placement_plan(
@@ -7518,12 +7556,12 @@ fn live_tree_can_place_in_chunk(
 
 fn live_tree_can_place_with_previous_blocks(
     block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &TreeBlockOverlay,
     origin: BlockPos,
     config: LiveTreeFeatureConfig,
     rand_a: i32,
     rand_b: i32,
     settings: &NoiseGeneratorSettings,
-    previous_source_blocks: &[TreePlacementBlock],
 ) -> bool {
     let trunk = TrunkPlacerModel {
         base_height: config.base_height,
@@ -7557,8 +7595,7 @@ fn live_tree_can_place_with_previous_blocks(
                 }
                 let world_x = block_context.source_pos.x * 16 + local_x;
                 let world_z = block_context.source_pos.z * 16 + local_z;
-                let state = live_tree_state_with_previous_blocks(
-                    block_context.source_pos,
+                let state = live_tree_state_with_previous_overlay(
                     block_context,
                     previous_source_blocks,
                     BlockPos {
@@ -7730,6 +7767,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
     target_terrain_heights: &TreeDecorationHeights,
     context_cache: &TreeDecorationContextCache,
 ) -> usize {
+    let total_started = Instant::now();
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return 0;
     }
@@ -7749,13 +7787,18 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
     } else {
         &global_biome_steps
     };
+    let feature_sort_started = Instant::now();
     let features_per_step = match build_features_per_step(feature_source_steps, true) {
         Ok(features) => features,
         Err(_) => return 0,
     };
+    let feature_sort_ms = feature_sort_started.elapsed().as_millis();
 
     let target_pos = chunk.pos;
     let mut placed = 0;
+    let mut plan_ms = 0_u128;
+    let mut placement_ms = 0_u128;
+    let mut calls = 0_usize;
     for source_z in target_pos.z - 1..=target_pos.z + 1 {
         for source_x in target_pos.x - 1..=target_pos.x + 1 {
             let source_pos = ChunkPos {
@@ -7772,6 +7815,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
             }) else {
                 continue;
             };
+            let plan_started = Instant::now();
             let plan = biome_decoration_feature_plan(
                 seed,
                 source_pos.x,
@@ -7780,6 +7824,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
                 &features_per_step,
                 decoration_region_biome_steps,
             );
+            plan_ms += plan_started.elapsed().as_millis();
             for call in plan.feature_calls.iter().filter(|call| {
                 call.step_index == GenerationDecorationStep::VegetalDecoration as usize
                     && placed_simple_vegetation_feature(call.feature).is_some()
@@ -7787,7 +7832,9 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
                 let Some(feature) = placed_simple_vegetation_feature(call.feature) else {
                     continue;
                 };
+                calls += 1;
                 let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+                let placement_started = Instant::now();
                 placed += place_simple_vegetation_feature_positions_depth_first(
                     chunk,
                     source_pos,
@@ -7805,8 +7852,20 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
                     source_terrain_heights,
                     &mut random,
                 );
+                placement_ms += placement_started.elapsed().as_millis();
             }
         }
+    }
+    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_some() {
+        eprintln!(
+            "[simple-vegetation-debug] total={}ms feature_sort={}ms plan={}ms placement={}ms calls={} placed={}",
+            total_started.elapsed().as_millis(),
+            feature_sort_ms,
+            plan_ms,
+            placement_ms,
+            calls,
+            placed
+        );
     }
     placed
 }
@@ -37291,12 +37350,15 @@ fn apply_initial_tree_decoration_to_chunk(
             };
             let source_min_x = source_pos.x * 16;
             let source_min_z = source_pos.z * 16;
+            let context_clone_started = Instant::now();
+            let generated_chunks = generated_chunks.clone();
+            diagnostics.source_context_clone_us += context_clone_started.elapsed().as_micros();
             let block_context = TreeDecorationBlockContext {
                 source_pos,
                 source_chunk,
                 target_pos,
                 target_chunk: &*chunk,
-                generated_chunks: generated_chunks.clone(),
+                generated_chunks,
             };
 
             for block in live_tree_decoration_blocks(
@@ -37369,11 +37431,13 @@ fn apply_initial_tree_decoration_to_chunk(
     }
     if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_some() {
         eprintln!(
-            "[tree-decoration-debug] context_chunks={} context_build={}ms context_heightmaps={}ms sources={} source_biomes={}ms feature_sort={}ms source_plan={}ms source_context_map={}ms feature_calls={} tree_feature_calls={} attempts={} candidates={} candidate_biomes={}ms validation={}ms accepts={} rejects={} placement_plan={}ms plan_blocks={} filter={}ms filtered_blocks={} output_seen={} output_in_target={} output_written={} write_filter={}ms",
+            "[tree-decoration-debug] context_chunks={} context_build={}ms context_heightmaps={}ms sources={} source_total={}us source_context_clone={}us source_biomes={}ms feature_sort={}ms source_plan={}ms source_context_map={}ms feature_calls={} tree_feature_calls={} attempts={} candidates={} candidate_biomes={}ms validation={}ms accepts={} rejects={} placement_plan={}ms plan_blocks={} filter={}ms filtered_blocks={} output_seen={} output_in_target={} output_written={} write_filter={}ms",
             diagnostics.context_chunks,
             diagnostics.context_chunk_build_ms,
             diagnostics.context_heightmap_ms,
             diagnostics.sources_evaluated,
+            diagnostics.source_total_us,
+            diagnostics.source_context_clone_us,
             diagnostics.source_biome_steps_ms,
             diagnostics.source_feature_sort_ms,
             diagnostics.source_plan_ms,
@@ -46072,7 +46136,7 @@ pub fn fancy_trunk_placement_plan(
 
 fn live_fancy_trunk_placement_plan(
     block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &[TreePlacementBlock],
+    previous_source_blocks: &TreeBlockOverlay,
     origin: BlockPos,
     tree_height: i32,
     trunk_state: &'static str,
@@ -46087,8 +46151,7 @@ fn live_fancy_trunk_placement_plan(
         cluster_rolls,
         |pos| {
             let world_pos = local_tree_block_to_world(block_context.source_pos, pos);
-            let state = live_tree_state_with_previous_blocks(
-                block_context.source_pos,
+            let state = live_tree_state_with_previous_overlay(
                 block_context,
                 previous_source_blocks,
                 world_pos,
