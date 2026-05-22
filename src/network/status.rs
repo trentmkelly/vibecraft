@@ -74,8 +74,10 @@ use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
 use crate::player_entity::{
-    calculate_fall_damage, update_fall_distance, FallDamageInput, DEFAULT_FALL_DAMAGE_MULTIPLIER,
-    DEFAULT_SAFE_FALL_DISTANCE,
+    calculate_fall_damage, movement_exhaustion, starvation_damages, update_fall_distance,
+    Difficulty as FoodDifficulty, FallDamageInput, FoodState, FoodTickOutcome,
+    DEFAULT_FALL_DAMAGE_MULTIPLIER, DEFAULT_SAFE_FALL_DISTANCE, JUMP_EXHAUSTION,
+    SPRINT_EXHAUSTION_PER_METER, SPRINT_JUMP_EXHAUSTION,
 };
 use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory, SLOT_OFFHAND};
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
@@ -170,6 +172,9 @@ struct PlaySessionState {
     food_level: i32,
     food_saturation: f32,
     food_exhaustion: f32,
+    food_tick_timer: i32,
+    input_sprinting: bool,
+    input_jumping: bool,
     xp_progress: f32,
     xp_level: i32,
     xp_total: i32,
@@ -211,6 +216,9 @@ impl Default for PlaySessionState {
             food_level: 20,
             food_saturation: 5.0,
             food_exhaustion: 0.0,
+            food_tick_timer: 0,
+            input_sprinting: false,
+            input_jumping: false,
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
@@ -1889,7 +1897,7 @@ fn handle_login_connection(
     let mut current_chunk_z = chunk_coordinate(play_state.z);
     let chunk_batch_radius = chunk_batch_radius(properties);
     let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
-    stream.set_read_timeout(Some(Duration::from_secs(1)))?;
+    stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
     // Track last sent weather levels so we can detect changes and notify the client.
@@ -1917,6 +1925,8 @@ fn handle_login_connection(
     // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
     // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
     let mut last_item_tick = Instant::now();
+    let mut last_player_tick = Instant::now();
+    let mut play_tick_count = 0_u64;
     const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
@@ -1997,6 +2007,21 @@ fn handle_login_connection(
             }
         }
 
+        // Java: ServerPlayer.doTick() calls FoodData.tick(this) every server
+        // tick, independent of inbound movement/interaction packets.
+        if last_player_tick.elapsed() >= SERVER_TICK_DURATION {
+            last_player_tick = Instant::now();
+            play_tick_count = play_tick_count.wrapping_add(1);
+            if tick_play_session_food(
+                &mut play_state,
+                food_difficulty_from_properties(properties),
+                true,
+                play_tick_count,
+            ) {
+                write_play_state_health_packet(stream, compression, &play_state)?;
+            }
+        }
+
         // Detect weather level changes and broadcast to client.
         // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
         {
@@ -2050,16 +2075,7 @@ fn handle_login_connection(
                 let session_update =
                     update_play_session_state(packet_id, &mut input, &mut play_state)?;
                 if session_update.health_changed {
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_SET_HEALTH_PACKET_ID,
-                        |payload| {
-                            payload.write_all(&play_state.health.to_be_bytes())?;
-                            write_var_i32(payload, play_state.food_level)?;
-                            payload.write_all(&play_state.food_saturation.to_be_bytes())
-                        },
-                    )?;
+                    write_play_state_health_packet(stream, compression, &play_state)?;
                 }
                 if session_update.respawn_requested {
                     handle_play_respawn_request(
@@ -2444,22 +2460,38 @@ fn update_play_session_state<R: Read>(
 ) -> io::Result<PlaySessionUpdate> {
     match packet_id {
         SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
+            let old_x = state.x;
             let old_y = state.y;
+            let old_z = state.z;
             state.x = read_f64(input)?;
             state.y = read_f64(input)?;
             state.z = read_f64(input)?;
             state.on_ground = read_bool(input)?;
-            Ok(apply_player_fall_movement(state, state.y - old_y, true))
+            Ok(apply_player_movement(
+                state,
+                state.x - old_x,
+                state.y - old_y,
+                state.z - old_z,
+                true,
+            ))
         }
         SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
+            let old_x = state.x;
             let old_y = state.y;
+            let old_z = state.z;
             state.x = read_f64(input)?;
             state.y = read_f64(input)?;
             state.z = read_f64(input)?;
             state.yaw = read_f32(input)?;
             state.pitch = read_f32(input)?;
             state.on_ground = read_bool(input)?;
-            Ok(apply_player_fall_movement(state, state.y - old_y, true))
+            Ok(apply_player_movement(
+                state,
+                state.x - old_x,
+                state.y - old_y,
+                state.z - old_z,
+                true,
+            ))
         }
         SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
             state.yaw = read_f32(input)?;
@@ -2492,6 +2524,24 @@ fn update_play_session_state<R: Read>(
                 respawn_requested: action == 0 && state.health <= 0.0,
             })
         }
+        SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
+            let flags = read_u8(input)?;
+            let jumping = flags & 16 != 0;
+            let sprinting = flags & 64 != 0;
+            if jumping && !state.input_jumping && state.on_ground {
+                add_player_food_exhaustion(
+                    state,
+                    if sprinting {
+                        SPRINT_JUMP_EXHAUSTION
+                    } else {
+                        JUMP_EXHAUSTION
+                    },
+                );
+            }
+            state.input_jumping = jumping;
+            state.input_sprinting = sprinting;
+            Ok(PlaySessionUpdate::default())
+        }
         _ => Ok(PlaySessionUpdate::default()),
     }
 }
@@ -2501,11 +2551,31 @@ fn apply_player_fall_movement(
     delta_y: f64,
     position_changed: bool,
 ) -> PlaySessionUpdate {
+    apply_player_movement(state, 0.0, delta_y, 0.0, position_changed)
+}
+
+fn apply_player_movement(
+    state: &mut PlaySessionState,
+    delta_x: f64,
+    delta_y: f64,
+    delta_z: f64,
+    position_changed: bool,
+) -> PlaySessionUpdate {
     // TODO: replace this placeholder with block/fluid lookup when movement is
     // validated against the generated world. Java does not accumulate fall
     // distance while the entity is in water.
     let in_water = false;
     state.fall_distance = update_fall_distance(state.fall_distance, delta_y, in_water);
+    if state.on_ground && state.input_sprinting {
+        let horizontal_distance_cm =
+            ((delta_x * delta_x + delta_z * delta_z).sqrt() * 100.0).round() as i32;
+        if horizontal_distance_cm > 0 {
+            add_player_food_exhaustion(
+                state,
+                movement_exhaustion(SPRINT_EXHAUSTION_PER_METER, horizontal_distance_cm),
+            );
+        }
+    }
 
     let mut health_changed = false;
     if state.on_ground && state.fall_distance > 0.0 {
@@ -2529,6 +2599,109 @@ fn apply_player_fall_movement(
         health_changed,
         respawn_requested: false,
     }
+}
+
+fn food_state_from_play_session(state: &PlaySessionState) -> FoodState {
+    FoodState {
+        food_level: state.food_level,
+        saturation: state.food_saturation,
+        exhaustion: state.food_exhaustion,
+        tick_timer: state.food_tick_timer,
+    }
+}
+
+fn apply_food_state_to_play_session(state: &mut PlaySessionState, food: FoodState) {
+    state.food_level = food.food_level;
+    state.food_saturation = food.saturation;
+    state.food_exhaustion = food.exhaustion;
+    state.food_tick_timer = food.tick_timer;
+}
+
+fn add_player_food_exhaustion(state: &mut PlaySessionState, amount: f32) {
+    if state.abilities.invulnerable {
+        return;
+    }
+    let mut food = food_state_from_play_session(state);
+    food.add_exhaustion(amount);
+    apply_food_state_to_play_session(state, food);
+}
+
+fn tick_play_session_food(
+    state: &mut PlaySessionState,
+    difficulty: FoodDifficulty,
+    natural_regen: bool,
+    tick_count: u64,
+) -> bool {
+    if state.health <= 0.0 {
+        return false;
+    }
+
+    let old_health = state.health;
+    let old_food_level = state.food_level;
+    let old_saturation_zero = state.food_saturation == 0.0;
+
+    // Java: ServerPlayer.tickRegeneration() runs from LivingEntity.tick()
+    // before ServerPlayer.doTick() calls FoodData.tick(this).
+    if difficulty == FoodDifficulty::Peaceful && natural_regen {
+        if tick_count % 20 == 0 {
+            if state.health < 20.0 {
+                state.health = (state.health + 1.0).min(20.0);
+            }
+            if state.food_saturation < 20.0 {
+                state.food_saturation += 1.0;
+            }
+        }
+        if tick_count % 10 == 0 && state.food_level < 20 {
+            state.food_level += 1;
+        }
+    }
+
+    let mut food = food_state_from_play_session(state);
+    match food.tick_food(state.health < 20.0, natural_regen, difficulty) {
+        FoodTickOutcome::None => {}
+        FoodTickOutcome::FastHeal { amount, .. } => {
+            state.health = (state.health + amount).min(20.0);
+        }
+        FoodTickOutcome::SlowHeal => {
+            state.health = (state.health + 1.0).min(20.0);
+        }
+        FoodTickOutcome::StarveAttempt => {
+            if starvation_damages(difficulty, state.health) {
+                state.health = (state.health - 1.0).max(0.0);
+            }
+        }
+    }
+    apply_food_state_to_play_session(state, food);
+
+    state.health != old_health
+        || state.food_level != old_food_level
+        || (state.food_saturation == 0.0) != old_saturation_zero
+}
+
+fn food_difficulty_from_properties(properties: &ServerProperties) -> FoodDifficulty {
+    match properties.difficulty.as_str() {
+        "0" | "peaceful" => FoodDifficulty::Peaceful,
+        "2" | "normal" => FoodDifficulty::Normal,
+        "3" | "hard" => FoodDifficulty::Hard,
+        _ => FoodDifficulty::Easy,
+    }
+}
+
+fn write_play_state_health_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_HEALTH_PACKET_ID,
+        |payload| {
+            payload.write_all(&state.health.to_be_bytes())?;
+            write_var_i32(payload, state.food_level)?;
+            payload.write_all(&state.food_saturation.to_be_bytes())
+        },
+    )
 }
 
 /// Handles a block-placement request from the client.
@@ -3049,6 +3222,9 @@ fn reset_play_state_after_death_respawn(state: &mut PlaySessionState) {
     state.food_level = 20;
     state.food_saturation = 5.0;
     state.food_exhaustion = 0.0;
+    state.food_tick_timer = 0;
+    state.input_sprinting = false;
+    state.input_jumping = false;
     state.fall_distance = 0.0;
     state.on_ground = true;
     state.xp_progress = 0.0;
@@ -3250,6 +3426,7 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             "foodExhaustionLevel".to_string(),
             Tag::Float(state.food_exhaustion),
         ),
+        ("foodTickTimer".to_string(), Tag::Int(state.food_tick_timer)),
         ("XpLevel".to_string(), Tag::Int(state.xp_level)),
         ("XpP".to_string(), Tag::Float(state.xp_progress)),
         ("XpTotal".to_string(), Tag::Int(state.xp_total)),
@@ -3434,6 +3611,10 @@ fn play_session_state_from_nbt(
         Some(Tag::Float(value)) => value.max(0.0),
         _ => 0.0,
     };
+    let food_tick_timer = match compound_tag(compound, "foodTickTimer") {
+        Some(Tag::Int(value)) => (*value).max(0),
+        _ => 0,
+    };
     let xp_progress = match compound_tag(compound, "XpP") {
         Some(Tag::Float(value)) => value.clamp(0.0, 1.0),
         _ => 0.0,
@@ -3577,6 +3758,9 @@ fn play_session_state_from_nbt(
         food_level,
         food_saturation,
         food_exhaustion,
+        food_tick_timer,
+        input_sprinting: false,
+        input_jumping: false,
         xp_progress,
         xp_level,
         xp_total,
@@ -8063,6 +8247,12 @@ fn read_i16<R: Read>(reader: &mut R) -> io::Result<i16> {
     Ok(i16::from_be_bytes(bytes))
 }
 
+fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
+    let mut bytes = [0u8; 1];
+    reader.read_exact(&mut bytes)?;
+    Ok(bytes[0])
+}
+
 fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
     let mut bytes = [0u8; 1];
     reader.read_exact(&mut bytes)?;
@@ -8496,16 +8686,16 @@ mod tests {
         write_vanilla_wolf_variant_registry_packet,
         write_vanilla_zombie_nautilus_variant_registry_packet,
         write_visible_spawn_terrain_block_state_container, write_world_clock_registry_packet,
-        CompressionState, GameMode, PlayerGlobalPosData, PlayerNbtAbilities, PlayerSpawnData,
-        ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS, BEDROCK_BLOCK_STATE_ID,
-        BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
+        CompressionState, FoodDifficulty, GameMode, PlayerGlobalPosData, PlayerNbtAbilities,
+        PlayerSpawnData, ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
+        BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
         CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
         DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
         GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS, MAX_PACKET_SIZE,
         POPPY_BLOCK_STATE_ID, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
         SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
-        STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
+        SPRINT_JUMP_EXHAUSTION, STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
     };
     use crate::item_stack::ItemStack;
     use crate::network::codec::{write_identifier, Uuid};
@@ -10666,6 +10856,9 @@ mod tests {
             food_level: 20,
             food_saturation: 5.0,
             food_exhaustion: 0.0,
+            food_tick_timer: 0,
+            input_sprinting: false,
+            input_jumping: false,
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
@@ -10779,6 +10972,124 @@ mod tests {
     }
 
     #[test]
+    fn player_input_tracks_sprint_jump_exhaustion() {
+        let mut state = session_state_with_inventory(&[]);
+        state.on_ground = true;
+
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_PLAYER_INPUT_PACKET_ID,
+            &mut Cursor::new(vec![16 | 64]),
+            &mut state,
+        )
+        .unwrap();
+        assert!(!update.health_changed);
+        assert!(state.input_jumping);
+        assert!(state.input_sprinting);
+        assert_eq!(state.food_exhaustion, SPRINT_JUMP_EXHAUSTION);
+
+        super::update_play_session_state(
+            super::SERVERBOUND_PLAYER_INPUT_PACKET_ID,
+            &mut Cursor::new(vec![16 | 64]),
+            &mut state,
+        )
+        .unwrap();
+        assert_eq!(
+            state.food_exhaustion, SPRINT_JUMP_EXHAUSTION,
+            "holding jump should not charge jump exhaustion every packet"
+        );
+    }
+
+    #[test]
+    fn sprint_movement_accumulates_food_exhaustion() {
+        let mut state = session_state_with_inventory(&[]);
+        state.input_sprinting = true;
+
+        let mut movement = Vec::new();
+        movement.extend_from_slice(&1.5_f64.to_be_bytes());
+        movement.extend_from_slice(&64.0_f64.to_be_bytes());
+        movement.extend_from_slice(&(-1.0_f64).to_be_bytes());
+        movement.push(1);
+        super::update_play_session_state(
+            super::SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+            &mut Cursor::new(movement),
+            &mut state,
+        )
+        .unwrap();
+        assert_eq!(state.food_exhaustion, 0.05);
+    }
+
+    #[test]
+    fn food_tick_fast_regen_heals_and_adds_exhaustion() {
+        let mut state = session_state_with_inventory(&[]);
+        state.health = 18.0;
+        state.food_saturation = 5.0;
+        state.food_tick_timer = 9;
+
+        let changed = super::tick_play_session_food(&mut state, FoodDifficulty::Normal, true, 10);
+        assert!(changed);
+        assert_eq!(state.health, 18.833334);
+        assert_eq!(state.food_tick_timer, 0);
+        assert_eq!(state.food_exhaustion, 5.0);
+    }
+
+    #[test]
+    fn food_tick_slow_regen_and_starvation_match_java_thresholds() {
+        let mut state = session_state_with_inventory(&[]);
+        state.health = 12.0;
+        state.food_level = 18;
+        state.food_saturation = 0.0;
+        state.food_tick_timer = 79;
+
+        assert!(super::tick_play_session_food(
+            &mut state,
+            FoodDifficulty::Normal,
+            true,
+            80
+        ));
+        assert_eq!(state.health, 13.0);
+        assert_eq!(state.food_exhaustion, 6.0);
+
+        state.health = 10.0;
+        state.food_level = 0;
+        state.food_tick_timer = 79;
+        assert!(!super::tick_play_session_food(
+            &mut state,
+            FoodDifficulty::Easy,
+            true,
+            160
+        ));
+        assert_eq!(state.health, 10.0);
+
+        state.health = 10.0;
+        state.food_tick_timer = 79;
+        assert!(super::tick_play_session_food(
+            &mut state,
+            FoodDifficulty::Hard,
+            true,
+            240
+        ));
+        assert_eq!(state.health, 9.0);
+    }
+
+    #[test]
+    fn peaceful_tick_restores_health_saturation_and_food() {
+        let mut state = session_state_with_inventory(&[]);
+        state.health = 19.0;
+        state.food_level = 19;
+        state.food_saturation = 4.0;
+
+        assert!(super::tick_play_session_food(
+            &mut state,
+            FoodDifficulty::Peaceful,
+            true,
+            20
+        ));
+        assert_eq!(state.health, 20.0);
+        assert_eq!(state.food_level, 20);
+        assert_eq!(state.food_saturation, 5.0);
+    }
+
+    #[test]
     fn client_respawn_command_only_requests_respawn_when_dead() {
         let mut alive = session_state_with_inventory(&[]);
         let mut action = Vec::new();
@@ -10844,6 +11155,9 @@ mod tests {
         assert_eq!(state.food_level, 20);
         assert_eq!(state.food_saturation, 5.0);
         assert_eq!(state.food_exhaustion, 0.0);
+        assert_eq!(state.food_tick_timer, 0);
+        assert!(!state.input_sprinting);
+        assert!(!state.input_jumping);
         assert_eq!(state.fall_distance, 0.0);
         assert!(state.on_ground);
         assert_eq!(state.xp_level, 0);
@@ -10982,6 +11296,7 @@ mod tests {
         let mut state = session_state_with_inventory(&[("minecraft:stone", 5, 3)]);
         state.fall_distance = 6.25;
         state.food_exhaustion = 3.5;
+        state.food_tick_timer = 72;
         state.xp_progress = 0.75;
         state.xp_level = 12;
         state.xp_total = 345;
@@ -11042,6 +11357,7 @@ mod tests {
             "foodLevel",
             "foodSaturationLevel",
             "foodExhaustionLevel",
+            "foodTickTimer",
             "XpP",
             "XpLevel",
             "XpTotal",
@@ -11075,6 +11391,7 @@ mod tests {
             play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
         assert_eq!(restored.fall_distance, 6.25);
         assert_eq!(restored.food_exhaustion, 3.5);
+        assert_eq!(restored.food_tick_timer, 72);
         assert_eq!(restored.xp_seed, 98_765);
         assert_eq!(restored.score, 42);
         assert_eq!(restored.previous_game_mode, Some(GameMode::Adventure));
