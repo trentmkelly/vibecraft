@@ -57174,6 +57174,285 @@ mod tests {
         }
     }
 
+    #[test]
+    #[ignore = "diagnostic for one remaining andesite/diorite ore placement drift"]
+    fn normal_overworld_andesite_diorite_write_trace_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        let target_pos = ChunkPos { x: -1, z: -1 };
+        let watched = BlockPos {
+            x: -4,
+            y: 27,
+            z: -14,
+        };
+
+        let (base, _, _) = super::generate_real_surface_base_chunk(
+            target_pos,
+            biome_source_model,
+            noise_settings,
+            seed,
+        )
+        .expect("real-surface base generation should succeed");
+        let mut chunk = base.clone();
+        super::apply_configured_carvers_for_biome_source(
+            &mut chunk,
+            biome_source_model,
+            noise_settings,
+            seed,
+        );
+        super::apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
+
+        let router =
+            super::builtin_noise_router(super::noise_router_id_for_settings(**noise_settings))
+                .map(|entry| entry.router)
+                .expect("normal overworld should have a router");
+        let climate_sampler =
+            super::ClimateSampler::from_noise_router(&router, seed, **noise_settings);
+        let source_steps_cache = super::source_decoration_biome_steps_cache(
+            target_pos,
+            1,
+            biome_source_model,
+            noise_settings,
+            &climate_sampler,
+        );
+        let global_biome_steps = super::possible_biome_feature_steps_for_source(biome_source_model);
+        let features_per_step = super::build_features_per_step(&global_biome_steps, true)
+            .expect("global features should sort");
+        let context_chunks = super::build_underground_ore_decoration_context_chunks(
+            target_pos,
+            noise_settings,
+            seed,
+        );
+        let mut block_cache =
+            super::OreBlockCache::from_chunk_with_read_context(&chunk, &context_chunks);
+
+        eprintln!(
+            "[andesite-diorite-trace] watched=({}, {}, {}) initial={:?}",
+            watched.x,
+            watched.y,
+            watched.z,
+            block_cache.block_state_name(watched.x, watched.y, watched.z)
+        );
+
+        for source_z in target_pos.z - 1..=target_pos.z + 1 {
+            for source_x in target_pos.x - 1..=target_pos.x + 1 {
+                let source_pos = ChunkPos {
+                    x: source_x,
+                    z: source_z,
+                };
+                let possible_steps =
+                    source_steps_cache
+                        .get(&source_pos)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            super::possible_biome_feature_steps_for_decoration_region(
+                                source_pos,
+                                biome_source_model,
+                                noise_settings,
+                                &climate_sampler,
+                            )
+                        });
+                if possible_steps.is_empty() {
+                    continue;
+                }
+                let skip_biome_filter = super::biome_steps_share_decoration_step_features(
+                    &possible_steps,
+                    super::GenerationDecorationStep::UndergroundOres,
+                );
+                let plan = super::biome_decoration_feature_plan(
+                    seed,
+                    source_pos.x,
+                    source_pos.z,
+                    noise_settings.noise.min_y.div_euclid(16),
+                    &features_per_step,
+                    &possible_steps,
+                );
+                for call in plan.feature_calls.iter().filter(|call| {
+                    call.step_index == super::GenerationDecorationStep::UndergroundOres as usize
+                        && matches!(
+                            call.feature,
+                            "minecraft:ore_granite_lower"
+                                | "minecraft:ore_diorite_lower"
+                                | "minecraft:ore_andesite_lower"
+                                | "minecraft:ore_granite_upper"
+                                | "minecraft:ore_diorite_upper"
+                                | "minecraft:ore_andesite_upper"
+                        )
+                }) {
+                    let Some(feature) = super::placed_ore_feature(call.feature) else {
+                        continue;
+                    };
+                    let Some(config) =
+                        super::configured_ore_configuration(feature.configured_feature)
+                    else {
+                        continue;
+                    };
+                    let mut random = super::RandomSourceKind::new(
+                        call.seed,
+                        crate::random_source::RandomAlgorithm::Xoroshiro,
+                    );
+                    let origin = BlockPos {
+                        x: source_pos.x * 16,
+                        y: noise_settings.noise.min_y,
+                        z: source_pos.z * 16,
+                    };
+                    let count = match feature.placement.first().copied() {
+                        Some(super::PlacementModifier::Count { count }) => count.max(0),
+                        Some(super::PlacementModifier::RarityFilter { chance }) => {
+                            if chance > 0
+                                && super::feature_random_next_f32(&mut random) < 1.0 / chance as f32
+                            {
+                                1
+                            } else {
+                                0
+                            }
+                        }
+                        _ => 0,
+                    };
+                    for origin_index in 0..count {
+                        let origin_x =
+                            origin.x + super::feature_random_next_i32_bound(&mut random, 16);
+                        let origin_z =
+                            origin.z + super::feature_random_next_i32_bound(&mut random, 16);
+                        let origin_y = super::height_provider_sample_with_random(
+                            match feature.placement.get(2).copied() {
+                                Some(super::PlacementModifier::HeightRange { height }) => height,
+                                _ => continue,
+                            },
+                            super::WorldGenerationHeightContext {
+                                min_y: noise_settings.noise.min_y,
+                                height: noise_settings.noise.height,
+                            },
+                            &mut random,
+                        );
+                        let origin = BlockPos {
+                            x: origin_x,
+                            y: origin_y,
+                            z: origin_z,
+                        };
+                        if !skip_biome_filter
+                            && !super::biome_allows_feature_at(
+                                biome_source_model,
+                                noise_settings,
+                                &climate_sampler,
+                                origin,
+                                call.feature,
+                            )
+                        {
+                            continue;
+                        }
+                        let direction = super::feature_random_next_f32(&mut random);
+                        let spread_xy = config.size as f32 / 8.0;
+                        let max_radius =
+                            ((config.size as f32 / 16.0 * 2.0 + 1.0) / 2.0).ceil() as i32;
+                        let spread_ceil = spread_xy.ceil() as i32;
+                        let x_start = origin.x - spread_ceil - max_radius;
+                        let y_start = origin.y - 2 - max_radius;
+                        let z_start = origin.z - spread_ceil - max_radius;
+                        let size_xz = 2 * (spread_ceil + max_radius);
+                        let size_y = 2 * (2 + max_radius);
+                        let y_rolls = [(
+                            super::feature_random_next_i32_bound(&mut random, 3),
+                            super::feature_random_next_i32_bound(&mut random, 3),
+                        )];
+                        if !super::ore_origin_overlaps_ocean_floor_wg(
+                            &block_cache,
+                            x_start,
+                            y_start,
+                            z_start,
+                            size_xz,
+                        ) {
+                            continue;
+                        }
+                        let radius_rolls = (0..config.size.max(0))
+                            .map(|_| super::feature_random_next_f64(&mut random))
+                            .collect::<Vec<_>>();
+                        let spheres = super::ore_vein_spheres(
+                            origin,
+                            config.size,
+                            direction,
+                            &y_rolls,
+                            &radius_rolls,
+                        );
+                        let candidates = super::ore_vein_position_candidates(
+                            &spheres,
+                            x_start,
+                            y_start,
+                            z_start,
+                            size_xz,
+                            size_y,
+                            noise_settings.noise.min_y
+                                ..noise_settings.noise.min_y + noise_settings.noise.height,
+                        );
+                        for pos in candidates {
+                            let Some(current) = block_cache.block_state_name(pos.x, pos.y, pos.z)
+                            else {
+                                continue;
+                            };
+                            let new_block = config.target_states.iter().find_map(|target| {
+                                if !super::rule_test_matches(target.target, current) {
+                                    return None;
+                                }
+                                let skip_air_check = match config.discard_chance_on_air_exposure {
+                                    chance if chance <= 0.0 => true,
+                                    chance if chance >= 1.0 => false,
+                                    chance => super::feature_random_next_f32(&mut random) >= chance,
+                                };
+                                (skip_air_check
+                                    || !super::is_adjacent_to_ore_air(&block_cache, pos))
+                                .then_some(target.state)
+                            });
+                            if pos == watched {
+                                eprintln!(
+                                    "[andesite-diorite-trace] source=({}, {}) feature={} origin_index={} origin=({}, {}, {}) current={} new={:?}",
+                                    source_pos.x,
+                                    source_pos.z,
+                                    call.feature,
+                                    origin_index,
+                                    origin.x,
+                                    origin.y,
+                                    origin.z,
+                                    current,
+                                    new_block
+                                );
+                            }
+                            if pos.x.div_euclid(16) == target_pos.x
+                                && pos.z.div_euclid(16) == target_pos.z
+                            {
+                                if let Some(new_block) = new_block {
+                                    block_cache.set_block_state(pos.x, pos.y, pos.z, new_block);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eprintln!(
+            "[andesite-diorite-trace] final={:?}",
+            block_cache.block_state_name(watched.x, watched.y, watched.z)
+        );
+    }
+
     #[derive(Debug)]
     struct OreVeinMaterialDetail {
         density: f64,
