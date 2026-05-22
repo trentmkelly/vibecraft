@@ -6466,6 +6466,19 @@ fn placed_simple_vegetation_feature(id: &str) -> Option<PlacedSimpleVegetationFe
             tag: "minecraft:air",
         },
     };
+    let leaf_litter_filter = PlacementModifier::BlockPredicateFilter {
+        predicate: BlockPredicate::AllOf {
+            predicates: &[
+                BlockPredicate::MatchingBlockTag {
+                    tag: "minecraft:air",
+                },
+                BlockPredicate::MatchingBlocksAt {
+                    offset_y: -1,
+                    blocks: &["minecraft:grass_block"],
+                },
+            ],
+        },
+    };
     let in_square = PlacementModifier::InSquare;
     let biome = PlacementModifier::BiomeFilter;
     let heightmap = PlacementModifier::Heightmap {
@@ -6522,6 +6535,20 @@ fn placed_simple_vegetation_feature(id: &str) -> Option<PlacedSimpleVegetationFe
                 count(32),
                 random_offset(7, 3),
                 air_filter,
+            ],
+        },
+        "patch_leaf_litter" => PlacedSimpleVegetationFeature {
+            configured_feature: "minecraft:leaf_litter",
+            placement: vec![
+                count(2),
+                in_square,
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::WorldSurface,
+                },
+                biome,
+                count(32),
+                random_offset(7, 3),
+                leaf_litter_filter,
             ],
         },
         "patch_grass_badlands" => PlacedSimpleVegetationFeature {
@@ -6658,6 +6685,30 @@ fn configured_simple_vegetation_block(
         "tall_grass" => BlockStateProviderModel::Simple("minecraft:tall_grass"),
         "bush" => BlockStateProviderModel::Simple("minecraft:bush"),
         "sunflower" => BlockStateProviderModel::Simple("minecraft:sunflower"),
+        "leaf_litter" => {
+            let mut entries = Vec::with_capacity(12);
+            for amount in 1..=3 {
+                for facing in ["north", "east", "south", "west"] {
+                    let state = match (amount, facing) {
+                        (1, "north") => "minecraft:leaf_litter[amount=1,facing=north]",
+                        (1, "east") => "minecraft:leaf_litter[amount=1,facing=east]",
+                        (1, "south") => "minecraft:leaf_litter[amount=1,facing=south]",
+                        (1, "west") => "minecraft:leaf_litter[amount=1,facing=west]",
+                        (2, "north") => "minecraft:leaf_litter[amount=2,facing=north]",
+                        (2, "east") => "minecraft:leaf_litter[amount=2,facing=east]",
+                        (2, "south") => "minecraft:leaf_litter[amount=2,facing=south]",
+                        (2, "west") => "minecraft:leaf_litter[amount=2,facing=west]",
+                        (3, "north") => "minecraft:leaf_litter[amount=3,facing=north]",
+                        (3, "east") => "minecraft:leaf_litter[amount=3,facing=east]",
+                        (3, "south") => "minecraft:leaf_litter[amount=3,facing=south]",
+                        (3, "west") => "minecraft:leaf_litter[amount=3,facing=west]",
+                        _ => unreachable!(),
+                    };
+                    entries.push(WeightedBlockState { state, weight: 1 });
+                }
+            }
+            BlockStateProviderModel::Weighted(entries)
+        }
         "flower_default" => BlockStateProviderModel::Weighted(vec![
             WeightedBlockState {
                 state: "minecraft:poppy",
@@ -7944,186 +7995,6 @@ fn live_tree_clipped_height_with_previous_blocks(
     }
 }
 
-fn apply_initial_leaf_litter_decoration_to_chunk(
-    chunk: &mut LevelChunk,
-    biome_source_model: &BiomeSourceModel,
-    settings: &NoiseGeneratorSettings,
-    seed: i64,
-    terrain_heights: &TreeDecorationHeights,
-    biome_steps: &[&'static [&'static [&'static str]]],
-    source_region_biome_steps: &DecorationBiomeStepsByChunk,
-    context_cache: &TreeDecorationContextCache,
-) -> usize {
-    let total_started = Instant::now();
-    let Some(router) =
-        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
-    else {
-        return 0;
-    };
-    let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
-
-    if biome_steps.is_empty() {
-        return 0;
-    }
-    let biome_steps_ms = 0;
-
-    let started = Instant::now();
-    let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
-    let feature_source_steps = if global_biome_steps.is_empty() {
-        biome_steps
-    } else {
-        &global_biome_steps
-    };
-    let features_per_step = match build_features_per_step(feature_source_steps, true) {
-        Ok(features) => features,
-        Err(_) => return 0,
-    };
-    let feature_sort_ms = started.elapsed().as_millis();
-    let mut placed = 0;
-    let mut calls = 0;
-    let mut origin_checks = 0;
-    let mut candidate_checks = 0;
-    let mut plan_ms = 0;
-    let placement_started = Instant::now();
-    for source_z in chunk.pos.z - 1..=chunk.pos.z + 1 {
-        for source_x in chunk.pos.x - 1..=chunk.pos.x + 1 {
-            let source_pos = ChunkPos {
-                x: source_x,
-                z: source_z,
-            };
-            let Some(source_terrain_heights) = (if source_pos == chunk.pos {
-                Some(SourceTerrainHeights::Full(terrain_heights))
-            } else {
-                context_cache
-                    .cached_region_chunks
-                    .get(&source_pos)
-                    .map(SourceTerrainHeights::Lazy)
-            }) else {
-                continue;
-            };
-            let possible_steps = source_region_biome_steps
-                .get(&source_pos)
-                .cloned()
-                .unwrap_or_else(|| biome_steps.to_vec());
-            if possible_steps.is_empty() {
-                continue;
-            }
-            let started = Instant::now();
-            let plan = biome_decoration_feature_plan(
-                seed,
-                source_pos.x,
-                source_pos.z,
-                settings.noise.min_y.div_euclid(16),
-                &features_per_step,
-                &possible_steps,
-            );
-            plan_ms += started.elapsed().as_millis();
-            let source_min_x = source_pos.x * 16;
-            let source_min_z = source_pos.z * 16;
-            for call in plan.feature_calls.iter().filter(|call| {
-                call.step_index == GenerationDecorationStep::VegetalDecoration as usize
-                    && call.feature == "minecraft:patch_leaf_litter"
-            }) {
-                calls += 1;
-                let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
-                for _ in 0..2 {
-                    origin_checks += 1;
-                    let origin_local_x = feature_random_next_i32_bound(&mut random, 16);
-                    let origin_local_z = feature_random_next_i32_bound(&mut random, 16);
-                    let origin_world_x = source_min_x + origin_local_x;
-                    let origin_world_z = source_min_z + origin_local_z;
-                    let origin_y = source_terrain_heights.local_height(
-                        HeightmapKind::OceanFloor,
-                        origin_local_x as usize,
-                        origin_local_z as usize,
-                    );
-                    if origin_y <= settings.noise.min_y {
-                        continue;
-                    }
-
-                    // Java BiomeFilter calls WorldGenRegion.getBiome(BlockPos),
-                    // which resolves through BiomeManager's fiddled block-space
-                    // lookup, not a direct quart-coordinate noise biome sample.
-                    let Some(origin_biome) = biome_manager_get_biome(
-                        biome_source_model,
-                        climate_sampler.biome_zoom_seed,
-                        origin_world_x,
-                        origin_y.clamp(
-                            settings.noise.min_y,
-                            settings.noise.min_y + settings.noise.height - 1,
-                        ),
-                        origin_world_z,
-                        &climate_sampler,
-                    ) else {
-                        continue;
-                    };
-                    let Some(origin_generation) = biome_generation_settings(origin_biome) else {
-                        continue;
-                    };
-                    if !biome_has_placed_feature(origin_generation, call.feature) {
-                        continue;
-                    }
-
-                    for _ in 0..32 {
-                        candidate_checks += 1;
-                        let world_x = origin_world_x + sample_triangle_int(&mut random, 7);
-                        let world_y = origin_y + sample_triangle_int(&mut random, 3);
-                        let world_z = origin_world_z + sample_triangle_int(&mut random, 7);
-                        if world_x.div_euclid(16) != chunk.pos.x
-                            || world_z.div_euclid(16) != chunk.pos.z
-                        {
-                            continue;
-                        }
-                        if !(settings.noise.min_y..settings.noise.min_y + settings.noise.height)
-                            .contains(&world_y)
-                        {
-                            continue;
-                        }
-
-                        let current = chunk
-                            .get_block_state_name(world_x, world_y, world_z)
-                            .unwrap_or("minecraft:air");
-                        if !matches!(
-                            current,
-                            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-                        ) {
-                            continue;
-                        }
-                        let below = chunk
-                            .get_block_state_name(world_x, world_y - 1, world_z)
-                            .unwrap_or("minecraft:air");
-                        if below != "minecraft:grass_block" {
-                            continue;
-                        }
-
-                        let _leaf_litter_state_index =
-                            feature_random_next_i32_bound(&mut random, 12);
-                        chunk.set_block_state(world_x, world_y, world_z, "minecraft:leaf_litter");
-                        placed += 1;
-                    }
-                }
-            }
-        }
-    }
-    let placement_ms = placement_started.elapsed().as_millis();
-    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_some() {
-        eprintln!(
-            "[leaf-litter-debug] total={}ms biome_steps={}ms feature_sort={}ms plan={}ms placement={}ms calls={} origins={} candidates={} placed={}",
-            total_started.elapsed().as_millis(),
-            biome_steps_ms,
-            feature_sort_ms,
-            plan_ms,
-            placement_ms,
-            calls,
-            origin_checks,
-            candidate_checks,
-            placed
-        );
-    }
-
-    placed
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SimpleVegetationPhase {
     BeforeTrees,
@@ -8446,16 +8317,7 @@ fn place_simple_vegetation_feature_positions_depth_first(
             random,
         ),
         PlacementModifier::BlockPredicateFilter { predicate } => {
-            let current = target_chunk
-                .get_block_state_name(position.x, position.y, position.z)
-                .and_then(carver_static_block_name)
-                .unwrap_or("minecraft:air");
-            let context = block_predicate_context_for_state(
-                current,
-                settings.noise.min_y,
-                settings.noise.height,
-            );
-            if block_predicate_test(predicate, context, position.y) {
+            if block_predicate_test_in_chunk(target_chunk, settings, predicate, position) {
                 place_simple_vegetation_feature_positions_depth_first(
                     target_chunk,
                     source_pos,
@@ -8499,6 +8361,114 @@ fn place_simple_vegetation_feature_positions_depth_first(
             }
         }
         _ => 0,
+    }
+}
+
+fn block_predicate_context_for_chunk_pos(
+    chunk: &LevelChunk,
+    settings: &NoiseGeneratorSettings,
+    position: BlockPos,
+) -> BlockPredicateContext {
+    let block = chunk
+        .get_block_state_name(position.x, position.y, position.z)
+        .and_then(carver_static_block_name)
+        .unwrap_or("minecraft:air");
+    block_predicate_context_for_state(block, settings.noise.min_y, settings.noise.height)
+}
+
+fn block_predicate_test_in_chunk(
+    chunk: &LevelChunk,
+    settings: &NoiseGeneratorSettings,
+    predicate: BlockPredicate,
+    position: BlockPos,
+) -> bool {
+    let context = block_predicate_context_for_chunk_pos(chunk, settings, position);
+    match predicate {
+        BlockPredicate::MatchingBlocks { blocks } => blocks.contains(&context.block),
+        BlockPredicate::MatchingBlocksAt { offset_y, blocks } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            let offset_context = block_predicate_context_for_chunk_pos(chunk, settings, offset_pos);
+            blocks.contains(&offset_context.block)
+        }
+        BlockPredicate::MatchingBlockTag { tag } => block_matches_tag(context.block, tag),
+        BlockPredicate::MatchingFluids { fluids } => fluids.contains(&context.fluid),
+        BlockPredicate::MatchingFluidsAt { offset_y, fluids } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            let offset_context = block_predicate_context_for_chunk_pos(chunk, settings, offset_pos);
+            fluids.contains(&offset_context.fluid)
+        }
+        BlockPredicate::Solid => context.solid,
+        BlockPredicate::SolidAt { offset_y } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            block_predicate_context_for_chunk_pos(chunk, settings, offset_pos).solid
+        }
+        BlockPredicate::Replaceable => context.replaceable,
+        BlockPredicate::ReplaceableAt { offset_y } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            block_predicate_context_for_chunk_pos(chunk, settings, offset_pos).replaceable
+        }
+        BlockPredicate::WouldSurvive {
+            offset_y,
+            state: _,
+            survives,
+        }
+        | BlockPredicate::HasSturdyFace {
+            offset_y,
+            direction: _,
+            sturdy: survives,
+        } => {
+            let y = position.y + offset_y;
+            y >= settings.noise.min_y
+                && y < settings.noise.min_y + settings.noise.height
+                && survives
+        }
+        BlockPredicate::InsideWorldBounds { offset_y } => {
+            let y = position.y + offset_y;
+            y >= settings.noise.min_y && y < settings.noise.min_y + settings.noise.height
+        }
+        BlockPredicate::AnyOf { predicates } => predicates
+            .iter()
+            .any(|predicate| block_predicate_test_in_chunk(chunk, settings, *predicate, position)),
+        BlockPredicate::AllOf { predicates } => predicates
+            .iter()
+            .all(|predicate| block_predicate_test_in_chunk(chunk, settings, *predicate, position)),
+        BlockPredicate::Not { predicate } => {
+            !block_predicate_test_in_chunk(chunk, settings, *predicate, position)
+        }
+        BlockPredicate::True => true,
+        BlockPredicate::Unobstructed => context.unobstructed,
     }
 }
 
@@ -38110,19 +38080,6 @@ fn apply_initial_tree_decoration_to_chunk(
         &context_cache,
         SimpleVegetationPhase::AfterTrees,
     );
-    let terrain_heights =
-        target_terrain_heights.unwrap_or_else(|| tree_decoration_terrain_heights(chunk, settings));
-    placed += apply_initial_leaf_litter_decoration_to_chunk(
-        chunk,
-        biome_source_model,
-        settings,
-        seed,
-        &terrain_heights,
-        &target_region_biome_steps,
-        source_region_biome_steps,
-        &context_cache,
-    );
-
     TreeDecorationResult {
         placed_blocks: placed,
         context_build_ms: diagnostics.context_chunk_build_ms,
@@ -57917,6 +57874,23 @@ mod tests {
         let flower = super::placed_simple_vegetation_feature("flower_plains")
             .expect("flower_plains should have a simple vegetation model");
         assert_eq!(flower.configured_feature, "minecraft:flower_plain");
+        let leaf_litter = super::placed_simple_vegetation_feature("patch_leaf_litter")
+            .expect("patch_leaf_litter should share the simple vegetation executor");
+        assert_eq!(leaf_litter.configured_feature, "minecraft:leaf_litter");
+        assert!(matches!(
+            leaf_litter.placement.as_slice(),
+            [
+                super::PlacementModifier::Count { count: 2 },
+                super::PlacementModifier::InSquare,
+                super::PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::WorldSurface
+                },
+                super::PlacementModifier::BiomeFilter,
+                super::PlacementModifier::Count { count: 32 },
+                super::PlacementModifier::RandomOffset { .. },
+                super::PlacementModifier::BlockPredicateFilter { .. },
+            ]
+        ));
         assert!(super::placed_simple_vegetation_feature("trees_plains").is_none());
     }
 
@@ -58009,6 +57983,56 @@ mod tests {
             },
             context,
             64,
+        ));
+    }
+
+    #[test]
+    fn simple_vegetation_block_predicate_filter_reads_below_block() {
+        let settings = super::builtin_noise_generator_settings("minecraft:overworld")
+            .expect("overworld noise settings should exist");
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.min_section_y = 0;
+        let mut block_states =
+            PalettedContainer::single(super::block_state_tag("minecraft:air"), SECTION_VOLUME);
+        block_states.set_entry(
+            0 * 256 + 1 * 16 + 1,
+            super::block_state_tag("minecraft:grass_block"),
+        );
+        chunk.sections.push(ChunkSection {
+            y: 0,
+            block_states: block_states.to_nbt(),
+            biomes: PalettedContainer::single(
+                Tag::String("minecraft:forest".to_string()),
+                BIOME_SECTION_VOLUME,
+            )
+            .to_nbt(),
+            block_light: None,
+            sky_light: None,
+        });
+
+        let predicate = BlockPredicate::AllOf {
+            predicates: &[
+                BlockPredicate::MatchingBlockTag {
+                    tag: "minecraft:air",
+                },
+                BlockPredicate::MatchingBlocksAt {
+                    offset_y: -1,
+                    blocks: &["minecraft:grass_block"],
+                },
+            ],
+        };
+
+        assert!(super::block_predicate_test_in_chunk(
+            &chunk,
+            settings,
+            predicate,
+            BlockPos { x: 1, y: 1, z: 1 },
+        ));
+        assert!(!super::block_predicate_test_in_chunk(
+            &chunk,
+            settings,
+            predicate,
+            BlockPos { x: 2, y: 1, z: 1 },
         ));
     }
 
