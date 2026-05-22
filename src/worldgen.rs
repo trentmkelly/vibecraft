@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
@@ -5724,7 +5724,9 @@ fn live_tree_decoration_blocks(
     diagnostics.source_plan_ms += started.elapsed().as_millis();
     diagnostics.feature_calls_total += plan.feature_calls.len();
 
+    let trace_trees = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE").is_some();
     let mut blocks = Vec::new();
+    let mut accepted_log_positions = trace_trees.then(HashSet::new);
     for call in plan.feature_calls.iter().filter(|call| {
         call.step_index == GenerationDecorationStep::VegetalDecoration as usize
             && noise_preview_tree_feature_count_kind(call.feature).is_some()
@@ -5783,6 +5785,33 @@ fn live_tree_decoration_blocks(
                 y: surface_height,
                 z: local_z as i32,
             };
+            let prior_log_collision = if let Some(accepted_log_positions) = &accepted_log_positions
+            {
+                let tree_height = trunk_placer_height(
+                    TrunkPlacerModel {
+                        base_height: tree_config.base_height,
+                        height_rand_a: tree_config.height_rand_a,
+                        height_rand_b: tree_config.height_rand_b,
+                        kind: if matches!(tree_config.foliage.kind, FoliagePlacerKind::Fancy { .. })
+                        {
+                            TrunkPlacerKind::Fancy
+                        } else {
+                            TrunkPlacerKind::Straight
+                        },
+                    },
+                    rand_a,
+                    rand_b,
+                );
+                tree_validation_volume_intersects_world_positions(
+                    chunk_pos,
+                    origin,
+                    tree_height,
+                    tree_config.minimum_size,
+                    accepted_log_positions,
+                )
+            } else {
+                false
+            };
             diagnostics.tree_candidates += 1;
             let started = Instant::now();
             if !live_tree_can_place_in_chunk(
@@ -5804,6 +5833,87 @@ fn live_tree_decoration_blocks(
                 .expect("hard-coded preview tree configuration must validate");
             diagnostics.placement_plan_ms += started.elapsed().as_millis();
             diagnostics.placement_plan_blocks += plan.blocks.len();
+            if trace_trees {
+                let target_min_x = block_context.target_pos.x * 16;
+                let target_min_z = block_context.target_pos.z * 16;
+                let target_max_x = target_min_x + 15;
+                let target_max_z = target_min_z + 15;
+                let blocks_in_target = plan
+                    .blocks
+                    .iter()
+                    .filter(|block| {
+                        let block_world_x = chunk_pos.x * 16 + block.pos.x;
+                        let block_world_z = chunk_pos.z * 16 + block.pos.z;
+                        block_world_x >= target_min_x
+                            && block_world_x <= target_max_x
+                            && block_world_z >= target_min_z
+                            && block_world_z <= target_max_z
+                    })
+                    .count();
+                let log_blocks_in_target = plan
+                    .blocks
+                    .iter()
+                    .filter(|block| {
+                        if block.kind != TreePlacementBlockKind::Log {
+                            return false;
+                        }
+                        let block_world_x = chunk_pos.x * 16 + block.pos.x;
+                        let block_world_z = chunk_pos.z * 16 + block.pos.z;
+                        block_world_x >= target_min_x
+                            && block_world_x <= target_max_x
+                            && block_world_z >= target_min_z
+                            && block_world_z <= target_max_z
+                    })
+                    .count();
+                if blocks_in_target > 0 || block_context.source_pos == block_context.target_pos {
+                    eprintln!(
+                        "[tree-trace] target=({},{}) source=({},{}) feature={} candidate_biome={} origin=({}, {}, {}) local=({}, {}) trunk={} leaves={} rand=({}, {}) blocks_in_target={} logs_in_target={}",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        candidate_biome,
+                        world_x,
+                        surface_height,
+                        world_z,
+                        local_x,
+                        local_z,
+                        tree_config.trunk_state,
+                        tree_config.leaves_state,
+                        rand_a,
+                        rand_b,
+                        blocks_in_target,
+                        log_blocks_in_target,
+                    );
+                    if prior_log_collision {
+                        eprintln!(
+                            "[tree-trace] stale-validation-risk target=({},{}) source=({},{}) feature={} origin=({}, {}, {}) intersects_prior_source_logs=true",
+                            block_context.target_pos.x,
+                            block_context.target_pos.z,
+                            chunk_pos.x,
+                            chunk_pos.z,
+                            call.feature,
+                            world_x,
+                            surface_height,
+                            world_z,
+                        );
+                    }
+                }
+            }
+            if let Some(accepted_log_positions) = &mut accepted_log_positions {
+                for block in plan
+                    .blocks
+                    .iter()
+                    .filter(|block| block.kind == TreePlacementBlockKind::Log)
+                {
+                    accepted_log_positions.insert((
+                        chunk_pos.x * 16 + block.pos.x,
+                        block.pos.y,
+                        chunk_pos.z * 16 + block.pos.z,
+                    ));
+                }
+            }
             blocks.extend(plan.blocks);
         }
     }
@@ -5819,6 +5929,29 @@ fn live_tree_decoration_blocks(
     diagnostics.filter_ms += started.elapsed().as_millis();
     diagnostics.filtered_blocks += filtered.len();
     filtered
+}
+
+fn tree_validation_volume_intersects_world_positions(
+    source_pos: ChunkPos,
+    origin: BlockPos,
+    tree_height: i32,
+    min_size: FeatureSizeModel,
+    positions: &HashSet<(i32, i32, i32)>,
+) -> bool {
+    for y_offset in 0..=tree_height + 1 {
+        let radius = feature_size_at_height(min_size, tree_height, y_offset);
+        for dx in -radius..=radius {
+            for dz in -radius..=radius {
+                let world_x = source_pos.x * 16 + origin.x + dx;
+                let world_y = origin.y + y_offset;
+                let world_z = source_pos.z * 16 + origin.z + dz;
+                if positions.contains(&(world_x, world_y, world_z)) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 #[derive(Debug, Default)]
