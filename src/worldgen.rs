@@ -5539,12 +5539,18 @@ fn possible_biome_feature_steps_for_source(
         }
         BiomeSourceModel::MultiNoisePreset { preset } => multi_noise_parameter_list_preset(preset)
             .map(|preset| {
-                preset
-                    .used_biomes
-                    .iter()
-                    .filter_map(|biome| biome_generation_settings(biome))
-                    .map(|generation| generation.feature_steps)
-                    .collect()
+                let mut seen = Vec::new();
+                let mut steps = Vec::new();
+                for entry in preset.parameters {
+                    if seen.contains(&entry.biome) {
+                        continue;
+                    }
+                    if let Some(generation) = biome_generation_settings(entry.biome) {
+                        seen.push(entry.biome);
+                        steps.push(generation.feature_steps);
+                    }
+                }
+                steps
             })
             .unwrap_or_default(),
         BiomeSourceModel::TheEnd => ["minecraft:the_end", "minecraft:end_highlands"]
@@ -5865,6 +5871,9 @@ fn live_tree_decoration_blocks(
 
     let trace_trees = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE").is_some();
     let trace_rejects = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE_REJECTS").is_some();
+    let trace_attempts = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE_ATTEMPTS").is_some();
+    let biome_zoom_seed = biome_manager_obfuscate_seed(world_seed);
+    let mut biome_filter_cache: HashMap<(i32, i32, i32), &'static str> = HashMap::new();
     let mut blocks = Vec::new();
     let mut block_overlay = TreeBlockOverlay::default();
     let mut accepted_log_positions = trace_trees.then(HashSet::new);
@@ -5880,39 +5889,129 @@ fn live_tree_decoration_blocks(
         );
         diagnostics.tree_attempts += count as usize;
 
-        for _ in 0..count {
+        for attempt_index in 0..count {
             let local_x = feature_random_next_i32_bound(&mut random, 16) as usize;
             let local_z = feature_random_next_i32_bound(&mut random, 16) as usize;
             let surface_height =
                 terrain_heights.local_height(HeightmapKind::OceanFloor, local_x, local_z);
+            if trace_attempts {
+                eprintln!(
+                    "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} local=({}, {}) surface={}",
+                    block_context.target_pos.x,
+                    block_context.target_pos.z,
+                    chunk_pos.x,
+                    chunk_pos.z,
+                    call.feature,
+                    attempt_index,
+                    local_x,
+                    local_z,
+                    surface_height,
+                );
+            }
             if surface_height <= settings.noise.min_y {
+                if trace_attempts {
+                    eprintln!(
+                        "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} local=({}, {}) skip=no_ocean_floor surface={}",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        attempt_index,
+                        local_x,
+                        local_z,
+                        surface_height,
+                    );
+                }
                 continue;
             }
-            if terrain_heights.local_height(HeightmapKind::WorldSurface, local_x, local_z)
-                - surface_height
-                > 0
-            {
+            let world_surface =
+                terrain_heights.local_height(HeightmapKind::WorldSurface, local_x, local_z);
+            if world_surface - surface_height > 0 {
+                if trace_attempts {
+                    eprintln!(
+                        "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} local=({}, {}) skip=surface_water_depth surface={} world_surface={} depth={}",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        attempt_index,
+                        local_x,
+                        local_z,
+                        surface_height,
+                        world_surface,
+                        world_surface - surface_height,
+                    );
+                }
                 continue;
             }
 
             let world_x = chunk_pos.x * 16 + local_x as i32;
             let world_z = chunk_pos.z * 16 + local_z as i32;
             let started = Instant::now();
-            let Some(candidate_biome) = get_biome(
+            let Some(candidate_biome) = biome_manager_get_biome_cached(
                 biome_source_model,
-                world_x >> 2,
-                surface_height >> 2,
-                world_z >> 2,
+                biome_zoom_seed,
+                world_x,
+                surface_height,
+                world_z,
                 climate_sampler,
+                None,
+                &mut biome_filter_cache,
             ) else {
                 diagnostics.candidate_biome_ms += started.elapsed().as_millis();
+                if trace_attempts {
+                    eprintln!(
+                        "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} origin=({}, {}, {}) skip=no_biome",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        attempt_index,
+                        world_x,
+                        surface_height,
+                        world_z,
+                    );
+                }
                 continue;
             };
             diagnostics.candidate_biome_ms += started.elapsed().as_millis();
             let Some(candidate_generation) = biome_generation_settings(candidate_biome) else {
+                if trace_attempts {
+                    eprintln!(
+                        "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} origin=({}, {}, {}) candidate_biome={} skip=no_generation_settings",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        attempt_index,
+                        world_x,
+                        surface_height,
+                        world_z,
+                        candidate_biome,
+                    );
+                }
                 continue;
             };
             if !biome_has_placed_feature(candidate_generation, call.feature) {
+                if trace_attempts {
+                    eprintln!(
+                        "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} origin=({}, {}, {}) candidate_biome={} skip=biome_filter",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        attempt_index,
+                        world_x,
+                        surface_height,
+                        world_z,
+                        candidate_biome,
+                    );
+                }
                 continue;
             }
 
@@ -5936,6 +6035,21 @@ fn live_tree_decoration_blocks(
                     origin,
                     live_tree_sapling_for_trunk_provider(&config.trunk_provider),
                 ) {
+                    if trace_attempts {
+                        eprintln!(
+                            "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} origin=({}, {}, {}) candidate_biome={} fallen=true skip=sapling_survival",
+                            block_context.target_pos.x,
+                            block_context.target_pos.z,
+                            chunk_pos.x,
+                            chunk_pos.z,
+                            call.feature,
+                            attempt_index,
+                            world_x,
+                            surface_height,
+                            world_z,
+                            candidate_biome,
+                        );
+                    }
                     continue;
                 }
                 let started = Instant::now();
@@ -6008,6 +6122,21 @@ fn live_tree_decoration_blocks(
                 origin,
                 live_tree_sapling_for_tree_config(tree_config),
             ) {
+                if trace_attempts {
+                    eprintln!(
+                        "[tree-trace-attempt] target=({},{}) source=({},{}) feature={} attempt={} origin=({}, {}, {}) candidate_biome={} skip=sapling_survival",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        attempt_index,
+                        world_x,
+                        surface_height,
+                        world_z,
+                        candidate_biome,
+                    );
+                }
                 continue;
             }
             let rand_a = feature_random_next_i32_bound(&mut random, tree_config.rand_a_bound);
@@ -55446,6 +55575,371 @@ mod tests {
             eprintln!(
                 "[worldgen-surface-water-pair] count={count} expected={expected} actual={actual}"
             );
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic for lightweight tree context heightmap drift after surface building"]
+    fn normal_overworld_tree_context_height_delta_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let fixture_chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        let router =
+            super::builtin_noise_router(super::noise_router_id_for_settings(**noise_settings))
+                .expect("normal overworld should have a built-in noise router")
+                .router;
+
+        let mut total_world_surface_delta = 0_usize;
+        let mut total_ocean_floor_delta = 0_usize;
+        let mut total_motion_blocking_delta = 0_usize;
+        let mut total_columns = 0_usize;
+        for fixture_chunk in fixture_chunks {
+            let chunk_x = fixture_chunk
+                .get("chunkX")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkX") as i32;
+            let chunk_z = fixture_chunk
+                .get("chunkZ")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkZ") as i32;
+            let pos = ChunkPos {
+                x: chunk_x,
+                z: chunk_z,
+            };
+            let (surface_chunk, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let live_heights =
+                super::tree_decoration_terrain_heights(&surface_chunk, noise_settings);
+            let lightweight_heights =
+                super::noise_tree_context_heights(pos, noise_settings, seed, router);
+
+            let mut chunk_world_surface_delta = 0_usize;
+            let mut chunk_ocean_floor_delta = 0_usize;
+            let mut chunk_motion_blocking_delta = 0_usize;
+            let mut examples = Vec::new();
+            for local_z in 0..16_usize {
+                for local_x in 0..16_usize {
+                    let index = local_z * 16 + local_x;
+                    let live_world_surface = live_heights.world_surface[index];
+                    let lightweight_world_surface = lightweight_heights.world_surface[index];
+                    let live_ocean_floor = live_heights.ocean_floor[index];
+                    let lightweight_ocean_floor = lightweight_heights.ocean_floor[index];
+                    let live_motion_blocking = live_heights.motion_blocking[index];
+                    let lightweight_motion_blocking = lightweight_heights.motion_blocking[index];
+                    let differs = live_world_surface != lightweight_world_surface
+                        || live_ocean_floor != lightweight_ocean_floor
+                        || live_motion_blocking != lightweight_motion_blocking;
+                    if !differs {
+                        continue;
+                    }
+                    if live_world_surface != lightweight_world_surface {
+                        chunk_world_surface_delta += 1;
+                    }
+                    if live_ocean_floor != lightweight_ocean_floor {
+                        chunk_ocean_floor_delta += 1;
+                    }
+                    if live_motion_blocking != lightweight_motion_blocking {
+                        chunk_motion_blocking_delta += 1;
+                    }
+                    if examples.len() < 8 {
+                        examples.push(format!(
+                            "local=({local_x},{local_z}) world=({},{}) live_ws={} light_ws={} live_of={} light_of={} live_mb={} light_mb={}",
+                            chunk_x * 16 + local_x as i32,
+                            chunk_z * 16 + local_z as i32,
+                            live_world_surface,
+                            lightweight_world_surface,
+                            live_ocean_floor,
+                            lightweight_ocean_floor,
+                            live_motion_blocking,
+                            lightweight_motion_blocking
+                        ));
+                    }
+                }
+            }
+            total_world_surface_delta += chunk_world_surface_delta;
+            total_ocean_floor_delta += chunk_ocean_floor_delta;
+            total_motion_blocking_delta += chunk_motion_blocking_delta;
+            total_columns += 16 * 16;
+            eprintln!(
+                "[tree-context-height-delta] chunk=({chunk_x},{chunk_z}) world_surface={} ocean_floor={} motion_blocking={} examples={}",
+                chunk_world_surface_delta,
+                chunk_ocean_floor_delta,
+                chunk_motion_blocking_delta,
+                examples.join(" | ")
+            );
+        }
+        eprintln!(
+            "[tree-context-height-delta-summary] chunks={} columns={} world_surface={} ocean_floor={} motion_blocking={}",
+            fixture_chunks.len(),
+            total_columns,
+            total_world_surface_delta,
+            total_ocean_floor_delta,
+            total_motion_blocking_delta
+        );
+    }
+
+    #[test]
+    #[ignore = "diagnostic for lightweight tree context synthetic block drift"]
+    fn normal_overworld_tree_context_block_delta_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let fixture_chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        let router =
+            super::builtin_noise_router(super::noise_router_id_for_settings(**noise_settings))
+                .expect("normal overworld should have a built-in noise router")
+                .router;
+
+        let mut total_counts = BTreeMap::<(String, String), usize>::new();
+        for fixture_chunk in fixture_chunks {
+            let chunk_x = fixture_chunk
+                .get("chunkX")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkX") as i32;
+            let chunk_z = fixture_chunk
+                .get("chunkZ")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkZ") as i32;
+            let pos = ChunkPos {
+                x: chunk_x,
+                z: chunk_z,
+            };
+            let (surface_chunk, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let lightweight = super::LightweightTreeContextChunk {
+                terrain_heights: super::noise_tree_context_heights(
+                    pos,
+                    noise_settings,
+                    seed,
+                    router,
+                ),
+                min_y: noise_settings.noise.min_y,
+                max_y: noise_settings.noise.min_y + noise_settings.noise.height,
+            };
+
+            let mut chunk_counts = BTreeMap::<(String, String), usize>::new();
+            let mut examples = Vec::new();
+            for local_z in 0..16_usize {
+                for local_x in 0..16_usize {
+                    let index = local_z * 16 + local_x;
+                    let ocean_floor = lightweight.terrain_heights.ocean_floor[index];
+                    let world_surface = lightweight.terrain_heights.world_surface[index];
+                    let min_y =
+                        (ocean_floor.min(world_surface) - 6).max(noise_settings.noise.min_y);
+                    let max_y = (world_surface + 8)
+                        .min(noise_settings.noise.min_y + noise_settings.noise.height - 1);
+                    let world_x = chunk_x * 16 + local_x as i32;
+                    let world_z = chunk_z * 16 + local_z as i32;
+                    for y in min_y..=max_y {
+                        let live = surface_chunk
+                            .get_block_state_name(world_x, y, world_z)
+                            .unwrap_or("minecraft:air");
+                        let synthetic = lightweight.synthetic_block_state(world_x, y, world_z);
+                        if live == synthetic {
+                            continue;
+                        }
+                        *chunk_counts
+                            .entry((live.to_string(), synthetic.to_string()))
+                            .or_default() += 1;
+                        *total_counts
+                            .entry((live.to_string(), synthetic.to_string()))
+                            .or_default() += 1;
+                        if examples.len() < 8 {
+                            examples.push(format!(
+                                "world=({world_x},{y},{world_z}) live={live} synthetic={synthetic} of={ocean_floor} ws={world_surface}"
+                            ));
+                        }
+                    }
+                }
+            }
+
+            let mut sorted = chunk_counts.into_iter().collect::<Vec<_>>();
+            sorted.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+            let summary = sorted
+                .into_iter()
+                .take(8)
+                .map(|((live, synthetic), count)| format!("{count}:{live}->{synthetic}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!(
+                "[tree-context-block-delta] chunk=({chunk_x},{chunk_z}) top_pairs=[{}] examples={}",
+                summary,
+                examples.join(" | ")
+            );
+        }
+
+        eprintln!("[tree-context-block-delta-summary] top live->synthetic mismatches");
+        let mut sorted = total_counts.into_iter().collect::<Vec<_>>();
+        sorted.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+        for ((live, synthetic), count) in sorted.into_iter().take(20) {
+            eprintln!(
+                "[tree-context-block-delta-pair] count={count} live={live} synthetic={synthetic}"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic for tree placement feature seed/index drift"]
+    fn normal_overworld_tree_feature_seed_candidate_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        let router_id = super::noise_router_id_for_settings(**noise_settings);
+        let noise_router = super::builtin_noise_router(router_id)
+            .map(|entry| entry.router)
+            .expect("normal overworld should have a built-in noise router");
+        let climate_sampler =
+            super::ClimateSampler::from_noise_router(&noise_router, seed, **noise_settings);
+        let global_biome_steps = super::possible_biome_feature_steps_for_source(biome_source_model);
+        let global_features_per_step =
+            super::build_features_per_step(&global_biome_steps, true).unwrap();
+        let region_biome_steps = super::possible_biome_feature_steps_for_decoration_region(
+            ChunkPos { x: -1, z: -1 },
+            biome_source_model,
+            noise_settings,
+            &climate_sampler,
+        );
+        let plan = super::biome_decoration_feature_plan(
+            seed,
+            -1,
+            -1,
+            noise_settings.noise.min_y.div_euclid(16),
+            &global_features_per_step,
+            &region_biome_steps,
+        );
+        let tree_call = plan
+            .feature_calls
+            .iter()
+            .find(|call| call.feature == "minecraft:trees_birch_and_oak_leaf_litter")
+            .expect("forest fixture chunk should schedule birch/oak leaf-litter trees");
+        eprintln!(
+            "[tree-seed-diagnostic] planned feature={} step={} global_index={} seed={} decoration_seed={}",
+            tree_call.feature,
+            tree_call.step_index,
+            tree_call.global_feature_index,
+            tree_call.seed,
+            plan.decoration_seed,
+        );
+
+        fn locals_for_seed(seed: i64) -> Vec<(usize, usize)> {
+            let mut random = crate::random_source::RandomSourceKind::new(
+                seed,
+                crate::random_source::RandomAlgorithm::Xoroshiro,
+            );
+            let count = super::live_tree_count(
+                super::NoisePreviewTreeCountKind::CountExtra {
+                    count: 10,
+                    inverse_chance_weight: 10,
+                    extra: 1,
+                },
+                &mut random,
+            );
+            (0..count)
+                .map(|_| {
+                    (
+                        super::feature_random_next_i32_bound(&mut random, 16) as usize,
+                        super::feature_random_next_i32_bound(&mut random, 16) as usize,
+                    )
+                })
+                .collect()
+        }
+
+        eprintln!(
+            "[tree-seed-diagnostic] planned_locals={:?}",
+            locals_for_seed(tree_call.seed)
+        );
+        for candidate_index in 0..128_i32 {
+            let candidate_seed = crate::random_source::feature_seed(
+                plan.decoration_seed,
+                candidate_index,
+                GenerationDecorationStep::VegetalDecoration as i32,
+            );
+            let locals = locals_for_seed(candidate_seed);
+            if locals.contains(&(12, 4)) || locals.contains(&(15, 10)) {
+                eprintln!(
+                    "[tree-seed-diagnostic] candidate_index={} seed={} locals={:?}",
+                    candidate_index, candidate_seed, locals
+                );
+            }
+        }
+        let vegetation_features = global_features_per_step
+            .get(GenerationDecorationStep::VegetalDecoration as usize)
+            .expect("vegetation step should exist");
+        for (index, feature) in vegetation_features.features.iter().enumerate() {
+            if feature.feature.contains("tree") || feature.feature.contains("birch") {
+                eprintln!(
+                    "[tree-seed-diagnostic] vegetation_index={} feature={}",
+                    index, feature.feature
+                );
+            }
         }
     }
 
