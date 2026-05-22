@@ -7753,10 +7753,17 @@ struct TreeDecorationBlockContext<'a> {
     target_pos: ChunkPos,
     target_chunk: &'a LevelChunk,
     generated_chunks: &'a HashMap<ChunkPos, TreeContextChunkRef<'a>>,
+    region_overlay: Option<&'a TreeBlockOverlay>,
 }
 
 impl TreeDecorationBlockContext<'_> {
     fn block_state(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
+        if let Some(state) = self
+            .region_overlay
+            .and_then(|overlay| overlay.get(&(world_x, world_y, world_z)).copied())
+        {
+            return Some(state);
+        }
         let chunk_pos = ChunkPos {
             x: world_x.div_euclid(16),
             z: world_z.div_euclid(16),
@@ -37968,6 +37975,7 @@ fn apply_initial_tree_decoration_to_chunk(
     for (pos, cached) in &context_cache.cached_region_chunks {
         generated_chunks.insert(*pos, TreeContextChunkRef::Lightweight(cached));
     }
+    let mut region_overlay = TreeBlockOverlay::default();
 
     for source_z in target_pos.z - source_radius..=target_pos.z + source_radius {
         for source_x in target_pos.x - source_radius..=target_pos.x + source_radius {
@@ -38003,12 +38011,13 @@ fn apply_initial_tree_decoration_to_chunk(
                 target_pos,
                 target_chunk: &*chunk,
                 generated_chunks: &generated_chunks,
+                region_overlay: Some(&region_overlay),
             };
             let source_region_biome_steps = source_region_biome_steps
                 .get(&source_pos)
                 .cloned()
                 .unwrap_or_else(|| possible_biome_feature_steps_for_source(biome_source_model));
-            for block in live_tree_decoration_blocks(
+            let planned_blocks = live_tree_decoration_blocks(
                 source_pos,
                 seed,
                 settings,
@@ -38019,7 +38028,9 @@ fn apply_initial_tree_decoration_to_chunk(
                 &block_context,
                 source_terrain_heights,
                 &mut diagnostics,
-            ) {
+            );
+            drop(block_context);
+            for block in planned_blocks {
                 diagnostics.output_blocks_seen += 1;
                 let started = Instant::now();
                 let world_x = source_min_x + block.pos.x;
@@ -38064,6 +38075,7 @@ fn apply_initial_tree_decoration_to_chunk(
                     continue;
                 }
                 chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
+                region_overlay.insert((world_x, block.pos.y, world_z), block.state);
                 diagnostics.output_blocks_written += 1;
                 diagnostics.source_write_filter_ms += started.elapsed().as_millis();
                 placed += 1;
@@ -38176,12 +38188,14 @@ fn apply_initial_tree_decoration_from_source_into_region(
     for (pos, chunk) in chunks.iter() {
         generated_chunks.insert(*pos, TreeContextChunkRef::Full(chunk));
     }
+    let mut region_overlay = TreeBlockOverlay::default();
     let block_context = TreeDecorationBlockContext {
         source_pos,
         source_chunk: TreeContextChunkRef::Full(source_chunk),
         target_pos: source_pos,
         target_chunk: source_chunk,
         generated_chunks: &generated_chunks,
+        region_overlay: Some(&region_overlay),
     };
     let mut diagnostics = TreeDecorationDiagnostics::default();
     let planned_blocks = live_tree_decoration_blocks(
@@ -38239,6 +38253,7 @@ fn apply_initial_tree_decoration_from_source_into_region(
         };
         if can_replace {
             target_chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
+            region_overlay.insert((world_x, block.pos.y, world_z), block.state);
             placed += 1;
         }
     }
