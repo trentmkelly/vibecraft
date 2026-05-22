@@ -36227,6 +36227,127 @@ fn apply_initial_tree_decoration_to_chunk(
     }
 }
 
+fn apply_initial_tree_decoration_from_source_into_region(
+    chunks: &mut BTreeMap<ChunkPos, LevelChunk>,
+    source_pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
+) -> TreeDecorationResult {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return TreeDecorationResult::default();
+    }
+    let Some(source_chunk) = chunks.get(&source_pos) else {
+        return TreeDecorationResult::default();
+    };
+
+    let router_id = noise_router_id_for_settings(*settings);
+    let noise_router = builtin_noise_router(router_id)
+        .map(|entry| entry.router)
+        .unwrap_or(NONE_NOISE_ROUTER);
+    let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
+    let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
+    let global_features_per_step = if global_biome_steps.is_empty() {
+        None
+    } else {
+        build_features_per_step(&global_biome_steps, true).ok()
+    };
+    let region_biome_steps = decoration_region_biome_steps
+        .map(|steps| steps.to_vec())
+        .unwrap_or_else(|| {
+            possible_biome_feature_steps_for_decoration_region(
+                source_pos,
+                biome_source_model,
+                settings,
+                &climate_sampler,
+            )
+        });
+    let terrain_heights = tree_decoration_terrain_heights(source_chunk, settings);
+    let mut generated_chunks = HashMap::new();
+    for (pos, chunk) in chunks.iter() {
+        generated_chunks.insert(*pos, TreeContextChunkRef::Full(chunk));
+    }
+    let block_context = TreeDecorationBlockContext {
+        source_pos,
+        source_chunk: TreeContextChunkRef::Full(source_chunk),
+        target_pos: source_pos,
+        target_chunk: source_chunk,
+        generated_chunks,
+    };
+    let mut diagnostics = TreeDecorationDiagnostics::default();
+    let planned_blocks = live_tree_decoration_blocks(
+        source_pos,
+        seed,
+        settings,
+        biome_source_model,
+        &climate_sampler,
+        global_features_per_step.as_deref(),
+        &region_biome_steps,
+        &block_context,
+        SourceTerrainHeights::Full(&terrain_heights),
+        &mut diagnostics,
+    );
+    drop(block_context);
+
+    let source_min_x = source_pos.x * 16;
+    let source_min_z = source_pos.z * 16;
+    let mut placed = 0;
+    for block in planned_blocks {
+        let world_x = source_min_x + block.pos.x;
+        let world_z = source_min_z + block.pos.z;
+        let target_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
+        if (target_pos.x - source_pos.x).abs() > 1 || (target_pos.z - source_pos.z).abs() > 1 {
+            continue;
+        }
+        let Some(target_chunk) = chunks.get_mut(&target_pos) else {
+            continue;
+        };
+        let current = target_chunk
+            .get_block_state_name(world_x, block.pos.y, world_z)
+            .unwrap_or("minecraft:air");
+        let can_replace = match block.kind {
+            TreePlacementBlockKind::DirtBelowTrunk => matches!(
+                current,
+                "minecraft:grass_block"
+                    | "minecraft:dirt"
+                    | "minecraft:coarse_dirt"
+                    | "minecraft:podzol"
+                    | "minecraft:rooted_dirt"
+                    | "minecraft:moss_block"
+            ),
+            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
+                matches!(
+                    current,
+                    "minecraft:air"
+                        | "minecraft:cave_air"
+                        | "minecraft:void_air"
+                        | "minecraft:water"
+                        | "minecraft:oak_leaves"
+                        | "minecraft:birch_leaves"
+                ) || block_matches_tag(current, "minecraft:leaves")
+            }
+            TreePlacementBlockKind::GroundCover => matches!(
+                current,
+                "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+            ),
+        };
+        if can_replace {
+            target_chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
+            placed += 1;
+        }
+    }
+
+    TreeDecorationResult {
+        placed_blocks: placed,
+        context_build_ms: 0,
+        context_chunks: chunks.len().saturating_sub(1),
+    }
+}
+
 struct LightweightTreeContextChunk {
     terrain_heights: TreeDecorationHeights,
     min_y: i32,
@@ -52859,6 +52980,123 @@ mod tests {
                     label, mismatch.count, mismatch.expected, mismatch.actual
                 );
             }
+        }
+    }
+
+    #[test]
+    #[ignore = "diagnostic for Java-shaped tree feature region writes"]
+    fn normal_overworld_region_tree_write_parity_stocktake() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("vanilla fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut region_chunks = BTreeMap::<ChunkPos, LevelChunk>::new();
+        let mut source_positions = Vec::new();
+        for chunk in chunks {
+            let pos = ChunkPos {
+                x: chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut chunk = base;
+            super::apply_configured_carvers_for_biome_source(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+            super::apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
+            super::apply_underground_ore_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            region_chunks.insert(pos, chunk);
+            source_positions.push(pos);
+        }
+
+        let mut total_tree_blocks = 0;
+        for pos in source_positions {
+            let result = super::apply_initial_tree_decoration_from_source_into_region(
+                &mut region_chunks,
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            total_tree_blocks += result.placed_blocks;
+        }
+
+        let generated = region_chunks.values().cloned().collect::<Vec<_>>();
+        let block = crate::worldgen_comparison::vanilla_worldgen_block_array_parity_score(
+            fixture_json,
+            &generated,
+        )
+        .expect("block parity score should compute");
+        let heightmap = crate::worldgen_comparison::vanilla_worldgen_heightmap_parity_score(
+            fixture_json,
+            &generated,
+        )
+        .expect("heightmap parity score should compute");
+        let column = crate::worldgen_comparison::vanilla_worldgen_column_profile_parity_score(
+            fixture_json,
+            &generated,
+        )
+        .expect("column-profile parity score should compute");
+        eprintln!(
+            "[worldgen-region-tree-parity] tree_blocks={} block={:.6} ({}/{}) heightmap={:.6} ({}/{}) column={:.6} ({}/{})",
+            total_tree_blocks,
+            block.score,
+            block.matching_blocks,
+            block.total_blocks,
+            heightmap.score,
+            heightmap.matching_columns,
+            heightmap.total_columns,
+            column.score,
+            column.matching_columns,
+            column.total_columns
+        );
+        for mismatch in block.mismatches.iter().take(8) {
+            eprintln!(
+                "[worldgen-region-tree-parity-mismatch] count={} expected={} actual={}",
+                mismatch.count, mismatch.expected, mismatch.actual
+            );
         }
     }
 
