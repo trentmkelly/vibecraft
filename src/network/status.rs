@@ -53,13 +53,13 @@ use crate::network::play::{
     CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
     CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
     CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
-    CLIENTBOUND_SET_HEALTH_PACKET_ID, CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-    CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID, CLIENTBOUND_SET_TIME_PACKET_ID,
-    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
-    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
+    CLIENTBOUND_RESPAWN_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+    CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
+    CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
+    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
     SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
     SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
     SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
@@ -81,16 +81,19 @@ use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
-use crate::storage::chunk::{LevelChunk, PalettedContainer, SECTION_VOLUME};
+use crate::storage::chunk::{HeightmapKind, LevelChunk, PalettedContainer, SECTION_VOLUME};
 use crate::storage::nbt::Tag;
 use crate::storage::region::{ChunkPos, RegionFile};
-use crate::storage::world::WorldLayout;
-use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomDurations};
+use crate::storage::world::{PrimaryLevelData, WorldLayout};
+use crate::weather::{WeatherCycle, WeatherData, WeatherRandomDurations};
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
 use crate::worldgen::{
-    generate_overworld_spawn_chunk_for_preset_with_mode,
+    fixup_spawn_height, generate_overworld_spawn_chunk_for_preset_with_mode,
     generate_overworld_spawn_chunk_for_preset_with_mode_timed,
-    generate_overworld_spawn_chunk_region_for_preset_with_mode, LiveChunkGenerationMode,
+    generate_overworld_spawn_chunk_region_for_preset_with_mode,
+    generator_find_spawn_position_for_stem, resolve_world_preset, spawn_block_kind,
+    spawn_search_candidate, spawn_search_candidate_count, spawn_search_radius,
+    LiveChunkGenerationMode, SpawnBlockKind, SPAWN_SELECTION_CONSTANTS,
 };
 
 const VERSION_NAME: &str = "26.1.2";
@@ -245,6 +248,15 @@ struct PlayerGlobalPosData {
     x: i32,
     y: i32,
     z: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PlayerSpawnPlacement {
+    x: f64,
+    y: f64,
+    z: f64,
+    yaw: f32,
+    pitch: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1845,6 +1857,7 @@ fn handle_login_connection(
         &finished.profile.uuid,
         properties,
         recipe_manager.recipe_map(),
+        world_seed,
     );
 
     // Snapshot current clock and weather state for the join packet.
@@ -2047,6 +2060,24 @@ fn handle_login_connection(
                             payload.write_all(&play_state.food_saturation.to_be_bytes())
                         },
                     )?;
+                }
+                if session_update.respawn_requested {
+                    handle_play_respawn_request(
+                        stream,
+                        compression,
+                        &mut play_state,
+                        properties,
+                        world_root,
+                        world_seed,
+                        chunk_cache,
+                    )?;
+                    current_chunk_x = chunk_coordinate(play_state.x);
+                    current_chunk_z = chunk_coordinate(play_state.z);
+                    loaded_chunks =
+                        chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+                    let _ =
+                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                    continue;
                 }
                 if session_update.position_changed {
                     let next_chunk_x = chunk_coordinate(play_state.x);
@@ -2403,6 +2434,7 @@ fn cache_login_profile(
 struct PlaySessionUpdate {
     position_changed: bool,
     health_changed: bool,
+    respawn_requested: bool,
 }
 
 fn update_play_session_state<R: Read>(
@@ -2447,6 +2479,17 @@ fn update_play_session_state<R: Read>(
             Ok(PlaySessionUpdate {
                 position_changed: false,
                 health_changed: false,
+                respawn_requested: false,
+            })
+        }
+        SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
+            let action = read_var_i32(input)?;
+            // Java ServerboundClientCommandPacket.Action ordinal 0 = PERFORM_RESPAWN.
+            // ServerGamePacketListenerImpl ignores it while the player is alive.
+            Ok(PlaySessionUpdate {
+                position_changed: false,
+                health_changed: false,
+                respawn_requested: action == 0 && state.health <= 0.0,
             })
         }
         _ => Ok(PlaySessionUpdate::default()),
@@ -2484,6 +2527,7 @@ fn apply_player_fall_movement(
     PlaySessionUpdate {
         position_changed,
         health_changed,
+        respawn_requested: false,
     }
 }
 
@@ -2815,6 +2859,7 @@ fn load_play_session_state(
     uuid: &str,
     properties: &ServerProperties,
     recipes: &RecipeMap,
+    world_seed: i64,
 ) -> PlaySessionState {
     let layout = WorldLayout::new(world_root);
     let default_game_mode = game_mode_from_name(&properties.game_mode);
@@ -2822,9 +2867,14 @@ fn load_play_session_state(
         .load_player_data(uuid)
         .ok()
         .and_then(|tag| play_session_state_from_nbt(&tag, default_game_mode, recipes))
-        .unwrap_or_else(|| PlaySessionState {
-            game_mode: default_game_mode,
-            ..PlaySessionState::default()
+        .unwrap_or_else(|| {
+            let mut state = PlaySessionState {
+                game_mode: default_game_mode,
+                ..PlaySessionState::default()
+            };
+            let spawn = find_default_player_spawn(world_root, world_seed, default_game_mode);
+            apply_spawn_placement_to_state(&mut state, spawn);
+            state
         });
     if properties.force_game_mode {
         state.game_mode = default_game_mode;
@@ -2838,6 +2888,332 @@ fn save_play_session_state(
     state: &PlaySessionState,
 ) -> io::Result<()> {
     WorldLayout::new(world_root).save_player_data(uuid, &play_session_state_to_nbt(state))
+}
+
+fn handle_play_respawn_request(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    properties: &ServerProperties,
+    world_root: &Path,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+) -> io::Result<()> {
+    let spawn = find_default_player_spawn(world_root, world_seed, state.game_mode);
+    apply_spawn_placement_to_state(state, spawn);
+    reset_play_state_after_death_respawn(state);
+
+    let spawn_info = CommonPlayerSpawnInfo {
+        seed: world_seed,
+        game_mode: state.game_mode,
+        previous_game_mode: state.previous_game_mode,
+        last_death_location: state.last_death_location.as_ref().map(|pos| {
+            (
+                Identifier::parse(&pos.dimension).unwrap_or_else(|_| {
+                    Identifier::parse("minecraft:overworld").expect("valid fallback identifier")
+                }),
+                [pos.x, pos.y, pos.z],
+            )
+        }),
+        ..CommonPlayerSpawnInfo::default()
+    };
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_RESPAWN_PACKET_ID,
+        |payload| {
+            write_common_spawn_info(payload, &spawn_info)?;
+            payload.write_all(&[0])
+        },
+    )?;
+
+    let center_chunk_x = chunk_coordinate(state.x);
+    let center_chunk_z = chunk_coordinate(state.z);
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, center_chunk_x)?;
+            write_var_i32(payload, center_chunk_z)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+        |payload| write_var_i32(payload, properties.view_distance as i32),
+    )?;
+    write_play_chunk_delta(
+        stream,
+        compression,
+        center_chunk_x,
+        center_chunk_z,
+        &[(center_chunk_x, center_chunk_z)],
+        false,
+        world_root,
+        world_seed,
+        chunk_cache,
+    )?;
+
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, 0)?;
+            write_vec3(payload, state.x, state.y, state.z)?;
+            write_vec3(payload, 0.0, 0.0, 0.0)?;
+            payload.write_all(&state.yaw.to_be_bytes())?;
+            payload.write_all(&state.pitch.to_be_bytes())?;
+            payload.write_all(&0_i32.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+        |payload| {
+            let default_spawn = world_spawn_suggestion(world_root, world_seed);
+            write_default_spawn_position_packet(
+                payload,
+                default_spawn.0,
+                default_spawn.1,
+                default_spawn.2,
+            )
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+        |payload| {
+            payload.write_all(&[1])?;
+            write_bool(payload, false)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+        |payload| {
+            payload.write_all(&state.xp_progress.to_be_bytes())?;
+            write_var_i32(payload, state.xp_level)?;
+            write_var_i32(payload, state.xp_total)
+        },
+    )?;
+    write_game_event_to_writer(stream, compression, 2, 0.0)?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_HEALTH_PACKET_ID,
+        |payload| {
+            payload.write_all(&state.health.to_be_bytes())?;
+            write_var_i32(payload, state.food_level)?;
+            payload.write_all(&state.food_saturation.to_be_bytes())
+        },
+    )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
+            payload.write_all(&0.0f32.to_be_bytes())
+        },
+    )?;
+    delay_initial_chunk_batch_for_probe(stream, compression)?;
+    write_play_chunk_batch(
+        stream,
+        compression,
+        center_chunk_x,
+        center_chunk_z,
+        chunk_batch_radius(properties),
+        false,
+        world_root,
+        world_seed,
+        chunk_cache,
+    )
+}
+
+fn apply_spawn_placement_to_state(state: &mut PlaySessionState, spawn: PlayerSpawnPlacement) {
+    state.x = spawn.x;
+    state.y = spawn.y;
+    state.z = spawn.z;
+    state.yaw = spawn.yaw;
+    state.pitch = spawn.pitch;
+}
+
+fn reset_play_state_after_death_respawn(state: &mut PlaySessionState) {
+    state.health = 20.0;
+    state.food_level = 20;
+    state.food_saturation = 5.0;
+    state.food_exhaustion = 0.0;
+    state.fall_distance = 0.0;
+    state.on_ground = true;
+    state.xp_progress = 0.0;
+    state.xp_level = 0;
+    state.xp_total = 0;
+    state.score = 0;
+}
+
+fn find_default_player_spawn(
+    world_root: &Path,
+    world_seed: i64,
+    game_mode: GameMode,
+) -> PlayerSpawnPlacement {
+    let suggestion = world_spawn_suggestion(world_root, world_seed);
+    find_player_spawn_near(world_root, world_seed, suggestion, game_mode).unwrap_or_else(|| {
+        PlayerSpawnPlacement {
+            x: suggestion.0 as f64 + 0.5,
+            y: suggestion.1 as f64,
+            z: suggestion.2 as f64 + 0.5,
+            yaw: suggestion.3,
+            pitch: 0.0,
+        }
+    })
+}
+
+fn world_spawn_suggestion(world_root: &Path, world_seed: i64) -> (i32, i32, i32, f32) {
+    let layout = WorldLayout::new(world_root);
+    if let Ok(tag) = layout.load_level_dat_with_backup() {
+        if let Some(level) = PrimaryLevelData::from_level_dat(&tag) {
+            return (
+                level.spawn.x,
+                level.spawn.y,
+                level.spawn.z,
+                level.spawn.angle,
+            );
+        }
+    }
+
+    resolve_world_preset("normal")
+        .and_then(|preset| generator_find_spawn_position_for_stem(&preset.overworld, world_seed))
+        .map(|pos| (pos.x, pos.y, pos.z, 0.0))
+        .unwrap_or((0, SPAWN_Y as i32, 0, 0.0))
+}
+
+fn find_player_spawn_near(
+    world_root: &Path,
+    world_seed: i64,
+    suggestion: (i32, i32, i32, f32),
+    game_mode: GameMode,
+) -> Option<PlayerSpawnPlacement> {
+    let layout = WorldLayout::new(world_root);
+    if game_mode != GameMode::Adventure {
+        let radius = spawn_search_radius(
+            SPAWN_SELECTION_CONSTANTS.default_respawn_radius,
+            SPAWN_SELECTION_CONSTANTS.default_respawn_radius,
+        );
+        let candidate_count = spawn_search_candidate_count(radius);
+        let random_offset =
+            spawn_search_offset(world_seed, suggestion.0, suggestion.2, candidate_count);
+        for candidate_index in 0..candidate_count {
+            let Some((x, z)) = spawn_search_candidate(
+                suggestion.0,
+                suggestion.2,
+                radius,
+                random_offset,
+                candidate_index,
+            ) else {
+                continue;
+            };
+            let chunk = load_chunk(
+                &layout,
+                world_seed,
+                ChunkPos {
+                    x: x.div_euclid(16),
+                    z: z.div_euclid(16),
+                },
+            );
+            let Some((spawn_x, spawn_y, spawn_z)) = overworld_respawn_pos_in_chunk(&chunk, x, z)
+            else {
+                continue;
+            };
+            if no_collision_no_liquid_in_chunk(&chunk, spawn_x, spawn_y, spawn_z) {
+                return Some(PlayerSpawnPlacement {
+                    x: spawn_x as f64 + 0.5,
+                    y: spawn_y as f64,
+                    z: spawn_z as f64 + 0.5,
+                    yaw: suggestion.3,
+                    pitch: 0.0,
+                });
+            }
+        }
+    }
+
+    let chunk = load_chunk(
+        &layout,
+        world_seed,
+        ChunkPos {
+            x: suggestion.0.div_euclid(16),
+            z: suggestion.2.div_euclid(16),
+        },
+    );
+    let y = fixup_spawn_height(suggestion.1, -64, 320, |y| {
+        no_collision_no_liquid_in_chunk(&chunk, suggestion.0, y, suggestion.2)
+    });
+    Some(PlayerSpawnPlacement {
+        x: suggestion.0 as f64 + 0.5,
+        y: y as f64,
+        z: suggestion.2 as f64 + 0.5,
+        yaw: suggestion.3,
+        pitch: 0.0,
+    })
+}
+
+fn spawn_search_offset(world_seed: i64, x: i32, z: i32, candidate_count: i32) -> i32 {
+    if candidate_count <= 0 {
+        return 0;
+    }
+    let mixed = (world_seed as u64)
+        ^ (x as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        ^ (z as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    (mixed % candidate_count as u64) as i32
+}
+
+fn overworld_respawn_pos_in_chunk(chunk: &LevelChunk, x: i32, z: i32) -> Option<(i32, i32, i32)> {
+    let local_x = x.rem_euclid(16) as usize;
+    let local_z = z.rem_euclid(16) as usize;
+    let index = local_z * 16 + local_x;
+    let motion_blocking = chunk.compute_heightmap_values(HeightmapKind::MotionBlocking);
+    let world_surface = chunk.compute_heightmap_values(HeightmapKind::WorldSurface);
+    let ocean_floor = chunk.compute_heightmap_values(HeightmapKind::OceanFloor);
+    let top_y = motion_blocking[index];
+    if top_y < -64 {
+        return None;
+    }
+    let surface_y = world_surface[index];
+    let ocean_floor_y = ocean_floor[index];
+    if surface_y <= top_y && surface_y > ocean_floor_y {
+        return None;
+    }
+
+    for y in (-64..=top_y + 1).rev() {
+        match block_kind_at(chunk, x, y, z) {
+            SpawnBlockKind::Fluid => break,
+            SpawnBlockKind::Solid => return Some((x, y + 1, z)),
+            SpawnBlockKind::Air | SpawnBlockKind::NonSolid => {}
+        }
+    }
+    None
+}
+
+fn no_collision_no_liquid_in_chunk(chunk: &LevelChunk, x: i32, y: i32, z: i32) -> bool {
+    matches!(
+        block_kind_at(chunk, x, y, z),
+        SpawnBlockKind::Air | SpawnBlockKind::NonSolid
+    ) && matches!(
+        block_kind_at(chunk, x, y + 1, z),
+        SpawnBlockKind::Air | SpawnBlockKind::NonSolid
+    )
+}
+
+fn block_kind_at(chunk: &LevelChunk, x: i32, y: i32, z: i32) -> SpawnBlockKind {
+    let block = chunk
+        .get_block_state_name(x, y, z)
+        .unwrap_or("minecraft:air");
+    spawn_block_kind(block)
 }
 
 fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
@@ -3663,7 +4039,15 @@ fn write_minimal_play_join(
         stream,
         compression,
         CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-        |payload| write_default_spawn_position_packet(payload, 0, SPAWN_Y as i32, 0),
+        |payload| {
+            let default_spawn = world_spawn_suggestion(world_root, world_seed);
+            write_default_spawn_position_packet(
+                payload,
+                default_spawn.0,
+                default_spawn.1,
+                default_spawn.2,
+            )
+        },
     )?;
     // Type 2 = StopRaining (used to initialise client weather state even when not raining).
     // Java: ServerLevel.sendLevelInfo() sends BeginRaining/StopRaining on join.
@@ -7697,8 +8081,17 @@ fn write_game_event(
     event_type: u8,
     param: f32,
 ) -> io::Result<()> {
+    write_game_event_to_writer(stream, compression, event_type, param)
+}
+
+fn write_game_event_to_writer<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    event_type: u8,
+    param: f32,
+) -> io::Result<()> {
     write_framed_packet_with_compression(
-        stream,
+        writer,
         compression,
         CLIENTBOUND_GAME_EVENT_PACKET_ID,
         |payload| {
@@ -10383,6 +10776,92 @@ mod tests {
         assert!(!update.health_changed);
         assert_eq!(state.fall_distance, 0.0);
         assert_eq!(state.health, 20.0);
+    }
+
+    #[test]
+    fn client_respawn_command_only_requests_respawn_when_dead() {
+        let mut alive = session_state_with_inventory(&[]);
+        let mut action = Vec::new();
+        write_var_i32(&mut action, 0).unwrap();
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
+            &mut Cursor::new(action),
+            &mut alive,
+        )
+        .unwrap();
+        assert!(!update.respawn_requested);
+
+        let mut dead = session_state_with_inventory(&[]);
+        dead.health = 0.0;
+        let mut action = Vec::new();
+        write_var_i32(&mut action, 0).unwrap();
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
+            &mut Cursor::new(action),
+            &mut dead,
+        )
+        .unwrap();
+        assert!(update.respawn_requested);
+
+        let mut stats = Vec::new();
+        write_var_i32(&mut stats, 1).unwrap();
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
+            &mut Cursor::new(stats),
+            &mut dead,
+        )
+        .unwrap();
+        assert!(!update.respawn_requested);
+    }
+
+    #[test]
+    fn respawn_application_restores_health_and_clears_fall_state() {
+        let mut state = session_state_with_inventory(&[]);
+        state.health = 0.0;
+        state.food_level = 3;
+        state.food_saturation = 0.0;
+        state.food_exhaustion = 12.0;
+        state.fall_distance = 48.0;
+        state.on_ground = false;
+        state.xp_level = 9;
+        state.xp_total = 123;
+        state.score = 77;
+
+        super::apply_spawn_placement_to_state(
+            &mut state,
+            super::PlayerSpawnPlacement {
+                x: 12.5,
+                y: 70.0,
+                z: -3.5,
+                yaw: 90.0,
+                pitch: 0.0,
+            },
+        );
+        super::reset_play_state_after_death_respawn(&mut state);
+
+        assert_eq!((state.x, state.y, state.z), (12.5, 70.0, -3.5));
+        assert_eq!(state.health, 20.0);
+        assert_eq!(state.food_level, 20);
+        assert_eq!(state.food_saturation, 5.0);
+        assert_eq!(state.food_exhaustion, 0.0);
+        assert_eq!(state.fall_distance, 0.0);
+        assert!(state.on_ground);
+        assert_eq!(state.xp_level, 0);
+        assert_eq!(state.xp_total, 0);
+        assert_eq!(state.score, 0);
+    }
+
+    #[test]
+    fn overworld_respawn_pos_uses_motion_blocking_surface_like_java() {
+        let mut chunk = LevelChunk::empty(crate::storage::region::ChunkPos { x: 0, z: 0 });
+        chunk.set_block_state(0, 63, 0, "minecraft:grass_block");
+        assert_eq!(
+            super::overworld_respawn_pos_in_chunk(&chunk, 0, 0),
+            Some((0, 64, 0))
+        );
+
+        chunk.set_block_state(0, 64, 0, "minecraft:water");
+        assert_eq!(super::overworld_respawn_pos_in_chunk(&chunk, 0, 0), None);
     }
 
     #[test]
