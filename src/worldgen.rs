@@ -30763,16 +30763,20 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
                 &mut noise_context,
             );
             apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
-            apply_underground_ore_decoration_to_chunk(
-                &mut chunk,
-                biome_source_model,
-                noise_settings,
-                seed,
-                None,
-            );
             chunks.insert(pos, chunk);
             source_positions.push(pos);
         }
+    }
+
+    for pos in source_positions.iter().copied() {
+        apply_underground_ore_decoration_from_source_into_region(
+            &mut chunks,
+            pos,
+            biome_source_model,
+            noise_settings,
+            seed,
+            None,
+        );
     }
 
     for pos in source_positions {
@@ -38886,6 +38890,131 @@ fn apply_underground_ore_decoration_to_chunk_with_context(
     placed
 }
 
+fn apply_underground_ore_decoration_from_source_into_region(
+    chunks: &mut BTreeMap<ChunkPos, LevelChunk>,
+    source_pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
+) -> usize {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return 0;
+    }
+    let Some(source_chunk) = chunks.get(&source_pos).cloned() else {
+        return 0;
+    };
+    let Some(router) =
+        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
+    else {
+        return 0;
+    };
+    let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
+    let possible_steps = decoration_region_biome_steps
+        .map(|steps| steps.to_vec())
+        .unwrap_or_else(|| {
+            possible_biome_feature_steps_for_decoration_region(
+                source_pos,
+                biome_source_model,
+                settings,
+                &climate_sampler,
+            )
+        });
+    if possible_steps.is_empty() {
+        return 0;
+    }
+
+    let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
+    let feature_source_steps = if !global_biome_steps.is_empty() {
+        &global_biome_steps
+    } else {
+        &possible_steps
+    };
+    let features_per_step = match build_features_per_step(feature_source_steps, true) {
+        Ok(features) => features,
+        Err(_) => return 0,
+    };
+    let plan = biome_decoration_feature_plan(
+        seed,
+        source_pos.x,
+        source_pos.z,
+        settings.noise.min_y.div_euclid(16),
+        &features_per_step,
+        &possible_steps,
+    );
+    let skip_biome_filter = biome_steps_share_decoration_step_features(
+        &possible_steps,
+        GenerationDecorationStep::UndergroundOres,
+    );
+    let Some(mut block_cache) = OreBlockCache::from_region_chunks(source_pos, chunks) else {
+        return 0;
+    };
+    let mut placed = 0;
+    let mut ore_model_cache: HashMap<&'static str, (PlacedOreFeatureModel, OreConfigurationModel)> =
+        HashMap::new();
+    let mut disk_model_cache: HashMap<
+        &'static str,
+        (PlacedDiskFeatureModel, DiskConfigurationModel),
+    > = HashMap::new();
+
+    for call in plan
+        .feature_calls
+        .iter()
+        .filter(|call| call.step_index == GenerationDecorationStep::UndergroundOres as usize)
+    {
+        if !ore_model_cache.contains_key(call.feature) {
+            if let Some(feature) = placed_ore_feature(call.feature) {
+                if let Some(config) = configured_ore_configuration(feature.configured_feature) {
+                    ore_model_cache.insert(call.feature, (feature, config));
+                }
+            }
+        }
+        if let Some((feature, config)) = ore_model_cache.get(call.feature) {
+            placed += place_ore_feature_in_chunk(
+                &source_chunk,
+                &mut block_cache,
+                source_pos,
+                biome_source_model,
+                settings,
+                seed,
+                &climate_sampler,
+                call.feature,
+                feature,
+                config,
+                call.seed,
+                skip_biome_filter,
+            )
+            .placed;
+            continue;
+        }
+
+        if !disk_model_cache.contains_key(call.feature) {
+            if let Some(feature) = placed_disk_feature(call.feature) {
+                if let Some(config) = configured_disk_configuration(feature.configured_feature) {
+                    disk_model_cache.insert(call.feature, (feature, config));
+                }
+            }
+        }
+        if let Some((feature, config)) = disk_model_cache.get(call.feature) {
+            placed += place_disk_feature_in_chunk(
+                &mut block_cache,
+                source_pos,
+                biome_source_model,
+                settings,
+                &climate_sampler,
+                call.feature,
+                feature,
+                config,
+                call.seed,
+                skip_biome_filter,
+            );
+        }
+    }
+
+    block_cache.flush_to_chunks(chunks);
+    placed
+}
+
 fn build_underground_ore_decoration_context_chunks(
     target_pos: ChunkPos,
     settings: &NoiseGeneratorSettings,
@@ -39027,9 +39156,15 @@ struct OreBlockCache {
     min_section_y: i32,
     ocean_floor_wg: [i32; 16 * 16],
     sections: Vec<OreSectionCache>,
+    region_chunks: HashMap<ChunkPos, OreRegionChunkCache>,
     read_context: HashMap<ChunkPos, LightweightTreeContextChunk>,
     block_state_entries: HashMap<&'static str, Tag>,
-    palette_indices: HashMap<(i8, &'static str), usize>,
+    palette_indices: HashMap<(ChunkPos, i8, &'static str), usize>,
+}
+
+struct OreRegionChunkCache {
+    ocean_floor_wg: [i32; 16 * 16],
+    sections: Vec<OreSectionCache>,
 }
 
 struct OreSectionCache {
@@ -39055,6 +39190,7 @@ impl OreBlockCache {
             min_section_y: chunk.min_section_y,
             ocean_floor_wg,
             sections: ore_section_caches_from_chunk(chunk),
+            region_chunks: HashMap::new(),
             read_context: HashMap::new(),
             block_state_entries: HashMap::new(),
             palette_indices: HashMap::new(),
@@ -39073,23 +39209,69 @@ impl OreBlockCache {
         cache
     }
 
+    fn from_region_chunks(
+        center_pos: ChunkPos,
+        chunks: &BTreeMap<ChunkPos, LevelChunk>,
+    ) -> Option<Self> {
+        let center = chunks.get(&center_pos)?;
+        let mut cache = Self::from_chunk(center);
+        for (pos, chunk) in chunks {
+            if *pos == center_pos {
+                continue;
+            }
+            cache.region_chunks.insert(
+                *pos,
+                OreRegionChunkCache {
+                    ocean_floor_wg: ore_ocean_floor_wg_from_chunk(chunk),
+                    sections: ore_section_caches_from_chunk(chunk),
+                },
+            );
+        }
+        Some(cache)
+    }
+
     fn block_state_name(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
         let chunk_pos = ChunkPos {
             x: world_x.div_euclid(16),
             z: world_z.div_euclid(16),
         };
         if chunk_pos != self.chunk_pos {
+            if let Some(region_chunk) = self.region_chunks.get(&chunk_pos) {
+                return Self::block_state_name_from_sections(
+                    &region_chunk.sections,
+                    self.min_section_y,
+                    world_x,
+                    world_y,
+                    world_z,
+                );
+            }
             return self
                 .read_context
                 .get(&chunk_pos)
                 .map(|chunk| chunk.synthetic_block_state(world_x, world_y, world_z));
         }
+        Self::block_state_name_from_sections(
+            &self.sections,
+            self.min_section_y,
+            world_x,
+            world_y,
+            world_z,
+        )
+    }
+
+    fn block_state_name_from_sections(
+        sections: &[OreSectionCache],
+        min_section_y: i32,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+    ) -> Option<&str> {
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
         let local_y = world_y.rem_euclid(16) as usize;
         let local_z = world_z.rem_euclid(16) as usize;
         let index = local_y * 256 + local_z * 16 + local_x;
-        let section = self.section(section_y)?;
+        let section = Self::section_from_sections(sections, min_section_y, section_y)?;
         let palette_index = *section.indices.get(index)? as usize;
         section
             .palette_names
@@ -39129,6 +39311,9 @@ impl OreBlockCache {
         if chunk_pos == self.chunk_pos {
             return self.ocean_floor_wg.get(index).copied();
         }
+        if let Some(region_chunk) = self.region_chunks.get(&chunk_pos) {
+            return region_chunk.ocean_floor_wg.get(index).copied();
+        }
         self.read_context.get(&chunk_pos).map(|chunk| {
             chunk
                 .terrain_heights
@@ -39146,12 +39331,16 @@ impl OreBlockCache {
         if !self.contains_world_xz(world_x, world_z) {
             return;
         }
+        let chunk_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
         let local_y = world_y.rem_euclid(16) as usize;
         let local_z = world_z.rem_euclid(16) as usize;
         let index = local_y * 256 + local_z * 16 + local_x;
-        let cache_key = (section_y, block_name);
+        let cache_key = (chunk_pos, section_y, block_name);
         let cached_palette_index = self.palette_indices.get(&cache_key).copied();
         let entry = if cached_palette_index.is_none() {
             Some(
@@ -39168,7 +39357,7 @@ impl OreBlockCache {
         } else {
             None
         };
-        if let Some(section) = self.section_mut(section_y) {
+        if let Some(section) = self.section_mut_for_chunk(chunk_pos, section_y) {
             let palette_index = cached_palette_index.unwrap_or_else(|| {
                 let entry = entry.as_ref().expect("entry exists when uncached");
                 let palette_index = section
@@ -39196,7 +39385,22 @@ impl OreBlockCache {
     }
 
     fn flush_to_chunk(self, chunk: &mut LevelChunk) {
-        for section_cache in self.sections {
+        Self::flush_sections_to_chunk(self.sections, chunk);
+    }
+
+    fn flush_to_chunks(self, chunks: &mut BTreeMap<ChunkPos, LevelChunk>) {
+        if let Some(chunk) = chunks.get_mut(&self.chunk_pos) {
+            Self::flush_sections_to_chunk(self.sections, chunk);
+        }
+        for (pos, region_chunk) in self.region_chunks {
+            if let Some(chunk) = chunks.get_mut(&pos) {
+                Self::flush_sections_to_chunk(region_chunk.sections, chunk);
+            }
+        }
+    }
+
+    fn flush_sections_to_chunk(sections: Vec<OreSectionCache>, chunk: &mut LevelChunk) {
+        for section_cache in sections {
             if !section_cache.dirty {
                 continue;
             }
@@ -39222,30 +39426,77 @@ impl OreBlockCache {
     }
 
     fn section(&self, section_y: i8) -> Option<&OreSectionCache> {
-        self.sections
-            .get((i32::from(section_y) - self.min_section_y) as usize)
-            .filter(|section| section.y == section_y)
-            .or_else(|| self.sections.iter().find(|section| section.y == section_y))
+        Self::section_from_sections(&self.sections, self.min_section_y, section_y)
     }
 
-    fn section_mut(&mut self, section_y: i8) -> Option<&mut OreSectionCache> {
-        let section_index = i32::from(section_y) - self.min_section_y;
+    fn section_from_sections(
+        sections: &[OreSectionCache],
+        min_section_y: i32,
+        section_y: i8,
+    ) -> Option<&OreSectionCache> {
+        let section_index = i32::from(section_y) - min_section_y;
         if section_index >= 0
-            && self
-                .sections
+            && sections
                 .get(section_index as usize)
                 .is_some_and(|section| section.y == section_y)
         {
-            return self.sections.get_mut(section_index as usize);
+            return sections.get(section_index as usize);
         }
-        self.sections
-            .iter_mut()
-            .find(|section| section.y == section_y)
+        sections.iter().find(|section| section.y == section_y)
+    }
+
+    fn section_mut_for_chunk(
+        &mut self,
+        chunk_pos: ChunkPos,
+        section_y: i8,
+    ) -> Option<&mut OreSectionCache> {
+        if chunk_pos == self.chunk_pos {
+            return Self::section_mut_from_sections(
+                &mut self.sections,
+                self.min_section_y,
+                section_y,
+            );
+        }
+        self.region_chunks.get_mut(&chunk_pos).and_then(|chunk| {
+            Self::section_mut_from_sections(&mut chunk.sections, self.min_section_y, section_y)
+        })
+    }
+
+    fn section_mut_from_sections(
+        sections: &mut [OreSectionCache],
+        min_section_y: i32,
+        section_y: i8,
+    ) -> Option<&mut OreSectionCache> {
+        let section_index = i32::from(section_y) - min_section_y;
+        if section_index >= 0
+            && sections
+                .get(section_index as usize)
+                .is_some_and(|section| section.y == section_y)
+        {
+            return sections.get_mut(section_index as usize);
+        }
+        sections.iter_mut().find(|section| section.y == section_y)
     }
 
     fn contains_world_xz(&self, world_x: i32, world_z: i32) -> bool {
-        world_x.div_euclid(16) == self.chunk_pos.x && world_z.div_euclid(16) == self.chunk_pos.z
+        let chunk_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
+        chunk_pos == self.chunk_pos || self.region_chunks.contains_key(&chunk_pos)
     }
+}
+
+fn ore_ocean_floor_wg_from_chunk(chunk: &LevelChunk) -> [i32; 16 * 16] {
+    let mut ocean_floor_wg = [chunk.min_section_y * 16; 16 * 16];
+    for z in 0..16 {
+        for x in 0..16 {
+            ocean_floor_wg[z * 16 + x] = chunk
+                .heightmap_value(HeightmapKind::OceanFloorWg, x, z)
+                .unwrap_or(chunk.min_section_y * 16);
+        }
+    }
+    ocean_floor_wg
 }
 
 fn ore_section_caches_from_chunk(chunk: &LevelChunk) -> Vec<OreSectionCache> {
@@ -57776,6 +58027,64 @@ mod tests {
         assert_eq!(
             chunk
                 .get_block_state(origin_x + 1, 1, origin_z + 1)
+                .as_deref(),
+            Some("minecraft:iron_ore")
+        );
+    }
+
+    #[test]
+    fn ore_region_cache_reads_and_flushes_neighboring_chunks() {
+        let center_pos = ChunkPos { x: 2, z: -3 };
+        let west_pos = ChunkPos { x: 1, z: -3 };
+        let mut chunks = BTreeMap::new();
+        for (pos, marker) in [
+            (center_pos, "minecraft:stone"),
+            (west_pos, "minecraft:dirt"),
+        ] {
+            let mut chunk = LevelChunk::empty(pos);
+            chunk.min_section_y = 0;
+            chunk.sections.push(ChunkSection {
+                y: 0,
+                block_states: PalettedContainer::single(
+                    super::block_state_tag(marker),
+                    SECTION_VOLUME,
+                )
+                .to_nbt(),
+                biomes: PalettedContainer::single(
+                    Tag::String("minecraft:plains".to_string()),
+                    BIOME_SECTION_VOLUME,
+                )
+                .to_nbt(),
+                block_light: None,
+                sky_light: None,
+            });
+            chunks.insert(pos, chunk);
+        }
+
+        let center_min_x = center_pos.x * 16;
+        let center_min_z = center_pos.z * 16;
+        let west_world_x = center_min_x - 1;
+        let world_z = center_min_z + 5;
+        let mut block_cache =
+            super::OreBlockCache::from_region_chunks(center_pos, &chunks).unwrap();
+
+        assert_eq!(
+            block_cache.block_state_name(west_world_x, 1, world_z),
+            Some("minecraft:dirt")
+        );
+        block_cache.set_block_state(west_world_x, 1, world_z, "minecraft:gold_ore");
+        block_cache.set_block_state(center_min_x + 1, 1, world_z, "minecraft:iron_ore");
+        block_cache.flush_to_chunks(&mut chunks);
+
+        assert_eq!(
+            chunks[&west_pos]
+                .get_block_state(west_world_x, 1, world_z)
+                .as_deref(),
+            Some("minecraft:gold_ore")
+        );
+        assert_eq!(
+            chunks[&center_pos]
+                .get_block_state(center_min_x + 1, 1, world_z)
                 .as_deref(),
             Some("minecraft:iron_ore")
         );
