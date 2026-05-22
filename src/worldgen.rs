@@ -29292,7 +29292,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                         timings.ore_decoration_ms = phase_started.elapsed().as_millis();
 
                         let phase_started = Instant::now();
-                        timings.tree_blocks = apply_initial_tree_decoration_to_chunk(
+                        let tree_result = apply_initial_tree_decoration_to_chunk(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
@@ -29300,6 +29300,9 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             Some(&region_biome_steps),
                             None,
                         );
+                        timings.tree_blocks = tree_result.placed_blocks;
+                        timings.tree_context_ms = tree_result.context_build_ms;
+                        timings.tree_context_chunks = tree_result.context_chunks;
                         timings.tree_decoration_ms = phase_started.elapsed().as_millis();
                         chunk
                     }
@@ -35989,6 +35992,13 @@ fn apply_configured_carvers_for_biome_source_with_noise_context(
     carved_blocks
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct TreeDecorationResult {
+    placed_blocks: usize,
+    context_build_ms: u128,
+    context_chunks: usize,
+}
+
 fn apply_initial_tree_decoration_to_chunk(
     chunk: &mut LevelChunk,
     biome_source_model: &BiomeSourceModel,
@@ -35996,9 +36006,9 @@ fn apply_initial_tree_decoration_to_chunk(
     seed: i64,
     decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
     precomputed_context: Option<TreeDecorationContextCache>,
-) -> usize {
+) -> TreeDecorationResult {
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
-        return 0;
+        return TreeDecorationResult::default();
     }
 
     let chunk_min_x = chunk.pos.x * 16;
@@ -36012,7 +36022,7 @@ fn apply_initial_tree_decoration_to_chunk(
         .map(|entry| entry.router)
         .unwrap_or(NONE_NOISE_ROUTER);
     if load_surface_rule(settings.id).is_none() {
-        return 0;
+        return TreeDecorationResult::default();
     }
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
@@ -36208,7 +36218,11 @@ fn apply_initial_tree_decoration_to_chunk(
         &region_biome_steps,
     );
 
-    placed
+    TreeDecorationResult {
+        placed_blocks: placed,
+        context_build_ms: diagnostics.context_chunk_build_ms,
+        context_chunks: diagnostics.context_chunks,
+    }
 }
 
 struct LightweightTreeContextChunk {
@@ -36266,21 +36280,23 @@ fn build_tree_decoration_context_cache(
         }
     }
     let context_started = Instant::now();
-    let region_chunks = context_positions
-        .iter()
-        .map(|&region_pos| {
-            let terrain_heights =
-                noise_tree_context_heights(region_pos, settings, seed, noise_router);
-            (
-                region_pos,
-                LightweightTreeContextChunk {
-                    terrain_heights,
-                    min_y: settings.noise.min_y,
-                    max_y: settings.noise.min_y + settings.noise.height,
-                },
-            )
-        })
-        .collect::<Vec<_>>();
+    let region_chunks = with_noise_snapshot_cache(|| {
+        context_positions
+            .iter()
+            .map(|&region_pos| {
+                let terrain_heights =
+                    noise_tree_context_heights_inner(region_pos, settings, seed, noise_router);
+                (
+                    region_pos,
+                    LightweightTreeContextChunk {
+                        terrain_heights,
+                        min_y: settings.noise.min_y,
+                        max_y: settings.noise.min_y + settings.noise.height,
+                    },
+                )
+            })
+            .collect::<Vec<_>>()
+    });
     let context_chunk_build_ms = context_started.elapsed().as_millis();
     let heightmap_started = Instant::now();
     for (region_pos, region_chunk) in region_chunks {
