@@ -37807,7 +37807,6 @@ fn apply_initial_tree_decoration_to_chunk(
                 target_chunk: &*chunk,
                 generated_chunks: &generated_chunks,
             };
-
             for block in live_tree_decoration_blocks(
                 source_pos,
                 seed,
@@ -47804,8 +47803,8 @@ fn conifer_leaves_row_should_skip(dx: i32, dz: i32, radius: i32) -> bool {
 }
 
 fn fancy_leaves_row_should_skip(dx: i32, dz: i32, radius: i32) -> bool {
-    let dx = dx as f32 + 0.5;
-    let dz = dz as f32 + 0.5;
+    let dx = dx.abs() as f32 + 0.5;
+    let dz = dz.abs() as f32 + 0.5;
     dx * dx + dz * dz > (radius * radius) as f32
 }
 
@@ -66101,7 +66100,7 @@ mod tests {
             super::fancy_foliage_rows(0, 2, 2),
             vec![(0, 2), (-1, 3), (-2, 2)]
         );
-        assert!(fancy_plan.blocks.iter().any(|block| {
+        assert!(!fancy_plan.blocks.iter().any(|block| {
             block.kind == TreePlacementBlockKind::Leaves
                 && block.pos
                     == BlockPos {
@@ -66137,7 +66136,7 @@ mod tests {
                         z: 70,
                     }
         }));
-        assert!(!super::fancy_leaves_row_should_skip(-2, 0, 2));
+        assert!(super::fancy_leaves_row_should_skip(-2, 0, 2));
         assert!(super::fancy_leaves_row_should_skip(2, 0, 2));
         let mega_jungle_plan = super::simple_tree_placement_plan(
             BlockPos {
