@@ -38127,7 +38127,7 @@ fn tree_context_worker_count(context_count: usize) -> usize {
     let available = std::thread::available_parallelism()
         .map(usize::from)
         .unwrap_or(1);
-    let default_workers = available.min(4).min(context_count).max(1);
+    let default_workers = available.min(8).min(context_count).max(1);
     std::env::var("RUSTCRAFT_WORLDGEN_TREE_CONTEXT_THREADS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
