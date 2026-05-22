@@ -52284,6 +52284,7 @@ mod tests {
 
         let mut base_chunks = Vec::new();
         let mut carver_chunks = Vec::new();
+        let mut structure_chunks = Vec::new();
         let mut ore_chunks = Vec::new();
         let mut full_chunks = Vec::new();
         for chunk in chunks {
@@ -52311,7 +52312,9 @@ mod tests {
                 noise_settings,
                 seed,
             );
-            let mut ore = carver.clone();
+            let mut structure = carver.clone();
+            super::apply_mineshaft_underground_structures_to_chunk(&mut structure, seed);
+            let mut ore = structure.clone();
             super::apply_underground_ore_decoration_to_chunk(
                 &mut ore,
                 biome_source_model,
@@ -52330,6 +52333,7 @@ mod tests {
             );
             base_chunks.push(base);
             carver_chunks.push(carver);
+            structure_chunks.push(structure);
             ore_chunks.push(ore);
             full_chunks.push(full);
         }
@@ -52337,6 +52341,7 @@ mod tests {
         for (label, chunks) in [
             ("noise_surface", &base_chunks),
             ("carvers", &carver_chunks),
+            ("structures", &structure_chunks),
             ("ores", &ore_chunks),
             ("trees", &full_chunks),
         ] {
