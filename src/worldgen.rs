@@ -35815,6 +35815,14 @@ fn build_surface_for_chunk_timed_with_sections(
                     let stone_depth_below = y - next_ceiling_stone_y + 1;
 
                     if block_id == default_block_id {
+                        // Overworld surface rules are top-level:
+                        // bedrock floor, above_preliminary_surface, then the
+                        // low-Y deepslate gradient. Between the preliminary
+                        // surface gate and y=8, Java can only fall through, so
+                        // avoid resolving the expensive biome supplier there.
+                        if y < min_surface_level && y >= 8 {
+                            continue;
+                        }
                         let biome_y = if settings.legacy_random_source { 0 } else { y };
                         let biome_key = (block_x, biome_y, block_z);
                         let (surface_biome, temperature) =
