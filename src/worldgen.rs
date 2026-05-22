@@ -2,7 +2,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::biome::{
@@ -45978,16 +45978,16 @@ fn collect_interpolated_inputs(df: DensityFunction, out: &mut Vec<&'static Densi
 
 #[derive(Clone)]
 struct NoiseChunkTemplate {
-    interpolated_inputs: Vec<&'static DensityFunction>,
-    cache_all_inputs: Vec<&'static DensityFunction>,
-    flat_cache_inputs: Vec<&'static DensityFunction>,
-    cache_2d_inputs: Vec<&'static DensityFunction>,
-    cache_once_inputs: Vec<&'static DensityFunction>,
-    interp_by_ptr: HashMap<usize, usize>,
-    cache_all_by_ptr: HashMap<usize, usize>,
-    flat_cache_by_ptr: HashMap<usize, usize>,
-    cache_2d_by_ptr: HashMap<usize, usize>,
-    cache_once_by_ptr: HashMap<usize, usize>,
+    interpolated_inputs: Arc<[&'static DensityFunction]>,
+    cache_all_inputs: Arc<[&'static DensityFunction]>,
+    flat_cache_inputs: Arc<[&'static DensityFunction]>,
+    cache_2d_inputs: Arc<[&'static DensityFunction]>,
+    cache_once_inputs: Arc<[&'static DensityFunction]>,
+    interp_by_ptr: Arc<HashMap<usize, usize>>,
+    cache_all_by_ptr: Arc<HashMap<usize, usize>>,
+    flat_cache_by_ptr: Arc<HashMap<usize, usize>>,
+    cache_2d_by_ptr: Arc<HashMap<usize, usize>>,
+    cache_once_by_ptr: Arc<HashMap<usize, usize>>,
 }
 
 static NOISE_CHUNK_TEMPLATE_CACHE: OnceLock<Mutex<HashMap<&'static str, NoiseChunkTemplate>>> =
@@ -46049,16 +46049,16 @@ fn noise_chunk_template(
     }
 
     let template = NoiseChunkTemplate {
-        interp_by_ptr: build_density_lookup(&interpolated_inputs),
-        cache_all_by_ptr: build_density_lookup(&cache_all_inputs),
-        flat_cache_by_ptr: build_density_lookup(&flat_cache_inputs),
-        cache_2d_by_ptr: build_density_lookup(&cache_2d_inputs),
-        cache_once_by_ptr: build_density_lookup(&cache_once_inputs),
-        interpolated_inputs,
-        cache_all_inputs,
-        flat_cache_inputs,
-        cache_2d_inputs,
-        cache_once_inputs,
+        interp_by_ptr: Arc::new(build_density_lookup(&interpolated_inputs)),
+        cache_all_by_ptr: Arc::new(build_density_lookup(&cache_all_inputs)),
+        flat_cache_by_ptr: Arc::new(build_density_lookup(&flat_cache_inputs)),
+        cache_2d_by_ptr: Arc::new(build_density_lookup(&cache_2d_inputs)),
+        cache_once_by_ptr: Arc::new(build_density_lookup(&cache_once_inputs)),
+        interpolated_inputs: Arc::from(interpolated_inputs.into_boxed_slice()),
+        cache_all_inputs: Arc::from(cache_all_inputs.into_boxed_slice()),
+        flat_cache_inputs: Arc::from(flat_cache_inputs.into_boxed_slice()),
+        cache_2d_inputs: Arc::from(cache_2d_inputs.into_boxed_slice()),
+        cache_once_inputs: Arc::from(cache_once_inputs.into_boxed_slice()),
     };
     if let Ok(mut cache) = cache.lock() {
         cache.insert(settings_id, template.clone());
@@ -47135,13 +47135,13 @@ pub struct NoiseChunk {
     /// Maps inner-function pointer address → `interpolators` index so that
     /// `eval_density_fn_with_interp` can look up the current interpolated value
     /// in O(1).
-    interp_by_ptr: HashMap<usize, usize>,
+    interp_by_ptr: Arc<HashMap<usize, usize>>,
     cache_all_in_cell: Vec<CacheAllInCellState>,
-    cache_all_by_ptr: HashMap<usize, usize>,
+    cache_all_by_ptr: Arc<HashMap<usize, usize>>,
     cache_2d: RefCell<Vec<Cache2DState>>,
-    cache_2d_by_ptr: HashMap<usize, usize>,
+    cache_2d_by_ptr: Arc<HashMap<usize, usize>>,
     flat_cache: Vec<FlatCacheState>,
-    flat_cache_by_ptr: HashMap<usize, usize>,
+    flat_cache_by_ptr: Arc<HashMap<usize, usize>>,
     full_noise_values: Vec<f64>,
     vein_toggle_values: Vec<f64>,
     vein_ridged_values: Vec<f64>,
@@ -47164,7 +47164,7 @@ pub struct NoiseChunk {
     /// Cache of preliminary surface levels, keyed by `pack_column(blockX, blockZ)`.
     prelim_surface_cache: RefCell<HashMap<i64, i32>>,
     cache_once_values: RefCell<Vec<CacheOnceState>>,
-    cache_once_by_ptr: HashMap<usize, usize>,
+    cache_once_by_ptr: Arc<HashMap<usize, usize>>,
     normal_noise_cache: RefCell<HashMap<&'static str, NormalNoiseSnapshot>>,
     blended_noise_cache: RefCell<Vec<([u64; 5], BlendedNoiseSnapshot)>>,
     density_value_bounds_cache: RefCell<HashMap<usize, (f64, f64)>>,
