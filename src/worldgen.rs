@@ -22279,12 +22279,22 @@ fn mineshaft_create_random_piece(
             )
             .ok()
             .flatten()?;
+            let rails_roll = random_next_i32_bound(random, 3);
+            // Java uses short-circuit evaluation here:
+            // `spiderCorridor = !hasRails && random.nextInt(23) == 0`.
+            // When rails are present, the spider roll is not consumed, so the
+            // remaining mineshaft piece chain must keep that PRNG state.
+            let spider_roll = if rails_roll == 0 {
+                1
+            } else {
+                random_next_i32_bound(random, 23)
+            };
             let model = mineshaft_corridor(
                 bounding_box,
                 direction,
                 mineshaft_type,
-                random_next_i32_bound(random, 3),
-                random_next_i32_bound(random, 23),
+                rails_roll,
+                spider_roll,
             )
             .ok()?;
             Some(MineshaftGeneratedPieceModel::Corridor { model, gen_depth })
@@ -25765,6 +25775,8 @@ pub struct LiveChunkGenerationTimings {
     pub region_biome_steps_ms: u128,
     pub carvers_ms: u128,
     pub carver_blocks: usize,
+    pub underground_structures_ms: u128,
+    pub underground_structure_blocks: usize,
     pub ore_decoration_ms: u128,
     pub ore_blocks: usize,
     pub tree_context_ms: u128,
@@ -25886,6 +25898,7 @@ pub fn generate_chunk_for_stem_with_mode(
                             seed,
                             &mut noise_context,
                         );
+                        apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
                         apply_underground_ore_decoration_to_chunk(
                             &mut chunk,
                             biome_source_model,
@@ -27856,6 +27869,11 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                                 &mut noise_context,
                             );
                         timings.carvers_ms = phase_started.elapsed().as_millis();
+
+                        let phase_started = Instant::now();
+                        timings.underground_structure_blocks =
+                            apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
+                        timings.underground_structures_ms = phase_started.elapsed().as_millis();
 
                         let phase_started = Instant::now();
                         timings.ore_blocks = apply_underground_ore_decoration_to_chunk(
@@ -50704,7 +50722,7 @@ mod tests {
             "generated chunk should contain non-air blocks in the origin column"
         );
         eprintln!(
-            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms base_generation={}ms region_biome_steps={}ms carvers={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms full_noise_cache={}us/{}fills biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
+            "[worldgen-perf-test] chunk=({}, {}) elapsed={}ms threshold={}ms target=4ms/chunk terrain={}ms base_generation={}ms region_biome_steps={}ms carvers={}ms/{}blocks underground_structures={}ms/{}blocks ore_decoration={}ms/{}blocks tree_context={}ms/{}chunks tree_decoration={}ms/{}blocks fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms full_noise_cache={}us/{}fills biome_storage={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} surface={}ms heightmaps={}ms mobs={}ms mob_plan={}ms mob_apply={}ms block_writes={} aquifer_calls={} ore_vein_samples={}",
             pos.x,
             pos.z,
             elapsed_ms,
@@ -50714,6 +50732,8 @@ mod tests {
             timings.region_biome_steps_ms,
             timings.carvers_ms,
             timings.carver_blocks,
+            timings.underground_structures_ms,
+            timings.underground_structure_blocks,
             timings.ore_decoration_ms,
             timings.ore_blocks,
             timings.tree_context_ms,
@@ -52119,6 +52139,138 @@ mod tests {
             "[cave-air-structure] candidate_count={} near_missing_count={}",
             candidate_count, near_missing_count
         );
+    }
+
+    #[test]
+    #[ignore = "diagnostic for the mineshaft start nearest the vanilla cave-air mismatch"]
+    fn normal_overworld_mineshaft_nearest_start_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+        let router =
+            super::builtin_noise_router(super::noise_router_id_for_settings(**noise_settings))
+                .expect("normal overworld should have a router")
+                .router;
+        let climate_sampler =
+            super::ClimateSampler::from_noise_router(&router, seed, **noise_settings);
+
+        let source_pos = ChunkPos { x: -1, z: 4 };
+        let start_pos = super::mineshaft_start_pos(source_pos);
+        let pieces = super::mineshaft_generate_pieces_for_start(
+            seed,
+            source_pos,
+            super::MineshaftTypeModel::Normal,
+            noise_settings.sea_level,
+            noise_settings.noise.min_y,
+        );
+        let room_box = pieces[0].bounding_box();
+        let y_offset = room_box.min_y - 50;
+        let stub_pos = BlockPos {
+            x: start_pos.x,
+            y: start_pos.y + y_offset,
+            z: start_pos.z,
+        };
+        let biome = super::get_biome(
+            biome_source_model,
+            stub_pos.x >> 2,
+            stub_pos.y >> 2,
+            stub_pos.z >> 2,
+            &climate_sampler,
+        )
+        .unwrap_or("minecraft:unknown");
+        eprintln!(
+            "[mineshaft-nearest] source=({}, {}) seed={} start={:?} y_offset={} stub={:?} biome={} pieces={}",
+            source_pos.x,
+            source_pos.z,
+            seed,
+            start_pos,
+            y_offset,
+            stub_pos,
+            biome,
+            pieces.len()
+        );
+
+        for (index, piece) in pieces.iter().enumerate().take(40) {
+            let kind = match piece {
+                super::MineshaftGeneratedPieceModel::Room { .. } => "room",
+                super::MineshaftGeneratedPieceModel::Corridor { .. } => "corridor",
+                super::MineshaftGeneratedPieceModel::Crossing { .. } => "crossing",
+                super::MineshaftGeneratedPieceModel::Stairs { .. } => "stairs",
+            };
+            eprintln!(
+                "[mineshaft-nearest-first] index={} kind={} depth={} box={:?}",
+                index,
+                kind,
+                piece.gen_depth(),
+                piece.bounding_box()
+            );
+        }
+
+        let missing = super::StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: -56,
+            min_z: 0,
+            max_x: 22,
+            max_y: -45,
+            max_z: 15,
+        };
+        for (index, piece) in pieces.iter().enumerate() {
+            let bb = piece.bounding_box();
+            let dx = if bb.max_x < missing.min_x {
+                missing.min_x - bb.max_x
+            } else if missing.max_x < bb.min_x {
+                bb.min_x - missing.max_x
+            } else {
+                0
+            };
+            let dy = if bb.max_y < missing.min_y {
+                missing.min_y - bb.max_y
+            } else if missing.max_y < bb.min_y {
+                bb.min_y - missing.max_y
+            } else {
+                0
+            };
+            let dz = if bb.max_z < missing.min_z {
+                missing.min_z - bb.max_z
+            } else if missing.max_z < bb.min_z {
+                bb.min_z - missing.max_z
+            } else {
+                0
+            };
+            let distance = dx + dy + dz;
+            if distance <= 24 {
+                let kind = match piece {
+                    super::MineshaftGeneratedPieceModel::Room { .. } => "room",
+                    super::MineshaftGeneratedPieceModel::Corridor { .. } => "corridor",
+                    super::MineshaftGeneratedPieceModel::Crossing { .. } => "crossing",
+                    super::MineshaftGeneratedPieceModel::Stairs { .. } => "stairs",
+                };
+                eprintln!(
+                    "[mineshaft-nearest-piece] index={} kind={} depth={} distance={} box={:?}",
+                    index,
+                    kind,
+                    piece.gen_depth(),
+                    distance,
+                    bb
+                );
+            }
+        }
     }
 
     fn unpack_heightmap_column(values: &[i64], index: usize) -> i32 {
@@ -67862,6 +68014,164 @@ mod tests {
             .unwrap()
             .spider_corridor
         );
+    }
+
+    #[test]
+    fn mineshaft_corridor_rail_roll_preserves_java_piece_chain_prng_alignment() {
+        let pieces = super::mineshaft_generate_pieces_for_start(
+            8_675_309,
+            ChunkPos { x: -1, z: 4 },
+            super::MineshaftTypeModel::Normal,
+            63,
+            -64,
+        );
+        assert_eq!(pieces.len(), 235);
+
+        let expected = [
+            (
+                "room",
+                0,
+                super::StructureBoundingBoxModel {
+                    min_x: -14,
+                    min_y: -49,
+                    min_z: 66,
+                    max_x: -5,
+                    max_y: -41,
+                    max_z: 75,
+                },
+            ),
+            (
+                "corridor",
+                1,
+                super::StructureBoundingBoxModel {
+                    min_x: -7,
+                    min_y: -45,
+                    min_z: 46,
+                    max_x: -5,
+                    max_y: -43,
+                    max_z: 65,
+                },
+            ),
+            (
+                "stairs",
+                2,
+                super::StructureBoundingBoxModel {
+                    min_x: -4,
+                    min_y: -49,
+                    min_z: 46,
+                    max_x: 4,
+                    max_y: -42,
+                    max_z: 48,
+                },
+            ),
+            (
+                "corridor",
+                3,
+                super::StructureBoundingBoxModel {
+                    min_x: 5,
+                    min_y: -49,
+                    min_z: 46,
+                    max_x: 14,
+                    max_y: -47,
+                    max_z: 48,
+                },
+            ),
+            (
+                "corridor",
+                4,
+                super::StructureBoundingBoxModel {
+                    min_x: 11,
+                    min_y: -50,
+                    min_z: 31,
+                    max_x: 13,
+                    max_y: -48,
+                    max_z: 45,
+                },
+            ),
+            (
+                "corridor",
+                5,
+                super::StructureBoundingBoxModel {
+                    min_x: 11,
+                    min_y: -51,
+                    min_z: 11,
+                    max_x: 13,
+                    max_y: -49,
+                    max_z: 30,
+                },
+            ),
+            (
+                "corridor",
+                6,
+                super::StructureBoundingBoxModel {
+                    min_x: 11,
+                    min_y: -52,
+                    min_z: -9,
+                    max_x: 13,
+                    max_y: -50,
+                    max_z: 10,
+                },
+            ),
+            (
+                "corridor",
+                7,
+                super::StructureBoundingBoxModel {
+                    min_x: 11,
+                    min_y: -51,
+                    min_z: -29,
+                    max_x: 13,
+                    max_y: -49,
+                    max_z: -10,
+                },
+            ),
+            (
+                "corridor",
+                8,
+                super::StructureBoundingBoxModel {
+                    min_x: 1,
+                    min_y: -52,
+                    min_z: -1,
+                    max_x: 10,
+                    max_y: -50,
+                    max_z: 1,
+                },
+            ),
+            (
+                "corridor",
+                9,
+                super::StructureBoundingBoxModel {
+                    min_x: 1,
+                    min_y: -51,
+                    min_z: 2,
+                    max_x: 3,
+                    max_y: -49,
+                    max_z: 21,
+                },
+            ),
+        ];
+
+        for (index, (expected_kind, expected_depth, expected_box)) in
+            expected.into_iter().enumerate()
+        {
+            let piece = &pieces[index];
+            let actual_kind = match piece {
+                super::MineshaftGeneratedPieceModel::Room { .. } => "room",
+                super::MineshaftGeneratedPieceModel::Corridor { .. } => "corridor",
+                super::MineshaftGeneratedPieceModel::Crossing { .. } => "crossing",
+                super::MineshaftGeneratedPieceModel::Stairs { .. } => "stairs",
+            };
+            assert_eq!(actual_kind, expected_kind, "piece {index} kind drifted");
+            assert_eq!(
+                piece.gen_depth(),
+                expected_depth,
+                "piece {index} generation depth drifted"
+            );
+            assert_eq!(
+                piece.bounding_box(),
+                expected_box,
+                "piece {index} bounding box drifted"
+            );
+        }
     }
 
     #[test]
