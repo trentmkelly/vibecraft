@@ -215,6 +215,7 @@ pub struct ClimateSampler {
     pub depth: DensityFunction,
     pub weirdness: DensityFunction,
     pub seed: i64,
+    pub biome_zoom_seed: i64,
     pub settings: NoiseGeneratorSettings,
 }
 
@@ -240,6 +241,7 @@ impl ClimateSampler {
             depth: router.depth,
             weirdness: router.ridges,
             seed,
+            biome_zoom_seed: biome_manager_obfuscate_seed(seed),
             settings,
         }
     }
@@ -7942,6 +7944,8 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
     seed: i64,
     terrain_heights: &TreeDecorationHeights,
     biome_steps: &[&'static [&'static [&'static str]]],
+    source_region_biome_steps: &DecorationBiomeStepsByChunk,
+    context_cache: &TreeDecorationContextCache,
 ) -> usize {
     let total_started = Instant::now();
     let Some(router) =
@@ -7968,91 +7972,129 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
         Err(_) => return 0,
     };
     let feature_sort_ms = started.elapsed().as_millis();
-    let started = Instant::now();
-    let plan = biome_decoration_feature_plan(
-        seed,
-        chunk.pos.x,
-        chunk.pos.z,
-        settings.noise.min_y.div_euclid(16),
-        &features_per_step,
-        &biome_steps,
-    );
-    let plan_ms = started.elapsed().as_millis();
-
-    let chunk_min_x = chunk.pos.x * 16;
-    let chunk_min_z = chunk.pos.z * 16;
     let mut placed = 0;
     let mut calls = 0;
     let mut origin_checks = 0;
     let mut candidate_checks = 0;
+    let mut plan_ms = 0;
     let placement_started = Instant::now();
-    for call in plan.feature_calls.iter().filter(|call| {
-        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
-            && call.feature == "minecraft:patch_leaf_litter"
-    }) {
-        calls += 1;
-        let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
-        for _ in 0..2 {
-            origin_checks += 1;
-            let origin_local_x = feature_random_next_i32_bound(&mut random, 16);
-            let origin_local_z = feature_random_next_i32_bound(&mut random, 16);
-            let origin_world_x = chunk_min_x + origin_local_x;
-            let origin_world_z = chunk_min_z + origin_local_z;
-            let origin_y =
-                terrain_heights.ocean_floor[origin_local_z as usize * 16 + origin_local_x as usize];
-            if origin_y <= settings.noise.min_y {
-                continue;
-            }
-
-            let Some(origin_biome) = get_biome(
-                biome_source_model,
-                origin_world_x >> 2,
-                origin_y >> 2,
-                origin_world_z >> 2,
-                &climate_sampler,
-            ) else {
+    for source_z in chunk.pos.z - 1..=chunk.pos.z + 1 {
+        for source_x in chunk.pos.x - 1..=chunk.pos.x + 1 {
+            let source_pos = ChunkPos {
+                x: source_x,
+                z: source_z,
+            };
+            let Some(source_terrain_heights) = (if source_pos == chunk.pos {
+                Some(SourceTerrainHeights::Full(terrain_heights))
+            } else {
+                context_cache
+                    .cached_region_chunks
+                    .get(&source_pos)
+                    .map(SourceTerrainHeights::Lazy)
+            }) else {
                 continue;
             };
-            let Some(origin_generation) = biome_generation_settings(origin_biome) else {
-                continue;
-            };
-            if !biome_has_placed_feature(origin_generation, call.feature) {
+            let possible_steps = source_region_biome_steps
+                .get(&source_pos)
+                .cloned()
+                .unwrap_or_else(|| biome_steps.to_vec());
+            if possible_steps.is_empty() {
                 continue;
             }
+            let started = Instant::now();
+            let plan = biome_decoration_feature_plan(
+                seed,
+                source_pos.x,
+                source_pos.z,
+                settings.noise.min_y.div_euclid(16),
+                &features_per_step,
+                &possible_steps,
+            );
+            plan_ms += started.elapsed().as_millis();
+            let source_min_x = source_pos.x * 16;
+            let source_min_z = source_pos.z * 16;
+            for call in plan.feature_calls.iter().filter(|call| {
+                call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+                    && call.feature == "minecraft:patch_leaf_litter"
+            }) {
+                calls += 1;
+                let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+                for _ in 0..2 {
+                    origin_checks += 1;
+                    let origin_local_x = feature_random_next_i32_bound(&mut random, 16);
+                    let origin_local_z = feature_random_next_i32_bound(&mut random, 16);
+                    let origin_world_x = source_min_x + origin_local_x;
+                    let origin_world_z = source_min_z + origin_local_z;
+                    let origin_y = source_terrain_heights.local_height(
+                        HeightmapKind::OceanFloor,
+                        origin_local_x as usize,
+                        origin_local_z as usize,
+                    );
+                    if origin_y <= settings.noise.min_y {
+                        continue;
+                    }
 
-            for _ in 0..32 {
-                candidate_checks += 1;
-                let world_x = origin_world_x + sample_triangle_int(&mut random, 7);
-                let world_y = origin_y + sample_triangle_int(&mut random, 3);
-                let world_z = origin_world_z + sample_triangle_int(&mut random, 7);
-                if world_x.div_euclid(16) != chunk.pos.x || world_z.div_euclid(16) != chunk.pos.z {
-                    continue;
-                }
-                if !(settings.noise.min_y..settings.noise.min_y + settings.noise.height)
-                    .contains(&world_y)
-                {
-                    continue;
-                }
+                    // Java BiomeFilter calls WorldGenRegion.getBiome(BlockPos),
+                    // which resolves through BiomeManager's fiddled block-space
+                    // lookup, not a direct quart-coordinate noise biome sample.
+                    let Some(origin_biome) = biome_manager_get_biome(
+                        biome_source_model,
+                        climate_sampler.biome_zoom_seed,
+                        origin_world_x,
+                        origin_y.clamp(
+                            settings.noise.min_y,
+                            settings.noise.min_y + settings.noise.height - 1,
+                        ),
+                        origin_world_z,
+                        &climate_sampler,
+                    ) else {
+                        continue;
+                    };
+                    let Some(origin_generation) = biome_generation_settings(origin_biome) else {
+                        continue;
+                    };
+                    if !biome_has_placed_feature(origin_generation, call.feature) {
+                        continue;
+                    }
 
-                let current = chunk
-                    .get_block_state_name(world_x, world_y, world_z)
-                    .unwrap_or("minecraft:air");
-                if !matches!(
-                    current,
-                    "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-                ) {
-                    continue;
-                }
-                let below = chunk
-                    .get_block_state_name(world_x, world_y - 1, world_z)
-                    .unwrap_or("minecraft:air");
-                if below != "minecraft:grass_block" {
-                    continue;
-                }
+                    for _ in 0..32 {
+                        candidate_checks += 1;
+                        let world_x = origin_world_x + sample_triangle_int(&mut random, 7);
+                        let world_y = origin_y + sample_triangle_int(&mut random, 3);
+                        let world_z = origin_world_z + sample_triangle_int(&mut random, 7);
+                        if world_x.div_euclid(16) != chunk.pos.x
+                            || world_z.div_euclid(16) != chunk.pos.z
+                        {
+                            continue;
+                        }
+                        if !(settings.noise.min_y..settings.noise.min_y + settings.noise.height)
+                            .contains(&world_y)
+                        {
+                            continue;
+                        }
 
-                let _leaf_litter_state_index = feature_random_next_i32_bound(&mut random, 12);
-                chunk.set_block_state(world_x, world_y, world_z, "minecraft:leaf_litter");
-                placed += 1;
+                        let current = chunk
+                            .get_block_state_name(world_x, world_y, world_z)
+                            .unwrap_or("minecraft:air");
+                        if !matches!(
+                            current,
+                            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+                        ) {
+                            continue;
+                        }
+                        let below = chunk
+                            .get_block_state_name(world_x, world_y - 1, world_z)
+                            .unwrap_or("minecraft:air");
+                        if below != "minecraft:grass_block" {
+                            continue;
+                        }
+
+                        let _leaf_litter_state_index =
+                            feature_random_next_i32_bound(&mut random, 12);
+                        chunk.set_block_state(world_x, world_y, world_z, "minecraft:leaf_litter");
+                        placed += 1;
+                    }
+                }
             }
         }
     }
@@ -38082,6 +38124,8 @@ fn apply_initial_tree_decoration_to_chunk(
         seed,
         &terrain_heights,
         &target_region_biome_steps,
+        source_region_biome_steps,
+        &context_cache,
     );
 
     TreeDecorationResult {
@@ -40057,14 +40101,18 @@ fn biome_allows_feature_at(
     pos: BlockPos,
     feature: &str,
 ) -> bool {
-    get_biome(
+    // Java BiomeFilter uses PlacementContext.getLevel().getBiome(origin).
+    // During feature generation the level is WorldGenRegion, whose getBiome
+    // path goes through BiomeManager with the world's obfuscated biome seed.
+    biome_manager_get_biome(
         biome_source_model,
-        pos.x >> 2,
+        climate_sampler.biome_zoom_seed,
+        pos.x,
         pos.y.clamp(
             settings.noise.min_y,
             settings.noise.min_y + settings.noise.height - 1,
-        ) >> 2,
-        pos.z >> 2,
+        ),
+        pos.z,
         climate_sampler,
     )
     .and_then(biome_generation_settings)
