@@ -30462,13 +30462,30 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
                         timings.underground_structures_ms = phase_started.elapsed().as_millis();
 
+                        let source_radius = tree_decoration_source_radius();
+                        let decoration_context_router =
+                            builtin_noise_router(noise_router_id_for_settings(**noise_settings))
+                                .map(|entry| entry.router)
+                                .unwrap_or(NONE_NOISE_ROUTER);
+                        let decoration_context_cache = build_tree_decoration_context_cache(
+                            chunk.pos,
+                            source_radius,
+                            biome_source_model,
+                            noise_settings,
+                            seed,
+                            decoration_context_router,
+                            &load_surface_rule(noise_settings.id)
+                                .expect("normal overworld surface rule must load"),
+                        );
+
                         let phase_started = Instant::now();
-                        timings.ore_blocks = apply_underground_ore_decoration_to_chunk(
+                        timings.ore_blocks = apply_underground_ore_decoration_to_chunk_with_context(
                             &mut chunk,
                             biome_source_model,
                             noise_settings,
                             seed,
                             Some(&region_biome_steps),
+                            Some(&decoration_context_cache.cached_region_chunks),
                         );
                         timings.ore_decoration_ms = phase_started.elapsed().as_millis();
 
@@ -30479,7 +30496,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             noise_settings,
                             seed,
                             Some(&region_biome_steps),
-                            None,
+                            Some(decoration_context_cache),
                         );
                         timings.tree_blocks = tree_result.placed_blocks;
                         timings.tree_context_ms = tree_result.context_build_ms;
@@ -38324,6 +38341,24 @@ fn apply_underground_ore_decoration_to_chunk(
     seed: i64,
     decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
 ) -> usize {
+    apply_underground_ore_decoration_to_chunk_with_context(
+        chunk,
+        biome_source_model,
+        settings,
+        seed,
+        decoration_region_biome_steps,
+        None,
+    )
+}
+
+fn apply_underground_ore_decoration_to_chunk_with_context(
+    chunk: &mut LevelChunk,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    decoration_region_biome_steps: Option<&[&'static [&'static [&'static str]]]>,
+    decoration_context_chunks: Option<&HashMap<ChunkPos, LightweightTreeContextChunk>>,
+) -> usize {
     let total_started = Instant::now();
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
         return 0;
@@ -38353,8 +38388,15 @@ fn apply_underground_ore_decoration_to_chunk(
 
     let mut placed = 0;
     let mut calls = 0;
-    let context_chunks = build_underground_ore_decoration_context_chunks(chunk.pos, settings, seed);
-    let mut block_cache = OreBlockCache::from_chunk_with_read_context(chunk, &context_chunks);
+    let owned_context_chunks;
+    let context_chunks = if let Some(context_chunks) = decoration_context_chunks {
+        context_chunks
+    } else {
+        owned_context_chunks =
+            build_underground_ore_decoration_context_chunks(chunk.pos, settings, seed);
+        &owned_context_chunks
+    };
+    let mut block_cache = OreBlockCache::from_chunk_with_read_context(chunk, context_chunks);
     let mut biome_steps_ms = 0_u128;
     let mut plan_ms = 0_u128;
     let mut possible_step_sets = 0_usize;
