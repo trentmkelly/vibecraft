@@ -35085,8 +35085,6 @@ impl SurfaceRulesContext {
         steep: bool,
         hole: bool,
         min_surface_level: i32,
-        biome: &'static str,
-        temperature: f32,
     ) {
         self.last_update_xz = self.last_update_xz.wrapping_add(1);
         self.last_update_y = self.last_update_y.wrapping_add(1);
@@ -35097,8 +35095,6 @@ impl SurfaceRulesContext {
         self.steep = steep;
         self.hole = hole;
         self.min_surface_level = min_surface_level;
-        self.biome = biome;
-        self.temperature = temperature;
     }
 
     fn update_y(
@@ -35107,12 +35103,16 @@ impl SurfaceRulesContext {
         stone_depth_below: i32,
         water_height: i32,
         block_y: i32,
+        biome: &'static str,
+        temperature: f32,
     ) {
         self.last_update_y = self.last_update_y.wrapping_add(1);
         self.block_y = block_y;
         self.water_height = water_height;
         self.stone_depth_above = stone_depth_above;
         self.stone_depth_below = stone_depth_below;
+        self.biome = biome;
+        self.temperature = temperature;
     }
 }
 
@@ -35741,37 +35741,6 @@ fn build_surface_for_chunk_timed_with_sections(
             // Java: HOW_FAR_BELOW = 8
             let min_surface_level = prelim + surface_depth - 8;
 
-            let start_height = read_world_surface_wg(chunk, lx, lz) + 1;
-            let biome_y = if settings.legacy_random_source {
-                0
-            } else {
-                start_height
-            };
-            let biome_key = (block_x, biome_y, block_z);
-            let (surface_biome, temperature) =
-                if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
-                    cached
-                } else {
-                    let debug_started = surface_debug.then(Instant::now);
-                    let biome = biome_manager_get_biome_cached(
-                        biome_source_model,
-                        biome_zoom_seed,
-                        block_x,
-                        biome_y,
-                        block_z,
-                        &climate_sampler,
-                        Some(&chunk_noise_biomes),
-                        &mut surface_noise_biome_cache,
-                    )
-                    .unwrap_or("minecraft:plains");
-                    let temperature = surface_biome_temperature(biome);
-                    if let Some(started) = debug_started {
-                        surface_biome_us += started.elapsed().as_micros();
-                    }
-                    surface_biome_cache.insert(biome_key, (biome, temperature));
-                    (biome, temperature)
-                };
-
             surface_context.update_xz(
                 block_x,
                 block_z,
@@ -35780,14 +35749,13 @@ fn build_surface_for_chunk_timed_with_sections(
                 steep,
                 hole,
                 min_surface_level,
-                surface_biome,
-                temperature,
             );
 
             let mut stone_depth_above: i32 = 0;
             let mut water_height: i32 = i32::MIN;
             let mut next_ceiling_stone_y: i32 = i32::MAX;
             let end_y = min_y;
+            let start_height = read_world_surface_wg(chunk, lx, lz) + 1;
 
             for y in (end_y..=start_height).rev() {
                 timings.surface_block_samples += 1;
@@ -35829,9 +35797,40 @@ fn build_surface_for_chunk_timed_with_sections(
                     stone_depth_above += 1;
                     let stone_depth_below = y - next_ceiling_stone_y + 1;
 
-                    surface_context.update_y(stone_depth_above, stone_depth_below, water_height, y);
-
                     if block_id == default_block_id {
+                        let biome_y = if settings.legacy_random_source { 0 } else { y };
+                        let biome_key = (block_x, biome_y, block_z);
+                        let (surface_biome, temperature) =
+                            if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
+                                cached
+                            } else {
+                                let debug_started = surface_debug.then(Instant::now);
+                                let biome = biome_manager_get_biome_cached(
+                                    biome_source_model,
+                                    biome_zoom_seed,
+                                    block_x,
+                                    biome_y,
+                                    block_z,
+                                    &climate_sampler,
+                                    Some(&chunk_noise_biomes),
+                                    &mut surface_noise_biome_cache,
+                                )
+                                .unwrap_or("minecraft:plains");
+                                let temperature = surface_biome_temperature(biome);
+                                if let Some(started) = debug_started {
+                                    surface_biome_us += started.elapsed().as_micros();
+                                }
+                                surface_biome_cache.insert(biome_key, (biome, temperature));
+                                (biome, temperature)
+                            };
+                        surface_context.update_y(
+                            stone_depth_above,
+                            stone_depth_below,
+                            water_height,
+                            y,
+                            surface_biome,
+                            temperature,
+                        );
                         let band_fn = |wx: i32, by: i32, wz: i32| {
                             get_clay_band(seed, algorithm, *settings, wx, by, wz)
                         };
@@ -37935,6 +37934,7 @@ fn apply_initial_tree_decoration_from_source_into_region(
     }
 }
 
+#[derive(Clone)]
 struct LightweightTreeContextChunk {
     terrain_heights: TreeDecorationHeights,
     min_y: i32,
@@ -38353,7 +38353,8 @@ fn apply_underground_ore_decoration_to_chunk(
 
     let mut placed = 0;
     let mut calls = 0;
-    let mut block_cache = OreBlockCache::from_chunk(chunk);
+    let context_chunks = build_underground_ore_decoration_context_chunks(chunk.pos, settings, seed);
+    let mut block_cache = OreBlockCache::from_chunk_with_read_context(chunk, &context_chunks);
     let mut biome_steps_ms = 0_u128;
     let mut plan_ms = 0_u128;
     let mut possible_step_sets = 0_usize;
@@ -38510,6 +38511,30 @@ fn apply_underground_ore_decoration_to_chunk(
     placed
 }
 
+fn build_underground_ore_decoration_context_chunks(
+    target_pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+) -> HashMap<ChunkPos, LightweightTreeContextChunk> {
+    let router_id = noise_router_id_for_settings(*settings);
+    let noise_router = builtin_noise_router(router_id)
+        .map(|entry| entry.router)
+        .unwrap_or(NONE_NOISE_ROUTER);
+    let mut context_positions = Vec::with_capacity(8);
+    for z in target_pos.z - 1..=target_pos.z + 1 {
+        for x in target_pos.x - 1..=target_pos.x + 1 {
+            let pos = ChunkPos { x, z };
+            if pos == target_pos {
+                continue;
+            }
+            context_positions.push(pos);
+        }
+    }
+    build_lightweight_tree_context_chunks(&context_positions, settings, seed, noise_router)
+        .into_iter()
+        .collect()
+}
+
 fn biome_steps_share_decoration_step_features(
     biome_steps: &[&'static [&'static [&'static str]]],
     step: GenerationDecorationStep,
@@ -38626,6 +38651,7 @@ struct OreBlockCache {
     chunk_pos: ChunkPos,
     min_section_y: i32,
     sections: Vec<OreSectionCache>,
+    read_context: HashMap<ChunkPos, LightweightTreeContextChunk>,
     block_state_entries: HashMap<&'static str, Tag>,
     palette_indices: HashMap<(i8, &'static str), usize>,
 }
@@ -38640,44 +38666,38 @@ struct OreSectionCache {
 
 impl OreBlockCache {
     fn from_chunk(chunk: &LevelChunk) -> Self {
-        let sections = chunk
-            .sections
-            .iter()
-            .filter_map(|section| {
-                let container =
-                    PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).ok()?;
-                let bits = palette_bits_for_size(container.palette.len());
-                let indices = container
-                    .data
-                    .as_ref()
-                    .map(|data| unpack_palette_indices(data, bits, SECTION_VOLUME))
-                    .unwrap_or_else(|| vec![0_u64; SECTION_VOLUME]);
-                let palette_names = container
-                    .palette
-                    .iter()
-                    .map(|tag| paletted_block_name(tag).map(str::to_string))
-                    .collect();
-                Some(OreSectionCache {
-                    y: section.y,
-                    palette: container.palette,
-                    palette_names,
-                    indices,
-                    dirty: false,
-                })
-            })
-            .collect();
         Self {
             chunk_pos: chunk.pos,
             min_section_y: chunk.min_section_y,
-            sections,
+            sections: ore_section_caches_from_chunk(chunk),
+            read_context: HashMap::new(),
             block_state_entries: HashMap::new(),
             palette_indices: HashMap::new(),
         }
     }
 
+    fn from_chunk_with_read_context(
+        chunk: &LevelChunk,
+        context_chunks: &HashMap<ChunkPos, LightweightTreeContextChunk>,
+    ) -> Self {
+        let mut cache = Self::from_chunk(chunk);
+        cache.read_context = context_chunks
+            .iter()
+            .map(|(pos, context)| (*pos, context.clone()))
+            .collect();
+        cache
+    }
+
     fn block_state_name(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
-        if !self.contains_world_xz(world_x, world_z) {
-            return None;
+        let chunk_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
+        if chunk_pos != self.chunk_pos {
+            return self
+                .read_context
+                .get(&chunk_pos)
+                .map(|chunk| chunk.synthetic_block_state(world_x, world_y, world_z));
         }
         let section_y = world_y.div_euclid(16) as i8;
         let local_x = world_x.rem_euclid(16) as usize;
@@ -38693,16 +38713,15 @@ impl OreBlockCache {
     }
 
     fn heightmap_value_by_scan(&self, heightmap: HeightmapKind, world_x: i32, world_z: i32) -> i32 {
-        if !self.contains_world_xz(world_x, world_z) {
+        let chunk_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
+        if chunk_pos != self.chunk_pos && !self.read_context.contains_key(&chunk_pos) {
             return self.min_section_y * 16;
         }
         let min_y = self.min_section_y * 16;
-        let max_y = self
-            .sections
-            .iter()
-            .map(|section| i32::from(section.y) * 16 + 15)
-            .max()
-            .unwrap_or(min_y);
+        let max_y = self.min_section_y * 16 + 383;
         for y in (min_y..=max_y).rev() {
             let block = self
                 .block_state_name(world_x, y, world_z)
@@ -38824,6 +38843,35 @@ impl OreBlockCache {
     fn contains_world_xz(&self, world_x: i32, world_z: i32) -> bool {
         world_x.div_euclid(16) == self.chunk_pos.x && world_z.div_euclid(16) == self.chunk_pos.z
     }
+}
+
+fn ore_section_caches_from_chunk(chunk: &LevelChunk) -> Vec<OreSectionCache> {
+    chunk
+        .sections
+        .iter()
+        .filter_map(|section| {
+            let container =
+                PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME).ok()?;
+            let bits = palette_bits_for_size(container.palette.len());
+            let indices = container
+                .data
+                .as_ref()
+                .map(|data| unpack_palette_indices(data, bits, SECTION_VOLUME))
+                .unwrap_or_else(|| vec![0_u64; SECTION_VOLUME]);
+            let palette_names = container
+                .palette
+                .iter()
+                .map(|tag| paletted_block_name(tag).map(str::to_string))
+                .collect();
+            Some(OreSectionCache {
+                y: section.y,
+                palette: container.palette,
+                palette_names,
+                indices,
+                dirty: false,
+            })
+        })
+        .collect()
 }
 
 fn paletted_block_name(tag: &Tag) -> Option<&str> {
@@ -55480,6 +55528,20 @@ mod tests {
                             &climate_sampler,
                         )
                         .unwrap_or("minecraft:plains");
+                        let rule_biome_y = if noise_settings.legacy_random_source {
+                            0
+                        } else {
+                            world_y
+                        };
+                        let rule_biome = super::biome_manager_get_biome(
+                            biome_source_model,
+                            biome_zoom_seed,
+                            world_x,
+                            rule_biome_y,
+                            world_z,
+                            &climate_sampler,
+                        )
+                        .unwrap_or("minecraft:plains");
                         let surface_noise_value = surface_noise
                             .as_ref()
                             .map(|snap| {
@@ -55537,7 +55599,7 @@ mod tests {
                             .unwrap_or(y_min);
 
                         eprintln!(
-                            "[worldgen-surface-water-sample] chunk=({chunk_x},{chunk_z}) local=({local_x_i32},{local_z_i32}) world=({world_x},{world_z}) y={world_y} expected={expected} actual={actual} expected_top={expected_top} actual_top={actual_top} base_world_surface_wg={start_height} surface_biome={biome}@{biome_y} surface_noise={surface_noise_value:.6} surface_depth={surface_depth} density={density:.6} direct_density={direct_density:.6} base3d={direct_base3d:.6} sloped={direct_sloped:.6} depth={direct_depth:.6} continents={direct_continents:.6} erosion={direct_erosion:.6} ridges={direct_ridges:.6} prelim={direct_prelim:.6} aquifer={aquifer_state:?}"
+                            "[worldgen-surface-water-sample] chunk=({chunk_x},{chunk_z}) local=({local_x_i32},{local_z_i32}) world=({world_x},{world_z}) y={world_y} expected={expected} actual={actual} expected_top={expected_top} actual_top={actual_top} base_world_surface_wg={start_height} surface_biome={biome}@{biome_y} rule_biome={rule_biome}@{rule_biome_y} surface_noise={surface_noise_value:.6} surface_depth={surface_depth} density={density:.6} direct_density={direct_density:.6} base3d={direct_base3d:.6} sloped={direct_sloped:.6} depth={direct_depth:.6} continents={direct_continents:.6} erosion={direct_erosion:.6} ridges={direct_ridges:.6} prelim={direct_prelim:.6} aquifer={aquifer_state:?}"
                         );
                         eprintln!(
                             "[worldgen-surface-water-column] expected {}",
