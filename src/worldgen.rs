@@ -51659,6 +51659,74 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic for live multiplayer terrain reports"]
+    fn live_seed_chunk_surface_summary() {
+        let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+            .ok()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
+        let center_x = std::env::var("RUSTCRAFT_WORLDGEN_TEST_CHUNK_X")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(0);
+        let center_z = std::env::var("RUSTCRAFT_WORLDGEN_TEST_CHUNK_Z")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(0);
+        let radius = std::env::var("RUSTCRAFT_WORLDGEN_TEST_RADIUS")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(0);
+
+        for chunk_z in center_z - radius..=center_z + radius {
+            for chunk_x in center_x - radius..=center_x + radius {
+                let pos = ChunkPos {
+                    x: chunk_x,
+                    z: chunk_z,
+                };
+                let (chunk, _timings) =
+                    super::generate_overworld_spawn_chunk_for_preset_with_mode_timed(
+                        pos,
+                        "normal",
+                        super::LiveChunkGenerationMode::RealSurface,
+                        seed,
+                        true,
+                    )
+                    .expect("live seed diagnostic chunk should generate");
+
+                let mut min_top = i32::MAX;
+                let mut max_top = i32::MIN;
+                let mut top_blocks = BTreeMap::<String, usize>::new();
+                for local_z in 0..16 {
+                    for local_x in 0..16 {
+                        let world_x = chunk_x * 16 + local_x;
+                        let world_z = chunk_z * 16 + local_z;
+                        let mut top = -64;
+                        let mut top_block = "minecraft:air".to_string();
+                        for y in (-64..320).rev() {
+                            let block = chunk
+                                .get_block_state(world_x, y, world_z)
+                                .unwrap_or_else(|| "minecraft:air".to_string());
+                            if block != "minecraft:air" {
+                                top = y;
+                                top_block = block;
+                                break;
+                            }
+                        }
+                        min_top = min_top.min(top);
+                        max_top = max_top.max(top);
+                        *top_blocks.entry(top_block).or_insert(0) += 1;
+                    }
+                }
+                eprintln!(
+                    "[live-seed-surface-summary] seed={} chunk=({}, {}) top_y={}..{} top_blocks={:?}",
+                    seed, chunk_x, chunk_z, min_top, max_top, top_blocks
+                );
+            }
+        }
+    }
+
+    #[test]
     #[ignore = "wall-clock performance guard; run explicitly after worldgen optimization changes"]
     fn real_surface_spawn_area_generation_stays_under_debug_budget() {
         let default_chunk_ms = 4_u128;

@@ -5815,13 +5815,60 @@ pub fn block_state_name_network_id(name: &str) -> Option<i32> {
         "minecraft:andesite" => 6,
         "minecraft:grass_block" => 9,
         "minecraft:dirt" => 10,
+        "minecraft:coarse_dirt" => 11,
+        "minecraft:podzol" => 13,
+        "minecraft:lava" => 102,
         "minecraft:sand" => 118,
+        "minecraft:red_sand" => 123,
+        "minecraft:gravel" => 124,
+        "minecraft:gold_ore" => 129,
+        "minecraft:deepslate_gold_ore" => 130,
+        "minecraft:iron_ore" => 131,
+        "minecraft:deepslate_iron_ore" => 132,
+        "minecraft:coal_ore" => 133,
+        "minecraft:deepslate_coal_ore" => 134,
         "minecraft:sandstone" => 578,
+        "minecraft:lapis_ore" => 563,
+        "minecraft:deepslate_lapis_ore" => 564,
+        "minecraft:obsidian" => 3369,
+        "minecraft:diamond_ore" => 5307,
+        "minecraft:deepslate_diamond_ore" => 5308,
+        "minecraft:redstone_ore" => 6882,
+        "minecraft:deepslate_redstone_ore" => 6884,
+        "minecraft:snow" => 6919,
+        "minecraft:ice" => 6927,
+        "minecraft:snow_block" => 6928,
+        "minecraft:clay" => 6946,
+        "minecraft:mycelium" => 8919,
+        "minecraft:emerald_ore" => 9573,
+        "minecraft:deepslate_emerald_ore" => 9574,
         "minecraft:water" => 86,
+        "minecraft:white_terracotta" => 11444,
+        "minecraft:orange_terracotta" => 11445,
+        "minecraft:yellow_terracotta" => 11448,
+        "minecraft:light_gray_terracotta" => 11452,
+        "minecraft:brown_terracotta" => 11456,
+        "minecraft:red_terracotta" => 11458,
+        "minecraft:terracotta" => 12912,
+        "minecraft:packed_ice" => 12914,
+        "minecraft:red_sandstone" => 13247,
+        "minecraft:magma_block" => 14845,
+        "minecraft:void_air" => 15292,
+        "minecraft:cave_air" => 15293,
+        "minecraft:blue_ice" => 15275,
         "minecraft:oak_log" => 137,
         "minecraft:oak_leaves" => 279,
         "minecraft:bedrock" => 85,
+        "minecraft:tuff" => 23452,
+        "minecraft:calcite" => 24687,
+        "minecraft:copper_ore" => 25313,
+        "minecraft:deepslate_copper_ore" => 25314,
+        "minecraft:dripstone_block" => 27755,
+        "minecraft:mud" => 27922,
         "minecraft:deepslate" => 27924,
+        "minecraft:raw_iron_block" => 29577,
+        "minecraft:raw_copper_block" => 29578,
+        "minecraft:raw_gold_block" => 29579,
         "minecraft:short_grass" => 2248,
         "minecraft:dandelion" => 2321,
         "minecraft:poppy" => 2324,
@@ -11210,42 +11257,35 @@ mod tests {
 
     #[test]
     fn generated_terrain_block_state_names_use_current_protocol_state_ids() {
-        assert_eq!(block_state_name_network_id("minecraft:water"), Some(86));
-        assert_eq!(block_state_name_network_id("minecraft:sand"), Some(118));
-        assert_eq!(
-            block_state_name_network_id("minecraft:sandstone"),
-            Some(578)
-        );
-        assert_eq!(
-            block_state_name_network_id("minecraft:short_grass"),
-            Some(2248)
-        );
-        assert_eq!(
-            block_state_name_network_id("minecraft:dandelion"),
-            Some(2321)
-        );
-        assert_eq!(block_state_name_network_id("minecraft:poppy"), Some(2324));
-        assert_eq!(block_state_name_network_id("minecraft:oak_log"), Some(137));
-        assert_eq!(
-            block_state_name_network_id("minecraft:birch_log"),
-            Some(143)
-        );
-        assert_eq!(
-            block_state_name_network_id("minecraft:oak_leaves"),
-            Some(279)
-        );
-        assert_eq!(
-            block_state_name_network_id("minecraft:birch_leaves"),
-            Some(335)
-        );
-        assert_eq!(
-            block_state_name_network_id("minecraft:sunflower"),
-            Some(12916)
-        );
-        assert_eq!(
-            block_state_name_network_id("minecraft:deepslate"),
-            Some(27924)
-        );
+        for (name, id) in [
+            ("minecraft:water", 86),
+            ("minecraft:sand", 118),
+            ("minecraft:red_sand", 123),
+            ("minecraft:gravel", 124),
+            ("minecraft:sandstone", 578),
+            ("minecraft:red_sandstone", 13247),
+            ("minecraft:white_terracotta", 11444),
+            ("minecraft:orange_terracotta", 11445),
+            ("minecraft:terracotta", 12912),
+            ("minecraft:yellow_terracotta", 11448),
+            ("minecraft:brown_terracotta", 11456),
+            ("minecraft:red_terracotta", 11458),
+            ("minecraft:light_gray_terracotta", 11452),
+            ("minecraft:short_grass", 2248),
+            ("minecraft:dandelion", 2321),
+            ("minecraft:poppy", 2324),
+            ("minecraft:oak_log", 137),
+            ("minecraft:birch_log", 143),
+            ("minecraft:oak_leaves", 279),
+            ("minecraft:birch_leaves", 335),
+            ("minecraft:sunflower", 12916),
+            ("minecraft:tuff", 23452),
+            ("minecraft:deepslate", 27924),
+            ("minecraft:copper_ore", 25313),
+            ("minecraft:deepslate_copper_ore", 25314),
+        ] {
+            assert_eq!(block_state_name_network_id(name), Some(id), "{name}");
+        }
     }
 
     #[test]
