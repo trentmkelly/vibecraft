@@ -78,6 +78,35 @@ pub fn movement_exhaustion(exhaustion_per_meter: f32, distance_cm: i32) -> f32 {
     exhaustion_per_meter * distance_cm as f32 * 0.01
 }
 
+pub const DEFAULT_SAFE_FALL_DISTANCE: f32 = 3.0;
+pub const DEFAULT_FALL_DAMAGE_MULTIPLIER: f32 = 1.0;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FallDamageInput {
+    pub fall_distance: f32,
+    pub damage_modifier: f32,
+    pub safe_fall_distance: f32,
+    pub fall_damage_multiplier: f32,
+    pub fall_damage_enabled: bool,
+    pub may_fly: bool,
+}
+
+pub fn update_fall_distance(fall_distance: f32, delta_y: f64, in_water: bool) -> f32 {
+    if !in_water && delta_y < 0.0 {
+        fall_distance + (-delta_y as f32)
+    } else {
+        fall_distance
+    }
+}
+
+pub fn calculate_fall_damage(input: FallDamageInput) -> i32 {
+    if !input.fall_damage_enabled || input.may_fly {
+        return 0;
+    }
+    let base_damage = input.fall_distance + 1.0e-6 - input.safe_fall_distance;
+    (base_damage * input.damage_modifier * input.fall_damage_multiplier).floor() as i32
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Difficulty {
     Peaceful,
@@ -557,6 +586,87 @@ mod tests {
         assert_eq!(stat_value(&player, "minecraft:play_time"), 1);
         assert_eq!(stat_value(&player, "minecraft:total_world_time"), 1);
         assert_eq!(stat_value(&player, "minecraft:crouch_time"), 1);
+    }
+
+    #[test]
+    fn fall_distance_accumulation_and_damage_match_java_defaults() {
+        let mut fall_distance = 0.0;
+        fall_distance = update_fall_distance(fall_distance, -1.25, false);
+        fall_distance = update_fall_distance(fall_distance, -2.75, false);
+        fall_distance = update_fall_distance(fall_distance, 0.5, false);
+        assert_eq!(fall_distance, 4.0);
+
+        assert_eq!(
+            calculate_fall_damage(FallDamageInput {
+                fall_distance: 3.0,
+                damage_modifier: 1.0,
+                safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+                fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+                fall_damage_enabled: true,
+                may_fly: false,
+            }),
+            0
+        );
+        assert_eq!(
+            calculate_fall_damage(FallDamageInput {
+                fall_distance: 4.0,
+                damage_modifier: 1.0,
+                safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+                fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+                fall_damage_enabled: true,
+                may_fly: false,
+            }),
+            1
+        );
+        assert_eq!(
+            calculate_fall_damage(FallDamageInput {
+                fall_distance: 10.0,
+                damage_modifier: 1.0,
+                safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+                fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+                fall_damage_enabled: true,
+                may_fly: false,
+            }),
+            7
+        );
+    }
+
+    #[test]
+    fn fall_damage_respects_water_flight_gamerule_and_block_modifier() {
+        assert_eq!(update_fall_distance(2.0, -8.0, true), 2.0);
+        assert_eq!(
+            calculate_fall_damage(FallDamageInput {
+                fall_distance: 20.0,
+                damage_modifier: 1.0,
+                safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+                fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+                fall_damage_enabled: false,
+                may_fly: false,
+            }),
+            0
+        );
+        assert_eq!(
+            calculate_fall_damage(FallDamageInput {
+                fall_distance: 20.0,
+                damage_modifier: 1.0,
+                safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+                fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+                fall_damage_enabled: true,
+                may_fly: true,
+            }),
+            0
+        );
+        assert_eq!(
+            calculate_fall_damage(FallDamageInput {
+                fall_distance: 10.0,
+                damage_modifier: 0.2,
+                safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+                fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+                fall_damage_enabled: true,
+                may_fly: false,
+            }),
+            1
+        );
     }
 
     #[test]

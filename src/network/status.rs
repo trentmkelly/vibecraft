@@ -73,6 +73,10 @@ use crate::network::play::{
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
+use crate::player_entity::{
+    calculate_fall_damage, update_fall_distance, FallDamageInput, DEFAULT_FALL_DAMAGE_MULTIPLIER,
+    DEFAULT_SAFE_FALL_DISTANCE,
+};
 use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory, SLOT_OFFHAND};
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
@@ -157,6 +161,7 @@ struct PlaySessionState {
     yaw: f32,
     pitch: f32,
     on_ground: bool,
+    fall_distance: f32,
     selected_slot: i32,
     health: f32,
     food_level: i32,
@@ -197,6 +202,7 @@ impl Default for PlaySessionState {
             yaw: 0.0,
             pitch: 0.0,
             on_ground: true,
+            fall_distance: 0.0,
             selected_slot: 0,
             health: 20.0,
             food_level: 20,
@@ -2028,7 +2034,21 @@ fn handle_login_connection(
                 }
                 let mut input = Cursor::new(packet);
                 let packet_id = read_var_i32(&mut input)?;
-                if update_play_session_state(packet_id, &mut input, &mut play_state)? {
+                let session_update =
+                    update_play_session_state(packet_id, &mut input, &mut play_state)?;
+                if session_update.health_changed {
+                    write_framed_packet_with_compression(
+                        stream,
+                        compression,
+                        CLIENTBOUND_SET_HEALTH_PACKET_ID,
+                        |payload| {
+                            payload.write_all(&play_state.health.to_be_bytes())?;
+                            write_var_i32(payload, play_state.food_level)?;
+                            payload.write_all(&play_state.food_saturation.to_be_bytes())
+                        },
+                    )?;
+                }
+                if session_update.position_changed {
                     let next_chunk_x = chunk_coordinate(play_state.x);
                     let next_chunk_z = chunk_coordinate(play_state.z);
                     if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
@@ -2379,46 +2399,91 @@ fn cache_login_profile(
     access.save_user_cache(Path::new("."))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct PlaySessionUpdate {
+    position_changed: bool,
+    health_changed: bool,
+}
+
 fn update_play_session_state<R: Read>(
     packet_id: i32,
     input: &mut R,
     state: &mut PlaySessionState,
-) -> io::Result<bool> {
+) -> io::Result<PlaySessionUpdate> {
     match packet_id {
         SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
+            let old_y = state.y;
             state.x = read_f64(input)?;
             state.y = read_f64(input)?;
             state.z = read_f64(input)?;
             state.on_ground = read_bool(input)?;
-            Ok(true)
+            Ok(apply_player_fall_movement(state, state.y - old_y, true))
         }
         SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
+            let old_y = state.y;
             state.x = read_f64(input)?;
             state.y = read_f64(input)?;
             state.z = read_f64(input)?;
             state.yaw = read_f32(input)?;
             state.pitch = read_f32(input)?;
             state.on_ground = read_bool(input)?;
-            Ok(true)
+            Ok(apply_player_fall_movement(state, state.y - old_y, true))
         }
         SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
             state.yaw = read_f32(input)?;
             state.pitch = read_f32(input)?;
             state.on_ground = read_bool(input)?;
-            Ok(true)
+            Ok(apply_player_fall_movement(state, 0.0, false))
         }
         SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
             state.on_ground = read_bool(input)?;
-            Ok(true)
+            Ok(apply_player_fall_movement(state, 0.0, false))
         }
         SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
             let slot = i32::from(read_i16(input)?);
             if (0..9).contains(&slot) {
                 state.selected_slot = slot;
             }
-            Ok(true)
+            Ok(PlaySessionUpdate {
+                position_changed: false,
+                health_changed: false,
+            })
         }
-        _ => Ok(false),
+        _ => Ok(PlaySessionUpdate::default()),
+    }
+}
+
+fn apply_player_fall_movement(
+    state: &mut PlaySessionState,
+    delta_y: f64,
+    position_changed: bool,
+) -> PlaySessionUpdate {
+    // TODO: replace this placeholder with block/fluid lookup when movement is
+    // validated against the generated world. Java does not accumulate fall
+    // distance while the entity is in water.
+    let in_water = false;
+    state.fall_distance = update_fall_distance(state.fall_distance, delta_y, in_water);
+
+    let mut health_changed = false;
+    if state.on_ground && state.fall_distance > 0.0 {
+        let damage = calculate_fall_damage(FallDamageInput {
+            fall_distance: state.fall_distance,
+            damage_modifier: 1.0,
+            safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
+            fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
+            fall_damage_enabled: true,
+            may_fly: state.abilities.mayfly,
+        });
+        state.fall_distance = 0.0;
+        if damage > 0 && state.health > 0.0 {
+            state.health = (state.health - damage as f32).max(0.0);
+            health_changed = true;
+        }
+    }
+
+    PlaySessionUpdate {
+        position_changed,
+        health_changed,
     }
 }
 
@@ -2795,6 +2860,10 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)]),
         ),
         ("OnGround".to_string(), Tag::Byte(i8::from(state.on_ground))),
+        (
+            "fall_distance".to_string(),
+            Tag::Double(state.fall_distance as f64),
+        ),
         ("Health".to_string(), Tag::Float(state.health)),
         ("foodLevel".to_string(), Tag::Int(state.food_level)),
         (
@@ -2964,6 +3033,11 @@ fn play_session_state_from_nbt(
         Some(Tag::Byte(value)) => *value != 0,
         _ => true,
     };
+    let fall_distance = match compound_tag(compound, "fall_distance") {
+        Some(Tag::Double(value)) => (*value as f32).max(0.0),
+        Some(Tag::Float(value)) => value.max(0.0),
+        _ => 0.0,
+    };
     let selected_slot = match compound_tag(compound, "SelectedItemSlot") {
         Some(Tag::Int(value)) if (0..9).contains(value) => *value,
         _ => 0,
@@ -3121,6 +3195,7 @@ fn play_session_state_from_nbt(
         yaw: *yaw,
         pitch: *pitch,
         on_ground,
+        fall_distance,
         selected_slot,
         health,
         food_level,
@@ -10192,6 +10267,7 @@ mod tests {
             yaw: 0.0,
             pitch: 0.0,
             on_ground: true,
+            fall_distance: 0.0,
             selected_slot: 0,
             health: 20.0,
             food_level: 20,
@@ -10234,6 +10310,79 @@ mod tests {
                 .is_empty(),
             "expected empty inventory after round-trip"
         );
+    }
+
+    #[test]
+    fn movement_packets_accumulate_and_apply_fall_damage_on_landing() {
+        let mut state = session_state_with_inventory(&[]);
+        state.y = 80.0;
+        state.on_ground = true;
+
+        let mut falling = Vec::new();
+        falling.extend_from_slice(&state.x.to_be_bytes());
+        falling.extend_from_slice(&70.0_f64.to_be_bytes());
+        falling.extend_from_slice(&state.z.to_be_bytes());
+        falling.push(0);
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+            &mut Cursor::new(falling),
+            &mut state,
+        )
+        .unwrap();
+        assert!(update.position_changed);
+        assert!(!update.health_changed);
+        assert_eq!(state.fall_distance, 10.0);
+        assert_eq!(state.health, 20.0);
+
+        let mut landing = Vec::new();
+        landing.extend_from_slice(&state.x.to_be_bytes());
+        landing.extend_from_slice(&70.0_f64.to_be_bytes());
+        landing.extend_from_slice(&state.z.to_be_bytes());
+        landing.push(1);
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+            &mut Cursor::new(landing),
+            &mut state,
+        )
+        .unwrap();
+        assert!(update.position_changed);
+        assert!(update.health_changed);
+        assert_eq!(state.fall_distance, 0.0);
+        assert_eq!(state.health, 13.0);
+    }
+
+    #[test]
+    fn fall_damage_is_suppressed_for_mayfly_players() {
+        let mut state = session_state_with_inventory(&[]);
+        state.y = 80.0;
+        state.abilities.mayfly = true;
+
+        let mut falling = Vec::new();
+        falling.extend_from_slice(&state.x.to_be_bytes());
+        falling.extend_from_slice(&60.0_f64.to_be_bytes());
+        falling.extend_from_slice(&state.z.to_be_bytes());
+        falling.push(0);
+        super::update_play_session_state(
+            super::SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+            &mut Cursor::new(falling),
+            &mut state,
+        )
+        .unwrap();
+
+        let mut landing = Vec::new();
+        landing.extend_from_slice(&state.x.to_be_bytes());
+        landing.extend_from_slice(&60.0_f64.to_be_bytes());
+        landing.extend_from_slice(&state.z.to_be_bytes());
+        landing.push(1);
+        let update = super::update_play_session_state(
+            super::SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+            &mut Cursor::new(landing),
+            &mut state,
+        )
+        .unwrap();
+        assert!(!update.health_changed);
+        assert_eq!(state.fall_distance, 0.0);
+        assert_eq!(state.health, 20.0);
     }
 
     #[test]
@@ -10352,6 +10501,7 @@ mod tests {
     #[test]
     fn play_session_state_nbt_round_trip_preserves_full_playerdata_surface() {
         let mut state = session_state_with_inventory(&[("minecraft:stone", 5, 3)]);
+        state.fall_distance = 6.25;
         state.food_exhaustion = 3.5;
         state.xp_progress = 0.75;
         state.xp_level = 12;
@@ -10408,6 +10558,7 @@ mod tests {
             "Pos",
             "Rotation",
             "Motion",
+            "fall_distance",
             "Health",
             "foodLevel",
             "foodSaturationLevel",
@@ -10443,6 +10594,7 @@ mod tests {
 
         let restored =
             play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
+        assert_eq!(restored.fall_distance, 6.25);
         assert_eq!(restored.food_exhaustion, 3.5);
         assert_eq!(restored.xp_seed, 98_765);
         assert_eq!(restored.score, 42);
