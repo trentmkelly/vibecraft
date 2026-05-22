@@ -32466,17 +32466,21 @@ impl GeneratedSectionBlocks {
     }
 
     fn get_name(&self, world_x: i32, world_y: i32, world_z: i32) -> &str {
-        let Some(section_index) =
-            section_index_for_y(self.min_section_y, self.sections.len(), world_y)
-        else {
-            return "minecraft:air";
-        };
-        let index = section_block_index(world_x, world_y, world_z);
-        let id = self.sections[section_index].ids[index] as usize;
+        let id = self.get_id(world_x, world_y, world_z) as usize;
         self.palette_names
             .get(id)
             .map(String::as_str)
             .unwrap_or("minecraft:air")
+    }
+
+    fn get_id(&self, world_x: i32, world_y: i32, world_z: i32) -> u16 {
+        let Some(section_index) =
+            section_index_for_y(self.min_section_y, self.sections.len(), world_y)
+        else {
+            return 0;
+        };
+        let index = section_block_index(world_x, world_y, world_z);
+        self.sections[section_index].ids[index]
     }
 
     fn set_id(&mut self, world_x: i32, world_y: i32, world_z: i32, id: u16) {
@@ -33765,6 +33769,7 @@ struct SurfaceRulesContext {
     last_update_xz: u64,
     last_update_y: u64,
     condition_cache: RefCell<HashMap<usize, SurfaceConditionCacheEntry>>,
+    profile: Option<RefCell<SurfaceRuleProfile>>,
     // Per column (XZ) — set once per column
     block_x: i32,
     block_z: i32,
@@ -33788,6 +33793,77 @@ struct SurfaceConditionCacheEntry {
     result: bool,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct SurfaceConditionKindProfile {
+    tests: usize,
+    cache_hits: usize,
+    computes: usize,
+    compute_us: u128,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct SurfaceRuleProfile {
+    rule_visits: usize,
+    block_rule_visits: usize,
+    condition_rule_visits: usize,
+    sequence_rule_visits: usize,
+    bandlands_rule_visits: usize,
+    condition_tests: usize,
+    condition_cache_hits: usize,
+    condition_computes: usize,
+    condition_compute_us: u128,
+    biome: SurfaceConditionKindProfile,
+    noise_threshold: SurfaceConditionKindProfile,
+    vertical_gradient: SurfaceConditionKindProfile,
+    y_above: SurfaceConditionKindProfile,
+    water: SurfaceConditionKindProfile,
+    stone_depth: SurfaceConditionKindProfile,
+    not: SurfaceConditionKindProfile,
+    steep: SurfaceConditionKindProfile,
+    hole: SurfaceConditionKindProfile,
+    above_preliminary_surface: SurfaceConditionKindProfile,
+    temperature: SurfaceConditionKindProfile,
+}
+
+impl SurfaceRuleProfile {
+    fn for_condition_kind_mut(
+        &mut self,
+        condition: &DynSurfaceCondition,
+    ) -> &mut SurfaceConditionKindProfile {
+        match condition {
+            DynSurfaceCondition::Biome(_) => &mut self.biome,
+            DynSurfaceCondition::NoiseThreshold { .. } => &mut self.noise_threshold,
+            DynSurfaceCondition::VerticalGradient { .. } => &mut self.vertical_gradient,
+            DynSurfaceCondition::YAbove { .. } => &mut self.y_above,
+            DynSurfaceCondition::Water { .. } => &mut self.water,
+            DynSurfaceCondition::StoneDepth { .. } => &mut self.stone_depth,
+            DynSurfaceCondition::Not(_) => &mut self.not,
+            DynSurfaceCondition::Steep => &mut self.steep,
+            DynSurfaceCondition::Hole => &mut self.hole,
+            DynSurfaceCondition::AbovePreliminarySurface => &mut self.above_preliminary_surface,
+            DynSurfaceCondition::Temperature => &mut self.temperature,
+        }
+    }
+
+    fn record_condition_test(&mut self, condition: &DynSurfaceCondition) {
+        self.condition_tests += 1;
+        self.for_condition_kind_mut(condition).tests += 1;
+    }
+
+    fn record_condition_cache_hit(&mut self, condition: &DynSurfaceCondition) {
+        self.condition_cache_hits += 1;
+        self.for_condition_kind_mut(condition).cache_hits += 1;
+    }
+
+    fn record_condition_compute(&mut self, condition: &DynSurfaceCondition, elapsed_us: u128) {
+        self.condition_computes += 1;
+        self.condition_compute_us += elapsed_us;
+        let kind = self.for_condition_kind_mut(condition);
+        kind.computes += 1;
+        kind.compute_us += elapsed_us;
+    }
+}
+
 #[cfg(test)]
 type BuildSurfaceColumnState = SurfaceRulesContext;
 
@@ -33799,7 +33875,9 @@ impl SurfaceRulesContext {
             heights,
             last_update_xz: 0,
             last_update_y: 0,
-            condition_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+            condition_cache: std::cell::RefCell::new(std::collections::HashMap::with_capacity(256)),
+            profile: std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG")
+                .map(|_| RefCell::new(SurfaceRuleProfile::default())),
             block_x: 0,
             block_z: 0,
             surface_depth: 0,
@@ -33889,6 +33967,12 @@ fn dyn_surface_condition_test(
     state: &SurfaceRulesContext,
     settings: NoiseGeneratorSettings,
 ) -> bool {
+    if state.profile.is_none() {
+        return dyn_surface_condition_compute(cond, state, settings);
+    }
+    if let Some(profile) = &state.profile {
+        profile.borrow_mut().record_condition_test(cond);
+    }
     let update_key = match cond.cache_granularity() {
         SurfaceConditionCacheGranularity::Xz => state.last_update_xz,
         SurfaceConditionCacheGranularity::Y => state.last_update_y,
@@ -33896,10 +33980,21 @@ fn dyn_surface_condition_test(
     let cache_key = cond as *const DynSurfaceCondition as usize;
     if let Some(entry) = state.condition_cache.borrow().get(&cache_key).copied() {
         if entry.update_key == update_key {
+            if let Some(profile) = &state.profile {
+                profile.borrow_mut().record_condition_cache_hit(cond);
+            }
             return entry.result;
         }
     }
+    let compute_started = state.profile.as_ref().map(|_| Instant::now());
     let result = dyn_surface_condition_compute(cond, state, settings);
+    if let Some(started) = compute_started {
+        if let Some(profile) = &state.profile {
+            profile
+                .borrow_mut()
+                .record_condition_compute(cond, started.elapsed().as_micros());
+        }
+    }
     state
         .condition_cache
         .borrow_mut()
@@ -34022,6 +34117,16 @@ fn dyn_surface_rule_apply<'a>(
     settings: NoiseGeneratorSettings,
     band_fn: &impl Fn(i32, i32, i32) -> &'static str,
 ) -> Option<&'a str> {
+    if let Some(profile) = &state.profile {
+        let mut profile = profile.borrow_mut();
+        profile.rule_visits += 1;
+        match rule {
+            DynSurfaceRule::Bandlands => profile.bandlands_rule_visits += 1,
+            DynSurfaceRule::Block(_) => profile.block_rule_visits += 1,
+            DynSurfaceRule::Sequence(_) => profile.sequence_rule_visits += 1,
+            DynSurfaceRule::Condition { .. } => profile.condition_rule_visits += 1,
+        }
+    }
     match rule {
         DynSurfaceRule::Bandlands => Some(band_fn(state.block_x, state.block_y, state.block_z)),
         DynSurfaceRule::Block(block) => Some(block.as_str()),
@@ -34377,6 +34482,10 @@ fn build_surface_for_chunk_timed_with_sections(
     let biome_zoom_seed = biome_manager_obfuscate_seed(seed);
     let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
     let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
+    let default_block_id = section_blocks.id_for(default_block);
+    let air_id = section_blocks.id_for("minecraft:air");
+    let water_id = section_blocks.id_for("minecraft:water");
+    let lava_id = section_blocks.id_for("minecraft:lava");
     let started = Instant::now();
     for local_z in 0..16_i32 {
         for local_x in 0..16_i32 {
@@ -34468,12 +34577,12 @@ fn build_surface_for_chunk_timed_with_sections(
 
             for y in (end_y..=start_height).rev() {
                 timings.surface_block_samples += 1;
-                let block_str = section_blocks.get_name(block_x, y, block_z);
+                let block_id = section_blocks.get_id(block_x, y, block_z);
 
-                if is_surface_air(block_str) {
+                if block_id == air_id {
                     stone_depth_above = 0;
                     water_height = i32::MIN;
-                } else if is_surface_fluid(block_str) {
+                } else if block_id == water_id || block_id == lava_id {
                     if water_height == i32::MIN {
                         water_height = y + 1;
                     }
@@ -34483,8 +34592,11 @@ fn build_surface_for_chunk_timed_with_sections(
                         next_ceiling_stone_y = WAY_BELOW_MIN_Y;
                         let mut la = y - 1;
                         while la >= end_y - 1 {
-                            let la_block = section_blocks.get_name(block_x, la, block_z);
-                            if !is_surface_stone(la_block) {
+                            let la_block_id = section_blocks.get_id(block_x, la, block_z);
+                            if la_block_id == air_id
+                                || la_block_id == water_id
+                                || la_block_id == lava_id
+                            {
                                 next_ceiling_stone_y = la + 1;
                                 break;
                             }
@@ -34497,14 +34609,14 @@ fn build_surface_for_chunk_timed_with_sections(
 
                     surface_context.update_y(stone_depth_above, stone_depth_below, water_height, y);
 
-                    if block_str == default_block {
+                    if block_id == default_block_id {
                         let band_fn = |wx: i32, by: i32, wz: i32| {
                             get_clay_band(seed, algorithm, *settings, wx, by, wz)
                         };
                         if let Some(new_block) =
                             dyn_surface_rule_apply(rule, &surface_context, *settings, &band_fn)
                         {
-                            if new_block == block_str {
+                            if new_block == default_block {
                                 continue;
                             }
                             section_blocks.set_name(block_x, y, block_z, &new_block);
@@ -34519,6 +34631,48 @@ fn build_surface_for_chunk_timed_with_sections(
     flush_generated_section_blocks(chunk, section_blocks);
     timings.surface_column_loop_ms = started.elapsed().as_millis();
     timings.surface_total_ms = total_started.elapsed().as_millis();
+    if let Some(profile) = &surface_context.profile {
+        let profile = *profile.borrow();
+        eprintln!(
+            "[surface-rule-debug] total={}ms loop={}ms columns={} samples={} writes={} rule_visits={} sequence={} condition_rules={} block_rules={} bandlands={} condition_tests={} cache_hits={} computes={} compute={}us",
+            timings.surface_total_ms,
+            timings.surface_column_loop_ms,
+            timings.surface_columns,
+            timings.surface_block_samples,
+            timings.surface_block_writes,
+            profile.rule_visits,
+            profile.sequence_rule_visits,
+            profile.condition_rule_visits,
+            profile.block_rule_visits,
+            profile.bandlands_rule_visits,
+            profile.condition_tests,
+            profile.condition_cache_hits,
+            profile.condition_computes,
+            profile.condition_compute_us,
+        );
+        let print_kind = |name: &str, kind: SurfaceConditionKindProfile| {
+            if kind.tests != 0 || kind.computes != 0 {
+                eprintln!(
+                    "[surface-rule-debug] condition={} tests={} cache_hits={} computes={} compute={}us",
+                    name, kind.tests, kind.cache_hits, kind.computes, kind.compute_us
+                );
+            }
+        };
+        print_kind("biome", profile.biome);
+        print_kind("noise_threshold", profile.noise_threshold);
+        print_kind("vertical_gradient", profile.vertical_gradient);
+        print_kind("y_above", profile.y_above);
+        print_kind("water", profile.water);
+        print_kind("stone_depth", profile.stone_depth);
+        print_kind("not", profile.not);
+        print_kind("steep", profile.steep);
+        print_kind("hole", profile.hole);
+        print_kind(
+            "above_preliminary_surface",
+            profile.above_preliminary_surface,
+        );
+        print_kind("temperature", profile.temperature);
+    }
 }
 
 /// Fill terrain from the noise density function AND apply surface rules.
@@ -36688,6 +36842,10 @@ fn noise_tree_context_heights_inner(
     let mut found_world_surface = [false; 16 * 16];
     let mut remaining_ocean_floor = 16 * 16;
     let mut remaining_world_surface = 16 * 16;
+    let mut density_samples = 0_usize;
+    let mut fluid_samples = 0_usize;
+    let mut lowest_sampled_y = i32::MAX;
+    let mut highest_sampled_y = i32::MIN;
 
     'cells: for cell_x_index in 0..cell_count_xz {
         noise_chunk.advance_cell_x(cell_x_index);
@@ -36712,6 +36870,9 @@ fn noise_tree_context_heights_inner(
                             if found_ocean_floor[index] && found_world_surface[index] {
                                 continue;
                             }
+                            density_samples += 1;
+                            lowest_sampled_y = lowest_sampled_y.min(pos_y);
+                            highest_sampled_y = highest_sampled_y.max(pos_y);
                             let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
                             let block_kind = noise_context_heightmap_block_kind(
                                 aquifer.as_mut(),
@@ -36722,6 +36883,9 @@ fn noise_tree_context_heights_inner(
                                 pos_z,
                                 density,
                             );
+                            if block_kind == NoiseHeightmapBlockKind::Fluid {
+                                fluid_samples += 1;
+                            }
                             if block_kind == NoiseHeightmapBlockKind::Air {
                                 continue;
                             }
@@ -36746,6 +36910,20 @@ fn noise_tree_context_heights_inner(
             }
         }
         noise_chunk.swap_slices();
+    }
+
+    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_HEIGHT_DEBUG").is_some() {
+        eprintln!(
+            "[tree-height-debug] chunk=({}, {}) density_samples={} fluid_samples={} y_range={}..{} remaining_world_surface={} remaining_ocean_floor={}",
+            pos.x,
+            pos.z,
+            density_samples,
+            fluid_samples,
+            lowest_sampled_y,
+            highest_sampled_y,
+            remaining_world_surface,
+            remaining_ocean_floor
+        );
     }
 
     TreeDecorationHeights {
@@ -56934,6 +57112,7 @@ mod tests {
             last_update_xz: 1,
             last_update_y: 1,
             condition_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+            profile: None,
             block_x: quiet_desert_floor.x,
             block_z: quiet_desert_floor.z,
             surface_depth: 0,
