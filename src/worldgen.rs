@@ -362,9 +362,10 @@ fn biome_manager_fiddled_distance(
     let fiddle_y = biome_manager_fiddle(value);
     value = biome_manager_lcg_next(value, seed);
     let fiddle_z = biome_manager_fiddle(value);
-    (distance_z + fiddle_z).powi(2)
-        + (distance_y + fiddle_y).powi(2)
-        + (distance_x + fiddle_x).powi(2)
+    let dx = distance_x + fiddle_x;
+    let dy = distance_y + fiddle_y;
+    let dz = distance_z + fiddle_z;
+    dz * dz + dy * dy + dx * dx
 }
 
 fn biome_manager_get_biome(
