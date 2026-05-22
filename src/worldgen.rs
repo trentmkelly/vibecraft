@@ -27318,7 +27318,7 @@ pub fn generate_chunk_for_stem_with_mode(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            Some(&region_biome_steps),
+                            None,
                             None,
                         );
                         chunk
@@ -29298,7 +29298,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             biome_source_model,
                             noise_settings,
                             seed,
-                            Some(&region_biome_steps),
+                            None,
                             None,
                         );
                         timings.tree_blocks = tree_result.placed_blocks;
