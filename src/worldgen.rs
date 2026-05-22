@@ -8470,7 +8470,7 @@ fn place_configured_simple_vegetation_in_target_chunk(
             below_block: below,
             above_block: above,
         },
-        feature_random_next_i32_bound(random, i32::MAX),
+        random,
     ) else {
         return 0;
     };
@@ -41787,9 +41787,45 @@ fn randomized_int_state_provider_apply(
 pub fn simple_block_placement_plan(
     config: &SimpleBlockConfigurationModel,
     context: SimpleBlockPlacementContext,
-    random_roll: i32,
+    random: &mut RandomSourceKind,
 ) -> Option<SimpleBlockPlacementPlan> {
-    let state = block_state_provider_sample(&config.to_place, random_roll)?;
+    let state = block_state_provider_sample_in_context_with_random(
+        &config.to_place,
+        random,
+        BlockPredicateContext {
+            min_y: 0,
+            height: 0,
+            block: context.origin_block,
+            fluid: if matches!(context.origin_block, "minecraft:water" | "minecraft:lava") {
+                context.origin_block
+            } else {
+                "minecraft:empty"
+            },
+            solid: !matches!(
+                context.origin_block,
+                "minecraft:air"
+                    | "minecraft:cave_air"
+                    | "minecraft:void_air"
+                    | "minecraft:water"
+                    | "minecraft:lava"
+            ),
+            replaceable: matches!(
+                context.origin_block,
+                "minecraft:air"
+                    | "minecraft:cave_air"
+                    | "minecraft:void_air"
+                    | "minecraft:short_grass"
+                    | "minecraft:tall_grass"
+                    | "minecraft:fern"
+                    | "minecraft:large_fern"
+                    | "minecraft:bush"
+                    | "minecraft:leaf_litter"
+            ),
+            unobstructed: true,
+        },
+        0,
+        context.origin_block,
+    )?;
     if !simple_block_can_survive(state, context) {
         return None;
     }
@@ -41811,9 +41847,6 @@ pub fn simple_block_placement_plan(
 }
 
 pub fn simple_block_can_survive(state: &str, context: SimpleBlockPlacementContext) -> bool {
-    if context.origin_block != "minecraft:air" {
-        return false;
-    }
     if simple_block_is_plant(state) {
         return matches!(
             context.below_block,
@@ -63068,6 +63101,10 @@ mod tests {
             to_place: flower_provider,
             schedule_tick: false,
         };
+        let mut simple_random = crate::random_source::RandomSourceKind::new(
+            42,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
         assert_eq!(
             super::simple_block_placement_plan(
                 &simple_config,
@@ -63076,7 +63113,7 @@ mod tests {
                     below_block: "minecraft:grass_block",
                     above_block: "minecraft:air",
                 },
-                0,
+                &mut simple_random,
             ),
             Some(super::SimpleBlockPlacementPlan {
                 state: "minecraft:dandelion",
@@ -63084,17 +63121,29 @@ mod tests {
                 schedule_tick: false,
             })
         );
+        let mut replace_leaf_litter_random = crate::random_source::RandomSourceKind::new(
+            42,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
         assert_eq!(
             super::simple_block_placement_plan(
                 &simple_config,
                 super::SimpleBlockPlacementContext {
-                    origin_block: "minecraft:stone",
+                    origin_block: "minecraft:leaf_litter",
                     below_block: "minecraft:grass_block",
                     above_block: "minecraft:air",
                 },
-                0,
+                &mut replace_leaf_litter_random,
             ),
-            None
+            Some(super::SimpleBlockPlacementPlan {
+                state: "minecraft:dandelion",
+                upper_state: None,
+                schedule_tick: false,
+            })
+        );
+        let mut bad_support_random = crate::random_source::RandomSourceKind::new(
+            42,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
         );
         assert_eq!(
             super::simple_block_placement_plan(
@@ -63104,7 +63153,7 @@ mod tests {
                     below_block: "minecraft:stone",
                     above_block: "minecraft:air",
                 },
-                0,
+                &mut bad_support_random,
             ),
             None
         );
@@ -63114,6 +63163,10 @@ mod tests {
             to_place: sunflower_provider,
             schedule_tick: true,
         };
+        let mut sunflower_random = crate::random_source::RandomSourceKind::new(
+            42,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
         assert_eq!(
             super::simple_block_placement_plan(
                 &sunflower_config,
@@ -63122,13 +63175,17 @@ mod tests {
                     below_block: "minecraft:grass_block",
                     above_block: "minecraft:air",
                 },
-                0,
+                &mut sunflower_random,
             ),
             Some(super::SimpleBlockPlacementPlan {
                 state: "minecraft:sunflower",
                 upper_state: Some("minecraft:sunflower"),
                 schedule_tick: true,
             })
+        );
+        let mut obstructed_sunflower_random = crate::random_source::RandomSourceKind::new(
+            42,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
         );
         assert_eq!(
             super::simple_block_placement_plan(
@@ -63138,7 +63195,7 @@ mod tests {
                     below_block: "minecraft:grass_block",
                     above_block: "minecraft:oak_leaves",
                 },
-                0,
+                &mut obstructed_sunflower_random,
             ),
             None
         );
