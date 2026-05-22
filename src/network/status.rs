@@ -85,7 +85,8 @@ use crate::weather::{WeatherCycle, WeatherData, WeatherGameEvent, WeatherRandomD
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
 use crate::worldgen::{
     generate_overworld_spawn_chunk_for_preset_with_mode,
-    generate_overworld_spawn_chunk_for_preset_with_mode_timed, LiveChunkGenerationMode,
+    generate_overworld_spawn_chunk_for_preset_with_mode_timed,
+    generate_overworld_spawn_chunk_region_for_preset_with_mode, LiveChunkGenerationMode,
 };
 
 const VERSION_NAME: &str = "26.1.2";
@@ -296,6 +297,38 @@ impl GeneratedChunkCache {
             return chunk;
         }
 
+        if live_region_feature_generation_enabled()
+            && live_chunk_generation_mode() == LiveChunkGenerationMode::RealSurface
+        {
+            let region_dir = world_root.join("region");
+            if try_load_chunk_from_region(&region_dir, pos).is_none() {
+                match generate_overworld_spawn_chunk_region_for_preset_with_mode(
+                    pos,
+                    1,
+                    "normal",
+                    LiveChunkGenerationMode::RealSurface,
+                    world_seed,
+                    true,
+                ) {
+                    Ok(region_chunks) => {
+                        let mut cache = self.chunks.lock().unwrap();
+                        for (region_pos, chunk) in region_chunks {
+                            cache.entry(region_pos).or_insert_with(|| Arc::new(chunk));
+                        }
+                        if let Some(chunk) = cache.get(&pos).cloned() {
+                            return chunk;
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!(
+                            "[worldgen-region] center=({}, {}) failed: {}",
+                            pos.x, pos.z, err
+                        );
+                    }
+                }
+            }
+        }
+
         let chunk = Arc::new(load_or_generate_spawn_chunk_uncached(
             x, z, world_root, world_seed,
         ));
@@ -310,6 +343,13 @@ impl GeneratedChunkCache {
     fn invalidate(&self, pos: ChunkPos) {
         self.chunks.lock().unwrap().remove(&pos);
     }
+}
+
+fn live_region_feature_generation_enabled() -> bool {
+    matches!(
+        std::env::var("RUSTCRAFT_WORLDGEN_REGION_FEATURES").as_deref(),
+        Ok("1") | Ok("true") | Ok("yes")
+    )
 }
 
 #[derive(Clone, Default)]

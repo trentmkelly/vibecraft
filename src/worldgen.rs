@@ -29343,6 +29343,130 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
     Ok((chunk, timings))
 }
 
+pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
+    center: ChunkPos,
+    radius: i32,
+    preset_id: &str,
+    mode: LiveChunkGenerationMode,
+    seed: i64,
+    spawn_mobs_game_rule: bool,
+) -> Result<BTreeMap<ChunkPos, LevelChunk>, String> {
+    let radius = radius.max(0);
+    if mode != LiveChunkGenerationMode::RealSurface {
+        let mut chunks = BTreeMap::new();
+        for z in center.z - radius..=center.z + radius {
+            for x in center.x - radius..=center.x + radius {
+                let pos = ChunkPos { x, z };
+                chunks.insert(
+                    pos,
+                    generate_overworld_spawn_chunk_for_preset_with_mode(
+                        pos,
+                        preset_id,
+                        mode,
+                        seed,
+                        spawn_mobs_game_rule,
+                    )?,
+                );
+            }
+        }
+        return Ok(chunks);
+    }
+
+    let preset = resolve_world_preset(preset_id)?;
+    let ResolvedChunkGenerator::Noise {
+        biome_source_model,
+        noise_settings,
+        ..
+    } = &preset.overworld.generator
+    else {
+        let mut chunks = BTreeMap::new();
+        for z in center.z - radius..=center.z + radius {
+            for x in center.x - radius..=center.x + radius {
+                let pos = ChunkPos { x, z };
+                chunks.insert(
+                    pos,
+                    generate_overworld_spawn_chunk_for_preset_with_mode(
+                        pos,
+                        preset_id,
+                        mode,
+                        seed,
+                        spawn_mobs_game_rule,
+                    )?,
+                );
+            }
+        }
+        return Ok(chunks);
+    };
+
+    let mut chunks = BTreeMap::new();
+    let mut source_positions = Vec::new();
+    for z in center.z - radius..=center.z + radius {
+        for x in center.x - radius..=center.x + radius {
+            let pos = ChunkPos { x, z };
+            let Some((mut chunk, _, mut noise_context)) =
+                generate_real_surface_base_chunk(pos, biome_source_model, noise_settings, seed)
+            else {
+                let router_id = noise_router_id_for_settings(**noise_settings);
+                let noise_router = builtin_noise_router(router_id)
+                    .map(|e| e.router)
+                    .unwrap_or(NONE_NOISE_ROUTER);
+                let (mut chunk, _) =
+                    fill_from_noise_chunk_timed(pos, noise_settings, seed, noise_router);
+                chunk.status = "minecraft:surface".to_string();
+                chunks.insert(pos, chunk);
+                source_positions.push(pos);
+                continue;
+            };
+            let region_biome_steps =
+                decoration_region_biome_steps_from_generated_chunk(&chunk, biome_source_model);
+            apply_configured_carvers_for_biome_source_with_noise_context(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                &mut noise_context,
+            );
+            apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
+            apply_underground_ore_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                Some(&region_biome_steps),
+            );
+            chunks.insert(pos, chunk);
+            source_positions.push(pos);
+        }
+    }
+
+    for pos in source_positions {
+        let region_biome_steps = chunks.get(&pos).map(|chunk| {
+            decoration_region_biome_steps_from_generated_chunk(chunk, biome_source_model)
+        });
+        apply_initial_tree_decoration_from_source_into_region(
+            &mut chunks,
+            pos,
+            biome_source_model,
+            noise_settings,
+            seed,
+            region_biome_steps.as_deref(),
+        );
+    }
+
+    for chunk in chunks.values_mut() {
+        add_client_heightmaps_from_blocks(chunk);
+        apply_spawn_original_mobs_to_generated_chunk(
+            chunk,
+            &preset.overworld,
+            seed,
+            spawn_mobs_game_rule,
+        );
+        chunk.status = "minecraft:spawn".to_string();
+    }
+
+    Ok(chunks)
+}
+
 pub fn world_preset_from_overworld_generator(generator: &str) -> Option<&'static str> {
     match generator {
         "minecraft:flat" | "flat" => Some("minecraft:flat"),
@@ -52480,6 +52604,45 @@ mod tests {
         assert!(
             elapsed_ms <= max_ms,
             "real-surface spawn chunk generation took {elapsed_ms}ms, above {max_ms}ms budget (~4ms/chunk Java target); timings={timings:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "diagnostic for Java-shaped region feature generation throughput"]
+    fn real_surface_region_spawn_chunk_generation_diagnostic() {
+        let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+            .ok()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
+        let radius = std::env::var("RUSTCRAFT_WORLDGEN_REGION_RADIUS")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(1);
+        let center = ChunkPos { x: 0, z: 0 };
+        let started = std::time::Instant::now();
+        let chunks = super::generate_overworld_spawn_chunk_region_for_preset_with_mode(
+            center,
+            radius,
+            "normal",
+            super::LiveChunkGenerationMode::RealSurface,
+            seed,
+            true,
+        )
+        .expect("region real-surface generation should succeed");
+        let elapsed_ms = started.elapsed().as_millis();
+        let chunk_count = chunks.len().max(1);
+        let center_chunk = chunks
+            .get(&center)
+            .expect("region generation should include center chunk");
+        assert_eq!(center_chunk.status, "minecraft:spawn");
+        eprintln!(
+            "[worldgen-region-perf-test] center=({}, {}) radius={} chunks={} elapsed={}ms avg_per_chunk={:.3}ms",
+            center.x,
+            center.z,
+            radius,
+            chunks.len(),
+            elapsed_ms,
+            elapsed_ms as f64 / chunk_count as f64
         );
     }
 
