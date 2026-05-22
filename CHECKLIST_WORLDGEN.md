@@ -205,6 +205,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Implement structure-check parity: `StructureManager.getStructureAt()`, starts vs. references, `structuresBelowEverything` flag
 - [ ] Implement `Beardifier.forStructure()`: terrain adjustment for structures via density function integration
 - [ ] Implement structure start generation: `Structure.generate()`, bounding box, piece container, `StructureStart.placeInChunk()`, `JigsawStructure.generatePieces()`
+  - [ ] Finish mineshaft piece generation against Java `MineshaftStructure`/`MineshaftPieces`: the current Rust diagnostic identifies the vanilla fixture's missing underground-structure cave-air cluster, but the generated Rust mineshaft candidate for seed `8675309`/chunk `(-1,4)` lands its closest piece at `z=17..36` while the vanilla mineshaft evidence is at `z=0..15`. Do not enable mineshaft application in the hot chunk path until the piece sequence and placement boxes match Java. References: `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/structure/structures/MineshaftStructure.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/structure/structures/MineshaftPieces.java`, `src/worldgen.rs`.
 
 ### Non-Jigsaw Structure Pieces
 - [ ] Implement `MineshaftPieces`: corridor, cross, staircase, room; supported/gravel fill; chest loot

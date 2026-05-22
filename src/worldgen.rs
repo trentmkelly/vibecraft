@@ -3479,6 +3479,59 @@ pub struct MineshaftCorridorSaveTagModel {
     pub mineshaft_type_id: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MineshaftGeneratedPieceModel {
+    Room {
+        bounding_box: StructureBoundingBoxModel,
+        mineshaft_type: MineshaftTypeModel,
+        child_entrance_boxes: Vec<StructureBoundingBoxModel>,
+        gen_depth: i32,
+    },
+    Corridor {
+        model: MineshaftCorridorModel,
+        gen_depth: i32,
+    },
+    Crossing {
+        bounding_box: StructureBoundingBoxModel,
+        direction: HorizontalDirection,
+        mineshaft_type: MineshaftTypeModel,
+        is_two_floored: bool,
+        gen_depth: i32,
+    },
+    Stairs {
+        bounding_box: StructureBoundingBoxModel,
+        direction: HorizontalDirection,
+        mineshaft_type: MineshaftTypeModel,
+        gen_depth: i32,
+    },
+}
+
+impl MineshaftGeneratedPieceModel {
+    pub const fn bounding_box(&self) -> StructureBoundingBoxModel {
+        match self {
+            Self::Room { bounding_box, .. }
+            | Self::Crossing { bounding_box, .. }
+            | Self::Stairs { bounding_box, .. } => *bounding_box,
+            Self::Corridor { model, .. } => model.bounding_box,
+        }
+    }
+
+    pub const fn as_structure_piece(&self) -> StructurePieceModel {
+        StructurePieceModel {
+            bounding_box: self.bounding_box(),
+        }
+    }
+
+    pub const fn gen_depth(&self) -> i32 {
+        match self {
+            Self::Room { gen_depth, .. }
+            | Self::Corridor { gen_depth, .. }
+            | Self::Crossing { gen_depth, .. }
+            | Self::Stairs { gen_depth, .. } => *gen_depth,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StrongholdPieceKindModel {
     Straight,
@@ -22154,6 +22207,1255 @@ pub fn mineshaft_corridor_save_tag(
         num_sections: corridor.num_sections,
         mineshaft_type_id: mineshaft_type_id(corridor.mineshaft_type),
     }
+}
+
+fn mineshaft_piece_bounding_boxes(
+    pieces: &[MineshaftGeneratedPieceModel],
+) -> Vec<StructurePieceModel> {
+    pieces
+        .iter()
+        .map(MineshaftGeneratedPieceModel::as_structure_piece)
+        .collect()
+}
+
+fn mineshaft_generated_piece_type(piece: &MineshaftGeneratedPieceModel) -> MineshaftTypeModel {
+    match piece {
+        MineshaftGeneratedPieceModel::Room { mineshaft_type, .. }
+        | MineshaftGeneratedPieceModel::Crossing { mineshaft_type, .. }
+        | MineshaftGeneratedPieceModel::Stairs { mineshaft_type, .. } => *mineshaft_type,
+        MineshaftGeneratedPieceModel::Corridor { model, .. } => model.mineshaft_type,
+    }
+}
+
+fn mineshaft_create_random_piece(
+    random: &mut RandomSourceKind,
+    foot_x: i32,
+    foot_y: i32,
+    foot_z: i32,
+    direction: HorizontalDirection,
+    gen_depth: i32,
+    mineshaft_type: MineshaftTypeModel,
+    existing_pieces: &[MineshaftGeneratedPieceModel],
+) -> Option<MineshaftGeneratedPieceModel> {
+    let existing_boxes = mineshaft_piece_bounding_boxes(existing_pieces);
+    match mineshaft_random_piece_kind(random_next_i32_bound(random, 100)).ok()? {
+        MineshaftPieceKindModel::Crossing => {
+            let bounding_box = mineshaft_find_crossing(
+                foot_x,
+                foot_y,
+                foot_z,
+                direction,
+                random_next_i32_bound(random, 4),
+                &existing_boxes,
+            )
+            .ok()
+            .flatten()?;
+            Some(MineshaftGeneratedPieceModel::Crossing {
+                bounding_box,
+                direction,
+                mineshaft_type,
+                is_two_floored: bounding_box.max_y - bounding_box.min_y + 1 > 3,
+                gen_depth,
+            })
+        }
+        MineshaftPieceKindModel::Stairs => {
+            let bounding_box =
+                mineshaft_find_stairs(foot_x, foot_y, foot_z, direction, &existing_boxes)?;
+            Some(MineshaftGeneratedPieceModel::Stairs {
+                bounding_box,
+                direction,
+                mineshaft_type,
+                gen_depth,
+            })
+        }
+        MineshaftPieceKindModel::Corridor => {
+            let bounding_box = mineshaft_find_corridor_size(
+                foot_x,
+                foot_y,
+                foot_z,
+                direction,
+                random_next_i32_bound(random, 3),
+                &existing_boxes,
+            )
+            .ok()
+            .flatten()?;
+            let model = mineshaft_corridor(
+                bounding_box,
+                direction,
+                mineshaft_type,
+                random_next_i32_bound(random, 3),
+                random_next_i32_bound(random, 23),
+            )
+            .ok()?;
+            Some(MineshaftGeneratedPieceModel::Corridor { model, gen_depth })
+        }
+    }
+}
+
+fn mineshaft_generate_and_add_piece(
+    start_box: StructureBoundingBoxModel,
+    pieces: &mut Vec<MineshaftGeneratedPieceModel>,
+    random: &mut RandomSourceKind,
+    foot_x: i32,
+    foot_y: i32,
+    foot_z: i32,
+    direction: HorizontalDirection,
+    depth: i32,
+) -> Option<StructureBoundingBoxModel> {
+    if depth > 8 || (foot_x - start_box.min_x).abs() > 80 || (foot_z - start_box.min_z).abs() > 80 {
+        return None;
+    }
+    let mineshaft_type = pieces
+        .first()
+        .map(mineshaft_generated_piece_type)
+        .unwrap_or(MineshaftTypeModel::Normal);
+    let piece = mineshaft_create_random_piece(
+        random,
+        foot_x,
+        foot_y,
+        foot_z,
+        direction,
+        depth + 1,
+        mineshaft_type,
+        pieces,
+    )?;
+    let bounding_box = piece.bounding_box();
+    pieces.push(piece);
+    let piece_index = pieces.len() - 1;
+    mineshaft_add_children(piece_index, start_box, pieces, random);
+    Some(bounding_box)
+}
+
+fn mineshaft_add_children(
+    piece_index: usize,
+    start_box: StructureBoundingBoxModel,
+    pieces: &mut Vec<MineshaftGeneratedPieceModel>,
+    random: &mut RandomSourceKind,
+) {
+    let piece = pieces[piece_index].clone();
+    match piece {
+        MineshaftGeneratedPieceModel::Room {
+            bounding_box,
+            gen_depth,
+            ..
+        } => {
+            let mut entrance_boxes = Vec::new();
+            let mut height_space = bounding_box.max_y - bounding_box.min_y + 1 - 3 - 1;
+            if height_space <= 0 {
+                height_space = 1;
+            }
+
+            let mut pos = 0;
+            while pos < bounding_box.max_x - bounding_box.min_x + 1 {
+                pos += random_next_i32_bound(random, bounding_box.max_x - bounding_box.min_x + 1);
+                if pos + 3 > bounding_box.max_x - bounding_box.min_x + 1 {
+                    break;
+                }
+                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
+                if let Some(child_box) = mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.min_x + pos,
+                    foot_y,
+                    bounding_box.min_z - 1,
+                    HorizontalDirection::North,
+                    gen_depth,
+                ) {
+                    entrance_boxes.push(StructureBoundingBoxModel {
+                        min_x: child_box.min_x,
+                        min_y: child_box.min_y,
+                        min_z: bounding_box.min_z,
+                        max_x: child_box.max_x,
+                        max_y: child_box.max_y,
+                        max_z: bounding_box.min_z + 1,
+                    });
+                }
+                pos += 4;
+            }
+
+            pos = 0;
+            while pos < bounding_box.max_x - bounding_box.min_x + 1 {
+                pos += random_next_i32_bound(random, bounding_box.max_x - bounding_box.min_x + 1);
+                if pos + 3 > bounding_box.max_x - bounding_box.min_x + 1 {
+                    break;
+                }
+                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
+                if let Some(child_box) = mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.min_x + pos,
+                    foot_y,
+                    bounding_box.max_z + 1,
+                    HorizontalDirection::South,
+                    gen_depth,
+                ) {
+                    entrance_boxes.push(StructureBoundingBoxModel {
+                        min_x: child_box.min_x,
+                        min_y: child_box.min_y,
+                        min_z: bounding_box.max_z - 1,
+                        max_x: child_box.max_x,
+                        max_y: child_box.max_y,
+                        max_z: bounding_box.max_z,
+                    });
+                }
+                pos += 4;
+            }
+
+            pos = 0;
+            while pos < bounding_box.max_z - bounding_box.min_z + 1 {
+                pos += random_next_i32_bound(random, bounding_box.max_z - bounding_box.min_z + 1);
+                if pos + 3 > bounding_box.max_z - bounding_box.min_z + 1 {
+                    break;
+                }
+                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
+                if let Some(child_box) = mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.min_x - 1,
+                    foot_y,
+                    bounding_box.min_z + pos,
+                    HorizontalDirection::West,
+                    gen_depth,
+                ) {
+                    entrance_boxes.push(StructureBoundingBoxModel {
+                        min_x: bounding_box.min_x,
+                        min_y: child_box.min_y,
+                        min_z: child_box.min_z,
+                        max_x: bounding_box.min_x + 1,
+                        max_y: child_box.max_y,
+                        max_z: child_box.max_z,
+                    });
+                }
+                pos += 4;
+            }
+
+            pos = 0;
+            while pos < bounding_box.max_z - bounding_box.min_z + 1 {
+                pos += random_next_i32_bound(random, bounding_box.max_z - bounding_box.min_z + 1);
+                if pos + 3 > bounding_box.max_z - bounding_box.min_z + 1 {
+                    break;
+                }
+                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
+                if let Some(child_box) = mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.max_x + 1,
+                    foot_y,
+                    bounding_box.min_z + pos,
+                    HorizontalDirection::East,
+                    gen_depth,
+                ) {
+                    entrance_boxes.push(StructureBoundingBoxModel {
+                        min_x: bounding_box.max_x - 1,
+                        min_y: child_box.min_y,
+                        min_z: child_box.min_z,
+                        max_x: bounding_box.max_x,
+                        max_y: child_box.max_y,
+                        max_z: child_box.max_z,
+                    });
+                }
+                pos += 4;
+            }
+
+            if let MineshaftGeneratedPieceModel::Room {
+                child_entrance_boxes,
+                ..
+            } = &mut pieces[piece_index]
+            {
+                *child_entrance_boxes = entrance_boxes;
+            }
+        }
+        MineshaftGeneratedPieceModel::Corridor { model, gen_depth } => {
+            let end_selection = random_next_i32_bound(random, 4);
+            match model.orientation {
+                HorizontalDirection::North => {
+                    if end_selection <= 1 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x,
+                            foot_y,
+                            model.bounding_box.min_z - 1,
+                            model.orientation,
+                            gen_depth,
+                        );
+                    } else if end_selection == 2 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x - 1,
+                            foot_y,
+                            model.bounding_box.min_z,
+                            HorizontalDirection::West,
+                            gen_depth,
+                        );
+                    } else {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.max_x + 1,
+                            foot_y,
+                            model.bounding_box.min_z,
+                            HorizontalDirection::East,
+                            gen_depth,
+                        );
+                    }
+                }
+                HorizontalDirection::South => {
+                    if end_selection <= 1 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x,
+                            foot_y,
+                            model.bounding_box.max_z + 1,
+                            model.orientation,
+                            gen_depth,
+                        );
+                    } else if end_selection == 2 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x - 1,
+                            foot_y,
+                            model.bounding_box.max_z - 3,
+                            HorizontalDirection::West,
+                            gen_depth,
+                        );
+                    } else {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.max_x + 1,
+                            foot_y,
+                            model.bounding_box.max_z - 3,
+                            HorizontalDirection::East,
+                            gen_depth,
+                        );
+                    }
+                }
+                HorizontalDirection::West => {
+                    if end_selection <= 1 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x - 1,
+                            foot_y,
+                            model.bounding_box.min_z,
+                            model.orientation,
+                            gen_depth,
+                        );
+                    } else if end_selection == 2 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x,
+                            foot_y,
+                            model.bounding_box.min_z - 1,
+                            HorizontalDirection::North,
+                            gen_depth,
+                        );
+                    } else {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.min_x,
+                            foot_y,
+                            model.bounding_box.max_z + 1,
+                            HorizontalDirection::South,
+                            gen_depth,
+                        );
+                    }
+                }
+                HorizontalDirection::East => {
+                    if end_selection <= 1 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.max_x + 1,
+                            foot_y,
+                            model.bounding_box.min_z,
+                            model.orientation,
+                            gen_depth,
+                        );
+                    } else if end_selection == 2 {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.max_x - 3,
+                            foot_y,
+                            model.bounding_box.min_z - 1,
+                            HorizontalDirection::North,
+                            gen_depth,
+                        );
+                    } else {
+                        let foot_y =
+                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
+                        mineshaft_generate_and_add_piece(
+                            start_box,
+                            pieces,
+                            random,
+                            model.bounding_box.max_x - 3,
+                            foot_y,
+                            model.bounding_box.max_z + 1,
+                            HorizontalDirection::South,
+                            gen_depth,
+                        );
+                    }
+                }
+            }
+
+            if gen_depth < 8 {
+                if !matches!(
+                    model.orientation,
+                    HorizontalDirection::North | HorizontalDirection::South
+                ) {
+                    let mut x = model.bounding_box.min_x + 3;
+                    while x + 3 <= model.bounding_box.max_x {
+                        match random_next_i32_bound(random, 5) {
+                            0 => {
+                                mineshaft_generate_and_add_piece(
+                                    start_box,
+                                    pieces,
+                                    random,
+                                    x,
+                                    model.bounding_box.min_y,
+                                    model.bounding_box.min_z - 1,
+                                    HorizontalDirection::North,
+                                    gen_depth + 1,
+                                );
+                            }
+                            1 => {
+                                mineshaft_generate_and_add_piece(
+                                    start_box,
+                                    pieces,
+                                    random,
+                                    x,
+                                    model.bounding_box.min_y,
+                                    model.bounding_box.max_z + 1,
+                                    HorizontalDirection::South,
+                                    gen_depth + 1,
+                                );
+                            }
+                            _ => {}
+                        }
+                        x += 5;
+                    }
+                } else {
+                    let mut z = model.bounding_box.min_z + 3;
+                    while z + 3 <= model.bounding_box.max_z {
+                        match random_next_i32_bound(random, 5) {
+                            0 => {
+                                mineshaft_generate_and_add_piece(
+                                    start_box,
+                                    pieces,
+                                    random,
+                                    model.bounding_box.min_x - 1,
+                                    model.bounding_box.min_y,
+                                    z,
+                                    HorizontalDirection::West,
+                                    gen_depth + 1,
+                                );
+                            }
+                            1 => {
+                                mineshaft_generate_and_add_piece(
+                                    start_box,
+                                    pieces,
+                                    random,
+                                    model.bounding_box.max_x + 1,
+                                    model.bounding_box.min_y,
+                                    z,
+                                    HorizontalDirection::East,
+                                    gen_depth + 1,
+                                );
+                            }
+                            _ => {}
+                        }
+                        z += 5;
+                    }
+                }
+            }
+        }
+        MineshaftGeneratedPieceModel::Crossing {
+            bounding_box,
+            direction,
+            is_two_floored,
+            gen_depth,
+            ..
+        } => {
+            match direction {
+                HorizontalDirection::North => {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z - 1,
+                        HorizontalDirection::North,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x - 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::West,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.max_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::East,
+                        gen_depth,
+                    );
+                }
+                HorizontalDirection::South => {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.max_z + 1,
+                        HorizontalDirection::South,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x - 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::West,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.max_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::East,
+                        gen_depth,
+                    );
+                }
+                HorizontalDirection::West => {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z - 1,
+                        HorizontalDirection::North,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.max_z + 1,
+                        HorizontalDirection::South,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x - 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::West,
+                        gen_depth,
+                    );
+                }
+                HorizontalDirection::East => {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z - 1,
+                        HorizontalDirection::North,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.max_z + 1,
+                        HorizontalDirection::South,
+                        gen_depth,
+                    );
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.max_x + 1,
+                        bounding_box.min_y,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::East,
+                        gen_depth,
+                    );
+                }
+            }
+
+            if is_two_floored {
+                if crate::random_source::random_source_next_bool(random) {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y + 4,
+                        bounding_box.min_z - 1,
+                        HorizontalDirection::North,
+                        gen_depth,
+                    );
+                }
+                if crate::random_source::random_source_next_bool(random) {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x - 1,
+                        bounding_box.min_y + 4,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::West,
+                        gen_depth,
+                    );
+                }
+                if crate::random_source::random_source_next_bool(random) {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.max_x + 1,
+                        bounding_box.min_y + 4,
+                        bounding_box.min_z + 1,
+                        HorizontalDirection::East,
+                        gen_depth,
+                    );
+                }
+                if crate::random_source::random_source_next_bool(random) {
+                    mineshaft_generate_and_add_piece(
+                        start_box,
+                        pieces,
+                        random,
+                        bounding_box.min_x + 1,
+                        bounding_box.min_y + 4,
+                        bounding_box.max_z + 1,
+                        HorizontalDirection::South,
+                        gen_depth,
+                    );
+                }
+            }
+        }
+        MineshaftGeneratedPieceModel::Stairs {
+            bounding_box,
+            direction,
+            gen_depth,
+            ..
+        } => match direction {
+            HorizontalDirection::North => {
+                mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.min_x,
+                    bounding_box.min_y,
+                    bounding_box.min_z - 1,
+                    HorizontalDirection::North,
+                    gen_depth,
+                );
+            }
+            HorizontalDirection::South => {
+                mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.min_x,
+                    bounding_box.min_y,
+                    bounding_box.max_z + 1,
+                    HorizontalDirection::South,
+                    gen_depth,
+                );
+            }
+            HorizontalDirection::West => {
+                mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.min_x - 1,
+                    bounding_box.min_y,
+                    bounding_box.min_z,
+                    HorizontalDirection::West,
+                    gen_depth,
+                );
+            }
+            HorizontalDirection::East => {
+                mineshaft_generate_and_add_piece(
+                    start_box,
+                    pieces,
+                    random,
+                    bounding_box.max_x + 1,
+                    bounding_box.min_y,
+                    bounding_box.min_z,
+                    HorizontalDirection::East,
+                    gen_depth,
+                );
+            }
+        },
+    }
+}
+
+fn mineshaft_move_pieces(pieces: &mut [MineshaftGeneratedPieceModel], dy: i32) {
+    for piece in pieces {
+        match piece {
+            MineshaftGeneratedPieceModel::Room {
+                bounding_box,
+                child_entrance_boxes,
+                ..
+            } => {
+                *bounding_box = bounding_box.moved(0, dy, 0);
+                for entrance in child_entrance_boxes {
+                    *entrance = entrance.moved(0, dy, 0);
+                }
+            }
+            MineshaftGeneratedPieceModel::Corridor { model, .. } => {
+                model.bounding_box = model.bounding_box.moved(0, dy, 0);
+            }
+            MineshaftGeneratedPieceModel::Crossing { bounding_box, .. }
+            | MineshaftGeneratedPieceModel::Stairs { bounding_box, .. } => {
+                *bounding_box = bounding_box.moved(0, dy, 0);
+            }
+        }
+    }
+}
+
+pub fn mineshaft_generate_pieces_for_start(
+    seed: i64,
+    chunk_pos: ChunkPos,
+    mineshaft_type: MineshaftTypeModel,
+    sea_level: i32,
+    min_y: i32,
+) -> Vec<MineshaftGeneratedPieceModel> {
+    let mut random = RandomSourceKind::Legacy(LegacyRandom::new(
+        crate::random_source::large_feature_seed(seed, chunk_pos.x, chunk_pos.z),
+    ));
+    let _generation_point_roll = random_next_f64(&mut random);
+    let room = mineshaft_room(
+        chunk_pos,
+        mineshaft_type,
+        random_next_i32_bound(&mut random, 6),
+        random_next_i32_bound(&mut random, 6),
+        random_next_i32_bound(&mut random, 6),
+    )
+    .expect("RandomSource#nextInt(6) room rolls should be valid");
+    let start_box = room.bounding_box;
+    let mut pieces = vec![MineshaftGeneratedPieceModel::Room {
+        bounding_box: room.bounding_box,
+        mineshaft_type,
+        child_entrance_boxes: Vec::new(),
+        gen_depth: 0,
+    }];
+    mineshaft_add_children(0, start_box, &mut pieces, &mut random);
+    let aggregate = pieces
+        .iter()
+        .map(MineshaftGeneratedPieceModel::bounding_box)
+        .reduce(StructureBoundingBoxModel::union)
+        .unwrap_or(room.bounding_box);
+    let random_roll = {
+        let max_y = sea_level - 10;
+        let y1_pos = (aggregate.max_y - aggregate.min_y + 1) + min_y + 1;
+        if y1_pos < max_y {
+            random_next_i32_bound(&mut random, max_y - y1_pos)
+        } else {
+            0
+        }
+    };
+    let dy = mineshaft_move_below_sea_level_dy(aggregate, sea_level, min_y, 10, random_roll)
+        .expect("computed mineshaft sea-level move roll should be valid");
+    mineshaft_move_pieces(&mut pieces, dy);
+    pieces
+}
+
+fn mineshaft_chunk_bounding_box(chunk_pos: ChunkPos) -> StructureBoundingBoxModel {
+    StructureBoundingBoxModel {
+        min_x: chunk_pos.x * 16,
+        min_y: -64,
+        min_z: chunk_pos.z * 16,
+        max_x: chunk_pos.x * 16 + 15,
+        max_y: 319,
+        max_z: chunk_pos.z * 16 + 15,
+    }
+}
+
+fn mineshaft_block_is_liquid(block: &str) -> bool {
+    block.starts_with("minecraft:water") || block.starts_with("minecraft:lava")
+}
+
+fn mineshaft_piece_is_in_invalid_location(
+    chunk: &LevelChunk,
+    piece_box: StructureBoundingBoxModel,
+    chunk_bb: StructureBoundingBoxModel,
+) -> bool {
+    let x0 = (piece_box.min_x - 1).max(chunk_bb.min_x);
+    let y0 = (piece_box.min_y - 1).max(chunk_bb.min_y);
+    let z0 = (piece_box.min_z - 1).max(chunk_bb.min_z);
+    let x1 = (piece_box.max_x + 1).min(chunk_bb.max_x);
+    let y1 = (piece_box.max_y + 1).min(chunk_bb.max_y);
+    let z1 = (piece_box.max_z + 1).min(chunk_bb.max_z);
+    for x in x0..=x1 {
+        for z in z0..=z1 {
+            if chunk
+                .get_block_state(x, y0, z)
+                .is_some_and(|block| mineshaft_block_is_liquid(&block))
+                || chunk
+                    .get_block_state(x, y1, z)
+                    .is_some_and(|block| mineshaft_block_is_liquid(&block))
+            {
+                return true;
+            }
+        }
+    }
+    for x in x0..=x1 {
+        for y in y0..=y1 {
+            if chunk
+                .get_block_state(x, y, z0)
+                .is_some_and(|block| mineshaft_block_is_liquid(&block))
+                || chunk
+                    .get_block_state(x, y, z1)
+                    .is_some_and(|block| mineshaft_block_is_liquid(&block))
+            {
+                return true;
+            }
+        }
+    }
+    for z in z0..=z1 {
+        for y in y0..=y1 {
+            if chunk
+                .get_block_state(x0, y, z)
+                .is_some_and(|block| mineshaft_block_is_liquid(&block))
+                || chunk
+                    .get_block_state(x1, y, z)
+                    .is_some_and(|block| mineshaft_block_is_liquid(&block))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn mineshaft_place_cave_air_blocks(
+    chunk: &mut LevelChunk,
+    blocks: Vec<StructurePiecePlacementBlock>,
+) -> usize {
+    let mut placed = 0;
+    for block in blocks {
+        chunk.set_block_state(
+            block.world_pos.x,
+            block.world_pos.y,
+            block.world_pos.z,
+            "minecraft:cave_air",
+        );
+        placed += 1;
+    }
+    placed
+}
+
+fn mineshaft_generate_world_box(
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max: BlockPos,
+) -> Vec<StructurePiecePlacementBlock> {
+    structure_piece_generate_box(
+        StructureBoundingBoxModel {
+            min_x: 0,
+            min_y: 0,
+            min_z: 0,
+            max_x: 0,
+            max_y: 0,
+            max_z: 0,
+        },
+        None,
+        chunk_bb,
+        min,
+        max,
+        "minecraft:cave_air",
+        "minecraft:cave_air",
+        false,
+        |_| false,
+    )
+}
+
+fn mineshaft_apply_piece_to_chunk(
+    chunk: &mut LevelChunk,
+    piece: &MineshaftGeneratedPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+) -> usize {
+    let piece_box = piece.bounding_box();
+    if !piece_box.intersects(chunk_bb)
+        || mineshaft_piece_is_in_invalid_location(chunk, piece_box, chunk_bb)
+    {
+        return 0;
+    }
+    match piece {
+        MineshaftGeneratedPieceModel::Room {
+            bounding_box,
+            child_entrance_boxes,
+            ..
+        } => {
+            let mut placed = 0;
+            placed += mineshaft_place_cave_air_blocks(
+                chunk,
+                mineshaft_generate_world_box(
+                    chunk_bb,
+                    BlockPos {
+                        x: bounding_box.min_x,
+                        y: bounding_box.min_y + 1,
+                        z: bounding_box.min_z,
+                    },
+                    BlockPos {
+                        x: bounding_box.max_x,
+                        y: (bounding_box.min_y + 3).min(bounding_box.max_y),
+                        z: bounding_box.max_z,
+                    },
+                ),
+            );
+            for entrance in child_entrance_boxes {
+                placed += mineshaft_place_cave_air_blocks(
+                    chunk,
+                    mineshaft_generate_world_box(
+                        chunk_bb,
+                        BlockPos {
+                            x: entrance.min_x,
+                            y: entrance.max_y - 2,
+                            z: entrance.min_z,
+                        },
+                        BlockPos {
+                            x: entrance.max_x,
+                            y: entrance.max_y,
+                            z: entrance.max_z,
+                        },
+                    ),
+                );
+            }
+            placed += mineshaft_place_cave_air_blocks(
+                chunk,
+                structure_piece_generate_upper_half_sphere(
+                    *bounding_box,
+                    None,
+                    chunk_bb,
+                    BlockPos {
+                        x: bounding_box.min_x,
+                        y: bounding_box.min_y + 4,
+                        z: bounding_box.min_z,
+                    },
+                    BlockPos {
+                        x: bounding_box.max_x,
+                        y: bounding_box.max_y,
+                        z: bounding_box.max_z,
+                    },
+                    "minecraft:cave_air",
+                    false,
+                    |_| false,
+                ),
+            );
+            placed
+        }
+        MineshaftGeneratedPieceModel::Corridor { model, .. } => {
+            let length = model.num_sections * 5 - 1;
+            let mut placed = mineshaft_place_cave_air_blocks(
+                chunk,
+                structure_piece_generate_box(
+                    model.bounding_box,
+                    Some(model.orientation),
+                    chunk_bb,
+                    BlockPos { x: 0, y: 0, z: 0 },
+                    BlockPos {
+                        x: 2,
+                        y: 1,
+                        z: length,
+                    },
+                    "minecraft:cave_air",
+                    "minecraft:cave_air",
+                    false,
+                    |_| false,
+                ),
+            );
+            placed += mineshaft_place_cave_air_blocks(
+                chunk,
+                structure_piece_generate_box(
+                    model.bounding_box,
+                    Some(model.orientation),
+                    chunk_bb,
+                    BlockPos { x: 0, y: 2, z: 0 },
+                    BlockPos {
+                        x: 2,
+                        y: 2,
+                        z: length,
+                    },
+                    "minecraft:cave_air",
+                    "minecraft:cave_air",
+                    false,
+                    |_| false,
+                ),
+            );
+            placed
+        }
+        MineshaftGeneratedPieceModel::Crossing {
+            bounding_box,
+            is_two_floored,
+            ..
+        } => {
+            let mut placed = 0;
+            if *is_two_floored {
+                for (min, max) in [
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x + 1,
+                            y: bounding_box.min_y,
+                            z: bounding_box.min_z,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x - 1,
+                            y: bounding_box.min_y + 2,
+                            z: bounding_box.max_z,
+                        },
+                    ),
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x,
+                            y: bounding_box.min_y,
+                            z: bounding_box.min_z + 1,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x,
+                            y: bounding_box.min_y + 2,
+                            z: bounding_box.max_z - 1,
+                        },
+                    ),
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x + 1,
+                            y: bounding_box.max_y - 2,
+                            z: bounding_box.min_z,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x - 1,
+                            y: bounding_box.max_y,
+                            z: bounding_box.max_z,
+                        },
+                    ),
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x,
+                            y: bounding_box.max_y - 2,
+                            z: bounding_box.min_z + 1,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x,
+                            y: bounding_box.max_y,
+                            z: bounding_box.max_z - 1,
+                        },
+                    ),
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x + 1,
+                            y: bounding_box.min_y + 3,
+                            z: bounding_box.min_z + 1,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x - 1,
+                            y: bounding_box.min_y + 3,
+                            z: bounding_box.max_z - 1,
+                        },
+                    ),
+                ] {
+                    placed += mineshaft_place_cave_air_blocks(
+                        chunk,
+                        mineshaft_generate_world_box(chunk_bb, min, max),
+                    );
+                }
+            } else {
+                for (min, max) in [
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x + 1,
+                            y: bounding_box.min_y,
+                            z: bounding_box.min_z,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x - 1,
+                            y: bounding_box.max_y,
+                            z: bounding_box.max_z,
+                        },
+                    ),
+                    (
+                        BlockPos {
+                            x: bounding_box.min_x,
+                            y: bounding_box.min_y,
+                            z: bounding_box.min_z + 1,
+                        },
+                        BlockPos {
+                            x: bounding_box.max_x,
+                            y: bounding_box.max_y,
+                            z: bounding_box.max_z - 1,
+                        },
+                    ),
+                ] {
+                    placed += mineshaft_place_cave_air_blocks(
+                        chunk,
+                        mineshaft_generate_world_box(chunk_bb, min, max),
+                    );
+                }
+            }
+            placed
+        }
+        MineshaftGeneratedPieceModel::Stairs {
+            bounding_box,
+            direction,
+            ..
+        } => {
+            let mut placed = 0;
+            for (min, max) in [
+                (BlockPos { x: 0, y: 5, z: 0 }, BlockPos { x: 2, y: 7, z: 1 }),
+                (BlockPos { x: 0, y: 0, z: 7 }, BlockPos { x: 2, y: 2, z: 8 }),
+            ] {
+                placed += mineshaft_place_cave_air_blocks(
+                    chunk,
+                    structure_piece_generate_box(
+                        *bounding_box,
+                        Some(*direction),
+                        chunk_bb,
+                        min,
+                        max,
+                        "minecraft:cave_air",
+                        "minecraft:cave_air",
+                        false,
+                        |_| false,
+                    ),
+                );
+            }
+            for i in 0..5 {
+                placed += mineshaft_place_cave_air_blocks(
+                    chunk,
+                    structure_piece_generate_box(
+                        *bounding_box,
+                        Some(*direction),
+                        chunk_bb,
+                        BlockPos {
+                            x: 0,
+                            y: 5 - i - if i < 4 { 1 } else { 0 },
+                            z: 2 + i,
+                        },
+                        BlockPos {
+                            x: 2,
+                            y: 7 - i,
+                            z: 2 + i,
+                        },
+                        "minecraft:cave_air",
+                        "minecraft:cave_air",
+                        false,
+                        |_| false,
+                    ),
+                );
+            }
+            placed
+        }
+    }
+}
+
+pub fn apply_mineshaft_underground_structures_to_chunk(chunk: &mut LevelChunk, seed: i64) -> usize {
+    let target_pos = ChunkPos {
+        x: chunk.pos.x,
+        z: chunk.pos.z,
+    };
+    let chunk_bb = mineshaft_chunk_bounding_box(target_pos);
+    let mut placed = 0;
+    for source_x in target_pos.x - 8..=target_pos.x + 8 {
+        for source_z in target_pos.z - 8..=target_pos.z + 8 {
+            if !structure_frequency_reducer_should_generate(
+                FrequencyReductionMethod::LegacyType3,
+                seed,
+                0,
+                source_x,
+                source_z,
+                0.004,
+            )
+            .unwrap_or(false)
+            {
+                continue;
+            }
+            let pieces = mineshaft_generate_pieces_for_start(
+                seed,
+                ChunkPos {
+                    x: source_x,
+                    z: source_z,
+                },
+                MineshaftTypeModel::Normal,
+                63,
+                -64,
+            );
+            for piece in &pieces {
+                placed += mineshaft_apply_piece_to_chunk(chunk, piece, chunk_bb);
+            }
+        }
+    }
+    placed
 }
 
 pub fn stronghold_horizontal_direction_from_random_roll(
@@ -50725,11 +52027,65 @@ mod tests {
                 .expect("room rolls should be valid");
                 let intersects_missing = missing_box
                     .is_some_and(|missing| room.bounding_box.inflated_by(96).intersects(missing));
-                if intersects_missing {
-                    near_missing_count += 1;
+                let pieces = super::mineshaft_generate_pieces_for_start(
+                    seed,
+                    ChunkPos {
+                        x: source_x,
+                        z: source_z,
+                    },
+                    super::MineshaftTypeModel::Normal,
+                    63,
+                    -64,
+                );
+                let intersecting_pieces = pieces
+                    .iter()
+                    .filter(|piece| {
+                        missing_box.is_some_and(|missing| piece.bounding_box().intersects(missing))
+                    })
+                    .count();
+                if intersects_missing || intersecting_pieces > 0 {
+                    if intersects_missing {
+                        near_missing_count += 1;
+                    }
+                    let closest_piece = missing_box.and_then(|missing| {
+                        pieces
+                            .iter()
+                            .map(|piece| {
+                                let bb = piece.bounding_box();
+                                let dx = if bb.max_x < missing.min_x {
+                                    missing.min_x - bb.max_x
+                                } else if missing.max_x < bb.min_x {
+                                    bb.min_x - missing.max_x
+                                } else {
+                                    0
+                                };
+                                let dy = if bb.max_y < missing.min_y {
+                                    missing.min_y - bb.max_y
+                                } else if missing.max_y < bb.min_y {
+                                    bb.min_y - missing.max_y
+                                } else {
+                                    0
+                                };
+                                let dz = if bb.max_z < missing.min_z {
+                                    missing.min_z - bb.max_z
+                                } else if missing.max_z < bb.min_z {
+                                    bb.min_z - missing.max_z
+                                } else {
+                                    0
+                                };
+                                (dx + dy + dz, bb)
+                            })
+                            .min_by_key(|(distance, _)| *distance)
+                    });
                     eprintln!(
-                        "[cave-air-structure-candidate] chunk=({}, {}) first_roll={:.9} room={:?}",
-                        source_x, source_z, first_roll, room.bounding_box
+                        "[cave-air-structure-candidate] chunk=({}, {}) first_roll={:.9} room={:?} generated_pieces={} intersecting_pieces={} closest_piece={:?}",
+                        source_x,
+                        source_z,
+                        first_roll,
+                        room.bounding_box,
+                        pieces.len(),
+                        intersecting_pieces,
+                        closest_piece
                     );
                 }
             }
