@@ -18,7 +18,7 @@ use crate::worldgen::{
     SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, WORLD_PRESETS,
 };
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -257,6 +257,58 @@ pub struct VanillaColumnProfileMismatchSample {
     pub actual_surface_height: i32,
     pub expected_surface_stack: String,
     pub actual_surface_stack: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaTreeDensityDiagnostic {
+    pub chunks: Vec<VanillaTreeDensityChunk>,
+    pub expected_logs: usize,
+    pub actual_logs: usize,
+    pub expected_leaves: usize,
+    pub actual_leaves: usize,
+    pub expected_tree_blocks: usize,
+    pub actual_tree_blocks: usize,
+    pub leaf_matches: usize,
+    pub log_matches: usize,
+    pub extra_actual_leaves: usize,
+    pub missing_expected_leaves: usize,
+    pub extra_actual_logs: usize,
+    pub missing_expected_logs: usize,
+    pub expected_log_columns: usize,
+    pub actual_log_columns: usize,
+    pub matching_log_columns: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaTreeDensityChunk {
+    pub chunk: ChunkCoord,
+    pub expected_logs: usize,
+    pub actual_logs: usize,
+    pub expected_leaves: usize,
+    pub actual_leaves: usize,
+    pub expected_tree_blocks: usize,
+    pub actual_tree_blocks: usize,
+    pub leaf_matches: usize,
+    pub log_matches: usize,
+    pub extra_actual_leaves: usize,
+    pub missing_expected_leaves: usize,
+    pub extra_actual_logs: usize,
+    pub missing_expected_logs: usize,
+    pub expected_log_columns: Vec<VanillaTreeLogColumn>,
+    pub actual_log_columns: Vec<VanillaTreeLogColumn>,
+    pub matching_log_columns: usize,
+    pub expected_only_log_columns: Vec<VanillaTreeLogColumn>,
+    pub actual_only_log_columns: Vec<VanillaTreeLogColumn>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VanillaTreeLogColumn {
+    pub world_x: i32,
+    pub world_z: i32,
+    pub min_y: i32,
+    pub max_y: i32,
+    pub logs: usize,
+    pub block: String,
 }
 
 impl VanillaBlockArrayParityScore {
@@ -1234,6 +1286,282 @@ pub fn vanilla_worldgen_column_profile_parity_score_for_normal_overworld(
     }
 
     vanilla_worldgen_column_profile_parity_score(vanilla_fixture_json, &actual_chunks)
+}
+
+pub fn vanilla_worldgen_tree_density_diagnostic_for_normal_overworld(
+    vanilla_fixture_json: &str,
+) -> Result<VanillaTreeDensityDiagnostic, String> {
+    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
+        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
+    let seed = fixture
+        .get("seed")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing seed".to_string())?
+        .parse::<i64>()
+        .map_err(|err| format!("vanilla worldgen block-array fixture has invalid seed: {err}"))?;
+    let chunks = fixture
+        .get("chunks")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
+
+    let mut diagnostic = VanillaTreeDensityDiagnostic {
+        chunks: Vec::with_capacity(chunks.len()),
+        expected_logs: 0,
+        actual_logs: 0,
+        expected_leaves: 0,
+        actual_leaves: 0,
+        expected_tree_blocks: 0,
+        actual_tree_blocks: 0,
+        leaf_matches: 0,
+        log_matches: 0,
+        extra_actual_leaves: 0,
+        missing_expected_leaves: 0,
+        extra_actual_logs: 0,
+        missing_expected_logs: 0,
+        expected_log_columns: 0,
+        actual_log_columns: 0,
+        matching_log_columns: 0,
+    };
+
+    for expected_chunk in chunks {
+        let dimension = expected_chunk
+            .get("dimension")
+            .and_then(Value::as_str)
+            .unwrap_or("overworld");
+        if dimension != "overworld" {
+            return Err(format!(
+                "unsupported vanilla worldgen block-array dimension: {dimension}"
+            ));
+        }
+        let chunk_x = json_i32_field(expected_chunk, "chunkX")?;
+        let chunk_z = json_i32_field(expected_chunk, "chunkZ")?;
+        let y_min = json_i32_field(expected_chunk, "yMin")?;
+        let blocks = expected_chunk
+            .get("blocks")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                format!("vanilla fixture chunk ({chunk_x},{chunk_z}) is missing blocks")
+            })?;
+        let actual_chunk = crate::worldgen::generate_overworld_chunk_for_preset_with_mode(
+            crate::storage::region::ChunkPos {
+                x: chunk_x,
+                z: chunk_z,
+            },
+            "normal",
+            crate::worldgen::LiveChunkGenerationMode::RealSurface,
+            seed,
+        )?;
+
+        let mut chunk_summary = VanillaTreeDensityChunk {
+            chunk: ChunkCoord {
+                x: chunk_x,
+                z: chunk_z,
+            },
+            expected_logs: 0,
+            actual_logs: 0,
+            expected_leaves: 0,
+            actual_leaves: 0,
+            expected_tree_blocks: 0,
+            actual_tree_blocks: 0,
+            leaf_matches: 0,
+            log_matches: 0,
+            extra_actual_leaves: 0,
+            missing_expected_leaves: 0,
+            extra_actual_logs: 0,
+            missing_expected_logs: 0,
+            expected_log_columns: Vec::new(),
+            actual_log_columns: Vec::new(),
+            matching_log_columns: 0,
+            expected_only_log_columns: Vec::new(),
+            actual_only_log_columns: Vec::new(),
+        };
+        let mut expected_log_columns = BTreeMap::new();
+        let mut actual_log_columns = BTreeMap::new();
+
+        for (local_x, y_column) in blocks.iter().enumerate() {
+            let y_column = y_column.as_array().ok_or_else(|| {
+                format!("vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} is not an array")
+            })?;
+            for (y_offset, z_column) in y_column.iter().enumerate() {
+                let z_column = z_column.as_array().ok_or_else(|| {
+                    format!(
+                        "vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} y_offset={y_offset} is not an array"
+                    )
+                })?;
+                let world_y = y_min + y_offset as i32;
+                for (local_z, expected) in z_column.iter().enumerate() {
+                    let expected = expected
+                        .as_str()
+                        .ok_or_else(|| {
+                            format!(
+                                "vanilla fixture chunk ({chunk_x},{chunk_z}) x={local_x} y_offset={y_offset} z={local_z} is not a block string"
+                            )
+                        })
+                        .map(vanilla_block_type)?;
+                    let actual = actual_chunk
+                        .get_block_state(
+                            chunk_x * 16 + local_x as i32,
+                            world_y,
+                            chunk_z * 16 + local_z as i32,
+                        )
+                        .unwrap_or_else(|| "minecraft:air".to_string());
+                    accumulate_tree_density_cell(&mut chunk_summary, &expected, &actual);
+                    let world_x = chunk_x * 16 + local_x as i32;
+                    let world_z = chunk_z * 16 + local_z as i32;
+                    if is_tree_log_block(&expected) {
+                        record_tree_log_column(
+                            &mut expected_log_columns,
+                            world_x,
+                            world_y,
+                            world_z,
+                            &expected,
+                        );
+                    }
+                    if is_tree_log_block(&actual) {
+                        record_tree_log_column(
+                            &mut actual_log_columns,
+                            world_x,
+                            world_y,
+                            world_z,
+                            &actual,
+                        );
+                    }
+                }
+            }
+        }
+        chunk_summary.expected_log_columns = finish_tree_log_columns(expected_log_columns);
+        chunk_summary.actual_log_columns = finish_tree_log_columns(actual_log_columns);
+        let expected_column_keys: BTreeSet<(i32, i32)> = chunk_summary
+            .expected_log_columns
+            .iter()
+            .map(|column| (column.world_x, column.world_z))
+            .collect();
+        let actual_column_keys: BTreeSet<(i32, i32)> = chunk_summary
+            .actual_log_columns
+            .iter()
+            .map(|column| (column.world_x, column.world_z))
+            .collect();
+        chunk_summary.matching_log_columns = expected_column_keys
+            .intersection(&actual_column_keys)
+            .count();
+        chunk_summary.expected_only_log_columns = chunk_summary
+            .expected_log_columns
+            .iter()
+            .filter(|column| !actual_column_keys.contains(&(column.world_x, column.world_z)))
+            .cloned()
+            .collect();
+        chunk_summary.actual_only_log_columns = chunk_summary
+            .actual_log_columns
+            .iter()
+            .filter(|column| !expected_column_keys.contains(&(column.world_x, column.world_z)))
+            .cloned()
+            .collect();
+
+        diagnostic.expected_logs += chunk_summary.expected_logs;
+        diagnostic.actual_logs += chunk_summary.actual_logs;
+        diagnostic.expected_leaves += chunk_summary.expected_leaves;
+        diagnostic.actual_leaves += chunk_summary.actual_leaves;
+        diagnostic.expected_tree_blocks += chunk_summary.expected_tree_blocks;
+        diagnostic.actual_tree_blocks += chunk_summary.actual_tree_blocks;
+        diagnostic.leaf_matches += chunk_summary.leaf_matches;
+        diagnostic.log_matches += chunk_summary.log_matches;
+        diagnostic.extra_actual_leaves += chunk_summary.extra_actual_leaves;
+        diagnostic.missing_expected_leaves += chunk_summary.missing_expected_leaves;
+        diagnostic.extra_actual_logs += chunk_summary.extra_actual_logs;
+        diagnostic.missing_expected_logs += chunk_summary.missing_expected_logs;
+        diagnostic.expected_log_columns += chunk_summary.expected_log_columns.len();
+        diagnostic.actual_log_columns += chunk_summary.actual_log_columns.len();
+        diagnostic.matching_log_columns += chunk_summary.matching_log_columns;
+        diagnostic.chunks.push(chunk_summary);
+    }
+
+    Ok(diagnostic)
+}
+
+fn record_tree_log_column(
+    columns: &mut BTreeMap<(i32, i32), VanillaTreeLogColumn>,
+    world_x: i32,
+    world_y: i32,
+    world_z: i32,
+    block: &str,
+) {
+    columns
+        .entry((world_x, world_z))
+        .and_modify(|column| {
+            column.min_y = column.min_y.min(world_y);
+            column.max_y = column.max_y.max(world_y);
+            column.logs += 1;
+        })
+        .or_insert_with(|| VanillaTreeLogColumn {
+            world_x,
+            world_z,
+            min_y: world_y,
+            max_y: world_y,
+            logs: 1,
+            block: block.to_string(),
+        });
+}
+
+fn finish_tree_log_columns(
+    columns: BTreeMap<(i32, i32), VanillaTreeLogColumn>,
+) -> Vec<VanillaTreeLogColumn> {
+    columns.into_values().collect()
+}
+
+fn accumulate_tree_density_cell(
+    summary: &mut VanillaTreeDensityChunk,
+    expected: &str,
+    actual: &str,
+) {
+    let expected_leaf = is_tree_leaf_block(expected);
+    let actual_leaf = is_tree_leaf_block(actual);
+    let expected_log = is_tree_log_block(expected);
+    let actual_log = is_tree_log_block(actual);
+
+    if expected_leaf {
+        summary.expected_leaves += 1;
+    }
+    if actual_leaf {
+        summary.actual_leaves += 1;
+    }
+    if expected_log {
+        summary.expected_logs += 1;
+    }
+    if actual_log {
+        summary.actual_logs += 1;
+    }
+    if expected_leaf || expected_log {
+        summary.expected_tree_blocks += 1;
+    }
+    if actual_leaf || actual_log {
+        summary.actual_tree_blocks += 1;
+    }
+    if expected_leaf && actual_leaf {
+        summary.leaf_matches += 1;
+    } else if !expected_leaf && actual_leaf {
+        summary.extra_actual_leaves += 1;
+    } else if expected_leaf && !actual_leaf {
+        summary.missing_expected_leaves += 1;
+    }
+    if expected_log && actual_log {
+        summary.log_matches += 1;
+    } else if !expected_log && actual_log {
+        summary.extra_actual_logs += 1;
+    } else if expected_log && !actual_log {
+        summary.missing_expected_logs += 1;
+    }
+}
+
+fn is_tree_leaf_block(block: &str) -> bool {
+    block
+        .strip_prefix("minecraft:")
+        .unwrap_or(block)
+        .ends_with("_leaves")
+}
+
+fn is_tree_log_block(block: &str) -> bool {
+    let block = block.strip_prefix("minecraft:").unwrap_or(block);
+    block.ends_with("_log") || block.ends_with("_wood") || block.ends_with("_stem")
 }
 
 fn json_i32_field(value: &Value, field: &str) -> Result<i32, String> {
@@ -3007,6 +3335,22 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic for investigating tree decoration density parity"]
+    fn normal_overworld_tree_density_diagnostic() {
+        let diagnostic = vanilla_worldgen_tree_density_diagnostic_for_normal_overworld(
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"),
+        )
+        .expect("vanilla block-array fixture should diagnose tree density");
+
+        print_vanilla_worldgen_tree_density_diagnostic(&diagnostic);
+
+        assert!(
+            diagnostic.actual_tree_blocks > 0 || diagnostic.expected_tree_blocks > 0,
+            "fixture should contain tree blocks in at least one side of the comparison"
+        );
+    }
+
+    #[test]
     fn normal_overworld_carver_preserves_known_vanilla_cave_opening() {
         let fixture =
             include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
@@ -3170,6 +3514,88 @@ mod tests {
                 sample.actual
             );
         }
+    }
+
+    fn print_vanilla_worldgen_tree_density_diagnostic(diagnostic: &VanillaTreeDensityDiagnostic) {
+        println!(
+            "worldgen tree density totals: expected_tree={} actual_tree={} delta={} expected_logs={} actual_logs={} log_delta={} expected_leaves={} actual_leaves={} leaf_delta={}",
+            diagnostic.expected_tree_blocks,
+            diagnostic.actual_tree_blocks,
+            diagnostic.actual_tree_blocks as isize - diagnostic.expected_tree_blocks as isize,
+            diagnostic.expected_logs,
+            diagnostic.actual_logs,
+            diagnostic.actual_logs as isize - diagnostic.expected_logs as isize,
+            diagnostic.expected_leaves,
+            diagnostic.actual_leaves,
+            diagnostic.actual_leaves as isize - diagnostic.expected_leaves as isize,
+        );
+        println!(
+            "worldgen tree density overlap: leaf_matches={} log_matches={} extra_actual_leaves={} missing_expected_leaves={} extra_actual_logs={} missing_expected_logs={} expected_log_columns={} actual_log_columns={} matching_log_columns={}",
+            diagnostic.leaf_matches,
+            diagnostic.log_matches,
+            diagnostic.extra_actual_leaves,
+            diagnostic.missing_expected_leaves,
+            diagnostic.extra_actual_logs,
+            diagnostic.missing_expected_logs,
+            diagnostic.expected_log_columns,
+            diagnostic.actual_log_columns,
+            diagnostic.matching_log_columns,
+        );
+        println!("worldgen tree density by chunk:");
+        for chunk in &diagnostic.chunks {
+            println!(
+                "  chunk ({:>4},{:>4}) expected_tree={:>5} actual_tree={:>5} delta={:>5} expected_logs={:>4} actual_logs={:>4} log_delta={:>4} expected_leaves={:>5} actual_leaves={:>5} leaf_delta={:>5} extra_leaves={:>5} missing_leaves={:>5} extra_logs={:>4} missing_logs={:>4} expected_log_columns={:>3} actual_log_columns={:>3} matching_log_columns={:>3}",
+                chunk.chunk.x,
+                chunk.chunk.z,
+                chunk.expected_tree_blocks,
+                chunk.actual_tree_blocks,
+                chunk.actual_tree_blocks as isize - chunk.expected_tree_blocks as isize,
+                chunk.expected_logs,
+                chunk.actual_logs,
+                chunk.actual_logs as isize - chunk.expected_logs as isize,
+                chunk.expected_leaves,
+                chunk.actual_leaves,
+                chunk.actual_leaves as isize - chunk.expected_leaves as isize,
+                chunk.extra_actual_leaves,
+                chunk.missing_expected_leaves,
+                chunk.extra_actual_logs,
+                chunk.missing_expected_logs,
+                chunk.expected_log_columns.len(),
+                chunk.actual_log_columns.len(),
+                chunk.matching_log_columns,
+            );
+            print_tree_log_column_samples("expected-only", &chunk.expected_only_log_columns, 6);
+            print_tree_log_column_samples("actual-only", &chunk.actual_only_log_columns, 6);
+        }
+    }
+
+    fn print_tree_log_column_samples(label: &str, columns: &[VanillaTreeLogColumn], limit: usize) {
+        if columns.is_empty() {
+            println!("    {label}: none");
+            return;
+        }
+        let samples = columns
+            .iter()
+            .take(limit)
+            .map(|column| {
+                format!(
+                    "({},{} y={}..{} logs={} {})",
+                    column.world_x,
+                    column.world_z,
+                    column.min_y,
+                    column.max_y,
+                    column.logs,
+                    column.block
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!(
+            "    {label} log columns (showing {}/{}): {}",
+            limit.min(columns.len()),
+            columns.len(),
+            samples
+        );
     }
 
     fn print_vanilla_worldgen_column_profile_mismatch_counts(
