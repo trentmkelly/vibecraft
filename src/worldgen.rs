@@ -5778,13 +5778,13 @@ fn live_tree_decoration_blocks(
             let Some(tree_config) = live_tree_feature_config(call.feature, &mut random) else {
                 continue;
             };
-            let rand_a = feature_random_next_i32_bound(&mut random, tree_config.rand_a_bound);
-            let rand_b = feature_random_next_i32_bound(&mut random, tree_config.rand_b_bound);
             let origin = BlockPos {
                 x: local_x as i32,
                 y: surface_height,
                 z: local_z as i32,
             };
+            let rand_a = feature_random_next_i32_bound(&mut random, tree_config.rand_a_bound);
+            let rand_b = feature_random_next_i32_bound(&mut random, tree_config.rand_b_bound);
             let prior_log_collision = if let Some(accepted_log_positions) = &accepted_log_positions
             {
                 let tree_height = trunk_placer_height(
@@ -5814,13 +5814,14 @@ fn live_tree_decoration_blocks(
             };
             diagnostics.tree_candidates += 1;
             let started = Instant::now();
-            if !live_tree_can_place_in_chunk(
+            if !live_tree_can_place_with_previous_blocks(
                 block_context,
                 origin,
                 tree_config,
                 rand_a,
                 rand_b,
                 settings,
+                &blocks,
             ) {
                 diagnostics.validation_ms += started.elapsed().as_millis();
                 diagnostics.validation_rejects += 1;
@@ -6434,6 +6435,31 @@ fn live_tree_placement_plan(
     Ok(TreePlacementPlan { blocks })
 }
 
+fn live_tree_state_with_previous_blocks(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    world_pos: BlockPos,
+) -> String {
+    previous_source_blocks
+        .iter()
+        .rev()
+        .find_map(|block| {
+            let block_world_x = source_pos.x * 16 + block.pos.x;
+            let block_world_z = source_pos.z * 16 + block.pos.z;
+            (block_world_x == world_pos.x
+                && block.pos.y == world_pos.y
+                && block_world_z == world_pos.z)
+                .then_some(block.state.to_string())
+        })
+        .or_else(|| {
+            block_context
+                .block_state(world_pos.x, world_pos.y, world_pos.z)
+                .map(|state| block_state_id(state).to_string())
+        })
+        .unwrap_or_else(|| "minecraft:air".to_string())
+}
+
 fn live_straight_blob_tree_placement_plan(
     origin: BlockPos,
     trunk: TrunkPlacerModel,
@@ -6633,6 +6659,71 @@ fn live_tree_can_place_in_chunk(
                     .block_state(world_x, world_y, world_z)
                     .is_some_and(|state| !tree_valid_pos(state))
                 {
+                    clipped_tree_height = y_offset - 2;
+                    break 'height_scan;
+                }
+            }
+        }
+    }
+
+    clipped_tree_height >= tree_height
+        || config
+            .min_clipped_height
+            .is_some_and(|min| clipped_tree_height >= min)
+}
+
+fn live_tree_can_place_with_previous_blocks(
+    block_context: &TreeDecorationBlockContext<'_>,
+    origin: BlockPos,
+    config: LiveTreeFeatureConfig,
+    rand_a: i32,
+    rand_b: i32,
+    settings: &NoiseGeneratorSettings,
+    previous_source_blocks: &[TreePlacementBlock],
+) -> bool {
+    let trunk = TrunkPlacerModel {
+        base_height: config.base_height,
+        height_rand_a: config.height_rand_a,
+        height_rand_b: config.height_rand_b,
+        kind: if matches!(config.foliage.kind, FoliagePlacerKind::Fancy { .. }) {
+            TrunkPlacerKind::Fancy
+        } else {
+            TrunkPlacerKind::Straight
+        },
+    };
+    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
+    let build_min_y = settings.noise.min_y;
+    let build_max_y = settings.noise.min_y + settings.noise.height;
+    let min_y = origin.y;
+    let max_y = origin.y + tree_height + 1;
+    if min_y < build_min_y + 1 || max_y > build_max_y + 1 {
+        return false;
+    }
+
+    let mut clipped_tree_height = tree_height;
+    'height_scan: for y_offset in 0..=tree_height + 1 {
+        let radius = feature_size_at_height(config.minimum_size, tree_height, y_offset);
+        for dx in -radius..=radius {
+            for dz in -radius..=radius {
+                let local_x = origin.x + dx;
+                let local_z = origin.z + dz;
+                let world_y = origin.y + y_offset;
+                if world_y < build_min_y || world_y >= build_max_y {
+                    continue;
+                }
+                let world_x = block_context.source_pos.x * 16 + local_x;
+                let world_z = block_context.source_pos.z * 16 + local_z;
+                let state = live_tree_state_with_previous_blocks(
+                    block_context.source_pos,
+                    block_context,
+                    previous_source_blocks,
+                    BlockPos {
+                        x: world_x,
+                        y: world_y,
+                        z: world_z,
+                    },
+                );
+                if !tree_valid_pos(&state) {
                     clipped_tree_height = y_offset - 2;
                     break 'height_scan;
                 }
@@ -35557,7 +35648,7 @@ fn apply_initial_tree_decoration_to_chunk(
 
     let target_pos = chunk.pos;
     let terrain_heights = &*target_terrain_heights
-        .get_or_insert_with(|| tree_decoration_terrain_heights_from_wg(chunk, settings));
+        .get_or_insert_with(|| tree_decoration_terrain_heights(chunk, settings));
     let mut generated_chunks = HashMap::new();
     for (pos, cached) in &context_cache.cached_region_chunks {
         generated_chunks.insert(*pos, TreeContextChunkRef::Lightweight(cached));
