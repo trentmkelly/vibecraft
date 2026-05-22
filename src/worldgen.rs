@@ -5779,13 +5779,72 @@ fn live_tree_decoration_blocks(
             let selector_trace = trace_trees
                 .then(|| live_tree_selector_trace(call.feature, random))
                 .flatten();
-            let Some(tree_config) = live_tree_feature_config(call.feature, &mut random) else {
+            let Some(selection) = live_tree_feature_selection(call.feature, &mut random) else {
                 continue;
             };
             let origin = BlockPos {
                 x: local_x as i32,
                 y: surface_height,
                 z: local_z as i32,
+            };
+            if let LiveTreeFeatureSelection::Fallen(config) = selection {
+                diagnostics.tree_candidates += 1;
+                let started = Instant::now();
+                let Some(plan) = live_fallen_tree_placement_plan(
+                    chunk_pos,
+                    block_context,
+                    &blocks,
+                    origin,
+                    &config,
+                    &mut random,
+                ) else {
+                    diagnostics.placement_plan_ms += started.elapsed().as_millis();
+                    continue;
+                };
+                diagnostics.placement_plan_ms += started.elapsed().as_millis();
+                diagnostics.placement_plan_blocks += plan.blocks.len();
+                if trace_trees {
+                    let target_min_x = block_context.target_pos.x * 16;
+                    let target_min_z = block_context.target_pos.z * 16;
+                    let target_max_x = target_min_x + 15;
+                    let target_max_z = target_min_z + 15;
+                    let blocks_in_target = plan
+                        .blocks
+                        .iter()
+                        .filter(|block| {
+                            let block_world_x = chunk_pos.x * 16 + block.pos.x;
+                            let block_world_z = chunk_pos.z * 16 + block.pos.z;
+                            block_world_x >= target_min_x
+                                && block_world_x <= target_max_x
+                                && block_world_z >= target_min_z
+                                && block_world_z <= target_max_z
+                        })
+                        .count();
+                    if blocks_in_target > 0 || block_context.source_pos == block_context.target_pos
+                    {
+                        eprintln!(
+                            "[tree-trace] target=({},{}) source=({},{}) feature={} candidate_biome={} origin=({}, {}, {}) local=({}, {}) fallen=true selector={} blocks_in_target={}",
+                            block_context.target_pos.x,
+                            block_context.target_pos.z,
+                            chunk_pos.x,
+                            chunk_pos.z,
+                            call.feature,
+                            candidate_biome,
+                            world_x,
+                            surface_height,
+                            world_z,
+                            local_x,
+                            local_z,
+                            selector_trace.as_deref().unwrap_or("n/a"),
+                            blocks_in_target,
+                        );
+                    }
+                }
+                blocks.extend(plan.blocks);
+                continue;
+            }
+            let LiveTreeFeatureSelection::Tree(tree_config) = selection else {
+                unreachable!("fallen tree selections are handled above");
             };
             let rand_a = feature_random_next_i32_bound(&mut random, tree_config.rand_a_bound);
             let rand_b = feature_random_next_i32_bound(&mut random, tree_config.rand_b_bound);
@@ -6032,6 +6091,12 @@ struct LiveTreeFeatureConfig {
     minimum_size: FeatureSizeModel,
     min_clipped_height: Option<i32>,
     decorators: LiveTreeDecoratorSet,
+}
+
+#[derive(Debug, Clone)]
+enum LiveTreeFeatureSelection {
+    Tree(LiveTreeFeatureConfig),
+    Fallen(FallenTreeConfigurationModel),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6308,48 +6373,56 @@ fn vegetation_flower_noise(world_x: i32, world_z: i32, seed: i64, scale: f64) ->
     ((x + seed_offset).sin() * 0.55 + (z - seed_offset).cos() * 0.45).clamp(-1.0, 1.0)
 }
 
-fn live_tree_feature_config(
+fn live_tree_feature_selection(
     feature: &str,
     random: &mut RandomSourceKind,
-) -> Option<LiveTreeFeatureConfig> {
+) -> Option<LiveTreeFeatureSelection> {
     let feature = feature.strip_prefix("minecraft:").unwrap_or(feature);
     match feature {
         "trees_birch_and_oak_leaf_litter" => {
             if feature_random_next_f32(random) < 0.0025 {
-                consume_live_fallen_tree_random(random);
-                return None;
+                return Some(LiveTreeFeatureSelection::Fallen(
+                    live_fallen_birch_tree_config(),
+                ));
             }
             if feature_random_next_f32(random) < 0.2 {
-                return Some(live_birch_leaf_litter_tree_config());
+                return Some(LiveTreeFeatureSelection::Tree(
+                    live_birch_leaf_litter_tree_config(),
+                ));
             }
             if feature_random_next_f32(random) < 0.1 {
-                return Some(live_fancy_oak_leaf_litter_tree_config());
+                return Some(LiveTreeFeatureSelection::Tree(
+                    live_fancy_oak_leaf_litter_tree_config(),
+                ));
             }
             if feature_random_next_f32(random) < 0.0125 {
-                consume_live_fallen_tree_random(random);
-                return None;
+                return Some(LiveTreeFeatureSelection::Fallen(live_fallen_oak_tree_config()));
             }
-            Some(live_oak_leaf_litter_tree_config())
+            Some(LiveTreeFeatureSelection::Tree(
+                live_oak_leaf_litter_tree_config(),
+            ))
         }
         "trees_plains" => {
             if feature_random_next_f32(random) < 0.33333334 {
-                return Some(live_fancy_oak_bees_005_tree_config());
+                return Some(LiveTreeFeatureSelection::Tree(
+                    live_fancy_oak_bees_005_tree_config(),
+                ));
             }
             if feature_random_next_f32(random) < 0.0125 {
-                consume_live_fallen_tree_random(random);
-                return None;
+                return Some(LiveTreeFeatureSelection::Fallen(live_fallen_oak_tree_config()));
             }
-            Some(live_oak_bees_005_tree_config())
+            Some(LiveTreeFeatureSelection::Tree(live_oak_bees_005_tree_config()))
         }
         "trees_birch" => {
             if feature_random_next_f32(random) < 0.0125 {
-                consume_live_fallen_tree_random(random);
-                None
+                Some(LiveTreeFeatureSelection::Fallen(
+                    live_fallen_birch_tree_config(),
+                ))
             } else {
-                Some(live_birch_tree_config())
+                Some(LiveTreeFeatureSelection::Tree(live_birch_tree_config()))
             }
         }
-        _ => Some(live_oak_tree_config()),
+        _ => Some(LiveTreeFeatureSelection::Tree(live_oak_tree_config())),
     }
 }
 
@@ -6489,10 +6562,232 @@ fn live_tree_selector_trace(feature: &str, mut random: RandomSourceKind) -> Opti
     }
 }
 
-fn consume_live_fallen_tree_random(random: &mut RandomSourceKind) {
-    let _direction = feature_random_next_i32_bound(random, 4);
-    let _log_length = feature_random_next_i32_bound(random, 4);
-    let _start_gap = feature_random_next_i32_bound(random, 2);
+fn live_fallen_oak_tree_config() -> FallenTreeConfigurationModel {
+    FallenTreeConfigurationModel {
+        trunk_provider: BlockStateProviderModel::Simple("minecraft:oak_log"),
+        min_log_length: 4,
+        max_log_length: 7,
+        stump_decorators: vec![TreeDecoratorModel::TrunkVine],
+        log_decorators: vec![TreeDecoratorModel::AttachedToLogs {
+            probability: 0.1,
+        }],
+    }
+}
+
+fn live_fallen_birch_tree_config() -> FallenTreeConfigurationModel {
+    FallenTreeConfigurationModel {
+        trunk_provider: BlockStateProviderModel::Simple("minecraft:birch_log"),
+        min_log_length: 5,
+        max_log_length: 8,
+        stump_decorators: Vec::new(),
+        log_decorators: vec![TreeDecoratorModel::AttachedToLogs {
+            probability: 0.1,
+        }],
+    }
+}
+
+fn live_random_horizontal_direction(random: &mut RandomSourceKind) -> HorizontalDirection {
+    match feature_random_next_i32_bound(random, 4) {
+        0 => HorizontalDirection::North,
+        1 => HorizontalDirection::East,
+        2 => HorizontalDirection::South,
+        _ => HorizontalDirection::West,
+    }
+}
+
+fn live_fallen_tree_placement_plan(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    origin: BlockPos,
+    config: &FallenTreeConfigurationModel,
+    random: &mut RandomSourceKind,
+) -> Option<TreePlacementPlan> {
+    let trunk_state = block_state_provider_sample(&config.trunk_provider, 0)?;
+    let direction = live_random_horizontal_direction(random);
+    let log_length = fallen_tree_log_length(
+        config.min_log_length,
+        config.max_log_length,
+        feature_random_next_i32_bound(
+            random,
+            (config.max_log_length - config.min_log_length + 1).max(1),
+        ),
+    );
+    let distance_roll = feature_random_next_i32_bound(random, 2);
+    let mut blocks = vec![TreePlacementBlock {
+        pos: origin,
+        state: trunk_state,
+        kind: TreePlacementBlockKind::Log,
+    }];
+
+    let Some(start) = live_fallen_tree_start_pos(
+        source_pos,
+        block_context,
+        previous_source_blocks,
+        &blocks,
+        origin,
+        direction,
+        distance_roll,
+    ) else {
+        return Some(TreePlacementPlan { blocks });
+    };
+
+    if !live_fallen_tree_can_place_log(
+        source_pos,
+        block_context,
+        previous_source_blocks,
+        &blocks,
+        start,
+        direction,
+        log_length,
+    ) {
+        return Some(TreePlacementPlan { blocks });
+    }
+
+    for i in 0..log_length.max(0) {
+        blocks.push(TreePlacementBlock {
+            pos: offset_horizontal(start, direction, i),
+            state: rotated_log_state(trunk_state, direction),
+            kind: TreePlacementBlockKind::Log,
+        });
+    }
+    Some(TreePlacementPlan { blocks })
+}
+
+fn live_fallen_tree_start_pos(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    planned_blocks: &[TreePlacementBlock],
+    origin: BlockPos,
+    direction: HorizontalDirection,
+    distance_roll: i32,
+) -> Option<BlockPos> {
+    let mut pos = offset_horizontal(origin, direction, 2 + distance_roll.rem_euclid(2));
+    pos.y += 1;
+    for _ in 0..6 {
+        if live_fallen_tree_may_place_on(
+            source_pos,
+            block_context,
+            previous_source_blocks,
+            planned_blocks,
+            pos,
+        ) {
+            return Some(pos);
+        }
+        pos.y -= 1;
+    }
+    None
+}
+
+fn live_fallen_tree_can_place_log(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    planned_blocks: &[TreePlacementBlock],
+    start: BlockPos,
+    direction: HorizontalDirection,
+    log_length: i32,
+) -> bool {
+    let mut ground_gap = 0;
+    for i in 0..log_length.max(0) {
+        let pos = offset_horizontal(start, direction, i);
+        let state = live_tree_state_with_planned_blocks(
+            source_pos,
+            block_context,
+            previous_source_blocks,
+            planned_blocks,
+            pos,
+        );
+        if !tree_valid_pos(&state) {
+            return false;
+        }
+        if !live_fallen_tree_is_over_solid_ground(
+            source_pos,
+            block_context,
+            previous_source_blocks,
+            planned_blocks,
+            pos,
+        ) {
+            ground_gap += 1;
+            if ground_gap > 2 {
+                return false;
+            }
+        } else {
+            ground_gap = 0;
+        }
+    }
+    true
+}
+
+fn live_fallen_tree_may_place_on(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    planned_blocks: &[TreePlacementBlock],
+    pos: BlockPos,
+) -> bool {
+    let state = live_tree_state_with_planned_blocks(
+        source_pos,
+        block_context,
+        previous_source_blocks,
+        planned_blocks,
+        pos,
+    );
+    tree_valid_pos(&state)
+        && live_fallen_tree_is_over_solid_ground(
+            source_pos,
+            block_context,
+            previous_source_blocks,
+            planned_blocks,
+            pos,
+        )
+}
+
+fn live_fallen_tree_is_over_solid_ground(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    planned_blocks: &[TreePlacementBlock],
+    pos: BlockPos,
+) -> bool {
+    let below = BlockPos {
+        x: pos.x,
+        y: pos.y - 1,
+        z: pos.z,
+    };
+    let state = live_tree_state_with_planned_blocks(
+        source_pos,
+        block_context,
+        previous_source_blocks,
+        planned_blocks,
+        below,
+    );
+    tree_decorator_solid_render(&state)
+}
+
+fn live_tree_state_with_planned_blocks(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    planned_blocks: &[TreePlacementBlock],
+    local_pos: BlockPos,
+) -> String {
+    planned_blocks
+        .iter()
+        .rev()
+        .find_map(|block| {
+            (block.pos.x == local_pos.x && block.pos.y == local_pos.y && block.pos.z == local_pos.z)
+                .then_some(block.state.to_string())
+        })
+        .unwrap_or_else(|| {
+            live_tree_state_with_previous_blocks(
+                source_pos,
+                block_context,
+                previous_source_blocks,
+                local_tree_block_to_world(source_pos, local_pos),
+            )
+        })
 }
 
 fn live_tree_placement_plan(
