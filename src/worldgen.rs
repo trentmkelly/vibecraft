@@ -337,7 +337,10 @@ fn biome_manager_lcg_next(value: i64, salt: i64) -> i64 {
 }
 
 fn biome_manager_fiddle(value: i64) -> f64 {
-    let uniform = ((value >> 24).rem_euclid(1024) as f64) / 1024.0;
+    // Java: floorMod(value >> 24, 1024).  Since the modulus is 2^10, the
+    // low-bit mask is equivalent for two's-complement signed integers and
+    // avoids a hot signed remainder in BiomeManager's 8-corner search.
+    let uniform = (((value >> 24) & 1023) as f64) / 1024.0;
     (uniform - 0.5) * 0.9
 }
 
@@ -59741,6 +59744,25 @@ mod tests {
             8580917108473614843
         );
         assert_eq!(super::biome_manager_obfuscate_seed(-1), 6759447113877070610);
+    }
+
+    #[test]
+    fn biome_manager_fiddle_mask_matches_java_floor_mod() {
+        for value in [
+            0,
+            1,
+            -1,
+            i64::MIN,
+            i64::MAX,
+            0x1234_5678_9abc_def0_i64,
+            -0x1234_5678_9abc_def_i64,
+            6_364_136_223_846_793_005_i64,
+            -6_364_136_223_846_793_005_i64,
+        ] {
+            let java_floor_mod = ((value >> 24).rem_euclid(1024) as f64) / 1024.0;
+            let expected = (java_floor_mod - 0.5) * 0.9;
+            assert_eq!(super::biome_manager_fiddle(value), expected);
+        }
     }
 
     #[test]
