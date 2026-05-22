@@ -27706,6 +27706,12 @@ fn block_matches_tag(block: &str, tag: &str) -> bool {
             block_matches_tag(block, "minecraft:substrate_overworld")
                 || block == "minecraft:farmland"
         }
+        "cannot_replace_below_tree_trunk" => {
+            block_matches_tag(block, "minecraft:dirt")
+                || block_matches_tag(block, "minecraft:mud")
+                || block_matches_tag(block, "minecraft:moss_blocks")
+                || block == "minecraft:podzol"
+        }
         "replaceable" => {
             block == "minecraft:air"
                 || block == "minecraft:cave_air"
@@ -37837,15 +37843,9 @@ fn apply_initial_tree_decoration_to_chunk(
                     .get_block_state_name(world_x, block.pos.y, world_z)
                     .unwrap_or("minecraft:air");
                 let can_replace = match block.kind {
-                    TreePlacementBlockKind::DirtBelowTrunk => matches!(
-                        current,
-                        "minecraft:grass_block"
-                            | "minecraft:dirt"
-                            | "minecraft:coarse_dirt"
-                            | "minecraft:podzol"
-                            | "minecraft:rooted_dirt"
-                            | "minecraft:moss_block"
-                    ),
+                    TreePlacementBlockKind::DirtBelowTrunk => {
+                        !block_matches_tag(current, "minecraft:cannot_replace_below_tree_trunk")
+                    }
                     TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
                         matches!(
                             current,
@@ -38017,15 +38017,9 @@ fn apply_initial_tree_decoration_from_source_into_region(
             .get_block_state_name(world_x, block.pos.y, world_z)
             .unwrap_or("minecraft:air");
         let can_replace = match block.kind {
-            TreePlacementBlockKind::DirtBelowTrunk => matches!(
-                current,
-                "minecraft:grass_block"
-                    | "minecraft:dirt"
-                    | "minecraft:coarse_dirt"
-                    | "minecraft:podzol"
-                    | "minecraft:rooted_dirt"
-                    | "minecraft:moss_block"
-            ),
+            TreePlacementBlockKind::DirtBelowTrunk => {
+                !block_matches_tag(current, "minecraft:cannot_replace_below_tree_trunk")
+            }
             TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
                 matches!(
                     current,
@@ -65319,6 +65313,26 @@ mod tests {
         assert!(super::tree_valid_pos("minecraft:bush"));
         assert!(super::tree_valid_pos("minecraft:pale_moss_carpet"));
         assert!(super::tree_valid_pos("minecraft:short_dry_grass"));
+        assert!(super::block_matches_tag(
+            "minecraft:dirt",
+            "minecraft:cannot_replace_below_tree_trunk"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:podzol",
+            "minecraft:cannot_replace_below_tree_trunk"
+        ));
+        assert!(super::block_matches_tag(
+            "minecraft:moss_block",
+            "minecraft:cannot_replace_below_tree_trunk"
+        ));
+        assert!(!super::block_matches_tag(
+            "minecraft:grass_block",
+            "minecraft:cannot_replace_below_tree_trunk"
+        ));
+        assert!(!super::block_matches_tag(
+            "minecraft:farmland",
+            "minecraft:cannot_replace_below_tree_trunk"
+        ));
         assert!(!super::tree_valid_pos("minecraft:oak_sapling"));
         assert!(!super::tree_valid_pos("minecraft:stone"));
         assert!(super::tree_trunk_free_pos("minecraft:oak_log"));
