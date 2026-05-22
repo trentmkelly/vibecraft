@@ -39689,9 +39689,9 @@ fn place_configured_disk_in_chunk(
                     settings.noise.min_y,
                     settings.noise.height,
                 );
-                let Some(state) = block_state_provider_sample_in_context(
+                let Some(state) = block_state_provider_sample_in_context_with_random(
                     &config.state_provider,
-                    feature_random_next_i32_bound(random, i32::MAX),
+                    random,
                     provider_context,
                     y,
                     current,
@@ -41397,6 +41397,86 @@ pub fn block_state_provider_sample_in_context(
         origin_y,
         current_block,
     )
+}
+
+fn block_state_provider_sample_in_context_with_random(
+    provider: &BlockStateProviderModel,
+    random: &mut RandomSourceKind,
+    context: BlockPredicateContext,
+    origin_y: i32,
+    current_block: &'static str,
+) -> Option<&'static str> {
+    match provider {
+        BlockStateProviderModel::Simple(state) => Some(*state),
+        BlockStateProviderModel::RotatedBlock(block) => Some(rotated_pillar_state(
+            block,
+            match feature_random_next_i32_bound(random, 3) {
+                0 => Axis::X,
+                1 => Axis::Y,
+                _ => Axis::Z,
+            },
+        )),
+        BlockStateProviderModel::Weighted(entries) => {
+            let total_weight = entries.iter().try_fold(0_i32, |total, entry| {
+                (entry.weight > 0).then_some(total + entry.weight)
+            })?;
+            let mut roll = feature_random_next_i32_bound(random, total_weight);
+            entries.iter().find_map(|entry| {
+                roll -= entry.weight;
+                (roll < 0).then_some(entry.state)
+            })
+        }
+        BlockStateProviderModel::RandomizedInt {
+            source,
+            property,
+            min_inclusive,
+            max_inclusive,
+        } => {
+            let state = block_state_provider_sample_in_context_with_random(
+                source,
+                random,
+                context,
+                origin_y,
+                current_block,
+            )?;
+            let value = *min_inclusive
+                + feature_random_next_i32_bound(random, max_inclusive - min_inclusive + 1);
+            randomized_int_state_provider_apply(state, property, value)
+        }
+        BlockStateProviderModel::RuleBased { fallback, rules } => {
+            if let Some(rule) = rules
+                .iter()
+                .find(|rule| block_predicate_test(rule.if_true, context, origin_y))
+            {
+                return block_state_provider_sample_in_context_with_random(
+                    &rule.then,
+                    random,
+                    context,
+                    origin_y,
+                    current_block,
+                );
+            }
+            match fallback {
+                Some(fallback) => block_state_provider_sample_in_context_with_random(
+                    fallback,
+                    random,
+                    context,
+                    origin_y,
+                    current_block,
+                ),
+                None => Some(current_block),
+            }
+        }
+        BlockStateProviderModel::Noise { .. }
+        | BlockStateProviderModel::NoiseThreshold { .. }
+        | BlockStateProviderModel::DualNoise { .. } => block_state_provider_sample_in_context(
+            provider,
+            feature_random_next_i32_bound(random, i32::MAX),
+            context,
+            origin_y,
+            current_block,
+        ),
+    }
 }
 
 pub fn block_state_provider_sample_with_noise_value(
@@ -62823,6 +62903,34 @@ mod tests {
             ),
             Some("minecraft:sand")
         );
+        let mut disk_random = crate::random_source::RandomSourceKind::new(
+            1234,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
+        let mut expected_disk_random = disk_random;
+        assert_eq!(
+            super::block_state_provider_sample_in_context_with_random(
+                &rule_based_disk,
+                &mut disk_random,
+                BlockPredicateContext {
+                    min_y: -64,
+                    height: 384,
+                    block: "minecraft:dirt",
+                    fluid: "minecraft:empty",
+                    solid: true,
+                    replaceable: false,
+                    unobstructed: true,
+                },
+                64,
+                "minecraft:dirt",
+            ),
+            Some("minecraft:sand")
+        );
+        assert_eq!(
+            super::random_next_i32_bound(&mut disk_random, 10_000),
+            super::random_next_i32_bound(&mut expected_disk_random, 10_000),
+            "Java SimpleStateProvider and simple RuleBasedStateProvider branches do not consume RandomSource"
+        );
         let no_fallback = BlockStateProviderModel::RuleBased {
             fallback: None,
             rules: vec![RuleBasedBlockStateProviderRule {
@@ -66166,7 +66274,7 @@ mod tests {
             super::fancy_foliage_rows(0, 2, 2),
             vec![(0, 2), (-1, 3), (-2, 2)]
         );
-        assert!(!fancy_plan.blocks.iter().any(|block| {
+        assert!(fancy_plan.blocks.iter().any(|block| {
             block.kind == TreePlacementBlockKind::Leaves
                 && block.pos
                     == BlockPos {
@@ -66184,7 +66292,7 @@ mod tests {
                         z: 70,
                     }
         }));
-        assert!(fancy_plan.blocks.iter().any(|block| {
+        assert!(!fancy_plan.blocks.iter().any(|block| {
             block.kind == TreePlacementBlockKind::Leaves
                 && block.pos
                     == BlockPos {
