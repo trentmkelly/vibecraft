@@ -5496,7 +5496,7 @@ impl NetworkChunkSection {
     pub fn from_storage_section(section: &ChunkSection) -> Self {
         Self {
             non_empty_block_count: section_non_empty_block_count(&section.block_states),
-            fluid_count: 0,
+            fluid_count: section_fluid_count(&section.block_states),
             block_states: NetworkPalettedContainer::from_storage_container(
                 &section.block_states,
                 PaletteKind::BlockState,
@@ -5662,7 +5662,7 @@ fn storage_palette_entry_network_id(tag: &Tag, kind: PaletteKind) -> i32 {
     match tag {
         Tag::Int(id) => *id,
         Tag::String(name) => match kind {
-            PaletteKind::BlockState => block_state_name_network_id(name).unwrap_or(0),
+            PaletteKind::BlockState => storage_block_state_name_network_id(name).unwrap_or(0),
             PaletteKind::Biome => biome_name_network_id(name).unwrap_or(0),
         },
         Tag::Compound(fields) => fields
@@ -5681,7 +5681,9 @@ fn storage_palette_entry_network_id(tag: &Tag, kind: PaletteKind) -> i32 {
                         .then_some(value)
                         .and_then(|value| match value {
                             Tag::String(name) => match kind {
-                                PaletteKind::BlockState => block_state_name_network_id(name),
+                                PaletteKind::BlockState => {
+                                    storage_block_state_name_network_id(name)
+                                }
                                 PaletteKind::Biome => biome_name_network_id(name),
                             },
                             _ => None,
@@ -5744,19 +5746,30 @@ fn compound_string<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a st
 }
 
 fn section_non_empty_block_count(tag: &Tag) -> i16 {
+    section_palette_entry_count(tag, |entry| !storage_palette_entry_is_air(entry))
+}
+
+fn section_fluid_count(tag: &Tag) -> i16 {
+    section_palette_entry_count(tag, storage_palette_entry_is_fluid)
+}
+
+fn section_palette_entry_count<F>(tag: &Tag, mut is_match: F) -> i16
+where
+    F: FnMut(&Tag) -> bool,
+{
     let Ok(container) = PalettedContainer::from_nbt(tag, 4096) else {
         return 0;
     };
-    let non_air = container
+    let matching_entries = container
         .palette
         .iter()
-        .map(|entry| !storage_palette_entry_is_air(entry))
+        .map(|entry| is_match(entry))
         .collect::<Vec<_>>();
-    if non_air.is_empty() {
+    if matching_entries.is_empty() {
         return 0;
     }
     let Some(data) = &container.data else {
-        return if non_air.first().copied().unwrap_or(false) {
+        return if matching_entries.first().copied().unwrap_or(false) {
             4096
         } else {
             0
@@ -5773,7 +5786,7 @@ fn section_non_empty_block_count(tag: &Tag) -> i16 {
         };
         let bit_index = (index - word_index * values_per_long) * bits_per_entry;
         let palette_index = ((*word as u64) >> bit_index) & ((1_u64 << bits_per_entry) - 1);
-        if non_air
+        if matching_entries
             .get(palette_index as usize)
             .copied()
             .unwrap_or(false)
@@ -5798,12 +5811,75 @@ fn direct_palette_bits(palette_ids: &[i32]) -> usize {
 fn storage_palette_entry_is_air(tag: &Tag) -> bool {
     match tag {
         Tag::Int(id) => *id == 0,
+        Tag::String(name) => block_state_name_is_air(name),
         Tag::Compound(fields) => fields.iter().any(|(name, value)| {
             (name == "Name" || name == "id")
-                && matches!(value, Tag::String(block_name) if block_name == "minecraft:air")
+                && matches!(value, Tag::String(block_name) if block_state_name_is_air(block_name))
         }),
-        _ => true,
+        _ => false,
     }
+}
+
+fn storage_palette_entry_is_fluid(tag: &Tag) -> bool {
+    match tag {
+        Tag::Int(id) => matches!(*id, 86 | 102),
+        Tag::String(name) => block_state_name_has_fluid(name),
+        Tag::Compound(fields) => {
+            fields.iter().any(|(field_name, value)| {
+                (field_name == "Name" || field_name == "id")
+                    && matches!(value, Tag::String(block_name) if block_state_name_has_fluid(block_name))
+            }) || compound_string_property_is_true(fields, "waterlogged")
+        }
+        _ => false,
+    }
+}
+
+fn storage_block_state_name_network_id(name: &str) -> Option<i32> {
+    block_state_name_network_id(name)
+        .or_else(|| block_state_name_network_id(block_state_base_name(name)))
+}
+
+fn block_state_name_is_air(name: &str) -> bool {
+    matches!(
+        block_state_base_name(name),
+        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+    )
+}
+
+fn block_state_name_has_fluid(name: &str) -> bool {
+    matches!(
+        block_state_base_name(name),
+        "minecraft:water" | "minecraft:flowing_water" | "minecraft:lava" | "minecraft:flowing_lava"
+    ) || block_state_string_property_is_true(name, "waterlogged")
+}
+
+fn block_state_base_name(name: &str) -> &str {
+    name.split_once('[').map_or(name, |(base, _)| base)
+}
+
+fn block_state_string_property_is_true(name: &str, property_name: &str) -> bool {
+    let Some((_, properties)) = name.split_once('[') else {
+        return false;
+    };
+    let expected = format!("{property_name}=true");
+    properties
+        .trim_end_matches(']')
+        .split(',')
+        .any(|property| property == expected)
+}
+
+fn compound_string_property_is_true(fields: &[(String, Tag)], property_name: &str) -> bool {
+    fields.iter().any(|(field_name, value)| {
+        field_name == "Properties"
+            && matches!(
+                value,
+                Tag::Compound(properties)
+                    if properties.iter().any(|(name, value)| {
+                        name == property_name
+                            && matches!(value, Tag::String(value) if value == "true")
+                    })
+            )
+    })
 }
 
 pub fn block_state_name_network_id(name: &str) -> Option<i32> {
@@ -11253,6 +11329,50 @@ mod tests {
         assert_eq!(bytes[6], 0);
         assert_eq!(bytes[7], 7);
         assert_eq!(bytes.len(), 8);
+    }
+
+    #[test]
+    fn network_chunk_sections_report_vanilla_fluid_counts() {
+        let section = ChunkSection {
+            y: 0,
+            block_states: PalettedContainer::single(
+                Tag::String("minecraft:water[level=0]".to_string()),
+                4096,
+            )
+            .to_nbt(),
+            biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
+            block_light: None,
+            sky_light: None,
+        };
+
+        let network = NetworkChunkSection::from_storage_section(&section);
+
+        assert_eq!(network.non_empty_block_count, 4096);
+        assert_eq!(network.fluid_count, 4096);
+        assert_eq!(network.block_states.palette_ids, vec![86]);
+    }
+
+    #[test]
+    fn section_fluid_counts_follow_palette_indices() {
+        let mut waterlogged_fence =
+            crate::storage::chunk::BlockStateEntry::new("minecraft:oak_fence");
+        waterlogged_fence
+            .properties
+            .insert("waterlogged".to_string(), "true".to_string());
+        let indices = (0..4096)
+            .map(|index| if index % 2 == 0 { 0 } else { 1 })
+            .collect::<Vec<_>>();
+        let container = PalettedContainer {
+            palette: vec![
+                crate::storage::chunk::BlockStateEntry::new("minecraft:air").to_nbt(),
+                waterlogged_fence.to_nbt(),
+            ],
+            data: Some(crate::storage::chunk::pack_palette_indices(&indices, 4)),
+            expected_entries: 4096,
+        };
+
+        assert_eq!(section_non_empty_block_count(&container.to_nbt()), 2048);
+        assert_eq!(section_fluid_count(&container.to_nbt()), 2048);
     }
 
     #[test]

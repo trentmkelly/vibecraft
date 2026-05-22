@@ -348,8 +348,6 @@ const WATER_SPRINTING_HORIZONTAL_SLOWDOWN: f64 = 0.9;
 const WATER_VERTICAL_SLOWDOWN: f64 = 0.8;
 const WATER_FALLING_GRAVITY: f64 = 0.005;
 const WATER_JUMP_IMPULSE: f64 = 0.04;
-const WATER_MAX_UPWARD_VELOCITY: f64 = 0.12;
-const WATER_MAX_SINK_VELOCITY: f64 = -0.08;
 const REGION_FEATURE_GENERATION_RADIUS: i32 = 3;
 const REGION_FEATURE_CACHEABLE_RADIUS: i32 = 1;
 
@@ -2069,6 +2067,9 @@ fn handle_login_connection(
             if water_update.air_changed {
                 write_play_state_air_supply_packet(stream, compression, &play_state)?;
             }
+            if water_update.motion_changed {
+                write_play_state_motion_packet(stream, compression, &play_state)?;
+            }
             if tick_play_session_food(
                 &mut play_state,
                 food_difficulty_from_properties(properties),
@@ -2629,7 +2630,7 @@ fn apply_player_movement(
     delta_z: f64,
     position_changed: bool,
 ) -> PlaySessionUpdate {
-    if position_changed {
+    if position_changed && !state.in_water {
         state.water_velocity_x = delta_x;
         state.water_velocity_y = delta_y;
         state.water_velocity_z = delta_z;
@@ -2870,15 +2871,20 @@ fn tick_play_session_water(
         state.water_velocity_x += input_x;
         state.water_velocity_z += input_z;
 
+        if state.input_shift {
+            state.water_velocity_y -= WATER_JUMP_IMPULSE;
+        }
         if state.input_jumping && state.water_fluid_height > 0.0 {
-            state.water_velocity_y =
-                (state.water_velocity_y + WATER_JUMP_IMPULSE).min(WATER_MAX_UPWARD_VELOCITY);
-        } else if !state.on_ground || state.water_velocity_y < 0.0 || state.eye_in_water {
-            state.water_velocity_y = (state.water_velocity_y * WATER_VERTICAL_SLOWDOWN
-                - WATER_FALLING_GRAVITY)
-                .max(WATER_MAX_SINK_VELOCITY);
-        } else {
-            state.water_velocity_y = 0.0;
+            state.water_velocity_y += WATER_JUMP_IMPULSE;
+        }
+
+        let should_apply_vertical_fluid_drag =
+            !state.on_ground || state.water_velocity_y.abs() > f64::EPSILON || state.eye_in_water;
+        if should_apply_vertical_fluid_drag {
+            state.water_velocity_y = state.water_velocity_y * WATER_VERTICAL_SLOWDOWN;
+            if !state.input_sprinting {
+                state.water_velocity_y -= WATER_FALLING_GRAVITY;
+            }
         }
 
         let horizontal_slowdown = if state.input_sprinting {
@@ -11446,6 +11452,22 @@ mod tests {
     }
 
     #[test]
+    fn water_movement_does_not_seed_velocity_from_client_air_motion() {
+        let mut state = session_state_with_inventory(&[]);
+        state.in_water = true;
+        state.eye_in_water = true;
+        state.water_velocity_x = 0.01;
+        state.water_velocity_y = -0.02;
+        state.water_velocity_z = 0.03;
+
+        super::apply_player_movement(&mut state, 0.3, -0.8, 0.3, true);
+
+        assert_eq!(state.water_velocity_x, 0.01);
+        assert_eq!(state.water_velocity_y, -0.02);
+        assert_eq!(state.water_velocity_z, 0.03);
+    }
+
+    #[test]
     fn water_tick_depletes_refills_air_and_drowns_like_java() {
         let mut state = session_state_with_inventory(&[]);
 
@@ -11505,8 +11527,9 @@ mod tests {
             },
         );
         assert!(update.motion_changed);
-        assert_eq!(state.water_velocity_y, super::WATER_MAX_SINK_VELOCITY);
+        assert!((state.water_velocity_y - (-0.325)).abs() < 1.0e-12);
 
+        state.water_velocity_y = 0.0;
         state.input_jumping = true;
         let update = super::tick_play_session_water(
             &mut state,
@@ -11517,7 +11540,7 @@ mod tests {
             },
         );
         assert!(update.motion_changed);
-        assert_eq!(state.water_velocity_y, -0.04);
+        assert!((state.water_velocity_y - 0.027).abs() < 1.0e-12);
 
         state.water_velocity_y = 0.1;
         super::tick_play_session_water(
@@ -11528,7 +11551,20 @@ mod tests {
                 water_height: 1.0,
             },
         );
-        assert_eq!(state.water_velocity_y, super::WATER_MAX_UPWARD_VELOCITY);
+        assert!((state.water_velocity_y - 0.107).abs() < 1.0e-12);
+
+        state.input_jumping = false;
+        state.input_shift = true;
+        state.water_velocity_y = 0.0;
+        super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: false,
+                water_height: 1.0,
+            },
+        );
+        assert!((state.water_velocity_y - (-0.037)).abs() < 1.0e-12);
     }
 
     #[test]
@@ -11549,7 +11585,7 @@ mod tests {
         assert!(update.motion_changed);
         assert_eq!(state.water_velocity_x, 0.0);
         assert!((state.water_velocity_z - 0.016).abs() < f64::EPSILON);
-        assert_eq!(state.water_velocity_y, super::WATER_JUMP_IMPULSE);
+        assert!((state.water_velocity_y - 0.027).abs() < 1.0e-12);
 
         state.input_sprinting = true;
         super::tick_play_session_water(
