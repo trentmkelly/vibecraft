@@ -5685,7 +5685,7 @@ fn live_tree_decoration_blocks(
     global_features_per_step: Option<&[StepFeatureDataModel]>,
     region_biome_steps: &[&'static [&'static [&'static str]]],
     block_context: &TreeDecorationBlockContext<'_>,
-    terrain_heights: &TreeDecorationHeights,
+    terrain_heights: SourceTerrainHeights<'_>,
     diagnostics: &mut TreeDecorationDiagnostics,
 ) -> Vec<TreePlacementBlock> {
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
@@ -5740,12 +5740,15 @@ fn live_tree_decoration_blocks(
         for _ in 0..count {
             let local_x = feature_random_next_i32_bound(&mut random, 16) as usize;
             let local_z = feature_random_next_i32_bound(&mut random, 16) as usize;
-            let height_index = local_z * 16 + local_x;
-            let surface_height = terrain_heights.ocean_floor[height_index];
+            let surface_height =
+                terrain_heights.local_height(HeightmapKind::OceanFloor, local_x, local_z);
             if surface_height <= settings.noise.min_y {
                 continue;
             }
-            if terrain_heights.world_surface[height_index] - surface_height > 0 {
+            if terrain_heights.local_height(HeightmapKind::WorldSurface, local_x, local_z)
+                - surface_height
+                > 0
+            {
                 continue;
             }
 
@@ -6692,12 +6695,12 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
                 z: source_z,
             };
             let Some(source_terrain_heights) = (if source_pos == target_pos {
-                Some(target_terrain_heights)
+                Some(SourceTerrainHeights::Full(target_terrain_heights))
             } else {
                 context_cache
                     .cached_region_chunks
                     .get(&source_pos)
-                    .map(|context| &context.terrain_heights)
+                    .map(SourceTerrainHeights::Lazy)
             }) else {
                 continue;
             };
@@ -6751,7 +6754,7 @@ fn place_simple_vegetation_feature_positions_depth_first(
     feature: &PlacedSimpleVegetationFeature,
     modifiers: &[PlacementModifier],
     position: BlockPos,
-    source_terrain_heights: &TreeDecorationHeights,
+    source_terrain_heights: SourceTerrainHeights<'_>,
     random: &mut RandomSourceKind,
 ) -> usize {
     let Some((modifier, remaining_modifiers)) = modifiers.split_first() else {
@@ -6986,28 +6989,19 @@ fn seedless_noise_salt(id: &str) -> i64 {
 
 fn simple_vegetation_source_height(
     source_pos: ChunkPos,
-    source_terrain_heights: &TreeDecorationHeights,
+    source_terrain_heights: SourceTerrainHeights<'_>,
     heightmap: HeightmapKind,
     world_x: i32,
     world_z: i32,
     settings: &NoiseGeneratorSettings,
 ) -> i32 {
-    if world_x.div_euclid(16) != source_pos.x || world_z.div_euclid(16) != source_pos.z {
-        return settings.noise.min_y;
-    }
-    let index = world_z.rem_euclid(16) as usize * 16 + world_x.rem_euclid(16) as usize;
-    match heightmap {
-        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => {
-            source_terrain_heights.world_surface[index]
-        }
-        HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg => {
-            source_terrain_heights.ocean_floor[index]
-        }
-        HeightmapKind::MotionBlocking => source_terrain_heights.motion_blocking[index],
-        HeightmapKind::MotionBlockingNoLeaves => {
-            source_terrain_heights.motion_blocking_no_leaves[index]
-        }
-    }
+    source_terrain_heights.world_height(
+        source_pos,
+        heightmap,
+        world_x,
+        world_z,
+        settings.noise.min_y,
+    )
 }
 
 fn place_configured_simple_vegetation_in_target_chunk(
@@ -35443,12 +35437,12 @@ fn apply_initial_tree_decoration_to_chunk(
                 z: source_z,
             };
             let Some(source_terrain_heights) = (if source_pos == target_pos {
-                Some(terrain_heights)
+                Some(SourceTerrainHeights::Full(terrain_heights))
             } else {
                 context_cache
                     .cached_region_chunks
                     .get(&source_pos)
-                    .map(|context| &context.terrain_heights)
+                    .map(SourceTerrainHeights::Lazy)
             }) else {
                 continue;
             };
@@ -35733,8 +35727,10 @@ fn noise_tree_context_heights_inner(
     let mut motion_blocking_no_leaves = [min_y; 16 * 16];
     let mut found_ocean_floor = [false; 16 * 16];
     let mut found_world_surface = [false; 16 * 16];
+    let mut remaining_ocean_floor = 16 * 16;
+    let mut remaining_world_surface = 16 * 16;
 
-    for cell_x_index in 0..cell_count_xz {
+    'cells: for cell_x_index in 0..cell_count_xz {
         noise_chunk.advance_cell_x(cell_x_index);
         for cell_z_index in 0..cell_count_xz {
             for cell_y_index in (0..cell_count_y).rev() {
@@ -35777,10 +35773,15 @@ fn noise_tree_context_heights_inner(
                                 motion_blocking[index] = pos_y + 1;
                                 motion_blocking_no_leaves[index] = pos_y + 1;
                                 found_world_surface[index] = true;
+                                remaining_world_surface -= 1;
                             }
                             if block != "minecraft:water" && block != "minecraft:lava" {
                                 ocean_floor[index] = pos_y + 1;
                                 found_ocean_floor[index] = true;
+                                remaining_ocean_floor -= 1;
+                            }
+                            if remaining_world_surface == 0 && remaining_ocean_floor == 0 {
+                                break 'cells;
                             }
                         }
                     }
@@ -37317,6 +37318,57 @@ struct TreeDecorationHeights {
     world_surface: [i32; 16 * 16],
     motion_blocking: [i32; 16 * 16],
     motion_blocking_no_leaves: [i32; 16 * 16],
+}
+
+#[derive(Clone, Copy)]
+enum SourceTerrainHeights<'a> {
+    Full(&'a TreeDecorationHeights),
+    Lazy(&'a LightweightTreeContextChunk),
+}
+
+impl SourceTerrainHeights<'_> {
+    fn local_height(self, heightmap: HeightmapKind, local_x: usize, local_z: usize) -> i32 {
+        match self {
+            SourceTerrainHeights::Full(heights) => {
+                heights.local_height(heightmap, local_x, local_z)
+            }
+            SourceTerrainHeights::Lazy(chunk) => chunk
+                .terrain_heights
+                .local_height(heightmap, local_x, local_z),
+        }
+    }
+
+    fn world_height(
+        self,
+        source_pos: ChunkPos,
+        heightmap: HeightmapKind,
+        world_x: i32,
+        world_z: i32,
+        fallback_y: i32,
+    ) -> i32 {
+        if world_x.div_euclid(16) != source_pos.x || world_z.div_euclid(16) != source_pos.z {
+            return fallback_y;
+        }
+        self.local_height(
+            heightmap,
+            world_x.rem_euclid(16) as usize,
+            world_z.rem_euclid(16) as usize,
+        )
+    }
+}
+
+impl TreeDecorationHeights {
+    fn local_height(&self, heightmap: HeightmapKind, local_x: usize, local_z: usize) -> i32 {
+        let index = local_z * 16 + local_x;
+        match heightmap {
+            HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => {
+                self.world_surface[index]
+            }
+            HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg => self.ocean_floor[index],
+            HeightmapKind::MotionBlocking => self.motion_blocking[index],
+            HeightmapKind::MotionBlockingNoLeaves => self.motion_blocking_no_leaves[index],
+        }
+    }
 }
 
 fn tree_decoration_terrain_heights_from_wg(
