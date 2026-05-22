@@ -1116,43 +1116,7 @@ pub fn vanilla_worldgen_column_profile_parity_score(
 pub fn vanilla_worldgen_block_array_parity_score_for_normal_overworld(
     vanilla_fixture_json: &str,
 ) -> Result<VanillaBlockArrayParityScore, String> {
-    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
-        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
-    let seed = fixture
-        .get("seed")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "vanilla worldgen block-array fixture is missing seed".to_string())?
-        .parse::<i64>()
-        .map_err(|err| format!("vanilla worldgen block-array fixture has invalid seed: {err}"))?;
-    let chunks = fixture
-        .get("chunks")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
-
-    let mut actual_chunks = Vec::with_capacity(chunks.len());
-    for chunk in chunks {
-        let dimension = chunk
-            .get("dimension")
-            .and_then(Value::as_str)
-            .unwrap_or("overworld");
-        if dimension != "overworld" {
-            return Err(format!(
-                "unsupported vanilla worldgen block-array dimension: {dimension}"
-            ));
-        }
-        let pos = crate::storage::region::ChunkPos {
-            x: json_i32_field(chunk, "chunkX")?,
-            z: json_i32_field(chunk, "chunkZ")?,
-        };
-        actual_chunks.push(
-            crate::worldgen::generate_overworld_chunk_for_preset_with_mode(
-                pos,
-                "normal",
-                crate::worldgen::LiveChunkGenerationMode::RealSurface,
-                seed,
-            )?,
-        );
-    }
+    let actual_chunks = normal_overworld_actual_chunks_for_fixture(vanilla_fixture_json)?;
 
     vanilla_worldgen_block_array_parity_score(vanilla_fixture_json, &actual_chunks)
 }
@@ -1160,43 +1124,7 @@ pub fn vanilla_worldgen_block_array_parity_score_for_normal_overworld(
 pub fn vanilla_worldgen_heightmap_parity_score_for_normal_overworld(
     vanilla_fixture_json: &str,
 ) -> Result<VanillaHeightmapParityScore, String> {
-    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
-        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
-    let seed = fixture
-        .get("seed")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "vanilla worldgen block-array fixture is missing seed".to_string())?
-        .parse::<i64>()
-        .map_err(|err| format!("vanilla worldgen block-array fixture has invalid seed: {err}"))?;
-    let chunks = fixture
-        .get("chunks")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
-
-    let mut actual_chunks = Vec::with_capacity(chunks.len());
-    for chunk in chunks {
-        let dimension = chunk
-            .get("dimension")
-            .and_then(Value::as_str)
-            .unwrap_or("overworld");
-        if dimension != "overworld" {
-            return Err(format!(
-                "unsupported vanilla worldgen block-array dimension: {dimension}"
-            ));
-        }
-        let pos = crate::storage::region::ChunkPos {
-            x: json_i32_field(chunk, "chunkX")?,
-            z: json_i32_field(chunk, "chunkZ")?,
-        };
-        actual_chunks.push(
-            crate::worldgen::generate_overworld_chunk_for_preset_with_mode(
-                pos,
-                "normal",
-                crate::worldgen::LiveChunkGenerationMode::RealSurface,
-                seed,
-            )?,
-        );
-    }
+    let actual_chunks = normal_overworld_actual_chunks_for_fixture(vanilla_fixture_json)?;
 
     vanilla_worldgen_heightmap_parity_score(vanilla_fixture_json, &actual_chunks)
 }
@@ -1204,43 +1132,7 @@ pub fn vanilla_worldgen_heightmap_parity_score_for_normal_overworld(
 pub fn vanilla_worldgen_biome_grid_parity_score_for_normal_overworld(
     vanilla_fixture_json: &str,
 ) -> Result<VanillaBiomeGridParityScore, String> {
-    let fixture: Value = serde_json::from_str(vanilla_fixture_json)
-        .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
-    let seed = fixture
-        .get("seed")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "vanilla worldgen block-array fixture is missing seed".to_string())?
-        .parse::<i64>()
-        .map_err(|err| format!("vanilla worldgen block-array fixture has invalid seed: {err}"))?;
-    let chunks = fixture
-        .get("chunks")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "vanilla worldgen block-array fixture is missing chunks".to_string())?;
-
-    let mut actual_chunks = Vec::with_capacity(chunks.len());
-    for chunk in chunks {
-        let dimension = chunk
-            .get("dimension")
-            .and_then(Value::as_str)
-            .unwrap_or("overworld");
-        if dimension != "overworld" {
-            return Err(format!(
-                "unsupported vanilla worldgen block-array dimension: {dimension}"
-            ));
-        }
-        let pos = crate::storage::region::ChunkPos {
-            x: json_i32_field(chunk, "chunkX")?,
-            z: json_i32_field(chunk, "chunkZ")?,
-        };
-        actual_chunks.push(
-            crate::worldgen::generate_overworld_chunk_for_preset_with_mode(
-                pos,
-                "normal",
-                crate::worldgen::LiveChunkGenerationMode::RealSurface,
-                seed,
-            )?,
-        );
-    }
+    let actual_chunks = normal_overworld_actual_chunks_for_fixture(vanilla_fixture_json)?;
 
     vanilla_worldgen_biome_grid_parity_score(vanilla_fixture_json, &actual_chunks)
 }
@@ -1248,6 +1140,14 @@ pub fn vanilla_worldgen_biome_grid_parity_score_for_normal_overworld(
 pub fn vanilla_worldgen_column_profile_parity_score_for_normal_overworld(
     vanilla_fixture_json: &str,
 ) -> Result<VanillaColumnProfileParityScore, String> {
+    let actual_chunks = normal_overworld_actual_chunks_for_fixture(vanilla_fixture_json)?;
+
+    vanilla_worldgen_column_profile_parity_score(vanilla_fixture_json, &actual_chunks)
+}
+
+fn normal_overworld_actual_chunks_for_fixture(
+    vanilla_fixture_json: &str,
+) -> Result<Vec<LevelChunk>, String> {
     let fixture: Value = serde_json::from_str(vanilla_fixture_json)
         .map_err(|err| format!("failed to parse vanilla worldgen block-array fixture: {err}"))?;
     let seed = fixture
@@ -1285,8 +1185,7 @@ pub fn vanilla_worldgen_column_profile_parity_score_for_normal_overworld(
             )?,
         );
     }
-
-    vanilla_worldgen_column_profile_parity_score(vanilla_fixture_json, &actual_chunks)
+    Ok(actual_chunks)
 }
 
 pub fn vanilla_worldgen_tree_density_diagnostic_for_normal_overworld(
