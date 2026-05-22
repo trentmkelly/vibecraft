@@ -51207,6 +51207,7 @@ mod tests {
         let mut stage_chunks: Vec<(&'static str, Vec<LevelChunk>)> = vec![
             ("noise_surface", Vec::new()),
             ("carvers", Vec::new()),
+            ("structures", Vec::new()),
             ("ores", Vec::new()),
             ("trees", Vec::new()),
         ];
@@ -51238,6 +51239,8 @@ mod tests {
                 seed,
             );
             let mut ore = carver.clone();
+            super::apply_mineshaft_underground_structures_to_chunk(&mut ore, seed);
+            let structure = ore.clone();
             super::apply_underground_ore_decoration_to_chunk(
                 &mut ore,
                 biome_source_model,
@@ -51257,8 +51260,9 @@ mod tests {
 
             stage_chunks[0].1.push(base);
             stage_chunks[1].1.push(carver);
-            stage_chunks[2].1.push(ore);
-            stage_chunks[3].1.push(full);
+            stage_chunks[2].1.push(structure);
+            stage_chunks[3].1.push(ore);
+            stage_chunks[4].1.push(full);
         }
 
         let tracked_pairs = [
@@ -51994,6 +51998,7 @@ mod tests {
 
         let mut candidate_count = 0usize;
         let mut near_missing_count = 0usize;
+        let mut closest_candidates = Vec::new();
         for source_x in -64..=64 {
             for source_z in -64..=64 {
                 if !super::structure_frequency_reducer_should_generate(
@@ -52043,40 +52048,51 @@ mod tests {
                         missing_box.is_some_and(|missing| piece.bounding_box().intersects(missing))
                     })
                     .count();
+                let closest_piece = missing_box.and_then(|missing| {
+                    pieces
+                        .iter()
+                        .enumerate()
+                        .map(|(index, piece)| {
+                            let bb = piece.bounding_box();
+                            let dx = if bb.max_x < missing.min_x {
+                                missing.min_x - bb.max_x
+                            } else if missing.max_x < bb.min_x {
+                                bb.min_x - missing.max_x
+                            } else {
+                                0
+                            };
+                            let dy = if bb.max_y < missing.min_y {
+                                missing.min_y - bb.max_y
+                            } else if missing.max_y < bb.min_y {
+                                bb.min_y - missing.max_y
+                            } else {
+                                0
+                            };
+                            let dz = if bb.max_z < missing.min_z {
+                                missing.min_z - bb.max_z
+                            } else if missing.max_z < bb.min_z {
+                                bb.min_z - missing.max_z
+                            } else {
+                                0
+                            };
+                            (dx + dy + dz, index, bb)
+                        })
+                        .min_by_key(|(distance, _, _)| *distance)
+                });
+                if let Some((distance, index, bb)) = closest_piece {
+                    closest_candidates.push((
+                        distance,
+                        source_x,
+                        source_z,
+                        pieces.len(),
+                        index,
+                        bb,
+                    ));
+                }
                 if intersects_missing || intersecting_pieces > 0 {
                     if intersects_missing {
                         near_missing_count += 1;
                     }
-                    let closest_piece = missing_box.and_then(|missing| {
-                        pieces
-                            .iter()
-                            .map(|piece| {
-                                let bb = piece.bounding_box();
-                                let dx = if bb.max_x < missing.min_x {
-                                    missing.min_x - bb.max_x
-                                } else if missing.max_x < bb.min_x {
-                                    bb.min_x - missing.max_x
-                                } else {
-                                    0
-                                };
-                                let dy = if bb.max_y < missing.min_y {
-                                    missing.min_y - bb.max_y
-                                } else if missing.max_y < bb.min_y {
-                                    bb.min_y - missing.max_y
-                                } else {
-                                    0
-                                };
-                                let dz = if bb.max_z < missing.min_z {
-                                    missing.min_z - bb.max_z
-                                } else if missing.max_z < bb.min_z {
-                                    bb.min_z - missing.max_z
-                                } else {
-                                    0
-                                };
-                                (dx + dy + dz, bb)
-                            })
-                            .min_by_key(|(distance, _)| *distance)
-                    });
                     eprintln!(
                         "[cave-air-structure-candidate] chunk=({}, {}) first_roll={:.9} room={:?} generated_pieces={} intersecting_pieces={} closest_piece={:?}",
                         source_x,
@@ -52089,6 +52105,15 @@ mod tests {
                     );
                 }
             }
+        }
+        closest_candidates.sort_by_key(|(distance, _, _, _, _, _)| *distance);
+        for (distance, source_x, source_z, piece_count, piece_index, bb) in
+            closest_candidates.into_iter().take(8)
+        {
+            eprintln!(
+                "[cave-air-structure-closest] distance={} chunk=({}, {}) generated_pieces={} piece_index={} box={:?}",
+                distance, source_x, source_z, piece_count, piece_index, bb
+            );
         }
         eprintln!(
             "[cave-air-structure] candidate_count={} near_missing_count={}",
