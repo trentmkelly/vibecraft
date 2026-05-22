@@ -5725,6 +5725,7 @@ fn live_tree_decoration_blocks(
     diagnostics.feature_calls_total += plan.feature_calls.len();
 
     let trace_trees = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE").is_some();
+    let trace_rejects = std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE_REJECTS").is_some();
     let mut blocks = Vec::new();
     let mut accepted_log_positions = trace_trees.then(HashSet::new);
     for call in plan.feature_calls.iter().filter(|call| {
@@ -5775,6 +5776,9 @@ fn live_tree_decoration_blocks(
                 continue;
             }
 
+            let selector_trace = trace_trees
+                .then(|| live_tree_selector_trace(call.feature, random))
+                .flatten();
             let Some(tree_config) = live_tree_feature_config(call.feature, &mut random) else {
                 continue;
             };
@@ -5825,6 +5829,26 @@ fn live_tree_decoration_blocks(
             ) {
                 diagnostics.validation_ms += started.elapsed().as_millis();
                 diagnostics.validation_rejects += 1;
+                if trace_rejects {
+                    eprintln!(
+                        "[tree-trace-reject] target=({},{}) source=({},{}) feature={} candidate_biome={} origin=({}, {}, {}) local=({}, {}) trunk={} leaves={} rand=({}, {})",
+                        block_context.target_pos.x,
+                        block_context.target_pos.z,
+                        chunk_pos.x,
+                        chunk_pos.z,
+                        call.feature,
+                        candidate_biome,
+                        world_x,
+                        surface_height,
+                        world_z,
+                        local_x,
+                        local_z,
+                        tree_config.trunk_state,
+                        tree_config.leaves_state,
+                        rand_a,
+                        rand_b,
+                    );
+                }
                 continue;
             }
             diagnostics.validation_ms += started.elapsed().as_millis();
@@ -5879,7 +5903,7 @@ fn live_tree_decoration_blocks(
                     .count();
                 if blocks_in_target > 0 || block_context.source_pos == block_context.target_pos {
                     eprintln!(
-                        "[tree-trace] target=({},{}) source=({},{}) feature={} candidate_biome={} origin=({}, {}, {}) local=({}, {}) trunk={} leaves={} rand=({}, {}) blocks_in_target={} logs_in_target={}",
+                        "[tree-trace] target=({},{}) source=({},{}) feature={} candidate_biome={} origin=({}, {}, {}) local=({}, {}) trunk={} leaves={} rand=({}, {}) selector={} blocks_in_target={} logs_in_target={}",
                         block_context.target_pos.x,
                         block_context.target_pos.z,
                         chunk_pos.x,
@@ -5895,6 +5919,7 @@ fn live_tree_decoration_blocks(
                         tree_config.leaves_state,
                         rand_a,
                         rand_b,
+                        selector_trace.as_deref().unwrap_or("n/a"),
                         blocks_in_target,
                         log_blocks_in_target,
                     );
@@ -6436,6 +6461,31 @@ fn live_fancy_oak_leaf_litter_tree_config() -> LiveTreeFeatureConfig {
             probability_per_tree: 2_000,
         },
         ..live_fancy_oak_tree_config()
+    }
+}
+
+fn live_tree_selector_trace(feature: &str, mut random: RandomSourceKind) -> Option<String> {
+    let feature = feature.strip_prefix("minecraft:").unwrap_or(feature);
+    match feature {
+        "trees_birch_and_oak_leaf_litter" => {
+            let fallen_birch = feature_random_next_f32(&mut random);
+            let birch = feature_random_next_f32(&mut random);
+            let fancy = feature_random_next_f32(&mut random);
+            let fallen_oak = feature_random_next_f32(&mut random);
+            Some(format!(
+                "fallen_birch={fallen_birch:.6},birch={birch:.6},fancy={fancy:.6},fallen_oak={fallen_oak:.6}"
+            ))
+        }
+        "trees_plains" => {
+            let fancy = feature_random_next_f32(&mut random);
+            let fallen_oak = feature_random_next_f32(&mut random);
+            Some(format!("fancy={fancy:.6},fallen_oak={fallen_oak:.6}"))
+        }
+        "trees_birch" => {
+            let fallen_birch = feature_random_next_f32(&mut random);
+            Some(format!("fallen_birch={fallen_birch:.6}"))
+        }
+        _ => None,
     }
 }
 
