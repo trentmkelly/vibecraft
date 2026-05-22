@@ -666,6 +666,7 @@ pub fn vanilla_worldgen_block_array_parity_score(
                             world_y,
                             chunk_z * 16 + local_z as i32,
                         )
+                        .map(|block| vanilla_block_type(&block).to_string())
                         .unwrap_or_else(|| "minecraft:air".to_string());
                     if actual == expected {
                         matching_blocks += 1;
@@ -2982,50 +2983,33 @@ mod tests {
 
         let score = vanilla_worldgen_block_array_parity_score(&fixture, &[chunk]).unwrap();
 
-        assert_eq!(score.matching_blocks, 254);
+        assert_eq!(score.matching_blocks, 255);
         assert_eq!(score.total_blocks, 256);
-        assert_eq!(score.score, 254.0 / 256.0);
+        assert_eq!(score.score, 255.0 / 256.0);
         assert_eq!(
             score.mismatches,
-            vec![
-                VanillaBlockArrayMismatchCount {
-                    expected: "minecraft:grass_block".to_string(),
-                    actual: "minecraft:air".to_string(),
-                    count: 1,
-                },
-                VanillaBlockArrayMismatchCount {
-                    expected: "minecraft:stone".to_string(),
-                    actual: "minecraft:air".to_string(),
-                    count: 1,
-                },
-            ]
+            vec![VanillaBlockArrayMismatchCount {
+                expected: "minecraft:grass_block".to_string(),
+                actual: "minecraft:dirt".to_string(),
+                count: 1,
+            },]
         );
         assert_eq!(
             score.samples,
-            vec![
-                VanillaBlockArrayMismatchSample {
-                    chunk: ChunkCoord { x: 0, z: 0 },
-                    local_x: 0,
-                    y: -64,
-                    local_z: 0,
-                    expected: "minecraft:stone".to_string(),
-                    actual: "minecraft:air".to_string(),
-                },
-                VanillaBlockArrayMismatchSample {
-                    chunk: ChunkCoord { x: 0, z: 0 },
-                    local_x: 1,
-                    y: -64,
-                    local_z: 0,
-                    expected: "minecraft:grass_block".to_string(),
-                    actual: "minecraft:air".to_string(),
-                },
-            ]
+            vec![VanillaBlockArrayMismatchSample {
+                chunk: ChunkCoord { x: 0, z: 0 },
+                local_x: 1,
+                y: -64,
+                local_z: 0,
+                expected: "minecraft:grass_block".to_string(),
+                actual: "minecraft:dirt".to_string(),
+            },]
         );
         assert_eq!(
             score.chunk_mismatches,
             vec![VanillaChunkMismatchCount {
                 chunk: ChunkCoord { x: 0, z: 0 },
-                count: 2,
+                count: 1,
             }]
         );
         assert_eq!(
@@ -3033,7 +3017,7 @@ mod tests {
             vec![VanillaYBandMismatchCount {
                 y_min: -64,
                 y_max_exclusive: -48,
-                count: 2,
+                count: 1,
             }]
         );
     }
