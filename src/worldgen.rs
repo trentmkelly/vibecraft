@@ -5913,9 +5913,16 @@ fn live_tree_decoration_blocks(
             diagnostics.validation_ms += started.elapsed().as_millis();
             diagnostics.validation_accepts += 1;
             let started = Instant::now();
-            let mut plan =
-                live_tree_placement_plan(origin, tree_config, rand_a, rand_b, &mut random)
-                    .expect("hard-coded preview tree configuration must validate");
+            let mut plan = live_tree_placement_plan(
+                block_context,
+                &blocks,
+                origin,
+                tree_config,
+                rand_a,
+                rand_b,
+                &mut random,
+            )
+            .expect("hard-coded preview tree configuration must validate");
             append_live_tree_decorators(
                 chunk_pos,
                 block_context,
@@ -6396,7 +6403,9 @@ fn live_tree_feature_selection(
                 ));
             }
             if feature_random_next_f32(random) < 0.0125 {
-                return Some(LiveTreeFeatureSelection::Fallen(live_fallen_oak_tree_config()));
+                return Some(LiveTreeFeatureSelection::Fallen(
+                    live_fallen_oak_tree_config(),
+                ));
             }
             Some(LiveTreeFeatureSelection::Tree(
                 live_oak_leaf_litter_tree_config(),
@@ -6409,9 +6418,13 @@ fn live_tree_feature_selection(
                 ));
             }
             if feature_random_next_f32(random) < 0.0125 {
-                return Some(LiveTreeFeatureSelection::Fallen(live_fallen_oak_tree_config()));
+                return Some(LiveTreeFeatureSelection::Fallen(
+                    live_fallen_oak_tree_config(),
+                ));
             }
-            Some(LiveTreeFeatureSelection::Tree(live_oak_bees_005_tree_config()))
+            Some(LiveTreeFeatureSelection::Tree(
+                live_oak_bees_005_tree_config(),
+            ))
         }
         "trees_birch" => {
             if feature_random_next_f32(random) < 0.0125 {
@@ -6568,9 +6581,7 @@ fn live_fallen_oak_tree_config() -> FallenTreeConfigurationModel {
         min_log_length: 4,
         max_log_length: 7,
         stump_decorators: vec![TreeDecoratorModel::TrunkVine],
-        log_decorators: vec![TreeDecoratorModel::AttachedToLogs {
-            probability: 0.1,
-        }],
+        log_decorators: vec![TreeDecoratorModel::AttachedToLogs { probability: 0.1 }],
     }
 }
 
@@ -6580,9 +6591,7 @@ fn live_fallen_birch_tree_config() -> FallenTreeConfigurationModel {
         min_log_length: 5,
         max_log_length: 8,
         stump_decorators: Vec::new(),
-        log_decorators: vec![TreeDecoratorModel::AttachedToLogs {
-            probability: 0.1,
-        }],
+        log_decorators: vec![TreeDecoratorModel::AttachedToLogs { probability: 0.1 }],
     }
 }
 
@@ -6791,6 +6800,8 @@ fn live_tree_state_with_planned_blocks(
 }
 
 fn live_tree_placement_plan(
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
     origin: BlockPos,
     config: LiveTreeFeatureConfig,
     rand_a: i32,
@@ -6822,13 +6833,15 @@ fn live_tree_placement_plan(
     }
 
     let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
-    let cluster_rolls = (0..32)
+    let cluster_rolls = (0..fancy_trunk_cluster_roll_count(tree_height))
         .map(|_| FancyTrunkClusterRollModel {
             shape_float: feature_random_next_f32(random),
             angle_float: feature_random_next_f32(random),
         })
         .collect::<Vec<_>>();
-    let trunk_plan = fancy_trunk_placement_plan(
+    let trunk_plan = live_fancy_trunk_placement_plan(
+        block_context,
+        previous_source_blocks,
         origin,
         tree_height,
         config.trunk_state,
@@ -45529,6 +45542,55 @@ pub fn fancy_trunk_placement_plan(
     below_trunk_state: &'static str,
     cluster_rolls: &[FancyTrunkClusterRollModel],
 ) -> TrunkPlacementPlan {
+    fancy_trunk_placement_plan_with_limb_validator(
+        origin,
+        tree_height,
+        trunk_state,
+        below_trunk_state,
+        cluster_rolls,
+        |_| true,
+    )
+}
+
+fn live_fancy_trunk_placement_plan(
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    cluster_rolls: &[FancyTrunkClusterRollModel],
+) -> TrunkPlacementPlan {
+    fancy_trunk_placement_plan_with_limb_validator(
+        origin,
+        tree_height,
+        trunk_state,
+        below_trunk_state,
+        cluster_rolls,
+        |pos| {
+            let world_pos = local_tree_block_to_world(block_context.source_pos, pos);
+            let state = live_tree_state_with_previous_blocks(
+                block_context.source_pos,
+                block_context,
+                previous_source_blocks,
+                world_pos,
+            );
+            tree_trunk_free_pos(&state)
+        },
+    )
+}
+
+fn fancy_trunk_placement_plan_with_limb_validator<F>(
+    origin: BlockPos,
+    tree_height: i32,
+    trunk_state: &'static str,
+    below_trunk_state: &'static str,
+    cluster_rolls: &[FancyTrunkClusterRollModel],
+    mut limb_is_free: F,
+) -> TrunkPlacementPlan
+where
+    F: FnMut(BlockPos) -> bool,
+{
     let height = tree_height + 2;
     let trunk_height = ((height as f64) * 0.618).floor() as i32;
     let trunk_top_y = origin.y + trunk_height;
@@ -45588,14 +45650,28 @@ pub fn fancy_trunk_placement_plan(
             } else {
                 branch_height as i32
             };
-            foliage_coords.push((
-                TreeFoliageAttachmentModel {
-                    pos: check_start,
-                    radius_offset: 0,
-                    double_trunk: false,
-                },
-                branch_top_y,
-            ));
+            let check_end = BlockPos {
+                x: check_start.x,
+                y: check_start.y + 5,
+                z: check_start.z,
+            };
+            let branch_base = BlockPos {
+                x: origin.x,
+                y: branch_top_y,
+                z: origin.z,
+            };
+            if fancy_trunk_limb_can_place(check_start, check_end, &mut limb_is_free)
+                && fancy_trunk_limb_can_place(branch_base, check_start, &mut limb_is_free)
+            {
+                foliage_coords.push((
+                    TreeFoliageAttachmentModel {
+                        pos: check_start,
+                        radius_offset: 0,
+                        double_trunk: false,
+                    },
+                    branch_top_y,
+                ));
+            }
         }
     }
 
@@ -45637,6 +45713,41 @@ pub fn fancy_trunk_placement_plan(
         blocks,
         attachments,
     }
+}
+
+fn fancy_trunk_limb_can_place<F>(start_pos: BlockPos, end_pos: BlockPos, is_free: &mut F) -> bool
+where
+    F: FnMut(BlockPos) -> bool,
+{
+    if start_pos == end_pos {
+        return true;
+    }
+    fancy_trunk_limb_positions(start_pos, end_pos)
+        .into_iter()
+        .all(is_free)
+}
+
+fn fancy_trunk_limb_positions(start_pos: BlockPos, end_pos: BlockPos) -> Vec<BlockPos> {
+    let delta = BlockPos {
+        x: end_pos.x - start_pos.x,
+        y: end_pos.y - start_pos.y,
+        z: end_pos.z - start_pos.z,
+    };
+    let steps = delta.x.abs().max(delta.y.abs()).max(delta.z.abs());
+    if steps == 0 {
+        return vec![start_pos];
+    }
+
+    let dx = delta.x as f32 / steps as f32;
+    let dy = delta.y as f32 / steps as f32;
+    let dz = delta.z as f32 / steps as f32;
+    (0..=steps)
+        .map(|i| BlockPos {
+            x: start_pos.x + (0.5 + i as f32 * dx).floor() as i32,
+            y: start_pos.y + (0.5 + i as f32 * dy).floor() as i32,
+            z: start_pos.z + (0.5 + i as f32 * dz).floor() as i32,
+        })
+        .collect()
 }
 
 fn place_cherry_branch(
@@ -45751,6 +45862,16 @@ pub fn fancy_trunk_tree_shape(height: i32, y: i32) -> f32 {
 
 fn fancy_trunk_should_trim_branch(height: i32, local_y: i32) -> bool {
     (local_y as f64) >= (height as f64) * 0.2
+}
+
+fn fancy_trunk_cluster_roll_count(tree_height: i32) -> i32 {
+    let height = tree_height + 2;
+    let clusters_per_y = 1.min((1.382 + ((height as f64) / 13.0).powi(2)).floor() as i32);
+    (0..=(height - 5))
+        .rev()
+        .filter(|&relative_y| fancy_trunk_tree_shape(height, relative_y) >= 0.0)
+        .count() as i32
+        * clusters_per_y
 }
 
 fn fancy_trunk_place_limb(
@@ -65276,6 +65397,7 @@ mod tests {
         );
         assert_eq!(super::fancy_trunk_tree_shape(10, 2), -1.0);
         assert_eq!(super::fancy_trunk_tree_shape(10, 0), -1.0);
+        assert_eq!(super::fancy_trunk_cluster_roll_count(8), 3);
         assert!(fancy_trunk_plan.blocks.iter().any(|block| {
             block.kind == TreePlacementBlockKind::DirtBelowTrunk
                 && block.pos
