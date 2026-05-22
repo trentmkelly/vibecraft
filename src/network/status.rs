@@ -40,22 +40,23 @@ use crate::network::play::{
     unpack_block_position, ClientboundAddEntityPacket, ClientboundContainerSetSlotPacket,
     ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundRemoveEntitiesPacket,
-    ClientboundSetEntityDataPacket, ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket,
-    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, EntityDataValue,
-    EntityMetadataValue, GameMode, PlayInstruction, RawDataComponentPatch, RawItemStack,
-    ServerboundContainerClickPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
-    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
-    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
-    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
-    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
-    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-    CLIENTBOUND_RESPAWN_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-    CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID, CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-    CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+    ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket,
+    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
+    CommonPlayerSpawnInfo, Direction3d, EntityDataValue, EntityMetadataValue, GameMode,
+    PlayInstruction, RawDataComponentPatch, RawItemStack, ServerboundContainerClickPacket,
+    ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+    CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
+    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
+    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
+    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
+    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_RESPAWN_PACKET_ID,
+    CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+    CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+    CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID,
     CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
     CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
     CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
@@ -77,7 +78,7 @@ use crate::player_entity::{
     calculate_fall_damage, movement_exhaustion, starvation_damages, update_fall_distance,
     Difficulty as FoodDifficulty, FallDamageInput, FoodState, FoodTickOutcome,
     DEFAULT_FALL_DAMAGE_MULTIPLIER, DEFAULT_SAFE_FALL_DISTANCE, JUMP_EXHAUSTION,
-    SPRINT_EXHAUSTION_PER_METER, SPRINT_JUMP_EXHAUSTION,
+    SPRINT_EXHAUSTION_PER_METER, SPRINT_JUMP_EXHAUSTION, SWIM_EXHAUSTION_PER_METER,
 };
 use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory, SLOT_OFFHAND};
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
@@ -173,8 +174,20 @@ struct PlaySessionState {
     food_saturation: f32,
     food_exhaustion: f32,
     food_tick_timer: i32,
+    input_forward: bool,
+    input_backward: bool,
+    input_left: bool,
+    input_right: bool,
+    input_shift: bool,
     input_sprinting: bool,
     input_jumping: bool,
+    air_supply: i32,
+    in_water: bool,
+    eye_in_water: bool,
+    water_fluid_height: f64,
+    water_velocity_x: f64,
+    water_velocity_y: f64,
+    water_velocity_z: f64,
     xp_progress: f32,
     xp_level: i32,
     xp_total: i32,
@@ -217,8 +230,20 @@ impl Default for PlaySessionState {
             food_saturation: 5.0,
             food_exhaustion: 0.0,
             food_tick_timer: 0,
+            input_forward: false,
+            input_backward: false,
+            input_left: false,
+            input_right: false,
+            input_shift: false,
             input_sprinting: false,
             input_jumping: false,
+            air_supply: MAX_AIR_SUPPLY,
+            in_water: false,
+            eye_in_water: false,
+            water_fluid_height: 0.0,
+            water_velocity_x: 0.0,
+            water_velocity_y: 0.0,
+            water_velocity_z: 0.0,
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
@@ -310,6 +335,23 @@ const TERRAIN_BASE_Y: i32 = 64;
 const TERRAIN_MIN_SURFACE_Y: i32 = 70;
 const ITEM_ENTITY_TYPE_ID: i32 = 71;
 const SPAWN_Y: f64 = 112.0;
+const PLAYER_ENTITY_ID: i32 = 1;
+const PLAYER_WIDTH: f64 = 0.6;
+const PLAYER_HEIGHT: f64 = 1.8;
+const PLAYER_EYE_HEIGHT: f64 = 1.62;
+const MAX_AIR_SUPPLY: i32 = 300;
+const DROWN_AIR_SUPPLY_THRESHOLD: i32 = -20;
+const DROWN_DAMAGE: f32 = 2.0;
+const WATER_MOVE_RELATIVE_SPEED: f64 = 0.02;
+const WATER_HORIZONTAL_SLOWDOWN: f64 = 0.8;
+const WATER_SPRINTING_HORIZONTAL_SLOWDOWN: f64 = 0.9;
+const WATER_VERTICAL_SLOWDOWN: f64 = 0.8;
+const WATER_FALLING_GRAVITY: f64 = 0.005;
+const WATER_JUMP_IMPULSE: f64 = 0.04;
+const WATER_MAX_UPWARD_VELOCITY: f64 = 0.12;
+const WATER_MAX_SINK_VELOCITY: f64 = -0.08;
+const REGION_FEATURE_GENERATION_RADIUS: i32 = 3;
+const REGION_FEATURE_CACHEABLE_RADIUS: i32 = 1;
 
 #[derive(Clone, Default)]
 struct GeneratedChunkCache {
@@ -330,7 +372,7 @@ impl GeneratedChunkCache {
             if try_load_chunk_from_region(&region_dir, pos).is_none() {
                 match generate_overworld_spawn_chunk_region_for_preset_with_mode(
                     pos,
-                    1,
+                    REGION_FEATURE_GENERATION_RADIUS,
                     "normal",
                     LiveChunkGenerationMode::RealSurface,
                     world_seed,
@@ -339,6 +381,9 @@ impl GeneratedChunkCache {
                     Ok(region_chunks) => {
                         let mut cache = self.chunks.lock().unwrap();
                         for (region_pos, chunk) in region_chunks {
+                            if !region_generated_chunk_is_cacheable(pos, region_pos) {
+                                continue;
+                            }
                             cache.entry(region_pos).or_insert_with(|| Arc::new(chunk));
                         }
                         if let Some(chunk) = cache.get(&pos).cloned() {
@@ -376,6 +421,11 @@ fn live_region_feature_generation_enabled() -> bool {
         std::env::var("RUSTCRAFT_WORLDGEN_REGION_FEATURES").as_deref(),
         Ok("1") | Ok("true") | Ok("yes")
     )
+}
+
+fn region_generated_chunk_is_cacheable(center: ChunkPos, candidate: ChunkPos) -> bool {
+    (candidate.x - center.x).abs() <= REGION_FEATURE_CACHEABLE_RADIUS
+        && (candidate.z - center.z).abs() <= REGION_FEATURE_CACHEABLE_RADIUS
 }
 
 #[derive(Clone, Default)]
@@ -2008,16 +2058,24 @@ fn handle_login_connection(
         }
 
         // Java: ServerPlayer.doTick() calls FoodData.tick(this) every server
-        // tick, independent of inbound movement/interaction packets.
+        // tick, independent of inbound movement/interaction packets. Entity
+        // base ticking updates fluid contact and air supply on the same tick.
         if last_player_tick.elapsed() >= SERVER_TICK_DURATION {
             last_player_tick = Instant::now();
             play_tick_count = play_tick_count.wrapping_add(1);
+            let fluid_state =
+                detect_play_session_fluid_state(&play_state, world_root, world_seed, chunk_cache);
+            let water_update = tick_play_session_water(&mut play_state, fluid_state);
+            if water_update.air_changed {
+                write_play_state_air_supply_packet(stream, compression, &play_state)?;
+            }
             if tick_play_session_food(
                 &mut play_state,
                 food_difficulty_from_properties(properties),
                 true,
                 play_tick_count,
-            ) {
+            ) || water_update.health_changed
+            {
                 write_play_state_health_packet(stream, compression, &play_state)?;
             }
         }
@@ -2526,7 +2584,12 @@ fn update_play_session_state<R: Read>(
         }
         SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
             let flags = read_u8(input)?;
+            let forward = flags & 1 != 0;
+            let backward = flags & 2 != 0;
+            let left = flags & 4 != 0;
+            let right = flags & 8 != 0;
             let jumping = flags & 16 != 0;
+            let shift = flags & 32 != 0;
             let sprinting = flags & 64 != 0;
             if jumping && !state.input_jumping && state.on_ground {
                 add_player_food_exhaustion(
@@ -2538,6 +2601,11 @@ fn update_play_session_state<R: Read>(
                     },
                 );
             }
+            state.input_forward = forward;
+            state.input_backward = backward;
+            state.input_left = left;
+            state.input_right = right;
+            state.input_shift = shift;
             state.input_jumping = jumping;
             state.input_sprinting = sprinting;
             Ok(PlaySessionUpdate::default())
@@ -2561,12 +2629,35 @@ fn apply_player_movement(
     delta_z: f64,
     position_changed: bool,
 ) -> PlaySessionUpdate {
-    // TODO: replace this placeholder with block/fluid lookup when movement is
-    // validated against the generated world. Java does not accumulate fall
-    // distance while the entity is in water.
-    let in_water = false;
-    state.fall_distance = update_fall_distance(state.fall_distance, delta_y, in_water);
-    if state.on_ground && state.input_sprinting {
+    if position_changed {
+        state.water_velocity_x = delta_x;
+        state.water_velocity_y = delta_y;
+        state.water_velocity_z = delta_z;
+    }
+    state.fall_distance = update_fall_distance(state.fall_distance, delta_y, state.in_water);
+    if state.in_water {
+        state.fall_distance = 0.0;
+    }
+    if state.eye_in_water {
+        let distance_cm = ((delta_x * delta_x + delta_y * delta_y + delta_z * delta_z).sqrt()
+            * 100.0)
+            .round() as i32;
+        if distance_cm > 0 {
+            add_player_food_exhaustion(
+                state,
+                movement_exhaustion(SWIM_EXHAUSTION_PER_METER, distance_cm),
+            );
+        }
+    } else if state.in_water {
+        let horizontal_distance_cm =
+            ((delta_x * delta_x + delta_z * delta_z).sqrt() * 100.0).round() as i32;
+        if horizontal_distance_cm > 0 {
+            add_player_food_exhaustion(
+                state,
+                movement_exhaustion(SWIM_EXHAUSTION_PER_METER, horizontal_distance_cm),
+            );
+        }
+    } else if state.on_ground && state.input_sprinting {
         let horizontal_distance_cm =
             ((delta_x * delta_x + delta_z * delta_z).sqrt() * 100.0).round() as i32;
         if horizontal_distance_cm > 0 {
@@ -2598,6 +2689,234 @@ fn apply_player_movement(
         position_changed,
         health_changed,
         respawn_requested: false,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PlayerFluidState {
+    in_water: bool,
+    eye_in_water: bool,
+    water_height: f64,
+}
+
+impl PlayerFluidState {
+    const DRY: Self = Self {
+        in_water: false,
+        eye_in_water: false,
+        water_height: 0.0,
+    };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct PlayerWaterTickUpdate {
+    air_changed: bool,
+    health_changed: bool,
+    motion_changed: bool,
+}
+
+fn detect_play_session_fluid_state(
+    state: &PlaySessionState,
+    world_root: &Path,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+) -> PlayerFluidState {
+    detect_play_session_fluid_state_with_lookup(state, |x, y, z| {
+        let chunk =
+            chunk_cache.get_or_load(x.div_euclid(16), z.div_euclid(16), world_root, world_seed);
+        chunk.get_block_state_name(x, y, z).map(str::to_string)
+    })
+}
+
+fn detect_play_session_fluid_state_with_lookup<F>(
+    state: &PlaySessionState,
+    mut block_at: F,
+) -> PlayerFluidState
+where
+    F: FnMut(i32, i32, i32) -> Option<String>,
+{
+    let half_width = PLAYER_WIDTH / 2.0;
+    let min_x = state.x - half_width;
+    let max_x = state.x + half_width;
+    let min_y = state.y;
+    let max_y = state.y + PLAYER_HEIGHT;
+    let min_z = state.z - half_width;
+    let max_z = state.z + half_width;
+    let x0 = min_x.floor() as i32;
+    let y0 = min_y.floor() as i32;
+    let z0 = min_z.floor() as i32;
+    let x1 = max_x.ceil() as i32 - 1;
+    let y1 = max_y.ceil() as i32 - 1;
+    let z1 = max_z.ceil() as i32 - 1;
+    let eye_block_x = state.x.floor() as i32;
+    let eye_y = state.y + PLAYER_EYE_HEIGHT;
+    let eye_block_z = state.z.floor() as i32;
+
+    let mut water_height = 0.0_f64;
+    let mut eye_in_water = false;
+    for x in x0..=x1 {
+        for y in y0..=y1 {
+            for z in z0..=z1 {
+                let Some(block) = block_at(x, y, z) else {
+                    continue;
+                };
+                let Some(fluid_height) = water_fluid_height_for_block(&block) else {
+                    continue;
+                };
+                let fluid_bottom = f64::from(y);
+                let fluid_top = fluid_bottom + fluid_height;
+                if fluid_top < min_y {
+                    continue;
+                }
+                water_height = water_height.max(fluid_top - min_y);
+                if x == eye_block_x
+                    && z == eye_block_z
+                    && eye_y >= fluid_bottom
+                    && eye_y <= fluid_top
+                {
+                    eye_in_water = true;
+                }
+            }
+        }
+    }
+
+    if water_height > 0.0 {
+        PlayerFluidState {
+            in_water: true,
+            eye_in_water,
+            water_height,
+        }
+    } else {
+        PlayerFluidState::DRY
+    }
+}
+
+fn water_fluid_height_for_block(block: &str) -> Option<f64> {
+    if block.contains("waterlogged=true") {
+        return Some(1.0);
+    }
+    let (base, properties) = block.split_once('[').map_or((block, ""), |(base, rest)| {
+        (base, rest.trim_end_matches(']'))
+    });
+    if base != "minecraft:water" && base != "minecraft:flowing_water" {
+        return None;
+    }
+    let level = properties
+        .split(',')
+        .find_map(|property| property.strip_prefix("level="))
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0);
+    Some(match level {
+        1..=7 => f64::from(8 - level) / 9.0,
+        _ => 1.0,
+    })
+}
+
+fn play_session_water_input_vector(state: &PlaySessionState) -> (f64, f64) {
+    let left_intent = if state.input_left == state.input_right {
+        0.0
+    } else if state.input_left {
+        1.0
+    } else {
+        -1.0
+    };
+    let forward_intent = if state.input_forward == state.input_backward {
+        0.0
+    } else if state.input_forward {
+        1.0
+    } else {
+        -1.0
+    };
+    (left_intent, forward_intent)
+}
+
+fn rotate_player_input_to_world(strafe: f64, forward: f64, speed: f64, yaw: f32) -> (f64, f64) {
+    let length_sqr = strafe * strafe + forward * forward;
+    if length_sqr < 1.0e-7 {
+        return (0.0, 0.0);
+    }
+    let scale = if length_sqr > 1.0 {
+        speed / length_sqr.sqrt()
+    } else {
+        speed
+    };
+    let strafe = strafe * scale;
+    let forward = forward * scale;
+    let yaw = f64::from(yaw).to_radians();
+    let sin = yaw.sin();
+    let cos = yaw.cos();
+    (strafe * cos - forward * sin, forward * cos + strafe * sin)
+}
+
+fn tick_play_session_water(
+    state: &mut PlaySessionState,
+    fluid_state: PlayerFluidState,
+) -> PlayerWaterTickUpdate {
+    state.in_water = fluid_state.in_water;
+    state.eye_in_water = fluid_state.eye_in_water;
+    state.water_fluid_height = fluid_state.water_height;
+    if state.in_water {
+        state.fall_distance = 0.0;
+    }
+
+    let old_air = state.air_supply;
+    let old_health = state.health;
+    let old_water_velocity_x = state.water_velocity_x;
+    let old_water_velocity_y = state.water_velocity_y;
+    let old_water_velocity_z = state.water_velocity_z;
+    if state.in_water {
+        let (strafe, forward) = play_session_water_input_vector(state);
+        let (input_x, input_z) =
+            rotate_player_input_to_world(strafe, forward, WATER_MOVE_RELATIVE_SPEED, state.yaw);
+        state.water_velocity_x += input_x;
+        state.water_velocity_z += input_z;
+
+        if state.input_jumping && state.water_fluid_height > 0.0 {
+            state.water_velocity_y =
+                (state.water_velocity_y + WATER_JUMP_IMPULSE).min(WATER_MAX_UPWARD_VELOCITY);
+        } else if !state.on_ground || state.water_velocity_y < 0.0 || state.eye_in_water {
+            state.water_velocity_y = (state.water_velocity_y * WATER_VERTICAL_SLOWDOWN
+                - WATER_FALLING_GRAVITY)
+                .max(WATER_MAX_SINK_VELOCITY);
+        } else {
+            state.water_velocity_y = 0.0;
+        }
+
+        let horizontal_slowdown = if state.input_sprinting {
+            WATER_SPRINTING_HORIZONTAL_SLOWDOWN
+        } else {
+            WATER_HORIZONTAL_SLOWDOWN
+        };
+        state.water_velocity_x *= horizontal_slowdown;
+        state.water_velocity_z *= horizontal_slowdown;
+    } else {
+        state.water_velocity_x = 0.0;
+        state.water_velocity_y = 0.0;
+        state.water_velocity_z = 0.0;
+    }
+
+    if state.health > 0.0 {
+        if state.eye_in_water {
+            if !state.abilities.invulnerable {
+                state.air_supply -= 1;
+                if state.air_supply <= DROWN_AIR_SUPPLY_THRESHOLD {
+                    state.air_supply = 0;
+                    state.health = (state.health - DROWN_DAMAGE).max(0.0);
+                }
+            } else if state.air_supply < MAX_AIR_SUPPLY {
+                state.air_supply = (state.air_supply + 4).min(MAX_AIR_SUPPLY);
+            }
+        } else if state.air_supply < MAX_AIR_SUPPLY {
+            state.air_supply = (state.air_supply + 4).min(MAX_AIR_SUPPLY);
+        }
+    }
+
+    PlayerWaterTickUpdate {
+        air_changed: state.air_supply != old_air,
+        health_changed: state.health != old_health,
+        motion_changed: state.in_water
+            && ((state.water_velocity_x - old_water_velocity_x).abs() > f64::EPSILON
+                || (state.water_velocity_y - old_water_velocity_y).abs() > f64::EPSILON
+                || (state.water_velocity_z - old_water_velocity_z).abs() > f64::EPSILON),
     }
 }
 
@@ -2701,6 +3020,53 @@ fn write_play_state_health_packet<W: Write>(
             write_var_i32(payload, state.food_level)?;
             payload.write_all(&state.food_saturation.to_be_bytes())
         },
+    )
+}
+
+fn play_state_air_supply_metadata_packet(
+    state: &PlaySessionState,
+) -> io::Result<ClientboundSetEntityDataPacket> {
+    Ok(ClientboundSetEntityDataPacket {
+        id: PLAYER_ENTITY_ID,
+        packed_items: vec![EntityDataValue::typed(
+            1,
+            EntityMetadataValue::VarInt(state.air_supply),
+        )?],
+    })
+}
+
+fn write_play_state_air_supply_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    let packet = play_state_air_supply_metadata_packet(state)?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+        |payload| packet.write(payload),
+    )
+}
+
+fn write_play_state_motion_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    let packet = ClientboundSetEntityMotionPacket::new(
+        PLAYER_ENTITY_ID,
+        Vec3 {
+            x: state.water_velocity_x,
+            y: state.water_velocity_y,
+            z: state.water_velocity_z,
+        },
+    );
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID,
+        |payload| packet.write(payload),
     )
 }
 
@@ -3176,16 +3542,8 @@ fn handle_play_respawn_request(
         },
     )?;
     write_game_event_to_writer(stream, compression, 2, 0.0)?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_HEALTH_PACKET_ID,
-        |payload| {
-            payload.write_all(&state.health.to_be_bytes())?;
-            write_var_i32(payload, state.food_level)?;
-            payload.write_all(&state.food_saturation.to_be_bytes())
-        },
-    )?;
+    write_play_state_health_packet(stream, compression, state)?;
+    write_play_state_air_supply_packet(stream, compression, state)?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -3223,8 +3581,20 @@ fn reset_play_state_after_death_respawn(state: &mut PlaySessionState) {
     state.food_saturation = 5.0;
     state.food_exhaustion = 0.0;
     state.food_tick_timer = 0;
+    state.input_forward = false;
+    state.input_backward = false;
+    state.input_left = false;
+    state.input_right = false;
+    state.input_shift = false;
     state.input_sprinting = false;
     state.input_jumping = false;
+    state.air_supply = MAX_AIR_SUPPLY;
+    state.in_water = false;
+    state.eye_in_water = false;
+    state.water_fluid_height = 0.0;
+    state.water_velocity_x = 0.0;
+    state.water_velocity_y = 0.0;
+    state.water_velocity_z = 0.0;
     state.fall_distance = 0.0;
     state.on_ground = true;
     state.xp_progress = 0.0;
@@ -3412,6 +3782,7 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
             Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)]),
         ),
         ("OnGround".to_string(), Tag::Byte(i8::from(state.on_ground))),
+        ("Air".to_string(), Tag::Short(state.air_supply as i16)),
         (
             "fall_distance".to_string(),
             Tag::Double(state.fall_distance as f64),
@@ -3591,6 +3962,13 @@ fn play_session_state_from_nbt(
         Some(Tag::Float(value)) => value.max(0.0),
         _ => 0.0,
     };
+    let air_supply = match compound_tag(compound, "Air") {
+        Some(Tag::Short(value)) => {
+            i32::from(*value).clamp(DROWN_AIR_SUPPLY_THRESHOLD, MAX_AIR_SUPPLY)
+        }
+        Some(Tag::Int(value)) => (*value).clamp(DROWN_AIR_SUPPLY_THRESHOLD, MAX_AIR_SUPPLY),
+        _ => MAX_AIR_SUPPLY,
+    };
     let selected_slot = match compound_tag(compound, "SelectedItemSlot") {
         Some(Tag::Int(value)) if (0..9).contains(value) => *value,
         _ => 0,
@@ -3759,8 +4137,20 @@ fn play_session_state_from_nbt(
         food_saturation,
         food_exhaustion,
         food_tick_timer,
+        input_forward: false,
+        input_backward: false,
+        input_left: false,
+        input_right: false,
+        input_shift: false,
         input_sprinting: false,
         input_jumping: false,
+        air_supply,
+        in_water: false,
+        eye_in_water: false,
+        water_fluid_height: 0.0,
+        water_velocity_x: 0.0,
+        water_velocity_y: 0.0,
+        water_velocity_z: 0.0,
         xp_progress,
         xp_level,
         xp_total,
@@ -10857,8 +11247,20 @@ mod tests {
             food_saturation: 5.0,
             food_exhaustion: 0.0,
             food_tick_timer: 0,
+            input_forward: false,
+            input_backward: false,
+            input_left: false,
+            input_right: false,
+            input_shift: false,
             input_sprinting: false,
             input_jumping: false,
+            air_supply: super::MAX_AIR_SUPPLY,
+            in_water: false,
+            eye_in_water: false,
+            water_fluid_height: 0.0,
+            water_velocity_x: 0.0,
+            water_velocity_y: 0.0,
+            water_velocity_z: 0.0,
             xp_progress: 0.0,
             xp_level: 0,
             xp_total: 0,
@@ -10878,6 +11280,32 @@ mod tests {
             carried_item: ItemStack::empty(),
             container_state_id: 0,
         }
+    }
+
+    #[test]
+    fn region_feature_cache_keeps_only_fully_decorated_inner_chunks() {
+        let center = ChunkPos { x: -41, z: -22 };
+        assert_eq!(
+            super::REGION_FEATURE_GENERATION_RADIUS,
+            super::REGION_FEATURE_CACHEABLE_RADIUS + 2
+        );
+
+        assert!(super::region_generated_chunk_is_cacheable(
+            center,
+            ChunkPos { x: -41, z: -22 }
+        ));
+        assert!(super::region_generated_chunk_is_cacheable(
+            center,
+            ChunkPos { x: -40, z: -23 }
+        ));
+        assert!(!super::region_generated_chunk_is_cacheable(
+            center,
+            ChunkPos { x: -39, z: -22 }
+        ));
+        assert!(!super::region_generated_chunk_is_cacheable(
+            center,
+            ChunkPos { x: -41, z: -20 }
+        ));
     }
 
     #[test]
@@ -10972,6 +11400,183 @@ mod tests {
     }
 
     #[test]
+    fn player_fluid_detection_tracks_body_and_eye_water() {
+        let mut state = session_state_with_inventory(&[]);
+        state.x = 0.5;
+        state.y = 64.0;
+        state.z = 0.5;
+
+        let shallow = super::detect_play_session_fluid_state_with_lookup(&state, |x, y, z| {
+            (x == 0 && y == 64 && z == 0).then(|| "minecraft:water".to_string())
+        });
+        assert!(shallow.in_water);
+        assert!(!shallow.eye_in_water);
+        assert_eq!(shallow.water_height, 1.0);
+
+        let submerged = super::detect_play_session_fluid_state_with_lookup(&state, |x, y, z| {
+            (x == 0 && (64..=65).contains(&y) && z == 0)
+                .then(|| "minecraft:water[level=0]".to_string())
+        });
+        assert!(submerged.in_water);
+        assert!(submerged.eye_in_water);
+        assert_eq!(submerged.water_height, 2.0);
+
+        let waterlogged = super::detect_play_session_fluid_state_with_lookup(&state, |x, y, z| {
+            (x == 0 && y == 64 && z == 0)
+                .then(|| "minecraft:oak_fence[waterlogged=true]".to_string())
+        });
+        assert!(waterlogged.in_water);
+    }
+
+    #[test]
+    fn water_contact_suppresses_fall_distance_and_uses_water_exhaustion() {
+        let mut state = session_state_with_inventory(&[]);
+        state.fall_distance = 7.0;
+        state.in_water = true;
+        state.eye_in_water = true;
+        state.input_sprinting = true;
+        state.on_ground = true;
+
+        let update = super::apply_player_movement(&mut state, 1.0, -1.0, 0.0, true);
+        assert!(update.position_changed);
+        assert!(!update.health_changed);
+        assert_eq!(state.fall_distance, 0.0);
+        assert_eq!(state.health, 20.0);
+        assert!((state.food_exhaustion - 0.0141).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn water_tick_depletes_refills_air_and_drowns_like_java() {
+        let mut state = session_state_with_inventory(&[]);
+
+        let update = super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: true,
+                water_height: 2.0,
+            },
+        );
+        assert!(update.air_changed);
+        assert!(!update.health_changed);
+        assert!(update.motion_changed);
+        assert_eq!(state.air_supply, 299);
+        assert_eq!(state.water_velocity_y, -0.005);
+        assert!(state.in_water);
+        assert!(state.eye_in_water);
+
+        state.air_supply = -19;
+        state.health = 20.0;
+        let update = super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: true,
+                water_height: 2.0,
+            },
+        );
+        assert!(update.air_changed);
+        assert!(update.health_changed);
+        assert_eq!(state.air_supply, 0);
+        assert_eq!(state.health, 18.0);
+
+        let update = super::tick_play_session_water(&mut state, super::PlayerFluidState::DRY);
+        assert!(update.air_changed);
+        assert!(!update.health_changed);
+        assert_eq!(state.air_supply, 4);
+
+        state.air_supply = 298;
+        super::tick_play_session_water(&mut state, super::PlayerFluidState::DRY);
+        assert_eq!(state.air_supply, super::MAX_AIR_SUPPLY);
+    }
+
+    #[test]
+    fn water_tick_applies_jump_impulse_and_drag_like_java() {
+        let mut state = session_state_with_inventory(&[]);
+        state.on_ground = false;
+        state.water_velocity_y = -0.4;
+
+        let update = super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: false,
+                water_height: 1.0,
+            },
+        );
+        assert!(update.motion_changed);
+        assert_eq!(state.water_velocity_y, super::WATER_MAX_SINK_VELOCITY);
+
+        state.input_jumping = true;
+        let update = super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: false,
+                water_height: 1.0,
+            },
+        );
+        assert!(update.motion_changed);
+        assert_eq!(state.water_velocity_y, -0.04);
+
+        state.water_velocity_y = 0.1;
+        super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: false,
+                water_height: 1.0,
+            },
+        );
+        assert_eq!(state.water_velocity_y, super::WATER_MAX_UPWARD_VELOCITY);
+    }
+
+    #[test]
+    fn water_tick_preserves_horizontal_input_like_java() {
+        let mut state = session_state_with_inventory(&[]);
+        state.input_forward = true;
+        state.input_jumping = true;
+        state.yaw = 0.0;
+
+        let update = super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: false,
+                water_height: 1.0,
+            },
+        );
+        assert!(update.motion_changed);
+        assert_eq!(state.water_velocity_x, 0.0);
+        assert!((state.water_velocity_z - 0.016).abs() < f64::EPSILON);
+        assert_eq!(state.water_velocity_y, super::WATER_JUMP_IMPULSE);
+
+        state.input_sprinting = true;
+        super::tick_play_session_water(
+            &mut state,
+            super::PlayerFluidState {
+                in_water: true,
+                eye_in_water: false,
+                water_height: 1.0,
+            },
+        );
+        assert!((state.water_velocity_z - ((0.016 + 0.02) * 0.9)).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn air_supply_metadata_packet_uses_vanilla_entity_data_index() {
+        let mut state = session_state_with_inventory(&[]);
+        state.air_supply = 247;
+
+        let packet = super::play_state_air_supply_metadata_packet(&state).unwrap();
+        assert_eq!(packet.id, super::PLAYER_ENTITY_ID);
+        assert_eq!(
+            packet.packed_items,
+            vec![EntityDataValue::typed(1, EntityMetadataValue::VarInt(247)).unwrap()]
+        );
+    }
+
+    #[test]
     fn player_input_tracks_sprint_jump_exhaustion() {
         let mut state = session_state_with_inventory(&[]);
         state.on_ground = true;
@@ -10985,6 +11590,8 @@ mod tests {
         assert!(!update.health_changed);
         assert!(state.input_jumping);
         assert!(state.input_sprinting);
+        assert!(!state.input_forward);
+        assert!(!state.input_shift);
         assert_eq!(state.food_exhaustion, SPRINT_JUMP_EXHAUSTION);
 
         super::update_play_session_state(
@@ -10997,6 +11604,17 @@ mod tests {
             state.food_exhaustion, SPRINT_JUMP_EXHAUSTION,
             "holding jump should not charge jump exhaustion every packet"
         );
+
+        super::update_play_session_state(
+            super::SERVERBOUND_PLAYER_INPUT_PACKET_ID,
+            &mut Cursor::new(vec![1 | 32]),
+            &mut state,
+        )
+        .unwrap();
+        assert!(state.input_forward);
+        assert!(state.input_shift);
+        assert!(!state.input_jumping);
+        assert!(!state.input_sprinting);
     }
 
     #[test]
@@ -11132,6 +11750,10 @@ mod tests {
         state.food_level = 3;
         state.food_saturation = 0.0;
         state.food_exhaustion = 12.0;
+        state.air_supply = 7;
+        state.in_water = true;
+        state.eye_in_water = true;
+        state.water_fluid_height = 2.0;
         state.fall_distance = 48.0;
         state.on_ground = false;
         state.xp_level = 9;
@@ -11158,6 +11780,10 @@ mod tests {
         assert_eq!(state.food_tick_timer, 0);
         assert!(!state.input_sprinting);
         assert!(!state.input_jumping);
+        assert_eq!(state.air_supply, super::MAX_AIR_SUPPLY);
+        assert!(!state.in_water);
+        assert!(!state.eye_in_water);
+        assert_eq!(state.water_fluid_height, 0.0);
         assert_eq!(state.fall_distance, 0.0);
         assert!(state.on_ground);
         assert_eq!(state.xp_level, 0);
@@ -11284,6 +11910,7 @@ mod tests {
         assert_eq!(restored.health, 20.0);
         assert_eq!(restored.food_level, 20);
         assert_eq!(restored.food_saturation, 20.0);
+        assert_eq!(restored.air_supply, super::MAX_AIR_SUPPLY);
         assert_eq!(restored.xp_progress, 1.0);
         assert_eq!(restored.xp_level, 0);
         assert_eq!(restored.xp_total, 0);
@@ -11297,6 +11924,7 @@ mod tests {
         state.fall_distance = 6.25;
         state.food_exhaustion = 3.5;
         state.food_tick_timer = 72;
+        state.air_supply = 123;
         state.xp_progress = 0.75;
         state.xp_level = 12;
         state.xp_total = 345;
@@ -11352,6 +11980,7 @@ mod tests {
             "Pos",
             "Rotation",
             "Motion",
+            "Air",
             "fall_distance",
             "Health",
             "foodLevel",
@@ -11392,6 +12021,7 @@ mod tests {
         assert_eq!(restored.fall_distance, 6.25);
         assert_eq!(restored.food_exhaustion, 3.5);
         assert_eq!(restored.food_tick_timer, 72);
+        assert_eq!(restored.air_supply, 123);
         assert_eq!(restored.xp_seed, 98_765);
         assert_eq!(restored.score, 42);
         assert_eq!(restored.previous_game_mode, Some(GameMode::Adventure));

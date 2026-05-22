@@ -8472,6 +8472,127 @@ fn block_predicate_test_in_chunk(
     }
 }
 
+fn region_static_block_name(
+    chunks: &BTreeMap<ChunkPos, LevelChunk>,
+    position: BlockPos,
+) -> Option<&'static str> {
+    let pos = ChunkPos {
+        x: position.x.div_euclid(16),
+        z: position.z.div_euclid(16),
+    };
+    chunks
+        .get(&pos)?
+        .get_block_state_name(position.x, position.y, position.z)
+        .and_then(carver_static_block_name)
+}
+
+fn block_predicate_context_for_region_pos(
+    chunks: &BTreeMap<ChunkPos, LevelChunk>,
+    settings: &NoiseGeneratorSettings,
+    position: BlockPos,
+) -> BlockPredicateContext {
+    let block = region_static_block_name(chunks, position).unwrap_or("minecraft:air");
+    block_predicate_context_for_state(block, settings.noise.min_y, settings.noise.height)
+}
+
+fn block_predicate_test_in_region(
+    chunks: &BTreeMap<ChunkPos, LevelChunk>,
+    settings: &NoiseGeneratorSettings,
+    predicate: BlockPredicate,
+    position: BlockPos,
+) -> bool {
+    let context = block_predicate_context_for_region_pos(chunks, settings, position);
+    match predicate {
+        BlockPredicate::MatchingBlocks { blocks } => blocks.contains(&context.block),
+        BlockPredicate::MatchingBlocksAt { offset_y, blocks } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            let offset_context =
+                block_predicate_context_for_region_pos(chunks, settings, offset_pos);
+            blocks.contains(&offset_context.block)
+        }
+        BlockPredicate::MatchingBlockTag { tag } => block_matches_tag(context.block, tag),
+        BlockPredicate::MatchingFluids { fluids } => fluids.contains(&context.fluid),
+        BlockPredicate::MatchingFluidsAt { offset_y, fluids } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            let offset_context =
+                block_predicate_context_for_region_pos(chunks, settings, offset_pos);
+            fluids.contains(&offset_context.fluid)
+        }
+        BlockPredicate::Solid => context.solid,
+        BlockPredicate::SolidAt { offset_y } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            block_predicate_context_for_region_pos(chunks, settings, offset_pos).solid
+        }
+        BlockPredicate::Replaceable => context.replaceable,
+        BlockPredicate::ReplaceableAt { offset_y } => {
+            let offset_pos = BlockPos {
+                y: position.y + offset_y,
+                ..position
+            };
+            if offset_pos.y < settings.noise.min_y
+                || offset_pos.y >= settings.noise.min_y + settings.noise.height
+            {
+                return false;
+            }
+            block_predicate_context_for_region_pos(chunks, settings, offset_pos).replaceable
+        }
+        BlockPredicate::WouldSurvive {
+            offset_y,
+            state: _,
+            survives,
+        }
+        | BlockPredicate::HasSturdyFace {
+            offset_y,
+            direction: _,
+            sturdy: survives,
+        } => {
+            let y = position.y + offset_y;
+            y >= settings.noise.min_y
+                && y < settings.noise.min_y + settings.noise.height
+                && survives
+        }
+        BlockPredicate::InsideWorldBounds { offset_y } => {
+            let y = position.y + offset_y;
+            y >= settings.noise.min_y && y < settings.noise.min_y + settings.noise.height
+        }
+        BlockPredicate::AnyOf { predicates } => predicates.iter().any(|predicate| {
+            block_predicate_test_in_region(chunks, settings, *predicate, position)
+        }),
+        BlockPredicate::AllOf { predicates } => predicates.iter().all(|predicate| {
+            block_predicate_test_in_region(chunks, settings, *predicate, position)
+        }),
+        BlockPredicate::Not { predicate } => {
+            !block_predicate_test_in_region(chunks, settings, *predicate, position)
+        }
+        BlockPredicate::True => true,
+        BlockPredicate::Unobstructed => context.unobstructed,
+    }
+}
+
 fn seedless_noise_salt(id: &str) -> i64 {
     id.bytes().fold(0_i64, |hash, byte| {
         hash.wrapping_mul(31).wrapping_add(i64::from(byte))
@@ -30738,7 +30859,17 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
         }
     }
 
-    for pos in source_positions.iter().copied() {
+    let feature_source_radius = radius.saturating_sub(1);
+    let feature_source_positions = source_positions
+        .iter()
+        .copied()
+        .filter(|pos| {
+            (pos.x - center.x).abs() <= feature_source_radius
+                && (pos.z - center.z).abs() <= feature_source_radius
+        })
+        .collect::<Vec<_>>();
+
+    for pos in feature_source_positions.iter().copied() {
         apply_underground_ore_decoration_from_source_into_region(
             &mut chunks,
             pos,
@@ -30749,7 +30880,18 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
         );
     }
 
-    for pos in source_positions {
+    for pos in feature_source_positions.iter().copied() {
+        apply_initial_simple_vegetation_decoration_from_source_into_region(
+            &mut chunks,
+            pos,
+            biome_source_model,
+            noise_settings,
+            seed,
+            SimpleVegetationPhase::BeforeTrees,
+        );
+    }
+
+    for pos in feature_source_positions.iter().copied() {
         apply_initial_tree_decoration_from_source_into_region(
             &mut chunks,
             pos,
@@ -30757,6 +30899,17 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
             noise_settings,
             seed,
             None,
+        );
+    }
+
+    for pos in feature_source_positions {
+        apply_initial_simple_vegetation_decoration_from_source_into_region(
+            &mut chunks,
+            pos,
+            biome_source_model,
+            noise_settings,
+            seed,
+            SimpleVegetationPhase::AfterTrees,
         );
     }
 
@@ -38186,6 +38339,390 @@ fn apply_initial_tree_decoration_from_source_into_region(
     }
 }
 
+fn apply_initial_simple_vegetation_decoration_from_source_into_region(
+    chunks: &mut BTreeMap<ChunkPos, LevelChunk>,
+    source_pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    phase: SimpleVegetationPhase,
+) -> usize {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return 0;
+    }
+    let Some(source_chunk) = chunks.get(&source_pos) else {
+        return 0;
+    };
+    let router_id = noise_router_id_for_settings(*settings);
+    let noise_router = builtin_noise_router(router_id)
+        .map(|entry| entry.router)
+        .unwrap_or(NONE_NOISE_ROUTER);
+    let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
+    let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
+    let feature_source_steps = if global_biome_steps.is_empty() {
+        possible_biome_feature_steps_for_decoration_region(
+            source_pos,
+            biome_source_model,
+            settings,
+            &climate_sampler,
+        )
+    } else {
+        global_biome_steps
+    };
+    if feature_source_steps.is_empty() {
+        return 0;
+    }
+    let features_per_step = match build_features_per_step(&feature_source_steps, true) {
+        Ok(features) => features,
+        Err(_) => return 0,
+    };
+    let possible_steps = possible_biome_feature_steps_for_decoration_region(
+        source_pos,
+        biome_source_model,
+        settings,
+        &climate_sampler,
+    );
+    if possible_steps.is_empty() {
+        return 0;
+    }
+    let source_terrain_heights = tree_decoration_terrain_heights(source_chunk, settings);
+    let plan = biome_decoration_feature_plan(
+        seed,
+        source_pos.x,
+        source_pos.z,
+        settings.noise.min_y.div_euclid(16),
+        &features_per_step,
+        &possible_steps,
+    );
+
+    let mut placed = 0;
+    for call in plan.feature_calls.iter().filter(|call| {
+        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+            && placed_simple_vegetation_feature(call.feature).is_some()
+            && simple_vegetation_phase(call.feature) == phase
+    }) {
+        let Some(feature) = placed_simple_vegetation_feature(call.feature) else {
+            continue;
+        };
+        let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+        placed += place_simple_vegetation_feature_positions_depth_first_in_region(
+            chunks,
+            source_pos,
+            biome_source_model,
+            settings,
+            &climate_sampler,
+            call.feature,
+            &feature,
+            &feature.placement,
+            BlockPos {
+                x: source_pos.x * 16,
+                y: settings.noise.min_y,
+                z: source_pos.z * 16,
+            },
+            SourceTerrainHeights::Full(&source_terrain_heights),
+            &mut random,
+        );
+    }
+    placed
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_simple_vegetation_feature_positions_depth_first_in_region(
+    chunks: &mut BTreeMap<ChunkPos, LevelChunk>,
+    source_pos: ChunkPos,
+    biome_source_model: &BiomeSourceModel,
+    settings: &NoiseGeneratorSettings,
+    climate_sampler: &ClimateSampler,
+    placed_feature_id: &str,
+    feature: &PlacedSimpleVegetationFeature,
+    modifiers: &[PlacementModifier],
+    position: BlockPos,
+    source_terrain_heights: SourceTerrainHeights<'_>,
+    random: &mut RandomSourceKind,
+) -> usize {
+    let Some((modifier, remaining_modifiers)) = modifiers.split_first() else {
+        return place_configured_simple_vegetation_in_region(
+            chunks,
+            source_pos,
+            settings,
+            feature.configured_feature,
+            position,
+            random,
+        );
+    };
+
+    match *modifier {
+        PlacementModifier::Count { count } => {
+            let mut placed = 0;
+            for _ in 0..count.max(0) {
+                placed += place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    position,
+                    source_terrain_heights,
+                    random,
+                );
+            }
+            placed
+        }
+        PlacementModifier::CountProvider { provider, .. } => {
+            let mut placed = 0;
+            for _ in 0..sample_int_provider(provider, random).clamp(0, i32::MAX) {
+                placed += place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    position,
+                    source_terrain_heights,
+                    random,
+                );
+            }
+            placed
+        }
+        PlacementModifier::NoiseThresholdCount {
+            noise_level,
+            below_noise,
+            above_noise,
+            ..
+        } => {
+            let noise = vegetation_flower_noise(
+                position.x,
+                position.z,
+                seedless_noise_salt(placed_feature_id),
+                0.005,
+            );
+            let count = if noise < noise_level {
+                below_noise
+            } else {
+                above_noise
+            };
+            let mut placed = 0;
+            for _ in 0..count.max(0) {
+                placed += place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    position,
+                    source_terrain_heights,
+                    random,
+                );
+            }
+            placed
+        }
+        PlacementModifier::RarityFilter { chance } => {
+            if chance > 0 && feature_random_next_i32_bound(random, chance) == 0 {
+                place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    position,
+                    source_terrain_heights,
+                    random,
+                )
+            } else {
+                0
+            }
+        }
+        PlacementModifier::InSquare => {
+            place_simple_vegetation_feature_positions_depth_first_in_region(
+                chunks,
+                source_pos,
+                biome_source_model,
+                settings,
+                climate_sampler,
+                placed_feature_id,
+                feature,
+                remaining_modifiers,
+                BlockPos {
+                    x: position.x + feature_random_next_i32_bound(random, 16),
+                    y: position.y,
+                    z: position.z + feature_random_next_i32_bound(random, 16),
+                },
+                source_terrain_heights,
+                random,
+            )
+        }
+        PlacementModifier::Heightmap { heightmap } => {
+            let y = simple_vegetation_source_height(
+                source_pos,
+                source_terrain_heights,
+                heightmap,
+                position.x,
+                position.z,
+                settings,
+            );
+            if y <= settings.noise.min_y {
+                0
+            } else {
+                place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    BlockPos { y, ..position },
+                    source_terrain_heights,
+                    random,
+                )
+            }
+        }
+        PlacementModifier::RandomOffset {
+            xz_spread,
+            y_spread,
+        } => place_simple_vegetation_feature_positions_depth_first_in_region(
+            chunks,
+            source_pos,
+            biome_source_model,
+            settings,
+            climate_sampler,
+            placed_feature_id,
+            feature,
+            remaining_modifiers,
+            BlockPos {
+                x: position.x + sample_triangle_int(random, xz_spread),
+                y: position.y + sample_triangle_int(random, y_spread),
+                z: position.z + sample_triangle_int(random, xz_spread),
+            },
+            source_terrain_heights,
+            random,
+        ),
+        PlacementModifier::BlockPredicateFilter { predicate } => {
+            if block_predicate_test_in_region(chunks, settings, predicate, position) {
+                place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    position,
+                    source_terrain_heights,
+                    random,
+                )
+            } else {
+                0
+            }
+        }
+        PlacementModifier::BiomeFilter => {
+            if biome_allows_feature_at(
+                biome_source_model,
+                settings,
+                climate_sampler,
+                position,
+                placed_feature_id,
+            ) {
+                place_simple_vegetation_feature_positions_depth_first_in_region(
+                    chunks,
+                    source_pos,
+                    biome_source_model,
+                    settings,
+                    climate_sampler,
+                    placed_feature_id,
+                    feature,
+                    remaining_modifiers,
+                    position,
+                    source_terrain_heights,
+                    random,
+                )
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    }
+}
+
+fn place_configured_simple_vegetation_in_region(
+    chunks: &mut BTreeMap<ChunkPos, LevelChunk>,
+    source_pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    configured_feature: &'static str,
+    position: BlockPos,
+    random: &mut RandomSourceKind,
+) -> usize {
+    let target_pos = ChunkPos {
+        x: position.x.div_euclid(16),
+        z: position.z.div_euclid(16),
+    };
+    if (target_pos.x - source_pos.x).abs() > 1 || (target_pos.z - source_pos.z).abs() > 1 {
+        return 0;
+    }
+    if !(settings.noise.min_y..settings.noise.min_y + settings.noise.height).contains(&position.y) {
+        return 0;
+    }
+    let current = region_static_block_name(chunks, position).unwrap_or("minecraft:air");
+    let below = region_static_block_name(
+        chunks,
+        BlockPos {
+            y: position.y - 1,
+            ..position
+        },
+    )
+    .unwrap_or("minecraft:air");
+    let above = region_static_block_name(
+        chunks,
+        BlockPos {
+            y: position.y + 1,
+            ..position
+        },
+    )
+    .unwrap_or("minecraft:air");
+    let Some(config) = configured_simple_vegetation_block(configured_feature, random, position)
+    else {
+        return 0;
+    };
+    let Some(plan) = simple_block_placement_plan(
+        &config,
+        SimpleBlockPlacementContext {
+            origin_block: current,
+            below_block: below,
+            above_block: above,
+        },
+        random,
+    ) else {
+        return 0;
+    };
+
+    let Some(chunk) = chunks.get_mut(&target_pos) else {
+        return 0;
+    };
+    chunk.set_block_state(position.x, position.y, position.z, plan.state);
+    let mut placed = 1;
+    if let Some(upper_state) = plan.upper_state {
+        if position.y + 1 < settings.noise.min_y + settings.noise.height {
+            chunk.set_block_state(position.x, position.y + 1, position.z, upper_state);
+            placed += 1;
+        }
+    }
+    placed
+}
+
 fn tree_placement_block_can_replace(kind: TreePlacementBlockKind, current: &str) -> bool {
     match kind {
         TreePlacementBlockKind::DirtBelowTrunk => {
@@ -40340,7 +40877,7 @@ fn biome_allows_feature_at(
 }
 
 fn place_configured_ore_in_chunk(
-    chunk: &LevelChunk,
+    _chunk: &LevelChunk,
     block_cache: &mut OreBlockCache,
     settings: &NoiseGeneratorSettings,
     config: &OreConfigurationModel,
@@ -40395,15 +40932,14 @@ fn place_configured_ore_in_chunk(
     let mut in_chunk_candidates = 0;
     let block_started = Instant::now();
     for pos in candidates {
-        let in_target_chunk =
-            pos.x.div_euclid(16) == chunk.pos.x && pos.z.div_euclid(16) == chunk.pos.z;
-        if in_target_chunk {
+        let can_write = block_cache.can_write_world_xz(pos.x, pos.z);
+        if can_write {
             in_chunk_candidates += 1;
         }
         let Some(current) = block_cache.block_state_name(pos.x, pos.y, pos.z) else {
             continue;
         };
-        if !in_target_chunk {
+        if !can_write {
             // Java runs the whole ore feature in a WorldGenRegion. Even when
             // this chunk-local path drops the write, buried ores must still
             // consume their air-exposure roll so later origins keep parity.
@@ -56163,6 +56699,266 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "diagnostic for tree trunks with missing or unsupported bottom logs"]
+    fn normal_overworld_tree_root_support_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+        let fixture_chunks = fixture
+            .get("chunks")
+            .and_then(serde_json::Value::as_array)
+            .expect("fixture should include chunks");
+
+        let preset = super::resolve_world_preset("normal").expect("normal preset should resolve");
+        let super::ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } = &preset.overworld.generator
+        else {
+            panic!("normal overworld should use a noise generator");
+        };
+
+        let mut generated_chunks = Vec::new();
+        for fixture_chunk in fixture_chunks {
+            let pos = ChunkPos {
+                x: fixture_chunk
+                    .get("chunkX")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkX") as i32,
+                z: fixture_chunk
+                    .get("chunkZ")
+                    .and_then(serde_json::Value::as_i64)
+                    .expect("fixture chunk should include chunkZ") as i32,
+            };
+            let (base, _, _) = super::generate_real_surface_base_chunk(
+                pos,
+                biome_source_model,
+                noise_settings,
+                seed,
+            )
+            .expect("real-surface base generation should succeed");
+            let mut chunk = base;
+            super::apply_configured_carvers_for_biome_source(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+            );
+            super::apply_mineshaft_underground_structures_to_chunk(&mut chunk, seed);
+            super::apply_underground_ore_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+            );
+            super::apply_initial_tree_decoration_to_chunk(
+                &mut chunk,
+                biome_source_model,
+                noise_settings,
+                seed,
+                None,
+                None,
+                None,
+            );
+            generated_chunks.push(chunk);
+        }
+
+        let mut unsupported_generated_logs = Vec::new();
+        let mut missing_expected_base_logs = Vec::new();
+        for (chunk_index, fixture_chunk) in fixture_chunks.iter().enumerate() {
+            let chunk_x = fixture_chunk
+                .get("chunkX")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkX") as i32;
+            let chunk_z = fixture_chunk
+                .get("chunkZ")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include chunkZ") as i32;
+            let y_min = fixture_chunk
+                .get("yMin")
+                .and_then(serde_json::Value::as_i64)
+                .expect("fixture chunk should include yMin") as i32;
+            let blocks = fixture_chunk
+                .get("blocks")
+                .and_then(serde_json::Value::as_array)
+                .expect("fixture chunk should include blocks");
+            let generated = &generated_chunks[chunk_index];
+
+            for (local_x, y_column) in blocks.iter().enumerate() {
+                let y_column = y_column.as_array().expect("x column should be an array");
+                for (y_offset, z_column) in y_column.iter().enumerate() {
+                    let world_y = y_min + y_offset as i32;
+                    let z_column = z_column.as_array().expect("z column should be an array");
+                    for (local_z, expected) in z_column.iter().enumerate() {
+                        let world_x = chunk_x * 16 + local_x as i32;
+                        let world_z = chunk_z * 16 + local_z as i32;
+                        let expected = expected
+                            .as_str()
+                            .expect("fixture block should be a string")
+                            .split_once('[')
+                            .map_or_else(|| expected.as_str().unwrap(), |(id, _)| id);
+                        let actual = generated
+                            .get_block_state(world_x, world_y, world_z)
+                            .unwrap_or_else(|| "minecraft:air".to_string());
+                        if super::block_matches_tag(&actual, "minecraft:logs") {
+                            let below = generated
+                                .get_block_state(world_x, world_y - 1, world_z)
+                                .unwrap_or_else(|| "minecraft:air".to_string());
+                            let vertical_below = generated
+                                .get_block_state(world_x, world_y - 1, world_z)
+                                .is_some_and(|below| {
+                                    super::block_matches_tag(&below, "minecraft:logs")
+                                });
+                            if !vertical_below
+                                && !super::block_blocks_motion(&below)
+                                && unsupported_generated_logs.len() < 16
+                            {
+                                unsupported_generated_logs.push((world_x, world_y, world_z, below));
+                            }
+                        }
+                        if super::block_matches_tag(expected, "minecraft:logs")
+                            && actual == "minecraft:air"
+                        {
+                            let above = generated
+                                .get_block_state(world_x, world_y + 1, world_z)
+                                .unwrap_or_else(|| "minecraft:air".to_string());
+                            if super::block_matches_tag(&above, "minecraft:logs")
+                                && missing_expected_base_logs.len() < 16
+                            {
+                                missing_expected_base_logs.push((
+                                    world_x,
+                                    world_y,
+                                    world_z,
+                                    expected.to_string(),
+                                    above,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eprintln!(
+            "[tree-root-support] unsupported_generated_logs={} examples={:?}",
+            unsupported_generated_logs.len(),
+            unsupported_generated_logs
+        );
+        eprintln!(
+            "[tree-root-support] missing_expected_base_logs={} examples={:?}",
+            missing_expected_base_logs.len(),
+            missing_expected_base_logs
+        );
+    }
+
+    #[test]
+    #[ignore = "diagnostic for unsupported tree logs in region-generated chunks"]
+    fn normal_overworld_region_tree_root_support_diagnostic() {
+        let fixture_json =
+            include_str!("../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(fixture_json).expect("vanilla fixture should parse");
+        let seed = fixture
+            .get("seed")
+            .and_then(serde_json::Value::as_str)
+            .expect("vanilla fixture should include a seed")
+            .parse::<i64>()
+            .expect("vanilla fixture seed should parse");
+
+        let center = ChunkPos {
+            x: std::env::var("RUSTCRAFT_TREE_ROOT_DIAG_CENTER_X")
+                .ok()
+                .and_then(|value| value.parse::<i32>().ok())
+                .unwrap_or(0),
+            z: std::env::var("RUSTCRAFT_TREE_ROOT_DIAG_CENTER_Z")
+                .ok()
+                .and_then(|value| value.parse::<i32>().ok())
+                .unwrap_or(0),
+        };
+        let radius = std::env::var("RUSTCRAFT_TREE_ROOT_DIAG_RADIUS")
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(2);
+        let chunks = super::generate_overworld_spawn_chunk_region_for_preset_with_mode(
+            center,
+            radius,
+            "normal",
+            super::LiveChunkGenerationMode::RealSurface,
+            seed,
+            false,
+        )
+        .expect("region generation should succeed");
+
+        let mut unsupported_logs = Vec::new();
+        let mut floating_trunks = Vec::new();
+        for (chunk_pos, chunk) in &chunks {
+            let min_y = chunk.min_section_y * 16;
+            let max_y = min_y + chunk.sections.len() as i32 * 16;
+            for local_z in 0..16 {
+                for local_x in 0..16 {
+                    let world_x = chunk_pos.x * 16 + local_x;
+                    let world_z = chunk_pos.z * 16 + local_z;
+                    for world_y in min_y..max_y {
+                        let Some(state) = chunk.get_block_state(world_x, world_y, world_z) else {
+                            continue;
+                        };
+                        if !super::block_matches_tag(&state, "minecraft:logs") {
+                            continue;
+                        }
+                        let below = chunks
+                            .get(&ChunkPos {
+                                x: world_x.div_euclid(16),
+                                z: world_z.div_euclid(16),
+                            })
+                            .and_then(|below_chunk| {
+                                below_chunk.get_block_state(world_x, world_y - 1, world_z)
+                            })
+                            .unwrap_or_else(|| "minecraft:air".to_string());
+                        let below_is_log = super::block_matches_tag(&below, "minecraft:logs");
+                        if !below_is_log && !super::block_blocks_motion(&below) {
+                            if unsupported_logs.len() < 24 {
+                                unsupported_logs.push((world_x, world_y, world_z, state, below));
+                            }
+                            let above = chunk
+                                .get_block_state(world_x, world_y + 1, world_z)
+                                .unwrap_or_else(|| "minecraft:air".to_string());
+                            if super::block_matches_tag(&above, "minecraft:logs")
+                                && floating_trunks.len() < 24
+                            {
+                                floating_trunks.push((world_x, world_y, world_z, above));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eprintln!(
+            "[region-tree-root-support] center=({}, {}) radius={} chunks={} unsupported_logs={} examples={:?}",
+            center.x,
+            center.z,
+            radius,
+            chunks.len(),
+            unsupported_logs.len(),
+            unsupported_logs
+        );
+        eprintln!(
+            "[region-tree-root-support] floating_trunks={} examples={:?}",
+            floating_trunks.len(),
+            floating_trunks
+        );
+    }
+
+    #[test]
     #[ignore = "diagnostic for surface/water column mismatches against the vanilla fixture"]
     fn normal_overworld_surface_water_column_diagnostic() {
         let fixture_json =
@@ -58034,6 +58830,86 @@ mod tests {
             predicate,
             BlockPos { x: 2, y: 1, z: 1 },
         ));
+    }
+
+    #[test]
+    fn simple_vegetation_region_predicates_and_writes_cross_chunk_edges() {
+        let settings = super::builtin_noise_generator_settings("minecraft:overworld")
+            .expect("overworld noise settings should exist");
+        let mut chunks = BTreeMap::new();
+        let source_pos = ChunkPos { x: 0, z: 0 };
+        let target_pos = ChunkPos { x: 1, z: 0 };
+        chunks.insert(source_pos, LevelChunk::empty(source_pos));
+
+        let mut target = LevelChunk::empty(target_pos);
+        target.min_section_y = 0;
+        let mut block_states =
+            PalettedContainer::single(super::block_state_tag("minecraft:air"), SECTION_VOLUME);
+        block_states.set_entry(0, super::block_state_tag("minecraft:grass_block"));
+        target.sections.push(ChunkSection {
+            y: 0,
+            block_states: block_states.to_nbt(),
+            biomes: PalettedContainer::single(
+                Tag::String("minecraft:forest".to_string()),
+                BIOME_SECTION_VOLUME,
+            )
+            .to_nbt(),
+            block_light: None,
+            sky_light: None,
+        });
+        chunks.insert(target_pos, target);
+
+        let predicate = BlockPredicate::AllOf {
+            predicates: &[
+                BlockPredicate::MatchingBlockTag {
+                    tag: "minecraft:air",
+                },
+                BlockPredicate::MatchingBlocksAt {
+                    offset_y: -1,
+                    blocks: &["minecraft:grass_block"],
+                },
+            ],
+        };
+        let edge_position = BlockPos { x: 16, y: 1, z: 0 };
+        assert!(super::block_predicate_test_in_region(
+            &chunks,
+            settings,
+            predicate,
+            edge_position,
+        ));
+
+        let mut random = super::RandomSourceKind::new(1, super::RandomAlgorithm::Xoroshiro);
+        assert_eq!(
+            super::place_configured_simple_vegetation_in_region(
+                &mut chunks,
+                source_pos,
+                settings,
+                "minecraft:grass",
+                edge_position,
+                &mut random,
+            ),
+            1
+        );
+        assert_eq!(
+            chunks
+                .get(&target_pos)
+                .and_then(|chunk| chunk.get_block_state_name(16, 1, 0)),
+            Some("minecraft:short_grass")
+        );
+
+        let far_position = BlockPos { x: 32, y: 1, z: 0 };
+        assert_eq!(
+            super::place_configured_simple_vegetation_in_region(
+                &mut chunks,
+                source_pos,
+                settings,
+                "minecraft:grass",
+                far_position,
+                &mut random,
+            ),
+            0,
+            "WorldGenRegion only permits feature writes within one chunk of the source"
+        );
     }
 
     #[test]
