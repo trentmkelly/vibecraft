@@ -38052,28 +38052,7 @@ fn apply_initial_tree_decoration_to_chunk(
                 let current = chunk
                     .get_block_state_name(world_x, block.pos.y, world_z)
                     .unwrap_or("minecraft:air");
-                let can_replace = match block.kind {
-                    TreePlacementBlockKind::DirtBelowTrunk => {
-                        !block_matches_tag(current, "minecraft:cannot_replace_below_tree_trunk")
-                    }
-                    TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
-                        matches!(
-                            current,
-                            "minecraft:air"
-                                | "minecraft:cave_air"
-                                | "minecraft:void_air"
-                                | "minecraft:water"
-                                | "minecraft:oak_leaves"
-                                | "minecraft:birch_leaves"
-                        ) || block_matches_tag(current, "minecraft:leaves")
-                    }
-                    TreePlacementBlockKind::GroundCover => {
-                        matches!(
-                            current,
-                            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-                        )
-                    }
-                };
+                let can_replace = tree_placement_block_can_replace(block.kind, current);
                 if !can_replace {
                     diagnostics.source_write_filter_ms += started.elapsed().as_millis();
                     continue;
@@ -38235,26 +38214,7 @@ fn apply_initial_tree_decoration_from_source_into_region(
         let current = target_chunk
             .get_block_state_name(world_x, block.pos.y, world_z)
             .unwrap_or("minecraft:air");
-        let can_replace = match block.kind {
-            TreePlacementBlockKind::DirtBelowTrunk => {
-                !block_matches_tag(current, "minecraft:cannot_replace_below_tree_trunk")
-            }
-            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
-                matches!(
-                    current,
-                    "minecraft:air"
-                        | "minecraft:cave_air"
-                        | "minecraft:void_air"
-                        | "minecraft:water"
-                        | "minecraft:oak_leaves"
-                        | "minecraft:birch_leaves"
-                ) || block_matches_tag(current, "minecraft:leaves")
-            }
-            TreePlacementBlockKind::GroundCover => matches!(
-                current,
-                "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-            ),
-        };
+        let can_replace = tree_placement_block_can_replace(block.kind, current);
         if can_replace {
             target_chunk.set_block_state(world_x, block.pos.y, world_z, block.state);
             region_overlay.insert((world_x, block.pos.y, world_z), block.state);
@@ -38266,6 +38226,23 @@ fn apply_initial_tree_decoration_from_source_into_region(
         placed_blocks: placed,
         context_build_ms: 0,
         context_chunks: chunks.len().saturating_sub(1),
+    }
+}
+
+fn tree_placement_block_can_replace(kind: TreePlacementBlockKind, current: &str) -> bool {
+    match kind {
+        TreePlacementBlockKind::DirtBelowTrunk => {
+            !block_matches_tag(current, "minecraft:cannot_replace_below_tree_trunk")
+        }
+        TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
+            tree_valid_pos(current) || block_matches_tag(current, "minecraft:logs")
+        }
+        TreePlacementBlockKind::GroundCover => {
+            matches!(
+                current,
+                "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+            )
+        }
     }
 }
 
@@ -39157,6 +39134,8 @@ struct OreBlockCache {
     ocean_floor_wg: [i32; 16 * 16],
     sections: Vec<OreSectionCache>,
     region_chunks: HashMap<ChunkPos, OreRegionChunkCache>,
+    block_write_center: ChunkPos,
+    block_write_radius: i32,
     read_context: HashMap<ChunkPos, LightweightTreeContextChunk>,
     block_state_entries: HashMap<&'static str, Tag>,
     palette_indices: HashMap<(ChunkPos, i8, &'static str), usize>,
@@ -39191,6 +39170,8 @@ impl OreBlockCache {
             ocean_floor_wg,
             sections: ore_section_caches_from_chunk(chunk),
             region_chunks: HashMap::new(),
+            block_write_center: chunk.pos,
+            block_write_radius: 0,
             read_context: HashMap::new(),
             block_state_entries: HashMap::new(),
             palette_indices: HashMap::new(),
@@ -39215,6 +39196,8 @@ impl OreBlockCache {
     ) -> Option<Self> {
         let center = chunks.get(&center_pos)?;
         let mut cache = Self::from_chunk(center);
+        cache.block_write_center = center_pos;
+        cache.block_write_radius = 1;
         for (pos, chunk) in chunks {
             if *pos == center_pos {
                 continue;
@@ -39328,7 +39311,7 @@ impl OreBlockCache {
         world_z: i32,
         block_name: &'static str,
     ) {
-        if !self.contains_world_xz(world_x, world_z) {
+        if !self.can_write_world_xz(world_x, world_z) {
             return;
         }
         let chunk_pos = ChunkPos {
@@ -39484,6 +39467,20 @@ impl OreBlockCache {
             z: world_z.div_euclid(16),
         };
         chunk_pos == self.chunk_pos || self.region_chunks.contains_key(&chunk_pos)
+    }
+
+    fn can_write_world_xz(&self, world_x: i32, world_z: i32) -> bool {
+        let chunk_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
+        if !self.contains_world_xz(world_x, world_z) {
+            return false;
+        }
+        (chunk_pos.x - self.block_write_center.x)
+            .abs()
+            .max((chunk_pos.z - self.block_write_center.z).abs())
+            <= self.block_write_radius
     }
 }
 
@@ -58016,6 +58013,22 @@ mod tests {
     }
 
     #[test]
+    fn tree_final_write_filter_allows_trunks_to_replace_grass() {
+        assert!(super::tree_placement_block_can_replace(
+            TreePlacementBlockKind::Log,
+            "minecraft:short_grass",
+        ));
+        assert!(super::tree_placement_block_can_replace(
+            TreePlacementBlockKind::Log,
+            "minecraft:tall_grass",
+        ));
+        assert!(!super::tree_placement_block_can_replace(
+            TreePlacementBlockKind::Log,
+            "minecraft:stone",
+        ));
+    }
+
+    #[test]
     fn ore_block_cache_uses_world_coordinates_without_chunk_wrapping() {
         let pos = ChunkPos { x: 2, z: -3 };
         let origin_x = pos.x * 16;
@@ -58075,10 +58088,12 @@ mod tests {
     fn ore_region_cache_reads_and_flushes_neighboring_chunks() {
         let center_pos = ChunkPos { x: 2, z: -3 };
         let west_pos = ChunkPos { x: 1, z: -3 };
+        let far_west_pos = ChunkPos { x: 0, z: -3 };
         let mut chunks = BTreeMap::new();
         for (pos, marker) in [
             (center_pos, "minecraft:stone"),
             (west_pos, "minecraft:dirt"),
+            (far_west_pos, "minecraft:deepslate"),
         ] {
             let mut chunk = LevelChunk::empty(pos);
             chunk.min_section_y = 0;
@@ -58103,6 +58118,7 @@ mod tests {
         let center_min_x = center_pos.x * 16;
         let center_min_z = center_pos.z * 16;
         let west_world_x = center_min_x - 1;
+        let far_west_world_x = center_min_x - 17;
         let world_z = center_min_z + 5;
         let mut block_cache =
             super::OreBlockCache::from_region_chunks(center_pos, &chunks).unwrap();
@@ -58111,7 +58127,12 @@ mod tests {
             block_cache.block_state_name(west_world_x, 1, world_z),
             Some("minecraft:dirt")
         );
+        assert_eq!(
+            block_cache.block_state_name(far_west_world_x, 1, world_z),
+            Some("minecraft:deepslate")
+        );
         block_cache.set_block_state(west_world_x, 1, world_z, "minecraft:gold_ore");
+        block_cache.set_block_state(far_west_world_x, 1, world_z, "minecraft:diamond_ore");
         block_cache.set_block_state(center_min_x + 1, 1, world_z, "minecraft:iron_ore");
         block_cache.flush_to_chunks(&mut chunks);
 
@@ -58120,6 +58141,13 @@ mod tests {
                 .get_block_state(west_world_x, 1, world_z)
                 .as_deref(),
             Some("minecraft:gold_ore")
+        );
+        assert_eq!(
+            chunks[&far_west_pos]
+                .get_block_state(far_west_world_x, 1, world_z)
+                .as_deref(),
+            Some("minecraft:deepslate"),
+            "FEATURES region writes must be rejected outside the source chunk's block-state write radius"
         );
         assert_eq!(
             chunks[&center_pos]
