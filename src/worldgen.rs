@@ -37670,23 +37670,8 @@ fn build_tree_decoration_context_cache(
         }
     }
     let context_started = Instant::now();
-    let region_chunks = with_noise_snapshot_cache(|| {
-        context_positions
-            .iter()
-            .map(|&region_pos| {
-                let terrain_heights =
-                    noise_tree_context_heights_inner(region_pos, settings, seed, noise_router);
-                (
-                    region_pos,
-                    LightweightTreeContextChunk {
-                        terrain_heights,
-                        min_y: settings.noise.min_y,
-                        max_y: settings.noise.min_y + settings.noise.height,
-                    },
-                )
-            })
-            .collect::<Vec<_>>()
-    });
+    let region_chunks =
+        build_lightweight_tree_context_chunks(&context_positions, settings, seed, noise_router);
     let context_chunk_build_ms = context_started.elapsed().as_millis();
     let heightmap_started = Instant::now();
     for (region_pos, region_chunk) in region_chunks {
@@ -37698,6 +37683,105 @@ fn build_tree_decoration_context_cache(
         context_heightmap_ms: heightmap_started.elapsed().as_millis(),
         context_chunks: context_positions.len(),
     }
+}
+
+fn build_lightweight_tree_context_chunks(
+    context_positions: &[ChunkPos],
+    settings: &NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> Vec<(ChunkPos, LightweightTreeContextChunk)> {
+    let build_one = |region_pos: ChunkPos| {
+        let terrain_heights =
+            noise_tree_context_heights_inner(region_pos, settings, seed, noise_router);
+        (
+            region_pos,
+            LightweightTreeContextChunk {
+                terrain_heights,
+                min_y: settings.noise.min_y,
+                max_y: settings.noise.min_y + settings.noise.height,
+            },
+        )
+    };
+
+    if context_positions.len() <= 1 {
+        return with_noise_snapshot_cache(|| {
+            context_positions
+                .iter()
+                .copied()
+                .map(build_one)
+                .collect::<Vec<_>>()
+        });
+    }
+
+    let worker_count = tree_context_worker_count(context_positions.len());
+    if worker_count <= 1 {
+        return with_noise_snapshot_cache(|| {
+            context_positions
+                .iter()
+                .copied()
+                .map(build_one)
+                .collect::<Vec<_>>()
+        });
+    }
+
+    let settings = *settings;
+    std::thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(worker_count);
+        for worker_index in 0..worker_count {
+            let positions = context_positions
+                .iter()
+                .copied()
+                .skip(worker_index)
+                .step_by(worker_count)
+                .collect::<Vec<_>>();
+            handles.push(scope.spawn(move || {
+                with_noise_snapshot_cache(|| {
+                    positions
+                        .into_iter()
+                        .map(|region_pos| {
+                            let terrain_heights = noise_tree_context_heights_inner(
+                                region_pos,
+                                &settings,
+                                seed,
+                                noise_router,
+                            );
+                            (
+                                region_pos,
+                                LightweightTreeContextChunk {
+                                    terrain_heights,
+                                    min_y: settings.noise.min_y,
+                                    max_y: settings.noise.min_y + settings.noise.height,
+                                },
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+            }));
+        }
+
+        handles
+            .into_iter()
+            .flat_map(|handle| {
+                handle
+                    .join()
+                    .expect("tree context worker should not panic")
+                    .into_iter()
+            })
+            .collect::<Vec<_>>()
+    })
+}
+
+fn tree_context_worker_count(context_count: usize) -> usize {
+    let available = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1);
+    let default_workers = available.min(4).min(context_count).max(1);
+    std::env::var("RUSTCRAFT_WORLDGEN_TREE_CONTEXT_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .map(|requested| requested.clamp(1, context_count.max(1)))
+        .unwrap_or(default_workers)
 }
 
 fn tree_decoration_source_radius() -> i32 {
