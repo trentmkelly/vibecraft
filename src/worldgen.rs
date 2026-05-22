@@ -5789,6 +5789,15 @@ fn live_tree_decoration_blocks(
             };
             if let LiveTreeFeatureSelection::Fallen(config) = selection {
                 diagnostics.tree_candidates += 1;
+                if !live_tree_sapling_survives_at(
+                    chunk_pos,
+                    block_context,
+                    &blocks,
+                    origin,
+                    live_tree_sapling_for_trunk_provider(&config.trunk_provider),
+                ) {
+                    continue;
+                }
                 let started = Instant::now();
                 let Some(plan) = live_fallen_tree_placement_plan(
                     chunk_pos,
@@ -5846,6 +5855,15 @@ fn live_tree_decoration_blocks(
             let LiveTreeFeatureSelection::Tree(tree_config) = selection else {
                 unreachable!("fallen tree selections are handled above");
             };
+            if !live_tree_sapling_survives_at(
+                chunk_pos,
+                block_context,
+                &blocks,
+                origin,
+                live_tree_sapling_for_tree_config(tree_config),
+            ) {
+                continue;
+            }
             let rand_a = feature_random_next_i32_bound(&mut random, tree_config.rand_a_bound);
             let rand_b = feature_random_next_i32_bound(&mut random, tree_config.rand_b_bound);
             let prior_log_collision = if let Some(accepted_log_positions) = &accepted_log_positions
@@ -6573,6 +6591,52 @@ fn live_tree_selector_trace(feature: &str, mut random: RandomSourceKind) -> Opti
         }
         _ => None,
     }
+}
+
+fn live_tree_sapling_for_tree_config(config: LiveTreeFeatureConfig) -> &'static str {
+    match config.trunk_state {
+        "minecraft:birch_log" => "minecraft:birch_sapling",
+        "minecraft:spruce_log" => "minecraft:spruce_sapling",
+        "minecraft:jungle_log" => "minecraft:jungle_sapling",
+        "minecraft:acacia_log" => "minecraft:acacia_sapling",
+        "minecraft:dark_oak_log" => "minecraft:dark_oak_sapling",
+        _ => "minecraft:oak_sapling",
+    }
+}
+
+fn live_tree_sapling_for_trunk_provider(provider: &BlockStateProviderModel) -> &'static str {
+    match block_state_provider_sample(provider, 0).unwrap_or("minecraft:oak_log") {
+        "minecraft:birch_log" => "minecraft:birch_sapling",
+        "minecraft:spruce_log" => "minecraft:spruce_sapling",
+        "minecraft:jungle_log" => "minecraft:jungle_sapling",
+        "minecraft:acacia_log" => "minecraft:acacia_sapling",
+        "minecraft:dark_oak_log" => "minecraft:dark_oak_sapling",
+        _ => "minecraft:oak_sapling",
+    }
+}
+
+fn live_tree_sapling_survives_at(
+    source_pos: ChunkPos,
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    origin: BlockPos,
+    _sapling_state: &'static str,
+) -> bool {
+    let below = local_tree_block_to_world(
+        source_pos,
+        BlockPos {
+            x: origin.x,
+            y: origin.y - 1,
+            z: origin.z,
+        },
+    );
+    let below_state = live_tree_state_with_previous_blocks(
+        source_pos,
+        block_context,
+        previous_source_blocks,
+        below,
+    );
+    block_matches_tag(&below_state, "minecraft:supports_vegetation")
 }
 
 fn live_fallen_oak_tree_config() -> FallenTreeConfigurationModel {
@@ -26866,6 +26930,26 @@ fn block_matches_tag(block: &str, tag: &str) -> bool {
                         | "minecraft:tall_dry_grass"
                 )
         }
+        "dirt" => matches!(
+            block,
+            "minecraft:dirt" | "minecraft:coarse_dirt" | "minecraft:rooted_dirt"
+        ),
+        "grass_blocks" => matches!(
+            block,
+            "minecraft:grass_block" | "minecraft:podzol" | "minecraft:mycelium"
+        ),
+        "mud" => matches!(block, "minecraft:mud" | "minecraft:muddy_mangrove_roots"),
+        "moss_blocks" => matches!(block, "minecraft:moss_block" | "minecraft:pale_moss_block"),
+        "substrate_overworld" => {
+            block_matches_tag(block, "minecraft:dirt")
+                || block_matches_tag(block, "minecraft:mud")
+                || block_matches_tag(block, "minecraft:moss_blocks")
+                || block_matches_tag(block, "minecraft:grass_blocks")
+        }
+        "supports_vegetation" => {
+            block_matches_tag(block, "minecraft:substrate_overworld")
+                || block == "minecraft:farmland"
+        }
         "replaceable" => {
             block == "minecraft:air"
                 || block == "minecraft:cave_air"
@@ -37067,6 +37151,8 @@ impl LightweightTreeContextChunk {
             "minecraft:air"
         } else if world_y >= ocean_floor {
             "minecraft:water"
+        } else if world_y == ocean_floor - 1 && world_surface <= ocean_floor {
+            "minecraft:grass_block"
         } else {
             "minecraft:stone"
         }
@@ -53734,6 +53820,35 @@ mod tests {
                 (sample.terrain_height_a - sample.terrain_height_b).abs()
             );
         }
+    }
+
+    #[test]
+    fn lightweight_tree_context_exposes_dry_surface_as_vegetation_support() {
+        let mut heights = super::TreeDecorationHeights {
+            ocean_floor: [64; 16 * 16],
+            world_surface: [64; 16 * 16],
+            motion_blocking: [64; 16 * 16],
+            motion_blocking_no_leaves: [64; 16 * 16],
+        };
+        let wet_column_index = 16;
+        heights.ocean_floor[wet_column_index] = 62;
+        heights.world_surface[wet_column_index] = 64;
+        heights.motion_blocking[wet_column_index] = 64;
+        heights.motion_blocking_no_leaves[wet_column_index] = 62;
+
+        let chunk = super::LightweightTreeContextChunk {
+            terrain_heights: heights,
+            min_y: -64,
+            max_y: 320,
+        };
+
+        assert_eq!(
+            chunk.synthetic_block_state(0, 63, 0),
+            "minecraft:grass_block"
+        );
+        assert_eq!(chunk.synthetic_block_state(0, 62, 0), "minecraft:stone");
+        assert_eq!(chunk.synthetic_block_state(0, 63, 1), "minecraft:water");
+        assert_eq!(chunk.synthetic_block_state(0, 61, 1), "minecraft:stone");
     }
 
     #[test]
