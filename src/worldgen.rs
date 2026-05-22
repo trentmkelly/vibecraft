@@ -33762,6 +33762,9 @@ struct SurfaceRulesContext {
     seed: i64,
     algorithm: RandomAlgorithm,
     heights: WorldGenerationHeightContext,
+    last_update_xz: u64,
+    last_update_y: u64,
+    condition_cache: RefCell<HashMap<usize, SurfaceConditionCacheEntry>>,
     // Per column (XZ) — set once per column
     block_x: i32,
     block_z: i32,
@@ -33779,6 +33782,12 @@ struct SurfaceRulesContext {
     temperature: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SurfaceConditionCacheEntry {
+    update_key: u64,
+    result: bool,
+}
+
 #[cfg(test)]
 type BuildSurfaceColumnState = SurfaceRulesContext;
 
@@ -33788,6 +33797,9 @@ impl SurfaceRulesContext {
             seed,
             algorithm,
             heights,
+            last_update_xz: 0,
+            last_update_y: 0,
+            condition_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             block_x: 0,
             block_z: 0,
             surface_depth: 0,
@@ -33817,6 +33829,8 @@ impl SurfaceRulesContext {
         biome: &'static str,
         temperature: f32,
     ) {
+        self.last_update_xz = self.last_update_xz.wrapping_add(1);
+        self.last_update_y = self.last_update_y.wrapping_add(1);
         self.block_x = block_x;
         self.block_z = block_z;
         self.surface_depth = surface_depth;
@@ -33835,6 +33849,7 @@ impl SurfaceRulesContext {
         water_height: i32,
         block_y: i32,
     ) {
+        self.last_update_y = self.last_update_y.wrapping_add(1);
         self.block_y = block_y;
         self.water_height = water_height;
         self.stone_depth_above = stone_depth_above;
@@ -33842,10 +33857,57 @@ impl SurfaceRulesContext {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum SurfaceConditionCacheGranularity {
+    Xz,
+    Y,
+}
+
+impl DynSurfaceCondition {
+    fn cache_granularity(&self) -> SurfaceConditionCacheGranularity {
+        match self {
+            DynSurfaceCondition::NoiseThreshold { .. }
+            | DynSurfaceCondition::Steep
+            | DynSurfaceCondition::Hole => SurfaceConditionCacheGranularity::Xz,
+            DynSurfaceCondition::Biome(_)
+            | DynSurfaceCondition::VerticalGradient { .. }
+            | DynSurfaceCondition::YAbove { .. }
+            | DynSurfaceCondition::Water { .. }
+            | DynSurfaceCondition::StoneDepth { .. }
+            | DynSurfaceCondition::Not(_)
+            | DynSurfaceCondition::AbovePreliminarySurface
+            | DynSurfaceCondition::Temperature => SurfaceConditionCacheGranularity::Y,
+        }
+    }
+}
+
 /// Test a `DynSurfaceCondition` against the current column/block state.
 ///
 /// Mirrors Java's `SurfaceRules.Condition::test()`.
 fn dyn_surface_condition_test(
+    cond: &DynSurfaceCondition,
+    state: &SurfaceRulesContext,
+    settings: NoiseGeneratorSettings,
+) -> bool {
+    let update_key = match cond.cache_granularity() {
+        SurfaceConditionCacheGranularity::Xz => state.last_update_xz,
+        SurfaceConditionCacheGranularity::Y => state.last_update_y,
+    };
+    let cache_key = cond as *const DynSurfaceCondition as usize;
+    if let Some(entry) = state.condition_cache.borrow().get(&cache_key).copied() {
+        if entry.update_key == update_key {
+            return entry.result;
+        }
+    }
+    let result = dyn_surface_condition_compute(cond, state, settings);
+    state
+        .condition_cache
+        .borrow_mut()
+        .insert(cache_key, SurfaceConditionCacheEntry { update_key, result });
+    result
+}
+
+fn dyn_surface_condition_compute(
     cond: &DynSurfaceCondition,
     state: &SurfaceRulesContext,
     settings: NoiseGeneratorSettings,
@@ -56869,6 +56931,9 @@ mod tests {
             seed: quiet_desert_floor.seed,
             algorithm: quiet_desert_floor.random_algorithm,
             heights,
+            last_update_xz: 1,
+            last_update_y: 1,
+            condition_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             block_x: quiet_desert_floor.x,
             block_z: quiet_desert_floor.z,
             surface_depth: 0,
