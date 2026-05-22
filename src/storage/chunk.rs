@@ -130,6 +130,22 @@ pub struct ChunkGenerationScheduleLayerPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldGenRegionAccessChunk {
+    pub chunk: ChunkPos,
+    pub distance: i32,
+    pub max_read_status: &'static str,
+    pub can_write_blocks: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldGenRegionAccessPlan {
+    pub center: ChunkPos,
+    pub target_status: &'static str,
+    pub block_state_write_radius: i32,
+    pub chunks: Vec<WorldGenRegionAccessChunk>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChunkGenerationRunPlan {
     Waiting {
         waiting_for_index: usize,
@@ -1938,6 +1954,64 @@ pub fn chunk_pyramid_accumulated_dependencies(
 
 pub fn chunk_generation_task_worst_case_radius(target: &str) -> Option<i32> {
     chunk_pyramid_accumulated_radius_of(ChunkPyramidKind::Generation, target, "minecraft:empty")
+}
+
+pub fn worldgen_region_access_plan(
+    kind: ChunkPyramidKind,
+    target: &str,
+    center: ChunkPos,
+) -> Option<WorldGenRegionAccessPlan> {
+    let target = chunk_status(target)?;
+    let direct_dependencies = chunk_pyramid_direct_dependencies(kind, target.id)?;
+    let read_radius = direct_dependencies.len().saturating_sub(1) as i32;
+    let mut chunks = Vec::with_capacity(((read_radius * 2 + 1) * (read_radius * 2 + 1)) as usize);
+    for x in center.x - read_radius..=center.x + read_radius {
+        for z in center.z - read_radius..=center.z + read_radius {
+            let distance = (center.x - x).abs().max((center.z - z).abs());
+            let max_read_status = direct_dependencies
+                .get(distance as usize)
+                .copied()
+                .unwrap_or(target.id);
+            chunks.push(WorldGenRegionAccessChunk {
+                chunk: ChunkPos { x, z },
+                distance,
+                max_read_status,
+                can_write_blocks: distance <= target.block_state_write_radius,
+            });
+        }
+    }
+    Some(WorldGenRegionAccessPlan {
+        center,
+        target_status: target.id,
+        block_state_write_radius: target.block_state_write_radius,
+        chunks,
+    })
+}
+
+pub fn worldgen_region_can_read_status(
+    kind: ChunkPyramidKind,
+    target: &str,
+    center: ChunkPos,
+    chunk: ChunkPos,
+    requested_status: &str,
+) -> Option<bool> {
+    let plan = worldgen_region_access_plan(kind, target, center)?;
+    let entry = plan.chunks.iter().find(|entry| entry.chunk == chunk)?;
+    chunk_status_is_or_before(requested_status, entry.max_read_status)
+}
+
+pub fn worldgen_region_can_write_block(
+    kind: ChunkPyramidKind,
+    target: &str,
+    center: ChunkPos,
+    chunk: ChunkPos,
+) -> Option<bool> {
+    let plan = worldgen_region_access_plan(kind, target, center)?;
+    plan.chunks
+        .iter()
+        .find(|entry| entry.chunk == chunk)
+        .map(|entry| entry.can_write_blocks)
+        .or(Some(false))
 }
 
 pub fn chunk_generation_task_layer_radius(
@@ -4197,6 +4271,77 @@ mod tests {
         assert_eq!(
             super::chunk_generation_task_worst_case_radius("unknown"),
             None
+        );
+    }
+
+    #[test]
+    fn worldgen_region_access_plan_matches_java_features_step_contract() {
+        let center = ChunkPos { x: 4, z: -7 };
+        let plan =
+            super::worldgen_region_access_plan(ChunkPyramidKind::Generation, "features", center)
+                .expect("features access plan should exist");
+
+        assert_eq!(plan.target_status, "minecraft:features");
+        assert_eq!(plan.block_state_write_radius, 1);
+        assert_eq!(plan.chunks.len(), 17 * 17);
+
+        let center_entry = plan
+            .chunks
+            .iter()
+            .find(|entry| entry.chunk == center)
+            .expect("center chunk should be in access plan");
+        assert_eq!(center_entry.max_read_status, "minecraft:carvers");
+        assert!(center_entry.can_write_blocks);
+
+        let carver_neighbor = plan
+            .chunks
+            .iter()
+            .find(|entry| entry.chunk == (ChunkPos { x: 5, z: -7 }))
+            .expect("distance-1 chunk should be in access plan");
+        assert_eq!(carver_neighbor.distance, 1);
+        assert_eq!(carver_neighbor.max_read_status, "minecraft:carvers");
+        assert!(carver_neighbor.can_write_blocks);
+
+        let far_structure_chunk = plan
+            .chunks
+            .iter()
+            .find(|entry| entry.chunk == (ChunkPos { x: 12, z: -7 }))
+            .expect("distance-8 chunk should be in access plan");
+        assert_eq!(far_structure_chunk.distance, 8);
+        assert_eq!(
+            far_structure_chunk.max_read_status,
+            "minecraft:structure_starts"
+        );
+        assert!(!far_structure_chunk.can_write_blocks);
+
+        assert_eq!(
+            super::worldgen_region_can_read_status(
+                ChunkPyramidKind::Generation,
+                "features",
+                center,
+                ChunkPos { x: 5, z: -7 },
+                "minecraft:carvers",
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            super::worldgen_region_can_read_status(
+                ChunkPyramidKind::Generation,
+                "features",
+                center,
+                ChunkPos { x: 12, z: -7 },
+                "minecraft:carvers",
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            super::worldgen_region_can_write_block(
+                ChunkPyramidKind::Generation,
+                "features",
+                center,
+                ChunkPos { x: 6, z: -7 },
+            ),
+            Some(false)
         );
     }
 

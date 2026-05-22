@@ -41255,7 +41255,7 @@ fn sample_float_provider(provider: FloatProvider, random: &mut LegacyRandom) -> 
 }
 
 fn carver_static_block_name(block: &str) -> Option<&'static str> {
-    match block {
+    match block_state_id(block) {
         "minecraft:stone" => Some("minecraft:stone"),
         "minecraft:granite" => Some("minecraft:granite"),
         "minecraft:diorite" => Some("minecraft:diorite"),
@@ -41288,6 +41288,30 @@ fn carver_static_block_name(block: &str) -> Option<&'static str> {
         "minecraft:warped_nylium" => Some("minecraft:warped_nylium"),
         "minecraft:nether_wart_block" => Some("minecraft:nether_wart_block"),
         "minecraft:warped_wart_block" => Some("minecraft:warped_wart_block"),
+        "minecraft:oak_log" => Some("minecraft:oak_log"),
+        "minecraft:spruce_log" => Some("minecraft:spruce_log"),
+        "minecraft:birch_log" => Some("minecraft:birch_log"),
+        "minecraft:jungle_log" => Some("minecraft:jungle_log"),
+        "minecraft:acacia_log" => Some("minecraft:acacia_log"),
+        "minecraft:dark_oak_log" => Some("minecraft:dark_oak_log"),
+        "minecraft:mangrove_log" => Some("minecraft:mangrove_log"),
+        "minecraft:cherry_log" => Some("minecraft:cherry_log"),
+        "minecraft:pale_oak_log" => Some("minecraft:pale_oak_log"),
+        "minecraft:oak_leaves" => Some("minecraft:oak_leaves"),
+        "minecraft:spruce_leaves" => Some("minecraft:spruce_leaves"),
+        "minecraft:birch_leaves" => Some("minecraft:birch_leaves"),
+        "minecraft:jungle_leaves" => Some("minecraft:jungle_leaves"),
+        "minecraft:acacia_leaves" => Some("minecraft:acacia_leaves"),
+        "minecraft:dark_oak_leaves" => Some("minecraft:dark_oak_leaves"),
+        "minecraft:mangrove_leaves" => Some("minecraft:mangrove_leaves"),
+        "minecraft:cherry_leaves" => Some("minecraft:cherry_leaves"),
+        "minecraft:pale_oak_leaves" => Some("minecraft:pale_oak_leaves"),
+        "minecraft:short_grass" => Some("minecraft:short_grass"),
+        "minecraft:tall_grass" => Some("minecraft:tall_grass"),
+        "minecraft:fern" => Some("minecraft:fern"),
+        "minecraft:large_fern" => Some("minecraft:large_fern"),
+        "minecraft:bush" => Some("minecraft:bush"),
+        "minecraft:leaf_litter" => Some("minecraft:leaf_litter"),
         _ => None,
     }
 }
@@ -57974,6 +57998,21 @@ mod tests {
             chunk.get_block_state_name(1, 2, 0),
             Some("minecraft:sunflower")
         );
+    }
+
+    #[test]
+    fn simple_vegetation_air_filter_rejects_property_bearing_tree_logs() {
+        let log = super::carver_static_block_name("minecraft:oak_log[axis=y]")
+            .expect("tree logs with properties should normalize for placement predicates");
+        let context = super::block_predicate_context_for_state(log, -64, 384);
+
+        assert!(!super::block_predicate_test(
+            super::BlockPredicate::MatchingBlockTag {
+                tag: "minecraft:air"
+            },
+            context,
+            64,
+        ));
     }
 
     #[test]
