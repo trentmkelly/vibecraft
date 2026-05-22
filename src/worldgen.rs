@@ -8041,6 +8041,24 @@ fn apply_initial_leaf_litter_decoration_to_chunk(
     placed
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SimpleVegetationPhase {
+    BeforeTrees,
+    AfterTrees,
+}
+
+fn simple_vegetation_phase(feature: &str) -> SimpleVegetationPhase {
+    match feature.strip_prefix("minecraft:").unwrap_or(feature) {
+        // In forest-like vanilla biome JSON these flower patches are ordered
+        // before the tree placed feature in the vegetal-decoration step, so
+        // they must be visible to tree validation and tree decorators.
+        "forest_flowers" | "flower_forest_flowers" | "wildflowers_birch_forest" => {
+            SimpleVegetationPhase::BeforeTrees
+        }
+        _ => SimpleVegetationPhase::AfterTrees,
+    }
+}
+
 fn apply_initial_simple_vegetation_decoration_to_chunk(
     chunk: &mut LevelChunk,
     biome_source_model: &BiomeSourceModel,
@@ -8049,6 +8067,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
     decoration_region_biome_steps: &[&'static [&'static [&'static str]]],
     target_terrain_heights: &TreeDecorationHeights,
     context_cache: &TreeDecorationContextCache,
+    phase: SimpleVegetationPhase,
 ) -> usize {
     let total_started = Instant::now();
     if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
@@ -8111,6 +8130,7 @@ fn apply_initial_simple_vegetation_decoration_to_chunk(
             for call in plan.feature_calls.iter().filter(|call| {
                 call.step_index == GenerationDecorationStep::VegetalDecoration as usize
                     && placed_simple_vegetation_feature(call.feature).is_some()
+                    && simple_vegetation_phase(call.feature) == phase
             }) {
                 let Some(feature) = placed_simple_vegetation_feature(call.feature) else {
                     continue;
@@ -37773,6 +37793,16 @@ fn apply_initial_tree_decoration_to_chunk(
     let target_pos = chunk.pos;
     let terrain_heights = &*target_terrain_heights
         .get_or_insert_with(|| tree_decoration_terrain_heights(chunk, settings));
+    placed += apply_initial_simple_vegetation_decoration_to_chunk(
+        chunk,
+        biome_source_model,
+        settings,
+        seed,
+        &region_biome_steps,
+        terrain_heights,
+        &context_cache,
+        SimpleVegetationPhase::BeforeTrees,
+    );
     let mut generated_chunks = HashMap::new();
     for (pos, cached) in &context_cache.cached_region_chunks {
         generated_chunks.insert(*pos, TreeContextChunkRef::Lightweight(cached));
@@ -37907,17 +37937,20 @@ fn apply_initial_tree_decoration_to_chunk(
         );
     }
 
-    let terrain_heights =
-        target_terrain_heights.unwrap_or_else(|| tree_decoration_terrain_heights(chunk, settings));
+    let terrain_heights = &*target_terrain_heights
+        .get_or_insert_with(|| tree_decoration_terrain_heights(chunk, settings));
     placed += apply_initial_simple_vegetation_decoration_to_chunk(
         chunk,
         biome_source_model,
         settings,
         seed,
         &region_biome_steps,
-        &terrain_heights,
+        terrain_heights,
         &context_cache,
+        SimpleVegetationPhase::AfterTrees,
     );
+    let terrain_heights =
+        target_terrain_heights.unwrap_or_else(|| tree_decoration_terrain_heights(chunk, settings));
     placed += apply_initial_leaf_litter_decoration_to_chunk(
         chunk,
         biome_source_model,
@@ -56786,6 +56819,25 @@ mod tests {
             .expect("flower_plains should have a simple vegetation model");
         assert_eq!(flower.configured_feature, "minecraft:flower_plain");
         assert!(super::placed_simple_vegetation_feature("trees_plains").is_none());
+    }
+
+    #[test]
+    fn simple_vegetation_phase_matches_vanilla_forest_feature_order() {
+        assert_eq!(
+            super::simple_vegetation_phase("minecraft:forest_flowers"),
+            super::SimpleVegetationPhase::BeforeTrees,
+            "forest.json lists forest_flowers before trees_birch_and_oak_leaf_litter"
+        );
+        assert_eq!(
+            super::simple_vegetation_phase("minecraft:patch_bush"),
+            super::SimpleVegetationPhase::AfterTrees,
+            "forest.json lists patch_bush after trees_birch_and_oak_leaf_litter"
+        );
+        assert_eq!(
+            super::simple_vegetation_phase("minecraft:flower_default"),
+            super::SimpleVegetationPhase::AfterTrees,
+            "forest.json lists flower_default after tree placement"
+        );
     }
 
     #[test]
