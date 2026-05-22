@@ -6883,7 +6883,7 @@ fn live_tree_placement_plan(
         },
     };
     if !matches!(trunk.kind, TrunkPlacerKind::Fancy) {
-        return live_straight_blob_tree_placement_plan(
+        let mut plan = live_straight_blob_tree_placement_plan(
             origin,
             trunk,
             config.foliage,
@@ -6893,7 +6893,9 @@ fn live_tree_placement_plan(
             rand_a,
             rand_b,
             random,
-        );
+        )?;
+        filter_live_tree_feature_blocks_like_java(block_context, previous_source_blocks, &mut plan);
+        return Ok(plan);
     }
 
     let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
@@ -6934,7 +6936,36 @@ fn live_tree_placement_plan(
             );
         }
     }
-    Ok(TreePlacementPlan { blocks })
+    let mut plan = TreePlacementPlan { blocks };
+    filter_live_tree_feature_blocks_like_java(block_context, previous_source_blocks, &mut plan);
+    Ok(plan)
+}
+
+fn filter_live_tree_feature_blocks_like_java(
+    block_context: &TreeDecorationBlockContext<'_>,
+    previous_source_blocks: &[TreePlacementBlock],
+    plan: &mut TreePlacementPlan,
+) {
+    let mut accepted = Vec::with_capacity(plan.blocks.len());
+    for block in plan.blocks.iter().copied() {
+        let can_place = match block.kind {
+            TreePlacementBlockKind::DirtBelowTrunk | TreePlacementBlockKind::GroundCover => true,
+            TreePlacementBlockKind::Log | TreePlacementBlockKind::Leaves => {
+                let state = live_tree_state_with_planned_blocks(
+                    block_context.source_pos,
+                    block_context,
+                    previous_source_blocks,
+                    &accepted,
+                    block.pos,
+                );
+                tree_valid_pos(&state)
+            }
+        };
+        if can_place {
+            accepted.push(block);
+        }
+    }
+    plan.blocks = accepted;
 }
 
 fn append_live_tree_decorators(
