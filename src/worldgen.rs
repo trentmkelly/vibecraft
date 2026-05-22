@@ -36359,8 +36359,6 @@ fn noise_tree_context_heights_inner(
             factories.aquifer,
         )
     });
-    let material_rules = NoiseMaterialRuleList::new(settings, factories.ore);
-    let mut timings = LiveTerrainTimings::default();
     let mut ocean_floor = [min_y; 16 * 16];
     let mut world_surface = [min_y; 16 * 16];
     let mut motion_blocking = [min_y; 16 * 16];
@@ -36394,7 +36392,7 @@ fn noise_tree_context_heights_inner(
                                 continue;
                             }
                             let density = noise_chunk.interpolated_density(pos_x, pos_y, pos_z);
-                            let block = material_rules.calculate(
+                            let block_kind = noise_context_heightmap_block_kind(
                                 aquifer.as_mut(),
                                 &noise_chunk,
                                 settings,
@@ -36402,10 +36400,8 @@ fn noise_tree_context_heights_inner(
                                 pos_y,
                                 pos_z,
                                 density,
-                                &mut timings,
-                                false,
                             );
-                            if block == "minecraft:air" {
+                            if block_kind == NoiseHeightmapBlockKind::Air {
                                 continue;
                             }
                             if !found_world_surface[index] {
@@ -36415,7 +36411,7 @@ fn noise_tree_context_heights_inner(
                                 found_world_surface[index] = true;
                                 remaining_world_surface -= 1;
                             }
-                            if block != "minecraft:water" && block != "minecraft:lava" {
+                            if block_kind == NoiseHeightmapBlockKind::Solid {
                                 ocean_floor[index] = pos_y + 1;
                                 found_ocean_floor[index] = true;
                                 remaining_ocean_floor -= 1;
@@ -36436,6 +36432,38 @@ fn noise_tree_context_heights_inner(
         world_surface,
         motion_blocking,
         motion_blocking_no_leaves,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NoiseHeightmapBlockKind {
+    Air,
+    Fluid,
+    Solid,
+}
+
+fn noise_context_heightmap_block_kind(
+    aquifer: Option<&mut NoiseBasedAquifer>,
+    noise_chunk: &NoiseChunk,
+    settings: &NoiseGeneratorSettings,
+    x: i32,
+    y: i32,
+    z: i32,
+    density: f64,
+) -> NoiseHeightmapBlockKind {
+    if density > 0.0 {
+        return NoiseHeightmapBlockKind::Solid;
+    }
+
+    let substance = if let Some(aquifer) = aquifer {
+        aquifer.compute_substance(noise_chunk, x, y, z, density)
+    } else {
+        Some(global_fluid_status(y, settings.sea_level, settings.default_fluid).at(y))
+    };
+    match substance {
+        None => NoiseHeightmapBlockKind::Solid,
+        Some("minecraft:water" | "minecraft:lava") => NoiseHeightmapBlockKind::Fluid,
+        Some(_) => NoiseHeightmapBlockKind::Air,
     }
 }
 
