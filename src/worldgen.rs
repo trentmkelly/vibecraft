@@ -38875,6 +38875,7 @@ fn decoration_region_biome_steps_for_chunk(
 struct OreBlockCache {
     chunk_pos: ChunkPos,
     min_section_y: i32,
+    ocean_floor_wg: [i32; 16 * 16],
     sections: Vec<OreSectionCache>,
     read_context: HashMap<ChunkPos, LightweightTreeContextChunk>,
     block_state_entries: HashMap<&'static str, Tag>,
@@ -38891,9 +38892,18 @@ struct OreSectionCache {
 
 impl OreBlockCache {
     fn from_chunk(chunk: &LevelChunk) -> Self {
+        let mut ocean_floor_wg = [chunk.min_section_y * 16; 16 * 16];
+        for z in 0..16 {
+            for x in 0..16 {
+                ocean_floor_wg[z * 16 + x] = chunk
+                    .heightmap_value(HeightmapKind::OceanFloorWg, x, z)
+                    .unwrap_or(chunk.min_section_y * 16);
+            }
+        }
         Self {
             chunk_pos: chunk.pos,
             min_section_y: chunk.min_section_y,
+            ocean_floor_wg,
             sections: ore_section_caches_from_chunk(chunk),
             read_context: HashMap::new(),
             block_state_entries: HashMap::new(),
@@ -38956,6 +38966,24 @@ impl OreBlockCache {
             }
         }
         min_y
+    }
+
+    fn ocean_floor_wg_height(&self, world_x: i32, world_z: i32) -> Option<i32> {
+        let chunk_pos = ChunkPos {
+            x: world_x.div_euclid(16),
+            z: world_z.div_euclid(16),
+        };
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_z * 16 + local_x;
+        if chunk_pos == self.chunk_pos {
+            return self.ocean_floor_wg.get(index).copied();
+        }
+        self.read_context.get(&chunk_pos).map(|chunk| {
+            chunk
+                .terrain_heights
+                .local_height(HeightmapKind::OceanFloorWg, local_x, local_z)
+        })
     }
 
     fn set_block_state(
@@ -39976,7 +40004,7 @@ fn place_configured_ore_in_chunk(
     )];
 
     let started = Instant::now();
-    if !ore_origin_overlaps_ocean_floor_wg(chunk, x_start, y_start, z_start, size_xz) {
+    if !ore_origin_overlaps_ocean_floor_wg(block_cache, x_start, y_start, z_start, size_xz) {
         return OrePlacementReport {
             configured_calls: 1,
             total_us: total_started.elapsed().as_micros(),
@@ -40008,13 +40036,29 @@ fn place_configured_ore_in_chunk(
     let mut in_chunk_candidates = 0;
     let block_started = Instant::now();
     for pos in candidates {
-        if pos.x.div_euclid(16) != chunk.pos.x || pos.z.div_euclid(16) != chunk.pos.z {
+        let in_target_chunk =
+            pos.x.div_euclid(16) == chunk.pos.x && pos.z.div_euclid(16) == chunk.pos.z;
+        if in_target_chunk {
+            in_chunk_candidates += 1;
+        }
+        let Some(current) = block_cache.block_state_name(pos.x, pos.y, pos.z) else {
+            continue;
+        };
+        if !in_target_chunk {
+            // Java runs the whole ore feature in a WorldGenRegion. Even when
+            // this chunk-local path drops the write, buried ores must still
+            // consume their air-exposure roll so later origins keep parity.
+            if config
+                .target_states
+                .iter()
+                .any(|target| rule_test_matches(target.target, current))
+                && config.discard_chance_on_air_exposure > 0.0
+                && config.discard_chance_on_air_exposure < 1.0
+            {
+                let _ = feature_random_next_f32(random);
+            }
             continue;
         }
-        in_chunk_candidates += 1;
-        let current = block_cache
-            .block_state_name(pos.x, pos.y, pos.z)
-            .unwrap_or("minecraft:air");
         let Some(new_block) = config.target_states.iter().find_map(|target| {
             if !rule_test_matches(target.target, current) {
                 return None;
@@ -40058,33 +40102,23 @@ fn place_configured_ore_in_chunk(
 }
 
 fn ore_origin_overlaps_ocean_floor_wg(
-    chunk: &LevelChunk,
+    block_cache: &OreBlockCache,
     x_start: i32,
     y_start: i32,
     z_start: i32,
     size_xz: i32,
 ) -> bool {
-    let mut checked_target_column = false;
     for x in x_start..=x_start + size_xz {
-        if x.div_euclid(16) != chunk.pos.x {
-            continue;
-        }
         for z in z_start..=z_start + size_xz {
-            if z.div_euclid(16) != chunk.pos.z {
-                continue;
-            }
-            checked_target_column = true;
-            let local_x = x.rem_euclid(16) as usize;
-            let local_z = z.rem_euclid(16) as usize;
-            if chunk
-                .heightmap_value(HeightmapKind::OceanFloorWg, local_x, local_z)
+            if block_cache
+                .ocean_floor_wg_height(x, z)
                 .is_some_and(|height| y_start <= height)
             {
                 return true;
             }
         }
     }
-    !checked_target_column
+    false
 }
 
 fn is_adjacent_to_ore_air(block_cache: &OreBlockCache, pos: BlockPos) -> bool {
