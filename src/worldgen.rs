@@ -6213,7 +6213,7 @@ fn live_tree_decoration_blocks(
             };
             diagnostics.tree_candidates += 1;
             let started = Instant::now();
-            if !live_tree_can_place_with_previous_blocks(
+            let Some(clipped_tree_height) = live_tree_clipped_height_with_previous_blocks(
                 block_context,
                 &block_overlay,
                 origin,
@@ -6221,7 +6221,7 @@ fn live_tree_decoration_blocks(
                 rand_a,
                 rand_b,
                 settings,
-            ) {
+            ) else {
                 diagnostics.validation_ms += started.elapsed().as_millis();
                 diagnostics.validation_rejects += 1;
                 if trace_rejects {
@@ -6245,7 +6245,7 @@ fn live_tree_decoration_blocks(
                     );
                 }
                 continue;
-            }
+            };
             diagnostics.validation_ms += started.elapsed().as_millis();
             diagnostics.validation_accepts += 1;
             let started = Instant::now();
@@ -6256,6 +6256,7 @@ fn live_tree_decoration_blocks(
                 tree_config,
                 rand_a,
                 rand_b,
+                clipped_tree_height,
                 &mut random,
             )
             .expect("hard-coded preview tree configuration must validate");
@@ -7209,6 +7210,7 @@ fn live_tree_placement_plan(
     config: LiveTreeFeatureConfig,
     rand_a: i32,
     rand_b: i32,
+    clipped_tree_height: i32,
     random: &mut RandomSourceKind,
 ) -> Result<TreePlacementPlan, String> {
     let trunk = TrunkPlacerModel {
@@ -7225,6 +7227,7 @@ fn live_tree_placement_plan(
         let mut plan = live_straight_blob_tree_placement_plan(
             origin,
             trunk,
+            clipped_tree_height,
             config.foliage,
             config.trunk_state,
             config.leaves_state,
@@ -7237,8 +7240,7 @@ fn live_tree_placement_plan(
         return Ok(plan);
     }
 
-    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
-    let cluster_rolls = (0..fancy_trunk_cluster_roll_count(tree_height))
+    let cluster_rolls = (0..fancy_trunk_cluster_roll_count(clipped_tree_height))
         .map(|_| FancyTrunkClusterRollModel {
             shape_float: feature_random_next_f32(random),
             angle_float: feature_random_next_f32(random),
@@ -7248,7 +7250,7 @@ fn live_tree_placement_plan(
         block_context,
         previous_source_blocks,
         origin,
-        tree_height,
+        clipped_tree_height,
         config.trunk_state,
         "minecraft:dirt",
         &cluster_rolls,
@@ -7670,6 +7672,7 @@ fn live_tree_state_with_previous_overlay<'a>(
 fn live_straight_blob_tree_placement_plan(
     origin: BlockPos,
     trunk: TrunkPlacerModel,
+    clipped_tree_height: i32,
     foliage: FoliagePlacerModel,
     trunk_state: &'static str,
     foliage_state: &'static str,
@@ -7690,12 +7693,11 @@ fn live_straight_blob_tree_placement_plan(
         return Err("live straight tree placement currently requires blob foliage".to_string());
     };
 
-    let tree_height = trunk_placer_height(trunk, rand_a, rand_b);
     let leaf_radius = sample_inclusive_i32(foliage.radius_min, foliage.radius_max, rand_a);
     let foliage_offset = sample_inclusive_i32(foliage.offset_min, foliage.offset_max, rand_b);
     let foliage_origin = BlockPos {
         x: origin.x,
-        y: origin.y + tree_height + foliage_offset,
+        y: origin.y + clipped_tree_height + foliage_offset,
         z: origin.z,
     };
     let mut blocks = Vec::new();
@@ -7711,7 +7713,7 @@ fn live_straight_blob_tree_placement_plan(
             kind: TreePlacementBlockKind::DirtBelowTrunk,
         },
     );
-    for y in 0..tree_height {
+    for y in 0..clipped_tree_height {
         push_tree_block(
             &mut blocks,
             TreePlacementBlock {
@@ -7879,7 +7881,7 @@ fn live_tree_can_place_in_chunk(
             .is_some_and(|min| clipped_tree_height >= min)
 }
 
-fn live_tree_can_place_with_previous_blocks(
+fn live_tree_clipped_height_with_previous_blocks(
     block_context: &TreeDecorationBlockContext<'_>,
     previous_source_blocks: &TreeBlockOverlay,
     origin: BlockPos,
@@ -7887,7 +7889,7 @@ fn live_tree_can_place_with_previous_blocks(
     rand_a: i32,
     rand_b: i32,
     settings: &NoiseGeneratorSettings,
-) -> bool {
+) -> Option<i32> {
     let trunk = TrunkPlacerModel {
         base_height: config.base_height,
         height_rand_a: config.height_rand_a,
@@ -7904,7 +7906,7 @@ fn live_tree_can_place_with_previous_blocks(
     let min_y = origin.y;
     let max_y = origin.y + tree_height + 1;
     if min_y < build_min_y + 1 || max_y > build_max_y + 1 {
-        return false;
+        return None;
     }
 
     let mut clipped_tree_height = tree_height;
@@ -7937,10 +7939,15 @@ fn live_tree_can_place_with_previous_blocks(
         }
     }
 
-    clipped_tree_height >= tree_height
+    if clipped_tree_height >= tree_height
         || config
             .min_clipped_height
             .is_some_and(|min| clipped_tree_height >= min)
+    {
+        Some(clipped_tree_height)
+    } else {
+        None
+    }
 }
 
 fn apply_initial_leaf_litter_decoration_to_chunk(
@@ -54540,6 +54547,7 @@ mod tests {
         let plan = super::live_straight_blob_tree_placement_plan(
             origin,
             trunk,
+            super::trunk_placer_height(trunk, 1, 0),
             FoliagePlacerModel {
                 radius_min: 2,
                 radius_max: 2,
@@ -54581,6 +54589,73 @@ mod tests {
         assert_eq!(
             top_leaf_count, 5,
             "BlobFoliagePlacer top row still consumes corner rolls, but y=0 skips every corner"
+        );
+    }
+
+    #[test]
+    fn live_blob_tree_uses_clipped_height_for_trunk_and_foliage_origin() {
+        let origin = BlockPos { x: 8, y: 64, z: 8 };
+        let trunk = TrunkPlacerModel {
+            base_height: 4,
+            height_rand_a: 2,
+            height_rand_b: 0,
+            kind: TrunkPlacerKind::Straight,
+        };
+        let clipped_tree_height = 3;
+        let mut random = crate::random_source::RandomSourceKind::new(
+            12345,
+            crate::random_source::RandomAlgorithm::Xoroshiro,
+        );
+
+        let plan = super::live_straight_blob_tree_placement_plan(
+            origin,
+            trunk,
+            clipped_tree_height,
+            FoliagePlacerModel {
+                radius_min: 2,
+                radius_max: 2,
+                offset_min: 0,
+                offset_max: 0,
+                kind: FoliagePlacerKind::Blob { height: 3 },
+            },
+            "minecraft:oak_log",
+            "minecraft:oak_leaves",
+            "minecraft:dirt",
+            1,
+            0,
+            &mut random,
+        )
+        .expect("live straight blob tree should plan");
+
+        let trunk_positions = plan
+            .blocks
+            .iter()
+            .filter(|block| block.kind == TreePlacementBlockKind::Log)
+            .map(|block| block.pos)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            trunk_positions,
+            vec![
+                origin,
+                BlockPos {
+                    x: origin.x,
+                    y: origin.y + 1,
+                    z: origin.z,
+                },
+                BlockPos {
+                    x: origin.x,
+                    y: origin.y + 2,
+                    z: origin.z,
+                },
+            ],
+            "Java TreeFeature passes clippedTreeHeight into TrunkPlacer.placeTrunk"
+        );
+        assert!(
+            plan.blocks.iter().any(|block| {
+                block.kind == TreePlacementBlockKind::Leaves
+                    && block.pos.y == origin.y + clipped_tree_height
+            }),
+            "Java TreeFeature passes clippedTreeHeight into FoliagePlacer.createFoliage"
         );
     }
 
