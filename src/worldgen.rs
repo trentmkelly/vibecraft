@@ -6377,6 +6377,7 @@ fn live_birch_tree_config() -> LiveTreeFeatureConfig {
     LiveTreeFeatureConfig {
         trunk_state: "minecraft:birch_log",
         leaves_state: "minecraft:birch_leaves",
+        base_height: 5,
         decorators: LiveTreeDecoratorSet::Bees {
             probability_per_tree: 2_000,
         },
@@ -52746,6 +52747,11 @@ mod tests {
 
     #[test]
     fn live_tree_configs_keep_vanilla_decorator_sets() {
+        assert_eq!(
+            super::live_birch_tree_config().base_height,
+            5,
+            "Java birch/birch_bees_0002 trunk placer uses base_height=5, not oak's base_height=4"
+        );
         assert!(matches!(
             super::live_oak_leaf_litter_tree_config().decorators,
             super::LiveTreeDecoratorSet::BeesAndLeafLitter {
