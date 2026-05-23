@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::inventory::same_item_same_components;
 use crate::item_stack::ItemStack;
-use crate::recipe_system::{CraftingStack, RecipeMap};
+use crate::recipe_system::{CraftingStack, IngredientSpec, RecipeKind, RecipeMap};
 
 pub const INVENTORY_SIZE: usize = 36;
 pub const HOTBAR_SIZE: usize = 9;
@@ -839,6 +839,7 @@ pub struct InventoryMenu {
     crafting: CraftingGrid,
     recipes: RecipeMap,
     unlocked_recipes: BTreeSet<&'static str>,
+    highlighted_recipes: BTreeSet<&'static str>,
     recipe_unlock_events: Vec<&'static str>,
 }
 
@@ -1022,6 +1023,7 @@ impl InventoryMenu {
             crafting: CraftingGrid::two_by_two(),
             recipes,
             unlocked_recipes: BTreeSet::new(),
+            highlighted_recipes: BTreeSet::new(),
             recipe_unlock_events: Vec::new(),
         }
     }
@@ -1073,6 +1075,77 @@ impl InventoryMenu {
         std::mem::take(&mut self.recipe_unlock_events)
     }
 
+    pub fn recipe_book_known_recipes(&self) -> Vec<&'static str> {
+        self.unlocked_recipes.iter().copied().collect()
+    }
+
+    pub fn recipe_book_highlighted_recipes(&self) -> Vec<&'static str> {
+        self.highlighted_recipes.iter().copied().collect()
+    }
+
+    pub fn load_recipe_book(
+        &mut self,
+        known_recipes: impl IntoIterator<Item = &'static str>,
+        highlighted_recipes: impl IntoIterator<Item = &'static str>,
+    ) {
+        self.unlocked_recipes.clear();
+        self.highlighted_recipes.clear();
+        for recipe_id in known_recipes {
+            if self.recipes.by_key(recipe_id).is_some() {
+                self.unlocked_recipes.insert(recipe_id);
+            }
+        }
+        for recipe_id in highlighted_recipes {
+            if self.unlocked_recipes.contains(recipe_id) {
+                self.highlighted_recipes.insert(recipe_id);
+            }
+        }
+    }
+
+    pub fn mark_recipe_seen(&mut self, recipe_id: &str) {
+        self.highlighted_recipes.remove(recipe_id);
+    }
+
+    pub fn place_recipe_from_inventory(&mut self, recipe_id: &str, use_max_items: bool) -> bool {
+        if !self.unlocked_recipes.contains(recipe_id) {
+            return false;
+        }
+        let Some(holder) = self.recipes.by_key(recipe_id) else {
+            return false;
+        };
+        let Some(placement) = crafting_recipe_placement(&holder.recipe, self.crafting.width, self.crafting.height) else {
+            return false;
+        };
+
+        let mut next = self.clone();
+        next.clear_crafting_to_inventory();
+        let amount = if use_max_items {
+            biggest_placeable_craft_count(&next.player, &placement).min(64)
+        } else {
+            1
+        };
+        if amount <= 0 {
+            return false;
+        }
+
+        let mut placed = vec![ItemStack::empty(); placement.len()];
+        for (grid_index, ingredient) in placement.iter().enumerate() {
+            let Some(ingredient) = ingredient else {
+                continue;
+            };
+            let Some((player_slot, item_id)) = find_player_slot_matching(&next.player, ingredient, amount) else {
+                return false;
+            };
+            next.player.remove(player_slot, amount);
+            placed[grid_index] = ItemStack::new(item_id, amount);
+        }
+        for (grid_index, stack) in placed.into_iter().enumerate() {
+            next.crafting.set_input(grid_index, stack, &next.recipes);
+        }
+        *self = next;
+        true
+    }
+
     pub fn get_slot(&self, slot: usize) -> Option<ItemStack> {
         match InventoryMenuSlot::from_vanilla_slot(slot)? {
             InventoryMenuSlot::Result => Some(self.crafting.result().clone()),
@@ -1121,6 +1194,7 @@ impl InventoryMenu {
         }
         self.crafting.consume_inputs_and_refresh(&self.recipes);
         if self.unlocked_recipes.insert(recipe_id) {
+            self.highlighted_recipes.insert(recipe_id);
             self.recipe_unlock_events.push(recipe_id);
         }
         result
@@ -1216,6 +1290,105 @@ impl InventoryMenu {
         let moved = stack.count().min(stack.max_stack_size() as i32);
         self.set_slot(slot, stack.split(moved));
     }
+}
+
+fn crafting_recipe_placement(
+    recipe: &RecipeKind,
+    grid_width: usize,
+    grid_height: usize,
+) -> Option<Vec<Option<IngredientSpec>>> {
+    match recipe {
+        RecipeKind::Shaped {
+            width,
+            height,
+            pattern,
+            ..
+        } => {
+            if *width > grid_width || *height > grid_height {
+                return None;
+            }
+            let mut placement = vec![None; grid_width * grid_height];
+            let x_offset = centered_recipe_offset(grid_width, *width);
+            let y_offset = centered_recipe_offset(grid_height, *height);
+            for y in 0..*height {
+                for x in 0..*width {
+                    placement[(y + y_offset) * grid_width + x + x_offset] =
+                        pattern[y * *width + x].clone();
+                }
+            }
+            Some(placement)
+        }
+        RecipeKind::Shapeless { ingredients, .. } => {
+            if ingredients.len() > grid_width * grid_height {
+                return None;
+            }
+            let mut placement = vec![None; grid_width * grid_height];
+            for (index, ingredient) in ingredients.iter().enumerate() {
+                placement[index] = Some(ingredient.clone());
+            }
+            Some(placement)
+        }
+        _ => None,
+    }
+}
+
+fn centered_recipe_offset(grid_size: usize, recipe_size: usize) -> usize {
+    if (recipe_size as f32) < (grid_size as f32 / 2.0) {
+        ((grid_size as f32 / 2.0) - (recipe_size as f32 / 2.0)).floor() as usize
+    } else {
+        0
+    }
+}
+
+fn biggest_placeable_craft_count(
+    inventory: &PlayerInventory,
+    placement: &[Option<IngredientSpec>],
+) -> i32 {
+    let mut trial = 0;
+    for amount in 1..=64 {
+        if can_satisfy_placement(inventory, placement, amount) {
+            trial = amount;
+        } else {
+            break;
+        }
+    }
+    trial
+}
+
+fn can_satisfy_placement(
+    inventory: &PlayerInventory,
+    placement: &[Option<IngredientSpec>],
+    amount: i32,
+) -> bool {
+    let mut counts: Vec<(&'static str, i32)> = (0..INVENTORY_SIZE)
+        .filter_map(|slot| {
+            let stack = inventory.get(slot);
+            (!stack.is_empty()).then_some((stack.item_id(), stack.count()))
+        })
+        .collect();
+
+    for ingredient in placement.iter().flatten() {
+        let Some((_, count)) = counts
+            .iter_mut()
+            .find(|(item_id, count)| *count >= amount && ingredient.matches(item_id))
+        else {
+            return false;
+        };
+        *count -= amount;
+    }
+    true
+}
+
+fn find_player_slot_matching(
+    inventory: &PlayerInventory,
+    ingredient: &IngredientSpec,
+    amount: i32,
+) -> Option<(usize, &'static str)> {
+    (0..INVENTORY_SIZE).find_map(|slot| {
+        let stack = inventory.get(slot);
+        (!stack.is_empty() && stack.count() >= amount && ingredient.matches(stack.item_id()))
+            .then_some((slot, stack.item_id()))
+    })
 }
 
 fn matching_armor_menu_slot(item_id: &str) -> Option<usize> {

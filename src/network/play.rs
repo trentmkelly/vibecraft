@@ -62,6 +62,7 @@ pub const SERVERBOUND_PLAYER_COMMAND_PACKET_ID: i32 = 42;
 pub const SERVERBOUND_PADDLE_BOAT_PACKET_ID: i32 = 35;
 pub const SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID: i32 = 36;
 pub const SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID: i32 = 37;
+pub const SERVERBOUND_PLACE_RECIPE_PACKET_ID: i32 = 39;
 pub const SERVERBOUND_PLAYER_INPUT_PACKET_ID: i32 = 43;
 pub const SERVERBOUND_PLAYER_LOADED_PACKET_ID: i32 = 44;
 pub const SERVERBOUND_PONG_PACKET_ID: i32 = 45;
@@ -688,6 +689,13 @@ pub struct ServerboundRecipeBookChangeSettingsPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundRecipeBookSeenRecipePacket {
     pub recipe_index: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlaceRecipePacket {
+    pub container_id: i32,
+    pub recipe_index: i32,
+    pub use_max_items: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4486,7 +4494,7 @@ impl SlotDisplayData {
             }
             Self::ItemStack { stack } => {
                 write_var_i32(writer, Self::ITEM_STACK_TYPE_ID)?;
-                stack.write_required_trusted(writer)
+                stack.write_template(writer)
             }
             Self::Tag { tag } => {
                 write_var_i32(writer, Self::TAG_TYPE_ID)?;
@@ -7043,6 +7051,26 @@ impl RawItemStack {
         write_var_i32(writer, item_id)?;
         self.components.write_trusted(writer)
     }
+
+    pub fn write_template<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.count <= 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "item stack template cannot be empty",
+            ));
+        }
+        let item_id = self.item_id.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "non-empty item stack template missing item id",
+            )
+        })?;
+        // Java: ItemStackTemplate.STREAM_CODEC = Item.STREAM_CODEC, count, DataComponentPatch.
+        // This differs from inventory ItemStack codecs, which write count before item ID.
+        write_var_i32(writer, item_id)?;
+        write_var_i32(writer, self.count)?;
+        self.components.write_trusted(writer)
+    }
 }
 
 impl HashedPatchMap {
@@ -7466,6 +7494,22 @@ impl ServerboundRecipeBookSeenRecipePacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.recipe_index)
+    }
+}
+
+impl ServerboundPlaceRecipePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            container_id: read_var_i32(reader)?,
+            recipe_index: read_var_i32(reader)?,
+            use_max_items: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        write_var_i32(writer, self.recipe_index)?;
+        write_bool(writer, self.use_max_items)
     }
 }
 
@@ -8082,6 +8126,17 @@ pub fn build_recipe_book_add(
     recipe_ids: &[&str],
     recipe_map: &crate::recipe_system::RecipeMap,
 ) -> Option<ClientboundRecipeBookAddPacket> {
+    build_recipe_book_add_with_flags(recipe_ids, recipe_map, true, true, false, None)
+}
+
+pub fn build_recipe_book_add_with_flags(
+    recipe_ids: &[&str],
+    recipe_map: &crate::recipe_system::RecipeMap,
+    notification: bool,
+    highlight: bool,
+    replace: bool,
+    highlighted_recipe_ids: Option<&[&str]>,
+) -> Option<ClientboundRecipeBookAddPacket> {
     use crate::recipe_system::{CookingKind, IngredientSpec, RecipeKind};
 
     fn ingredient_to_slot(spec: &IngredientSpec) -> SlotDisplayData {
@@ -8317,6 +8372,9 @@ pub fn build_recipe_book_add(
         };
 
         if let Some((display_data, crafting_requirements, category_id)) = display {
+            let entry_highlight = highlighted_recipe_ids
+                .map(|ids| ids.contains(recipe_id))
+                .unwrap_or(highlight);
             entries.push(RecipeBookAddEntry::new(
                 RecipeDisplayEntryData {
                     id: display_id,
@@ -8325,8 +8383,8 @@ pub fn build_recipe_book_add(
                     category_id,
                     crafting_requirements,
                 },
-                true, // notification
-                true, // highlight
+                notification,
+                entry_highlight,
             ));
         }
     }
@@ -8336,7 +8394,7 @@ pub fn build_recipe_book_add(
     } else {
         Some(ClientboundRecipeBookAddPacket {
             entries,
-            replace: false,
+            replace,
         })
     }
 }
@@ -9308,14 +9366,14 @@ mod tests {
                 vec![5],
                 vec![0, 0, 2, 4, 1, 6, 16],
                 b"minecraft:planks".to_vec(),
-                vec![5, 1, 2, 0, 0, 4, 3, 0, 0, 0, 0],
-                vec![1, 1, 2, 2, 4, 0, 4, 4, 9, 4, 5, 5, 1, 6, 0, 0, 10, 2, 4, 7, 6, 14],
+                vec![5, 2, 1, 0, 0, 4, 3, 0, 0, 0, 0],
+                vec![1, 1, 2, 2, 4, 0, 4, 4, 9, 4, 5, 5, 6, 1, 0, 0, 10, 2, 4, 7, 6, 14],
                 b"minecraft:logs".to_vec(),
                 vec![4, 8, 4, 9, 1, 1, 1, 2, 2, 4, 0, 14],
                 b"minecraft:wool".to_vec(),
                 vec![3],
                 vec![
-                    2, 2, 2, 4, 10, 1, 5, 2, 11, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2,
+                    2, 2, 2, 4, 10, 1, 5, 11, 2, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2,
                     0, 0
                 ],
                 vec![3, 3, 3, 4, 13, 14, 7, 4, 15, 4, 16, 4, 17, 0, 3, 0, 0],
@@ -11892,6 +11950,15 @@ mod tests {
         }])
     }
 
+    fn vanilla_recipe_map() -> crate::recipe_system::RecipeMap {
+        let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("vanilla-data/data/minecraft/recipe");
+        crate::recipe_system::load_recipe_directory(&recipe_dir)
+            .expect("bundled vanilla recipe directory should load")
+            .recipe_map()
+            .clone()
+    }
+
     #[test]
     fn pending_container_click_updates_inventory_menu_result_and_unlocks_recipe() {
         let mut session = PlaySession::new(7, 0);
@@ -13802,6 +13869,74 @@ mod tests {
                 PlayInstruction::RecipesUnlocked(ids) if ids.contains(&"minecraft:oak_planks")
             )),
             "expected RecipesUnlocked with oak_planks on first craft"
+        );
+    }
+
+    #[test]
+    fn vanilla_oak_log_pickup_to_inventory_grid_populates_planks_result() {
+        let recipes = vanilla_recipe_map();
+        let mut inventory_menu = InventoryMenu::new(
+            crate::player_inventory::PlayerInventory::new(),
+            recipes.clone(),
+        );
+        let mut carried = ItemStack::empty();
+        let mut state_id: i32 = 1;
+
+        inventory_menu
+            .player_inventory_mut()
+            .add(ItemStack::new("minecraft:oak_log", 1));
+
+        let pickup_from_hotbar = ServerboundContainerClickPacket {
+            container_id: 0,
+            state_id,
+            slot_num: 36,
+            button_num: 0,
+            container_input: ContainerInput::Pickup,
+            changed_slots: BTreeMap::new(),
+            carried_item: HashedStack::empty(),
+        };
+        handle_container_click(
+            &pickup_from_hotbar,
+            &mut state_id,
+            &mut inventory_menu,
+            &mut carried,
+        );
+        assert_eq!(state_id, 2);
+        assert_eq!(carried.item_id(), "minecraft:oak_log");
+        assert_eq!(carried.count(), 1);
+
+        let place_in_grid = ServerboundContainerClickPacket {
+            container_id: 0,
+            state_id,
+            slot_num: 1,
+            button_num: 0,
+            container_input: ContainerInput::Pickup,
+            changed_slots: BTreeMap::new(),
+            carried_item: HashedStack::empty(),
+        };
+        let instructions = handle_container_click(
+            &place_in_grid,
+            &mut state_id,
+            &mut inventory_menu,
+            &mut carried,
+        );
+
+        assert_eq!(state_id, 3);
+        assert!(carried.is_empty());
+        assert_eq!(
+            inventory_menu.get_slot(0),
+            Some(ItemStack::new("minecraft:oak_planks", 4)),
+            "vanilla #minecraft:oak_logs recipe must populate the 2x2 result slot"
+        );
+        assert!(
+            instructions.iter().any(|i| matches!(
+                i,
+                PlayInstruction::ContainerSetSlot(p)
+                    if p.slot == 0
+                        && p.item_stack.count == 4
+                        && p.item_stack.item_id == item_protocol_id("minecraft:oak_planks")
+            )),
+            "server must send the client a result-slot update for oak planks"
         );
     }
 

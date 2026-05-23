@@ -4123,7 +4123,7 @@ mod tests {
     #[test]
     fn recipe_manager_loads_all_vanilla_recipe_json_files() {
         let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../decompiled-server-26.1.2/data/minecraft/recipe");
+            .join("vanilla-data/data/minecraft/recipe");
         let manager =
             load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
         assert_eq!(manager.recipe_map().values().len(), 1515);
@@ -4192,7 +4192,7 @@ mod tests {
         // Load the real vanilla tag data so we test the full resolution chain:
         //   minecraft:logs → minecraft:logs_that_burn → minecraft:oak_logs → minecraft:oak_log
         let tag_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../decompiled-server-26.1.2/data/minecraft/tags/item");
+            .join("vanilla-data/data/minecraft/tags/item");
         let tags = load_item_tag_directory(&tag_dir);
 
         // A simple leaf tag: oak_logs resolves to the four concrete oak log variants.
@@ -4239,7 +4239,7 @@ mod tests {
         // load_recipe_directory loads tags automatically from ../tags/item/ relative
         // to the recipe directory.
         let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../decompiled-server-26.1.2/data/minecraft/recipe");
+            .join("vanilla-data/data/minecraft/recipe");
         let manager =
             load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
 

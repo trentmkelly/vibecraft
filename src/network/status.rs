@@ -15,6 +15,7 @@ use crate::console::ConsoleInput;
 use crate::item_catalog::{item_protocol_id, item_static_name};
 use crate::item_entity::{self, DroppedItem, WorldItemEntities, DEFAULT_PICKUP_DELAY};
 use crate::item_stack::ItemStack;
+use crate::log::log_info;
 use crate::loot_system::{
     LootCondition, LootContext, LootEntry, LootFunction, LootParamSet, LootPool, LootTable,
     NumberProvider,
@@ -36,14 +37,18 @@ use crate::network::login::{
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{
-    block_state_name_network_id, build_recipe_book_add, handle_container_click,
-    unpack_block_position, ClientboundAddEntityPacket, ClientboundContainerSetSlotPacket,
+    block_state_name_network_id, build_recipe_book_add, build_recipe_book_add_with_flags,
+    handle_container_click, unpack_block_position, ClientboundAddEntityPacket,
+    ClientboundContainerSetSlotPacket,
     ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
     ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundRemoveEntitiesPacket,
-    ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket,
+    ClientboundRecipeBookSettingsPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket,
     ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
     CommonPlayerSpawnInfo, Direction3d, EntityDataValue, EntityMetadataValue, GameMode,
-    PlayInstruction, RawDataComponentPatch, RawItemStack, ServerboundContainerClickPacket,
+    PlayInstruction, RawDataComponentPatch, RawItemStack, RecipeBookType,
+    RecipeBookTypeSettings, ServerboundContainerClickPacket,
+    ServerboundPlaceRecipePacket,
+    ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
     ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
     CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
     CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
@@ -53,6 +58,7 @@ use crate::network::play::{
     CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
     CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
     CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+    CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID,
     CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_RESPAWN_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
     CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
@@ -68,7 +74,10 @@ use crate::network::play::{
     SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
     SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
     SERVERBOUND_PLAYER_ACTION_PACKET_ID, SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
-    SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
+    SERVERBOUND_PLACE_RECIPE_PACKET_ID, SERVERBOUND_PLAYER_INPUT_PACKET_ID,
+    SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
+    SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
+    SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID,
     SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
@@ -212,6 +221,7 @@ struct PlaySessionState {
     /// Sent in every `ContainerSetSlot` and `ContainerSetContent` packet; validated by the
     /// server when a `ServerboundContainerClickPacket` arrives.
     container_state_id: i32,
+    recipe_book_settings: ClientboundRecipeBookSettingsPacket,
 }
 
 impl Default for PlaySessionState {
@@ -262,6 +272,12 @@ impl Default for PlaySessionState {
             inventory_menu: InventoryMenu::new(PlayerInventory::new(), RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
+            recipe_book_settings: ClientboundRecipeBookSettingsPacket {
+                crafting: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+                furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+                blast_furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+                smoker: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+            },
         }
     }
 }
@@ -1325,13 +1341,19 @@ pub fn run_status_server(
 
     // Load vanilla recipes once at startup and share via Arc.
     // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
-    let recipe_manager: Arc<RecipeManagerModel> = Arc::new(
-        load_recipe_directory(Path::new("decompiled-server-26.1.2/data/minecraft/recipe"))
-            .unwrap_or_else(|err| {
-                eprintln!("warning: failed to load recipes: {err}");
-                RecipeManagerModel::default()
-            }),
-    );
+    let recipe_dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
+    let recipe_manager = load_recipe_directory(&recipe_dir).unwrap_or_else(|err| {
+        panic!(
+            "failed to load bundled vanilla recipes from {}: {err}",
+            recipe_dir.display()
+        )
+    });
+    log_info(&format!(
+        "loaded {} bundled vanilla recipes",
+        recipe_manager.recipe_map().values().len()
+    ));
+    let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
 
     // Background tick thread: advances clocks and weather at 20 TPS.
     // Java: MinecraftServer.tickChildren() — clockManager.tick() + advanceWeatherCycle()
@@ -1934,6 +1956,7 @@ fn handle_login_connection(
         world_seed,
         &finished.profile,
         &play_state,
+        recipe_manager,
         world_root,
         chunk_cache,
         join_game_time,
@@ -2426,6 +2449,33 @@ fn handle_login_connection(
                                     _ => {}
                                 }
                             }
+                        }
+                    }
+                    continue;
+                }
+                if packet_id == SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID {
+                    let packet = ServerboundRecipeBookChangeSettingsPacket::read(&mut input)?;
+                    apply_recipe_book_settings_packet(&mut play_state, packet);
+                    continue;
+                }
+                if packet_id == SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID {
+                    let packet = ServerboundRecipeBookSeenRecipePacket::read(&mut input)?;
+                    apply_recipe_book_seen_recipe_packet(
+                        &mut play_state,
+                        packet,
+                        recipe_manager.recipe_map(),
+                    );
+                    continue;
+                }
+                if packet_id == SERVERBOUND_PLACE_RECIPE_PACKET_ID {
+                    let packet = ServerboundPlaceRecipePacket::read(&mut input)?;
+                    if packet.container_id == 0 {
+                        if apply_place_recipe_packet(
+                            &mut play_state,
+                            packet,
+                            recipe_manager.recipe_map(),
+                        ) {
+                            write_inventory_menu_full_sync(stream, compression, &play_state)?;
                         }
                     }
                     continue;
@@ -3828,8 +3878,60 @@ fn play_session_state_to_nbt(state: &PlaySessionState) -> Tag {
         (
             "recipeBook".to_string(),
             Tag::Compound(vec![
-                ("recipes".to_string(), Tag::List(vec![])),
-                ("toBeDisplayed".to_string(), Tag::List(vec![])),
+                (
+                    "recipes".to_string(),
+                    Tag::List(
+                        state
+                            .inventory_menu
+                            .recipe_book_known_recipes()
+                            .into_iter()
+                            .map(|id| Tag::String(id.to_string()))
+                            .collect(),
+                    ),
+                ),
+                (
+                    "toBeDisplayed".to_string(),
+                    Tag::List(
+                        state
+                            .inventory_menu
+                            .recipe_book_highlighted_recipes()
+                            .into_iter()
+                            .map(|id| Tag::String(id.to_string()))
+                            .collect(),
+                    ),
+                ),
+                (
+                    "isGuiOpen".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.crafting.open)),
+                ),
+                (
+                    "isFilteringCraftable".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.crafting.filtering)),
+                ),
+                (
+                    "isFurnaceGuiOpen".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.furnace.open)),
+                ),
+                (
+                    "isFurnaceFilteringCraftable".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.furnace.filtering)),
+                ),
+                (
+                    "isBlastingFurnaceGuiOpen".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.blast_furnace.open)),
+                ),
+                (
+                    "isBlastingFurnaceFilteringCraftable".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.blast_furnace.filtering)),
+                ),
+                (
+                    "isSmokerGuiOpen".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.smoker.open)),
+                ),
+                (
+                    "isSmokerFilteringCraftable".to_string(),
+                    Tag::Byte(i8::from(state.recipe_book_settings.smoker.filtering)),
+                ),
             ]),
         ),
         (
@@ -4129,6 +4231,11 @@ fn play_session_state_from_nbt(
             inventory.load_items(&loaded);
         }
     }
+    let (recipe_book_settings, known_recipes, highlighted_recipes) =
+        load_recipe_book_from_nbt(compound, recipes);
+    let mut inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+    inventory_menu.load_recipe_book(known_recipes, highlighted_recipes);
+
     Some(PlaySessionState {
         x: *x,
         y: *y,
@@ -4172,10 +4279,169 @@ fn play_session_state_from_nbt(
         active_effects,
         ender_items,
         abilities,
-        inventory_menu: InventoryMenu::new(inventory, recipes.clone()),
+        inventory_menu,
         carried_item: ItemStack::empty(),
         container_state_id: 0,
+        recipe_book_settings,
     })
+}
+
+fn default_recipe_book_settings() -> ClientboundRecipeBookSettingsPacket {
+    ClientboundRecipeBookSettingsPacket {
+        crafting: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+        furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+        blast_furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+        smoker: RecipeBookTypeSettings::CLOSED_UNFILTERED,
+    }
+}
+
+fn load_recipe_book_from_nbt(
+    player_compound: &[(String, Tag)],
+    recipes: &RecipeMap,
+) -> (
+    ClientboundRecipeBookSettingsPacket,
+    Vec<&'static str>,
+    Vec<&'static str>,
+) {
+    let Some(Tag::Compound(recipe_book)) = compound_tag(player_compound, "recipeBook") else {
+        return (default_recipe_book_settings(), Vec::new(), Vec::new());
+    };
+
+    let settings = ClientboundRecipeBookSettingsPacket {
+        crafting: RecipeBookTypeSettings {
+            open: compound_bool_byte(recipe_book, "isGuiOpen", false),
+            filtering: compound_bool_byte(recipe_book, "isFilteringCraftable", false),
+        },
+        furnace: RecipeBookTypeSettings {
+            open: compound_bool_byte(recipe_book, "isFurnaceGuiOpen", false),
+            filtering: compound_bool_byte(recipe_book, "isFurnaceFilteringCraftable", false),
+        },
+        blast_furnace: RecipeBookTypeSettings {
+            open: compound_bool_byte(recipe_book, "isBlastingFurnaceGuiOpen", false),
+            filtering: compound_bool_byte(recipe_book, "isBlastingFurnaceFilteringCraftable", false),
+        },
+        smoker: RecipeBookTypeSettings {
+            open: compound_bool_byte(recipe_book, "isSmokerGuiOpen", false),
+            filtering: compound_bool_byte(recipe_book, "isSmokerFilteringCraftable", false),
+        },
+    };
+
+    let known = load_recipe_id_list(recipe_book, "recipes", recipes);
+    let highlighted = load_recipe_id_list(recipe_book, "toBeDisplayed", recipes);
+    (settings, known, highlighted)
+}
+
+fn load_recipe_id_list(
+    compound: &[(String, Tag)],
+    key: &str,
+    recipes: &RecipeMap,
+) -> Vec<&'static str> {
+    match compound_tag(compound, key) {
+        Some(Tag::List(values)) => values
+            .iter()
+            .filter_map(|tag| match tag {
+                Tag::String(id) => recipes.by_key(id).map(|holder| holder.id),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn apply_recipe_book_settings_packet(
+    state: &mut PlaySessionState,
+    packet: ServerboundRecipeBookChangeSettingsPacket,
+) {
+    let settings = RecipeBookTypeSettings {
+        open: packet.is_open,
+        filtering: packet.is_filtering,
+    };
+    match packet.book_type {
+        RecipeBookType::Crafting => state.recipe_book_settings.crafting = settings,
+        RecipeBookType::Furnace => state.recipe_book_settings.furnace = settings,
+        RecipeBookType::BlastFurnace => state.recipe_book_settings.blast_furnace = settings,
+        RecipeBookType::Smoker => state.recipe_book_settings.smoker = settings,
+    }
+}
+
+fn apply_recipe_book_seen_recipe_packet(
+    state: &mut PlaySessionState,
+    packet: ServerboundRecipeBookSeenRecipePacket,
+    recipes: &RecipeMap,
+) {
+    if packet.recipe_index < 0 {
+        return;
+    }
+    if let Some(holder) = recipes.values().get(packet.recipe_index as usize) {
+        state.inventory_menu.mark_recipe_seen(holder.id);
+    }
+}
+
+fn apply_place_recipe_packet(
+    state: &mut PlaySessionState,
+    packet: ServerboundPlaceRecipePacket,
+    recipes: &RecipeMap,
+) -> bool {
+    if packet.recipe_index < 0 {
+        return false;
+    }
+    let Some(holder) = recipes.values().get(packet.recipe_index as usize) else {
+        return false;
+    };
+    if state
+        .inventory_menu
+        .place_recipe_from_inventory(holder.id, packet.use_max_items)
+    {
+        state.container_state_id = state.container_state_id.wrapping_add(1);
+        true
+    } else {
+        false
+    }
+}
+
+fn write_inventory_menu_full_sync(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    let slots = state.inventory_menu.all_slots();
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[0])?;
+            write_var_i32(payload, state.container_state_id)?;
+            write_var_i32(payload, slots.len() as i32)?;
+            for stack in &slots {
+                let raw = if stack.is_empty() {
+                    RawItemStack::empty()
+                } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+                    RawItemStack {
+                        count: stack.count(),
+                        item_id: Some(pid),
+                        components: RawDataComponentPatch::empty(),
+                    }
+                } else {
+                    RawItemStack::empty()
+                };
+                raw.write_optional_untrusted(payload)?;
+            }
+            let carried = &state.carried_item;
+            let raw_carried = if carried.is_empty() {
+                RawItemStack::empty()
+            } else if let Some(pid) = item_protocol_id(carried.item_id()) {
+                RawItemStack {
+                    count: carried.count(),
+                    item_id: Some(pid),
+                    components: RawDataComponentPatch::empty(),
+                }
+            } else {
+                RawItemStack::empty()
+            };
+            raw_carried.write_optional_untrusted(payload)
+        },
+    )
 }
 
 fn compound_tag<'a>(compound: &'a [(String, Tag)], key: &str) -> Option<&'a Tag> {
@@ -4427,6 +4693,7 @@ fn write_minimal_play_join(
     world_seed: i64,
     profile: &NameAndId,
     play_state: &PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
     world_root: &Path,
     chunk_cache: &GeneratedChunkCache,
     clock_game_time: i64,
@@ -4508,6 +4775,29 @@ fn write_minimal_play_join(
             payload.write_all(&play_state.food_saturation.to_be_bytes())
         },
     )?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID,
+        |payload| play_state.recipe_book_settings.write(payload),
+    )?;
+    let known_recipes = play_state.inventory_menu.recipe_book_known_recipes();
+    let highlighted_recipes = play_state.inventory_menu.recipe_book_highlighted_recipes();
+    if let Some(packet) = build_recipe_book_add_with_flags(
+        &known_recipes,
+        recipe_manager.recipe_map(),
+        false,
+        false,
+        true,
+        Some(&highlighted_recipes),
+    ) {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+            |payload| packet.write(payload),
+        )?;
+    }
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -11285,6 +11575,7 @@ mod tests {
             inventory_menu: InventoryMenu::new(inventory, RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
+            recipe_book_settings: super::default_recipe_book_settings(),
         }
     }
 
@@ -11329,6 +11620,144 @@ mod tests {
                 .saved_items()
                 .is_empty(),
             "expected empty inventory after round-trip"
+        );
+    }
+
+    fn oak_planks_recipe_map() -> RecipeMap {
+        RecipeMap::create(vec![crate::recipe_system::RecipeHolder {
+            id: "minecraft:oak_planks",
+            recipe: crate::recipe_system::RecipeKind::Shapeless {
+                ingredients: vec![crate::recipe_system::IngredientSpec::Item(
+                    "minecraft:oak_log",
+                )],
+                result: crate::recipe_system::ItemAmount {
+                    item: "minecraft:oak_planks",
+                    count: 4,
+                },
+            },
+        }])
+    }
+
+    #[test]
+    fn play_session_state_nbt_round_trip_preserves_recipe_book_state() {
+        let recipes = oak_planks_recipe_map();
+        let mut state = session_state_with_inventory(&[]);
+        state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes.clone());
+        state
+            .inventory_menu
+            .load_recipe_book(["minecraft:oak_planks"], ["minecraft:oak_planks"]);
+        super::apply_recipe_book_settings_packet(
+            &mut state,
+            crate::network::play::ServerboundRecipeBookChangeSettingsPacket {
+                book_type: crate::network::play::RecipeBookType::Crafting,
+                is_open: true,
+                is_filtering: true,
+            },
+        );
+
+        let tag = play_session_state_to_nbt(&state);
+        let restored = play_session_state_from_nbt(&tag, GameMode::Survival, &recipes).unwrap();
+
+        assert_eq!(
+            restored.inventory_menu.recipe_book_known_recipes(),
+            vec!["minecraft:oak_planks"]
+        );
+        assert_eq!(
+            restored.inventory_menu.recipe_book_highlighted_recipes(),
+            vec!["minecraft:oak_planks"]
+        );
+        assert!(restored.recipe_book_settings.crafting.open);
+        assert!(restored.recipe_book_settings.crafting.filtering);
+    }
+
+    #[test]
+    fn recipe_book_seen_recipe_packet_clears_highlight_for_display_id() {
+        let recipes = oak_planks_recipe_map();
+        let mut state = session_state_with_inventory(&[]);
+        state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes.clone());
+        state
+            .inventory_menu
+            .load_recipe_book(["minecraft:oak_planks"], ["minecraft:oak_planks"]);
+
+        super::apply_recipe_book_seen_recipe_packet(
+            &mut state,
+            crate::network::play::ServerboundRecipeBookSeenRecipePacket { recipe_index: 0 },
+            &recipes,
+        );
+
+        assert_eq!(
+            state.inventory_menu.recipe_book_known_recipes(),
+            vec!["minecraft:oak_planks"]
+        );
+        assert!(
+            state
+                .inventory_menu
+                .recipe_book_highlighted_recipes()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn place_recipe_packet_moves_unlocked_recipe_ingredients_into_inventory_grid() {
+        let recipes = oak_planks_recipe_map();
+        let mut inventory = PlayerInventory::new();
+        inventory.load_items(&[(0, ItemStack::new("minecraft:oak_log", 3))]);
+        let mut state = session_state_with_inventory(&[]);
+        state.inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+        state
+            .inventory_menu
+            .load_recipe_book(["minecraft:oak_planks"], []);
+
+        let changed = super::apply_place_recipe_packet(
+            &mut state,
+            crate::network::play::ServerboundPlaceRecipePacket {
+                container_id: 0,
+                recipe_index: 0,
+                use_max_items: false,
+            },
+            &recipes,
+        );
+
+        assert!(changed);
+        assert_eq!(state.container_state_id, 1);
+        assert_eq!(
+            state.inventory_menu.get_slot(1),
+            Some(ItemStack::new("minecraft:oak_log", 1))
+        );
+        assert_eq!(
+            state.inventory_menu.get_slot(0),
+            Some(ItemStack::new("minecraft:oak_planks", 4))
+        );
+        assert_eq!(
+            state.inventory_menu.player_inventory().get(0),
+            &ItemStack::new("minecraft:oak_log", 2)
+        );
+    }
+
+    #[test]
+    fn place_recipe_packet_rejects_locked_recipe_without_mutating_inventory() {
+        let recipes = oak_planks_recipe_map();
+        let mut inventory = PlayerInventory::new();
+        inventory.load_items(&[(0, ItemStack::new("minecraft:oak_log", 3))]);
+        let mut state = session_state_with_inventory(&[]);
+        state.inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+
+        let changed = super::apply_place_recipe_packet(
+            &mut state,
+            crate::network::play::ServerboundPlaceRecipePacket {
+                container_id: 0,
+                recipe_index: 0,
+                use_max_items: false,
+            },
+            &recipes,
+        );
+
+        assert!(!changed);
+        assert_eq!(state.container_state_id, 0);
+        assert_eq!(state.inventory_menu.get_slot(1), Some(ItemStack::empty()));
+        assert_eq!(
+            state.inventory_menu.player_inventory().get(0),
+            &ItemStack::new("minecraft:oak_log", 3)
         );
     }
 
