@@ -174,6 +174,174 @@ pub struct NoiseRouterEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoiseRouterPreset {
+    Overworld { large_biomes: bool, amplified: bool },
+    Nether,
+    End,
+    Caves,
+    FloatingIslands,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SurfaceRulePreset {
+    Overworld,
+    Nether,
+    End,
+    OverworldLike {
+        bedrock_roof: bool,
+        bedrock_floor: bool,
+        surface: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DensityFunction {
+    Reference(&'static str),
+    Constant(f64),
+    YClampedGradient {
+        from_y: i32,
+        to_y: i32,
+        from_value: f64,
+        to_value: f64,
+    },
+    Clamp {
+        input: &'static DensityFunction,
+        min: f64,
+        max: f64,
+    },
+    Mapped {
+        kind: MappedDensityFunction,
+        input: &'static DensityFunction,
+    },
+    Binary {
+        kind: BinaryDensityFunction,
+        argument1: &'static DensityFunction,
+        argument2: &'static DensityFunction,
+    },
+    RangeChoice {
+        input: &'static DensityFunction,
+        min_inclusive: f64,
+        max_exclusive: f64,
+        when_in_range: &'static DensityFunction,
+        when_out_of_range: &'static DensityFunction,
+    },
+    Marker {
+        kind: DensityMarker,
+        input: &'static DensityFunction,
+    },
+    Noise {
+        noise: &'static str,
+        xz_scale: f64,
+        y_scale: f64,
+    },
+    ShiftA {
+        noise: &'static str,
+    },
+    ShiftB {
+        noise: &'static str,
+    },
+    Shift {
+        noise: &'static str,
+    },
+    ShiftedNoise {
+        shift_x: &'static DensityFunction,
+        shift_y: &'static DensityFunction,
+        shift_z: &'static DensityFunction,
+        xz_scale: f64,
+        y_scale: f64,
+        noise: &'static str,
+    },
+    BlendedNoise {
+        xz_scale: f64,
+        y_scale: f64,
+        xz_factor: f64,
+        y_factor: f64,
+        smear_scale_multiplier: f64,
+    },
+    EndIslands {
+        seed: i64,
+    },
+    WeirdScaledSampler {
+        input: &'static DensityFunction,
+        noise: &'static str,
+        rarity_mapper: RarityValueMapper,
+    },
+    BlendAlpha,
+    BlendOffset,
+    BlendDensity {
+        input: &'static DensityFunction,
+    },
+    Beardifier,
+    Spline {
+        kind: TerrainSplineKind,
+    },
+    FindTopSurface {
+        density: &'static DensityFunction,
+        upper_bound: &'static DensityFunction,
+        lower_bound: i32,
+        cell_height: i32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MappedDensityFunction {
+    Abs,
+    Square,
+    Cube,
+    HalfNegative,
+    QuarterNegative,
+    Invert,
+    Squeeze,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryDensityFunction {
+    Add,
+    Mul,
+    Min,
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TerrainSplineKind {
+    OverworldOffset,
+    OverworldFactor,
+    OverworldJaggedness,
+    OverworldLargeBiomesOffset,
+    OverworldLargeBiomesFactor,
+    OverworldLargeBiomesJaggedness,
+    OverworldAmplifiedOffset,
+    OverworldAmplifiedFactor,
+    OverworldAmplifiedJaggedness,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DensityMarker {
+    Interpolated,
+    FlatCache,
+    Cache2D,
+    CacheOnce,
+    CacheAllInCell,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RarityValueMapper {
+    Type1,
+    Type2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DensityFunctionType {
+    pub id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DensityFunctionEntry {
+    pub id: &'static str,
+    pub function: DensityFunction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NoiseSettingsRegistryExpectation {
     pub id: &'static str,
     pub noise: NoiseSettings,
