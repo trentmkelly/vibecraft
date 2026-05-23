@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
+use std::sync::Arc;
 
 use crate::block_entity::BLOCK_ENTITY_TYPES;
 use crate::inventory::{Menu, Slot};
@@ -3359,6 +3360,17 @@ fn is_command_like_play_packet(packet_id: i32) -> bool {
     )
 }
 
+/// A batch of chunks ready to be flushed to the client this tick.
+///
+/// Returned by [`PlayerChunkSender::send_next_chunks`]. Each entry is a
+/// position plus the generated chunk payload pulled from the shared chunk
+/// pipeline at the moment the batch was collected. Java mirror:
+/// `PlayerChunkSender.collectChunksToSend` returns `List<LevelChunk>`.
+#[derive(Debug)]
+pub struct ReadyChunkBatch {
+    pub chunks: Vec<(ChunkPos, Arc<LevelChunk>)>,
+}
+
 impl PlayerChunkSender {
     pub const MIN_CHUNKS_PER_TICK: f32 = 0.01;
     pub const MAX_CHUNKS_PER_TICK: f32 = 64.0;
@@ -3388,40 +3400,46 @@ impl PlayerChunkSender {
         }
     }
 
-    pub fn send_next_chunks(&mut self, player_pos: ChunkPos) -> Vec<PlayInstruction> {
+    /// Drain the next paced batch of *ready* chunks for the client.
+    ///
+    /// `try_get_ready(pos)` reports whether the chunk at `pos` has finished
+    /// generating in the shared pipeline; chunks for which it returns `None`
+    /// stay pending across ticks. Mirrors Java
+    /// `PlayerChunkSender.sendNextChunks`: this is the central pacing decision
+    /// (unacknowledged-batch gate, quota accumulation, nearest-first selection)
+    /// and it never blocks waiting for generation.
+    pub fn send_next_chunks<F>(
+        &mut self,
+        player_pos: ChunkPos,
+        mut try_get_ready: F,
+    ) -> Option<ReadyChunkBatch>
+    where
+        F: FnMut(ChunkPos) -> Option<Arc<LevelChunk>>,
+    {
         if self.unacknowledged_batches >= self.max_unacknowledged_batches {
-            return Vec::new();
+            return None;
         }
 
+        // Java: batchQuota = min(batchQuota + desiredChunksPerTick, max(1, desiredChunksPerTick)).
+        // The quota accumulates whether or not we end up flushing chunks this
+        // tick, so a low desiredChunksPerTick can still pay down over time.
         let max_batch_size = self.desired_chunks_per_tick.max(1.0);
         self.batch_quota = (self.batch_quota + self.desired_chunks_per_tick).min(max_batch_size);
         if self.batch_quota < 1.0 || self.pending_chunks.is_empty() {
-            return Vec::new();
+            return None;
         }
 
-        let chunks_to_send = self.collect_chunks_to_send(player_pos);
-        if chunks_to_send.is_empty() {
-            return Vec::new();
+        let chunks = self.collect_chunks_to_send(player_pos, &mut try_get_ready);
+        if chunks.is_empty() {
+            return None;
         }
 
+        // Java only increments unacknowledgedBatches when chunks are actually
+        // sent — see PlayerChunkSender.sendNextChunks where the increment is
+        // inside `if (!chunksToSend.isEmpty())`.
         self.unacknowledged_batches += 1;
-        self.batch_quota -= chunks_to_send.len() as f32;
-
-        let mut instructions = Vec::with_capacity(chunks_to_send.len() + 2);
-        instructions.push(PlayInstruction::ChunkBatchStart);
-        instructions.extend(chunks_to_send.iter().copied().map(|pos| {
-            PlayInstruction::LevelChunkWithLight(ClientboundLevelChunkWithLightPacket {
-                pos,
-                chunk_data: None,
-                light_data: None,
-            })
-        }));
-        instructions.push(PlayInstruction::ChunkBatchFinished(
-            ClientboundChunkBatchFinishedPacket {
-                batch_size: chunks_to_send.len() as i32,
-            },
-        ));
-        instructions
+        self.batch_quota -= chunks.len() as f32;
+        Some(ReadyChunkBatch { chunks })
     }
 
     pub fn on_chunk_batch_received_by_client(&mut self, desired_chunks_per_tick: f32) {
@@ -3441,6 +3459,10 @@ impl PlayerChunkSender {
         self.pending_chunks.contains(&pos)
     }
 
+    pub fn pending_count(&self) -> usize {
+        self.pending_chunks.len()
+    }
+
     pub fn desired_chunks_per_tick(&self) -> f32 {
         self.desired_chunks_per_tick
     }
@@ -3449,16 +3471,55 @@ impl PlayerChunkSender {
         self.unacknowledged_batches
     }
 
-    fn collect_chunks_to_send(&mut self, player_pos: ChunkPos) -> Vec<ChunkPos> {
-        let max_batch_size = self.batch_quota.floor() as usize;
-        let mut chunks: Vec<_> = self.pending_chunks.iter().copied().collect();
-        chunks.sort_by_key(|pos| (chunk_distance_squared(player_pos, *pos), *pos));
-        if !self.memory_connection && chunks.len() > max_batch_size {
-            chunks.truncate(max_batch_size);
-        }
+    pub fn max_unacknowledged_batches(&self) -> i32 {
+        self.max_unacknowledged_batches
+    }
 
-        for chunk in &chunks {
-            self.pending_chunks.remove(chunk);
+    pub fn batch_quota(&self) -> f32 {
+        self.batch_quota
+    }
+
+    fn collect_chunks_to_send<F>(
+        &mut self,
+        player_pos: ChunkPos,
+        try_get_ready: &mut F,
+    ) -> Vec<(ChunkPos, Arc<LevelChunk>)>
+    where
+        F: FnMut(ChunkPos) -> Option<Arc<LevelChunk>>,
+    {
+        let max_batch_size = self.batch_quota.floor() as usize;
+        // Java PlayerChunkSender.collectChunksToSend (26.1.2):
+        //   • When pending > maxBatchSize and not a memory connection,
+        //     pick the nearest maxBatchSize *positions first*, then look up
+        //     readiness — unready picks are silently dropped this tick, so
+        //     fewer than maxBatchSize chunks may actually be sent.
+        //   • Otherwise, look up every pending position, drop unready, and
+        //     sort by distance.
+        // The "pick nearest positions first" path intentionally lets close
+        // chunks block farther ready chunks so the player doesn't see a halo
+        // of distant terrain while the near ring is still loading.
+        let chunks = if !self.memory_connection && self.pending_chunks.len() > max_batch_size {
+            let mut nearest_positions: Vec<_> = self.pending_chunks.iter().copied().collect();
+            nearest_positions
+                .sort_by_key(|pos| (chunk_distance_squared(player_pos, *pos), *pos));
+            nearest_positions.truncate(max_batch_size);
+            nearest_positions
+                .into_iter()
+                .filter_map(|pos| try_get_ready(pos).map(|chunk| (pos, chunk)))
+                .collect::<Vec<_>>()
+        } else {
+            let mut chunks: Vec<_> = self
+                .pending_chunks
+                .iter()
+                .copied()
+                .filter_map(|pos| try_get_ready(pos).map(|chunk| (pos, chunk)))
+                .collect();
+            chunks.sort_by_key(|(pos, _)| (chunk_distance_squared(player_pos, *pos), *pos));
+            chunks
+        };
+
+        for (pos, _) in &chunks {
+            self.pending_chunks.remove(pos);
         }
         chunks
     }
@@ -11252,6 +11313,10 @@ mod tests {
         assert_eq!(&full_delete_chat[1..], &[9; 256]);
     }
 
+    fn always_ready_chunk(pos: ChunkPos) -> Option<Arc<LevelChunk>> {
+        Some(Arc::new(LevelChunk::empty(pos)))
+    }
+
     #[test]
     fn chunk_sender_starts_batches_sends_nearest_chunks_and_waits_for_first_ack() {
         let mut sender = PlayerChunkSender::new(false);
@@ -11270,22 +11335,12 @@ mod tests {
             sender.mark_chunk_pending_to_send(pos);
         }
 
-        let batch = sender.send_next_chunks(ChunkPos { x: 0, z: 0 });
+        let batch = sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .expect("ready batch");
         assert_eq!(sender.unacknowledged_batches(), 1);
-        assert_eq!(batch.first(), Some(&PlayInstruction::ChunkBatchStart));
-        assert_eq!(
-            batch.last(),
-            Some(&PlayInstruction::ChunkBatchFinished(
-                ClientboundChunkBatchFinishedPacket { batch_size: 9 }
-            ))
-        );
-        let sent: Vec<_> = batch
-            .iter()
-            .filter_map(|instruction| match instruction {
-                PlayInstruction::LevelChunkWithLight(packet) => Some(packet.pos),
-                _ => None,
-            })
-            .collect();
+        let sent: Vec<_> = batch.chunks.iter().map(|(pos, _)| *pos).collect();
+        assert_eq!(sent.len(), 9);
         assert_eq!(
             sent,
             vec![
@@ -11301,14 +11356,18 @@ mod tests {
             ]
         );
         assert!(sender.is_pending(ChunkPos { x: 9, z: 9 }));
-        assert!(sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        assert!(sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .is_none());
     }
 
     #[test]
     fn chunk_sender_applies_client_feedback_clamp_and_allows_more_unacked_batches() {
         let mut sender = PlayerChunkSender::new(false);
         sender.mark_chunk_pending_to_send(ChunkPos { x: 0, z: 0 });
-        assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        assert!(sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .is_some());
 
         sender.on_chunk_batch_received_by_client(f32::NAN);
         assert_eq!(
@@ -11316,7 +11375,9 @@ mod tests {
             PlayerChunkSender::MIN_CHUNKS_PER_TICK
         );
         sender.mark_chunk_pending_to_send(ChunkPos { x: 1, z: 0 });
-        assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        assert!(sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .is_some());
 
         sender.on_chunk_batch_received_by_client(128.0);
         assert_eq!(
@@ -11326,15 +11387,78 @@ mod tests {
 
         let mut sender = PlayerChunkSender::new(false);
         sender.mark_chunk_pending_to_send(ChunkPos { x: 0, z: 0 });
-        assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        assert!(sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .is_some());
         sender.on_chunk_batch_received_by_client(1.0);
         for x in 0..10 {
             sender.mark_chunk_pending_to_send(ChunkPos { x, z: 1 });
-            assert!(!sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+            assert!(sender
+                .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+                .is_some());
         }
         assert_eq!(sender.unacknowledged_batches(), 10);
         sender.mark_chunk_pending_to_send(ChunkPos { x: 10, z: 1 });
-        assert!(sender.send_next_chunks(ChunkPos { x: 0, z: 0 }).is_empty());
+        assert!(sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .is_none());
+    }
+
+    #[test]
+    fn chunk_sender_keeps_unready_chunks_pending_and_does_not_consume_ack_slot() {
+        // Java parity: PlayerChunkSender.collectChunksToSend silently filters
+        // pending positions through chunkMap::getChunkToSend, so unready
+        // chunks stay pending without consuming an unacknowledged-batch slot.
+        let mut sender = PlayerChunkSender::new(false);
+        let ready_pos = ChunkPos { x: 1, z: 0 };
+        let unready_pos = ChunkPos { x: 0, z: 1 };
+        sender.mark_chunk_pending_to_send(ready_pos);
+        sender.mark_chunk_pending_to_send(unready_pos);
+
+        let batch = sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, |pos| {
+                if pos == ready_pos {
+                    Some(Arc::new(LevelChunk::empty(pos)))
+                } else {
+                    None
+                }
+            })
+            .expect("ready batch");
+        assert_eq!(batch.chunks.len(), 1);
+        assert_eq!(batch.chunks[0].0, ready_pos);
+        assert!(sender.is_pending(unready_pos));
+        assert_eq!(sender.unacknowledged_batches(), 1);
+
+        // No ready chunks remain → no batch, no unacked-slot consumption.
+        let none = sender.send_next_chunks(ChunkPos { x: 0, z: 0 }, |_| None);
+        assert!(none.is_none());
+        assert_eq!(sender.unacknowledged_batches(), 1);
+        assert!(sender.is_pending(unready_pos));
+    }
+
+    #[test]
+    fn chunk_sender_nearest_position_rule_drops_unready_near_chunks_for_this_tick() {
+        // Java's "pending > quota" path picks the nearest positions FIRST,
+        // then filters readiness, so a not-ready near chunk blocks a ready
+        // far chunk from being sent this tick (but the far chunk stays
+        // pending and will be tried next tick).
+        let mut sender = PlayerChunkSender::new(false);
+        sender.on_chunk_batch_received_by_client(1.0); // quota = 1
+        let near_unready = ChunkPos { x: 0, z: 1 };
+        let far_ready = ChunkPos { x: 5, z: 5 };
+        sender.mark_chunk_pending_to_send(near_unready);
+        sender.mark_chunk_pending_to_send(far_ready);
+
+        let batch = sender.send_next_chunks(ChunkPos { x: 0, z: 0 }, |pos| {
+            if pos == far_ready {
+                Some(Arc::new(LevelChunk::empty(pos)))
+            } else {
+                None
+            }
+        });
+        assert!(batch.is_none(), "near unready blocks far ready this tick");
+        assert!(sender.is_pending(near_unready));
+        assert!(sender.is_pending(far_ready));
     }
 
     #[test]

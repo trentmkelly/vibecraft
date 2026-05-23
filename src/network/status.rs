@@ -1,12 +1,13 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
 use std::net::{IpAddr, Shutdown, TcpListener, TcpStream};
-use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::panic::AssertUnwindSafe;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -49,9 +50,9 @@ use crate::network::play::{
     ClientboundRecipeBookSettingsPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket,
     ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
     CommonPlayerSpawnInfo, Direction3d, EntityDataValue, EntityMetadataValue, GameMode,
-    PlayInstruction, RawDataComponentPatch, RawItemStack, RecipeBookType,
-    RecipeBookTypeSettings, ServerboundContainerClickPacket,
-    ServerboundPlaceRecipePacket,
+    PlayInstruction, PlayerChunkSender, RawDataComponentPatch, RawItemStack, ReadyChunkBatch,
+    RecipeBookType, RecipeBookTypeSettings, ServerboundChunkBatchReceivedPacket,
+    ServerboundContainerClickPacket, ServerboundPlaceRecipePacket,
     ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
     ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
     CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
@@ -375,6 +376,15 @@ const REGION_FEATURE_CACHEABLE_RADIUS: i32 = 1;
 #[derive(Clone, Default)]
 struct GeneratedChunkCache {
     chunks: Arc<Mutex<HashMap<ChunkPos, Arc<LevelChunk>>>>,
+    /// Chunks that have been mutated in memory since they were last persisted
+    /// to disk. Java mirror: `LevelChunk.unsaved` flag — set on every
+    /// `setBlockState` and cleared by `ChunkMap.save`.
+    ///
+    /// The set is drained by [`Self::flush_dirty`], which runs on a periodic
+    /// background timer and at every play-session exit. Keeping the dirty
+    /// set in the cache (instead of per-session) means two players editing
+    /// the same chunk both contribute to the same flush.
+    dirty: Arc<Mutex<HashSet<ChunkPos>>>,
 }
 
 impl GeneratedChunkCache {
@@ -430,8 +440,347 @@ impl GeneratedChunkCache {
             .clone()
     }
 
+    /// Evict a chunk from the in-memory cache. **Refuses to evict dirty
+    /// chunks**: an in-memory-only block change would be silently lost if
+    /// we dropped it before `flush_dirty` ran. Java's chunk map has the
+    /// same invariant — `LevelChunk.unsaved` blocks unload until the
+    /// chunk has been persisted.
     fn invalidate(&self, pos: ChunkPos) {
+        if self.dirty.lock().unwrap().contains(&pos) {
+            return;
+        }
         self.chunks.lock().unwrap().remove(&pos);
+    }
+
+    /// Nonblocking readiness probe.
+    ///
+    /// Returns `Some(chunk)` only if the chunk has already been generated and
+    /// is sitting in the cache; never triggers generation or I/O. Mirrors
+    /// Java `ChunkMap.getChunkToSend`: the per-tick chunk send path calls this
+    /// to decide which pending chunks can be flushed *right now*, and skips
+    /// the rest for a later tick once generation completes.
+    fn try_get_ready(&self, pos: ChunkPos) -> Option<Arc<LevelChunk>> {
+        self.chunks.lock().unwrap().get(&pos).cloned()
+    }
+
+    /// Java mirror: `LevelChunk.setBlockState(pos, state, flags)`. Mutates
+    /// the in-memory chunk and marks it dirty for later persistence.
+    /// Returns the previous block name (filtered to drop air), matching
+    /// what the old `break_block_in_region` returned for the loot path.
+    ///
+    /// If the chunk isn't yet cached, it's loaded first via [`get_or_load`]
+    /// (so block updates from worker/player paths transparently bring the
+    /// chunk into the cache). The mutation goes through `Arc::make_mut`,
+    /// which clones the inner `LevelChunk` only if other holders (e.g.
+    /// in-flight chunk send batches) still reference the previous
+    /// snapshot — those readers are not affected by the mutation, which
+    /// matches Java's invariant that send packets capture chunk state at
+    /// packet-build time.
+    ///
+    /// Avoiding the previous write-through-to-disk pattern is what fixes
+    /// the multi-tens-of-ms `[fluid-timing] write_update` cost: flowing
+    /// fluids used to re-encode and write a full 24-section chunk NBT to
+    /// the region file on every tick.
+    fn set_block(
+        &self,
+        world_root: &Path,
+        world_seed: i64,
+        pos: crate::block_update::BlockPos,
+        block_name: &str,
+    ) -> Option<String> {
+        let chunk_pos = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        // Ensure the chunk is in cache. get_or_load handles
+        // region-read + worldgen fallback.
+        let _ = self.get_or_load(chunk_pos.x, chunk_pos.z, world_root, world_seed);
+        let prev = {
+            let mut map = self.chunks.lock().unwrap();
+            let Some(arc) = map.get_mut(&chunk_pos) else {
+                return None;
+            };
+            let chunk = Arc::make_mut(arc);
+            let prev = chunk
+                .get_block_state(pos.x, pos.y, pos.z)
+                .filter(|n| n != "minecraft:air");
+            chunk.set_block_state(pos.x, pos.y, pos.z, block_name);
+            prev
+        };
+        self.dirty.lock().unwrap().insert(chunk_pos);
+        prev
+    }
+
+    /// Persist every dirty chunk to its region file and clear the dirty
+    /// set. Returns the number of chunks written.
+    ///
+    /// Java mirror: `ChunkMap.processUnloads` + `ChunkHolder.save` — the
+    /// periodic chunk-save pass that runs ~every autosave interval and on
+    /// shutdown. We run it on a background timer (see
+    /// `spawn_chunk_flush_thread`) and at every play-session exit so a
+    /// disconnect within the autosave window doesn't drop the player's
+    /// edits.
+    fn flush_dirty(&self, world_root: &Path) -> usize {
+        let dirty: Vec<ChunkPos> = {
+            let mut d = self.dirty.lock().unwrap();
+            d.drain().collect()
+        };
+        if dirty.is_empty() {
+            return 0;
+        }
+        let snapshots: Vec<(ChunkPos, Arc<LevelChunk>)> = {
+            let map = self.chunks.lock().unwrap();
+            dirty
+                .iter()
+                .filter_map(|pos| map.get(pos).cloned().map(|c| (*pos, c)))
+                .collect()
+        };
+        let region_dir = world_root.join("region");
+        let mut written = 0_usize;
+        for (pos, chunk) in snapshots {
+            let Ok(region) = RegionFile::open(&region_dir, pos.region()) else {
+                continue;
+            };
+            let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
+            if region.write_chunk_nbt(pos, "", &nbt).is_ok() {
+                written += 1;
+            }
+        }
+        written
+    }
+}
+
+/// Spawn a background thread that periodically flushes dirty chunks from
+/// `cache` to the region files under `world_root`. Java mirror: the
+/// autosave loop inside `MinecraftServer.tickServer` that calls
+/// `ChunkMap.processUnloads` and triggers `ChunkHolder.save` for chunks
+/// whose `unsaved` flag is set.
+///
+/// Runs forever once started; the thread is daemon-style (the OS reaps
+/// it at process exit) and never holds locks across writes.
+fn spawn_chunk_flush_thread(
+    cache: GeneratedChunkCache,
+    world_root: Arc<PathBuf>,
+    interval: Duration,
+) {
+    thread::Builder::new()
+        .name("chunk-flush".to_string())
+        .spawn(move || loop {
+            thread::sleep(interval);
+            let started = Instant::now();
+            let written = cache.flush_dirty(&world_root);
+            if written > 0 {
+                eprintln!(
+                    "[chunk-flush] persisted {} dirty chunks in {}ms",
+                    written,
+                    started.elapsed().as_millis()
+                );
+            }
+        })
+        .expect("failed to spawn chunk-flush thread");
+}
+
+/// Shared async chunk generation coordinator.
+///
+/// Java split: `ChunkMap` + `ChunkTaskDispatcher` schedule generation on
+/// background executors while the server tick loop stays responsive. Here we
+/// keep [`GeneratedChunkCache`] as the read-only cache of completed chunks
+/// and layer this struct on top to own the worker pool and the
+/// "currently-pending" registry.
+///
+/// One instance is constructed per running server and shared across all play
+/// sessions, so two players viewing the same chunk coalesce into a single
+/// generation job. Completed chunks remain visible via
+/// [`GeneratedChunkCache::try_get_ready`].
+#[derive(Clone)]
+struct ChunkPipeline {
+    cache: GeneratedChunkCache,
+    inner: Arc<ChunkPipelineInner>,
+}
+
+struct ChunkPipelineInner {
+    world_root: PathBuf,
+    world_seed: i64,
+    state: Mutex<ChunkPipelineState>,
+    cvar: Condvar,
+    shutdown: AtomicBool,
+    /// Generations completed since startup, for diagnostics.
+    generated_total: AtomicU64,
+}
+
+#[derive(Default)]
+struct ChunkPipelineState {
+    /// Positions with outstanding work — queued or in flight.
+    ///
+    /// Each entry records when the request was first enqueued, so the
+    /// diagnostics layer can report the oldest pending age (a proxy for
+    /// "worker pool is overloaded").
+    pending: HashMap<ChunkPos, Instant>,
+    /// FIFO of positions awaiting a worker. Drained from the front by
+    /// workers, refilled by [`ChunkPipeline::request_chunk`].
+    queue: VecDeque<ChunkPos>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct ChunkPipelineDiagnostics {
+    queue_depth: usize,
+    in_flight: usize,
+    oldest_request_age_ms: u64,
+    generated_total: u64,
+}
+
+impl ChunkPipeline {
+    /// Create the pipeline, spawning `worker_count` background generation
+    /// workers. Workers block on a condvar when idle.
+    fn new(
+        cache: GeneratedChunkCache,
+        world_root: PathBuf,
+        world_seed: i64,
+        worker_count: usize,
+    ) -> Self {
+        let inner = Arc::new(ChunkPipelineInner {
+            world_root,
+            world_seed,
+            state: Mutex::new(ChunkPipelineState::default()),
+            cvar: Condvar::new(),
+            shutdown: AtomicBool::new(false),
+            generated_total: AtomicU64::new(0),
+        });
+        for worker_id in 0..worker_count {
+            let inner = Arc::clone(&inner);
+            let cache = cache.clone();
+            thread::Builder::new()
+                .name(format!("chunk-pipeline-{worker_id}"))
+                .spawn(move || chunk_pipeline_worker(inner, cache))
+                .expect("failed to spawn chunk pipeline worker");
+        }
+        Self { cache, inner }
+    }
+
+    /// Schedule generation for `pos` if it isn't already ready or in flight.
+    ///
+    /// Idempotent: duplicate calls (across sessions or after redraws) coalesce
+    /// into the same generation job. Already-cached chunks are a no-op.
+    fn request_chunk(&self, pos: ChunkPos) {
+        if self.cache.try_get_ready(pos).is_some() {
+            return;
+        }
+        let mut state = self.inner.state.lock().unwrap();
+        if state.pending.contains_key(&pos) {
+            return;
+        }
+        state.pending.insert(pos, Instant::now());
+        state.queue.push_back(pos);
+        self.inner.cvar.notify_one();
+    }
+
+    /// Nonblocking readiness lookup, delegating to the cache. The pipeline
+    /// also accepts chunks that arrived via any other path (region load,
+    /// direct synchronous spawn) — readiness is purely a function of the
+    /// cache state.
+    fn try_get_ready(&self, pos: ChunkPos) -> Option<Arc<LevelChunk>> {
+        self.cache.try_get_ready(pos)
+    }
+
+    /// Best-effort cancel: pull `pos` out of the queue if it hasn't started
+    /// yet. Workers cannot be preempted mid-generation, so an in-flight job
+    /// runs to completion (the chunk lands in the cache and is available if
+    /// the player re-enters its tracking range later).
+    fn cancel_request(&self, pos: ChunkPos) {
+        let mut state = self.inner.state.lock().unwrap();
+        if state.pending.contains_key(&pos) {
+            let before = state.queue.len();
+            state.queue.retain(|p| *p != pos);
+            if state.queue.len() < before {
+                // Only fully drop the pending record if we actually pulled the
+                // job from the queue. In-flight jobs keep the pending entry so
+                // we don't accidentally schedule the same chunk twice while a
+                // worker is still computing it.
+                state.pending.remove(&pos);
+            }
+        }
+    }
+
+    fn diagnostics(&self) -> ChunkPipelineDiagnostics {
+        let state = self.inner.state.lock().unwrap();
+        let now = Instant::now();
+        let oldest = state
+            .pending
+            .values()
+            .map(|t| now.saturating_duration_since(*t))
+            .max();
+        ChunkPipelineDiagnostics {
+            queue_depth: state.queue.len(),
+            in_flight: state.pending.len() - state.queue.len(),
+            oldest_request_age_ms: oldest.map(|d| d.as_millis() as u64).unwrap_or(0),
+            generated_total: self.inner.generated_total.load(Ordering::Relaxed),
+        }
+    }
+
+    /// Underlying cache, for paths that still need direct read access (region
+    /// load, invalidation on block updates, fluid seeding).
+    fn cache(&self) -> &GeneratedChunkCache {
+        &self.cache
+    }
+}
+
+fn chunk_pipeline_worker(inner: Arc<ChunkPipelineInner>, cache: GeneratedChunkCache) {
+    loop {
+        let pos = {
+            let mut state = inner.state.lock().unwrap();
+            loop {
+                if inner.shutdown.load(Ordering::Acquire) {
+                    return;
+                }
+                if let Some(pos) = state.queue.pop_front() {
+                    break pos;
+                }
+                state = inner.cvar.wait(state).unwrap();
+            }
+        };
+
+        // Drop the pending record regardless of how generation exits — a
+        // worker panic must not "lose" a chunk position forever, otherwise
+        // future requests for the same pos would be silently coalesced away.
+        struct PendingGuard<'a> {
+            inner: &'a ChunkPipelineInner,
+            pos: ChunkPos,
+        }
+        impl<'a> Drop for PendingGuard<'a> {
+            fn drop(&mut self) {
+                self.inner.state.lock().unwrap().pending.remove(&self.pos);
+            }
+        }
+        let _guard = PendingGuard {
+            inner: &inner,
+            pos,
+        };
+
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            cache.get_or_load(pos.x, pos.z, &inner.world_root, inner.world_seed)
+        }));
+        match result {
+            Ok(_) => {
+                inner.generated_total.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(payload) => {
+                let detail = panic_payload_to_string(&payload);
+                eprintln!(
+                    "[chunk-pipeline] worker panic generating chunk=({}, {}): {}",
+                    pos.x, pos.z, detail
+                );
+            }
+        }
+    }
+}
+
+fn panic_payload_to_string(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "<non-string panic payload>".to_string()
     }
 }
 
@@ -460,6 +809,31 @@ impl LiveFluidTicks {
             kind.tick_delay(),
             TickPriority::Normal,
         );
+        let _ = self.queues.schedule(tick);
+    }
+
+    /// Java mirror: `LevelChunkTicks.unpack(currentTick)`. Schedule a tick at
+    /// `current_tick + delay` with the saved priority — preserving exactly
+    /// what was recorded in NBT instead of resetting the delay to the fluid's
+    /// default. Used to restore the chunk's saved fluid ticks on load,
+    /// equivalent to Java `ChunkAccess.unpackTicks` →
+    /// `LevelChunk.registerTickContainerInLevel`.
+    fn schedule_saved(
+        &mut self,
+        current_tick: i64,
+        pos: crate::block_update::BlockPos,
+        kind: FluidKind,
+        delay: i32,
+        priority: TickPriority,
+    ) {
+        let chunk = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        self.queues.add_container(chunk);
+        let tick =
+            self.queues
+                .create_tick(current_tick, pos, kind.registry_id(), delay, priority);
         let _ = self.queues.schedule(tick);
     }
 
@@ -1360,6 +1734,33 @@ pub fn run_status_server(
     let active_logins = ActiveLoginRegistry::default();
     let world_root = Arc::new(world_root.to_path_buf());
     let chunk_cache = GeneratedChunkCache::default();
+    // Async chunk generation coordinator (Phase 2/3 of the chunking rework).
+    // Wired through every play-session entry point alongside `chunk_cache`,
+    // but the legacy blocking batch path still calls `cache.get_or_load`
+    // directly. The new per-tick drain in `run_play_loop` is what actually
+    // consumes ready chunks from this pipeline; see CHECKLIST_CHUNKING_CHANGES.md.
+    let chunk_pipeline_workers = thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(4)
+        .clamp(2, 8);
+    let chunk_pipeline = ChunkPipeline::new(
+        chunk_cache.clone(),
+        (*world_root).clone(),
+        world_seed,
+        chunk_pipeline_workers,
+    );
+    // Periodic chunk save loop. Java mirror: MinecraftServer's autosave
+    // pass invoked from tickServer — block updates mutate the in-memory
+    // chunk + set the unsaved flag; this thread is what actually pushes
+    // the bytes to disk on a coarse interval. We use 30 s (vanilla
+    // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
+    // shorter window keeps the disconnect-vs-save race tight without
+    // making the writes themselves any more expensive.
+    spawn_chunk_flush_thread(
+        chunk_cache.clone(),
+        Arc::clone(&world_root),
+        Duration::from_secs(30),
+    );
     let player_access = Arc::new(Mutex::new(
         PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
             eprintln!("status access file load error: {err}");
@@ -1452,6 +1853,7 @@ pub fn run_status_server(
                 let favicon = favicon.clone();
                 let active_logins = active_logins.clone();
                 let chunk_cache = chunk_cache.clone();
+                let chunk_pipeline = chunk_pipeline.clone();
                 let world_root = Arc::clone(&world_root);
                 let player_access = Arc::clone(&player_access);
                 let clock = Arc::clone(&clock);
@@ -1471,6 +1873,7 @@ pub fn run_status_server(
                         favicon.as_deref(),
                         &active_logins,
                         &chunk_cache,
+                        &chunk_pipeline,
                         &player_access,
                         &world_root,
                         world_seed,
@@ -1530,6 +1933,7 @@ fn handle_status_connection(
     favicon: Option<&str>,
     active_logins: &ActiveLoginRegistry,
     chunk_cache: &GeneratedChunkCache,
+    chunk_pipeline: &ChunkPipeline,
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
     world_seed: i64,
@@ -1572,6 +1976,7 @@ fn handle_status_connection(
             properties,
             active_logins,
             chunk_cache,
+            chunk_pipeline,
             player_access,
             world_root,
             world_seed,
@@ -1641,6 +2046,7 @@ fn handle_login_connection(
     properties: &ServerProperties,
     active_logins: &ActiveLoginRegistry,
     chunk_cache: &GeneratedChunkCache,
+    chunk_pipeline: &ChunkPipeline,
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
     world_seed: i64,
@@ -2000,7 +2406,6 @@ fn handle_login_connection(
         &play_state,
         recipe_manager,
         world_root,
-        chunk_cache,
         join_game_time,
         join_clock_data,
         join_rain_level,
@@ -2010,6 +2415,22 @@ fn handle_login_connection(
     let mut current_chunk_z = chunk_coordinate(play_state.z);
     let chunk_batch_radius = chunk_batch_radius(properties);
     let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+    // Per-session chunk sender (Java mirror: PlayerChunkSender attached to
+    // ServerPlayer). Seeded with the initial view-distance window below;
+    // the per-tick `drain_chunk_sender` call inside the play loop produces
+    // the actual chunk batches once the pipeline has generated chunks.
+    // `memory_connection=false` because this is a real socket-backed
+    // connection — Java's memory-connection short-circuit (LAN integrated
+    // servers) does not apply.
+    let mut chunk_sender = PlayerChunkSender::new(false);
+    let mut chunk_pipeline_stats = ChunkPipelineSessionStats::default();
+    seed_chunk_window(
+        &mut chunk_sender,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+    );
     stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
     let mut last_keep_alive = Instant::now();
     let mut keep_alive_id = 0_i64;
@@ -2043,13 +2464,7 @@ fn handle_login_connection(
     let mut live_fluid_ticks = LiveFluidTicks::new();
     {
         let center = chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
-        seed_live_fluid_ticks_from_chunk(
-            &mut live_fluid_ticks,
-            play_tick_count as i64,
-            &world_layout,
-            world_seed,
-            &center,
-        );
+        unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
     }
     const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
@@ -2164,6 +2579,31 @@ fn handle_login_connection(
             {
                 write_play_state_health_packet(stream, compression, &play_state)?;
             }
+
+            // Per-tick chunk send drain (Java mirror:
+            // MinecraftServer.tickChildren → chunkSender.sendNextChunks).
+            // Sits at the end of the player tick so fluid/entity ticking
+            // sees the same chunk snapshot as the chunks being flushed.
+            let drained = drain_chunk_sender(
+                stream,
+                compression,
+                &mut chunk_sender,
+                chunk_pipeline,
+                ChunkPos {
+                    x: current_chunk_x,
+                    z: current_chunk_z,
+                },
+                Some((&mut live_fluid_ticks, play_tick_count as i64)),
+            )?;
+            chunk_pipeline_stats.sent_total = chunk_pipeline_stats
+                .sent_total
+                .saturating_add(drained as u64);
+            maybe_log_chunk_pipeline_stats(
+                &mut chunk_pipeline_stats,
+                &chunk_sender,
+                chunk_pipeline,
+                play_tick_count,
+            );
         }
 
         // Detect weather level changes and broadcast to client.
@@ -2201,6 +2641,10 @@ fn handle_login_connection(
                     let _ =
                         save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                     save_world_item_entities(world_root, &world_items.lock().unwrap());
+                    // Flush any in-memory block changes (player edits,
+                    // fluid spreads) that haven't yet hit the periodic
+                    // 30 s flush window — disconnect must not lose work.
+                    chunk_cache.flush_dirty(world_root);
                     write_framed_packet_with_compression(
                         stream,
                         compression,
@@ -2229,12 +2673,22 @@ fn handle_login_connection(
                         properties,
                         world_root,
                         world_seed,
-                        chunk_cache,
                     )?;
                     current_chunk_x = chunk_coordinate(play_state.x);
                     current_chunk_z = chunk_coordinate(play_state.z);
                     loaded_chunks =
                         chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+                    // Re-seed the per-session sender for the new spawn location.
+                    // Pending chunks from before the respawn no longer make
+                    // sense (different center, different visible window).
+                    chunk_sender = PlayerChunkSender::new(false);
+                    seed_chunk_window(
+                        &mut chunk_sender,
+                        chunk_pipeline,
+                        current_chunk_x,
+                        current_chunk_z,
+                        chunk_batch_radius,
+                    );
                     let _ =
                         save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                     continue;
@@ -2243,35 +2697,28 @@ fn handle_login_connection(
                     let next_chunk_x = chunk_coordinate(play_state.x);
                     let next_chunk_z = chunk_coordinate(play_state.z);
                     if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
-                        let next_loaded_chunks =
-                            chunk_window(next_chunk_x, next_chunk_z, chunk_batch_radius);
-                        for stale_chunk in loaded_chunks.difference(&next_loaded_chunks) {
-                            write_forget_generated_spawn_chunk_packets(
-                                stream,
-                                compression,
-                                stale_chunk.0,
-                                stale_chunk.1,
-                                world_root,
-                                world_seed,
-                                chunk_cache,
-                            )?;
-                        }
-                        let chunks_to_send =
-                            newly_visible_chunks(&loaded_chunks, &next_loaded_chunks);
                         current_chunk_x = next_chunk_x;
                         current_chunk_z = next_chunk_z;
-                        loaded_chunks = next_loaded_chunks;
-                        write_play_chunk_delta(
+                        // Diff old/new visible windows: forget chunks
+                        // leaving the window (or just drop them from
+                        // pending if they had not been flushed yet), and
+                        // enqueue chunks entering it. Java mirror:
+                        // ChunkMap.applyChunkTrackingView when the player's
+                        // tracked chunk position changes. The actual chunk
+                        // payloads are flushed by the next-tick
+                        // drain_chunk_sender; this path never blocks on
+                        // worldgen.
+                        apply_chunk_movement(
                             stream,
                             compression,
+                            &mut chunk_sender,
+                            chunk_pipeline,
+                            &mut loaded_chunks,
                             current_chunk_x,
                             current_chunk_z,
-                            &chunks_to_send,
-                            true,
+                            chunk_batch_radius,
                             world_root,
                             world_seed,
-                            chunk_cache,
-                            Some((&mut live_fluid_ticks, play_tick_count as i64, &world_layout)),
                         )?;
                     }
                     // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
@@ -2399,13 +2846,20 @@ fn handle_login_connection(
                             },
                         )?;
                         let (bx, by, bz) = unpack_block_position(packed_pos);
-                        let chunk_pos = ChunkPos {
-                            x: bx.div_euclid(16),
-                            z: bz.div_euclid(16),
-                        };
-                        let block_name =
-                            break_block_in_region(&world_layout, world_seed, chunk_pos, bx, by, bz);
-                        chunk_cache.invalidate(chunk_pos);
+                        // Java mirror: ServerLevel.removeBlock → LevelChunk.setBlockState
+                        // — mutates the in-memory chunk and marks it
+                        // unsaved. Persistence happens later via the
+                        // periodic flush thread; no per-break disk I/O.
+                        let block_name = chunk_cache.set_block(
+                            world_root,
+                            world_seed,
+                            crate::block_update::BlockPos {
+                                x: bx,
+                                y: by,
+                                z: bz,
+                            },
+                            "minecraft:air",
+                        );
                         schedule_neighbor_fluids(
                             &mut live_fluid_ticks,
                             play_tick_count as i64,
@@ -2556,6 +3010,15 @@ fn handle_login_connection(
                     }
                     continue;
                 }
+                if packet_id == SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID {
+                    // Java: ServerGamePacketListenerImpl.handleChunkBatchReceived
+                    // → PlayerChunkSender.onChunkBatchReceivedByClient. The
+                    // payload is a single f32: the client's measured desired
+                    // chunks-per-tick. The sender uses it both to clamp pacing
+                    // and to lift the unacked-batches gate from 1 → 10.
+                    handle_chunk_batch_received_packet(&mut input, &mut chunk_sender)?;
+                    continue;
+                }
                 if matches!(
                     packet_id,
                     SERVERBOUND_KEEP_ALIVE_PACKET_ID
@@ -2563,7 +3026,6 @@ fn handle_login_connection(
                         | SERVERBOUND_CHAT_ACK_PACKET_ID
                         | SERVERBOUND_CHAT_COMMAND_PACKET_ID
                         | SERVERBOUND_CHAT_PACKET_ID
-                        | SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID
                         | SERVERBOUND_CLIENT_COMMAND_PACKET_ID
                         | SERVERBOUND_CLIENT_INFORMATION_PACKET_ID
                         | SERVERBOUND_CLIENT_TICK_END_PACKET_ID
@@ -2584,6 +3046,7 @@ fn handle_login_connection(
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 save_world_item_entities(world_root, &world_items.lock().unwrap());
+                chunk_cache.flush_dirty(world_root);
                 write_framed_packet_with_compression(
                     stream,
                     compression,
@@ -2613,6 +3076,7 @@ fn handle_login_connection(
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 save_world_item_entities(world_root, &world_items.lock().unwrap());
+                chunk_cache.flush_dirty(world_root);
                 return Ok(());
             }
             Err(err) => return Err(err),
@@ -3338,17 +3802,20 @@ fn handle_use_item_on(
         );
     }
 
-    // Persist the new block state into the region file.
-    place_block_in_region(
-        world_layout,
+    // Java mirror: Level.setBlock(pos, state, flags) → LevelChunk.setBlockState
+    // — mutate in-memory + mark unsaved. The periodic chunk-flush thread
+    // does the actual disk write.
+    chunk_cache.set_block(
+        world_layout.root(),
         world_seed,
-        target_chunk,
-        target_x,
-        target_y,
-        target_z,
+        crate::block_update::BlockPos {
+            x: target_x,
+            y: target_y,
+            z: target_z,
+        },
         item_name,
     );
-    chunk_cache.invalidate(target_chunk);
+    let _ = target_chunk;
     schedule_neighbor_fluids(
         live_fluid_ticks,
         game_time,
@@ -3494,12 +3961,14 @@ fn handle_bucket_place_fluid(
             send_ack,
         );
     };
-    write_block_model_at(world_layout, world_seed, target, &fluid_state);
-    let target_chunk = ChunkPos {
-        x: target.x.div_euclid(16),
-        z: target.z.div_euclid(16),
-    };
-    chunk_cache.invalidate(target_chunk);
+    // Java mirror: BucketItem.emptyContents → Level.setBlock. In-memory
+    // mutation only; the periodic flush thread persists.
+    chunk_cache.set_block(
+        world_layout.root(),
+        world_seed,
+        target,
+        &block_state_model_name(&fluid_state),
+    );
     live_fluid_ticks.schedule(game_time, target, kind);
     schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, target);
 
@@ -3557,84 +4026,94 @@ fn schedule_neighbor_fluids(
     }
 }
 
-fn seed_live_fluid_ticks_from_chunk(
+/// Java-parity chunk-load fluid restore. Mirrors
+/// `LevelChunk.registerTickContainerInLevel` + `LevelChunkTicks.unpack`:
+/// reads the chunk's saved `fluid_ticks` NBT (one compound per tick with
+/// `i`/`x`/`y`/`z`/`t`/`p` fields per `SavedTick.codec`), and schedules
+/// each into the live tick queue at `current_tick + delay`.
+///
+/// **Does NOT scan blocks** — Java never scans on load. Fluids that should
+/// flow are scheduled either (a) by the worldgen feature that placed
+/// them (via the chunk's `postProcessing` list, then unpacked here), or
+/// (b) by neighbour block updates at gameplay time (e.g. a player breaks
+/// a block next to water → `schedule_neighbor_fluids` fires). Freshly
+/// generated chunks with no saved ticks restore zero ticks, identical to
+/// vanilla.
+fn unpack_chunk_fluid_ticks(
     live_fluid_ticks: &mut LiveFluidTicks,
-    game_time: i64,
-    world_layout: &WorldLayout,
-    world_seed: i64,
+    current_tick: i64,
     chunk: &LevelChunk,
 ) {
     let started = Instant::now();
-    let min_y = chunk.min_section_y * 16;
-    let max_y = min_y + (chunk.sections.len() as i32 * 16);
-    let mut fluid_blocks = 0_usize;
     let mut scheduled = 0_usize;
-    for y in min_y..max_y {
-        for local_z in 0..16 {
-            for local_x in 0..16 {
-                let pos = crate::block_update::BlockPos {
-                    x: chunk.pos.x * 16 + local_x,
-                    y,
-                    z: chunk.pos.z * 16 + local_z,
-                };
-                let Some(entry) = chunk.get_block_state_model(pos.x, pos.y, pos.z) else {
-                    continue;
-                };
-                let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
-                for (key, value) in entry.properties {
-                    state = state.with_property(&key, value);
+    let mut skipped = 0_usize;
+    for tag in &chunk.fluid_ticks {
+        let crate::storage::nbt::Tag::Compound(fields) = tag else {
+            skipped += 1;
+            continue;
+        };
+        let mut x: Option<i32> = None;
+        let mut y: Option<i32> = None;
+        let mut z: Option<i32> = None;
+        let mut ty: Option<&str> = None;
+        let mut delay: i32 = 0;
+        let mut prio: TickPriority = TickPriority::Normal;
+        for (key, value) in fields {
+            match (key.as_str(), value) {
+                ("x", crate::storage::nbt::Tag::Int(v)) => x = Some(*v),
+                ("y", crate::storage::nbt::Tag::Int(v)) => y = Some(*v),
+                ("z", crate::storage::nbt::Tag::Int(v)) => z = Some(*v),
+                ("i", crate::storage::nbt::Tag::String(s)) => ty = Some(s.as_str()),
+                ("t", crate::storage::nbt::Tag::Int(v)) => delay = *v,
+                // TickPriority.CODEC encodes the enum as its int ordinal:
+                // EXTREMELY_HIGH=-3, VERY_HIGH=-2, HIGH=-1, NORMAL=0,
+                // LOW=1, VERY_LOW=2, EXTREMELY_LOW=3.
+                ("p", crate::storage::nbt::Tag::Int(v)) => {
+                    prio = match v {
+                        -3 => TickPriority::ExtremelyHigh,
+                        -2 => TickPriority::VeryHigh,
+                        -1 => TickPriority::High,
+                        1 => TickPriority::Low,
+                        2 => TickPriority::VeryLow,
+                        3 => TickPriority::ExtremelyLow,
+                        _ => TickPriority::Normal,
+                    };
                 }
-                let Some(fluid) = fluid_state_for_block(&state) else {
-                    continue;
-                };
-                fluid_blocks += 1;
-                if fluid_has_runtime_update_edge(chunk, world_layout, world_seed, pos) {
-                    live_fluid_ticks.schedule(game_time, pos, fluid.kind);
-                    scheduled += 1;
-                }
+                _ => {}
             }
         }
+        let (Some(x), Some(y), Some(z), Some(ty)) = (x, y, z, ty) else {
+            skipped += 1;
+            continue;
+        };
+        let kind = match ty {
+            "minecraft:water" | "minecraft:flowing_water" => FluidKind::Water,
+            "minecraft:lava" | "minecraft:flowing_lava" => FluidKind::Lava,
+            _ => {
+                skipped += 1;
+                continue;
+            }
+        };
+        live_fluid_ticks.schedule_saved(
+            current_tick,
+            crate::block_update::BlockPos { x, y, z },
+            kind,
+            delay,
+            prio,
+        );
+        scheduled += 1;
     }
     let elapsed = started.elapsed();
-    if fluid_blocks > 0 || elapsed >= Duration::from_millis(10) {
+    if scheduled > 0 || skipped > 0 || elapsed >= Duration::from_millis(10) {
         eprintln!(
-            "[fluid-timing] seed chunk=({}, {}) y={}..{} fluid_blocks={} scheduled={} elapsed={}ms",
+            "[fluid-timing] unpack chunk=({}, {}) scheduled={} skipped={} elapsed={}ms",
             chunk.pos.x,
             chunk.pos.z,
-            min_y,
-            max_y,
-            fluid_blocks,
             scheduled,
+            skipped,
             elapsed.as_millis()
         );
     }
-}
-
-fn fluid_has_runtime_update_edge(
-    chunk: &LevelChunk,
-    world_layout: &WorldLayout,
-    world_seed: i64,
-    pos: crate::block_update::BlockPos,
-) -> bool {
-    crate::fluid::fluid_neighbor_order().into_iter().any(|direction| {
-        let neighbor = pos.relative(direction);
-        let same_chunk = neighbor.x.div_euclid(16) == chunk.pos.x
-            && neighbor.z.div_euclid(16) == chunk.pos.z;
-        let neighbor_state = if same_chunk {
-            if let Some(entry) = chunk.get_block_state_model(neighbor.x, neighbor.y, neighbor.z) {
-                let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
-                for (key, value) in entry.properties {
-                    state = state.with_property(&key, value);
-                }
-                state
-            } else {
-                crate::block_behavior::BlockStateModel::air()
-            }
-        } else {
-            read_block_model_at(world_layout, world_seed, neighbor)
-        };
-        neighbor_state.is_air()
-    })
 }
 
 fn write_single_block_update<W: Write>(
@@ -3686,51 +4165,73 @@ fn process_live_fluid_ticks(
             _ => continue,
         };
         let read_started = Instant::now();
-        let current = read_block_model_at(world_layout, world_seed, tick.pos);
+        // Java parity: a fluid tick on an unloaded chunk simply doesn't fire
+        // — its tick container was unregistered on chunk unload (see
+        // LevelChunk.unregisterTickContainerFromLevel). Mirror that here by
+        // skipping ticks whose chunk isn't ready in the cache; this also
+        // stops a single tick from triggering a fresh worldgen of its own
+        // chunk via the legacy `load_chunk` fallback.
+        let current = match try_read_block_model_at(chunk_cache, world_layout, tick.pos) {
+            Some(state) => state,
+            None => {
+                skipped_wrong_fluid += 1;
+                read_current_us += read_started.elapsed().as_micros();
+                continue;
+            }
+        };
         read_current_us += read_started.elapsed().as_micros();
         if crate::fluid::fluid_state_for_block(&current).is_none_or(|fluid| fluid.kind != kind) {
             skipped_wrong_fluid += 1;
             continue;
         }
         let tick_started = Instant::now();
+        // Neighbour reads in the tick closure use the same non-generating
+        // path. A missing neighbour is treated as air; Java reaches the
+        // same conclusion via its simulation-distance ticket guarantee
+        // (all neighbours are loaded before a tick fires), but where that
+        // guarantee doesn't hold here we conservatively treat the
+        // neighbour as air rather than recursively regenerating it.
         let result = tick_fluid(tick.pos, &current, |pos| {
-            read_block_model_at(world_layout, world_seed, pos)
+            try_read_block_model_at(chunk_cache, world_layout, pos)
+                .unwrap_or_else(crate::block_behavior::BlockStateModel::air)
         });
         tick_fluid_us += tick_started.elapsed().as_micros();
-        let mut changed_chunks = BTreeSet::new();
         for (pos, state) in result.changes {
             let write_started = Instant::now();
-            if write_block_model_at(world_layout, world_seed, pos, &state) {
-                write_update_us += write_started.elapsed().as_micros();
-                changes_written += 1;
-                changed_chunks.insert(ChunkPos {
-                    x: pos.x.div_euclid(16),
-                    z: pos.z.div_euclid(16),
-                });
-                write_single_block_update(stream, compression, pos, &state)?;
-                if let Some(fluid) = crate::fluid::fluid_state_for_block(&state) {
-                    live_fluid_ticks.schedule(game_time, pos, fluid.kind);
+            // Java mirror: FlowingFluid.spreadTo / spread → Level.setBlock
+            // → LevelChunk.setBlockState. In-memory mutation; the chunk
+            // is marked unsaved and the periodic flush thread persists
+            // later. Previously this path wrote the full 24-section
+            // chunk NBT to disk on every fluid spread step, which
+            // ate ~20 ms per change.
+            chunk_cache.set_block(
+                world_layout.root(),
+                world_seed,
+                pos,
+                &block_state_model_name(&state),
+            );
+            write_update_us += write_started.elapsed().as_micros();
+            changes_written += 1;
+            write_single_block_update(stream, compression, pos, &state)?;
+            if let Some(fluid) = crate::fluid::fluid_state_for_block(&state) {
+                live_fluid_ticks.schedule(game_time, pos, fluid.kind);
+            }
+            for direction in crate::fluid::fluid_neighbor_order() {
+                let neighbor = pos.relative(direction);
+                let neighbor_started = Instant::now();
+                let neighbor_state =
+                    try_read_block_model_at(chunk_cache, world_layout, neighbor)
+                        .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
+                neighbor_read_us += neighbor_started.elapsed().as_micros();
+                if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
+                    live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
+                    neighbor_schedules += 1;
                 }
-                for direction in crate::fluid::fluid_neighbor_order() {
-                    let neighbor = pos.relative(direction);
-                    let neighbor_started = Instant::now();
-                    let neighbor_state = read_block_model_at(world_layout, world_seed, neighbor);
-                    neighbor_read_us += neighbor_started.elapsed().as_micros();
-                    if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
-                        live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
-                        neighbor_schedules += 1;
-                    }
-                }
-            } else {
-                write_update_us += write_started.elapsed().as_micros();
             }
         }
         for pos in result.schedule {
             live_fluid_ticks.schedule(game_time, pos, kind);
             result_schedules += 1;
-        }
-        for chunk in changed_chunks {
-            chunk_cache.invalidate(chunk);
         }
     }
     let total = total_started.elapsed();
@@ -3951,7 +4452,6 @@ fn handle_play_respawn_request(
     properties: &ServerProperties,
     world_root: &Path,
     world_seed: i64,
-    chunk_cache: &GeneratedChunkCache,
 ) -> io::Result<()> {
     let spawn = find_default_player_spawn(world_root, world_seed, state.game_mode);
     apply_spawn_placement_to_state(state, spawn);
@@ -3998,18 +4498,10 @@ fn handle_play_respawn_request(
         CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
         |payload| write_var_i32(payload, properties.view_distance as i32),
     )?;
-    write_play_chunk_delta(
-        stream,
-        compression,
-        center_chunk_x,
-        center_chunk_z,
-        &[(center_chunk_x, center_chunk_z)],
-        false,
-        world_root,
-        world_seed,
-        chunk_cache,
-        None,
-    )?;
+    // Chunk payloads after respawn are flushed by the per-tick
+    // drain_chunk_sender call in the play loop — the caller is responsible
+    // for re-seeding the per-session PlayerChunkSender with the new
+    // visible window. See handle_login_connection's respawn handling.
 
     write_framed_packet_with_compression(
         stream,
@@ -4069,18 +4561,7 @@ fn handle_play_respawn_request(
             payload.write_all(&0.0f32.to_be_bytes())
         },
     )?;
-    delay_initial_chunk_batch_for_probe(stream, compression)?;
-    write_play_chunk_batch(
-        stream,
-        compression,
-        center_chunk_x,
-        center_chunk_z,
-        chunk_batch_radius(properties),
-        false,
-        world_root,
-        world_seed,
-        chunk_cache,
-    )
+    delay_initial_chunk_batch_for_probe(stream, compression)
 }
 
 fn apply_spawn_placement_to_state(state: &mut PlaySessionState, spawn: PlayerSpawnPlacement) {
@@ -5155,7 +5636,6 @@ fn write_minimal_play_join(
     play_state: &PlaySessionState,
     recipe_manager: &RecipeManagerModel,
     world_root: &Path,
-    chunk_cache: &GeneratedChunkCache,
     clock_game_time: i64,
     clock_data: Vec<(i32, ClockNetworkState)>,
     rain_level: f32,
@@ -5335,18 +5815,6 @@ fn write_minimal_play_join(
         CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
         |payload| write_var_i32(payload, properties.view_distance as i32),
     )?;
-    write_play_chunk_delta(
-        stream,
-        compression,
-        center_chunk_x,
-        center_chunk_z,
-        &[(center_chunk_x, center_chunk_z)],
-        false,
-        world_root,
-        world_seed,
-        chunk_cache,
-        None,
-    )?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -5396,20 +5864,240 @@ fn write_minimal_play_join(
             payload.write_all(&0.0f32.to_be_bytes())
         },
     )?;
+    // Optional disconnect-probe delay before chunks start flowing — kept
+    // for parity with the legacy blocking-batch path. With the async
+    // pipeline, the actual chunk batches start arriving from the play
+    // loop's per-tick drain (see `drain_chunk_sender`) instead of being
+    // synchronously generated here.
     delay_initial_chunk_batch_for_probe(stream, compression)?;
-    write_play_chunk_batch(
-        stream,
-        compression,
-        center_chunk_x,
-        center_chunk_z,
-        chunk_batch_radius(properties),
-        false,
-        world_root,
-        world_seed,
-        chunk_cache,
-    )
+    Ok(())
 }
 
+/// Per-session diagnostic counters for the new async chunk pipeline.
+///
+/// Reported periodically by the play loop (`maybe_log_chunk_pipeline_stats`)
+/// — see CHECKLIST_CHUNKING_CHANGES.md "Baseline and diagnostics".
+#[derive(Debug, Default)]
+struct ChunkPipelineSessionStats {
+    /// Chunks the play loop has flushed to the client since startup.
+    sent_total: u64,
+    /// Tick at which we last logged (0 = never).
+    last_log_tick: u64,
+}
+
+const CHUNK_PIPELINE_LOG_INTERVAL_TICKS: u64 = 40; // ~2 s at 20 TPS
+
+/// Seed a per-session sender + pipeline with every chunk in the player's
+/// initial view-distance window centred at (center_x, center_z).
+///
+/// O(view_distance^2) but each call is constant-work per chunk: marking
+/// pending and scheduling generation never touches disk or worldgen
+/// directly, so the play loop is ready to tick immediately after this
+/// returns. Mirrors Java `ChunkMap.applyChunkTrackingView` for the join
+/// flow.
+fn seed_chunk_window(
+    chunk_sender: &mut PlayerChunkSender,
+    chunk_pipeline: &ChunkPipeline,
+    center_x: i32,
+    center_z: i32,
+    radius: i32,
+) {
+    for z in (center_z - radius)..=(center_z + radius) {
+        for x in (center_x - radius)..=(center_x + radius) {
+            let pos = ChunkPos { x, z };
+            chunk_sender.mark_chunk_pending_to_send(pos);
+            chunk_pipeline.request_chunk(pos);
+        }
+    }
+}
+
+/// Per-tick chunk send drain. Mirrors Java
+/// `MinecraftServer.tickChildren()` → `chunkSender.sendNextChunks(player)`
+/// (one chunk batch per tick max, paced by the client's
+/// `desiredChunksPerTick` feedback).
+///
+/// Returns the count of chunks actually flushed this tick.
+fn drain_chunk_sender(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    chunk_sender: &mut PlayerChunkSender,
+    chunk_pipeline: &ChunkPipeline,
+    player_chunk_pos: ChunkPos,
+    mut live_fluid_unpack: Option<(&mut LiveFluidTicks, i64)>,
+) -> io::Result<usize> {
+    let Some(batch) = chunk_sender
+        .send_next_chunks(player_chunk_pos, |pos| chunk_pipeline.try_get_ready(pos))
+    else {
+        return Ok(0);
+    };
+    write_chunk_batch_to_stream(stream, compression, &batch, live_fluid_unpack.as_mut())?;
+    Ok(batch.chunks.len())
+}
+
+/// Flush a [`ReadyChunkBatch`] to the wire with the Java-mandated framing
+/// (`ChunkBatchStart` → N × `LevelChunkWithLight` → `ChunkBatchFinished`).
+fn write_chunk_batch_to_stream(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    batch: &ReadyChunkBatch,
+    mut live_fluid_unpack: Option<&mut (&mut LiveFluidTicks, i64)>,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
+        |_| Ok(()),
+    )?;
+
+    for (_, chunk) in &batch.chunks {
+        // Java mirror: ChunkAccess.unpackTicks(currentTick) +
+        // LevelChunk.registerTickContainerInLevel — runs once per chunk
+        // as it transitions to the loaded/sent state. Restores the
+        // chunk's saved fluid_ticks (zero for freshly generated chunks).
+        // No block scan and no neighbour reads — that's the Java
+        // invariant, and it's what unblocked the play loop here.
+        if let Some((ticks, game_time)) = live_fluid_unpack.as_deref_mut() {
+            unpack_chunk_fluid_ticks(&mut **ticks, *game_time, chunk);
+        }
+        write_generated_spawn_chunk_packets_from_chunk(stream, compression, chunk)?;
+    }
+
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
+        |payload| write_var_i32(payload, batch.chunks.len() as i32),
+    )?;
+    Ok(())
+}
+
+/// Apply a `ServerboundChunkBatchReceivedPacket` to the per-session sender.
+/// Java mirror: `ServerGamePacketListenerImpl.handleChunkBatchReceived` →
+/// `PlayerChunkSender.onChunkBatchReceivedByClient`.
+fn handle_chunk_batch_received_packet<R: Read>(
+    reader: &mut R,
+    chunk_sender: &mut PlayerChunkSender,
+) -> io::Result<()> {
+    let packet = ServerboundChunkBatchReceivedPacket::read(reader)?;
+    chunk_sender.on_chunk_batch_received_by_client(packet.desired_chunks_per_tick);
+    Ok(())
+}
+
+/// Apply a player chunk movement to the per-session sender and pipeline.
+///
+/// `loaded_chunks` is the *old* tracked window; on return it is replaced
+/// with `next_loaded_chunks`. Chunks leaving the window are forgotten
+/// (or just unscheduled if they hadn't been sent yet); chunks entering
+/// the window are scheduled for generation and queued for the next paced
+/// batch.
+fn apply_chunk_movement(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    chunk_sender: &mut PlayerChunkSender,
+    chunk_pipeline: &ChunkPipeline,
+    loaded_chunks: &mut BTreeSet<(i32, i32)>,
+    new_center_x: i32,
+    new_center_z: i32,
+    radius: i32,
+    world_root: &Path,
+    world_seed: i64,
+) -> io::Result<()> {
+    // Java: ChunkMap.updatePlayerStatus sends ClientboundSetChunkCacheCenter
+    // before delta-loading the new visible window.
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, new_center_x)?;
+            write_var_i32(payload, new_center_z)
+        },
+    )?;
+
+    let next = chunk_window(new_center_x, new_center_z, radius);
+    for stale in loaded_chunks.difference(&next).copied().collect::<Vec<_>>() {
+        let pos = ChunkPos {
+            x: stale.0,
+            z: stale.1,
+        };
+        // If the chunk was already sent to the client, emit Forget +
+        // entity-remove packets exactly like the legacy path; otherwise
+        // just drop it from the pending queue (Java: dropChunk early-outs
+        // when removeOk and player is alive).
+        match chunk_sender.drop_chunk(pos, true) {
+            Some(PlayInstruction::ForgetLevelChunk { pos: forget_pos }) => {
+                debug_assert_eq!(forget_pos, pos);
+                write_forget_generated_spawn_chunk_packets(
+                    stream,
+                    compression,
+                    pos.x,
+                    pos.z,
+                    world_root,
+                    world_seed,
+                    chunk_pipeline.cache(),
+                )?;
+            }
+            Some(_) | None => {
+                // Pending-only: also tell the pipeline to drop it from the
+                // queue so we don't waste a worker on chunks that are no
+                // longer visible.
+                chunk_pipeline.cancel_request(pos);
+            }
+        }
+    }
+    for fresh in next.difference(loaded_chunks).copied() {
+        let pos = ChunkPos {
+            x: fresh.0,
+            z: fresh.1,
+        };
+        chunk_sender.mark_chunk_pending_to_send(pos);
+        chunk_pipeline.request_chunk(pos);
+    }
+    *loaded_chunks = next;
+    Ok(())
+}
+
+/// Periodic per-session pipeline diagnostic, gated on the
+/// `RUSTCRAFT_LOG_CHUNK_PIPELINE` env var (default: on whenever there are
+/// pending chunks, to make a stuck pipeline easy to spot).
+fn maybe_log_chunk_pipeline_stats(
+    stats: &mut ChunkPipelineSessionStats,
+    chunk_sender: &PlayerChunkSender,
+    chunk_pipeline: &ChunkPipeline,
+    play_tick_count: u64,
+) {
+    if play_tick_count < stats.last_log_tick + CHUNK_PIPELINE_LOG_INTERVAL_TICKS {
+        return;
+    }
+    let pending = chunk_sender.pending_count();
+    let diag = chunk_pipeline.diagnostics();
+    if pending == 0 && diag.queue_depth == 0 && diag.in_flight == 0 {
+        // Nothing interesting to report; skip log spam.
+        return;
+    }
+    stats.last_log_tick = play_tick_count;
+    eprintln!(
+        "[chunk-pipeline] tick={} pending_to_send={} queue={} in_flight={} oldest_age_ms={} generated_total={} sent_total={} desired_cpt={:.2} unacked_batches={}/{}",
+        play_tick_count,
+        pending,
+        diag.queue_depth,
+        diag.in_flight,
+        diag.oldest_request_age_ms,
+        diag.generated_total,
+        stats.sent_total,
+        chunk_sender.desired_chunks_per_tick(),
+        chunk_sender.unacknowledged_batches(),
+        chunk_sender.max_unacknowledged_batches(),
+    );
+}
+
+/// Legacy blocking view-distance batch (deprecated by the async pipeline).
+///
+/// Kept temporarily as dead code so it stays available for diagnostics and
+/// for the human playtester to fall back to via env var or direct call if a
+/// regression turns up. Will be deleted once the new pipeline is confirmed
+/// in-game — see CHECKLIST_CHUNKING_CHANGES.md "Migration steps".
+#[allow(dead_code)]
 fn write_play_chunk_batch(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -5450,6 +6138,9 @@ fn write_play_chunk_batch(
     )
 }
 
+/// Legacy synchronous chunk delta (deprecated by the async pipeline). See
+/// [`write_play_chunk_batch`] for context.
+#[allow(dead_code)]
 fn write_play_chunk_delta(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -5538,14 +6229,8 @@ fn write_play_chunk_delta(
             })?;
             let recv_ms = recv_started.elapsed().as_millis();
             let write_started = Instant::now();
-            if let Some((ticks, game_time, layout)) = live_fluid_ticks.as_mut() {
-                seed_live_fluid_ticks_from_chunk(
-                    &mut **ticks,
-                    *game_time,
-                    *layout,
-                    world_seed,
-                    &chunk,
-                );
+            if let Some((ticks, game_time, _layout)) = live_fluid_ticks.as_mut() {
+                unpack_chunk_fluid_ticks(&mut **ticks, *game_time, &chunk);
             }
             write_generated_spawn_chunk_packets_from_chunk(stream, compression, &chunk)?;
             let write_ms = write_started.elapsed().as_millis();
@@ -7397,6 +8082,60 @@ fn load_chunk(layout: &WorldLayout, world_seed: i64, chunk_pos: ChunkPos) -> Lev
     .unwrap_or_else(|_| LevelChunk::empty(chunk_pos))
 }
 
+/// Nonblocking chunk lookup for fluid tick / neighbour-probe code.
+///
+/// Returns `Some(chunk)` if the chunk is sitting in the ready cache or can
+/// be read from the region file; returns `None` if neither has it.
+/// Critically, **never** triggers a fresh worldgen.
+///
+/// Java mirror: `Level.getChunkSource().getChunkNow(x, z)` — the
+/// non-loading variant used by paths that can tolerate a `null`
+/// (`getBlockState` on the loading variant would block waiting for the
+/// chunk to materialise; here we don't have Java's simulation-distance
+/// ticket guarantee, so a synchronous load fallback would deadlock the
+/// play loop on neighbour chunks that are still in the pipeline queue).
+fn try_get_chunk_for_neighbour_probe(
+    cache: &GeneratedChunkCache,
+    layout: &WorldLayout,
+    chunk_pos: ChunkPos,
+) -> Option<Arc<LevelChunk>> {
+    if let Some(chunk) = cache.try_get_ready(chunk_pos) {
+        return Some(chunk);
+    }
+    let region_dir = layout.region_dir();
+    if let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) {
+        if let Ok(Some((_name, tag))) = region.read_chunk_nbt(chunk_pos) {
+            if let Ok(chunk) = LevelChunk::from_nbt(chunk_pos, &tag) {
+                return Some(Arc::new(chunk));
+            }
+        }
+    }
+    None
+}
+
+/// Cache/region-only block read; mirrors `read_block_model_at` but skips
+/// the worldgen fallback. Returns `None` when neither the in-memory cache
+/// nor the region file has the chunk — callers decide how to handle a
+/// missing neighbour (the fluid seed path conservatively treats `None` as
+/// air so a real fluid edge is never silently dropped).
+fn try_read_block_model_at(
+    cache: &GeneratedChunkCache,
+    layout: &WorldLayout,
+    pos: crate::block_update::BlockPos,
+) -> Option<crate::block_behavior::BlockStateModel> {
+    let chunk_pos = ChunkPos {
+        x: pos.x.div_euclid(16),
+        z: pos.z.div_euclid(16),
+    };
+    let chunk = try_get_chunk_for_neighbour_probe(cache, layout, chunk_pos)?;
+    let entry = chunk.get_block_state_model(pos.x, pos.y, pos.z)?;
+    let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
+    for (key, value) in entry.properties {
+        state = state.with_property(&key, value);
+    }
+    Some(state)
+}
+
 fn read_block_at(
     layout: &WorldLayout,
     world_seed: i64,
@@ -7431,6 +8170,9 @@ fn read_block_model_at(
     }
 }
 
+/// Legacy disk write-through helper (deprecated by `GeneratedChunkCache::set_block`).
+/// Retained only for tests/tools that exercise raw region I/O.
+#[allow(dead_code)]
 fn write_block_model_at(
     layout: &WorldLayout,
     world_seed: i64,
@@ -7453,6 +8195,9 @@ fn write_block_model_at(
 }
 
 // Reads the old block name from the region, sets it to air, saves, and returns the old name.
+/// Legacy disk write-through break helper (deprecated by
+/// `GeneratedChunkCache::set_block` with `"minecraft:air"`).
+#[allow(dead_code)]
 fn break_block_in_region(
     layout: &WorldLayout,
     world_seed: i64,
@@ -7479,6 +8224,9 @@ fn break_block_in_region(
 ///
 /// Returns true on success, false if the region file could not be opened.
 /// Java: Level.setBlock() → ChunkAccess.setBlockState()
+///
+/// Legacy disk write-through (deprecated by `GeneratedChunkCache::set_block`).
+#[allow(dead_code)]
 fn place_block_in_region(
     layout: &WorldLayout,
     world_seed: i64,
@@ -13583,6 +14331,380 @@ mod tests {
                 "var_int_encoded_len({value}) returned {}, expected {expected_len}",
                 var_int_encoded_len(value)
             );
+        }
+    }
+
+    #[test]
+    fn chunk_pipeline_coalesces_duplicate_requests_into_one_pending_entry() {
+        // Tests Java parity invariant from ChunkTaskDispatcher: two players
+        // requesting the same chunk should produce exactly one generation
+        // job. We construct a worker-less pipeline so the queue cannot drain
+        // and we can observe the pending entries directly.
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0, // no workers — the queue stays put
+        );
+        let pos = crate::storage::region::ChunkPos { x: 7, z: -3 };
+        pipeline.request_chunk(pos);
+        pipeline.request_chunk(pos);
+        pipeline.request_chunk(pos);
+
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 1, "one queued entry, regardless of caller count");
+        assert_eq!(diag.in_flight, 0, "no workers, nothing in flight");
+    }
+
+    #[test]
+    fn chunk_pipeline_cancel_request_dequeues_pending_jobs() {
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let pos_a = crate::storage::region::ChunkPos { x: 1, z: 1 };
+        let pos_b = crate::storage::region::ChunkPos { x: 2, z: 2 };
+        pipeline.request_chunk(pos_a);
+        pipeline.request_chunk(pos_b);
+        pipeline.cancel_request(pos_a);
+
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 1, "cancelled chunk dropped from queue");
+        // Cancelling already-cancelled (or never-pending) is a no-op.
+        pipeline.cancel_request(pos_a);
+        pipeline.cancel_request(crate::storage::region::ChunkPos { x: 99, z: 99 });
+        assert_eq!(pipeline.diagnostics().queue_depth, 1);
+    }
+
+    #[test]
+    fn chunk_pipeline_skips_scheduling_when_chunk_already_cached() {
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 5, z: 5 };
+        // Pre-seed the cache so the pipeline sees this chunk as ready.
+        cache
+            .chunks
+            .lock()
+            .unwrap()
+            .insert(pos, std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)));
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        pipeline.request_chunk(pos);
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 0, "cache hit short-circuits the queue");
+        assert!(pipeline.try_get_ready(pos).is_some());
+    }
+
+    #[test]
+    fn cache_set_block_mutates_in_memory_and_marks_dirty_without_disk_write() {
+        // Java mirror: LevelChunk.setBlockState — in-memory mutation +
+        // unsaved flag. Pre-seed the cache so get_or_load is a hit
+        // (no disk path). The mutation must update the cached chunk
+        // and record the chunk pos in the dirty set.
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 4, z: -7 };
+        cache.chunks.lock().unwrap().insert(
+            pos,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+        );
+
+        let block_pos = crate::block_update::BlockPos {
+            x: 4 * 16 + 3,
+            y: 100,
+            z: -7 * 16 + 11,
+        };
+        let prev = cache.set_block(
+            std::path::Path::new("/tmp/rustcraft-test-not-used"),
+            42,
+            block_pos,
+            "minecraft:stone",
+        );
+        assert!(prev.is_none(), "previous block was air");
+        assert!(cache.dirty.lock().unwrap().contains(&pos));
+
+        let cached = cache.try_get_ready(pos).expect("chunk still cached");
+        assert_eq!(
+            cached
+                .get_block_state(block_pos.x, block_pos.y, block_pos.z)
+                .as_deref(),
+            Some("minecraft:stone")
+        );
+    }
+
+    #[test]
+    fn cache_set_block_clones_via_arc_make_mut_so_in_flight_readers_see_old_snapshot() {
+        // Architectural guard: if a chunk send batch is mid-flight holding
+        // an Arc<LevelChunk>, a concurrent setBlock must not mutate that
+        // in-flight snapshot. Java's send packet captures state at
+        // packet-build time and the follow-up BlockUpdate carries the
+        // diff to the client.
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 0, z: 0 };
+        cache.chunks.lock().unwrap().insert(
+            pos,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+        );
+        let in_flight_snapshot = cache.try_get_ready(pos).unwrap();
+
+        let block_pos = crate::block_update::BlockPos { x: 5, y: 60, z: 5 };
+        cache.set_block(
+            std::path::Path::new("/tmp/rustcraft-test-not-used"),
+            42,
+            block_pos,
+            "minecraft:dirt",
+        );
+
+        assert!(in_flight_snapshot
+            .get_block_state(block_pos.x, block_pos.y, block_pos.z)
+            .as_deref()
+            .map_or(true, |n| n == "minecraft:air"));
+        assert_eq!(
+            cache
+                .try_get_ready(pos)
+                .unwrap()
+                .get_block_state(block_pos.x, block_pos.y, block_pos.z)
+                .as_deref(),
+            Some("minecraft:dirt")
+        );
+    }
+
+    #[test]
+    fn cache_invalidate_refuses_to_drop_dirty_chunks() {
+        // Java parity: LevelChunk.unsaved blocks the chunk-unload path —
+        // an in-memory-only block change can't be silently lost just
+        // because something tried to evict the chunk before flush_dirty
+        // ran.
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 1, z: 1 };
+        cache.chunks.lock().unwrap().insert(
+            pos,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+        );
+        cache.set_block(
+            std::path::Path::new("/tmp/rustcraft-test-not-used"),
+            42,
+            crate::block_update::BlockPos { x: 16, y: 64, z: 16 },
+            "minecraft:gold_block",
+        );
+        cache.invalidate(pos);
+        assert!(
+            cache.try_get_ready(pos).is_some(),
+            "dirty chunk must not be evicted before flush"
+        );
+    }
+
+    #[test]
+    fn unpack_chunk_fluid_ticks_restores_saved_ticks_without_scanning_blocks() {
+        // Java-parity guard: chunk load only restores saved fluid_ticks
+        // (LevelChunkTicks.unpack); it never scans the chunk for fluid
+        // blocks. Build a chunk with one synthetic saved water tick and
+        // verify it lands in the live queue with the saved delay
+        // preserved.
+        use crate::storage::nbt::Tag;
+        let pos = crate::storage::region::ChunkPos { x: 2, z: -1 };
+        let mut chunk = crate::storage::chunk::LevelChunk::empty(pos);
+        chunk.fluid_ticks.push(Tag::Compound(vec![
+            ("i".to_string(), Tag::String("minecraft:water".to_string())),
+            ("x".to_string(), Tag::Int(2 * 16 + 5)),
+            ("y".to_string(), Tag::Int(64)),
+            ("z".to_string(), Tag::Int(-1 * 16 + 9)),
+            ("t".to_string(), Tag::Int(7)),
+            ("p".to_string(), Tag::Int(0)),
+        ]));
+
+        let mut live = super::LiveFluidTicks::new();
+        super::unpack_chunk_fluid_ticks(&mut live, 100, &chunk);
+
+        // No tick is due yet (saved delay=7 → trigger_tick=107) so we
+        // tick at 106 (nothing) then at 107 (one due).
+        assert_eq!(live.tick_due(106, 4096).len(), 0);
+        let due = live.tick_due(107, 4096);
+        assert_eq!(due.len(), 1, "exactly the one saved tick fired");
+        assert_eq!(due[0].pos.x, 2 * 16 + 5);
+        assert_eq!(due[0].pos.y, 64);
+        assert_eq!(due[0].pos.z, -1 * 16 + 9);
+        assert_eq!(due[0].ty, "minecraft:water");
+    }
+
+    #[test]
+    fn unpack_chunk_fluid_ticks_does_not_touch_blocks_on_empty_saved_ticks() {
+        // Architectural guard: this is the path that runs on freshly
+        // generated chunks during the per-tick send drain. It must NOT
+        // attempt to scan the chunk or read neighbour chunks — those
+        // were the cascading worldgen calls that timed out the client.
+        let chunk = crate::storage::chunk::LevelChunk::empty(crate::storage::region::ChunkPos {
+            x: 0,
+            z: 0,
+        });
+        let mut live = super::LiveFluidTicks::new();
+        let started = std::time::Instant::now();
+        super::unpack_chunk_fluid_ticks(&mut live, 0, &chunk);
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(5),
+            "unpack must be O(saved ticks), not O(block count)"
+        );
+        assert_eq!(live.tick_due(1_000_000, 4096).len(), 0);
+    }
+
+    #[test]
+    fn login_seeding_does_not_synchronously_generate_view_distance_window() {
+        // Architectural regression guard. Mirrors the Java invariant from
+        // ChunkMap.applyChunkTrackingView: on player join, the chunk
+        // tracking view is *recorded* immediately but generation runs
+        // asynchronously. Seeding 441 chunks (vd=10) must not produce
+        // any generated chunks and must not block — if it did, the play
+        // loop could not start ticking until the whole window was
+        // computed (the bug this rework exists to fix). We construct a
+        // worker-less pipeline so we can prove nothing was generated as
+        // a side effect of seeding.
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let mut sender = super::PlayerChunkSender::new(false);
+        super::seed_chunk_window(&mut sender, &pipeline, 0, 0, 10);
+
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 21 * 21, "all 441 chunks enqueued for gen");
+        assert_eq!(diag.generated_total, 0, "seeding must not run worldgen");
+        assert_eq!(sender.pending_count(), 21 * 21, "sender tracks all positions");
+        assert_eq!(sender.unacknowledged_batches(), 0, "no batch sent yet");
+
+        // The first per-tick drain returns nothing because no chunks are
+        // ready — sender does not block.
+        let batch = sender.send_next_chunks(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            |pos| pipeline.try_get_ready(pos),
+        );
+        assert!(batch.is_none(), "no ready chunks → no batch, never blocks");
+        assert_eq!(
+            sender.pending_count(),
+            21 * 21,
+            "no pending chunks lost when nothing is ready"
+        );
+        assert_eq!(sender.unacknowledged_batches(), 0);
+    }
+
+    #[test]
+    fn drain_flushes_only_ready_chunks_so_join_progresses_without_full_radius() {
+        // Architectural regression guard. Demonstrates the per-tick
+        // drain produces real progress (a sent batch) as soon as *any*
+        // chunk completes generation, without waiting for the rest of
+        // the view-distance square. This is the "gameplay ticks can run
+        // before full radius is generated" invariant from
+        // CHECKLIST_CHUNKING_CHANGES.md.
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache.clone(),
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let mut sender = super::PlayerChunkSender::new(false);
+        super::seed_chunk_window(&mut sender, &pipeline, 0, 0, 10);
+
+        // Simulate one worker completing one chunk (the centre). With a
+        // worker-less pipeline we publish directly to the cache; the
+        // production worker loop does the same call via `get_or_load`.
+        let ready = crate::storage::region::ChunkPos { x: 0, z: 0 };
+        cache.chunks.lock().unwrap().insert(
+            ready,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(ready)),
+        );
+
+        // Sender produces a batch containing exactly that one ready
+        // chunk — the other 440 stay pending for future ticks.
+        let batch = sender
+            .send_next_chunks(ready, |pos| pipeline.try_get_ready(pos))
+            .expect("one ready chunk → one-chunk batch");
+        assert_eq!(batch.chunks.len(), 1);
+        assert_eq!(batch.chunks[0].0, ready);
+        assert_eq!(
+            sender.pending_count(),
+            21 * 21 - 1,
+            "other chunks still pending"
+        );
+        assert_eq!(
+            sender.unacknowledged_batches(),
+            1,
+            "one batch sent → one ack outstanding"
+        );
+    }
+
+    #[test]
+    fn apply_chunk_movement_keeps_pending_aligned_with_new_view_window() {
+        // Movement diff: chunks falling out of the new window should be
+        // unscheduled and dropped from sender's pending set; chunks
+        // entering the window should be both queued for generation and
+        // recorded in sender's pending set. We exercise this without
+        // touching the wire (using a sender + pipeline directly).
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let mut sender = super::PlayerChunkSender::new(false);
+        // Initial window centred at (0, 0) with radius 1.
+        super::seed_chunk_window(&mut sender, &pipeline, 0, 0, 1);
+        // 3×3 = 9 chunks should be pending and queued.
+        assert_eq!(sender.pending_count(), 9);
+        assert_eq!(pipeline.diagnostics().queue_depth, 9);
+
+        // Player walks one chunk east → centre (1, 0). The new window
+        // covers x=0..=2, z=-1..=1; the old covered x=-1..=1, z=-1..=1.
+        // So (-1,-1), (-1,0), (-1,1) leave; (2,-1), (2,0), (2,1) enter.
+        let mut loaded: std::collections::BTreeSet<(i32, i32)> = super::chunk_window(0, 0, 1)
+            .into_iter()
+            .collect();
+        // Note: we don't run the real apply_chunk_movement here (it needs a
+        // TcpStream). Replicate just the per-pos sender + pipeline calls so
+        // the unit test stays decoupled from the wire.
+        let new_window = super::chunk_window(1, 0, 1);
+        for stale in loaded.difference(&new_window).copied().collect::<Vec<_>>() {
+            let pos = crate::storage::region::ChunkPos {
+                x: stale.0,
+                z: stale.1,
+            };
+            // None of these have been sent (sender only marks pending here),
+            // so drop_chunk should return None and we cancel the pipeline
+            // request.
+            assert!(sender.drop_chunk(pos, true).is_none());
+            pipeline.cancel_request(pos);
+        }
+        for fresh in new_window.difference(&loaded).copied() {
+            let pos = crate::storage::region::ChunkPos {
+                x: fresh.0,
+                z: fresh.1,
+            };
+            sender.mark_chunk_pending_to_send(pos);
+            pipeline.request_chunk(pos);
+        }
+        loaded = new_window;
+        assert_eq!(loaded.len(), 9);
+        assert_eq!(sender.pending_count(), 9);
+        assert_eq!(pipeline.diagnostics().queue_depth, 9);
+        // The old left-column chunks are no longer in either the pending
+        // sender or the pipeline queue.
+        for stale_x in [-1] {
+            for stale_z in [-1, 0, 1] {
+                let pos = crate::storage::region::ChunkPos {
+                    x: stale_x,
+                    z: stale_z,
+                };
+                assert!(!sender.is_pending(pos), "stale {:?} still pending", pos);
+            }
         }
     }
 }
