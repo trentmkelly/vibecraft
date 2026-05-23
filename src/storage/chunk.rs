@@ -1147,6 +1147,56 @@ fn block_state_name(entry: &Tag) -> Option<&str> {
         })
 }
 
+fn block_state_entry(entry: &Tag) -> Option<BlockStateEntry> {
+    let Tag::Compound(fields) = entry else {
+        return None;
+    };
+    let mut name = None;
+    let mut properties = BTreeMap::new();
+    for (key, value) in fields {
+        match (key.as_str(), value) {
+            ("Name", Tag::String(value)) => name = Some(value.clone()),
+            ("Properties", Tag::Compound(values)) => {
+                for (property, property_value) in values {
+                    if let Tag::String(property_value) = property_value {
+                        properties.insert(property.clone(), property_value.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(BlockStateEntry {
+        name: name?,
+        properties,
+    })
+}
+
+fn block_state_tag_from_name(block_name: &str) -> Tag {
+    let Some((name, raw_properties)) = block_name.split_once('[') else {
+        return Tag::Compound(vec![(
+            "Name".to_string(),
+            Tag::String(block_name.to_string()),
+        )]);
+    };
+    let properties = raw_properties
+        .trim_end_matches(']')
+        .split(',')
+        .filter_map(|property| {
+            let (key, value) = property.split_once('=')?;
+            Some((key.to_string(), Tag::String(value.to_string())))
+        })
+        .collect::<Vec<_>>();
+    if properties.is_empty() {
+        Tag::Compound(vec![("Name".to_string(), Tag::String(name.to_string()))])
+    } else {
+        Tag::Compound(vec![
+            ("Name".to_string(), Tag::String(name.to_string())),
+            ("Properties".to_string(), Tag::Compound(properties)),
+        ])
+    }
+}
+
 fn block_light_emission(block_name: &str) -> u8 {
     crate::block_metadata::representative_state_definition(block_name)
         .map(|definition| definition.physical.light_emission)
@@ -1797,6 +1847,27 @@ impl LevelChunk {
         }
     }
 
+    pub fn get_block_state_model(
+        &self,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+    ) -> Option<BlockStateEntry> {
+        let section_y = world_y.div_euclid(16) as i8;
+        let local_x = world_x.rem_euclid(16) as usize;
+        let local_y = world_y.rem_euclid(16) as usize;
+        let local_z = world_z.rem_euclid(16) as usize;
+        let index = local_y * 256 + local_z * 16 + local_x;
+        let section = self
+            .sections
+            .get((i32::from(section_y) - self.min_section_y) as usize)
+            .filter(|section| section.y == section_y)
+            .or_else(|| self.sections.iter().find(|section| section.y == section_y))?;
+        let entry =
+            paletted_container_entry_from_nbt(&section.block_states, SECTION_VOLUME, index)?;
+        block_state_entry(entry)
+    }
+
     pub fn set_block_state(&mut self, world_x: i32, world_y: i32, world_z: i32, block_name: &str) {
         if self.set_block_state_raw(world_x, world_y, world_z, block_name) {
             let local_x = world_x.rem_euclid(16);
@@ -1828,10 +1899,7 @@ impl LevelChunk {
         let local_z = world_z.rem_euclid(16) as usize;
         let index = local_y * 256 + local_z * 16 + local_x;
 
-        let entry = Tag::Compound(vec![(
-            "Name".to_string(),
-            Tag::String(block_name.to_string()),
-        )]);
+        let entry = block_state_tag_from_name(block_name);
 
         let section_index = i32::from(section_y) - self.min_section_y;
         let has_direct_section = section_index >= 0
@@ -3846,6 +3914,16 @@ mod tests {
             chunk.sections.iter().any(|section| section.y == 4),
             "world Y=70 belongs to section Y=4"
         );
+    }
+
+    #[test]
+    fn level_chunk_set_block_state_preserves_block_state_properties() {
+        let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+        chunk.set_block_state(2, 70, 4, "minecraft:water[level=8]");
+
+        let state = chunk.get_block_state_model(2, 70, 4).unwrap();
+        assert_eq!(state.name, "minecraft:water");
+        assert_eq!(state.properties.get("level").map(String::as_str), Some("8"));
     }
 
     #[test]

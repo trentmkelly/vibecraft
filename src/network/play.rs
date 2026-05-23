@@ -5891,6 +5891,9 @@ fn compound_string_property_is_true(fields: &[(String, Tag)], property_name: &st
 }
 
 pub fn block_state_name_network_id(name: &str) -> Option<i32> {
+    if let Some(id) = liquid_block_state_name_network_id(name) {
+        return Some(id);
+    }
     Some(match name {
         "minecraft:air" => 0,
         "minecraft:stone" => 1,
@@ -5901,6 +5904,7 @@ pub fn block_state_name_network_id(name: &str) -> Option<i32> {
         "minecraft:dirt" => 10,
         "minecraft:coarse_dirt" => 11,
         "minecraft:podzol" => 13,
+        "minecraft:cobblestone" => 14,
         "minecraft:lava" => 102,
         "minecraft:sand" => 118,
         "minecraft:red_sand" => 123,
@@ -5961,6 +5965,23 @@ pub fn block_state_name_network_id(name: &str) -> Option<i32> {
         "minecraft:sunflower" => 12916,
         _ => return None,
     })
+}
+
+fn liquid_block_state_name_network_id(name: &str) -> Option<i32> {
+    let (base, properties) = name.split_once('[').unwrap_or((name, ""));
+    let start = match base {
+        "minecraft:water" => 86,
+        "minecraft:lava" => 102,
+        _ => return None,
+    };
+    let level = properties
+        .trim_end_matches(']')
+        .split(',')
+        .find_map(|property| property.strip_prefix("level="))
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0)
+        .clamp(0, 15);
+    Some(start + level)
 }
 
 fn biome_name_network_id(name: &str) -> Option<i32> {

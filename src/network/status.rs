@@ -11,6 +11,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::block_metadata::representative_state_definition;
+use crate::fluid::{
+    block_item_can_replace, block_state_model_name, fluid_state_for_block, place_liquid,
+    tick_fluid, FluidKind, LiquidPlaceResult,
+};
 use crate::console::ConsoleInput;
 use crate::item_catalog::{item_protocol_id, item_static_name};
 use crate::item_entity::{self, DroppedItem, WorldItemEntities, DEFAULT_PICKUP_DELAY};
@@ -93,6 +97,7 @@ use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
+use crate::scheduled_tick::{LevelTickQueues, TickPriority};
 use crate::storage::chunk::{HeightmapKind, LevelChunk, PalettedContainer, SECTION_VOLUME};
 use crate::storage::nbt::Tag;
 use crate::storage::region::{ChunkPos, RegionFile};
@@ -427,6 +432,43 @@ impl GeneratedChunkCache {
 
     fn invalidate(&self, pos: ChunkPos) {
         self.chunks.lock().unwrap().remove(&pos);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct LiveFluidTicks {
+    queues: LevelTickQueues,
+}
+
+impl LiveFluidTicks {
+    fn new() -> Self {
+        Self {
+            queues: LevelTickQueues::new(),
+        }
+    }
+
+    fn schedule(&mut self, game_time: i64, pos: crate::block_update::BlockPos, kind: FluidKind) {
+        let chunk = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        self.queues.add_container(chunk);
+        let tick = self.queues.create_tick(
+            game_time,
+            pos,
+            kind.registry_id(),
+            kind.tick_delay(),
+            TickPriority::Normal,
+        );
+        let _ = self.queues.schedule(tick);
+    }
+
+    fn tick_due(
+        &mut self,
+        game_time: i64,
+        max_ticks: usize,
+    ) -> Vec<crate::scheduled_tick::ScheduledTick> {
+        self.queues.tick(game_time, max_ticks, |_| true)
     }
 }
 
@@ -1998,6 +2040,17 @@ fn handle_login_connection(
     let mut last_item_tick = Instant::now();
     let mut last_player_tick = Instant::now();
     let mut play_tick_count = 0_u64;
+    let mut live_fluid_ticks = LiveFluidTicks::new();
+    {
+        let center = chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
+        seed_live_fluid_ticks_from_chunk(
+            &mut live_fluid_ticks,
+            play_tick_count as i64,
+            &world_layout,
+            world_seed,
+            &center,
+        );
+    }
     const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
@@ -2084,6 +2137,15 @@ fn handle_login_connection(
         if last_player_tick.elapsed() >= SERVER_TICK_DURATION {
             last_player_tick = Instant::now();
             play_tick_count = play_tick_count.wrapping_add(1);
+            process_live_fluid_ticks(
+                stream,
+                compression,
+                &mut live_fluid_ticks,
+                play_tick_count as i64,
+                &world_layout,
+                world_seed,
+                chunk_cache,
+            )?;
             let fluid_state =
                 detect_play_session_fluid_state(&play_state, world_root, world_seed, chunk_cache);
             let water_update = tick_play_session_water(&mut play_state, fluid_state);
@@ -2209,6 +2271,7 @@ fn handle_login_connection(
                             world_root,
                             world_seed,
                             chunk_cache,
+                            Some((&mut live_fluid_ticks, play_tick_count as i64, &world_layout)),
                         )?;
                     }
                     // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
@@ -2238,6 +2301,8 @@ fn handle_login_connection(
                         &world_layout,
                         world_seed,
                         chunk_cache,
+                        &mut live_fluid_ticks,
+                        play_tick_count as i64,
                         &packet,
                     )?;
                     continue;
@@ -2341,6 +2406,17 @@ fn handle_login_connection(
                         let block_name =
                             break_block_in_region(&world_layout, world_seed, chunk_pos, bx, by, bz);
                         chunk_cache.invalidate(chunk_pos);
+                        schedule_neighbor_fluids(
+                            &mut live_fluid_ticks,
+                            play_tick_count as i64,
+                            &world_layout,
+                            world_seed,
+                            crate::block_update::BlockPos {
+                                x: bx,
+                                y: by,
+                                z: bz,
+                            },
+                        );
                         crate::log::log_debug(&format!(
                             "block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}",
                             play_state.game_mode
@@ -3136,6 +3212,8 @@ fn handle_use_item_on(
     world_layout: &WorldLayout,
     world_seed: i64,
     chunk_cache: &GeneratedChunkCache,
+    live_fluid_ticks: &mut LiveFluidTicks,
+    game_time: i64,
     packet: &ServerboundUseItemOnPacket,
 ) -> io::Result<()> {
     // Spectators cannot place blocks.
@@ -3179,6 +3257,21 @@ fn handle_use_item_on(
     }
 
     let item_name = held_item.item_id();
+    if let Some(kind) = bucket_fluid_kind(item_name) {
+        return handle_bucket_place_fluid(
+            stream,
+            compression,
+            state,
+            world_layout,
+            world_seed,
+            chunk_cache,
+            live_fluid_ticks,
+            game_time,
+            packet,
+            held_slot,
+            kind,
+        );
+    }
 
     // Only proceed if the item has a known placeable block state.
     // Java: BlockItem.place() — only items backed by a Block can place.
@@ -3191,32 +3284,51 @@ fn handle_use_item_on(
         );
     };
 
-    // Compute the target block position: one step in the clicked face direction.
-    // Java: BlockItem.getPlacementState() → PlacementContext → clicked_pos.relative(face)
+    // Compute the placement target. Java's BlockPlaceContext uses the clicked block
+    // itself when it can be replaced; otherwise it offsets into the clicked face.
+    // This matters for fluids: LiquidBlock states are replaceable by normal block
+    // items, so dirt/sand/etc. can be placed into water/lava instead of being
+    // treated like an attempted overwrite of a solid block.
     let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
-    let target_x = packet.block_hit.x + dx;
-    let target_y = packet.block_hit.y + dy;
-    let target_z = packet.block_hit.z + dz;
+    let clicked_pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let clicked_chunk = ChunkPos {
+        x: clicked_pos.x.div_euclid(16),
+        z: clicked_pos.z.div_euclid(16),
+    };
+    let clicked_state = read_block_model_at(world_layout, world_seed, clicked_pos);
+    let clicked_replaceable = block_item_can_replace(&clicked_state);
+    let (target_x, target_y, target_z) = if clicked_replaceable {
+        (clicked_pos.x, clicked_pos.y, clicked_pos.z)
+    } else {
+        (
+            packet.block_hit.x + dx,
+            packet.block_hit.y + dy,
+            packet.block_hit.z + dz,
+        )
+    };
     let target_chunk = ChunkPos {
         x: target_x.div_euclid(16),
         z: target_z.div_euclid(16),
     };
 
-    // Allow placement only into air or blocks with destroy_time == 0 (short_grass, flowers, …).
-    // Java: BlockItem.place() → can_replace() checks existing block's properties.
-    let existing = read_block_at(
-        world_layout,
-        world_seed,
-        target_chunk,
-        target_x,
-        target_y,
-        target_z,
-    );
-    let is_replaceable = existing.as_deref().map_or(true, |name| {
-        representative_state_definition(name)
-            .map(|def| def.physical.destroy_time == 0.0)
-            .unwrap_or(false)
-    });
+    let target_state = if clicked_replaceable && target_chunk == clicked_chunk {
+        clicked_state
+    } else {
+        read_block_model_at(
+            world_layout,
+            world_seed,
+            crate::block_update::BlockPos {
+                x: target_x,
+                y: target_y,
+                z: target_z,
+            },
+        )
+    };
+    let is_replaceable = block_item_can_replace(&target_state);
     if !is_replaceable {
         return write_framed_packet_with_compression(
             stream,
@@ -3237,6 +3349,38 @@ fn handle_use_item_on(
         item_name,
     );
     chunk_cache.invalidate(target_chunk);
+    schedule_neighbor_fluids(
+        live_fluid_ticks,
+        game_time,
+        world_layout,
+        world_seed,
+        crate::block_update::BlockPos {
+            x: target_x,
+            y: target_y,
+            z: target_z,
+        },
+    );
+    if item_name == "minecraft:water" || item_name == "minecraft:lava" {
+        let kind = if item_name == "minecraft:water" {
+            FluidKind::Water
+        } else {
+            FluidKind::Lava
+        };
+        live_fluid_ticks.schedule(
+            game_time,
+            crate::block_update::BlockPos {
+                x: target_x,
+                y: target_y,
+                z: target_z,
+            },
+            kind,
+        );
+        schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, crate::block_update::BlockPos {
+            x: target_x,
+            y: target_y,
+            z: target_z,
+        });
+    }
 
     // Acknowledge the client's predictive block change.
     write_framed_packet_with_compression(
@@ -3291,6 +3435,321 @@ fn handle_use_item_on(
         )?;
     }
 
+    Ok(())
+}
+
+fn bucket_fluid_kind(item_name: &str) -> Option<FluidKind> {
+    match item_name {
+        "minecraft:water_bucket" => Some(FluidKind::Water),
+        "minecraft:lava_bucket" => Some(FluidKind::Lava),
+        _ => None,
+    }
+}
+
+fn handle_bucket_place_fluid(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+    live_fluid_ticks: &mut LiveFluidTicks,
+    game_time: i64,
+    packet: &ServerboundUseItemOnPacket,
+    held_slot: usize,
+    kind: FluidKind,
+) -> io::Result<()> {
+    let send_ack = |p: &mut Vec<u8>| write_var_i32(p, packet.sequence);
+    let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
+    let clicked = crate::block_update::BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let adjacent = crate::block_update::BlockPos {
+        x: clicked.x + dx,
+        y: clicked.y + dy,
+        z: clicked.z + dz,
+    };
+    let clicked_state = read_block_model_at(world_layout, world_seed, clicked);
+    let target = if kind == FluidKind::Water && clicked_state.property("waterlogged").is_some() {
+        clicked
+    } else {
+        adjacent
+    };
+    let existing = if target == clicked {
+        clicked_state
+    } else {
+        read_block_model_at(world_layout, world_seed, target)
+    };
+    let placed = match place_liquid(&existing, kind) {
+        LiquidPlaceResult::Rejected(_) => None,
+        LiquidPlaceResult::Replaced(state) | LiquidPlaceResult::Waterlogged(state) => Some(state),
+    };
+    let Some(fluid_state) = placed else {
+        return write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+            send_ack,
+        );
+    };
+    write_block_model_at(world_layout, world_seed, target, &fluid_state);
+    let target_chunk = ChunkPos {
+        x: target.x.div_euclid(16),
+        z: target.z.div_euclid(16),
+    };
+    chunk_cache.invalidate(target_chunk);
+    live_fluid_ticks.schedule(game_time, target, kind);
+    schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, target);
+
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+        send_ack,
+    )?;
+    write_single_block_update(stream, compression, target, &fluid_state)?;
+
+    if state.game_mode != GameMode::Creative {
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(held_slot, ItemStack::new("minecraft:bucket", 1));
+        let raw = item_protocol_id("minecraft:bucket")
+            .map(|pid| RawItemStack {
+                count: 1,
+                item_id: Some(pid),
+                components: RawDataComponentPatch::empty(),
+            })
+            .unwrap_or_else(RawItemStack::empty);
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+            |p| {
+                ClientboundSetPlayerInventoryPacket {
+                    slot: held_slot as i32,
+                    contents: raw,
+                }
+                .write(p)
+            },
+        )?;
+    }
+
+    Ok(())
+}
+
+fn schedule_neighbor_fluids(
+    live_fluid_ticks: &mut LiveFluidTicks,
+    game_time: i64,
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    pos: crate::block_update::BlockPos,
+) {
+    for direction in crate::fluid::fluid_neighbor_order() {
+        let neighbor = pos.relative(direction);
+        if let Some(fluid) =
+            crate::fluid::fluid_state_for_block(&read_block_model_at(world_layout, world_seed, neighbor))
+        {
+            live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
+        }
+    }
+}
+
+fn seed_live_fluid_ticks_from_chunk(
+    live_fluid_ticks: &mut LiveFluidTicks,
+    game_time: i64,
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    chunk: &LevelChunk,
+) {
+    let started = Instant::now();
+    let min_y = chunk.min_section_y * 16;
+    let max_y = min_y + (chunk.sections.len() as i32 * 16);
+    let mut fluid_blocks = 0_usize;
+    let mut scheduled = 0_usize;
+    for y in min_y..max_y {
+        for local_z in 0..16 {
+            for local_x in 0..16 {
+                let pos = crate::block_update::BlockPos {
+                    x: chunk.pos.x * 16 + local_x,
+                    y,
+                    z: chunk.pos.z * 16 + local_z,
+                };
+                let Some(entry) = chunk.get_block_state_model(pos.x, pos.y, pos.z) else {
+                    continue;
+                };
+                let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
+                for (key, value) in entry.properties {
+                    state = state.with_property(&key, value);
+                }
+                let Some(fluid) = fluid_state_for_block(&state) else {
+                    continue;
+                };
+                fluid_blocks += 1;
+                if fluid_has_runtime_update_edge(chunk, world_layout, world_seed, pos) {
+                    live_fluid_ticks.schedule(game_time, pos, fluid.kind);
+                    scheduled += 1;
+                }
+            }
+        }
+    }
+    let elapsed = started.elapsed();
+    if fluid_blocks > 0 || elapsed >= Duration::from_millis(10) {
+        eprintln!(
+            "[fluid-timing] seed chunk=({}, {}) y={}..{} fluid_blocks={} scheduled={} elapsed={}ms",
+            chunk.pos.x,
+            chunk.pos.z,
+            min_y,
+            max_y,
+            fluid_blocks,
+            scheduled,
+            elapsed.as_millis()
+        );
+    }
+}
+
+fn fluid_has_runtime_update_edge(
+    chunk: &LevelChunk,
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    pos: crate::block_update::BlockPos,
+) -> bool {
+    crate::fluid::fluid_neighbor_order().into_iter().any(|direction| {
+        let neighbor = pos.relative(direction);
+        let same_chunk = neighbor.x.div_euclid(16) == chunk.pos.x
+            && neighbor.z.div_euclid(16) == chunk.pos.z;
+        let neighbor_state = if same_chunk {
+            if let Some(entry) = chunk.get_block_state_model(neighbor.x, neighbor.y, neighbor.z) {
+                let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
+                for (key, value) in entry.properties {
+                    state = state.with_property(&key, value);
+                }
+                state
+            } else {
+                crate::block_behavior::BlockStateModel::air()
+            }
+        } else {
+            read_block_model_at(world_layout, world_seed, neighbor)
+        };
+        neighbor_state.is_air()
+    })
+}
+
+fn write_single_block_update<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    pos: crate::block_update::BlockPos,
+    state: &crate::block_behavior::BlockStateModel,
+) -> io::Result<()> {
+    let block_name = block_state_model_name(state);
+    let Some(block_state_id) = block_state_name_network_id(&block_name) else {
+        return Ok(());
+    };
+    let packed_pos = block_pos_as_long(pos.x, pos.y, pos.z);
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |p| {
+            p.write_all(&packed_pos.to_be_bytes())?;
+            write_var_i32(p, block_state_id)
+        },
+    )
+}
+
+fn process_live_fluid_ticks(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    live_fluid_ticks: &mut LiveFluidTicks,
+    game_time: i64,
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+) -> io::Result<()> {
+    let total_started = Instant::now();
+    let due = live_fluid_ticks.tick_due(game_time, 4096);
+    let due_count = due.len();
+    let mut read_current_us = 0_u128;
+    let mut tick_fluid_us = 0_u128;
+    let mut write_update_us = 0_u128;
+    let mut neighbor_read_us = 0_u128;
+    let mut changes_written = 0_usize;
+    let mut result_schedules = 0_usize;
+    let mut neighbor_schedules = 0_usize;
+    let mut skipped_wrong_fluid = 0_usize;
+    for tick in due {
+        let kind = match tick.ty.as_str() {
+            "minecraft:water" => FluidKind::Water,
+            "minecraft:lava" => FluidKind::Lava,
+            _ => continue,
+        };
+        let read_started = Instant::now();
+        let current = read_block_model_at(world_layout, world_seed, tick.pos);
+        read_current_us += read_started.elapsed().as_micros();
+        if crate::fluid::fluid_state_for_block(&current).is_none_or(|fluid| fluid.kind != kind) {
+            skipped_wrong_fluid += 1;
+            continue;
+        }
+        let tick_started = Instant::now();
+        let result = tick_fluid(tick.pos, &current, |pos| {
+            read_block_model_at(world_layout, world_seed, pos)
+        });
+        tick_fluid_us += tick_started.elapsed().as_micros();
+        let mut changed_chunks = BTreeSet::new();
+        for (pos, state) in result.changes {
+            let write_started = Instant::now();
+            if write_block_model_at(world_layout, world_seed, pos, &state) {
+                write_update_us += write_started.elapsed().as_micros();
+                changes_written += 1;
+                changed_chunks.insert(ChunkPos {
+                    x: pos.x.div_euclid(16),
+                    z: pos.z.div_euclid(16),
+                });
+                write_single_block_update(stream, compression, pos, &state)?;
+                if let Some(fluid) = crate::fluid::fluid_state_for_block(&state) {
+                    live_fluid_ticks.schedule(game_time, pos, fluid.kind);
+                }
+                for direction in crate::fluid::fluid_neighbor_order() {
+                    let neighbor = pos.relative(direction);
+                    let neighbor_started = Instant::now();
+                    let neighbor_state = read_block_model_at(world_layout, world_seed, neighbor);
+                    neighbor_read_us += neighbor_started.elapsed().as_micros();
+                    if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
+                        live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
+                        neighbor_schedules += 1;
+                    }
+                }
+            } else {
+                write_update_us += write_started.elapsed().as_micros();
+            }
+        }
+        for pos in result.schedule {
+            live_fluid_ticks.schedule(game_time, pos, kind);
+            result_schedules += 1;
+        }
+        for chunk in changed_chunks {
+            chunk_cache.invalidate(chunk);
+        }
+    }
+    let total = total_started.elapsed();
+    if due_count > 0 || total >= Duration::from_millis(10) {
+        eprintln!(
+            "[fluid-timing] tick game_time={} due={} skipped={} changes={} result_schedules={} neighbor_schedules={} total={}ms read_current={}us tick_fluid={}us write_update={}us neighbor_read={}us",
+            game_time,
+            due_count,
+            skipped_wrong_fluid,
+            changes_written,
+            result_schedules,
+            neighbor_schedules,
+            total.as_millis(),
+            read_current_us,
+            tick_fluid_us,
+            write_update_us,
+            neighbor_read_us
+        );
+    }
     Ok(())
 }
 
@@ -3549,6 +4008,7 @@ fn handle_play_respawn_request(
         world_root,
         world_seed,
         chunk_cache,
+        None,
     )?;
 
     write_framed_packet_with_compression(
@@ -4885,6 +5345,7 @@ fn write_minimal_play_join(
         world_root,
         world_seed,
         chunk_cache,
+        None,
     )?;
     write_framed_packet_with_compression(
         stream,
@@ -4985,6 +5446,7 @@ fn write_play_chunk_batch(
         world_root,
         world_seed,
         chunk_cache,
+        None,
     )
 }
 
@@ -4998,7 +5460,17 @@ fn write_play_chunk_delta(
     world_root: &Path,
     world_seed: i64,
     chunk_cache: &GeneratedChunkCache,
+    mut live_fluid_ticks: Option<(&mut LiveFluidTicks, i64, &WorldLayout)>,
 ) -> io::Result<()> {
+    let batch_started = Instant::now();
+    eprintln!(
+        "[chunk-batch-timing] start center=({}, {}) chunks={} update_center={} live_fluid_seed={}",
+        center_chunk_x,
+        center_chunk_z,
+        chunks.len(),
+        update_cache_center,
+        live_fluid_ticks.is_some()
+    );
     if update_cache_center {
         write_framed_packet_with_compression(
             stream,
@@ -5011,6 +5483,12 @@ fn write_play_chunk_delta(
         )?;
     }
     if chunks.is_empty() {
+        eprintln!(
+            "[chunk-batch-timing] finish center=({}, {}) chunks=0 elapsed={}ms",
+            center_chunk_x,
+            center_chunk_z,
+            batch_started.elapsed().as_millis()
+        );
         return Ok(());
     }
     write_framed_packet_with_compression(
@@ -5050,14 +5528,41 @@ fn write_play_chunk_delta(
         }
         drop(sender);
 
-        for _ in 0..chunks.len() {
+        for received in 0..chunks.len() {
+            let recv_started = Instant::now();
             let (_x, _z, chunk) = receiver.recv().map_err(|err| {
                 io::Error::new(
                     io::ErrorKind::BrokenPipe,
                     format!("chunk generation worker stopped before batch completed: {err}"),
                 )
             })?;
+            let recv_ms = recv_started.elapsed().as_millis();
+            let write_started = Instant::now();
+            if let Some((ticks, game_time, layout)) = live_fluid_ticks.as_mut() {
+                seed_live_fluid_ticks_from_chunk(
+                    &mut **ticks,
+                    *game_time,
+                    *layout,
+                    world_seed,
+                    &chunk,
+                );
+            }
             write_generated_spawn_chunk_packets_from_chunk(stream, compression, &chunk)?;
+            let write_ms = write_started.elapsed().as_millis();
+            if write_ms >= 10 || recv_ms >= 10 || received + 1 == chunks.len() {
+                eprintln!(
+                    "[chunk-batch-timing] progress center=({}, {}) sent={}/{} chunk=({}, {}) recv_wait={}ms write={}ms elapsed={}ms",
+                    center_chunk_x,
+                    center_chunk_z,
+                    received + 1,
+                    chunks.len(),
+                    chunk.pos.x,
+                    chunk.pos.z,
+                    recv_ms,
+                    write_ms,
+                    batch_started.elapsed().as_millis()
+                );
+            }
         }
         Ok::<(), io::Error>(())
     })?;
@@ -5066,7 +5571,15 @@ fn write_play_chunk_delta(
         compression,
         CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
         |payload| write_var_i32(payload, chunks.len() as i32),
-    )
+    )?;
+    eprintln!(
+        "[chunk-batch-timing] finish center=({}, {}) chunks={} elapsed={}ms",
+        center_chunk_x,
+        center_chunk_z,
+        chunks.len(),
+        batch_started.elapsed().as_millis()
+    );
+    Ok(())
 }
 
 fn write_generated_spawn_chunk_packets_from_chunk<W: Write>(
@@ -6895,6 +7408,48 @@ fn read_block_at(
     load_chunk(layout, world_seed, chunk_pos)
         .get_block_state(bx, by, bz)
         .filter(|n| n != "minecraft:air")
+}
+
+fn read_block_model_at(
+    layout: &WorldLayout,
+    world_seed: i64,
+    pos: crate::block_update::BlockPos,
+) -> crate::block_behavior::BlockStateModel {
+    let chunk_pos = ChunkPos {
+        x: pos.x.div_euclid(16),
+        z: pos.z.div_euclid(16),
+    };
+    let chunk = load_chunk(layout, world_seed, chunk_pos);
+    if let Some(entry) = chunk.get_block_state_model(pos.x, pos.y, pos.z) {
+        let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
+        for (key, value) in entry.properties {
+            state = state.with_property(&key, value);
+        }
+        state
+    } else {
+        crate::block_behavior::BlockStateModel::air()
+    }
+}
+
+fn write_block_model_at(
+    layout: &WorldLayout,
+    world_seed: i64,
+    pos: crate::block_update::BlockPos,
+    state: &crate::block_behavior::BlockStateModel,
+) -> bool {
+    let chunk_pos = ChunkPos {
+        x: pos.x.div_euclid(16),
+        z: pos.z.div_euclid(16),
+    };
+    place_block_in_region(
+        layout,
+        world_seed,
+        chunk_pos,
+        pos.x,
+        pos.y,
+        pos.z,
+        &block_state_model_name(state),
+    )
 }
 
 // Reads the old block name from the region, sets it to air, saves, and returns the old name.

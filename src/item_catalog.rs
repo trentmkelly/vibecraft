@@ -375,6 +375,9 @@ pub fn item_static_name(registry_id: &str) -> Option<&'static str> {
         "red_sand" => "minecraft:red_sand",
         "gravel" => "minecraft:gravel",
         "flint" => "minecraft:flint",
+        "bucket" => "minecraft:bucket",
+        "water_bucket" => "minecraft:water_bucket",
+        "lava_bucket" => "minecraft:lava_bucket",
         // Ore blocks (for silk touch)
         "coal_ore" => "minecraft:coal_ore",
         "deepslate_coal_ore" => "minecraft:deepslate_coal_ore",
@@ -564,6 +567,9 @@ pub fn item_protocol_id(registry_id: &str) -> Option<i32> {
         "red_sand" => 62,
         "gravel" => 63,
         "flint" => 983,
+        "bucket" => 967,
+        "water_bucket" => 968,
+        "lava_bucket" => 969,
         // Ore blocks (for silk touch — not yet implemented, here for completeness)
         "coal_ore" => 64,
         "deepslate_coal_ore" => 65,
