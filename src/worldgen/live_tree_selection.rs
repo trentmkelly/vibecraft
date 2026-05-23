@@ -1,4 +1,5 @@
 use super::*;
+use super::live_tree_placement::tree_decorator_solid_render;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct LiveTreeFeatureConfig {
