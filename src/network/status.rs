@@ -5881,6 +5881,13 @@ fn maybe_log_chunk_pipeline_stats(
     );
 }
 
+/// Legacy blocking view-distance batch (deprecated by the async pipeline).
+///
+/// Kept temporarily as dead code so it stays available for diagnostics and
+/// for the human playtester to fall back to via env var or direct call if a
+/// regression turns up. Will be deleted once the new pipeline is confirmed
+/// in-game — see CHECKLIST_CHUNKING_CHANGES.md "Migration steps".
+#[allow(dead_code)]
 fn write_play_chunk_batch(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -5921,6 +5928,9 @@ fn write_play_chunk_batch(
     )
 }
 
+/// Legacy synchronous chunk delta (deprecated by the async pipeline). See
+/// [`write_play_chunk_batch`] for context.
+#[allow(dead_code)]
 fn write_play_chunk_delta(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -14054,6 +14064,141 @@ mod tests {
                 "var_int_encoded_len({value}) returned {}, expected {expected_len}",
                 var_int_encoded_len(value)
             );
+        }
+    }
+
+    #[test]
+    fn chunk_pipeline_coalesces_duplicate_requests_into_one_pending_entry() {
+        // Tests Java parity invariant from ChunkTaskDispatcher: two players
+        // requesting the same chunk should produce exactly one generation
+        // job. We construct a worker-less pipeline so the queue cannot drain
+        // and we can observe the pending entries directly.
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0, // no workers — the queue stays put
+        );
+        let pos = crate::storage::region::ChunkPos { x: 7, z: -3 };
+        pipeline.request_chunk(pos);
+        pipeline.request_chunk(pos);
+        pipeline.request_chunk(pos);
+
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 1, "one queued entry, regardless of caller count");
+        assert_eq!(diag.in_flight, 0, "no workers, nothing in flight");
+    }
+
+    #[test]
+    fn chunk_pipeline_cancel_request_dequeues_pending_jobs() {
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let pos_a = crate::storage::region::ChunkPos { x: 1, z: 1 };
+        let pos_b = crate::storage::region::ChunkPos { x: 2, z: 2 };
+        pipeline.request_chunk(pos_a);
+        pipeline.request_chunk(pos_b);
+        pipeline.cancel_request(pos_a);
+
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 1, "cancelled chunk dropped from queue");
+        // Cancelling already-cancelled (or never-pending) is a no-op.
+        pipeline.cancel_request(pos_a);
+        pipeline.cancel_request(crate::storage::region::ChunkPos { x: 99, z: 99 });
+        assert_eq!(pipeline.diagnostics().queue_depth, 1);
+    }
+
+    #[test]
+    fn chunk_pipeline_skips_scheduling_when_chunk_already_cached() {
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 5, z: 5 };
+        // Pre-seed the cache so the pipeline sees this chunk as ready.
+        cache
+            .chunks
+            .lock()
+            .unwrap()
+            .insert(pos, std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)));
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        pipeline.request_chunk(pos);
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 0, "cache hit short-circuits the queue");
+        assert!(pipeline.try_get_ready(pos).is_some());
+    }
+
+    #[test]
+    fn apply_chunk_movement_keeps_pending_aligned_with_new_view_window() {
+        // Movement diff: chunks falling out of the new window should be
+        // unscheduled and dropped from sender's pending set; chunks
+        // entering the window should be both queued for generation and
+        // recorded in sender's pending set. We exercise this without
+        // touching the wire (using a sender + pipeline directly).
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let mut sender = super::PlayerChunkSender::new(false);
+        // Initial window centred at (0, 0) with radius 1.
+        super::seed_chunk_window(&mut sender, &pipeline, 0, 0, 1);
+        // 3×3 = 9 chunks should be pending and queued.
+        assert_eq!(sender.pending_count(), 9);
+        assert_eq!(pipeline.diagnostics().queue_depth, 9);
+
+        // Player walks one chunk east → centre (1, 0). The new window
+        // covers x=0..=2, z=-1..=1; the old covered x=-1..=1, z=-1..=1.
+        // So (-1,-1), (-1,0), (-1,1) leave; (2,-1), (2,0), (2,1) enter.
+        let mut loaded: std::collections::BTreeSet<(i32, i32)> = super::chunk_window(0, 0, 1)
+            .into_iter()
+            .collect();
+        // Note: we don't run the real apply_chunk_movement here (it needs a
+        // TcpStream). Replicate just the per-pos sender + pipeline calls so
+        // the unit test stays decoupled from the wire.
+        let new_window = super::chunk_window(1, 0, 1);
+        for stale in loaded.difference(&new_window).copied().collect::<Vec<_>>() {
+            let pos = crate::storage::region::ChunkPos {
+                x: stale.0,
+                z: stale.1,
+            };
+            // None of these have been sent (sender only marks pending here),
+            // so drop_chunk should return None and we cancel the pipeline
+            // request.
+            assert!(sender.drop_chunk(pos, true).is_none());
+            pipeline.cancel_request(pos);
+        }
+        for fresh in new_window.difference(&loaded).copied() {
+            let pos = crate::storage::region::ChunkPos {
+                x: fresh.0,
+                z: fresh.1,
+            };
+            sender.mark_chunk_pending_to_send(pos);
+            pipeline.request_chunk(pos);
+        }
+        loaded = new_window;
+        assert_eq!(loaded.len(), 9);
+        assert_eq!(sender.pending_count(), 9);
+        assert_eq!(pipeline.diagnostics().queue_depth, 9);
+        // The old left-column chunks are no longer in either the pending
+        // sender or the pipeline queue.
+        for stale_x in [-1] {
+            for stale_z in [-1, 0, 1] {
+                let pos = crate::storage::region::ChunkPos {
+                    x: stale_x,
+                    z: stale_z,
+                };
+                assert!(!sender.is_pending(pos), "stale {:?} still pending", pos);
+            }
         }
     }
 }
