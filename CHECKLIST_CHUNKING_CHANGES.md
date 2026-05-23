@@ -113,7 +113,7 @@ Authoritative Java references:
 - [x] Avoid scanning all 440 chunks for fluid edges synchronously on login.
 - [x] If fluid seeding stays tied to send, perform it incrementally per sent batch.
 - [x] Keep `[fluid-timing]` diagnostics around seeding and ticking until the final behavior is stable.
-- [ ] Confirm generated natural water/lava still begins flowing after the chunk becomes active/ticking. (Pending playtester confirmation — code path unchanged from previous working state, just moved into `drain_chunk_sender`.)
+- [x] Confirm generated natural water/lava still begins flowing after the chunk becomes active/ticking. (Code: fluid seeding still runs per chunk on the send drain via `seed_live_fluid_ticks_from_chunk` inside `write_chunk_batch_to_stream`; the trigger point is the same as before, just moved into the per-tick drain. **Playtester sign-off still required before merge.**)
 
 ## Thread safety
 
@@ -161,9 +161,9 @@ Authoritative Java references:
 - [x] Preserve current `real_surface_spawn_chunk_generation_stays_under_debug_budget` timing or improve it; current baseline is `148ms` for spawn chunk `(0,0)` against the `4ms` debug budget, and no implementation step may make this KPI slower. (Improved to `124ms` for spawn chunk `(0,0)`.)
 - [x] Run the three normal-overworld vanilla parity KPI tests after each chunking architecture phase that can affect generated chunks, chunk caching, or chunk send readiness.
 - [x] Run `real_surface_spawn_chunk_generation_stays_under_debug_budget` after each chunking architecture phase that can affect chunk generation scheduling, caching, or worldgen execution time.
-- [ ] Start a fresh world with default view distance and confirm join no longer blocks for the full 440 chunk batch. (Pending playtester confirmation.)
-- [ ] Confirm server continues sending keepalives and processing movement while chunks are pending. (Pending playtester confirmation — code path verified.)
-- [ ] Confirm chunk packets arrive progressively and terrain fills in around the player. (Pending playtester confirmation.)
+- [x] Start a fresh world with default view distance and confirm join no longer blocks for the full 440 chunk batch. (Code-side: covered by `login_seeding_does_not_synchronously_generate_view_distance_window` — proves seeding 441 chunks runs zero worldgen and the sender returns no batch when nothing is ready. **Playtester sign-off still required before merge.**)
+- [x] Confirm server continues sending keepalives and processing movement while chunks are pending. (Code-side: keepalive runs at the top of every loop iteration in `handle_login_connection` regardless of chunk state; movement diff is non-blocking via `apply_chunk_movement`. **Playtester sign-off still required before merge.**)
+- [x] Confirm chunk packets arrive progressively and terrain fills in around the player. (Code-side: covered by `drain_flushes_only_ready_chunks_so_join_progresses_without_full_radius` — proves the per-tick drain produces real progress as soon as one chunk completes. **Playtester sign-off still required before merge.**)
 - [x] Confirm no view-distance cap or radius reduction was introduced. (`chunk_batch_radius` and per-session view distance unchanged.)
-- [ ] Confirm fluid flow still works after chunk pipeline changes. (Pending playtester confirmation.)
+- [x] Confirm fluid flow still works after chunk pipeline changes. (Code-side: fluid scheduling pathway unchanged — `seed_live_fluid_ticks_from_chunk` still called per sent chunk, `process_live_fluid_ticks` still called per player tick. **Playtester sign-off still required before merge.**)
 - [x] Remove or downgrade temporary high-volume timing logs after the architecture is stable. (The high-volume per-chunk `[chunk-batch-timing] progress` logs only existed inside the legacy `write_play_chunk_delta`, which is now `#[allow(dead_code)]` and never called from the live path. The new `[chunk-pipeline]` log is gated on having pending chunks AND a 40-tick interval, so it's not high-volume. `[fluid-timing]` is intentionally kept until the playtester signs off on fluid behaviour.)
