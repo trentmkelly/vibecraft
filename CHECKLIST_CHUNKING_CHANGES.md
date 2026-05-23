@@ -155,6 +155,10 @@ Authoritative Java references:
 - [ ] Build with `RUSTCRAFT_SKIP_LINE_CHECK=1` after each major phase.
 - [ ] Run targeted chunk sender unit tests after implementing sender state.
 - [ ] Run targeted generation scheduler tests after implementing async generation.
+- [ ] Preserve current `normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold` score or improve it; current baseline is `0.995887 (293699/294912)`, and no implementation step may lower this KPI.
+- [ ] Preserve current `normal_overworld_generation_keeps_vanilla_column_profile_parity_above_threshold` score or improve it; current baseline is `0.423177 (325/768)`, and no implementation step may lower this KPI.
+- [ ] Preserve current `normal_overworld_generation_keeps_vanilla_heightmap_parity_above_threshold` score or improve it; current baseline is `0.593750 (456/768)`, and no implementation step may lower this KPI.
+- [ ] Run the three normal-overworld vanilla parity KPI tests after each chunking architecture phase that can affect generated chunks, chunk caching, or chunk send readiness.
 - [ ] Start a fresh world with default view distance and confirm join no longer blocks for the full 440 chunk batch.
 - [ ] Confirm server continues sending keepalives and processing movement while chunks are pending.
 - [ ] Confirm chunk packets arrive progressively and terrain fills in around the player.
