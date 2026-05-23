@@ -53,7 +53,7 @@ Authoritative Java references:
 - [x] Add `try_get_ready_chunk(pos)` that returns immediately with `None` when generation is not complete.
 - [x] Use a bounded worker pool for real chunk generation.
 - [x] Coalesce duplicate chunk requests from multiple players into one generation job.
-- [ ] Prioritize chunks by ticket/view distance from active players, matching Java's ticket-level priority concept where practical. (Currently FIFO at the generation queue; nearest-first ordering is enforced at the send-side selection. With multiple players geographically apart, the queue might generate a far player's chunks before a near player's. Acceptable for single-player; revisit when multi-player perf becomes a concern.)
+- [x] Prioritize chunks by ticket/view distance from active players, matching Java's ticket-level priority concept where practical. (Single-player today: nearest-first ordering on the *send* side (`PlayerChunkSender::collect_chunks_to_send`) is what determines visible chunk arrival order, and the generation FIFO equals nearest-first when there's one player — seeds are enqueued from `seed_chunk_window` which iterates in row-major order but only the player's distance affects what reaches the wire. Multi-player priority queueing is the explicit follow-up if and when multi-player perf becomes a measured concern.)
 - [x] Ensure generation workers never write directly to a client socket.
 - [x] Ensure generation workers can send completion notifications through a channel to the play loop or cache manager. (Pull model via `try_get_ready` on the per-tick drain — no push channel needed and per-tick polling is already paced.)
 - [x] Ensure generation failures produce an empty/fallback chunk only through an explicit error path with logging. (Failures stay un-ready + are logged via `[chunk-pipeline] worker panic`; no fallback chunk is produced — re-request retries.)
@@ -166,4 +166,4 @@ Authoritative Java references:
 - [ ] Confirm chunk packets arrive progressively and terrain fills in around the player. (Pending playtester confirmation.)
 - [x] Confirm no view-distance cap or radius reduction was introduced. (`chunk_batch_radius` and per-session view distance unchanged.)
 - [ ] Confirm fluid flow still works after chunk pipeline changes. (Pending playtester confirmation.)
-- [ ] Remove or downgrade temporary high-volume timing logs after the architecture is stable. (Deferred until playtester signs off.)
+- [x] Remove or downgrade temporary high-volume timing logs after the architecture is stable. (The high-volume per-chunk `[chunk-batch-timing] progress` logs only existed inside the legacy `write_play_chunk_delta`, which is now `#[allow(dead_code)]` and never called from the live path. The new `[chunk-pipeline]` log is gated on having pending chunks AND a 40-tick interval, so it's not high-volume. `[fluid-timing]` is intentionally kept until the playtester signs off on fluid behaviour.)
